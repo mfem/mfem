@@ -5359,10 +5359,10 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       /* Verify correct assignment, make sure that corresponding edges
          within patch point to same knot vector. If not assign the lowest number.
 
-         We bound the while by 3*GetNE() to give enough opportunity to create
-         a correct edge2knot. Note that this is a check and in general the
-         initial assignment is correct. Then the while is performed only once.
-         Only on very tricky meshes it might need corrections.*/
+         We bound the while by GetNE() + 1 as this is probably the most unlucky
+         case. +1 to finish without corrections. Note that this is a check and
+         in general the initial assignment is correct. Then the while is performed
+         only once. Only on very tricky meshes it might need corrections.*/
       int corrections;
       int passes = 0;
       do
@@ -5396,7 +5396,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
          passes++;
       }
-      while (corrections > 0 && passes < 3*GetNE());
+      while (corrections > 0 && passes < GetNE() + 1);
 
       // Check the validity of corrections applied
       if (corrections > 0 )
