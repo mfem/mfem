@@ -76,8 +76,6 @@ public:
 
    /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
-   /** @brief Universal metric magnitude. */
-   virtual double Magnitude() const { return -1.0; }
 };
 
 class TargetConstructor;
@@ -91,8 +89,6 @@ protected:
    Array<double> wt_arr;
 
 public:
-   enum BalanceType {AvgOnInitialMesh, Universal};
-
    virtual void AddQualityMetric(TMOP_QualityMetric *tq, double wt = 1.0)
    {
       tmop_q_arr.Append(tq);
@@ -126,7 +122,7 @@ public:
    /// weights sum to one. Works in parallel when called with a ParGridFunction.
    void ComputeBalancedWeights(const GridFunction &nodes,
                                const TargetConstructor &tc,
-                               BalanceType bal_type, Vector &weights) const;
+                               Vector &weights) const;
 
    /// Changes the weights of the metrics in the combination.
    void SetWeights(const Vector &weights)
@@ -235,7 +231,6 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 1; }
-   virtual double Magnitude() const { return 1.7677; }
 };
 
 /// 2D non-barrier Skew metric.
@@ -318,7 +313,6 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 2; }
-   virtual double Magnitude() const { return 0.7677; }
 };
 
 /// 2D non-barrier shape (S) metric.
@@ -520,8 +514,6 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 77; }
-   virtual double Magnitude() const { return 1.125; }
-
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
