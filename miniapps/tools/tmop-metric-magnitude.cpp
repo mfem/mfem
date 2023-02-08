@@ -20,18 +20,26 @@
 using namespace mfem;
 using namespace std;
 
-void Form2DJac(double perturb_factor, DenseMatrix &J);
-void Form3DJac(double perturb_factor, DenseMatrix &J);
+void Form2DJac(double perturb_v, double perturb_ar, double perturb_s,
+               DenseMatrix &J);
+void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
+               DenseMatrix &J);
 
 int main(int argc, char *argv[])
 {
    int metric_id = 2;
-   double perturb_factor = 2.0;
+   double perturb_v = 1.0;
+   double perturb_ar = 1.0;
+   double perturb_s  = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&metric_id, "-mid", "--metric-id", "Metric id");
-   args.AddOption(&perturb_factor, "-p", "--perturb-factor",
-                  "Perturbation factor w.r.t. the ideal element.");
+   args.AddOption(&perturb_v, "-pv", "--perturb-factor-volume",
+                  "Volume perturbation factor w.r.t. the ideal element.");
+   args.AddOption(&perturb_ar, "-par", "--perturb-factor-aspect-ratio",
+                  "Aspect ratio perturbation factor w.r.t. the ideal element.");
+   args.AddOption(&perturb_s, "-ps", "--perturb-factor-skew",
+                  "Skew perturbation factor w.r.t. the ideal element.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -95,7 +103,8 @@ int main(int argc, char *argv[])
    common::VisualizeMesh(sock1, "localhost", 19916, *mesh, "ideal", 0, 0);
 
    DenseMatrix J;
-   (dim == 2) ? Form2DJac(perturb_factor, J) : Form3DJac(perturb_factor, J);
+   (dim == 2) ? Form2DJac(perturb_v, perturb_ar, perturb_s, J)
+              : Form3DJac(perturb_v, perturb_ar, perturb_s, J);
 
    const int nodes_cnt = x.Size() / dim;
    for (int i = 0; i < nodes_cnt; i++)
@@ -111,28 +120,30 @@ int main(int argc, char *argv[])
    common::VisualizeMesh(sock2, "localhost", 19916, *mesh, "perturbed", 400, 0);
 
    // Target is always identity -> Jpt = Jpr.
-   cout << "Magnitude of metric " << metric_id
-        << " with perturbation " << perturb_factor << ":\n"
-        << metric->EvalW(J) << endl;
+   cout << "Magnitude of metric " << metric_id << ": " << metric->EvalW(J)
+        << "\n  volume perturbation factor: " << perturb_v
+        << "\n  aspect ratio pert factor:   " << perturb_ar
+        << "\n  skew perturbation factor:   " << perturb_s << endl;
 
    delete metric;
    delete mesh;
    return 0;
 }
 
-void Form2DJac(double perturb_factor, DenseMatrix &J)
+void Form2DJac(double perturb_v, double perturb_ar, double perturb_s,
+               DenseMatrix &J)
 {
    // Volume.
-   const double volume = 1.0 * perturb_factor;
+   const double volume = 1.0 * perturb_v;
 
    // Aspect Ratio.
-   const double a_r = 1.0 * perturb_factor;
+   const double a_r = 1.0 * perturb_ar;
    DenseMatrix M_ar(2); M_ar = 0.0;
    M_ar(0, 0) = 1.0 / sqrt(a_r);
    M_ar(1, 1) = sqrt(a_r);
 
    // Skew.
-   const double skew_angle = M_PI / 2.0 / perturb_factor;
+   const double skew_angle = M_PI / 2.0 / perturb_s;
    DenseMatrix M_skew(2);
    M_skew(0, 0) = 1.0; M_skew(0, 1) = cos(skew_angle);
    M_skew(1, 0) = 0.0; M_skew(1, 1) = sin(skew_angle);
@@ -151,19 +162,22 @@ void Form2DJac(double perturb_factor, DenseMatrix &J)
    J *= sqrt(volume / sin(skew_angle));
 }
 
-void Form3DJac(double perturb_factor, DenseMatrix &J)
+void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
+               DenseMatrix &J)
 {
+   MFEM_ABORT("The 3D case is still not complete.");
+
    // Volume.
-   const double volume = 1.0 * perturb_factor;
+   const double volume = 1.0 * perturb_v;
 
    // Aspect Ratio - only in one direction, the others are uniform.
-   const double ar_1 = 1.0 * perturb_factor,
-                ar_2 = 1.0 * perturb_factor;
+   const double ar_1 = 1.0 * perturb_ar,
+                ar_2 = 1.0 * perturb_ar;
 
    // Skew - only in one direction, the others are pi/2.
-   const double skew_angle_12 = M_PI / 2.0 / perturb_factor,
-                skew_angle_13 = M_PI / 2.0 / perturb_factor,
-                skew_angle_23 = M_PI / 2.0 / perturb_factor;
+   const double skew_angle_12 = M_PI / 2.0 / perturb_s,
+                skew_angle_13 = M_PI / 2.0 / perturb_s,
+                skew_angle_23 = M_PI / 2.0 / perturb_s;
    const double sin3 = sin(skew_angle_12)*sin(skew_angle_13)*sin(skew_angle_23);
 
    // Rotation - not done yet.
