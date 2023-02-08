@@ -2312,7 +2312,7 @@ void NURBSExtension::CreateComprehensiveKV()
       }
    }
 
-   MFEM_ASSERT(ConsistentUniqueKVComprehensiveKV(), "Mismatch in KnotVectors");
+   MFEM_VERIFY(ConsistentUniqueKVComprehensiveKV(), "Mismatch in KnotVectors");
 }
 
 void NURBSExtension::UpdateUniqueKV()
@@ -2395,7 +2395,7 @@ void NURBSExtension::UpdateUniqueKV()
       }
    }
 
-   MFEM_ASSERT(ConsistentUniqueKVComprehensiveKV(), "Mismatch in KnotVectors");
+   MFEM_VERIFY(ConsistentUniqueKVComprehensiveKV(), "Mismatch in KnotVectors");
 }
 
 bool NURBSExtension::ConsistentUniqueKVComprehensiveKV()
