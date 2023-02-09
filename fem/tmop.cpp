@@ -3954,37 +3954,38 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
-                                                    int new_x_ordering)
+void TMOP_Integrator::UpdateAfterMeshPositionChange
+   (const Vector &x_new, const FiniteElementSpace &x_fes)
 {
-   if (discr_tc)
+   if (discr_tc) { PA.Jtr_needs_update = true; }
+
+   Ordering::Type x_ordering = x_fes.GetOrdering();
+
+   // Update the finite difference delta if FD are used.
+   if (fdflag) { ComputeFDh(x_new, x_fes); }
+
+   // Update the target constructor if it's a discrete one.
+   DiscreteAdaptTC *d_tc = GetDiscreteAdaptTC();
+   if (d_tc)
    {
-      PA.Jtr_needs_update = true;
+      d_tc->UpdateTargetSpecification(x_new, true, x_ordering);
+      if (fdflag)
+      {
+         d_tc->UpdateGradientTargetSpecification(x_new, dx, true, x_ordering);
+         d_tc->UpdateHessianTargetSpecification(x_new, dx, true, x_ordering);
+      }
    }
+
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf, new_x_ordering);
+      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, x_ordering);
    }
 
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
-      surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
-   }
-}
-
-void TMOP_Integrator::UpdateDiscreteTC(const Vector &x_new, int x_ordering)
-{
-   DiscreteAdaptTC *d_tc = GetDiscreteAdaptTC();
-   if (d_tc)
-   {
-      d_tc->UpdateTargetSpecification(x_new, true, x_ordering);
-      if (GetFDFlag())
-      {
-         d_tc->UpdateGradientTargetSpecification(x_new, dx, true, x_ordering);
-         d_tc->UpdateHessianTargetSpecification(x_new, dx, true, x_ordering);
-      }
+      surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, x_ordering);
    }
 }
 

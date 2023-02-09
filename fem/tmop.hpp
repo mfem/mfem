@@ -1779,10 +1779,7 @@ protected:
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int new_x_ordering = Ordering::byNODES);
-
-   void UpdateDiscreteTC(const Vector &x_new,
-                         int x_ordering = Ordering::byNODES);
+                                      const FiniteElementSpace &x_fes);
 
    void DisableLimiting()
    {
