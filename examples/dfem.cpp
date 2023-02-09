@@ -52,7 +52,7 @@ struct Kernel
    qfunction f;
    std::vector<Argument> args_in;
    std::vector<Argument> args_out;
-   IntegrationRule *ir;
+   const IntegrationRule *ir;
 };
 
 class ParametricFunction
@@ -208,7 +208,7 @@ public:
 
    void AddKernel(std::string kernel_name, qfunction f,
                   std::vector<Argument> args_in,
-                  std::vector<Argument> args_out, IntegrationRule *ir)
+                  std::vector<Argument> args_out, const IntegrationRule *ir)
    {
       // MFEM_ASSERT(input_offsets.size() == args_in.size(),
       //             "expecting " << input_offsets.size() <<
@@ -364,8 +364,12 @@ public:
    }
 
    // x is a "block" vector if multiple spaces are involved
-   void CallKernel(std::string kernel_name, const Vector &x, Vector &y, Mesh &mesh)
+   void CallKernel(std::string kernel_name, const Vector &x, Vector &y, Mesh &mesh,
+                   bool verbose = false)
    {
+      MFEM_ASSERT(kernels.find(kernel_name) != kernels.end(),
+                  "kernel " << kernel_name << " not found");
+
       auto kernel = &kernels[kernel_name];
 
       // some constants
@@ -692,9 +696,10 @@ private:
 
    std::vector<Vector> qp_cache_out;
    std::vector<int> qp_cache_out_sizes;
-
-   bool verbose = true;
 };
+
+void run_problem6();
+void run_problem7();
 
 int main(int argc, char *argv[])
 {
@@ -743,26 +748,29 @@ int main(int argc, char *argv[])
       // enum InputFieldID { ScalarOne };
       // enum OutputFieldID { ScalarOne };
 
+      int Input_ScalarOne = 0,
+          Output_ScalarOne = 0;
+
       auto area = [](double **in, double **out)
       {
-         double *scalar_one = reinterpret_cast<double *>(in[0]);
-         out[0][0] = scalar_one[0];
+         // double *scalar_one = reinterpret_cast<double *>(in[0]);
+         out[0][0] = 1.0;
       };
 
-      // 1^T detJ * w 1
+      // 1^T detJ * w 1 u
 
       // 1^T   Added from output spec value(OutputFieldID::ScalarOne)
       // w     Added automatically, determined by IntegrationRule
       // detJ  Added automatically, determined by the mesh
       // 1     Added from input spec value(InputFieldID::ScalarOne)
-      integral.AddKernel("area", area, {value(0)},
-      {value(0)}, &integration_rule);
+      integral.AddKernel("area", area, {value(Input_ScalarOne)},
+      {value(Output_ScalarOne)}, &integration_rule);
 
       Vector in(1);
       in = 1.0;
       Vector area_out(1);
       area_out = 0.0;
-      integral.CallKernel("area", in, area_out, pmesh);
+      integral.CallKernel("area", in, area_out, pmesh, true);
       // area_out now contains the processor local area
 
       mfem::out << "area = " << area_out(0) << std::endl;
@@ -797,7 +805,7 @@ int main(int argc, char *argv[])
       integral.AddKernel("lf", lf, {value(0)}, {value(0)}, &integration_rule);
 
       u = 0.0;
-      integral.CallKernel("lf", *pmesh.GetNodes(), u, pmesh);
+      integral.CallKernel("lf", *pmesh.GetNodes(), u, pmesh, true);
       u.Print(mfem::out, u.Size());
 
       // Comparison against existing implementation
@@ -864,7 +872,7 @@ int main(int argc, char *argv[])
       in.GetBlock(0) = *pmesh.GetNodes();
       in.GetBlock(1) = u;
 
-      integral.CallKernel("convection", in, u, pmesh);
+      integral.CallKernel("convection", in, u, pmesh, true);
       u.Print(mfem::out, u.Size());
 
       // Comparison against existing implementation
@@ -942,7 +950,7 @@ int main(int argc, char *argv[])
       Vector out(u.Size());
       out = 0.0;
 
-      integral.CallKernel("diffusion", u, out, pmesh);
+      integral.CallKernel("diffusion", u, out, pmesh, true);
       out.Print(mfem::out, out.Size());
 
       // integral.CallKernelDerivative("diffusion", u, out, pmesh, derivative_wrt(0));
@@ -1012,7 +1020,7 @@ int main(int argc, char *argv[])
 
       Vector out(u.Size());
       out = 0.0;
-      integral.CallKernel("vector_diffusion", u, out, pmesh);
+      integral.CallKernel("vector_diffusion", u, out, pmesh, true);
       // out.Print(mfem::out, out.Size());
 
       // integral.CallKernelDerivative("diffusion", u, out, pmesh, derivative_wrt(0));
@@ -1090,8 +1098,8 @@ int main(int argc, char *argv[])
          Eigen::Map<Eigen::Matrix2d> grad_v(out[1]);
          double *q = out[2];
 
-         // v = grad_p; // (v, \nabla p)
-         v *= 0.0;
+         v = grad_p; // (v, \nabla p)
+         // v *= 0.0;
          grad_v = grad_u; // (\nabla v, \nabla u)
          *q = grad_u.diagonal().sum(); // (q, \nabla \cdot u)
       };
@@ -1113,28 +1121,9 @@ int main(int argc, char *argv[])
       BlockVector out(block_offsets);
       out = 0.0;
 
-      integral.CallKernel("stokes", in, out, pmesh);
+      integral.CallKernel("stokes", in, out, pmesh, true);
 
-      // // Comparison against existing implementation
-      // {
-      //    ParBilinearForm K(&h1vfes);
-      //    auto integrator = new VectorDiffusionIntegrator;
-      //    integrator->SetIntRule(&integration_rule);
-      //    K.AddDomainIntegrator(integrator);
-      //    K.Assemble();
-      //    K.Finalize();
-      //    auto Kmat = K.ParallelAssemble();
-
-      //    ParGridFunction u(&h1vfes);
-      //    u.ProjectCoefficient(init_u);
-      //    auto u_tdofs = u.GetTrueDofs();
-      //    Vector y_tdofs(u_tdofs->Size());
-      //    Kmat->Mult(*u_tdofs, y_tdofs);
-      //    u.SetFromTrueDofs(y_tdofs);
-
-      //    u -= out.GetBlock(0);
-      //    printf("||u|| = %.5E\n", u.Norml2());
-      // }
+      // integral.CallKernelDerivative("stokes", in, out, pmesh, derivative_wrt(InputID_Velocity));
 
       u.SetVector(out.GetBlock(0), 0);
       u.Print(mfem::out, u.Size());
@@ -1143,161 +1132,275 @@ int main(int argc, char *argv[])
       ConstantCoefficient zero(0.0);
       double p_err = p.ComputeL2Error(zero);
       printf("||div(u) - div(u)_ex|| = %.5E\n", p_err);
-
-      // // Comparison against existing implementation
-      // {
-      //    ParBilinearForm K(&h1vfes);
-      //    auto integrator = new VectorDiffusionIntegrator;
-      //    integrator->SetIntRule(&integration_rule);
-      //    K.AddDomainIntegrator(integrator);
-      //    K.Assemble();
-      //    K.Finalize();
-      //    auto Kmat = K.ParallelAssemble();
-
-      //    ParGridFunction u(&h1vfes);
-      //    u.ProjectCoefficient(init_u);
-      //    auto u_tdofs = u.GetTrueDofs();
-      //    Vector y_tdofs(u_tdofs->Size());
-      //    Kmat->Mult(*u_tdofs, y_tdofs);
-      //    u.SetFromTrueDofs(y_tdofs);
-      //    u.Print(mfem::out, u.Size());
-      // }
+   }
+   else if (problem_type == 6)
+   {
+      run_problem6();
+   }
+   else if (problem_type == 7)
+   {
+      run_problem7();
    }
 
    return 0;
 }
 
-// template <typename T, bool residual, bool gradient>
-// void laplacian_wrapper(double **in, double **out)
-// {
-//    auto laplacian = [](T **in, T **out)
-//    {
-//       constexpr int dim = 2;
+class PLaplacianOperator : public Operator
+{
+public:
+   PLaplacianOperator(ParFiniteElementSpace &fes, ParGridFunction &u) :
+      Operator(fes.GetTrueVSize()),
+      mesh(fes.GetParMesh()),
+      fes(fes),
+      u(u),
+      integration_rule(const_cast<IntegrationRule &>(IntRules.Get(
+                                                        Element::QUADRILATERAL,
+                                                        2 * mesh->GetNodes()->FESpace()->GetOrder(0) + 1)))
+   {
+      integral = new Integral({&u}, {&u});
 
-//       T u;
-//       u = *in[0];
+      int InputID_Potential = 0,
+          OutputID_Potential = 0;
 
-//       T grad_u[dim];
-//       T x[dim];
-//       T r[dim];
+      // A_Q
+      auto plap = [&](double **in, double **out)
+      {
+         int p = 3;
+         Eigen::Map<Eigen::Vector2d> grad_u(in[0]);
+         Eigen::Map<Eigen::Vector2d> grad_v(out[0]);
+         grad_v = std::pow(grad_u.norm(), p - 2) * grad_u;
+      };
 
-//       for (int d = 0; d < dim; d++)
-//       {
-//          grad_u[d] = in[1][d];
-//          x[d] = in[2][d];
-//       }
+      integral->AddKernel("plap", plap,
+      {grad(InputID_Potential)},
+      {grad(OutputID_Potential)},
+      &integration_rule);
 
-//       auto kappa = [](T &u) { return 1.0 + u * u; };
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-//       for (int d = 0; d < dim; d++)
-//       {
-//          r[d] = kappa(u) * grad_u[d];
-//       }
+      ConstantCoefficient one(1.0);
+      u.ProjectBdrCoefficient(one, ess_bdr);
 
-//       for (int d = 0; d < dim; d++)
-//       {
-//          *out[0] = r[d].value;
-//       }
-//    };
+      x_lvec.SetSize(fes.GetProlongationMatrix()->Height());
+      x_lvec = 0.0;
+      y_lvec.SetSize(fes.GetProlongationMatrix()->Height());
+   }
 
-//    constexpr if (residual) {}
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      // T -> L
+      fes.GetProlongationMatrix()->Mult(x, x_lvec);
 
-//    constexpr if (gradient) {}
-// }
+      // L -> Q <-> Q -> L
+      y_lvec = 0.0;
+      integral->CallKernel("plap", x_lvec, y_lvec, *mesh);
 
+      // L -> T
+      fes.GetProlongationMatrix()->MultTranspose(y_lvec, y);
 
-// Dual number use example. Scalar Laplacian, but the coefficient is
-// nonlinearly dependent on the potential.
-// {
-//    Integral integral({&u_fes, pmesh.GetNodes()->FESpace()}, {&u_fes});
+      y.SetSubVector(ess_tdof_list, 0.0);
+   }
 
-//    enum InputFieldID { Potential, MeshNodes };
-//    enum OutputFieldID { Potential };
+   Operator &GetGradient(const Vector &x) const override
+   {
+      return const_cast<PLaplacianOperator &>(*this);
+   }
 
-//    integral.AddKernel("laplacian", laplacian_wrapper<double, true, false>,
-//    {
-//       value(InputFieldID::Potential),
-//       grad(InputFieldID::Potential),
-//       value(InputFieldID::MeshNodes)
-//    },
-//    {grad(OutputFieldID::Potential)}, QuadratureRule{});
+   ~PLaplacianOperator()
+   {
+      delete integral;
+   }
 
-//    Vector u(u_fes.GetTrueVSize()), r(u_fes.GetTrueVSize());
-//    integral.CallKernel("laplacian", u, r);
-// }
+   ParMesh *mesh;
+   ParFiniteElementSpace &fes;
+   ParGridFunction &u;
+   IntegrationRule &integration_rule;
+   Integral *integral;
+   Array<int> ess_tdof_list;
+   mutable Vector x_lvec, y_lvec;
+};
 
-// Laplacian (n-dimensional, location dependent coefficient)
-// {
-//    Integral integral({&u_fes, pmesh.GetNodes()->FESpace()}, {&u_fes});
+void run_problem6()
+{
+   const int dim = 2;
 
-//    enum InputFieldID { Potential, MeshNodes };
-//    enum OutputFieldID { Potential };
+   Mesh mesh = Mesh::MakeCartesian2D(8, 8, Element::QUADRILATERAL, false,
+                                     2.0*M_PI,
+                                     2.0*M_PI);
+   mesh.EnsureNodes();
 
-//    auto laplacian = [](double **in, double **out)
-//    {
-//       DenseMatrix grad_u(in[0], vdim, dim);
-//       Vector x(in[1], dim);
-//       DenseMatrix r(out[0], vdim, dim);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
-//       auto coefficient = [](Vector &coordinates)
-//       {
-//          return coordinates(0) * coordinates(1);
-//       };
+   IntegrationRule integration_rule = IntRules.Get(Element::QUADRILATERAL,
+                                                   2 * pmesh.GetNodes()->FESpace()->GetOrder(0) + 1);
 
-//       grad_u *= coefficient(x);
-//       r = grad_u;
-//    };
+   H1_FECollection h1fec(2);
+   ParFiniteElementSpace h1fes(&pmesh, &h1fec);
 
-//    integral.AddKernel(
-//       "laplacian", laplacian,
-//    {grad(InputFieldID::Potential), value(InputFieldID::MeshNodes)},
-//    {grad(OutputFieldID::Potential)}, QuadratureRule{});
+   ParGridFunction u(&h1fes);
+   u = 0.0;
 
-//    Vector u(u_fes.GetTrueVSize() + pmesh.GetNodes()->FESpace().GetTrueVSize()),
-//           r(u_fes.GetTrueVSize());
-//    integral.CallKernel("laplacian", u, r);
-// }
+   PLaplacianOperator plap(h1fes, u);
 
-// {
-//    // Mockup starts here
-//    Integral integral({&u_fes, &p_fes, &k_fes, &pwcoeff}, {&u_fes});
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.iterative_mode = false;
+   cg.SetRelTol(1e-8);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(2);
 
-//    // $user can create a helper to remind himself of indices
-//    enum FieldID { Velocity, Pressure, ParameterK, Quadrature };
+   NewtonSolver newton(MPI_COMM_WORLD);
+   newton.SetPreconditioner(cg);
+   newton.SetOperator(plap);
+   newton.SetRelTol(1e-8);
+   newton.SetMaxIter(1000);
+   newton.SetPrintLevel(1);
 
-//    // Here is a user implementation, e.g. $user knows enough information to
-//    // handle the passed data. We only have to document consistent data layout.
-//    // We could make this more convenient if we introduce a new datatype but I
-//    // leave this open for now.
+   Vector zero;
+   Vector *u_tdof = u.GetTrueDofs();
+   newton.Mult(zero, *u_tdof);
+}
 
-//    auto r0_f1 = [](double **in, double **out)
-//    {
-//       struct layout
-//       {
-//          double v[2];
-//          double dvdx[2][2];
-//          // ComplicatedMaterial mat; ?
-//       };
-//       layout *d = reinterpret_cast<layout *>(in);
+class ElasticityOperator : public Operator
+{
+public:
+   ElasticityOperator(ParFiniteElementSpace &fes, ParGridFunction &u) :
+      Operator(fes.GetTrueVSize()),
+      mesh(fes.GetParMesh()),
+      fes(fes),
+      u(u),
+      integration_rule(&IntRules.Get(Element::QUADRILATERAL,
+                                     2 * mesh->GetNodes()->FESpace()->GetOrder(0) + 1))
+   {
+      MFEM_ASSERT(integration_rule != nullptr, "IntegrationRule failed");
 
-//       out[0][0] = d->v[0] + d->v[1];
+      integral = new Integral({&u}, {&u});
 
-//       /* out[1] = ... */
+      int InputID_Displacement = 0,
+          OutputID_Displacement = 0;
 
-//       std::cout << "hello" << std::endl;
-//    };
+      // A_Q
+      // auto elasticity = [](double *grad_u, double *grad_v)
+      // auto elasticity = [](Input(double *) grad_u, Output(double *) grad_v)
+      // auto elasticity = [](Inputs, double *grad_u, Outputs, double *grad_v)
+      auto elasticity = [](double **in, double **out)
+      {
+         constexpr int dim = 2;
+         auto I = Eigen::Matrix2d::Identity(dim, dim);
 
-//    // This is our gateway to describe what r0_f1 needs. e.g. there might be
-//    // auxiliary functions that have to be interpolated, but some should be
-//    // ignored perhaps.
-//    integral.AddKernel("velocity_residual", r0_f1,
-//    {value(FieldID::Velocity), grad(FieldID::Velocity)},
-//    {value(FieldID::Velocity), grad(FieldID::Velocity)},
-//    QuadratureRule{});
+         double lambda = 100.0, mu = 50.0;
 
-//    Vector x_tvec(u_fes.GetTrueVSize() + p_fes.GetTrueVSize() +
-//                  k_fes.GetTrueVSize() + pwcoeff.lsize);
-//    Vector r_tvec(u_fes.GetTrueVSize());
+         Eigen::Map<Eigen::Matrix2d> grad_u(in[0]);
+         Eigen::Map<Eigen::Matrix2d> grad_v(out[0]);
 
-//    integral.CallKernel("velocity_residual", x_tvec, r_tvec);
-// }
+         // MatrixXd
+
+         auto epsilon = 0.5 * (grad_u + grad_u.transpose());
+         auto sigma = lambda * epsilon.trace() * I + 2.0 * mu * epsilon;
+         grad_v = sigma; // (grad(v), sigma)
+      };
+
+      integral->AddKernel("elasticity", elasticity,
+      {grad(InputID_Displacement)},
+      {grad(OutputID_Displacement)},
+      integration_rule);
+
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+
+      ess_bdr = 0;
+      ess_bdr[1] = 1;
+      VectorFunctionCoefficient bdr(mesh->Dimension(), [](const Vector &x,
+                                                          Vector &u)
+      {
+         u(0) = 0.0;
+         u(1) = -1.0;
+      });
+      u.ProjectBdrCoefficient(bdr, ess_bdr);
+
+      ess_bdr[3] = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+      x_lvec.SetSize(fes.GetProlongationMatrix()->Height());
+      x_lvec = 0.0;
+      y_lvec.SetSize(fes.GetProlongationMatrix()->Height());
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      // T -> L
+      fes.GetProlongationMatrix()->Mult(x, x_lvec);
+
+      // L -> Q <-> Q -> L
+      y_lvec = 0.0;
+      integral->CallKernel("elasticity", x_lvec, y_lvec, *mesh);
+
+      // L -> T
+      fes.GetProlongationMatrix()->MultTranspose(y_lvec, y);
+
+      y.SetSubVector(ess_tdof_list, 0.0);
+   }
+
+   Operator &GetGradient(const Vector &x) const override
+   {
+      return const_cast<ElasticityOperator &>(*this);
+   }
+
+   ~ElasticityOperator()
+   {
+      delete integral;
+   }
+
+   ParMesh *mesh;
+   ParFiniteElementSpace &fes;
+   ParGridFunction &u;
+   const IntegrationRule *integration_rule;
+   Integral *integral;
+   Array<int> ess_tdof_list;
+   mutable Vector x_lvec, y_lvec;
+};
+
+void run_problem7()
+{
+   const int dim = 2;
+
+   Mesh mesh = Mesh::MakeCartesian2D(6, 2, Element::QUADRILATERAL, false,
+                                     6.0, 1.0);
+   mesh.EnsureNodes();
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   H1_FECollection h1fec(2);
+   ParFiniteElementSpace h1fes(&pmesh, &h1fec, dim);
+
+   ParGridFunction u(&h1fes);
+   u = 0.0;
+
+   ElasticityOperator dop(h1fes, u);
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.iterative_mode = false;
+   cg.SetRelTol(1e-8);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(2);
+
+   NewtonSolver newton(MPI_COMM_WORLD);
+   newton.SetPreconditioner(cg);
+   newton.SetOperator(dop);
+   newton.SetRelTol(1e-8);
+   newton.SetMaxIter(1000);
+   newton.SetPrintLevel(1);
+
+   Vector zero;
+   Vector *u_tdof = u.GetTrueDofs();
+   newton.Mult(zero, *u_tdof);
+
+   u.SetFromTrueDofs(*u_tdof);
+
+   char vishost[] = "128.15.198.77";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+   // sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << pmesh << u << std::flush;
+}
