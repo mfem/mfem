@@ -1781,6 +1781,9 @@ protected:
    void UpdateAfterMeshPositionChange(const Vector &new_x,
                                       int new_x_ordering = Ordering::byNODES);
 
+   void UpdateDiscreteTC(const Vector &x_new,
+                         int x_ordering = Ordering::byNODES);
+
    void DisableLimiting()
    {
       lim_nodes0 = NULL; lim_coeff = NULL; lim_dist = NULL;

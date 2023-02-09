@@ -3974,6 +3974,20 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    }
 }
 
+void TMOP_Integrator::UpdateDiscreteTC(const Vector &x_new, int x_ordering)
+{
+   DiscreteAdaptTC *d_tc = GetDiscreteAdaptTC();
+   if (d_tc)
+   {
+      d_tc->UpdateTargetSpecification(x_new, true, x_ordering);
+      if (GetFDFlag())
+      {
+         d_tc->UpdateGradientTargetSpecification(x_new, dx, true, x_ordering);
+         d_tc->UpdateHessianTargetSpecification(x_new, dx, true, x_ordering);
+      }
+   }
+}
+
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    if (!fdflag) { return; }

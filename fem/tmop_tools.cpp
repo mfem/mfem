@@ -724,7 +724,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
             }
-            UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
+            ti->UpdateDiscreteTC(x_loc, pfesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -738,7 +738,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                {
                   ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
                }
-               UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
+               ati[j]->UpdateDiscreteTC(x_loc, pfesc->GetOrdering());
             }
          }
       }
@@ -769,7 +769,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
             }
-            UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
+            ti->UpdateDiscreteTC(x_loc, fesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -783,7 +783,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                {
                   ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
                }
-               UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
+               ati[j]->UpdateDiscreteTC(x_loc, fesc->GetOrdering());
             }
          }
       }
@@ -822,24 +822,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
-   }
-}
-
-void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
-                                        const Vector &x_new,
-                                        int x_ordering) const
-{
-   const bool update_flag = true;
-   DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
-   if (discrtc)
-   {
-      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
-      if (ti.GetFDFlag())
-      {
-         double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
-      }
    }
 }
 
