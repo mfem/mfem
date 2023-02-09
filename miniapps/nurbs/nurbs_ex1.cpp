@@ -127,44 +127,6 @@ public:
 
 };
 
-void RefineNURBSFromFile(std::string ref_file, Mesh *mesh)
-{
-   if (!mesh->NURBSext) { return; }
-
-   int nkv;
-   ifstream input(ref_file);
-   input >> nkv;
-
-
-   // Check if number of knotvectors in refinement file and mesh match
-   if ( nkv != mesh->NURBSext->GetNKV())
-   {
-
-      cout <<nkv<<endl;
-      cout <<mesh->NURBSext->GetNKV()<<endl;
-      MFEM_ABORT("Refine file does not have the correct number of knot vectors");
-   }
-
-   // Read knotvectors from file
-   Array<Vector *> knotVec(nkv);
-   for (int kv = 0; kv < nkv; kv++)
-   {
-      knotVec[kv] = new Vector ();
-      knotVec[kv]-> Load(input);
-   }
-   input.close();
-
-   // Insert knots
-   mesh->KnotInsert(knotVec);
-
-
-   // Delete knots
-   for (int kv = 0; kv < nkv; kv++)
-   {
-      delete knotVec[kv];
-   }
-}
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -238,8 +200,7 @@ int main(int argc, char *argv[])
       // Mesh refinement as defined in refinement file
       if (mesh->NURBSext && (strlen(ref_file) != 0))
       {
-         cout << "Refining nurbs from file" << endl;
-         RefineNURBSFromFile(ref_file, mesh);
+         mesh->RefineNURBSFromFile(ref_file);
       }
 
       if (ref_levels < 0)

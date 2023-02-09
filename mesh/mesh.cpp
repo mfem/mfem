@@ -5053,6 +5053,42 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    }
    return v2v;
 }
+void Mesh::RefineNURBSFromFile(std::string ref_file)
+{
+   MFEM_VERIFY(NURBSext,"Mesh::RefineNURBSFromFile: Not a NURBS mesh!");
+   mfem::out<<"Refining NURBS from refinement file: "<<ref_file<<endl;
+
+   int nkv;
+   ifstream input(ref_file);
+   input >> nkv;
+
+   // Check if the number of knot vectors in the refinement file and mesh match
+   if ( nkv != NURBSext->GetNKV())
+   {
+      mfem::out<<endl;
+      mfem::out<<"Knot vectors in ref_file: "<<nkv<<endl;
+      mfem::out<<"Knot vectors in NURBSExt: "<<NURBSext->GetNKV()<<endl;
+      MFEM_ABORT("Refine file does not have the correct number of knot vectors");
+   }
+
+   // Read knot vectors from file
+   Array<Vector *> knotVec(nkv);
+   for (int kv = 0; kv < nkv; kv++)
+   {
+      knotVec[kv] = new Vector();
+      knotVec[kv]-> Load(input);
+   }
+   input.close();
+
+   // Insert knots
+   KnotInsert(knotVec);
+
+   // Delete knots
+   for (int kv = 0; kv < nkv; kv++)
+   {
+      delete knotVec[kv];
+   }
+}
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
 {
