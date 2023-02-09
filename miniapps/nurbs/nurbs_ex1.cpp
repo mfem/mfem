@@ -193,9 +193,9 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
+   //    'ref_levels' of uniform refinement and knot insertion of knots defined
+   //    in a refinement file. We choose 'ref_levels' to be the largest number
+   //    that gives a final mesh with no more than 50,000 elements.
    {
       // Mesh refinement as defined in refinement file
       if (mesh->NURBSext && (strlen(ref_file) != 0))
