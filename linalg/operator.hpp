@@ -405,8 +405,8 @@ public:
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
 
-       When f(@a x + @a dt @a k, t) is nonlinear a standard way of solving f(@a
-       x + @a dt @a k, t) - k = 0 is with the Newton method
+       For example when f(@a x + @a dt @a k, t) is nonlinear, a standard way of
+       solving f(@a x + @a dt @a k, t) - k = 0 is with the Newton method
 
        \f$ k^{n+1} = k^{n} - \left[ \frac{\partial f}{\partial x}(\tilde{x}^n,
        t) \, \Delta t - I \right]^{-1} \left( f(\tilde{x}^n, t) - k^n \left),
