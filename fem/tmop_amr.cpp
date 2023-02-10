@@ -583,6 +583,7 @@ void TMOPHRSolver::Mult()
 {
    Vector b(0);
    int myid = 0;
+   MFEM_CONTRACT_VAR(myid);
    if (serial)
    {
       tmopns->SetOperator(*nlf);
