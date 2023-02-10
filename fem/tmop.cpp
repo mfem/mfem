@@ -3954,8 +3954,9 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::UpdateAfterMeshPositionChange
-   (const Vector &x_new, const FiniteElementSpace &x_fes)
+void TMOP_Integrator::
+UpdateAfterMeshPositionChange(const Vector &x_new,
+                              const FiniteElementSpace &x_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
