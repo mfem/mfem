@@ -293,7 +293,7 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    if (ess_tdof_list && ess_tdof_list->Size() > 0)
    {
       auto I = ess_tdof_list->Read();
-      mfem::forall(ess_tdof_list->Size(),  [=] MFEM_HOST_DEVICE (int i)
+      mfem::forall(ess_tdof_list->Size(), [=] MFEM_HOST_DEVICE (int i)
       {
          DI[I[i]] = delta;
       });

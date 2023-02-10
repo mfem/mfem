@@ -152,7 +152,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
    auto I = G_local.WriteI();
-   mfem::forall(nedge_dof+1,  [=] MFEM_HOST_DEVICE (int i) { I[i] = 2*i; });
+   mfem::forall(nedge_dof+1, [=] MFEM_HOST_DEVICE (int i) { I[i] = 2*i; });
 
    // edge2vertex is a mapping of size (2, nedge_per_el), such that with a macro
    // element, edge i (in lexicographic ordering) has vertices (also in

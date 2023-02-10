@@ -161,7 +161,7 @@ Vector &Vector::operator=(double value)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = Write(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = value;} );
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = value; });
    return *this;
 }
 

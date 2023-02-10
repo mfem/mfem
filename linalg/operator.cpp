@@ -632,7 +632,7 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
    const int test_csz = test_constraints.Size();
    auto test_idx = test_constraints.Read();
    auto d_b = b.ReadWrite();
-   mfem::forall(test_csz,  [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(test_csz, [=] MFEM_HOST_DEVICE (int i)
    {
       d_b[test_idx[i]] = 0.0;
    });
@@ -653,7 +653,7 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
       auto idx = trial_constraints.Read();
       // Use read+write access - we are modifying sub-vector of w
       auto d_w = w.ReadWrite();
-      mfem::forall(trial_csz,  [=] MFEM_HOST_DEVICE (int i)
+      mfem::forall(trial_csz, [=] MFEM_HOST_DEVICE (int i)
       {
          d_w[idx[i]] = 0.0;
       });
@@ -665,7 +665,7 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
    {
       auto idx = test_constraints.Read();
       auto d_y = y.ReadWrite();
-      mfem::forall(test_csz,  [=] MFEM_HOST_DEVICE (int i)
+      mfem::forall(test_csz, [=] MFEM_HOST_DEVICE (int i)
       {
          d_y[idx[i]] = 0.0;
       });
@@ -688,7 +688,7 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
       auto idx = test_constraints.Read();
       // Use read+write access - we are modifying sub-vector of z
       auto d_z = z.ReadWrite();
-      mfem::forall(test_csz,  [=] MFEM_HOST_DEVICE (int i)
+      mfem::forall(test_csz, [=] MFEM_HOST_DEVICE (int i)
       {
          d_z[idx[i]] = 0.0;
       });
@@ -700,7 +700,7 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    {
       auto idx = trial_constraints.Read();
       auto d_y = y.ReadWrite();
-      mfem::forall(trial_csz,  [=] MFEM_HOST_DEVICE (int i)
+      mfem::forall(trial_csz, [=] MFEM_HOST_DEVICE (int i)
       {
          d_y[idx[i]] = 0.0;
       });

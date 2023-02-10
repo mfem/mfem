@@ -471,7 +471,7 @@ public:
          auto d_Xi = Xi.Read();
          auto d_nodes  = S.fes->GetMesh()->GetNodes()->Write();
          const int ndof = S.fes->GetNDofs();
-         mfem::forall(ndof,  [=] MFEM_HOST_DEVICE (int i)
+         mfem::forall(ndof, [=] MFEM_HOST_DEVICE (int i)
          {
             d_nodes[c*ndof + i] = d_Xi[i];
          });
@@ -482,7 +482,7 @@ public:
          auto d_Xi = Xi.Write();
          const int ndof = S.fes->GetNDofs();
          auto d_nodes  = S.fes->GetMesh()->GetNodes()->Read();
-         mfem::forall(ndof,  [=] MFEM_HOST_DEVICE (int i)
+         mfem::forall(ndof, [=] MFEM_HOST_DEVICE (int i)
          {
             d_Xi[i] = d_nodes[c*ndof + i];
          });
