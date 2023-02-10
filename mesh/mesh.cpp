@@ -166,7 +166,7 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
          if (use_boundary)
          {
             GetBdrElementFace(i, &fn, &fo);
-            RefG = GlobGeometryRefiner.Refine(GetFaceBaseGeometry(fn), ref);
+            RefG = GlobGeometryRefiner.Refine(GetFaceGeometry(fn), ref);
             Tr = GetFaceElementTransformations(fn, 5);
             eir.SetSize(RefG->RefPts.GetNPoints());
             Tr->Loc1.Transform(RefG->RefPts, eir);
@@ -300,7 +300,7 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &os)
       num_faces_by_geom = 0;
       for (int i = 0; i < GetNFaces(); i++)
       {
-         num_faces_by_geom[GetFaceBaseGeometry(i)]++;
+         num_faces_by_geom[GetFaceGeometry(i)]++;
       }
 
       os << '\n'
@@ -540,7 +540,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
       {
          FaceInfo &face_info = faces_info[FaceNo];
 
-         Geometry::Type face_geom = GetFaceGeometryType(FaceNo);
+         Geometry::Type face_geom = GetFaceGeometry(FaceNo);
          Element::Type  face_type = GetFaceElementType(FaceNo);
 
          GetLocalFaceTransformation(face_type,
@@ -1001,7 +1001,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    }
    else
    {
-      FaceElemTr.SetGeometryType(GetFaceGeometryType(FaceNo));
+      FaceElemTr.SetGeometryType(GetFaceGeometry(FaceNo));
    }
 
    // setup Loc1 & Loc2
@@ -1410,7 +1410,7 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
    *NCFace = faces_info[Face].NCFace;
 }
 
-Geometry::Type Mesh::GetFaceGeometryType(int Face) const
+Geometry::Type Mesh::GetFaceGeometry(int Face) const
 {
    switch (Dim)
    {
@@ -1625,6 +1625,13 @@ int Mesh::AddVertex(const double *coords)
    CheckEnlarge(vertices, NumOfVertices);
    vertices[NumOfVertices].SetCoords(spaceDim, coords);
    return NumOfVertices++;
+}
+
+int Mesh::AddVertex(const Vector &coords)
+{
+   MFEM_ASSERT(coords.Size() >= spaceDim,
+               "invalid 'coords' size: " << coords.Size());
+   return AddVertex(coords.GetData());
 }
 
 void Mesh::AddVertexParents(int i, int p1, int p2)
@@ -7025,6 +7032,11 @@ int *Mesh::CartesianPartitioning(int nxyz[])
    return partitioning;
 }
 
+void FindPartitioningComponents(Table &elem_elem,
+                                const Array<int> &partitioning,
+                                Array<int> &component,
+                                Array<int> &num_comp);
+
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
 #ifdef MFEM_USE_METIS
@@ -7106,6 +7118,15 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 #else
       METIS_SetDefaultOptions(options);
       options[METIS_OPTION_CONTIG] = 1; // set METIS_OPTION_CONTIG
+      // If the mesh is disconnected, disable METIS_OPTION_CONTIG.
+      {
+         Array<int> part(partitioning, NumOfElements);
+         part = 0; // single part for the whole mesh
+         Array<int> component; // size will be set to num. elem.
+         Array<int> num_comp;  // size will be set to num. parts (1)
+         FindPartitioningComponents(*el_to_el, part, component, num_comp);
+         if (num_comp[0] > 1) { options[METIS_OPTION_CONTIG] = 0; }
+      }
 #endif
 
       // Sort the neighbor lists
@@ -9131,8 +9152,9 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 double Mesh::AggregateError(const Array<double> &elem_error,
                             const int *fine, int nfine, int op)
 {
-   double error = 0.0;
-   for (int i = 0; i < nfine; i++)
+   double error = elem_error[fine[0]];
+
+   for (int i = 1; i < nfine; i++)
    {
       MFEM_VERIFY(fine[i] < elem_error.Size(), "");
 
@@ -10459,7 +10481,7 @@ void Mesh::PrintVTU(std::string fname,
                     bool bdr)
 {
    int ref = (high_order_output && Nodes)
-             ? Nodes->FESpace()->GetElementOrder(0) : 1;
+             ? Nodes->FESpace()->GetMaxElementOrder() : 1;
 
    fname = fname + ".vtu";
    std::fstream os(fname.c_str(),std::ios::out);
@@ -10504,8 +10526,8 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
    };
 
    int ne = bdr_elements ? GetNBE() : GetNE();
-   // count the points, cells, size
-   int np = 0, nc_ref = 0, size = 0;
+   // count the number of points and cells
+   int np = 0, nc_ref = 0;
    for (int i = 0; i < ne; i++)
    {
       Geometry::Type geom = get_geom(i);
@@ -10513,7 +10535,6 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
       nc_ref += RefG->RefGeoms.Size() / nv;
-      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
    os << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
@@ -11636,6 +11657,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
       xnew.ProjectCoefficient(f_pert);
       *Nodes = xnew;
    }
+   NodesUpdated();
 }
 
 void Mesh::Transform(VectorCoefficient &deformation)
@@ -11660,6 +11682,7 @@ void Mesh::Transform(VectorCoefficient &deformation)
       xnew.ProjectCoefficient(deformation);
       *Nodes = xnew;
    }
+   NodesUpdated();
 }
 
 void Mesh::RemoveUnusedVertices()

@@ -77,9 +77,6 @@
 // Internal MFEM option: enable group/batch allocation for some small objects.
 #cmakedefine MFEM_USE_MEMALLOC
 
-// Enable MFEM functionality based on the Mesquite library.
-#cmakedefine MFEM_USE_MESQUITE
-
 // Enable MFEM functionality based on the SuiteSparse library.
 #cmakedefine MFEM_USE_SUITESPARSE
 

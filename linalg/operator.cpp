@@ -48,6 +48,69 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    }
 }
 
+void Operator::AddMult(const Vector &x, Vector &y, const double a) const
+{
+   mfem::Vector z(y.Size());
+   Mult(x, z);
+   y.Add(a, z);
+}
+
+void Operator::AddMultTranspose(const Vector &x, Vector &y,
+                                const double a) const
+{
+   mfem::Vector z(y.Size());
+   MultTranspose(x, z);
+   y.Add(a, z);
+}
+
+void Operator::ArrayMult(const Array<const Vector *> &X,
+                         Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::Mult!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::Mult!");
+      Mult(*X[i], *Y[i]);
+   }
+}
+
+void Operator::ArrayMultTranspose(const Array<const Vector *> &X,
+                                  Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::MultTranspose!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::MultTranspose!");
+      MultTranspose(*X[i], *Y[i]);
+   }
+}
+
+void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
+                            const double a) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::AddMult!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMult!");
+      AddMult(*X[i], *Y[i], a);
+   }
+}
+
+void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
+                                     Array<Vector *> &Y, const double a) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::AddMultTranspose!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMultTranspose!");
+      AddMultTranspose(*X[i], *Y[i], a);
+   }
+}
+
 void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Vector &x, Vector &b,
                                 Operator* &Aout, Vector &X, Vector &B,
