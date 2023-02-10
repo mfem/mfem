@@ -6181,7 +6181,7 @@ void Mesh::GetElementFaces(int i, Array<int> &el_faces, Array<int> &ori) const
    }
 }
 
-void Mesh::FindFaceNeighbors(const int elem, std::set<int> & nghb) const
+Array<int> Mesh::FindFaceNeighbors(const int elem) const
 {
    if (face_to_elem == NULL)
    {
@@ -6192,15 +6192,21 @@ void Mesh::FindFaceNeighbors(const int elem, std::set<int> & nghb) const
    Array<int> ori;
    GetElementFaces(elem, elem_faces, ori);
 
+   Array<int> nghb;
    for (auto f : elem_faces)
    {
       Array<int> row;
       face_to_elem->GetRow(f, row);
       for (auto r : row)
       {
-         nghb.insert(r);
+         nghb.Append(r);
       }
    }
+
+   nghb.Sort();
+   nghb.Unique();
+
+   return nghb;
 }
 
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const

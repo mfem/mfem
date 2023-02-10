@@ -27,7 +27,6 @@
 #include "../general/adios2stream.hpp"
 #endif
 #include <iostream>
-#include <set>
 
 namespace mfem
 {
@@ -1188,9 +1187,9 @@ public:
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
-   /** @brief Returns the elements sharing a face with element @a elem,
-       including @a elem. */
-   void FindFaceNeighbors(const int elem, std::set<int> & nghb) const;
+   /** @brief Returns the sorted, unique indices of elements sharing a face with
+       element @a elem, including @a elem. */
+   Array<int> FindFaceNeighbors(const int elem) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *f, int *o) const;
