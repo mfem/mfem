@@ -55,6 +55,8 @@ Miscellaneous
   This parameter can still be explicitly overridden with
   VisItDataCollection::SetPadDigitsRank().
 
+- Adds mfem::forall functions to replace MFEM_FORALL macros.
+
 API changes
 -----------
 - The implicit cast methods of class Vector to 'double *' and 'const double *'
