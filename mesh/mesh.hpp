@@ -224,9 +224,13 @@ protected:
    Array<int> be_to_edge;  // for 2D
    Table *bel_to_edge;     // for 3D
    Array<int> be_to_face;
-   mutable Table *face_to_elem;
-   mutable Table *face_edge;
-   mutable Table *edge_vertex;
+
+   // Note that the following tables are owned by this class and should not be
+   // deleted by the caller. Of these three tables, only face_edge and
+   // edge_vertex are returned by access functions.
+   mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
+   mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
