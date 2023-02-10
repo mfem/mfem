@@ -3291,8 +3291,6 @@ void SparseMatrix::Print(std::ostream & os, int width_) const
 
 void SparseMatrix::PrintMatlab(std::ostream & os) const
 {
-   MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
-
    os << "% size " << height << " " << width << "\n";
    os << "% Non Zeros " << NumNonZeroElems() << "\n";
 
@@ -3301,15 +3299,29 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
    os.setf(ios::scientific);
    std::streamsize old_prec = os.precision(14);
 
-   // HostRead forces synchronization
-   HostReadI();
-   HostReadJ();
-   HostReadData();
-   for (i = 0; i < height; i++)
+   if (A == NULL)
    {
-      for (j = I[i]; j < I[i+1]; j++)
+      RowNode *nd;
+      for (i = 0; i < height; i++)
       {
-         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
+         {
+            os << i+1 << " " << nd->Column+1 << " " << nd->Value << '\n';
+         }
+      }
+   }
+   else
+   {
+      // HostRead forces synchronization
+      HostReadI();
+      HostReadJ();
+      HostReadData();
+      for (i = 0; i < height; i++)
+      {
+         for (j = I[i]; j < I[i+1]; j++)
+         {
+            os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         }
       }
    }
    // Write a zero entry at (m,n) to make sure MATLAB doesn't shrink the matrix
@@ -3320,8 +3332,6 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
 
 void SparseMatrix::PrintMM(std::ostream & os) const
 {
-   MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
-
    int i, j;
    ios::fmtflags old_fmt = os.flags();
    os.setf(ios::scientific);
@@ -3332,15 +3342,29 @@ void SparseMatrix::PrintMM(std::ostream & os) const
 
    os << height << " " << width << " " << NumNonZeroElems() << '\n';
 
-   // HostRead forces synchronization
-   HostReadI();
-   HostReadJ();
-   HostReadData();
-   for (i = 0; i < height; i++)
+   if (A == NULL)
    {
-      for (j = I[i]; j < I[i+1]; j++)
+      RowNode *nd;
+      for (i = 0; i < height; i++)
       {
-         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
+         {
+            os << i+1 << " " << nd->Column+1 << " " << nd->Value << '\n';
+         }
+      }
+   }
+   else
+   {
+      // HostRead forces synchronization
+      HostReadI();
+      HostReadJ();
+      HostReadData();
+      for (i = 0; i < height; i++)
+      {
+         for (j = I[i]; j < I[i+1]; j++)
+         {
+            os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         }
       }
    }
    os.precision(old_prec);
