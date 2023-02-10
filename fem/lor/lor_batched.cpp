@@ -258,7 +258,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    // Copy A.I into I, use it as a temporary buffer
    {
       const auto I2 = A.ReadI();
-      mfem::forall(nvdof + 1,  [=] MFEM_HOST_DEVICE (int i) { I[i] = I2[i]; });
+      mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i) { I[i] = I2[i]; });
    }
 
    static constexpr int Max = 16;

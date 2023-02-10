@@ -54,7 +54,7 @@ void LinearFormExtension::Assemble()
          const auto attr = attributes.Read();
          const auto dimk = domain_integs_marker_k->Read();
          auto markers_w = markers.Write();
-         mfem::forall(NE,  [=] MFEM_HOST_DEVICE (int e)
+         mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
          {
             markers_w[e] = dimk[attr[e]-1] == 1;
          });
@@ -97,7 +97,7 @@ void LinearFormExtension::Assemble()
          const auto attr = bdr_attributes.Read();
          const auto attr_markers = boundary_integs_marker_k->Read();
          auto markers_w = bdr_markers.Write();
-         mfem::forall(NBE,  [=] MFEM_HOST_DEVICE (int e)
+         mfem::forall(NBE, [=] MFEM_HOST_DEVICE (int e)
          {
             markers_w[e] = attr_markers[attr[e]-1] == 1;
          });
