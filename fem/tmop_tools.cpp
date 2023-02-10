@@ -705,77 +705,51 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
    }
 
+   Vector x_loc;
+   const FiniteElementSpace *x_fes;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
-      Vector x_loc(pfesc->GetVSize());
-      pfesc->GetProlongationMatrix()->Mult(x, x_loc);
-      for (int i = 0; i < integs.Size(); i++)
-      {
-         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-         if (ti)
-         {
-            ti->UpdateAfterMeshPositionChange(x_loc, *pfesc);
-            if (compute_metric_quantile_flag)
-            {
-               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-            }
-         }
-         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-         if (co)
-         {
-            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-            for (int j = 0; j < ati.Size(); j++)
-            {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc, *pfesc);
-               if (compute_metric_quantile_flag)
-               {
-                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-               }
-            }
-         }
-      }
+      x_fes = pnlf->ParFESpace();
+      x_loc.SetSize(x_fes->GetVSize());
+      x_fes->GetProlongationMatrix()->Mult(x, x_loc);
 #endif
    }
    else
    {
-      const FiniteElementSpace *fesc = nlf->FESpace();
+      x_fes = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());
          P->Mult(x,x_loc);
       }
-      else
+      else { x_loc = x; }
+   }
+
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
       {
-         x_loc = x;
-      }
-      for (int i = 0; i < integs.Size(); i++)
-      {
-         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-         if (ti)
+         ti->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+         if (compute_metric_quantile_flag)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc, *fesc);
+            ti->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+         }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->UpdateAfterMeshPositionChange(x_loc, *x_fes);
             if (compute_metric_quantile_flag)
             {
-               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
-            }
-         }
-         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-         if (co)
-         {
-            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-            for (int j = 0; j < ati.Size(); j++)
-            {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc, *fesc);
-               if (compute_metric_quantile_flag)
-               {
-                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
-               }
+               ati[j]->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
             }
          }
       }
