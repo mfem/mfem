@@ -336,11 +336,11 @@ public:
                      DenseMatrix &grad) const
    { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
-   /** Compute the vector gradient with respect to the physical element
+   /** @brief Compute the vector gradient with respect to the physical element
        variable. */
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
 
-   /** Compute the vector gradient with respect to the reference element
+   /** @brief Compute the vector gradient with respect to the reference element
        variable. */
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 

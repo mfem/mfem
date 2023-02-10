@@ -738,9 +738,7 @@ bool GetMeshElementOrder(Mesh const& mesh, Vector const& origin,
       std::set<int> layerNext;
       for (auto e : layer)
       {
-         std::set<int> nghb;
-         mesh.FindFaceNeighbors(e, nghb);
-
+         Array<int> nghb = mesh.FindFaceNeighbors(e);
          for (auto n : nghb)
          {
             if (!elementMarked[n]) { layerNext.insert(n); }
