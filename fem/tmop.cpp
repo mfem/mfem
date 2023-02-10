@@ -3960,33 +3960,32 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   Ordering::Type x_ordering = x_fes.GetOrdering();
+   Ordering::Type ordering = x_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
    if (fdflag) { ComputeFDh(x_new, x_fes); }
 
    // Update the target constructor if it's a discrete one.
-   DiscreteAdaptTC *d_tc = GetDiscreteAdaptTC();
-   if (d_tc)
+   if (discr_tc)
    {
-      d_tc->UpdateTargetSpecification(x_new, true, x_ordering);
+      discr_tc->UpdateTargetSpecification(x_new, true, ordering);
       if (fdflag)
       {
-         d_tc->UpdateGradientTargetSpecification(x_new, dx, true, x_ordering);
-         d_tc->UpdateHessianTargetSpecification(x_new, dx, true, x_ordering);
+         discr_tc->UpdateGradientTargetSpecification(x_new, dx, true, ordering);
+         discr_tc->UpdateHessianTargetSpecification(x_new, dx, true, ordering);
       }
    }
 
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, x_ordering);
+      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
    }
 
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
-      surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, x_ordering);
+      surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, ordering);
    }
 }
 
