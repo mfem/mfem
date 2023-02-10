@@ -522,13 +522,13 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
    }
 }
 
-void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
+void ParGridFunction::ProjectCoefficient(Coefficient &coeff, bool use_L2)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
    {
-      GridFunction::ProjectCoefficient(coeff);
+      GridFunction::ProjectCoefficient(coeff, use_L2);
    }
    else
    {

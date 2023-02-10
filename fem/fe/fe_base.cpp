@@ -123,7 +123,8 @@ void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
 }
 
 void FiniteElement::Project (
-   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs,
+   bool use_L2) const
 {
    MFEM_ABORT("method is not overloaded");
 }
@@ -664,8 +665,11 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 }
 
 void NodalFiniteElement::Project (
-   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs,
+   bool use_L2) const
 {
+   (void) use_L2; // for a nodal basis, there is no difference
+
    for (int i = 0; i < dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
