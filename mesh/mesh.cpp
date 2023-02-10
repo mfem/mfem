@@ -5053,6 +5053,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    }
    return v2v;
 }
+
 void Mesh::RefineNURBSFromFile(std::string ref_file)
 {
    MFEM_VERIFY(NURBSext,"Mesh::RefineNURBSFromFile: Not a NURBS mesh!");
