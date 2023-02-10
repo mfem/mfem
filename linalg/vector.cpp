@@ -149,9 +149,10 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(Vector &&v)
 {
    data = std::move(v.data);
-   size = v.size;
-   v.data.Reset();
+   // Self-assignment-safe way to move v.size to size:
+   const auto size_tmp = v.size;
    v.size = 0;
+   size = size_tmp;
    return *this;
 }
 
@@ -786,27 +787,18 @@ void Vector::Randomize(int seed)
 {
    const double max = (double)(RAND_MAX) + 1.;
 
-   if (!global_seed_set)
+   if (seed == 0)
    {
-      if (seed == 0)
-      {
-         seed = (int)time(0);
-      }
-
-      srand((unsigned)seed);
+      seed = (int)time(0);
    }
+
+   srand((unsigned)seed);
 
    HostWrite();
    for (int i = 0; i < size; i++)
    {
       data[i] = std::abs(rand()/max);
    }
-}
-
-void Vector::SetGlobalSeed(int gseed)
-{
-   srand((unsigned)gseed);
-   global_seed_set = true;
 }
 
 double Vector::Norml2() const

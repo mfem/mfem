@@ -2107,8 +2107,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     /*
-                     // MFEM does not support pyramids yet
                      case   7: el_order--; //   5-node pyramid
                      case  14: el_order--; //  14-node pyramid (2nd order)
                      case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2121,7 +2119,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         {
                            el_order--; // Gmsh does not define an order 10 pyr
                            elements_3D.push_back(
-                               new Pyramid(&vert_indices[0], phys_domain));
+                              new Pyramid(&vert_indices[0], phys_domain));
                            if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
@@ -2131,7 +2129,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     */
                      case 15: // 1-node point
                      {
                         elements_0D.push_back(
@@ -2336,8 +2333,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  /*
-                  // MFEM does not support pyramids yet
                   case   7: el_order--; //   5-node pyramid
                   case  14: el_order--; //  14-node pyramid (2nd order)
                   case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2350,7 +2345,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      {
                         el_order--;
                         elements_3D.push_back(
-                            new Pyramid(&vert_indices[0], phys_domain));
+                           new Pyramid(&vert_indices[0], phys_domain));
                         if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
@@ -2360,7 +2355,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  */
                   case 15: // 1-node point
                   {
                      elements_0D.push_back(
@@ -2563,16 +2557,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      vm = ho_wdg[el_order];
                      break;
-                  // case Element::PYRAMID:
-                  //    ho_verts = ho_verts_3D[el];
-                  //    el_order = ho_el_order_3D[el];
-                  //    if (ho_pyr[el_order])
-                  //    {
-                  //      ho_pyr[el_order] = new int[ho_verts->Size()];
-                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
-                  //    }
-                  //    vm = ho_pyr[el_order];
-                  //    break;
+                  case Element::PYRAMID:
+                     ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (!ho_pyr[el_order])
+                     {
+                        ho_pyr[el_order] = new int[ho_verts->Size()];
+                        GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
+                     }
+                     vm = ho_pyr[el_order];
+                     break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
@@ -2851,9 +2845,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int retval;
 
    // dummy string
-   char str_dummy[256];
+   constexpr size_t buf_size = 256;
+   char str_dummy[buf_size];
 
-   char temp_str[256];
+   char temp_str[buf_size];
    int temp_id;
 
    // open the file.
@@ -2897,14 +2892,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int previous_num_node_per_el = 0;
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      sprintf(temp_str, "num_el_in_blk%d", i+1);
+      snprintf(temp_str, buf_size, "num_el_in_blk%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_el_in_blk[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
-      sprintf(temp_str, "num_nod_per_el%d", i+1);
+      snprintf(temp_str, buf_size, "num_nod_per_el%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_node_per_el)))
       {
@@ -3051,7 +3046,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    size_t *num_side_in_ss  = new size_t[num_side_sets];
    for (int i = 0; i < (int) num_side_sets; i++)
    {
-      sprintf(temp_str, "num_side_ss%d", i+1);
+      snprintf(temp_str, buf_size, "num_side_ss%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_side_in_ss[i])))
       {
@@ -3086,7 +3081,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    for (int i = 0; i < (int) num_el_blk; i++)
    {
       elem_blk[i] = new int[num_el_in_blk[i] * num_node_per_el];
-      sprintf(temp_str, "connect%d", i+1);
+      snprintf(temp_str, buf_size, "connect%d", i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_blk[i])))
       {
@@ -3110,14 +3105,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       elem_ss[i] = new int[num_side_in_ss[i]];
       side_ss[i] = new int[num_side_in_ss[i]];
 
-      sprintf(temp_str, "elem_ss%d", i+1);
+      snprintf(temp_str, buf_size, "elem_ss%d", i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
-      sprintf(temp_str,"side_ss%d",i+1);
+      snprintf(temp_str, buf_size,"side_ss%d",i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, side_ss[i])))
       {
