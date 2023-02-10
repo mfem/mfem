@@ -237,7 +237,7 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
          const int j = next_offset - 1;
          const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
          dof_value = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
-                     -d_x(idx_j % nd, c, idx_j / nd);
+         -d_x(idx_j % nd, c, idx_j / nd);
          d_y(t?c:i,t?i:c) = dof_value;
       }
    });
@@ -1264,8 +1264,8 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
             bool isE1 = idx_j < dofs;
             idx_j = isE1 ? idx_j : idx_j - dofs;
             dof_value +=  isE1 ?
-                          d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
-                          :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
+            d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
+            :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
          }
          d_y(t?c:i,t?i:c) += dof_value;
       }

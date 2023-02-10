@@ -1216,7 +1216,7 @@ static double qf(const int order, const int ker, Mesh &m,
             const double tgu1 = (J11*gu1 - J21*gu0)/det;
             const double ngu = tgu0*tgu0 + tgu1*tgu1;
             const double s = (ker == AREA) ? sqrt(1.0 + ngu) :
-                             (ker == NORM) ? ngu : 0.0;
+            (ker == NORM) ? ngu : 0.0;
             S(qx, qy, e) = area * s;
          }
       }
