@@ -1778,7 +1778,7 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &new_x,
+   void UpdateAfterMeshPositionChange(const Vector &x_new,
                                       const FiniteElementSpace &x_fes);
 
    void DisableLimiting()
