@@ -1680,7 +1680,7 @@ public:
        for each knot vector specified in the section edges (with the same ordering),
        a line describes (in this order): 1) an integer giving the number of knots
        inserted, 2) the knots inserted as a double. The advantage of this method
-       is that it is possible to specifically refine a course NURBS mesh without
+       is that it is possible to specifically refine a coarse NURBS mesh without
        changing the mesh file itself. Examples of refinement files are
        data/two-cubes.ref and data/two-squares.ref. */
    void RefineNURBSFromFile(std::string ref_file);
