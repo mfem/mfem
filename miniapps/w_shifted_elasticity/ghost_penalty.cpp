@@ -412,13 +412,13 @@ namespace mfem
 	    for (int a = 0; a < h1dofs_cnt; a++){
 	      for (int p = 0; p < h1dofs_cnt; p++){
 		for (int b = 0; b < h1dofs_cnt; b++){
-		  for (int q = 0; q < h1dofs_cnt; q++){
+		  for (int qt = 0; qt < h1dofs_cnt; qt++){
 		    for (int o = 0; o < h1dofs_cnt; o++){
 		      for (int r = 0; r < h1dofs_cnt; r++){
-			TrialTestContract_el1el1(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el1(o + p * h1dofs_cnt, r + q * h1dofs_cnt);
-			TrialTestContract_el1el2(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el2(o + p * h1dofs_cnt, r + q * h1dofs_cnt);
-			TrialTestContract_el2el1(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el1(o + p * h1dofs_cnt, r + q * h1dofs_cnt);
-			TrialTestContract_el2el2(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el2(o + p * h1dofs_cnt, r + q * h1dofs_cnt);  
+			TrialTestContract_el1el1(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el1(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);
+			TrialTestContract_el1el2(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el2(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);
+			TrialTestContract_el2el1(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el1(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);
+			TrialTestContract_el2el2(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el2(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);  
 		      }
 		    }
 		  }
@@ -513,13 +513,13 @@ namespace mfem
 	      for (int a = 0; a < h1dofs_cnt; a++){
 		for (int p = 0; p < h1dofs_cnt; p++){
 		  for (int b = 0; b < h1dofs_cnt; b++){
-		    for (int q = 0; q < h1dofs_cnt; q++){
+		    for (int qt = 0; qt < h1dofs_cnt; qt++){
 		      for (int o = 0; o < h1dofs_cnt; o++){
 			for (int r = 0; r < h1dofs_cnt; r++){
-			  TrialTestContract_el1el1(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el1(o + p * h1dofs_cnt, r + q * h1dofs_cnt);
-			  TrialTestContract_el1el2(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el2(o + p * h1dofs_cnt, r + q * h1dofs_cnt);
-			  TrialTestContract_el2el1(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el1(o + p * h1dofs_cnt, r + q * h1dofs_cnt);
-			  TrialTestContract_el2el2(a + p * h1dofs_cnt, b + q * h1dofs_cnt) += base_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el2(o + p * h1dofs_cnt, r + q * h1dofs_cnt);  
+			  TrialTestContract_el1el1(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el1(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);
+			  TrialTestContract_el1el2(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el1el2(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);
+			  TrialTestContract_el2el1(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el1(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);
+			  TrialTestContract_el2el2(a + p * h1dofs_cnt, b + qt * h1dofs_cnt) += base_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * tmp_el2el2(o + p * h1dofs_cnt, r + qt * h1dofs_cnt);  
 			}
 		      }
 		    }
@@ -532,7 +532,7 @@ namespace mfem
 	      tmp_el2el2 = TrialTestContract_el2el2;
 	    }
 	  }
-	  for (int q = 0; q < h1dofs_cnt; q++)
+	  for (int qt = 0; qt < h1dofs_cnt; qt++)
 	    {
 	      for (int vd = 0; vd < dim; vd++)
 		{
@@ -548,20 +548,20 @@ namespace mfem
 				    {
 				      for (int r = 0; r < h1dofs_cnt; r++)
 					{
-					  elmat(q + vd * h1dofs_cnt, z + md * h1dofs_cnt) += 2.0 * Mu * Mu * weighted_h * TrialTestContract_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el1(o + r * h1dofs_cnt) * nodalGrad_el1(a + md * h1dofs_cnt, q) * nodalGrad_el1(b + vd * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) -= 2.0 * Mu * Mu * weighted_h * TrialTestContract_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el2(o + r * h1dofs_cnt) * nodalGrad_el1(a + md * h1dofs_cnt, q) * nodalGrad_el2(b + vd * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt) -= 2.0 * Mu * Mu * weighted_h * TrialTestContract_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el1(o + r * h1dofs_cnt) * nodalGrad_el2(a + md * h1dofs_cnt, q) * nodalGrad_el1(b + vd * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) += 2.0 * Mu * Mu * weighted_h * TrialTestContract_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el2(o + r * h1dofs_cnt) * nodalGrad_el2(a + md * h1dofs_cnt, q) * nodalGrad_el2(b + vd * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt, z + md * h1dofs_cnt) += 2.0 * Mu * Mu * weighted_h * TrialTestContract_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el1(o + r * h1dofs_cnt) * nodalGrad_el1(a + md * h1dofs_cnt, qt) * nodalGrad_el1(b + vd * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) -= 2.0 * Mu * Mu * weighted_h * TrialTestContract_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el2(o + r * h1dofs_cnt) * nodalGrad_el1(a + md * h1dofs_cnt, qt) * nodalGrad_el2(b + vd * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt) -= 2.0 * Mu * Mu * weighted_h * TrialTestContract_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el1(o + r * h1dofs_cnt) * nodalGrad_el2(a + md * h1dofs_cnt, qt) * nodalGrad_el1(b + vd * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) += 2.0 * Mu * Mu * weighted_h * TrialTestContract_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el2(o + r * h1dofs_cnt) * nodalGrad_el2(a + md * h1dofs_cnt, qt) * nodalGrad_el2(b + vd * h1dofs_cnt, z) * standardFactor;
 
-					  elmat(q + vd * h1dofs_cnt, z + md * h1dofs_cnt) += 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el1(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, q) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) -= 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el2(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, q) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt) -= 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el1(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, q) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) += 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el2(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, q) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt, z + md * h1dofs_cnt) += 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el1(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, qt) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) -= 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el2(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, qt) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt) -= 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el1(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, qt) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) += 4.0 * (Kappa - (2.0/3.0) * Mu) * Mu * weighted_h * TrialTestContract_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el2(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, qt) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor;
 
-					  elmat(q + vd * h1dofs_cnt, z + md * h1dofs_cnt) += dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el1(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, q) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) -= dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el2(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, q) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt) -= dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el1(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, q) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
-					  elmat(q + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) += dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el2(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, q) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor; 				  	  
+					  elmat(qt + vd * h1dofs_cnt, z + md * h1dofs_cnt) += dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el1(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, qt) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) -= dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el1el2(o + r * h1dofs_cnt) * nodalGrad_el1(a + vd * h1dofs_cnt, qt) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt) -= dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el1(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, qt) * nodalGrad_el1(b + md * h1dofs_cnt, z) * standardFactor;
+					  elmat(qt + vd * h1dofs_cnt + dim * h1dofs_cnt, z + md * h1dofs_cnt + dim * h1dofs_cnt) += dim * (Kappa - (2.0/3.0) * Mu) * (Kappa - (2.0/3.0) * Mu) * weighted_h * TrialTestContract_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) * gradUResDotShape_TrialTest_el2el2(o + r * h1dofs_cnt) * nodalGrad_el2(a + vd * h1dofs_cnt, qt) * nodalGrad_el2(b + md * h1dofs_cnt, z) * standardFactor; 				  	  
 					}
 				    }
 				}	 
