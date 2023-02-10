@@ -182,7 +182,8 @@ void GetHexPermutation(Array<int> const& h1, Array<int> const& h2,
 // using AddElement. The hexahedron input to AddElement is specified by vertices
 // without requiring consistent global orientations. The mesh can be constructed
 // simply by calling AddVertex for all vertices and then AddElement for all
-// hexahedra.
+// hexahedra. The mesh is not owned by this class and should be deleted outside
+// this class.
 class HexMeshBuilder
 {
 public:
@@ -1058,4 +1059,8 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "mesh\n" << *reflected << flush;
    }
+
+   delete reflected;
+
+   return 0;
 }
