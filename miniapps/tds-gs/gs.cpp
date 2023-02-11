@@ -274,9 +274,19 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
      SparseMatrix * F = op.GetF();
      SparseMatrix * H = op.GetH();
 
+     // cout << K->MaxNorm() << endl;
+     // cout << F->MaxNorm() << endl;
+     // cout << H->MaxNorm() << endl;
+     // if (true) {
+     //   return;
+     // }
+     
      Vector * uv = op.get_uv();
      Vector * g = op.get_g();
 
+     // double weight = 1.0;
+     // (*uv) *= weight;
+    
      GridFunction eq_res(&fespace);
      Vector reg_res(uv->Size());
      GridFunction opt_res(&fespace);
@@ -326,6 +336,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
        error = GetMaxError(eq_res);
        double max_opt_res = GetMaxError(opt_res);
        double max_reg_res = GetMaxError(reg_res);
+
+       
+       
        if (i == 0) {
          // printf("i: %3d, nonl_res: %.3e, opt_res: %.3e, reg_res: %.3e, obj: %.3e, lst_sq: %.3e, reg: %.3e\n", i, error, max_opt_res, max_reg_res, true_obj+regularization, true_obj, regularization);
          printf("i: %3d, nonl_res: %.3e, ratio %9s, opt_res: %9s, reg_res: %9s, obj: %.3e, lst_sq: %.3e, reg: %.3e\n", i, error, "", "", "", true_obj+regularization, true_obj, regularization);
@@ -599,7 +612,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
 
   SparseMatrix * H;
   H = new SparseMatrix(num_currents, num_currents);
-  double weight = .00001;
+  double weight = 1.0;
   for (int i = 0; i < num_currents; ++i) {
     H->Set(i, i, weight);
   }
@@ -636,7 +649,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    Vector g;
    vector<Vector> *alpha_coeffs;
    vector<Array<int>> *J_inds;
-   int N_control = 300;
+   int N_control = 10;
    if (do_manufactured_solution) {
      u.ProjectCoefficient(exact_coefficient);
      u.Save("exact.gf");

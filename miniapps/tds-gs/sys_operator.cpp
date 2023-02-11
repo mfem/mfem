@@ -85,8 +85,9 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   // cout << F->ActualWidth() << endl;
   // cout << uv_currents->Size() << endl;
 
-  if (false) {
-    F->AddMult(*uv_currents, y, -1.0);
+  if (true) {
+    double weight = 1.0;
+    F->AddMult(*uv_currents, y, -1.0 / weight);
   }
 
   // deal with boundary conditions
