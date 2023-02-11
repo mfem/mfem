@@ -98,6 +98,8 @@ public:
    {
       return MakeTrueOperator(ran_fes, dom_fes, BackwardOperator(), bw_t_oper);
    }
+
+   virtual bool SupportsBackwardsOperator() const { return true; }
 };
 
 
@@ -346,6 +348,8 @@ public:
    virtual const Operator &ForwardOperator();
 
    virtual const Operator &BackwardOperator();
+
+   virtual bool SupportsBackwardsOperator() const;
 private:
    void BuildF();
 };
