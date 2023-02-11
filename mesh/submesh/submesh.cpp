@@ -55,28 +55,37 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
    FinalizeTopology(true);
 
-   if (Dim == 3)
+   int num_of_faces_or_edges = (Dim == 2) ? NumOfEdges : NumOfFaces;
+
+   if (Dim == 2)
+   {
+      parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
+                                                    parent_element_ids_);
+   }
+   else
    {
       parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                     parent_element_ids_);
+   }
 
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-
-      for (int i = 0; i < NumOfBdrElements; i++)
+   Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+   for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
+   {
+      if (GetFaceInformation(i).IsBoundary())
       {
-         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrFace(i)]];
+         boundary[j] = faces[i]->Duplicate(this);
+
+         int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
+                     parent_face_to_be[parent_edge_ids_[i]];
          if (pbeid != -1)
          {
-            int attr = parent.GetBdrElement(pbeid)->GetAttribute();
-            GetBdrElement(i)->SetAttribute(attr);
+            boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
          }
          else
          {
-            // This case happens when a domain is extracted, but the root parent
-            // mesh didn't have a boundary element on the surface that defined
-            // it's boundary. It still creates a valid mesh, so we allow it.
-            GetBdrElement(i)->SetAttribute(GENERATED_ATTRIBUTE);
+            boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
          }
+         j++;
       }
    }
 
