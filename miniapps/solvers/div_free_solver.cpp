@@ -894,7 +894,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     Array<bool> dof_marker(x0.Size());
     dof_marker = false;
 
-    Array<int> dofs, test_dofs;
+    Array<int> dofs;
     for (int i = 0; i < ne; ++i)
     {
         trial_space.GetElementDofs(i, dofs);
@@ -923,11 +923,9 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
             dofs.Append(j);
         }
         const int test_size = test_offsets[i + 1] - test_offsets[i];
-        test_dofs.SetSize(test_size);
-        test_space.GetElementDofs(i, test_dofs);
-        for (int j = 0; j < test_dofs.Size(); ++j)
+        for (int j = 0; j < test_size; ++j)
         {
-            dofs.Append(block_offsets[1] + test_dofs[j]);
+            dofs.Append(block_offsets[1] + test_offsets[i] + j);
         }
         Vector Minv_sub_vec;
         rhs.GetSubVector(dofs, Minv_sub_vec);
@@ -962,12 +960,10 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         {
             dofs.Append(j);
         }
-
-        Array<int> test_dofs;
-        test_space.GetElementDofs(i, test_dofs);
-        for (int j = 0; j < test_dofs.Size(); ++j)
+        const int test_size = test_offsets[i + 1] - test_offsets[i];
+        for (int j = 0; j < test_size; ++j)
         {
-            dofs.Append(block_offsets[1] + test_dofs[j]);
+            dofs.Append(block_offsets[1] + test_offsets[i] + j);
         }
 
         Vector Minv_Ct_lambda(dofs.Size());
