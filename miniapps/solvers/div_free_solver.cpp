@@ -970,12 +970,11 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
             dofs[trial_size + j] = block_offsets[1] + test_offset + j;
         }
 
-        Vector Minv_Ct_lambda(dofs.Size());
         LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
-        Ct_lambda.GetSubVector(dofs, Minv_Ct_lambda);
-        Minv.Solve(Minv_Ct_lambda.Size(), 1, Minv_Ct_lambda.GetData());
-        Minv_Ct_lambda.Neg();
-        rhs.AddElementVector(dofs, Minv_Ct_lambda);
+        Ct_lambda.GetSubVector(dofs, Minv_sub_vec);
+        Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
+        Minv_sub_vec.Neg();
+        rhs.AddElementVector(dofs, Minv_sub_vec);
     }
 
     dofs.SetSize(0);
