@@ -950,11 +950,10 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
     solver_.Mult(rhs_true, lambda_true);
 
-    Vector lambda(Ct->Width());
-    P.Mult(lambda_true, lambda);
+    P.Mult(lambda_true, rhs_r);
     BlockVector Ct_lambda(block_offsets);
     Ct_lambda = 0.0;  // This is necessary.
-    Ct->Mult(lambda, Ct_lambda.GetBlock(0));
+    Ct->Mult(rhs_r, Ct_lambda.GetBlock(0));
 
     for (int i = 0; i < ne; ++i)
     {
