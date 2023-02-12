@@ -937,7 +937,6 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     }
 
     Vector rhs_r(Ct->Width());
-    rhs_r = 0.0;
     Ct->MultTranspose(rhs.GetBlock(0), rhs_r);
 
     Vector rhs_true(pH.Ptr()->Height());
@@ -977,7 +976,6 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         rhs.AddElementVector(dofs, Minv_sub_vec);
     }
 
-    dofs.SetSize(0);
     Vector sub_vec;
     for (int i = 0; i < ne; ++i)
     {
