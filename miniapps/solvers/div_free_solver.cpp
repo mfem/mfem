@@ -744,6 +744,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     Ct->Finalize();
 
     SparseMatrix H(Ct->Width());
+    DenseMatrix Ct_local, Minv_Ct_local, H_local;
 
     Array<int> c_dof_marker(Ct->Width());
     c_dof_marker = -1;
@@ -813,7 +814,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
             }
         }
         
-        DenseMatrix Ct_local;
         Ct_local.SetSize(M.Height(), c_dofs.Size()); // Ct_local = [C 0]^T
         Ct_local = 0.0;
         for (int j = 0; j < trial_size; ++j)
@@ -831,10 +831,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
 
         LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
         Minv.Factor(matrix_size);
-        DenseMatrix Minv_Ct_local(Ct_local);
+        Minv_Ct_local = Ct_local;
         Minv.Solve(Ct_local.Height(), Ct_local.Width(), Minv_Ct_local.Data());
 
-        DenseMatrix H_local;
         H_local.SetSize(Ct_local.Width());
 
         MultAtB(Ct_local, Minv_Ct_local, H_local);
