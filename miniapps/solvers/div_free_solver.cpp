@@ -919,12 +919,12 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
         const int hat_offset = hat_offsets[i];
         const int test_offset = test_offsets[i];
+        const int test_size = test_offsets[i + 1] - test_offset;
         dofs.SetSize(trial_size + test_size);
         for (int j = 0; j < trial_size; ++j)
         {
             dofs[j] = hat_offset + j;
         }
-        const int test_size = test_offsets[i + 1] - test_offset;
         for (int j = 0; j < test_size; ++j)
         {
             dofs[trial_size + j] = block_offsets[1] + test_offset + j;
@@ -959,12 +959,12 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         const int hat_offset = hat_offsets[i];
         const int trial_size = hat_offsets[i + 1] - hat_offset;
         const int test_offset = test_offsets[i];
+        const int test_size = test_offsets[i + 1] - test_offset;
         dofs.SetSize(trial_size + test_size);
         for (int j = 0; j < trial_size; ++j)
         {
             dofs[j] = hat_offset + j;
         }
-        const int test_size = test_offsets[i + 1] - test_offset;
         for (int j = 0; j < test_size; ++j)
         {
             dofs[trial_size + j] = block_offsets[1] + test_offset + j;
