@@ -893,9 +893,9 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
     Array<bool> dof_marker(x0.Size());
     dof_marker = false;
-
     Array<int> dofs;
     Vector Minv_sub_vec, g_i;
+
     for (int i = 0; i < ne; ++i)
     {
         trial_space.GetElementDofs(i, dofs);
@@ -929,8 +929,9 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         {
             dofs[trial_size + j] = block_offsets[1] + test_offset + j;
         }
-        rhs.GetSubVector(dofs, Minv_sub_vec);
+
         LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
+        rhs.GetSubVector(dofs, Minv_sub_vec);
         Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
         rhs.SetSubVector(dofs, Minv_sub_vec); // Set is okay because each dof
                                               // belongs to only one element.
