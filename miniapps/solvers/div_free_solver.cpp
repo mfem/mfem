@@ -917,15 +917,17 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
             }
         }
 
-        dofs.SetSize(0);
-        for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
+        const int hat_offset = hat_offsets[i];
+        const int test_offset = test_offsets[i];
+        dofs.SetSize(trial_size + test_size);
+        for (int j = 0; j < trial_size; ++j)
         {
-            dofs.Append(j);
+            dofs[j] = hat_offset + j;
         }
-        const int test_size = test_offsets[i + 1] - test_offsets[i];
+        const int test_size = test_offsets[i + 1] - test_offset;
         for (int j = 0; j < test_size; ++j)
         {
-            dofs.Append(block_offsets[1] + test_offsets[i] + j);
+            dofs[trial_size + j] = block_offsets[1] + test_offset + j;
         }
         Vector Minv_sub_vec;
         rhs.GetSubVector(dofs, Minv_sub_vec);
@@ -955,15 +957,18 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
     for (int i = 0; i < ne; ++i)
     {
-        dofs.SetSize(0);
-        for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
+        const int hat_offset = hat_offsets[i];
+        const int trial_size = hat_offsets[i + 1] - hat_offset;
+        const int test_offset = test_offsets[i];
+        dofs.SetSize(trial_size + test_size);
+        for (int j = 0; j < trial_size; ++j)
         {
-            dofs.Append(j);
+            dofs[j] = hat_offset + j;
         }
-        const int test_size = test_offsets[i + 1] - test_offsets[i];
+        const int test_size = test_offsets[i + 1] - test_offset;
         for (int j = 0; j < test_size; ++j)
         {
-            dofs.Append(block_offsets[1] + test_offsets[i] + j);
+            dofs[trial_size + j] = block_offsets[1] + test_offset + j;
         }
 
         Vector Minv_Ct_lambda(dofs.Size());
