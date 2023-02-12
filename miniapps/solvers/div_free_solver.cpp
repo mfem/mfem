@@ -895,11 +895,11 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     dof_marker = false;
 
     Array<int> dofs;
+    Vector Minv_sub_vec, g_i;
     for (int i = 0; i < ne; ++i)
     {
         trial_space.GetElementDofs(i, dofs);
         const int trial_size = dofs.Size();
-        Vector g_i;
         g_i.MakeRef(rhs, hat_offsets[i], trial_size);
         x0.GetSubVector(dofs, g_i);  // reverses the sign if dof < 0
 
@@ -929,7 +929,6 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         {
             dofs[trial_size + j] = block_offsets[1] + test_offset + j;
         }
-        Vector Minv_sub_vec;
         rhs.GetSubVector(dofs, Minv_sub_vec);
         LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
         Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
