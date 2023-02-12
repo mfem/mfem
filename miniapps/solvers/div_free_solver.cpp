@@ -796,13 +796,14 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         }
 
         c_dofs.SetSize(0);
-        dofs.SetSize(0);
+        dofs.SetSize(trial_size);
+        const int hat_offset = hat_offsets[i];
 
-        for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
+        for (int j = 0; j < trial_size; ++j)
         {
-            dofs.Append(j);
-            const int ncols = Ct->RowSize(j);
-            const int * cols = Ct->GetRowColumns(j);
+            const int row = hat_offset + j;
+            const int ncols = Ct->RowSize(row);
+            const int *cols = Ct->GetRowColumns(row);
             for (int l = 0; l < ncols; ++l)
             {
                 const int c_dof = cols[l];
@@ -812,16 +813,17 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
                     c_dofs.Append(c_dof);
                 }
             }
+            dofs[j] = row;
         }
         
         Ct_local.SetSize(M.Height(), c_dofs.Size()); // Ct_local = [C 0]^T
         Ct_local = 0.0;
         for (int j = 0; j < trial_size; ++j)
         {
-            const int hat_dof = dofs[j];
-            const int ncols = Ct->RowSize(hat_dof);
-            const int * cols = Ct->GetRowColumns(hat_dof);
-            const double * vals = Ct->GetRowEntries(hat_dof);
+            const int row = dofs[j];
+            const int ncols = Ct->RowSize(row);
+            const int *cols = Ct->GetRowColumns(row);
+            const double *vals = Ct->GetRowEntries(row);
             for (int l = 0; l < ncols; ++l)
             {
                 const int loc = c_dof_marker[cols[l]] - c_mark_start;
