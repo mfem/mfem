@@ -117,7 +117,7 @@ double AvgElementSize(ParMesh &pmesh);
     }
 
     /// Add surface load
-    void AddSurfLoad(int id, mfem::VectorCoefficient& ff)
+    void AddSurfLoad(int id, mfem::MatrixFunctionCoefficient& ff)
     {
       mfem::Array<int> * ess_bdr_tmp = new Array<int>(pmesh->bdr_attributes.Max());
       (*ess_bdr_tmp) = 0;
@@ -197,7 +197,7 @@ double AvgElementSize(ParMesh &pmesh);
     mfem::ShiftedMatrixFunctionCoefficient* shifted_traction_BC;
 
     //surface loads
-    std::map<mfem::Array<int> *,mfem::VectorCoefficient*> surf_loads;
+    std::map<mfem::Array<int> *,mfem::MatrixFunctionCoefficient*> surf_loads;
 
     Array<int> ess_elem;
 

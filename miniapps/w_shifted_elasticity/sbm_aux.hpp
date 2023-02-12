@@ -34,7 +34,7 @@ double relativePosition(const Vector &x, const int type)
       center(1) = 0.5;
       center(2) = 0.5;
       double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)+pow(x(2)-center(2),2.0),0.5);
-      const double radius = 0.3;
+      const double radius = 0.4;
       return (radiusOfPt - radius)/fabs(radiusOfPt - radius); // positive is the domain
     }
   else if (type == 4) // sphere of radius 0.2 - centered at 0.5, 0.5
@@ -55,96 +55,8 @@ double relativePosition(const Vector &x, const int type)
       double pi = 3.141592653589793e0;
       
       double a = 0.5;
-      /* DenseMatrix jacobian(4);
-      jacobian = 0.0;
-      
-      double CtrialNp1_x = 0.0;
-      double CtrialNp1_y = 0.0;
-      double CtrialNp1_z = 0.0;
-      double CtrialNp1_lambda1 = 0.0;
-      int iter = 0;
-
-      double residual_x = 0.0;
-      double residual_y = 0.0;
-      double residual_z = 0.0;
-      double residual_lambda1 = 0.0;
-      double err = 1;
-
-      double CtrialN_x = x(0);
-      double CtrialN_y = x(1);
-      double CtrialN_z = x(2);
-      double CtrialN_lambda1 = 0.0;
-
-    
-      double n_x = 8 * x(0) / a;
-      double n_y = 8 * x(1) / a;
-      double n_z = 8 * x(2) / a;
-     
-      double floor_nx = floor(n_x);
-      double floor_ny = floor(n_y);
-      double floor_nz = floor(n_z);
-    
-      double diff_nx = n_x - floor_nx;
-      double diff_ny = n_y - floor_ny;
-      double diff_nz = n_z - floor_nz;
-   
-      if ( (diff_nx < 1e-5) && (diff_ny < 1e-5) && (diff_nz < 1e-5)  ){
-	CtrialN_x += 5.0e-2;
-    	CtrialN_y += 5.0e-2;
-    	CtrialN_z += 5.0e-2;
-      }
-      
-      while ((iter < 1000) && (err > 1e-12)){
-	//	std::cout << " Np1_x " << CtrialNp1_x << " Np1_y " << CtrialNp1_y << " Np1_z " << CtrialNp1_z << " lam " << CtrialNp1_lambda1 <<  " N_x " << CtrialN_x << " N_y " << CtrialN_y << " N_z " << CtrialN_z << " lam " << CtrialN_lambda1 << " err " << err << std::endl;
-	jacobian(0,0) = 2 + CtrialN_lambda1 * pow(2*pi/a,2.0) * (sin((2*pi/a)*CtrialN_x)*cos((2*pi/a)*CtrialN_y)+sin((2*pi/a)*CtrialN_z)*cos((2*pi/a)*CtrialN_x));
-	jacobian(0,1) = CtrialN_lambda1 * pow(2*pi/a,2.0) * cos((2*pi/a)*CtrialN_x)*sin((2*pi/a)*CtrialN_y);
-	jacobian(0,2) = CtrialN_lambda1 * pow(2*pi/a,2.0) * cos((2*pi/a)*CtrialN_z)*sin((2*pi/a)*CtrialN_x);
-	jacobian(0,3) = -1.0 * (2*pi/a) * (cos((2*pi/a)*CtrialN_x)*cos((2*pi/a)*CtrialN_y) - sin((2*pi/a)*CtrialN_z)*sin((2*pi/a)*CtrialN_x));
-
-	jacobian(1,0) = CtrialN_lambda1 * pow(2*pi/a,2.0) * cos((2*pi/a)*CtrialN_x)*sin((2*pi/a)*CtrialN_y);
-	jacobian(1,1) = 2 + CtrialN_lambda1 * pow(2*pi/a,2.0) * (sin((2*pi/a)*CtrialN_x)*cos((2*pi/a)*CtrialN_y) + sin((2*pi/a)*CtrialN_y)*cos((2*pi/a)*CtrialN_z));
-	jacobian(1,2) = CtrialN_lambda1 * pow(2*pi/a,2.0) * cos((2*pi/a)*CtrialN_y)*sin((2*pi/a)*CtrialN_z);
-	jacobian(1,3) = (2*pi/a) * (sin((2*pi/a)*CtrialN_x)*sin((2*pi/a)*CtrialN_y) - cos((2*pi/a)*CtrialN_y)*cos((2*pi/a)*CtrialN_z));
-      
-	jacobian(2,0) = CtrialN_lambda1 * pow(2*pi/a,2.0) * cos((2*pi/a)*CtrialN_z)*sin((2*pi/a)*CtrialN_x);
-	jacobian(2,1) = CtrialN_lambda1 * pow(2*pi/a,2.0) * cos((2*pi/a)*CtrialN_y)*sin((2*pi/a)*CtrialN_z);
-	jacobian(2,2) = 2 + CtrialN_lambda1 * pow(2*pi/a,2.0) * (sin((2*pi/a)*CtrialN_y)*cos((2*pi/a)*CtrialN_z) + sin((2*pi/a)*CtrialN_z)*cos((2*pi/a)*CtrialN_x));
-	jacobian(2,3) = (2*pi/a) * (sin((2*pi/a)*CtrialN_y)*sin((2*pi/a)*CtrialN_z) - cos((2*pi/a)*CtrialN_z)*cos((2*pi/a)*CtrialN_x));
-            
-	jacobian(3,0) = -(2*pi/a) * (cos((2*pi/a)*CtrialN_x)*cos((2*pi/a)*CtrialN_y) - sin((2*pi/a)*CtrialN_z)*sin((2*pi/a)*CtrialN_x));
-	jacobian(3,1) = -(2*pi/a) * (-sin((2*pi/a)*CtrialN_x)*sin((2*pi/a)*CtrialN_y) + cos((2*pi/a)*CtrialN_y)*cos((2*pi/a)*CtrialN_z));
-	jacobian(3,2) = -(2*pi/a) * (-sin((2*pi/a)*CtrialN_y)*sin((2*pi/a)*CtrialN_z) + cos((2*pi/a)*CtrialN_z)*cos((2*pi/a)*CtrialN_x));
-	
-	jacobian.Invert();
-	//    
-	residual_x = -2*(CtrialN_x-x(0))+CtrialN_lambda1*(2*pi/a)*(cos((2*pi/a)*CtrialN_x)*cos((2*pi/a)*CtrialN_y)-sin((2*pi/a)*CtrialN_z)*sin((2*pi/a)*CtrialN_x));
-	residual_y = -2*(CtrialN_y-x(1))+CtrialN_lambda1*(2*pi/a)*( -sin((2*pi/a)*CtrialN_x) * sin((2*pi/a)*CtrialN_y) + cos((2*pi/a)*CtrialN_y) * cos((2*pi/a)*CtrialN_z));
-	residual_z = -2*(CtrialN_z-x(2))+CtrialN_lambda1*(2*pi/a)*( -sin((2*pi/a)*CtrialN_y) * sin((2*pi/a)*CtrialN_z) + cos((2*pi/a)*CtrialN_z) * cos((2*pi/a)*CtrialN_x));
-	residual_lambda1 = sin((2*pi/a)*CtrialN_x) * cos((2*pi/a)*CtrialN_y) + sin((2*pi/a)*CtrialN_y) * cos((2*pi/a)*CtrialN_z) + sin((2*pi/a)*CtrialN_z) * cos((2*pi/a)*CtrialN_x);
-	
-	CtrialNp1_x = CtrialN_x + jacobian(0,0)*residual_x + jacobian(0,1)*residual_y + jacobian(0,2)*residual_z + jacobian(0,3)*residual_lambda1;
-
-	CtrialNp1_y = CtrialN_y + jacobian(1,0)*residual_x + jacobian(1,1)*residual_y + jacobian(1,2)*residual_z + jacobian(1,3)*residual_lambda1;
-
-	CtrialNp1_z = CtrialN_z + jacobian(2,0)*residual_x + jacobian(2,1)*residual_y + jacobian(2,2)*residual_z + jacobian(2,3)*residual_lambda1;
-
-	CtrialNp1_lambda1 = CtrialN_lambda1 + jacobian(3,0)*residual_x + jacobian(3,1)*residual_y + jacobian(3,2)*residual_z + jacobian(3,3)*residual_lambda1;
-
-	err = std::pow(std::pow((CtrialNp1_x - CtrialN_x),2) +std::pow((CtrialNp1_y - CtrialN_y),2) +std::pow((CtrialNp1_z - CtrialN_z),2) + std::pow((CtrialNp1_lambda1 - CtrialN_lambda1),2),0.5);
-   
-	CtrialN_x = CtrialNp1_x;
-	CtrialN_y = CtrialNp1_y;
-	CtrialN_z = CtrialNp1_z;
-	CtrialN_lambda1 = CtrialNp1_lambda1;
-	iter++;
-      }
-      if (iter == 1000){
-	std::cout << " shit intersect " << std::endl;
-      }
-      double mag = std::pow(std::pow(CtrialNp1_x - x(0),2) + std::pow(CtrialNp1_y - x(1),2) + std::pow(CtrialNp1_z - x(2),2),0.5);*/
       double surface = sin((2*pi/a)*x(0))*cos((2*pi/a)*x(1))+sin((2*pi/a)*x(1))*cos((2*pi/a)*x(2))+sin((2*pi/a)*x(2))*cos((2*pi/a)*x(0));
       double sign = 0.0;
-      // std::cout << " mag " << mag << std::endl; 
       if (surface != 0.0){
 	sign = surface / fabs(surface);
       }
@@ -195,7 +107,7 @@ void Circle_Normal(const Vector &x, Vector &tN){
 
 // Distance to sphere of radius 0.2 - centered at 0.5, 0.5 
 void Sphere_Dist(const Vector &x, Vector &D){
-  double radius = 0.3;
+  double radius = 0.4;
   Vector center(3);
   center(0) = 0.5;
   center(1) = 0.5;
@@ -211,7 +123,7 @@ void Sphere_Dist(const Vector &x, Vector &D){
 
 // Unit normal of sphere of radius 0.2 - centered at 0.5, 0.5
 void Sphere_Normal(const Vector &x, Vector &tN){
-  double radius = 0.3;
+  double radius = 0.4;
   Vector center(3);
   center(0) = 0.5;
   center(1) = 0.5;

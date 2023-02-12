@@ -211,22 +211,21 @@ namespace mfem {
       mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, analyticalSurface, 1));
       // ghost penalty
       mVarf->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
-      for (int i = 2; i <= numberStrainTerms; i++){
+      /* for (int i = 2; i <= numberStrainTerms; i++){
 	//	 best to use 1.0 / i!
 	double factorial = 1.0;	
 	for (int s = 1; s <= i; s++){
 	  factorial = factorial*s;
-	}
-	mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
-      }
+	}*/
+      mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));      
+	// }
     }
     mVarf->Assemble();   
     mVarf->Finalize();   
-    mVarf->ParallelAssemble();
-  
-    //  HypreParMatrix *displ_Mass = NULL;
+    mVarf->ParallelAssemble();  
+    //    HypreParMatrix *displ_Mass = NULL;
     //  displ_Mass = mVarf->ParallelAssemble();
-
+    
     std::cout << " Done " << std::endl;
      
     // Form the linear system and solve it.
@@ -248,7 +247,7 @@ namespace mfem {
 	{
 	  ns=new mfem::GMRESSolver(pmesh->GetComm());
 	}
-
+     
       // PRECONDITIONER
       ParGridFunction * UnitVal = new ParGridFunction(alpha_fes);
       *UnitVal = 1;
@@ -260,7 +259,7 @@ namespace mfem {
 	  // Normal Penalty
 	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *bulkMod, analyticalSurface),*(it->first));
 	  // Tangential Penalty
-	  //  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *shearMod, analyticalSurface),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *shearMod, analyticalSurface),*(it->first));
 	}
       if (useEmbedded){     
 	// ghost penalty

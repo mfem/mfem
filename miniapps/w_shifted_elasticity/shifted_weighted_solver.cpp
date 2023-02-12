@@ -56,7 +56,7 @@ namespace mfem
     
     Function(transip, V);
   }
-
+  
   void WeightedShiftedStressBoundaryForceIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
 									const FiniteElement &fe2,
 									FaceElementTransformations &Tr,
@@ -614,5 +614,4 @@ namespace mfem
       elvect = 0.0;
     }
   }
-
 }

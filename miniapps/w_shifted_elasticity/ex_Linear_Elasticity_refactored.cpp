@@ -121,6 +121,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient fcoeff3D(dim, fFun3D);
    VectorFunctionCoefficient ucoeff3D(dim, uFun_ex3D);
    ShiftedMatrixFunctionCoefficient traction_shifted3D(dim, traction_ex3D);
+   MatrixFunctionCoefficient traction_3D(dim, traction_ex3D);
    
    mfem::LinearElasticitySolver* ssolv=new mfem::LinearElasticitySolver(pmesh, displacementOrder, useEmbedded, geometricShape, nTerms, numberStrainTerms, ghostPenaltyCoefficient, mumps_solver, useAnalyticalShape, visualization);
    ssolv->AddMaterial(shearModCoefficient,bulkModCoefficient);
@@ -144,7 +145,7 @@ int main(int argc, char *argv[])
      ssolv->AddShiftedNormalStressBC(traction_shifted3D);
      ssolv->SetExactDisplacementSolution(ucoeff3D);
    }
-   ssolv->SetNewtonSolver(1.0e-12,0.0,10000000,1);
+   ssolv->SetNewtonSolver(1.0e-12,0.0,100000,1);
    ssolv->FSolve();
    ssolv->ComputeL2Errors();
    ssolv->VisualizeFields();
@@ -227,12 +228,12 @@ void traction_ex3D(const Vector & x, DenseMatrix & tN )
   double epsilon_23 = (u_23+u_32)*0.5;
   double epsilon_33 = u_33;
 
-  double sigma_11 = 2 * mu * epsilon_11 + (kappa - (2.0/3.0))*div_u;
+  double sigma_11 = 2 * mu * epsilon_11 + (kappa - (2.0/3.0) * mu)*div_u;
   double sigma_12 = 2 * mu * epsilon_12;
   double sigma_13 = 2 * mu * epsilon_13;
-  double sigma_22 = 2 * mu * epsilon_22 + (kappa - (2.0/3.0))*div_u;
+  double sigma_22 = 2 * mu * epsilon_22 + (kappa - (2.0/3.0) * mu)*div_u;
   double sigma_23 = 2 * mu * epsilon_23;
-  double sigma_33 = 2 * mu * epsilon_33 + (kappa - (2.0/3.0))*div_u;
+  double sigma_33 = 2 * mu * epsilon_33 + (kappa - (2.0/3.0) * mu)*div_u;
         
   tN = 0.0; 
   tN(0,0) = sigma_11;

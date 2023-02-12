@@ -540,6 +540,8 @@ namespace mfem
     elvect.SetSize(h1dofs_cnt*dim);
     elvect = 0.0;
     Vector shape(h1dofs_cnt), nor(dim), bcEval(dim);
+    DenseMatrix stress(dim);
+    stress = 0.0;    
     shape = 0.0;
     nor = 0.0;
     bcEval = 0.0;
@@ -558,7 +560,8 @@ namespace mfem
 	shape = 0.0;
 	nor = 0.0;
 	bcEval = 0.0;
-	  
+	stress = 0.0;
+	
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
@@ -572,8 +575,13 @@ namespace mfem
 	  nor_norm += nor(s) * nor(s);
 	}
 	nor_norm = sqrt(nor_norm);
-	tN->Eval(bcEval, Trans_el1, eip);
-
+	tN->Eval(stress, Trans_el1, eip);
+	for (int s = 0; s < dim; s++){
+	  for (int k = 0; k < dim; k++){
+	    bcEval(s) += stress(s,k) * nor(k)/nor_norm;
+	  }
+	}
+	
 	for (int i = 0; i < h1dofs_cnt; i++)
 	  {
 	    for (int vd = 0; vd < dim; vd++) // Velocity components.

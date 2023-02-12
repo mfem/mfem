@@ -163,11 +163,11 @@ namespace mfem
   {
   private:
     ParGridFunction *alpha;
-    VectorCoefficient *tN;
+    MatrixFunctionCoefficient *tN;
     ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedTractionBCIntegrator(ParGridFunction &alphaF, VectorCoefficient &tN_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), tN(&tN_), analyticalSurface(analyticalSurface) { }
+    WeightedTractionBCIntegrator(ParGridFunction &alphaF, MatrixFunctionCoefficient &tN_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), tN(&tN_), analyticalSurface(analyticalSurface) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					FaceElementTransformations &Tr,
 					Vector &elvect);
