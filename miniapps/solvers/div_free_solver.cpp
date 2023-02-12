@@ -984,17 +984,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     {
         trial_space.GetElementDofs(i, dofs);
         sub_vec.MakeRef(rhs.GetBlock(0), hat_offsets[i], dofs.Size());
-        for (int j = 0; j < dofs.Size(); ++j)
-        {
-            if (dofs[j] >= 0)
-            {
-                x0(dofs[j]) = sub_vec[j];
-            }
-            else
-            {
-                x0(-1-dofs[j]) = -sub_vec[j];
-            }
-        }
+        x0.SetSubVector(dofs, sub_vec);
     }
     BlockVector block_y(y, offsets_);
     R.Mult(x0, block_y.GetBlock(0));
