@@ -253,7 +253,7 @@ class BlockHybridizationSolver : public DarcySolver
 {
    ParFiniteElementSpace trial_space, test_space;
    ParFiniteElementSpace *c_fes;
-   Array<int> hat_offsets, test_offsets, data_offsets, ipiv_offsets;
+   Array<int> hat_offsets, test_offsets, data_offsets, ipiv_offsets, mixed_dofs;
    double *data;
    int *ipiv;
    bool elimination_;

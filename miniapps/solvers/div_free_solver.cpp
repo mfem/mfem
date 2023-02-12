@@ -664,6 +664,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     data = new double[data_offsets.Last()]();
     ipiv = new int[ipiv_offsets.Last()];
 
+    mixed_dofs.Reserve(ipiv_offsets.Last());
+
     Array<int> ess_dof_marker;
     for (int attr : ess_bdr_attr)
     {
@@ -759,7 +761,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         a->ComputeElementMatrix(i, A);
         A.Threshold(eps * A.MaxMaxNorm());
 
-        const int test_size = test_offsets[i + 1] - test_offsets[i];
+        const int test_offset = test_offsets[i];
+        const int test_size = test_offsets[i + 1] - test_offset;
+
         DenseMatrix B(test_size, trial_size);
         b->ComputeElementMatrix(i, B);
         B.Neg();
@@ -814,6 +818,12 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
                 }
             }
             dofs[j] = row;
+        }
+
+        mixed_dofs.Append(dofs);
+        for (int j = 0; j < test_size; ++j)
+        {
+            mixed_dofs.Append(hat_offsets.Last() + test_offset + j);
         }
         
         Ct_local.SetSize(M.Height(), c_dofs.Size()); // Ct_local = [C 0]^T
@@ -917,24 +927,15 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
             }
         }
 
-        const int hat_offset = hat_offsets[i];
-        const int test_offset = test_offsets[i];
-        const int test_size = test_offsets[i + 1] - test_offset;
-        dofs.SetSize(trial_size + test_size);
-        for (int j = 0; j < trial_size; ++j)
-        {
-            dofs[j] = hat_offset + j;
-        }
-        for (int j = 0; j < test_size; ++j)
-        {
-            dofs[trial_size + j] = block_offsets[1] + test_offset + j;
-        }
+        const int ipiv_offset = ipiv_offsets[i];
+        const int matrix_size = ipiv_offsets[i + 1] - ipiv_offset;
 
-        LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
+        mixed_dofs.GetSubArray(ipiv_offset, matrix_size, dofs);
+
+        LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offset);
         rhs.GetSubVector(dofs, Minv_sub_vec);
         Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
-        rhs.SetSubVector(dofs, Minv_sub_vec); // Set is okay because each dof
-                                              // belongs to only one element.
+        rhs.SetSubVector(dofs, Minv_sub_vec);
     }
 
     Vector rhs_r(Ct->Width());
@@ -951,26 +952,17 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
     P.Mult(lambda_true, rhs_r);
     BlockVector Ct_lambda(block_offsets);
-    Ct_lambda = 0.0;  // This is necessary.
     Ct->Mult(rhs_r, Ct_lambda.GetBlock(0));
+    Ct_lambda.GetBlock(1) = 0.0;
 
     for (int i = 0; i < ne; ++i)
     {
-        const int hat_offset = hat_offsets[i];
-        const int trial_size = hat_offsets[i + 1] - hat_offset;
-        const int test_offset = test_offsets[i];
-        const int test_size = test_offsets[i + 1] - test_offset;
-        dofs.SetSize(trial_size + test_size);
-        for (int j = 0; j < trial_size; ++j)
-        {
-            dofs[j] = hat_offset + j;
-        }
-        for (int j = 0; j < test_size; ++j)
-        {
-            dofs[trial_size + j] = block_offsets[1] + test_offset + j;
-        }
+        const int ipiv_offset = ipiv_offsets[i];
+        const int matrix_size = ipiv_offsets[i + 1] - ipiv_offset;
 
-        LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
+        mixed_dofs.GetSubArray(ipiv_offset, matrix_size, dofs);
+
+        LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offset);
         Ct_lambda.GetSubVector(dofs, Minv_sub_vec);
         Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
         Minv_sub_vec.Neg();
