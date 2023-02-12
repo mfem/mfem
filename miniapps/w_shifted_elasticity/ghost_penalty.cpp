@@ -80,7 +80,7 @@ namespace mfem
       if (ir == NULL)
 	{
 	  // a simple choice for the integration order; is this OK?
-	  const int order = 10 * max(fe.GetOrder(), 1);
+	  const int order = 2 * max(fe.GetOrder(), 1);
 	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
 	}
       
@@ -279,8 +279,8 @@ namespace mfem
       if (ir == NULL)
 	{
 	  // a simple choice for the integration order; is this OK?
-	  const int order = 10 * max(fe.GetOrder(), 1);
-	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
+	  const int order = 2 * max(fe.GetOrder(), 1);
+	  ir = &IntRules.Get(Tr.GetGeometryType(), order);	  
 	}
       
       const int nqp_face = ir->GetNPoints();
@@ -301,7 +301,28 @@ namespace mfem
 	  
 	  nor = 0.0;
 	  tN = 0.0;
+
+	  TrialTestContract_el1el1 = 0.0;
+	  TrialTestContract_el1el2 = 0.0;  
+	  TrialTestContract_el2el1 = 0.0;  
+	  TrialTestContract_el2el2 = 0.0;  
+
+	  base_el1el1 = 0.0;
+	  base_el1el2 = 0.0;
+	  base_el2el1 = 0.0;
+	  base_el2el2 = 0.0;
+
 	  
+	  gradUResDotShape_TrialTest_el1el1 = 0.0;
+	  gradUResDotShape_TrialTest_el1el2 = 0.0;
+	  gradUResDotShape_TrialTest_el2el1 = 0.0;
+	  gradUResDotShape_TrialTest_el2el2 = 0.0;	    
+
+	  tmp_el1el1 = 0.0;
+	  tmp_el1el2 = 0.0;
+	  tmp_el2el1 = 0.0;
+	  tmp_el2el2 = 0.0;
+	 
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
 	  Tr.SetAllIntPoints(&ip_f);
@@ -339,30 +360,42 @@ namespace mfem
 	      }
 	    }
 	  }
+
+	  	      
+	  for (int a = 0; a < h1dofs_cnt; a++){
+	    for (int o = 0; o < h1dofs_cnt; o++){
+	      for (int b = 0; b < h1dofs_cnt; b++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  for (int j = 0; j < dim; j++){		
+		    tmp_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el1(o + j * h1dofs_cnt, a) * nodalGrad_el1(r + j * h1dofs_cnt, b) ;
+		    tmp_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el1(o + j * h1dofs_cnt, a) * nodalGrad_el2(r + j * h1dofs_cnt, b) ;
+		    tmp_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el2(o + j * h1dofs_cnt, a) * nodalGrad_el1(r + j * h1dofs_cnt, b) ;
+		    tmp_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el2(o + j * h1dofs_cnt, a) * nodalGrad_el2(r + j * h1dofs_cnt, b) ;
+		  }
+		}
+	      }
+	    }
+	  }
+	  
+	  base_el1el1 = tmp_el1el1;
+	  base_el1el2 = tmp_el1el2;
+	  base_el2el1 = tmp_el2el1;
+	  base_el2el2 = tmp_el2el2;
+
+	  	    
+	  for (int s = 0; s < h1dofs_cnt; s++){
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      gradUResDotShape_TrialTest_el1el1(s + k * h1dofs_cnt) += gradUResDotShape_el1(s) * gradUResDotShape_el1(k);
+	      gradUResDotShape_TrialTest_el1el2(s + k * h1dofs_cnt) += gradUResDotShape_el1(s) * gradUResDotShape_el2(k);
+	      gradUResDotShape_TrialTest_el2el1(s + k * h1dofs_cnt) += gradUResDotShape_el2(s) * gradUResDotShape_el1(k);
+	      gradUResDotShape_TrialTest_el2el2(s + k * h1dofs_cnt) += gradUResDotShape_el2(s) * gradUResDotShape_el2(k); 
+	    }
+	  }
+
 	  for (int nT = 2; nT <= nTerms; nT++){
 	    penaltyParameter /= (double)nT;
-	    double standardFactor =  nor_norm * ip_f.weight * 2 * (1.0/std::max(3 * Kappa, 2 * Mu)) * penaltyParameter;	    
-	 
-	    TrialTestContract_el1el1 = 0.0;
-	    TrialTestContract_el1el2 = 0.0;
-	    TrialTestContract_el2el1 = 0.0;
-	    TrialTestContract_el2el2 = 0.0;
-	    
-	    gradUResDotShape_TrialTest_el1el1 = 0.0;
-	    gradUResDotShape_TrialTest_el1el2 = 0.0;
-	    gradUResDotShape_TrialTest_el2el1 = 0.0;
-	    gradUResDotShape_TrialTest_el2el2 = 0.0;	    
-	    
-	    base_el1el1 = 0.0;
-	    base_el1el2 = 0.0;
-	    base_el2el1 = 0.0;
-	    base_el2el2 = 0.0;
+	    double standardFactor =  nor_norm * ip_f.weight * 2 * (1.0/std::max(3 * Kappa, 2 * Mu)) * penaltyParameter;	    	   
 	  
-	    tmp_el1el1 = 0.0;
-	    tmp_el1el2 = 0.0;
-	    tmp_el2el1 = 0.0;
-	    tmp_el2el2 = 0.0;
-	    
 	    lumped_el1el1 = 0.0;
 	    lumped_el1el2 = 0.0;
 	    lumped_el2el1 = 0.0;
@@ -370,57 +403,20 @@ namespace mfem
 	    
 	    double weighted_h = ((Tr.Elem1->Weight()/nor_norm) * (Tr.Elem2->Weight() / nor_norm) )/ ( (Tr.Elem1->Weight()/nor_norm) + (Tr.Elem2->Weight() / nor_norm));
 	    weighted_h = pow(weighted_h,2*nT-1);	    
-	    
-	    for (int s = 0; s < h1dofs_cnt; s++){
-	      for (int k = 0; k < h1dofs_cnt; k++){
-		gradUResDotShape_TrialTest_el1el1(s + k * h1dofs_cnt) += gradUResDotShape_el1(s) * gradUResDotShape_el1(k);
-		gradUResDotShape_TrialTest_el1el2(s + k * h1dofs_cnt) += gradUResDotShape_el1(s) * gradUResDotShape_el2(k);
-		gradUResDotShape_TrialTest_el2el1(s + k * h1dofs_cnt) += gradUResDotShape_el2(s) * gradUResDotShape_el1(k);
-		gradUResDotShape_TrialTest_el2el2(s + k * h1dofs_cnt) += gradUResDotShape_el2(s) * gradUResDotShape_el2(k); 
-	      }
+
+	    if (nT == 2){
+	      lumped_el1el1 = gradUResDotShape_TrialTest_el1el1;
+	      lumped_el1el2 = gradUResDotShape_TrialTest_el1el2;
+	      lumped_el2el1 = gradUResDotShape_TrialTest_el2el1;
+	      lumped_el2el2 = gradUResDotShape_TrialTest_el2el2;
 	    }
-	    
-	    lumped_el1el1 = gradUResDotShape_TrialTest_el1el1;
-	    lumped_el1el2 = gradUResDotShape_TrialTest_el1el2;
-	    lumped_el2el1 = gradUResDotShape_TrialTest_el2el1;
-	    lumped_el2el2 = gradUResDotShape_TrialTest_el2el2;
-	    
-	    for (int a = 0; a < h1dofs_cnt; a++){
-	      for (int o = 0; o < h1dofs_cnt; o++){
-		for (int b = 0; b < h1dofs_cnt; b++){
-		  for (int r = 0; r < h1dofs_cnt; r++){
-		    for (int j = 0; j < dim; j++){		
-		      tmp_el1el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el1(o + j * h1dofs_cnt, a) * nodalGrad_el1(r + j * h1dofs_cnt, b) ;
-		      tmp_el1el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el1(o + j * h1dofs_cnt, a) * nodalGrad_el2(r + j * h1dofs_cnt, b) ;
-		      tmp_el2el1(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el2(o + j * h1dofs_cnt, a) * nodalGrad_el1(r + j * h1dofs_cnt, b) ;
-		      tmp_el2el2(a + o * h1dofs_cnt, b + r * h1dofs_cnt) += nodalGrad_el2(o + j * h1dofs_cnt, a) * nodalGrad_el2(r + j * h1dofs_cnt, b) ;
-		    }
-		  }
-		}
-	      }
-	    }
-	    TrialTestContract_el1el1 = tmp_el1el1;
-	    TrialTestContract_el1el2 = tmp_el1el2;
-	    TrialTestContract_el2el1 = tmp_el2el1;
-	    TrialTestContract_el2el2 = tmp_el2el2;
-	    
-	    
-	    base_el1el1 = tmp_el1el1;
-	    base_el1el2 = tmp_el1el2;
-	    base_el2el1 = tmp_el2el1;
-	    base_el2el2 = tmp_el2el2;
-	    
-	    if (nT > 2){
+	    else if (nT > 2){
 	      lumped_el1el1 = 0.0;
 	      lumped_el1el2 = 0.0;
 	      lumped_el2el1 = 0.0;
 	      lumped_el2el2 = 0.0;
-	      
-	      for (int i = 3; i < nT ; i++){  
-		TrialTestContract_el1el1 = 0.0;
-		TrialTestContract_el1el2 = 0.0;  
-		TrialTestContract_el2el1 = 0.0;  
-		TrialTestContract_el2el2 = 0.0;  
+
+	      if (nT > 3){  
 		for (int a = 0; a < h1dofs_cnt; a++){
 		  for (int p = 0; p < h1dofs_cnt; p++){
 		    for (int b = 0; b < h1dofs_cnt; b++){
@@ -442,7 +438,12 @@ namespace mfem
 		tmp_el2el1 = TrialTestContract_el2el1;
 		tmp_el2el2 = TrialTestContract_el2el2;
 	      }	  
-	      
+
+	      TrialTestContract_el1el1 = tmp_el1el1;
+	      TrialTestContract_el1el2 = tmp_el1el2;
+	      TrialTestContract_el2el1 = tmp_el2el1;
+	      TrialTestContract_el2el2 = tmp_el2el2;	      
+	     
 	      for (int a = 0; a < h1dofs_cnt; a++)
 		{
 		  for (int b = 0; b < h1dofs_cnt; b++)
@@ -460,6 +461,13 @@ namespace mfem
 		    }	 
 		}
 	    }
+
+	    // if (nT == 3){
+	    TrialTestContract_el1el1 = 0.0;
+	    TrialTestContract_el1el2 = 0.0;  
+	    TrialTestContract_el2el1 = 0.0;  
+	    TrialTestContract_el2el2 = 0.0;  	
+	      //  }*/
 	    
 	    for (int qt = 0; qt < h1dofs_cnt; qt++)
 	      {
