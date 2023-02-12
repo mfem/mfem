@@ -58,7 +58,7 @@ HIP_CXX = hipcc
 # example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
-HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_FLAGS = --offload-arch=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
 
