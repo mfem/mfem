@@ -3427,44 +3427,54 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
       }
 
       inv_index.SetSize(max_index + 1);
-      inv_index = -1;
+      inv_index = {ElementType::INVALID, -1};
 
       for (int i = 0; i < conforming.Size(); i++)
       {
-         inv_index[conforming[i].index] = (i << 2);
+         inv_index[conforming[i].index] = {ElementType::CONFORMING, i};
       }
       for (int i = 0; i < masters.Size(); i++)
       {
-         inv_index[masters[i].index] = (i << 2) + 1;
+         inv_index[masters[i].index] = {ElementType::MASTER, i};
       }
       for (int i = 0; i < slaves.Size(); i++)
       {
          if (slaves[i].index < 0) { continue; }
-         inv_index[slaves[i].index] = (i << 2) + 2;
+         inv_index[slaves[i].index] = {ElementType::SLAVE, i};
       }
    }
 
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
-   int key = inv_index[index];
+   auto key = inv_index[index];
 
    if (!type)
    {
-      MFEM_VERIFY(key >= 0, "entity not found.");
+      MFEM_VERIFY(key.index >= 0, "entity not found.");
    }
    else // return entity type if requested, don't abort when not found
    {
-      *type = (key >= 0) ? (key & 0x3) : -1;
+      switch (key.t)
+      {
+         case ElementType::CONFORMING :
+            *type = 0; break;
+         case ElementType::MASTER :
+            *type = 1; break;
+         case ElementType::SLAVE :
+            *type = 2; break;
+         default:
+            *type = -1;
+      }
 
       static MeshId invalid;
       if (*type < 0) { return invalid; } // not found
    }
 
    // return found entity MeshId
-   switch (key & 0x3)
+   switch (key.t)
    {
-      case 0: return conforming[key >> 2];
-      case 1: return masters[key >> 2];
-      case 2: return slaves[key >> 2];
+      case ElementType::CONFORMING: return conforming[key.index];
+      case ElementType::MASTER: return masters[key.index];
+      case ElementType::SLAVE: return slaves[key.index];
       default: MFEM_ABORT("internal error"); return conforming[0];
    }
 }

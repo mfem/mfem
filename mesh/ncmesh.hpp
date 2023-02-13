@@ -226,9 +226,9 @@ public:
    /// Lists all edges/faces in the nonconforming mesh.
    struct NCList
    {
-      Array<MeshId> conforming;
-      Array<Master> masters;
-      Array<Slave> slaves;
+      Array<MeshId> conforming; ///< MeshIds that are conforming
+      Array<Master> masters; ///< MeshIds that are masters
+      Array<Slave> slaves; ///< MeshIds that are slaves (receive geometry information from masters)
 
       /// List of unique point matrices for each slave geometry.
       Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
@@ -237,16 +237,27 @@ public:
       void OrientedPointMatrix(const Slave &slave,
                                DenseMatrix &oriented_matrix) const;
 
-      void Clear();
+      void Clear(); ///< Call DeleteAll on member Arrays
+      /// Check if this NCList contains data
       bool Empty() const { return !conforming.Size() && !masters.Size(); }
+      /// Combined Size call of all member arrays
       long TotalSize() const;
+      /// Combined Memory Usage of member arrays
       long MemoryUsage() const;
 
+      /// Given an index corresponding to an element number within Mesh, find
+      /// the corresponding mesh element, from within the @a conforming, @a
+      /// masters and @a slaves arrays, optionally return the @a type of the
+      /// returned MeshId.
       const MeshId& LookUp(int index, int *type = NULL) const;
-
-      ~NCList() { Clear(); }
    private:
-      mutable Array<int> inv_index;
+      /// @brief Which array is this element stored in
+      enum class ElementType : char { INVALID, CONFORMING, MASTER, SLAVE };
+      /// @brief Convenience struct storing which array, and the index into it.
+      struct TypeIndex { ElementType t; int index; };
+      /// inv_index goes from a Mesh index number to the entry in one of the
+      /// three member arrays: conforming, masters and slaves.
+      mutable Array<TypeIndex> inv_index;
    };
 
    /// Return the current list of conforming and nonconforming faces.
