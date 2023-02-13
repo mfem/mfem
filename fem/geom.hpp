@@ -32,7 +32,7 @@ namespace mfem
 class Geometry
 {
 public:
-   enum Type
+   enum Type : char
    {
       INVALID = -1,
       POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID,

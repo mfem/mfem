@@ -189,12 +189,12 @@ public:
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
       signed char local; ///< local number within 'element'
-      signed char geom;  ///< Geometry::Type (faces only) (char to save RAM)
+      Geometry::Type geom;  ///< Geometry::Type (faces only) (char to save RAM)
 
-      Geometry::Type Geom() const { return Geometry::Type(geom); }
+      Geometry::Type Geom() const { return geom; }
 
       MeshId() = default;
-      MeshId(int index, int element, int local, int geom = -1)
+      MeshId(int index, int element, int local, Geometry::Type geom = Geometry::Type::INVALID)
          : index(index), element(element), local(local), geom(geom) {}
    };
 
@@ -205,7 +205,7 @@ public:
       int slaves_begin, slaves_end; ///< slave faces
 
       Master() = default;
-      Master(int index, int element, int local, int geom, int sb, int se)
+      Master(int index, int element, int local, Geometry::Type geom, int sb, int se)
          : MeshId(index, element, local, geom)
          , slaves_begin(sb), slaves_end(se) {}
    };
@@ -218,7 +218,7 @@ public:
       unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
 
       Slave() = default;
-      Slave(int index, int element, int local, int geom)
+      Slave(int index, int element, int local, Geometry::Type geom)
          : MeshId(index, element, local, geom)
          , master(-1), matrix(0), edge_flags(0) {}
    };

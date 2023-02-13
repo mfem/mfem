@@ -3145,7 +3145,7 @@ void NCMesh::BuildFaceList()
          if (processed_faces[face]) { continue; }
          processed_faces[face] = 1;
 
-         int fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
+         Geometry::Type fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
 
          Face &fa = faces[face];
          if (fa.elem[0] >= 0 && fa.elem[1] >= 0)
