@@ -194,7 +194,8 @@ public:
       Geometry::Type Geom() const { return geom; }
 
       MeshId() = default;
-      MeshId(int index, int element, int local, Geometry::Type geom = Geometry::Type::INVALID)
+      MeshId(int index, int element, int local,
+             Geometry::Type geom = Geometry::Type::INVALID)
          : index(index), element(element), local(local), geom(geom) {}
    };
 
@@ -228,7 +229,7 @@ public:
    {
       Array<MeshId> conforming; ///< MeshIds that are conforming
       Array<Master> masters; ///< MeshIds that are masters
-      Array<Slave> slaves; ///< MeshIds that are slaves (receive geometry information from masters)
+      Array<Slave> slaves; ///< MeshIds that are slaves
 
       /// List of unique point matrices for each slave geometry.
       Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
@@ -948,9 +949,8 @@ protected: // implementation
 
    struct TmpVertex
    {
-      bool valid, visited;
+      bool valid = false, visited = false;
       double pos[3];
-      TmpVertex() : valid(false), visited(false) {}
    };
 
    mutable TmpVertex* tmp_vertex;

@@ -4582,10 +4582,10 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
       std::string ref_path;
       ref_path.reserve(100);
 
-      RefPathMap path_map[Geometry::NumGeom];
-      for (int g = 0; g < Geometry::NumGeom; g++)
+      std::array<RefPathMap, Geometry::NumGeom> path_map;
+      for (auto &p : path_map)
       {
-         path_map[g][ref_path] = 1; // empty path == identity
+         p[ref_path] = 1; // empty path == identity
       }
 
       int used_geoms = 0;
@@ -4603,15 +4603,13 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
             Geometry::Type geom = Geometry::Type(g);
             const PointMatrix &identity = GetGeomIdentity(geom);
 
-            transforms.point_matrices[g]
-            .SetSize(Dim, identity.np, path_map[g].size());
+            transforms.point_matrices[g].SetSize(Dim, identity.np, path_map[g].size());
 
             // calculate the point matrices
-            RefPathMap::iterator it;
-            for (it = path_map[g].begin(); it != path_map[g].end(); ++it)
+            for (auto const &kv : path_map[g])
             {
-               GetPointMatrix(geom, it->first.c_str(),
-                              transforms.point_matrices[g](it->second-1));
+               GetPointMatrix(geom, kv.first.c_str(),
+                              transforms.point_matrices[g](kv.second-1));
             }
          }
       }
