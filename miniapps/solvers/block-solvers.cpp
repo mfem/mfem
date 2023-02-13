@@ -317,8 +317,8 @@ int main(int argc, char *argv[])
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[1] = 1;
+   ess_bdr = 1;
+   ess_bdr[0] = 0;
    if (std::strcmp(ess_bdr_attr_file, ""))
    {
       ifstream ess_bdr_attr_str(ess_bdr_attr_file);
