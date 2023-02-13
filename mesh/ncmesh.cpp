@@ -322,7 +322,7 @@ int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
 void NCMesh::ReferenceElement(int elem)
 {
    Element &el = elements[elem];
-   int* node = el.node;
+   auto &node = el.node;
    GeomInfo& gi = GI[el.Geom()];
 
    // reference all vertices
@@ -353,7 +353,7 @@ void NCMesh::ReferenceElement(int elem)
 void NCMesh::UnreferenceElement(int elem, Array<int> &elemFaces)
 {
    Element &el = elements[elem];
-   int* node = el.node;
+   auto &node = el.node;
    GeomInfo& gi = GI[el.Geom()];
 
    // unreference all faces
@@ -436,7 +436,7 @@ NCMesh::Face* NCMesh::GetFace(Element &elem, int face_no)
 {
    GeomInfo& gi = GI[(int) elem.geom];
    const int* fv = gi.faces[face_no];
-   int* node = elem.node;
+   auto &node = elem.node;
    return faces.Find(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
 }
 
@@ -461,9 +461,6 @@ NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
 {
-   for (int i = 0; i < MaxElemNodes; i++) { node[i] = -1; }
-   for (int i = 0; i < MaxElemChildren; i++) { child[i] = -1; }
-
    // NOTE: in 2D the 8/10-element node/child arrays are not optimal, however,
    // testing shows we would only save 17% of the total NCMesh memory if
    // 4-element arrays were used (e.g. through templates); we thus prefer to
@@ -654,28 +651,36 @@ int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
    return new_id;
 }
 
-inline bool CubeFaceLeft(int node, int* n)
+template <std::size_t N>
+inline bool CubeFaceLeft(int node, const std::array<int, N> &n)
 { return node == n[0] || node == n[3] || node == n[4] || node == n[7]; }
 
-inline bool CubeFaceRight(int node, int* n)
+template <std::size_t N>
+inline bool CubeFaceRight(int node, const std::array<int, N> &n)
 { return node == n[1] || node == n[2] || node == n[5] || node == n[6]; }
 
-inline bool CubeFaceFront(int node, int* n)
+template <std::size_t N>
+inline bool CubeFaceFront(int node, const std::array<int, N> &n)
 { return node == n[0] || node == n[1] || node == n[4] || node == n[5]; }
 
-inline bool CubeFaceBack(int node, int* n)
+template <std::size_t N>
+inline bool CubeFaceBack(int node, const std::array<int, N> &n)
 { return node == n[2] || node == n[3] || node == n[6] || node == n[7]; }
 
-inline bool CubeFaceBottom(int node, int* n)
+template <std::size_t N>
+inline bool CubeFaceBottom(int node, const std::array<int, N> &n)
 { return node == n[0] || node == n[1] || node == n[2] || node == n[3]; }
 
-inline bool CubeFaceTop(int node, int* n)
+template <std::size_t N>
+inline bool CubeFaceTop(int node, const std::array<int, N> &n)
 { return node == n[4] || node == n[5] || node == n[6] || node == n[7]; }
 
-inline bool PrismFaceBottom(int node, int* n)
+template <std::size_t N>
+inline bool PrismFaceBottom(int node, const std::array<int, N> &n)
 { return node == n[0] || node == n[1] || node == n[2]; }
 
-inline bool PrismFaceTop(int node, int* n)
+template <std::size_t N>
+inline bool PrismFaceTop(int node, const std::array<int, N> &n)
 { return node == n[3] || node == n[4] || node == n[5]; }
 
 
@@ -689,7 +694,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
-   int* el_nodes = el.node;
+   auto &el_nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
       // schedule the right split depending on face orientation
@@ -946,11 +951,11 @@ void NCMesh::RefineElement(int elem, char ref_type)
              << el.node[6] << ", " << el.node[7] << "), "
              << "ref_type " << int(ref_type) << std::endl;*/
 
-   int* no = el.node;
+   auto &no = el.node;
    int attr = el.attribute;
 
-   int child[MaxElemChildren];
-   for (int i = 0; i < MaxElemChildren; i++) { child[i] = -1; }
+   std::array<int, MaxElemChildren> child;
+   child.fill(-1);
 
    // get parent's face attributes
    int fa[MaxElemFaces];
@@ -1613,7 +1618,8 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
    // finish the refinement
    el.ref_type = ref_type;
-   std::memcpy(el.child, child, sizeof(el.child));
+   el.child = child;
+   // std::memcpy(el.child, child, sizeof(el.child));
 }
 
 
@@ -1712,8 +1718,7 @@ void NCMesh::DerefineElement(int elem)
    Element &el = elements[elem];
    if (!el.ref_type) { return; }
 
-   int child[MaxElemChildren];
-   std::memcpy(child, el.child, sizeof(child));
+   auto child = el.child;
 
    // first make sure that all children are leaves, derefine them if not
    for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
@@ -2458,7 +2463,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    {
       const Element &nc_elem = elements[leaf_elements[i]];
 
-      const int* node = nc_elem.node;
+      auto &node = nc_elem.node;
       GeomInfo& gi = GI[(int) nc_elem.geom];
 
       mfem::Element* elem = mesh.NewElement(nc_elem.geom);
@@ -3554,7 +3559,7 @@ void NCMesh::BuildElementToVertexTable()
       MFEM_ASSERT(!el.ref_type, "not a leaf element.");
 
       GeomInfo& gi = GI[el.Geom()];
-      int* node = el.node;
+      auto &node = el.node;
 
       indices.SetSize(0);
       for (int j = 0; j < gi.ne; j++)
@@ -5296,7 +5301,7 @@ void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::CountSplits(int elem, int splits[3]) const
 {
    const Element &el = elements[elem];
-   const int* node = el.node;
+   const auto &node = el.node;
    GeomInfo& gi = GI[el.Geom()];
 
    int elevel[MaxElemEdges];

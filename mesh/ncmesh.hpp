@@ -491,8 +491,8 @@ protected: // implementation
       int attribute;
       union
       {
-         int node[MaxElemNodes];  ///< element corners (if ref_type == 0)
-         int child[MaxElemChildren]; ///< 2-10 children (if ref_type != 0)
+         std::array<int, MaxElemNodes> node;  ///< element corners (if ref_type == 0)
+         std::array<int, MaxElemChildren> child; ///< 2-10 children (if ref_type != 0)
       };
       int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
