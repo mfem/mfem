@@ -16,9 +16,9 @@
 #include "../general/forall.hpp"
 #include "../linalg/invariants.hpp"
 #include "../linalg/dinvariants.hpp"
-
+ 
 namespace mfem
-{
+{ 
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
@@ -377,7 +377,7 @@ void TMOP_Metric_002::ComputeH(const DenseMatrix &Jpt) const
       for (int c = 0; c < dim; c++)
       {
          DenseMatrix H(HIden(r+dim*c).GetData(),dim, dim);
-         H.Set(1.0, ied.Get_ddI1b(r,c));
+         H.Set(0.5, ied.Get_ddI1b(r,c));
       }
    }
 }
@@ -3194,6 +3194,7 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
    {
       PA.H.GetMemory().DeleteDevice(copy_to_host);
       PA.H0.GetMemory().DeleteDevice(copy_to_host);
+      PA.HIden2.GetMemory().DeleteDevice(copy_to_host);
       if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid())
       {
          PA.Jtr_needs_update = true;

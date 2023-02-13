@@ -37,13 +37,35 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
 
    if (PA.dim == 2)
    {
-      AssembleGradPA_2D(xe);
+       if (PA.mulinear) {
+           if (PA.HIden2.Size() == 0) {
+               PA.HIden2.UseDevice(true);
+               const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+               PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+               SetupGradPALinear_2D();
+           }
+       }
+       else {
+          AssembleGradPA_2D(xe);
+       }
       if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
-      AssembleGradPA_3D(xe);
+       if (PA.mulinear) {
+           if (PA.HIden2.Size() == 0) {
+               PA.HIden2.UseDevice(true);
+               const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+               PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+               SetupGradPALinear_3D();
+           }
+       }
+       else {
+          AssembleGradPA_3D(xe);
+       }
       if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
    }
 }
@@ -208,6 +230,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.H.UseDevice(true);
    PA.H.SetSize(dim*dim * dim*dim * nq*ne, mt);
 
+//    std::cout << PA.mulinear << " k10setupmulinear " << std::endl;;
+   PA.HIden2.UseDevice(true);
+   PA.HIden2.SetSize(0, mt);
+
    // Scalar Q-vector of '1', used to compute sums via dot product
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
    PA.O = 1.0;
@@ -235,12 +261,26 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
 
    if (PA.dim == 2)
    {
+       if (PA.mulinear && PA.HIden2.Size() == 0) {
+           PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+           SetupGradPALinear_2D();
+       }
       AssembleDiagonalPA_2D(de);
       if (lim_coeff) { AssembleDiagonalPA_C0_2D(de); }
    }
 
    if (PA.dim == 3)
    {
+       if (PA.mulinear && PA.HIden2.Size() == 0) {
+           PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+           SetupGradPALinear_3D();
+       }
       AssembleDiagonalPA_3D(de);
       if (lim_coeff) { AssembleDiagonalPA_C0_3D(de); }
    }
@@ -257,12 +297,26 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
 
    if (PA.dim == 2)
    {
+      if (PA.mulinear && PA.HIden2.Size() == 0) {
+           PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+          SetupGradPALinear_2D();
+      }
       AddMultPA_2D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
    }
 
    if (PA.dim == 3)
    {
+       if (PA.mulinear && PA.HIden2.Size() == 0) {
+           PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+           SetupGradPALinear_3D();
+       }
       AddMultPA_3D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_3D(xe,ye); }
    }
@@ -282,12 +336,26 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 
    if (PA.dim == 2)
    {
+      if (PA.mulinear && PA.HIden2.Size() == 0) {
+          PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+          SetupGradPALinear_2D();
+      }
       AddMultGradPA_2D(re,ce);
       if (lim_coeff) { AddMultGradPA_C0_2D(re,ce); }
    }
 
    if (PA.dim == 3)
    {
+      if (PA.mulinear && PA.HIden2.Size() == 0) {
+          PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+          SetupGradPALinear_3D();
+      }
       AddMultGradPA_3D(re,ce);
       if (lim_coeff) { AddMultGradPA_C0_3D(re,ce); }
    }
@@ -306,12 +374,26 @@ double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 
    if (PA.dim == 2)
    {
+      if (PA.mulinear && PA.HIden2.Size() == 0) {
+          PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+          SetupGradPALinear_2D();
+      }
       energy = GetLocalStateEnergyPA_2D(xe);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
+       if (PA.mulinear && PA.HIden2.Size() == 0) {
+           PA.HIden2.UseDevice(true);
+           const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+           PA.HIden2.SetSize(PA.dim*PA.dim*PA.dim*PA.dim, mt);
+           SetupGradPALinear_3D();
+       }
       energy = GetLocalStateEnergyPA_3D(xe);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }

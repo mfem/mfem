@@ -189,6 +189,110 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
    });
 }
 
+// P_303 = dI1b/3
+static MFEM_HOST_DEVICE inline
+void EvalPLinear_303(const double *J, const double *HIden, double *P)
+{
+    for (int i = 0; i < 9; i++) {
+        P[i] = 0.0;
+        for (int j = 0; j < 9; j++) {
+            P[i] += J[j]*HIden[j + i*9]*1.0;
+        }
+    }
+}
+
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultPALinear_Kernel_3D,
+                           const double metric_normal,
+                           double metric_param,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           Vector &y_,
+                           Vector &hiden2_,
+                           const int d1d,
+                           const int q1d)
+{
+   MFEM_VERIFY(mid == 303, "3D metric not yet implemented!");
+
+   constexpr int DIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
+
+   auto HIden2 = Reshape(hiden2_.ReadWrite(), DIM, DIM, DIM, DIM);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+
+      MFEM_SHARED double s_BG[2][MQ1*MD1];
+      MFEM_SHARED double s_DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED double s_DDQ[9][MD1*MD1*MQ1];
+      MFEM_SHARED double s_DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
+
+      kernels::internal::LoadX<MD1>(e,D1D,X,s_DDD);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
+
+      kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,s_BG,s_DDD,s_DDQ);
+      kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,s_DQQ);
+      kernels::internal::GradZ<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_QQQ);
+
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const double *Jtr = &J(0,0,qx,qy,qz,e);
+               const double detJtr = kernels::Det<3>(Jtr);
+               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
+
+               // Jrt = Jtr^{-1}
+               double Jrt[9];
+               kernels::CalcInverse<3>(Jtr, Jrt);
+
+               // Jpr = X^T.DSh
+               double Jpr[9];
+               kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,s_QQQ,Jpr);
+
+               // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+               double Jpt[9];
+               kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
+
+               // metric->EvalP(Jpt, P);
+               double P[9];
+               if (mid == 303) { EvalPLinear_303(Jpt, HIden2, P); }
+               for (int i = 0; i < 9; i++) { P[i] *= weight; }
+
+               // Y += DS . P^t += DSh . (Jrt . P^t)
+               double A[9];
+               kernels::MultABt(3,3,3, Jrt, P, A);
+               kernels::internal::PushGrad<MQ1>(Q1D,qx,qy,qz,A,s_QQQ);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      kernels::internal::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
+      kernels::internal::GradZt<MD1,MQ1>(D1D,Q1D,s_BG,s_QQQ,s_DQQ);
+      kernels::internal::GradYt<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_DDQ);
+      kernels::internal::GradXt<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,Y,e);
+   });
+}
+
 void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
@@ -201,11 +305,19 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
+   Vector &HIden2 = PA.HIden2;
 
    double mp = 0.0;
    if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y);
+   if (PA.mulinear) {
+       MFEM_LAUNCH_TMOP_KERNEL(AddMultPALinear_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y, HIden2);
+   }
+   else {
+       MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y);
+   }
+//    HIden2.Print();
+//    Y.Print();
 }
 
 } // namespace mfem

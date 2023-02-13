@@ -354,4 +354,33 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mp,M,X,N,W,B,G,J,H);
 }
 
+void TMOP_Integrator::SetupGradPALinear_3D() const
+{
+    // const int N = PA.ne;
+//    const int Q1D = PA.maps->nqpt;
+   const int M = metric->Id();
+   double IdenD[PA.dim*PA.dim];
+   for (int i = 0; i < PA.dim*PA.dim; i++) {
+    IdenD[i] = 0.0;
+   }
+   IdenD[0] = 1.0;
+   IdenD[PA.dim+1] = 1.0;
+   IdenD[PA.dim*PA.dim-1] = 1.0;
+
+   auto H2 = Reshape(PA.HIden2.HostWrite(), PA.dim, PA.dim, PA.dim, PA.dim, 1, 1, 1, 1);
+   MFEM_VERIFY(M == 303, "Metric not yet implemented!");
+
+//    MFEM_FORALL(e_NOTUSED, 1, 
+//    {
+    double B[9];
+    double dI1b[9], ddI1[9], ddI1b[9];
+    double dI2[9], dI2b[9], ddI2[9], ddI2b[9], dI3b[9], ddI3b[9];
+    const int qx = 0;
+    const double wt = 1.0;
+    if (M == 303) {  EvalH_303(qx,qx,qx,qx,wt,IdenD,H2,
+                                B,dI1b,ddI1,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
+    }
+//    });
+}
+
 } // namespace mfem

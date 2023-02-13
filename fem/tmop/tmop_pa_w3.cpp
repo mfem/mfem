@@ -152,6 +152,113 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
    return energy * ones;
 }
 
+// mu_303 = I1b/3 - 1
+static MFEM_HOST_DEVICE inline
+double EvalWLinear_303(const double *J, const double *HIden)
+{
+    double prod1[9];
+    for (int i = 0; i < 9; i++) {
+        prod1[i] = 0.0;
+        for (int j = 0; j < 9; j++) {
+            prod1[i] += J[j]*HIden[j + i*9]*1.0;
+            //NOTE: The 2.0 factor in the line above is specific to mu2 because
+            //EvalH has a 0.5 factor so scaling is off.
+        }
+    }
+    double sum = 0.0;
+    for (int j = 0; j < 9; j++) {
+        sum += prod1[j]*J[j];
+    }
+
+    return sum*0.5;
+}
+
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPALinear_3D,
+                           const double metric_normal,
+                           const double metric_param,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &ones,
+                           const Vector &x_,
+                           Vector &energy,
+                           Vector &hiden2_,
+                           const int d1d,
+                           const int q1d)
+{
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
+               mid == 321 || mid == 332, "3D metric not yet implemented!");
+
+   constexpr int DIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
+
+   auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
+   auto HIden2 = Reshape(hiden2_.ReadWrite(), DIM, DIM, DIM, DIM);
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED double DDQ[6][MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
+
+      kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+
+      kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
+      kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
+      kernels::internal::GradZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
+
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const double *Jtr = &J(0,0,qx,qy,qz,e);
+               const double detJtr = kernels::Det<3>(Jtr);
+               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
+
+               // Jrt = Jtr^{-1}
+               double Jrt[9];
+               kernels::CalcInverse<3>(Jtr, Jrt);
+
+               // Jpr = X^t.DSh
+               double Jpr[9];
+               kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz, QQQ, Jpr);
+
+               // Jpt = X^t.DS = (X^t.DSh).Jrt = Jpr.Jrt
+               double Jpt[9];
+               kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
+
+               // metric->EvalW(Jpt);
+               const double EvalW =
+               mid == 303 ? EvalWLinear_303(Jpt, HIden2) : 0.0;
+
+               E(qx,qy,qz,e) = weight * EvalW;
+            }
+         }
+      }
+   });
+   return energy * ones;
+}
+
 double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
 {
    const int N = PA.ne;
@@ -166,11 +273,17 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
    const Array<double> &G = PA.maps->G;
    const Vector &O = PA.O;
    Vector &E = PA.E;
+   Vector &HIden2 = PA.HIden2;
 
    double mp = 0.0;
    if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,mp,M,N,J,W,B,G,O,X,E);
+   if (PA.mulinear) {
+       MFEM_LAUNCH_TMOP_KERNEL(EnergyPALinear_3D,id,mn,mp,M,N,J,W,B,G,O,X,E, HIden2);
+   }
+   else {
+       MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,mp,M,N,J,W,B,G,O,X,E);
+   }
 }
 
 } // namespace mfem

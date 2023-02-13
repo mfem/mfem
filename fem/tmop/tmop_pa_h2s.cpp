@@ -288,4 +288,20 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,mp,M,N,W,B,G,J,H);
 }
 
+void TMOP_Integrator::SetupGradPALinear_2D() const
+{
+   const int M = metric->Id();
+   DenseMatrix Iden(PA.dim);
+   Iden = 0.0;
+   for (int d = 0; d < PA.dim; d++) { Iden(d, d) = 1.0; }
+
+   Vector &H = PA.HIden2;
+   auto H2 = Reshape(H.Write(), PA.dim, PA.dim, PA.dim, PA.dim, 1, 1, 1);
+   MFEM_VERIFY(M == 2 || M == 77,
+               "Metric not yet implemented!");
+
+   if (M ==  2) { EvalH_002(0,0,0,1.0,Iden.GetData(),H2); }
+   if (M == 77) { EvalH_077(0,0,0,1.0,Iden.GetData(),H2); }
+}
+
 } // namespace mfem

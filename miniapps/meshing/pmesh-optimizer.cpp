@@ -38,6 +38,7 @@
 //
 //   Kershaw 3D
 //     mpirun -np 4 pmesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+//     make pmesh-optimizer -j;mpirun -np 6 pmesh-optimizer -m hex6.mesh -mid 303 -tid 1 -vl 2 -bm -bnd -ni 10 -ls 2 -qt 1 -qo 8 -li 1000 -o 2 -st 0 -rs 1 -scale 1.0 -bm_id 1 -pt 111 -d debug -mulin -pa
 //
 //   Stretch/Rotate 2D
 //     mpirun -np 4 pmesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
@@ -733,7 +734,9 @@ int main (int argc, char *argv[])
             return 3;
       }
    }
-   if (mu_linearization) { metric->EnableLinearization(); }
+   if (mu_linearization) {
+       metric->EnableLinearization();
+   }
 
    TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType btype;
    switch (barrier_type)
@@ -1246,7 +1249,13 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(tmop_integ);
    }
 
-   if (pa) { a.Setup(); }
+   if (pa) {
+       if (mu_linearization) {
+           tmop_integ->EnableMetricLinearization();
+       }
+       a.Setup();
+   } 
+ 
 
    // Compute the minimum det(J) of the starting mesh.
    min_detJ = infinity();
@@ -1267,6 +1276,7 @@ int main (int argc, char *argv[])
    min_detJ = minJ0;
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
+   std::cout << endl;
 
    if (min_detJ < 0.0 && barrier_type == 0
        && metric_id != 22 && metric_id != 211 && metric_id != 252
@@ -1292,6 +1302,7 @@ int main (int argc, char *argv[])
    // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetParGridFunctionEnergy(x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
+//   MFEM_ABORT(" ");
    double init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
@@ -1518,7 +1529,7 @@ int main (int argc, char *argv[])
                 << mesh_poly_deg << " " << quad_order << " "
                 << solver_type << " " <<  solver_art_type << " "
                 << lin_solver << " " << max_lin_iter << " "
-                << pa << " " << metric_id << " " << num_procs
+                << pa << " " << mu_linearization << " " << metric_id << " " << num_procs
                 << std::setprecision(10) << " "
                 << NEGlob << " " << NDofs << " "
                 << solver.GetNumIterations() << " "

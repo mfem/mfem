@@ -340,6 +340,9 @@ public:
 
    virtual void ComputeH(const DenseMatrix &Jpt) const;
 
+   virtual int GetHIdenSize() { return HIden.TotalSize(); };
+   virtual void GetHIden(DenseTensor &HIden_) { HIden_ = HIden; };
+
    virtual int Id() const { return 2; }
 };
 
@@ -568,6 +571,9 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual void ComputeH(const DenseMatrix &Jpt) const;
+
+    virtual int GetHIdenSize() { return HIden.TotalSize(); };
+    virtual void GetHIden(DenseTensor &HIden_) { HIden_ = HIden; };
 
    virtual int Id() const { return 77; }
 };
@@ -1772,11 +1778,14 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0;
+      mutable DenseTensor HIden;
+      mutable Vector HIden2;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
+      mutable bool mulinear = false;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1862,6 +1871,8 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
+   void SetupGradPALinear_2D() const;
+   void SetupGradPALinear_3D() const;
 
    double GetLocalStateEnergyPA_2D(const Vector&) const;
    double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
@@ -2095,6 +2106,10 @@ public:
    // When linearized metrics are used with Identity targets, we can compute and
    // store the assembled element matrix and re-use it.
    void ComputeAndStoreElementH() { store_element_h = true; }
+
+   void EnableMetricLinearization() {
+       PA.mulinear = true;
+   }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
