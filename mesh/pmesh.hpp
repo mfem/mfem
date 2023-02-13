@@ -459,10 +459,14 @@ public:
    void SetNodalFESpace(FiniteElementSpace *nfes) override;
    void SetNodalFESpace(ParFiniteElementSpace *npfes);
 
+   // Number of procs that are neighbors
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
+   // Number of elements across all procs that are neighbors
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
+   // Which FaceNbr proc does this element belong to
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
+   Array<int> GetFaceNbrGroup() const { return face_nbr_group; }
 
    /** Similar to Mesh::GetElementFaces */
    void GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const;

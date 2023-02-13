@@ -409,18 +409,22 @@ int material_id(int el_id, const GridFunction &g)
    const FiniteElementSpace *fes = g.FESpace();
    const FiniteElement *fe = fes->GetFE(el_id);
    Vector g_vals;
-   const IntegrationRule &ir =
-      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+//   const IntegrationRule &ir =
+//      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+//   const IntegrationRule &ir =
+//      IntRulesLo.Get(fe->GetGeomType(), 2);
+   const IntegrationRule *ir =
+      Geometries.GetVertices(fe->GetGeomType());
 
    double integral = 0.0;
-   g.GetValues(el_id, ir, g_vals);
+   g.GetValues(el_id, *ir, g_vals);
    ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
    int approach = 1;
    if (approach == 0)   // integral based
    {
-      for (int q = 0; q < ir.GetNPoints(); q++)
+      for (int q = 0; q < ir->GetNPoints(); q++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(q);
+         const IntegrationPoint &ip = ir->IntPoint(q);
          Tr->SetIntPoint(&ip);
          integral += ip.weight * g_vals(q) * Tr->Weight();
       }
@@ -429,7 +433,10 @@ int material_id(int el_id, const GridFunction &g)
    else if (approach == 1)   // minimum value based
    {
       double minval = g_vals.Min();
-      return minval > 0.0 ? 1.0 : 0.0;
+      double maxval = g_vals.Min();
+      return (minval >= 0.0 || (minval <= 0.0 && maxval >= 0.0)) ? 1.0 : 0.0;
+//      return (maxval <= 0.0 || (minval <= 0.0 && maxval >= 0.0)) ? 0.0 : 1.0;
+//      return minval > 0.0 ? 0.0 : 1.0;
    }
    return 0.0;
 }

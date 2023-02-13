@@ -2791,6 +2791,13 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    SaveSurfaceFittingWeight();
 }
 
+void TMOP_Integrator::DisableSurfaceFitting()
+{
+    delete surf_fit_gf;
+    surf_fit_gf = NULL;
+    surf_fit_gf_bg = false;
+}
+
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
                                                      &s0_bg,
                                                      ParGridFunction &s0,
@@ -2807,7 +2814,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
-
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -2926,6 +2932,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun)
 {
+   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1) {
+       return 0.0;
+   }
    const int dof = el.GetDof(), dim = el.GetDim();
    const int el_id = T.ElementNo;
    double energy;
@@ -3203,6 +3212,11 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)
 {
+   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1) {
+       elvect.SetSize(el.GetDof()*el.GetDim());
+       elvect = 0.0;
+       return;
+   }
    if (!fdflag)
    {
       AssembleElementVectorExact(el, T, elfun, elvect);
@@ -3213,11 +3227,18 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
    }
 }
 
+
+
 void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           ElementTransformation &T,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
+    if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1) {
+        elmat.SetSize(el.GetDof()*el.GetDim());
+        elmat = 0.0;
+        return;
+    }
    if (!fdflag)
    {
       AssembleElementGradExact(el, T, elfun, elmat);
@@ -3736,6 +3757,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                      /* */ shape_x(idof) * shape_x(jdof));
             const int dofcount = std::min(surf_fit_dof_count[cdofs[idof]],
                                           surf_fit_dof_count[cdofs[jdof]]);
+//            const int dofcount = 1.0;
             entry *= 1.0/dofcount;
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
@@ -4106,8 +4128,18 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
+//       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
+//       if (surf_fit_gf_bg)
+//       {
+//          surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x, *surf_fit_grad, new_x_ordering);
+//          surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x, *surf_fit_hess, new_x_ordering);
+////          surf_fit_grad->ExchangeFaceNbrData();
+////          surf_fit_hess->ExchangeFaceNbrData();
+//       }
       if (surf_fit_gf_bg)
       {
+//          surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
+
          // Interpolate information for only DOFs marked for fitting.
          const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
          const int cnt = surf_fit_marker_dof_index.Size();

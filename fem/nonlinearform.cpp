@@ -103,6 +103,9 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         if (ess_elem_marker.Size() > 0 && ess_elem_marker[i] == 1) {
+             continue;
+         }
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -177,6 +180,9 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
+          if (ess_elem_marker.Size() > 0 && ess_elem_marker[i] == 1) {
+              continue;
+          }
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -317,6 +323,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    }
    else
    {
+
       *Grad = 0.0;
    }
 
@@ -324,6 +331,9 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
+          if (ess_elem_marker.Size() > 0 && ess_elem_marker[i] == 1) {
+              continue;
+          }
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);

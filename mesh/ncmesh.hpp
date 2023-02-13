@@ -376,6 +376,9 @@ public:
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
 
+   void GetChildren(int elem, Array<int> &child) const;
+   void GetSiblingElements(int elem, Array<int> &siblings) const;
+   void GetUnRefinedSiblingElements(int elem, Array<int> &siblings) const;
 
    /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
    void Print(std::ostream &out) const;

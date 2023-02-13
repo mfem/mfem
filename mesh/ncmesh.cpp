@@ -5111,6 +5111,42 @@ int NCMesh::GetElementSizeReduction(int i) const
    return reduction;
 }
 
+void NCMesh::GetChildren(int elem, Array<int> &child) const
+{
+    const Element &el = elements[elem];
+    for (int i = 0; i < 10 & el.child[i] >= 0; i++) {
+        int index = elements[el.child[i]].index;
+        if (index < 0) {
+            GetChildren(el.child[i], child);
+        }
+        else {
+            child.Append(index);
+        }
+    }
+}
+
+void NCMesh::GetSiblingElements(int elem, Array<int> &siblings) const
+{
+    siblings.SetSize(0);
+    int parent = elements[leaf_elements[elem]].parent;
+    if (parent < 0) { return;};
+    GetChildren(parent, siblings);
+}
+
+void NCMesh::GetUnRefinedSiblingElements(int elem, Array<int> &siblings) const
+{
+    siblings.SetSize(0);
+    int parent = elements[leaf_elements[elem]].parent;
+    if (parent < 0) { return;};
+    const Element &el = elements[parent];
+    for (int i = 0; i < 10 & el.child[i] >= 0; i++) {
+        int index = elements[el.child[i]].index;
+        if (index >= 0) {
+            siblings.Append(index);
+        }
+    }
+}
+
 void NCMesh::GetElementFacesAttributes(int leaf_elem,
                                        Array<int> &face_indices,
                                        Array<int> &face_attribs) const

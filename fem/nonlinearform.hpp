@@ -51,6 +51,7 @@ protected:
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
+   Array<int> ess_elem_marker;
 
    /// Counter for updates propagated from the FiniteElementSpace.
    long sequence;
@@ -210,6 +211,10 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
+
+   virtual void SetEssentialElementMarker(Array<int> &ess_elem_marker_) {
+       ess_elem_marker = ess_elem_marker_;
+   }
 
    /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */

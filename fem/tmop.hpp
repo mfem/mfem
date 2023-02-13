@@ -1663,12 +1663,17 @@ protected:
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
+//#ifdef MFEM_USE_MPI
+//   ParGridFunction *surf_fit_grad, *surf_fit_hess;
+//#endif
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
    double last_active_surf_fit_const;
 
    DiscreteAdaptTC *discr_tc;
+
+   Array<int> deactivate_list;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
@@ -1990,6 +1995,8 @@ public:
                                        const ParGridFunction &s0_bg_hess,
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
+
+   void DisableSurfaceFitting();
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
@@ -2087,6 +2094,11 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &x,
                                        const FiniteElementSpace &fes);
+
+   void SetDeactivationList(Array<int> &deactivation_list_)
+   {
+       deactivate_list = deactivation_list_;
+   }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

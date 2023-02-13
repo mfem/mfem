@@ -930,6 +930,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          bool loc1 = (e[1]->rank == MyRank);
          if (loc0 == loc1) { continue; }
          if (loc0) { std::swap(e[0], e[1]); }
+         // KM: why do we continue if both loc0 and loc1 are true or false.
+         // KM: why do we swap?
 
          fnbr.Append(e[0]);
          send_elems.Append(Connection(e[0]->rank, e[1]->index));
