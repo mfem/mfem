@@ -256,6 +256,7 @@ public:
       enum class ElementType : char { INVALID, CONFORMING, MASTER, SLAVE };
       /// @brief Convenience struct storing which array, and the index into it.
       struct TypeIndex { ElementType t; int index; };
+
       /// inv_index goes from a Mesh index number to the entry in one of the
       /// three member arrays: conforming, masters and slaves.
       mutable Array<TypeIndex> inv_index;

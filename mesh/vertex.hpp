@@ -22,20 +22,25 @@ namespace mfem
 class Vertex
 {
 protected:
-   double coord[3];
+   std::array<double, 3> coord;
 
 public:
    Vertex() = default;
+   Vertex(const Vertex&) = default;
+   Vertex(Vertex&&) = default;
+
+   Vertex& operator=(const Vertex&) = default;
+   Vertex& operator=(Vertex&&) = default;
 
    // Trivial copy constructor and trivial copy assignment operator
-
-   Vertex (double *xx, int dim);
-   Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
-   Vertex( double x, double y, double z)
+   Vertex(double *xx, int dim);
+   Vertex(double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
+   Vertex(double x, double y, double z)
    { coord[0] = x; coord[1] = y; coord[2] = z; }
 
    /// Returns pointer to the coordinates of the vertex.
-   inline double * operator() () const { return (double*)coord; }
+   inline const double * operator() () const { return coord.data(); }
+   inline double * operator() () { return coord.data(); }
 
    /// Returns the i'th coordinate of the vertex.
    inline double & operator() (int i) { return coord[i]; }
@@ -51,6 +56,9 @@ public:
    /// Sets vertex location based on given point p
    void SetCoords(int dim, const double *p)
    { for (int i = 0; i < dim; i++) { coord[i] = p[i]; } }
+
+   void SetCoords(const std::array<double, 3>& x) { coord = x; }
+   void SetCoords(std::array<double, 3>&& x) { coord = x; }
 
    // Trivial destructor
 };
