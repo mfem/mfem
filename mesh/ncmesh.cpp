@@ -2411,7 +2411,8 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    return NULL;
 }
 
-const double* NCMesh::CalcVertexPos(int node, std::unordered_map<int, TmpVertex> &tmp_vertex) const
+const double* NCMesh::CalcVertexPos(int node,
+                                    std::unordered_map<int, TmpVertex> &tmp_vertex) const
 {
    const Node &nd = nodes[node];
    if (nd.p1 == nd.p2) // top-level vertex
@@ -2424,7 +2425,9 @@ const double* NCMesh::CalcVertexPos(int node, std::unordered_map<int, TmpVertex>
    if (search != tmp_vertex.end())
    {
       if (search->second.valid)
+      {
          return search->second.pos;
+      }
 
       // it's invalid check it's not been seen before
       MFEM_VERIFY(search->second.visited == false, "cycle vertex dependency");
@@ -2455,7 +2458,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
       std::unordered_map<int, TmpVertex> tmp_vertices;
       for (int i = 0; i < mesh.vertices.Size(); i++)
       {
-         mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i], tmp_vertices));
+         mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i],
+                                                            tmp_vertices));
       }
    }
    // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
@@ -5268,7 +5272,8 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
    }
 }
 
-std::array<int, 2> NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4) const
+std::array<int, 2> NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3,
+                                              int vn4) const
 {
    int mid[5];
    switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, mid))
@@ -5277,17 +5282,17 @@ std::array<int, 2> NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4
          return {0,0};
 
       case 1: // vertical
-         {
-            const auto sub0 = QuadFaceSplitLevel(vn1, mid[0], mid[2], vn4);
-            const auto sub1 = QuadFaceSplitLevel(mid[0], vn2, vn3, mid[2]);
-            return {std::max(sub0[0], sub1[0]), std::max(sub0[2], sub1[1]) + 1};
-         }
+      {
+         const auto sub0 = QuadFaceSplitLevel(vn1, mid[0], mid[2], vn4);
+         const auto sub1 = QuadFaceSplitLevel(mid[0], vn2, vn3, mid[2]);
+         return {std::max(sub0[0], sub1[0]), std::max(sub0[2], sub1[1]) + 1};
+      }
       default: // horizontal
-         {
-            const auto sub0 = QuadFaceSplitLevel(vn1, vn2, mid[1], mid[3]);
-            const auto sub1 = QuadFaceSplitLevel(mid[3], mid[1], vn3, vn4);
-            return {std::max(sub0[0], sub1[0]) + 1, std::max(sub0[2], sub1[1])};
-         }
+      {
+         const auto sub0 = QuadFaceSplitLevel(vn1, vn2, mid[1], mid[3]);
+         const auto sub1 = QuadFaceSplitLevel(mid[3], mid[1], vn3, vn4);
+         return {std::max(sub0[0], sub1[0]) + 1, std::max(sub0[2], sub1[1])};
+      }
    }
 }
 
@@ -5328,30 +5333,30 @@ std::array<int, 3> NCMesh::CountSplits(int elem) const
    if (el.Geom() == Geometry::CUBE)
    {
       return { std::max({flevel[0][0], flevel[1][0], flevel[3][0], flevel[5][0],
-                   elevel[0], elevel[2], elevel[4], elevel[6]}),
+                         elevel[0], elevel[2], elevel[4], elevel[6]}),
                std::max({flevel[0][1], flevel[2][0], flevel[4][0], flevel[5][1],
-                   elevel[1], elevel[3], elevel[5], elevel[7]}),
+                         elevel[1], elevel[3], elevel[5], elevel[7]}),
                std::max({flevel[1][1], flevel[2][1], flevel[3][1], flevel[4][1],
-                   elevel[8], elevel[9], elevel[10], elevel[11]})};
+                         elevel[8], elevel[9], elevel[10], elevel[11]})};
    }
    else if (el.Geom() == Geometry::PRISM)
    {
       const auto x = std::max({flevel[0][0], flevel[1][0], 0,
                                flevel[2][0], flevel[3][0], flevel[4][0],
                                elevel[0], elevel[1], elevel[2],
-                              elevel[3], elevel[4], elevel[5]});
+                               elevel[3], elevel[4], elevel[5]});
 
       const auto y = std::max({flevel[2][1], flevel[3][1], flevel[4][1],
-                          elevel[6], elevel[7], elevel[8]});
+                               elevel[6], elevel[7], elevel[8]});
       return {x, x, y};
    }
    else if (el.Geom() == Geometry::PYRAMID)
    {
       const auto x = std::max({flevel[0][0], flevel[1][0], 0,
-                          flevel[2][0], flevel[3][0], flevel[4][0],
-                          elevel[0], elevel[1], elevel[2],
-                          elevel[3], elevel[4], elevel[5],
-                          elevel[6], elevel[7]});
+                               flevel[2][0], flevel[3][0], flevel[4][0],
+                               elevel[0], elevel[1], elevel[2],
+                               elevel[3], elevel[4], elevel[5],
+                               elevel[6], elevel[7]});
       return {x, x, x};
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)

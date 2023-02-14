@@ -960,7 +960,8 @@ protected: // implementation
 
    /// Calculate the vertex position of @a node, using the @a tmp_vertex map to
    /// store those values calculated on demand.
-   const double *CalcVertexPos(int node, std::unordered_map<int, TmpVertex> &tmp_vertex) const;
+   const double *CalcVertexPos(int node,
+                               std::unordered_map<int, TmpVertex> &tmp_vertex) const;
 
    // utility
 
@@ -1057,8 +1058,10 @@ protected: // implementation
    struct GeomInfo
    {
       int nv, ne, nf;   ///< number of: vertices, edges, faces
-      std::array<std::array<int, 2>, MaxElemEdges> edges; ///< edge vertices (up to 12 edges)
-      std::array<std::array<int, 4>, MaxElemFaces> faces; ///< face vertices (up to 6 faces)
+      /// edge vertices (up to 12 edges)
+      std::array<std::array<int, 2>, MaxElemEdges> edges;
+      /// face vertices (up to 6 faces)
+      std::array<std::array<int, 4>, MaxElemFaces> faces;
       std::array<int, MaxElemFaces> nfv; ///< number of face vertices
 
       bool initialized;
