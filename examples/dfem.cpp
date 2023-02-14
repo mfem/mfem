@@ -47,6 +47,14 @@ Argument grad(int i)
    };
 }
 
+Argument derivative_wrt(int i)
+{
+   return
+   {
+      .field_id = i, .mode = InterpolationMode::None
+   };
+}
+
 struct Kernel
 {
    qfunction f;
@@ -365,7 +373,7 @@ public:
 
    // x is a "block" vector if multiple spaces are involved
    void CallKernel(std::string kernel_name, const Vector &x, Vector &y, Mesh &mesh,
-                   bool verbose = false)
+                   std::initializer_list<Argument> derivative_idx = {})
    {
       MFEM_ASSERT(kernels.find(kernel_name) != kernels.end(),
                   "kernel " << kernel_name << " not found");
@@ -465,7 +473,7 @@ public:
          out_qp[arg_i] = new double[qp_cache_out_sizes[arg_i]];
       }
 
-      if (verbose)
+      if (false)
       {
          mfem::out << "Total number of inputs " << inputs.size() << "\n"
                    << "Total number of outputs " << outputs.size()
@@ -770,7 +778,7 @@ int main(int argc, char *argv[])
       in = 1.0;
       Vector area_out(1);
       area_out = 0.0;
-      integral.CallKernel("area", in, area_out, pmesh, true);
+      integral.CallKernel("area", in, area_out, pmesh);
       // area_out now contains the processor local area
 
       mfem::out << "area = " << area_out(0) << std::endl;
@@ -805,7 +813,7 @@ int main(int argc, char *argv[])
       integral.AddKernel("lf", lf, {value(0)}, {value(0)}, &integration_rule);
 
       u = 0.0;
-      integral.CallKernel("lf", *pmesh.GetNodes(), u, pmesh, true);
+      integral.CallKernel("lf", *pmesh.GetNodes(), u, pmesh);
       u.Print(mfem::out, u.Size());
 
       // Comparison against existing implementation
@@ -872,7 +880,7 @@ int main(int argc, char *argv[])
       in.GetBlock(0) = *pmesh.GetNodes();
       in.GetBlock(1) = u;
 
-      integral.CallKernel("convection", in, u, pmesh, true);
+      integral.CallKernel("convection", in, u, pmesh);
       u.Print(mfem::out, u.Size());
 
       // Comparison against existing implementation
@@ -950,7 +958,7 @@ int main(int argc, char *argv[])
       Vector out(u.Size());
       out = 0.0;
 
-      integral.CallKernel("diffusion", u, out, pmesh, true);
+      integral.CallKernel("diffusion", u, out, pmesh);
       out.Print(mfem::out, out.Size());
 
       // integral.CallKernelDerivative("diffusion", u, out, pmesh, derivative_wrt(0));
@@ -1008,19 +1016,24 @@ int main(int argc, char *argv[])
       Integral integral({&u}, {&u});
 
       // A_Q
-      auto vector_diffusion = [](double **in, double **out)
+      auto vector_diffusion = [](Eigen::Matrix2d grad_u)
       {
-         Eigen::Map<Eigen::Matrix2d> grad_u(in[0]);
-         Eigen::Map<Eigen::Matrix2d> o(out[0]);
-         o = grad_u;
+         return std::tuple{grad_u};
       };
+
+      // auto vector_diffusion = [](double **in, double **out)
+      // {
+      //    Eigen::Map<Eigen::Matrix2d> grad_u(in[0]);
+      //    Eigen::Map<Eigen::Matrix2d> grad_v(out[0]);
+      //    grad_v = grad_u;
+      // };
 
       integral.AddKernel("vector_diffusion", vector_diffusion, {grad(0)}, {grad(0)},
                          &integration_rule);
 
       Vector out(u.Size());
       out = 0.0;
-      integral.CallKernel("vector_diffusion", u, out, pmesh, true);
+      integral.CallKernel("vector_diffusion", u, out, pmesh);
       // out.Print(mfem::out, out.Size());
 
       // integral.CallKernelDerivative("diffusion", u, out, pmesh, derivative_wrt(0));
@@ -1121,7 +1134,7 @@ int main(int argc, char *argv[])
       BlockVector out(block_offsets);
       out = 0.0;
 
-      integral.CallKernel("stokes", in, out, pmesh, true);
+      integral.CallKernel("stokes", in, out, pmesh);
 
       // integral.CallKernelDerivative("stokes", in, out, pmesh, derivative_wrt(InputID_Velocity));
 
@@ -1145,6 +1158,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+class PLaplacianGradientOperator;
+
 class PLaplacianOperator : public Operator
 {
 public:
@@ -1165,7 +1180,7 @@ public:
       // A_Q
       auto plap = [&](double **in, double **out)
       {
-         int p = 3;
+         int p = 2;
          Eigen::Map<Eigen::Vector2d> grad_u(in[0]);
          Eigen::Map<Eigen::Vector2d> grad_v(out[0]);
          grad_v = std::pow(grad_u.norm(), p - 2) * grad_u;
@@ -1186,6 +1201,8 @@ public:
       x_lvec.SetSize(fes.GetProlongationMatrix()->Height());
       x_lvec = 0.0;
       y_lvec.SetSize(fes.GetProlongationMatrix()->Height());
+
+      gradient = new PLaplacianGradientOperator(*this);
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -1205,7 +1222,15 @@ public:
 
    Operator &GetGradient(const Vector &x) const override
    {
+      // T -> L
+      fes.GetProlongationMatrix()->Mult(x, x_lvec);
+
       return const_cast<PLaplacianOperator &>(*this);
+   }
+
+   void GradientMult(const Vector &dX, Vector &Y) const
+   {
+
    }
 
    ~PLaplacianOperator()
@@ -1220,6 +1245,22 @@ public:
    Integral *integral;
    Array<int> ess_tdof_list;
    mutable Vector x_lvec, y_lvec;
+
+   PLaplacianGradientOperator *gradient = nullptr;
+};
+
+class PLaplacianGradientOperator : public Operator
+{
+public:
+   PLaplacianGradientOperator(PLaplacianOperator &op) :
+      Operator(op.Height()), plap_op(op) {}
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      plap_op.GradientMult(x, y);
+   }
+
+   PLaplacianOperator &plap_op;
 };
 
 void run_problem6()
@@ -1282,8 +1323,8 @@ public:
 
       // A_Q
       // auto elasticity = [](double *grad_u, double *grad_v)
-      // auto elasticity = [](Input(double *) grad_u, Output(double *) grad_v)
       // auto elasticity = [](Inputs, double *grad_u, Outputs, double *grad_v)
+      // auto elasticity = [](Input(double *) grad_u, Output(double *) grad_v)
       auto elasticity = [](double **in, double **out)
       {
          constexpr int dim = 2;
@@ -1300,6 +1341,23 @@ public:
          auto sigma = lambda * epsilon.trace() * I + 2.0 * mu * epsilon;
          grad_v = sigma; // (grad(v), sigma)
       };
+
+      // std::tuple
+      // {
+      //    grad(InputID_Displacement),
+      //    auto elasticity_alt = [](Eigen::Matrix2d grad_u)
+      //    {
+      //       constexpr int dim = 2;
+      //       auto I = Eigen::Matrix2d::Identity(dim, dim);
+
+      //       double lambda = 100.0, mu = 50.0;
+
+      //       auto epsilon = 0.5 * (grad_u + grad_u.transpose());
+      //       auto sigma = lambda * epsilon.trace() * I + 2.0 * mu * epsilon;
+
+      //       return sigma;
+      //    }
+      // };
 
       integral->AddKernel("elasticity", elasticity,
       {grad(InputID_Displacement)},
