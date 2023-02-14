@@ -1324,16 +1324,13 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
 {
    MFEM_VERIFY(max_nc_level >= 1, "'max_nc_level' must be 1 or greater.");
 
-   while (1)
+   const auto refinements = GetLimitRefinements(max_nc_level);
+
+   long long size = refinements.Size(), glob_size;
+   MPI_Allreduce(&size, &glob_size, 1, MPI_LONG_LONG, MPI_SUM, MyComm);
+
+   if (glob_size > 0)
    {
-      Array<Refinement> refinements;
-      GetLimitRefinements(refinements, max_nc_level);
-
-      long long size = refinements.Size(), glob_size;
-      MPI_Allreduce(&size, &glob_size, 1, MPI_LONG_LONG, MPI_SUM, MyComm);
-
-      if (!glob_size) { break; }
-
       Refine(refinements);
    }
 }
@@ -1641,8 +1638,7 @@ void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,
          int child = leaf_elements[fine[j]];
          if (elements[child].rank == MyRank)
          {
-            int splits[3];
-            CountSplits(child, splits);
+            const auto splits = CountSplits(child);
 
             for (int k = 0; k < Dim; k++)
             {

@@ -1966,8 +1966,7 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
       int ok = 1;
       for (int j = 0; j < size; j++)
       {
-         int splits[3];
-         CountSplits(leaf_elements[fine[j]], splits);
+         const auto splits = CountSplits(leaf_elements[fine[j]]);
 
          for (int k = 0; k < Dim; k++)
          {
@@ -3451,6 +3450,8 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
          if (slaves[i].index < 0) { continue; }
          inv_index[slaves[i].index] = {ElementType::SLAVE, i};
       }
+
+
    }
 
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
@@ -4615,7 +4616,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
             transforms.point_matrices[g].SetSize(Dim, identity.np, path_map[g].size());
 
             // calculate the point matrices
-            for (auto const &kv : path_map[g])
+            for (const auto &kv : path_map[g])
             {
                GetPointMatrix(geom, kv.first.c_str(),
                               transforms.point_matrices[g](kv.second-1));
@@ -5163,12 +5164,12 @@ void NCMesh::GetElementFacesAttributes(int leaf_elem,
    }
 }
 
-void NCMesh::FindFaceNodes(int face, int node[4])
+std::array<int, 4> NCMesh::FindFaceNodes(int face)
 {
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
    // cannot be used directly since they are not in order and p4 is missing).
 
-   Face &fa = faces[face];
+   const Face &fa = faces[face];
 
    int elem = fa.elem[0];
    if (elem < 0) { elem = fa.elem[1]; }
@@ -5181,10 +5182,7 @@ void NCMesh::FindFaceNodes(int face, int node[4])
                            find_node(el, fa.p3));
 
    const int* fv = GI[el.Geom()].faces[f];
-   for (int i = 0; i < 4; i++)
-   {
-      node[i] = el.node[fv[i]];
-   }
+   return {el.node[fv[1]], el.node[fv[2]], el.node[fv[3]], el.node[fv[4]]}
 }
 
 void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
@@ -5202,8 +5200,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          int face = boundary_faces[i];
          if (bdr_attr_is_ess[faces[face].attribute - 1])
          {
-            int node[4];
-            FindFaceNodes(face, node);
+            const auto node = FindFaceNodes(face);
             int nfv = (node[3] < 0) ? 3 : 4;
 
             for (int j = 0; j < nfv; j++)
@@ -5247,19 +5244,6 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    bdr_edges.Unique();
 }
 
-static int max4(int a, int b, int c, int d)
-{
-   return std::max(std::max(a, b), std::max(c, d));
-}
-static int max6(int a, int b, int c, int d, int e, int f)
-{
-   return std::max(max4(a, b, c, d), std::max(e, f));
-}
-static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
-{
-   return std::max(max4(a, b, c, d), max4(e, f, g, h));
-}
-
 int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 {
    int mid = nodes.FindId(vn1, vn2);
@@ -5273,10 +5257,10 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
    if (TriFaceSplit(vn1, vn2, vn3, mid) &&
        faces.FindId(vn1, vn2, vn3) < 0)
    {
-      return 1 + max4(TriFaceSplitLevel(vn1, mid[0], mid[2]),
-                      TriFaceSplitLevel(mid[0], vn2, mid[1]),
-                      TriFaceSplitLevel(mid[2], mid[1], vn3),
-                      TriFaceSplitLevel(mid[0], mid[1], mid[2]));
+      return 1 + std::max({TriFaceSplitLevel(vn1, mid[0], mid[2]),
+                           TriFaceSplitLevel(mid[0], vn2, mid[1]),
+                           TriFaceSplitLevel(mid[2], mid[1], vn3),
+                           TriFaceSplitLevel(mid[0], mid[1], mid[2])});
    }
    else // not split
    {
@@ -5284,34 +5268,30 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
    }
 }
 
-void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
-                                int& h_level, int& v_level) const
+std::array<int, 2> NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4) const
 {
-   int hl1, hl2, vl1, vl2;
    int mid[5];
-
    switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, mid))
    {
       case 0: // not split
-         h_level = v_level = 0;
-         break;
+         return {0,0};
 
       case 1: // vertical
-         QuadFaceSplitLevel(vn1, mid[0], mid[2], vn4, hl1, vl1);
-         QuadFaceSplitLevel(mid[0], vn2, vn3, mid[2], hl2, vl2);
-         h_level = std::max(hl1, hl2);
-         v_level = std::max(vl1, vl2) + 1;
-         break;
-
+         {
+            const auto sub0 = QuadFaceSplitLevel(vn1, mid[0], mid[2], vn4);
+            const auto sub1 = QuadFaceSplitLevel(mid[0], vn2, vn3, mid[2]);
+            return {std::max(sub0[0], sub1[0]), std::max(sub0[2], sub1[1]) + 1};
+         }
       default: // horizontal
-         QuadFaceSplitLevel(vn1, vn2, mid[1], mid[3], hl1, vl1);
-         QuadFaceSplitLevel(mid[3], mid[1], vn3, vn4, hl2, vl2);
-         h_level = std::max(hl1, hl2) + 1;
-         v_level = std::max(vl1, vl2);
+         {
+            const auto sub0 = QuadFaceSplitLevel(vn1, vn2, mid[1], mid[3]);
+            const auto sub1 = QuadFaceSplitLevel(mid[3], mid[1], vn3, vn4);
+            return {std::max(sub0[0], sub1[0]) + 1, std::max(sub0[2], sub1[1])};
+         }
    }
 }
 
-void NCMesh::CountSplits(int elem, int splits[3]) const
+std::array<int, 3> NCMesh::CountSplits(int elem) const
 {
    const Element &el = elements[elem];
    const auto &node = el.node;
@@ -5324,17 +5304,17 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   int flevel[MaxElemFaces][2];
+   using std::array;
+   array<array<int, 2>, MaxElemFaces> flevel;
    if (Dim >= 3)
    {
       for (int i = 0; i < gi.nf; i++)
       {
-         const int* fv = gi.faces[i];
+         auto &fv = gi.faces[i];
          if (gi.nfv[i] == 4)
          {
-            QuadFaceSplitLevel(node[fv[0]], node[fv[1]],
-                               node[fv[2]], node[fv[3]],
-                               flevel[i][1], flevel[i][0]);
+            flevel[i] = QuadFaceSplitLevel(node[fv[0]], node[fv[1]],
+                                           node[fv[2]], node[fv[3]]);
          }
          else
          {
@@ -5347,73 +5327,63 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
 
    if (el.Geom() == Geometry::CUBE)
    {
-      splits[0] = max8(flevel[0][0], flevel[1][0], flevel[3][0], flevel[5][0],
-                       elevel[0], elevel[2], elevel[4], elevel[6]);
-
-      splits[1] = max8(flevel[0][1], flevel[2][0], flevel[4][0], flevel[5][1],
-                       elevel[1], elevel[3], elevel[5], elevel[7]);
-
-      splits[2] = max8(flevel[1][1], flevel[2][1], flevel[3][1], flevel[4][1],
-                       elevel[8], elevel[9], elevel[10], elevel[11]);
+      return { std::max({flevel[0][0], flevel[1][0], flevel[3][0], flevel[5][0],
+                   elevel[0], elevel[2], elevel[4], elevel[6]}),
+               std::max({flevel[0][1], flevel[2][0], flevel[4][0], flevel[5][1],
+                   elevel[1], elevel[3], elevel[5], elevel[7]}),
+               std::max({flevel[1][1], flevel[2][1], flevel[3][1], flevel[4][1],
+                   elevel[8], elevel[9], elevel[10], elevel[11]})};
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      splits[0] = splits[1] =
-                     std::max(
-                        max6(flevel[0][0], flevel[1][0], 0,
-                             flevel[2][0], flevel[3][0], flevel[4][0]),
-                        max6(elevel[0], elevel[1], elevel[2],
-                             elevel[3], elevel[4], elevel[5]));
+      const auto x = std::max({flevel[0][0], flevel[1][0], 0,
+                               flevel[2][0], flevel[3][0], flevel[4][0],
+                               elevel[0], elevel[1], elevel[2],
+                              elevel[3], elevel[4], elevel[5]});
 
-      splits[2] = max6(flevel[2][1], flevel[3][1], flevel[4][1],
-                       elevel[6], elevel[7], elevel[8]);
+      const auto y = std::max({flevel[2][1], flevel[3][1], flevel[4][1],
+                          elevel[6], elevel[7], elevel[8]});
+      return {x, x, y};
    }
    else if (el.Geom() == Geometry::PYRAMID)
    {
-      splits[0] = std::max(
-                     max6(flevel[0][0], flevel[1][0], 0,
-                          flevel[2][0], flevel[3][0], flevel[4][0]),
-                     max8(elevel[0], elevel[1], elevel[2],
+      const auto x = std::max({flevel[0][0], flevel[1][0], 0,
+                          flevel[2][0], flevel[3][0], flevel[4][0],
+                          elevel[0], elevel[1], elevel[2],
                           elevel[3], elevel[4], elevel[5],
-                          elevel[6], elevel[7]));
-
-      splits[1] = splits[0];
-      splits[2] = splits[0];
+                          elevel[6], elevel[7]});
+      return {x, x, x};
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
-      splits[0] = std::max(
-                     max4(flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0]),
-                     max6(elevel[0], elevel[1], elevel[2],
-                          elevel[3], elevel[4], elevel[5]));
-
-      splits[1] = splits[0];
-      splits[2] = splits[0];
+      const auto x = std::max({flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0],
+                               elevel[0], elevel[1], elevel[2], elevel[3], elevel[4], elevel[5]});
+      return {x, x, x};
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
-      splits[0] = std::max(elevel[0], elevel[2]);
-      splits[1] = std::max(elevel[1], elevel[3]);
+      return {std::max(elevel[0], elevel[2]), std::max(elevel[1], elevel[3]), -1};
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      splits[0] = std::max(elevel[0], std::max(elevel[1], elevel[2]));
-      splits[1] = splits[0];
+      const auto x = std::max({elevel[0], elevel[1], elevel[2]});
+      return {x, x, -1};
    }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
    }
+   return {-1, -1, -1};
 }
 
-void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
+Array<Refinement> NCMesh::GetLimitRefinements(int max_level)
 {
+   Array<Refinement> refinements;
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       if (IsGhost(elements[leaf_elements[i]])) { break; } // TODO: NElements
 
-      int splits[3];
-      CountSplits(leaf_elements[i], splits);
+      const auto splits = CountSplits(leaf_elements[i]);
 
       char ref_type = 0;
       for (int k = 0; k < Dim; k++)
@@ -5434,23 +5404,20 @@ void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
          refinements.Append(Refinement(i, ref_type));
       }
    }
+   return refinements;
 }
 
 void NCMesh::LimitNCLevel(int max_nc_level)
 {
    MFEM_VERIFY(max_nc_level >= 1, "'max_nc_level' must be 1 or greater.");
 
-   while (1)
+   const auto refinements = GetLimitRefinements(max_nc_level);
+
+   if (refinements.Size() > 0)
    {
-      Array<Refinement> refinements;
-      GetLimitRefinements(refinements, max_nc_level);
-
-      if (!refinements.Size()) { break; }
-
       Refine(refinements);
    }
 }
-
 
 //// I/O ////////////////////////////////////////////////////////////////////////
 

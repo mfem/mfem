@@ -44,7 +44,6 @@ struct Refinement
       : index(index), ref_type(type) {}
 };
 
-
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
@@ -64,7 +63,6 @@ struct Embedding
    Embedding(int elem, Geometry::Type geom, int matrix = 0, bool ghost = false)
       : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
 };
-
 
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
@@ -94,7 +92,6 @@ struct CoarseFineTransformations
 void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
-
 
 /** \brief A class for non-conforming AMR. The class is not used directly
  *  by the user, rather it is an extension of the Mesh class.
@@ -453,13 +450,15 @@ protected: // implementation
        parent element "signs off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
-      int vert_index, edge_index;
+      char vert_refc = 0, edge_refc = 0;
+      int vert_index = -1, edge_index = -1;
 
-      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
+      // Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
       ~Node();
 
+      /// True if this Node has an associated vertex reference.
       bool HasVertex() const { return vert_refc > 0; }
+      /// True if this Node has an associated edge reference.
       bool HasEdge()   const { return edge_refc > 0; }
 
       // decrease vertex/edge ref count, return false if Node should be deleted
@@ -517,7 +516,6 @@ protected: // implementation
 
 
    // primary data
-
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
@@ -562,7 +560,6 @@ protected: // implementation
    Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
-
 
    /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
@@ -958,17 +955,59 @@ protected: // implementation
 
    // utility
 
+   /// Given an edge node, @a node, compute the edge-node of the master
+   /// of this edge. This is used internally for heading up the refinement
+   /// tree from a "leaf edge" towards the root edges.
    int GetEdgeMaster(int node) const;
 
-   void FindFaceNodes(int face, int node[4]);
+   /// Given a @a face find the set of @a node that make up the face. The
+   /// indices returned in node are stored
+   std::array<int, 4> FindFaceNodes(int face);
 
+   /// @brief Given an edge defined by two vertices, compute the number of
+   /// splits that this edge has undergone in the NCMesh
+   /// @param vn1 The first vertex making up the edge
+   /// @param vn2 The second vertex making up the edge
+   /// @return The number of splits this edge has further undergone
    int EdgeSplitLevel(int vn1, int vn2) const;
-   int TriFaceSplitLevel(int vn1, int vn2, int vn3) const;
-   void QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
-                           int& h_level, int& v_level) const;
 
-   void CountSplits(int elem, int splits[3]) const;
-   void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
+   /// @brief Given a triangle defined by three vertices, compute the number of
+   /// splits that this triangle has undergone in the NCMesh
+   /// @param vn1 The first vertex making up the triangle
+   /// @param vn2 The second vertex making up the triangle
+   /// @param vn3 The third vertex making up the triangle
+   /// @return The number of splits this triangle has further undergone
+   int TriFaceSplitLevel(int vn1, int vn2, int vn3) const;
+
+   /// @brief Given a quad defined by four vertices, compute the number of
+   /// splits that this quad has undergone in the NCMesh
+   /// @param vn1 The first vertex making up the quad
+   /// @param vn2 The second vertex making up the quad
+   /// @param vn3 The third vertex making up the quad
+   /// @param vn4 The fourth vertex making up the quad
+   /// @return array of split types, i-th entry is splits in i-th quad local coordinate
+   std::array<int, 2> QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4) const;
+
+   /// @brief Given an element, compute the number of splits undergone.
+   /// @details For elements that can compute split directions independently,
+   /// the returned value will store them separately, i.e. for a cube element 0:
+   ///   auto x = CountSplits(0);
+   /// then
+   ///   x[0] stores the maximum over the splits in the x direction
+   ///   x[1] stores the maximum over the splits in the y direction
+   ///   x[2] stores the maximum over the splits in the z direction
+   /// For elements that do not store this information separately, such as
+   /// tetrahedra, all entries are the same.
+   /// @param elem The number of the element whose splits are to be counted
+   /// @return Number of splits in each cardinal direction
+   std::array<int, 3> CountSplits(int elem) const;
+
+   /**
+    * @brief Compute set of refinements that adheres to a maximum refinement level
+    * @param max_level Compute a set of refinements
+    * @return Array<Refinement>
+    */
+   Array<Refinement> GetLimitRefinements(int max_level);
 
 
    // I/O
