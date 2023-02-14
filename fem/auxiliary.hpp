@@ -592,9 +592,6 @@ void EulerSystem::GetDensityBounds(GridFunction &solution, int dim, double gamma
 
    // Get element neighbor map
    Table etable = solution.FESpace()->GetMesh()->ElementToElementTable();
-   Vector posl = Vector(2);
-   Vector posr = Vector(2);
-   Vector norm = Vector(2);
 
    for (int i = 0; i < nelems; i++) {
       d_min(i) = std::numeric_limits<double>::max();
@@ -617,7 +614,6 @@ void EulerSystem::GetDensityBounds(GridFunction &solution, int dim, double gamma
       }
 
       // Get element center and average max wavespeed
-      solution.FESpace()->GetMesh()->GetElementCenter(i, posl);
       double lam_l = ComputeMaxCharSpeed(sol_l, dim, specific_heat_ratio, num_equation);
 
       // Get and loop through face-adjacent elements
@@ -632,19 +628,6 @@ void EulerSystem::GetDensityBounds(GridFunction &solution, int dim, double gamma
             f_intr(j) = sol_r(1 + j);
          }
 
-         // Hack to compute face-normal direction for non-conforming mesh
-         solution.FESpace()->GetMesh()->GetElementCenter(k, posr);
-         double dx = posr(0) - posl(0);
-         double dy = posr(1) - posl(0);
-         if (abs(dx) > abs(dy)) {
-            norm(0) = (dx > 0) ? 1.0 : -1.0;
-            norm(1) = 0.0;
-         }
-         else {
-            norm(0) = 0.0;
-            norm(1) = (dy > 0) ? 1.0 : -1.0;
-         }
-
          // Get max wavespeed for the Riemann problem between the two states (using Davis estimate)
          double lam_r = ComputeMaxCharSpeed(sol_r, dim, specific_heat_ratio, num_equation);
          double lam_max = max(lam_l, lam_r);
@@ -652,9 +635,17 @@ void EulerSystem::GetDensityBounds(GridFunction &solution, int dim, double gamma
          // Compute Riemann-averaged density over the Riemann fan
          double dfdotn = 0.0;
          for (int j = 0; j < dim; j++) {
-            dfdotn += (f_intr(j) - f_intl(j))*norm(j);
+            dfdotn += (f_intr(j) - f_intl(j))*(f_intr(j) - f_intl(j));
          }
+         dfdotn = sqrt(dfdotn);
+
          double d_bar = 0.5*(sol_l(0) + sol_r(0)) - 0.5*dfdotn/lam_max;
+
+         // Update density bounds
+         d_min(i) = min(d_min(i), d_bar);
+         d_max(i) = max(d_max(i), d_bar);
+
+         d_bar = 0.5*(sol_l(0) + sol_r(0)) + 0.5*dfdotn/lam_max;
 
          // Update density bounds
          d_min(i) = min(d_min(i), d_bar);
