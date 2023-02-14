@@ -22,6 +22,8 @@ Meshing improvements
 
 - Fixed a bug in TMOP metric 301.
 
+- Added an option to auto-balance compound TMOP metrics.
+
 Discretization improvements
 ---------------------------
 - TBD
