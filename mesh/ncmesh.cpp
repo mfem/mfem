@@ -539,18 +539,18 @@ int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
 
    // get faces and assign face attributes
-   Face* f[4];
+   std::array<Face, 4> f;
    const GeomInfo &gi_tet = GI[Geometry::TETRAHEDRON];
    for (int i = 0; i < gi_tet.nf; i++)
    {
       const auto &fv = gi_tet.faces[i];
-      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]]);
+      f[i] = faces.At(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]]);
    }
 
-   f[0]->attribute = fattr0;
-   f[1]->attribute = fattr1;
-   f[2]->attribute = fattr2;
-   f[3]->attribute = fattr3;
+   f[0].attribute = fattr0;
+   f[1].attribute = fattr1;
+   f[2].attribute = fattr2;
+   f[3].attribute = fattr3;
 
    return new_id;
 }

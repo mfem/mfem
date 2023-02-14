@@ -466,6 +466,13 @@ protected: // implementation
       int vert_index = -1, edge_index = -1;
 
       ~Node();
+      /// non-default dtor means all implicit constructors and operators need
+      /// definining
+      Node() = default;
+      Node(const Node&) = default;
+      Node& operator=(const Node&) = default;
+      Node(Node&&) = default;
+      Node& operator=(Node&&) = default;
 
       /// True if this Node has an associated vertex reference.
       bool HasVertex() const { return vert_refc > 0; }
@@ -490,7 +497,7 @@ protected: // implementation
       bool Boundary() const { return attribute >= 0; }
       bool Unused() const { return elem[0] < 0 && elem[1] < 0; }
 
-      // add or remove an element from the 'elem[2]' array
+      // add or remove an element from the elem array
       void RegisterElement(int e);
       void ForgetElement(int e);
 

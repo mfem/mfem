@@ -106,6 +106,10 @@ public:
 
        @warning This method should only be called if T inherits from Hashed2. */
    T* Get(int p1, int p2);
+   /// @brief Reference equivalent of the Get(int, int) method
+   T& At(int p1, int p2);
+   /// @brief Const reference equivalent of the Get(int, int) method
+   const T& At(int p1, int p2) const;
 
    /** @brief Item accessor with key (or parents) the quadruplet 'p1', 'p2',
        'p3', 'p4'. The key 'p4' is optional. Default construct an item of type T
@@ -119,6 +123,8 @@ public:
 
       @warning This method should only be called if T inherits from Hashed4. */
    T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
+   T& At(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
+   const T& At(int p1, int p2, int p3, int p4 = -1 /* p4 optional */) const;
 
    /// Get id of item whose parents are p1, p2... Create it if it doesn't exist.
    /** @brief Get the "id" of an item, this "id" corresponding to the index of the
@@ -599,9 +605,34 @@ inline T* HashTable<T>::Get(int p1, int p2)
 }
 
 template<typename T>
+inline T& HashTable<T>::At(int p1, int p2)
+{
+   return Base::At(GetId(p1, p2));
+}
+
+template<typename T>
+inline const T& HashTable<T>::At(int p1, int p2) const
+{
+   return Base::At(GetId(p1, p2));
+}
+
+template<typename T>
 inline T* HashTable<T>::Get(int p1, int p2, int p3, int p4)
 {
    return &(Base::At(GetId(p1, p2, p3, p4)));
+}
+
+
+template<typename T>
+inline T& HashTable<T>::At(int p1, int p2, int p3, int p4)
+{
+   return Base::At(GetId(p1, p2, p3, p4));
+}
+
+template<typename T>
+inline const T& HashTable<T>::At(int p1, int p2, int p3, int p4) const
+{
+   return Base::At(GetId(p1, p2, p3, p4));
 }
 
 template<typename T>
