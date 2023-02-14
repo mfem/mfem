@@ -10,6 +10,8 @@
 
 Version 4.5.1 (development)
 ===========================
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
 
 Meshing improvements
 --------------------
@@ -18,6 +20,10 @@ Meshing improvements
 
 - Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
   domain boundary.
+
+- Added support for pyramids in Gmsh meshes.
+
+- Fixed a bug in TMOP metric 301.
 
 Discretization improvements
 ---------------------------
