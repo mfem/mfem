@@ -4011,6 +4011,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
    ComputeFDh(x,*pfes);
    if (discr_tc)
    {
+      const AdaptivityEvaluator *ae = discr_tc->GetAdaptivityEvaluator();
+      if (dynamic_cast<const InterpolatorFP *>(ae))
+      {
+         MFEM_ABORT("Using GSLIB-based interpolation with finite differences"
+                    "requires careful consideration. Contact TMOP team.");
+      }
       discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
       discr_tc->UpdateGradientTargetSpecification(x, dx, false, pfes->GetOrdering());
       discr_tc->UpdateHessianTargetSpecification(x, dx, false, pfes->GetOrdering());
