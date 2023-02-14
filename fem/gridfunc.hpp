@@ -329,15 +329,28 @@ public:
 
    void GetCurl(ElementTransformation &tr, Vector &curl) const;
 
+   /** @brief Gradient of a scalar function at a quadrature point.
+
+       @note It is assumed that the IntegrationPoint of interest has been
+       specified by ElementTransformation::SetIntPoint() before calling
+       GetGradient().
+
+       @note Can be used from a ParGridFunction when @a tr is an
+       ElementTransformation of a face-neighbor element and face-neighbor data
+       has been exchanged. */
    void GetGradient(ElementTransformation &tr, Vector &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(ElementTransformation &tr, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(const int elem, const IntegrationRule &ir,
                      DenseMatrix &grad) const
    { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
+   /// Gradient of a vector function at a quadrature point. See the
+   /// documentation of GetGradient(...).
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
