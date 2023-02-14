@@ -33,25 +33,6 @@ using namespace mfem;
 
 namespace mfem
 {
-
-  // Performs full assembly for the normal velocity mass matrix operator.
-  class GhostStressPenaltyIntegrator : public BilinearFormIntegrator
-  {
-  private:
-    const ParMesh *pmesh;
-    double penaltyParameter;
-    Coefficient *mu;
-    Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
-    int par_shared_face_count;
-    int nTerms;
-  public:
-    GhostStressPenaltyIntegrator(const ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
-    virtual void AssembleFaceMatrix(const FiniteElement &fe,
-				    const FiniteElement &fe2,
-				    FaceElementTransformations &Tr,
-				    DenseMatrix &elmat);
-  };
   // Performs full assembly for the normal velocity mass matrix operator.
   class GhostStressFullGradPenaltyIntegrator : public BilinearFormIntegrator
   {
