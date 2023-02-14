@@ -44,31 +44,6 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
-void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_, int vdim_)
-{
-   if (qspace_ != qspace)
-   {
-      if (own_qspace) { delete qspace; }
-      qspace = qspace_;
-      own_qspace = false;
-   }
-   vdim = (vdim_ < 0) ? vdim : vdim_;
-   SetSize(vdim*qspace->GetSize());
-}
-
-void QuadratureFunction::SetSpace(
-   QuadratureSpaceBase *qspace_, double *qf_data, int vdim_)
-{
-   if (qspace_ != qspace)
-   {
-      if (own_qspace) { delete qspace; }
-      qspace = qspace_;
-      own_qspace = false;
-   }
-   vdim = (vdim_ < 0) ? vdim : vdim_;
-   NewDataAndSize(qf_data, vdim*qspace->GetSize());
-}
-
 void QuadratureFunction::Save(std::ostream &os) const
 {
    GetSpace()->Save(os);
@@ -96,7 +71,8 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       R->Mult(gf, e_vec);
 
       // Use quadrature interpolator to go from E-vector to Q-vector
-      const QuadratureInterpolator *qi = gf_fes.GetQuadratureInterpolator(*qs_elem);
+      const QuadratureInterpolator *qi =
+         gf_fes.GetQuadratureInterpolator(*qs_elem);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);

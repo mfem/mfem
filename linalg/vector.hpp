@@ -63,7 +63,6 @@ protected:
 
    Memory<double> data;
    int size;
-   bool global_seed_set = false;
 
 public:
 
@@ -209,15 +208,11 @@ public:
    inline double *GetData() const
    { return const_cast<double*>((const double*)data); }
 
-   /// Conversion to `double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator double *() { return data; }
+   /// Conversion to `double *`. Deprecated.
+   MFEM_DEPRECATED inline operator double *() { return data; }
 
-   /// Conversion to `const double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator const double *() const { return data; }
+   /// Conversion to `const double *`. Deprecated.
+   MFEM_DEPRECATED inline operator const double *() const { return data; }
 
    /// STL-like begin.
    inline double *begin() { return data; }
@@ -269,6 +264,14 @@ public:
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double &operator()(int i) const;
 
+   /// Access Vector entries using [] for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline double &operator[](int i) { return (*this)(i); }
+
+   /// Read only access to Vector entries using [] for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline const double &operator[](int i) const { return (*this)(i); }
+
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
 
@@ -306,12 +309,6 @@ public:
    Vector &operator+=(double c);
 
    Vector &operator+=(const Vector &v);
-
-   /// operator- is not supported. Use @ref subtract or @ref Add.
-   Vector &operator-(const Vector &v) = delete;
-
-   /// operator+ is not supported. Use @ref Add.
-   Vector &operator+(const Vector &v) = delete;
 
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
@@ -417,8 +414,6 @@ public:
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
-   /// Set global seed for random values in sequential calls to Randomize().
-   void SetGlobalSeed(int gseed);
    /// Returns the l2 norm of the vector.
    double Norml2() const;
    /// Returns the l_infinity norm of the vector.
@@ -435,8 +430,12 @@ public:
    double Sum() const;
    /// Compute the square of the Euclidean distance to another vector.
    inline double DistanceSquaredTo(const double *p) const;
+   /// Compute the square of the Euclidean distance to another vector.
+   inline double DistanceSquaredTo(const Vector &p) const;
    /// Compute the Euclidean distance to another vector.
    inline double DistanceTo(const double *p) const;
+   /// Compute the Euclidean distance to another vector.
+   inline double DistanceTo(const Vector &p) const;
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -469,25 +468,6 @@ public:
    virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
-#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
-   MFEM_DEPRECATED explicit Vector(N_Vector nv);
-
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector()
-   { return N_VMake_Serial(Size(), GetData()); }
-
-   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
-       Vector.
-
-       \param[in] nv N_Vector to assign this vector's data to
-       \param[in] global_length An optional parameter that designates the global
-        length. If nv is a parallel vector and global_length == 0 then this
-        method will perform a global reduction and calculate the global length
-   */
-   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
-#endif
 };
 
 // Inline methods
@@ -665,14 +645,31 @@ inline double Distance(const double *x, const double *y, const int n)
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
+inline double Distance(const Vector &x, const Vector &y)
+{
+   return x.DistanceTo(y);
+}
+
 inline double Vector::DistanceSquaredTo(const double *p) const
 {
    return DistanceSquared(data, p, size);
 }
 
+inline double Vector::DistanceSquaredTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return DistanceSquared(data, p.data, size);
+}
+
 inline double Vector::DistanceTo(const double *p) const
 {
    return Distance(data, p, size);
+}
+
+inline double Vector::DistanceTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return Distance(data, p.data, size);
 }
 
 /// Returns the inner product of x and y
