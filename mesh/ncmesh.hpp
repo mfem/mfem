@@ -34,7 +34,7 @@ namespace mfem
     in the X, Y and Z directions, respectively (Z is ignored for quads). */
 struct Refinement
 {
-   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
+   enum : char { UNREFINED = 0, X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
@@ -191,6 +191,11 @@ public:
       Geometry::Type Geom() const { return geom; }
 
       MeshId() = default;
+      MeshId(MeshId const&) = default;
+      MeshId(MeshId &&) = default;
+      MeshId& operator=(MeshId const&) = default;
+      MeshId& operator=(MeshId&&) = default;
+
       MeshId(int index, int element, int local,
              Geometry::Type geom = Geometry::Type::INVALID)
          : index(index), element(element), local(local), geom(geom) {}
@@ -203,6 +208,11 @@ public:
       int slaves_begin, slaves_end; ///< slave faces
 
       Master() = default;
+      Master(Master const&) = default;
+      Master(Master &&) = default;
+      Master& operator=(Master const&) = default;
+      Master& operator=(Master&&) = default;
+
       Master(int index, int element, int local, Geometry::Type geom, int sb, int se)
          : MeshId(index, element, local, geom)
          , slaves_begin(sb), slaves_end(se) {}
@@ -216,6 +226,11 @@ public:
       unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
 
       Slave() = default;
+      Slave(Slave const&) = default;
+      Slave(Slave &&) = default;
+      Slave& operator=(Slave const&) = default;
+      Slave& operator=(Slave&&) = default;
+
       Slave(int index, int element, int local, Geometry::Type geom)
          : MeshId(index, element, local, geom)
          , master(-1), matrix(0), edge_flags(0) {}
@@ -386,7 +401,6 @@ public:
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
 
-
    /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
    void Print(std::ostream &out) const;
 
@@ -404,8 +418,7 @@ public:
 
    int PrintMemoryDetail() const;
 
-   typedef std::int64_t RefCoord;
-
+   using RefCoord = std::int64_t;
 
 protected: // non-public interface for the Mesh class
 
@@ -422,7 +435,6 @@ protected: // non-public interface for the Mesh class
        by calling Mesh::SetCurvature or otherwise setting the Nodes. */
    void MakeTopologyOnly() { coordinates.DeleteAll(); }
 
-
 protected: // implementation
 
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
@@ -431,13 +443,13 @@ protected: // implementation
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
-   static const int MaxElemNodes =
+   static constexpr int MaxElemNodes =
       8;       ///< Number of nodes of an element can have
-   static const int MaxElemEdges =
+   static constexpr int MaxElemEdges =
       12;      ///< Number of edges of an element can have
-   static const int MaxElemFaces =
+   static constexpr int MaxElemFaces =
       6;       ///< Number of faces of an element can have
-   static const int MaxElemChildren =
+   static constexpr int MaxElemChildren =
       10;      ///< Number of children of an element can have
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
@@ -453,7 +465,6 @@ protected: // implementation
       char vert_refc = 0, edge_refc = 0;
       int vert_index = -1, edge_index = -1;
 
-      // Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
       ~Node();
 
       /// True if this Node has an associated vertex reference.
@@ -472,11 +483,9 @@ protected: // implementation
        it is either a master or a slave face. */
    struct Face : public Hashed4
    {
-      int attribute; ///< boundary element attribute, -1 if internal face
-      int index;     ///< face number in the Mesh
-      int elem[2];   ///< up to 2 elements sharing the face
-
-      Face() : attribute(-1), index(-1) { elem[0] = elem[1] = -1; }
+      int attribute = -1; ///< boundary element attribute, -1 if internal face
+      int index = -1;     ///< face number in the Mesh
+      std::array<int, 2> elem = {-1, -1};   ///< up to 2 elements sharing the face
 
       bool Boundary() const { return attribute >= 0; }
       bool Unused() const { return elem[0] < 0 && elem[1] < 0; }
@@ -516,21 +525,20 @@ protected: // implementation
 
 
    // primary data
-   HashTable<Node> nodes; // associative container holding all Nodes
-   HashTable<Face> faces; // associative container holding all Faces
+   HashTable<Node> nodes; ///< associative container holding all Nodes
+   HashTable<Face> faces; ///< associative container holding all Faces
 
-   BlockArray<Element> elements; // storage for all Elements
-   Array<int> free_element_ids;  // unused element ids - indices into 'elements'
+   BlockArray<Element> elements; ///< storage for all Elements
+   Array<int> free_element_ids;  ///< unused element ids - indices into 'elements'
 
-   /** Initial traversal state (~ element orientation) for each root element
-       NOTE: M = root_state.Size() is the number of root elements.
-       NOTE: the first M items of 'elements' is the coarse mesh. */
+   /// Initial traversal state (~ element orientation) for each root element
+   /// NOTE: M = root_state.Size() is the number of root elements.
+   /// NOTE: the first M items of 'elements' is the coarse mesh.
    Array<int> root_state;
 
-   /** Coordinates of top-level vertices (organized as triples). If empty,
-       the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
+   /// Coordinates of top-level vertices (organized as triples). If empty,
+   /// the Mesh is curved (Nodes != NULL) and NCMesh is topology-only.
    Array<double> coordinates;
-
 
    // secondary data
 
@@ -541,11 +549,11 @@ protected: // implementation
        derefinement. */
    virtual void Update();
 
-   // set by UpdateLeafElements, UpdateVertices and OnMeshUpdated
+   /// set by UpdateLeafElements, UpdateVertices and OnMeshUpdated
    int NElements, NVertices, NEdges, NFaces;
 
-   // NOTE: the serial code understands the bare minimum about ghost elements and
-   // other ghost entities in order to be able to load parallel partial meshes
+   /// NOTE: the serial code understands the bare minimum about ghost elements and
+   /// other ghost entities in order to be able to load parallel partial meshes
    int NGhostElements, NGhostVertices, NGhostEdges, NGhostFaces;
 
    Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
@@ -566,6 +574,7 @@ protected: // implementation
 
    /** @brief This method assigns indices to vertices (Node::vert_index) that
        will be seen by the Mesh class and the rest of MFEM.
+       @details Update Vertex::index and vertex_nodeId
 
        We must be careful to:
        1. Stay compatible with the conforming code, which expects top-level
@@ -583,7 +592,7 @@ protected: // implementation
           for the remaining shared vertices thanks to the globally consistent
           SFC ordering of the leaf elements. This property reduces communication
           and simplifies ParNCMesh. */
-   void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+   void UpdateVertices();
 
    /** Collect the leaf elements in leaf_elements, and the ghost elements in
        ghosts. Compute and set the element indices of @a elements. On quad and
@@ -707,7 +716,7 @@ protected: // implementation
    void ReferenceElement(int elem);
    void UnreferenceElement(int elem, Array<int> &elemFaces);
 
-   Face* GetFace(Element &elem, int face_no);
+   Face* GetFace(const Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
    void DeleteUnusedFaces(const Array<int> &elemFaces);
 
@@ -955,9 +964,9 @@ protected: // implementation
 
    // utility
 
-   /// Given an edge node, @a node, compute the edge-node of the master
-   /// of this edge. This is used internally for heading up the refinement
-   /// tree from a "leaf edge" towards the root edges.
+   /** Given an edge @a node return the first (geometric) parent edge that
+       exists in the Mesh or -1 if there is no such parent. Used by
+       GetEdgeMaster for vertex arguments. */
    int GetEdgeMaster(int node) const;
 
    /// Given a @a face find the set of @a node that make up the face. The
@@ -1012,9 +1021,9 @@ protected: // implementation
 
    // I/O
 
-   /// Print the "vertex_parents" section of the mesh file.
+   /// Print the "vertex_parents" section of the mesh file to @a out
    int PrintVertexParents(std::ostream *out) const;
-   /// Load the vertex parent hierarchy from a mesh file.
+   /// Load the vertex parent hierarchy from a mesh file, @a out
    void LoadVertexParents(std::istream &input);
 
    /** Print the "boundary" section of the mesh file.
@@ -1047,10 +1056,10 @@ protected: // implementation
    /// This holds in one place the constants about the geometries we support
    struct GeomInfo
    {
-      int nv, ne, nf;   // number of: vertices, edges, faces
-      int edges[MaxElemEdges][2]; // edge vertices (up to 12 edges)
-      int faces[MaxElemFaces][4];  // face vertices (up to 6 faces)
-      int nfv[MaxElemFaces];       // number of face vertices
+      int nv, ne, nf;   ///< number of: vertices, edges, faces
+      std::array<std::array<int, 2>, MaxElemEdges> edges; ///< edge vertices (up to 12 edges)
+      std::array<std::array<int, 4>, MaxElemFaces> faces; ///< face vertices (up to 6 faces)
+      std::array<int, MaxElemFaces> nfv; ///< number of face vertices
 
       bool initialized;
       GeomInfo() : initialized(false) {}

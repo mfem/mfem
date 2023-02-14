@@ -558,7 +558,7 @@ int ParNCMesh::get_face_orientation(Face &face, Element &e1, Element &e2,
       if (local) { local[i] = lf; }
 
       // get node IDs for the face as seen from e[i]
-      const int* fv = GI[e[i]->Geom()].faces[lf];
+      const auto &fv = GI[e[i]->Geom()].faces[lf];
       for (int j = 0; j < 4; j++)
       {
          ids[i][j] = e[i]->node[fv[j]];
@@ -2369,7 +2369,7 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
    Element &old = elements[id.element];
-   const int *old_ev = GI[old.Geom()].edges[(int) id.local];
+   const auto &old_ev = GI[old.Geom()].edges[(int) id.local];
    Node* node = nodes.Find(old.node[old_ev[0]], old.node[old_ev[1]]);
    MFEM_ASSERT(node != NULL, "Edge not found.");
 
@@ -2379,7 +2379,7 @@ void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
    GeomInfo& gi = GI[el.Geom()];
    for (int i = 0; i < gi.ne; i++)
    {
-      const int* ev = gi.edges[i];
+      const auto &ev = gi.edges[i];
       if ((el.node[ev[0]] == node->p1 && el.node[ev[1]] == node->p2) ||
           (el.node[ev[1]] == node->p1 && el.node[ev[0]] == node->p2))
       {
@@ -2485,7 +2485,7 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
             }
             case 1:
             {
-               const int* ev = gi.edges[(int) id.local];
+               const auto &ev = gi.edges[(int) id.local];
                Node* node = nodes.Find(el.node[ev[0]], el.node[ev[1]]);
                MFEM_ASSERT(node && node->HasEdge(), "edge not found.");
                id.index = node->edge_index;
@@ -2493,7 +2493,7 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
             }
             default:
             {
-               const int* fv = gi.faces[(int) id.local];
+               const auto &fv = gi.faces[(int) id.local];
                Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
                                        el.node[fv[2]], el.node[fv[3]]);
                MFEM_ASSERT(face, "face not found.");
