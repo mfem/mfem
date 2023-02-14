@@ -2412,7 +2412,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    return NULL;
 }
 
-const double* NCMesh::CalcVertexPos(int node) const
+const double* NCMesh::CalcVertexPos(int node, std::unordered_map<int, TmpVertex> &tmp_vertex) const
 {
    const Node &nd = nodes[node];
    if (nd.p1 == nd.p2) // top-level vertex
@@ -2420,20 +2420,30 @@ const double* NCMesh::CalcVertexPos(int node) const
       return &coordinates[3*nd.p1];
    }
 
-   TmpVertex &tv = tmp_vertex[node];
-   if (tv.valid) { return tv.pos; }
+   const auto search = tmp_vertex.find(node);
 
-   MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
+   if (search != tmp_vertex.end())
+   {
+      if (search->second.valid)
+         return search->second.pos;
+
+      // it's invalid check it's not been seen before
+      MFEM_VERIFY(search->second.visited == false, "cycle vertex dependency");
+   }
+
+   auto &tv = tmp_vertex[node]; // access or insert
    tv.visited = true;
 
-   const double* pos1 = CalcVertexPos(nd.p1);
-   const double* pos2 = CalcVertexPos(nd.p2);
+   // recursively calculate up until you reach a root vertex or a previously calculated.
+   const double* pos1 = CalcVertexPos(nd.p1, tmp_vertex);
+   const double* pos2 = CalcVertexPos(nd.p2, tmp_vertex);
 
    for (int i = 0; i < 3; i++)
    {
       tv.pos[i] = (pos1[i] + pos2[i]) * 0.5;
    }
    tv.valid = true;
+
    return tv.pos;
 }
 
@@ -2443,12 +2453,11 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    if (coordinates.Size())
    {
       // calculate vertex positions from stored top-level vertex coordinates
-      tmp_vertex = new TmpVertex[nodes.NumIds()];
+      std::unordered_map<int, TmpVertex> tmp_vertices;
       for (int i = 0; i < mesh.vertices.Size(); i++)
       {
-         mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
+         mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i], tmp_vertices));
       }
-      delete [] tmp_vertex;
    }
    // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
    // left uninitialized here; they will be initialized later by the Mesh from
@@ -4624,11 +4633,8 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
 
    if (!transforms.IsInitialized())
    {
-      std::map<int, int> mat_no[Geometry::NumGeom];
-      for (int g = 0; g < Geometry::NumGeom; g++)
-      {
-         mat_no[g][0] = 1; // 0 == identity
-      }
+      std::array<std::map<int, int>, Geometry::NumGeom> mat_no;
+      mat_no.fill({{0, 1}}); // all maps start with 0->1 identity entry
 
       // assign numbers to the different matrices used
       for (int i = 0; i < transforms.embeddings.Size(); i++)
@@ -4638,7 +4644,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
          if (code)
          {
             int &matrix = mat_no[emb.geom][code];
-            if (!matrix) { matrix = mat_no[emb.geom].size(); }
+            if (matrix == 0) { matrix = mat_no[emb.geom].size(); }
 
             emb.matrix = matrix - 1;
          }
@@ -4648,18 +4654,17 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       {
          if (Geoms & (1 << g))
          {
-            Geometry::Type geom = Geometry::Type(g);
+            auto geom = Geometry::Type(g);
             const PointMatrix &identity = GetGeomIdentity(geom);
 
-            transforms.point_matrices[geom]
-            .SetSize(Dim, identity.np, mat_no[geom].size());
+            transforms.point_matrices[g].SetSize(Dim, identity.np, mat_no[g].size());
 
             // calculate point matrices
-            for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
+            for (const auto& kv : mat_no[g])
             {
                char path[3] = { 0, 0, 0 };
 
-               int code = it->first;
+               int code = kv.first;
                if (code)
                {
                   path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
@@ -4667,7 +4672,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
                }
 
                GetPointMatrix(geom, path,
-                              transforms.point_matrices[geom](it->second-1));
+                              transforms.point_matrices[geom](kv.second-1));
             }
          }
       }
@@ -6300,6 +6305,8 @@ int NCMesh::PrintMemoryDetail() const
 void NCMesh::DebugLeafOrder(std::ostream &os) const
 {
    tmp_vertex = new TmpVertex[nodes.NumIds()];
+
+   std::unordered_map<int, TmpVertex> tmp_vertices;
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       const Element* elem = &elements[leaf_elements[i]];
@@ -6311,7 +6318,7 @@ void NCMesh::DebugLeafOrder(std::ostream &os) const
          {
             if (elem->node[k] >= 0)
             {
-               sum += CalcVertexPos(elem->node[k])[j];
+               sum += CalcVertexPos(elem->node[k], tmp_vertices)[j];
                count++;
             }
          }
@@ -6327,9 +6334,10 @@ void NCMesh::DebugDump(std::ostream &os) const
    // dump nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
    os << nodes.Size() << "\n";
+   std::unordered_map<int, TmpVertex> tmp_vertices;
    for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      const double *pos = CalcVertexPos(node.index());
+      const double *pos = CalcVertexPos(node.index(), tmp_vertices);
       os << node.index() << " "
          << pos[0] << " " << pos[1] << " " << pos[2] << " "
          << node->p1 << " " << node->p2 << " "

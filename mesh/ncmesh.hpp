@@ -810,12 +810,15 @@ protected: // implementation
 
    struct Point
    {
-      int dim;
+      int dim = 0;
       double coord[3];
 
-      Point() { dim = 0; }
+      Point() = default;
+      Point(const Point&) = default;
+      Point(Point&&) = default;
 
-      Point(const Point &) = default;
+      Point& operator=(const Point&) = default;
+      Point& operator=(Point&&) = default;
 
       Point(double x)
       { dim = 1; coord[0] = x; }
@@ -844,13 +847,6 @@ protected: // implementation
             coord[i] = (p0.coord[i] + p1.coord[i] + p2.coord[i] + p3.coord[i])
                        * 0.25;
          }
-      }
-
-      Point& operator=(const Point& src)
-      {
-         dim = src.dim;
-         for (int i = 0; i < dim; i++) { coord[i] = src.coord[i]; }
-         return *this;
       }
    };
 
@@ -944,19 +940,20 @@ protected: // implementation
    void InitDerefTransforms();
    void SetDerefMatrixCodes(int parent, Array<int> &fine_coarse);
 
-
-   // vertex temporary data, used by GetMeshComponents
-
+   /**
+    * @brief Storage for vertices calculated on demand for nodes in the mesh
+    */
    struct TmpVertex
    {
-      bool valid = false, visited = false;
-      double pos[3];
+      bool valid = false; ///< Is the data in pos valid?
+      /// Used for checking for circular dependencies and invalid meshes.
+      bool visited = false;
+      double pos[3]; ///< storage for the vertex position.
    };
 
-   mutable TmpVertex* tmp_vertex;
-
-   const double *CalcVertexPos(int node) const;
-
+   /// Calculate the vertex position of @a node, using the @a tmp_vertex map to
+   /// store those values calculated on demand.
+   const double *CalcVertexPos(int node, std::unordered_map<int, TmpVertex> &tmp_vertex) const;
 
    // utility
 

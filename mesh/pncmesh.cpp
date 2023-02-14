@@ -997,16 +997,15 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
    // create vertices in 'face_nbr_vertices'
    {
+      std::unordered_map<int, TmpVertex> tmp_vertices;
       pmesh.face_nbr_vertices.SetSize(vert_map.size());
       if (coordinates.Size())
       {
-         tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
          for (auto it = vert_map.begin(); it != vert_map.end(); ++it)
          {
             pmesh.face_nbr_vertices[it->second-1].SetCoords(
-               spaceDim, CalcVertexPos(it->first));
+               spaceDim, CalcVertexPos(it->first, tmp_vertices));
          }
-         delete [] tmp_vertex;
       }
    }
 
