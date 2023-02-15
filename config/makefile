@@ -109,12 +109,28 @@ config-mk:
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)
 
 # The target below generates a file 'mfem_export.h' that defines
-# an empty macro MFEM_EXPORT. The latter is required for shared
-# library builds on Windows.
+# the MFEM_DEPRECATED macro and an empty macro MFEM_EXPORT
 define MFEM_EXPORT
 #ifndef MFEM_EXPORT_H
 #define MFEM_EXPORT_H
+
+/*  MFEM_DEPRECATED macro to mark obsolete functions and methods        
+ *  see https://stackoverflow.com/questions/295120/c-mark-as-deprecated 
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+#define MFEM_DEPRECATED __declspec(deprecated)
+#else
+#pragma message("WARNING: You need to implement MFEM_DEPRECATED for this compiler")
+#define MFEM_DEPRECATED
+#endif
+
+/*  MFEM_EXPORT macro needs to be defined for shared library builds on Windows.
+ *  For make-based builds, we leave it empty.
+ */
 #define MFEM_EXPORT
+
 #endif /* MFEM_EXPORT_H */
 endef
 
