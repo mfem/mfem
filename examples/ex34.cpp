@@ -12,40 +12,46 @@
 //              General 2D/3D mesh files and finite element polynomial degrees
 //              can be specified by command line options.
 
-#include "ex34.hpp"
 
 #include <fstream>
 #include <iostream>
 
 #include "mfem.hpp"
+#include "ex34.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[]) {
-    // 1. Parse command line options.
-    const char *mesh_file = NULL;
-    int order = 1;
-    int ref_levels = 5;
+  // 1. Parse command line options.
+  const char *mesh_file = NULL;
+  int order = 1;
+  int ref_levels = 5;
+  
+  OptionsParser args(argc, argv);
+  args.AddOption(&mesh_file, "-m", "--mesh",
+                 "Mesh file to use (default: 2x2 rectangular mesh).");
+  args.AddOption(&order, "-o", "--order",
+                 "Finite element polynomial degree (default: 1).");
+  args.AddOption(
+      &ref_levels, "-r", "--refine",
+      "The number of uniform refinement to be performed (default: 5).");
 
-    OptionsParser args(argc, argv);
-    args.AddOption(&mesh_file, "-m", "--mesh",
-                   "Mesh file to use (default: 2x2 rectangular mesh).");
-    args.AddOption(&order, "-o", "--order",
-                   "Finite element polynomial degree (default: 1).");
-    args.AddOption(
-        &ref_levels, "-r", "--refine",
-        "The number of uniform refinement to be performed (default: 5).");
+  Mesh mesh =
+      (mesh_file != NULL)
+          ? Mesh(mesh_file, 1, 1)
+          : Mesh::MakeCartesian2D(2, 2, mfem::Element::Type::QUADRILATERAL);
 
-    Mesh mesh =
-        (mesh_file != NULL)
-            ? Mesh(mesh_file, 1, 1)
-            : Mesh::MakeCartesian2D(2, 2, mfem::Element::Type::QUADRILATERAL);
+  const int dim = mesh.Dimension();
+  for (int i = 0; i < ref_levels; i++) {
+    mesh.UniformRefinement();
+  }
+  const int num_equations = dim + 2;
 
-    const int dim = mesh.Dimension();
-    for (int i = 0; i < ref_levels; i++) {
-        mesh.UniformRefinement();
-    }
-
-    return 0;
+  L2_FECollection dg(order, dim);
+  FiniteElementSpace sfes(&mesh, &dg);
+  FiniteElementSpace dfes(&mesh, &dg, dim);
+  FiniteElementSpace vfes(&mesh, &dg, num_equations);
+  EulerSystem euler(dim, sfes, dfes, vfes, FluxType::RUSANOV);
+  return 0;
 }

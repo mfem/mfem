@@ -1,45 +1,74 @@
 //                  MFEM Hyperbolic Conservation Laws - Serial/Parallel Shared
 //                  Code
-
 #include "mfem.hpp"
-
 using namespace std;
 using namespace mfem;
+
+enum FluxType { RUSANOV };
 
 typedef std::function<double(const Vector &, const Vector &, Vector &)>
     NormalFlux;
 typedef std::function<double(const Vector &, DenseMatrix &)> Flux;
 
+class HyperbolicConservationLaws;
+class DivFlux;
+class NumericalFlux;
+class RusanovFlux;
+class EulerSystem;
+
 class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
-  const int num_eq;
+  const int num_equations;
   FiniteElementSpace &vfes;  // vector space, size: The number of equations
   FiniteElementSpace &dfes;  // vector space, size: Spatial dimension
   FiniteElementSpace &sfes;  // scalar space
-  MixedBilinearForm Adiv;
+  MixedBilinearForm Adiv; // -(F(u), grad phi)
   Flux F;
-  NumericalFlux FudotN;
+  NormalFlux FudotN;
+  NumericalFlux *riemann_solver = NULL;
 
  public:
-  HyperbolicConservationLaws(const int num_eq_, const int dim_,
+  HyperbolicConservationLaws(const int num_equations_, const int dim_,
                              FiniteElementSpace &sfes_,
                              FiniteElementSpace &dfes_,
                              FiniteElementSpace &vfes_, Flux F_,
-                             NumericalFlux FudotN_);
+                             NormalFlux FudotN_,
+                             FluxType fluxname = FluxType::RUSANOV);
+  virtual ~HyperbolicConservationLaws() = default;
+};
+
+class DivFlux : public NonlinearFormIntegrator {
+ private:
+  Flux F;
+  Vector shape;        // placeholder for shape function eval
+  Vector funval;       // placeholder for solution value
+  DenseMatrix dshape;  // placeholder for reference gradient of shape function
+  DenseMatrix gshape;  // placeholder for physical gradient of shape function
+  DenseMatrix Fmat;    // placeholder for flux eval
+  DenseMatrix Jadj;    // placeholder for Jacobian adjoint
+
+ public:
+  double max_char_speed;
+  DivFlux(Flux F_) : F(F_){};
+
+  void AssembleElementVector(const FiniteElement &elem,
+                             ElementTransformation &trans, const Vector &elfun,
+                             Vector &elvect);
 };
 
 class NumericalFlux : public NonlinearFormIntegrator {
  protected:
   NormalFlux FdotN;
   virtual double riemannSolver(const Vector &state1, const Vector &state2,
-                               const Vector &nor, Vector &fluxN);
+                               const Vector &nor, Vector &fluxN) = 0;
 
  public:
   double max_char_speed;
-  NumericalFlux(NormalFlux FdotN_) : FdotN(FdotN_) {}
+  NumericalFlux(NormalFlux FdotN_) : FdotN(FdotN_){};
+  ~NumericalFlux() = default;
 
-  void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &e2,
+  void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
                           FaceElementTransformations &Tr, const Vector &elfun,
                           Vector &elvect);
 };
@@ -47,16 +76,16 @@ class NumericalFlux : public NonlinearFormIntegrator {
 class RusanovFlux : public NumericalFlux {
  private:
   Vector flux1, flux2;
-  virtual double riemannSolver(const Vector &state1, const Vector &state2,
-                               const Vector &nor, Vector &fluxN);
+  double riemannSolver(const Vector &state1, const Vector &state2,
+                       const Vector &nor, Vector &fluxN);
 
  public:
   /// @brief Compute Rusanov flux for the given flux function and edge by F* =
   /// 0.5(F(s₁)n + F(s₂)n) - 0.5λ(F(s₁)n + F(s₂)n)
   /// @param FdotN_ flux normal function: F(s, n, Fsn)
-  /// @param num_eq the number of equation
-  RusanovFlux(NormalFlux FdotN_, const int num_eq)
-      : NumericalFlux(FdotN_), flux1(num_eq), flux2(num_eq){};
+  /// @param num_equations the number of equation
+  RusanovFlux(NormalFlux FdotN_, const int num_equations)
+      : NumericalFlux(FdotN_), flux1(num_equations), flux2(num_equations){};
 };
 
 double RusanovFlux::riemannSolver(const Vector &state1, const Vector &state2,
@@ -73,6 +102,52 @@ double RusanovFlux::riemannSolver(const Vector &state1, const Vector &state2,
   return maxE;
 }
 
+void DivFlux::AssembleElementVector(const FiniteElement &elem,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun, Vector &elvect) {
+  const int dof = elem.GetDof();
+  const int dim = elem.GetDim();
+  const int num_equations = elfun.Size() / dof;
+
+  shape.SetSize(dof);
+  funval.SetSize(dof);
+  dshape.SetSize(dof, dim);
+  gshape.SetSize(dof, dim);
+  Jadj.SetSize(dim, dim);
+
+  elvect.SetSize(dof * num_equations);
+  elvect = 0.0;
+
+  // Solution coefficient elfun_mat(i,j) = i'th basis coefficient of j's
+  // variable
+  DenseMatrix elfun_mat(elfun.GetData(), dof, num_equations);
+  // After apply operation, elvect_mat(i,j) = i'th trial function on j's
+  // equation = -(Fⱼ(u), grad(phiᵢ))
+  DenseMatrix elvect_mat(elvect.GetData(), dof, num_equations);
+
+  int order = 2 * elem.GetOrder();
+  if (order > 0) order += 3;  //
+
+  const IntegrationRule *ir = &(IntRules.Get(elem.GetGeomType(), order));
+
+  for (int i = 0; i < ir->GetNPoints(); i++) {
+    // Element and integration point information
+    const IntegrationPoint &ip = ir->IntPoint(i);
+    trans.SetIntPoint(&ip);
+    CalcAdjugate(trans.Jacobian(), Jadj);
+
+    // Basis function and its derivative
+    elem.CalcShape(trans.GetIntPoint(), shape);
+    elem.CalcDShape(trans.GetIntPoint(), dshape);
+    Mult(dshape, Jadj, gshape);
+    // Current state from coefficient and shape function
+    elfun_mat.MultTranspose(shape, funval);
+    // maximum characteristic speed evaluated from flux
+    const double mcs = F(funval, Fmat);
+    AddMult_a_ABt(1.0, gshape, Fmat, elvect_mat);
+  }
+}
+
 void NumericalFlux::AssembleFaceVector(const FiniteElement &el1,
                                        const FiniteElement &el2,
                                        FaceElementTransformations &Tr,
@@ -80,19 +155,19 @@ void NumericalFlux::AssembleFaceVector(const FiniteElement &el1,
   // Compute the term <F.n(u),[w]> on the interior faces.
   const int dof1 = el1.GetDof();
   const int dof2 = el2.GetDof();
-  const int num_equation = elfun.Size() / (dof1 + dof2);
+  const int num_equations = elfun.Size() / (dof1 + dof2);
   Vector nor(el1.GetDim());
 
-  elvect.SetSize((dof1 + dof2) * num_equation);
+  elvect.SetSize((dof1 + dof2) * num_equations);
   elvect = 0.0;
 
-  DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equation);
-  DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equation, dof2,
-                         num_equation);
+  DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equations);
+  DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equations, dof2,
+                         num_equations);
 
-  DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equation);
-  DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation, dof2,
-                          num_equation);
+  DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equations);
+  DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2,
+                          num_equations);
 
   // Integration order calculation from DGTraceIntegrator
   int intorder;
@@ -108,8 +183,8 @@ void NumericalFlux::AssembleFaceVector(const FiniteElement &el1,
   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
   Vector shape1(dof1), shape2(dof2);
-  Vector funval1(num_equation), funval2(num_equation);
-  Vector fluxN(num_equation);
+  Vector funval1(num_equations), funval2(num_equations);
+  Vector fluxN(num_equations);
   for (int i = 0; i < ir->GetNPoints(); i++) {
     const IntegrationPoint &ip = ir->IntPoint(i);
 
@@ -133,7 +208,7 @@ void NumericalFlux::AssembleFaceVector(const FiniteElement &el1,
     }
 
     fluxN *= ip.weight;
-    for (int k = 0; k < num_equation; k++) {
+    for (int k = 0; k < num_equations; k++) {
       for (int s = 0; s < dof1; s++) {
         elvect1_mat(s, k) -= fluxN(k) * shape1(s);
       }
@@ -168,16 +243,16 @@ NormalFlux getAdvectionFdotN(const Vector &b) {
 
 class AdvectionEquation : public HyperbolicConservationLaws {
  public:
-  AdvectionEquation(const int dim, FiniteElementSpace &sfes_,
-              FiniteElementSpace &dfes_, FiniteElementSpace &vfes_)
+  AdvectionEquation(const int dim, const Vector &b_, FiniteElementSpace &sfes_,
+                    FiniteElementSpace &dfes_, FiniteElementSpace &vfes_)
       : HyperbolicConservationLaws(dim + 2, dim, sfes_, dfes_, vfes_,
-                                   getEulerF(), getEulerFdotN()){};
+                                   getAdvectionF(b_), getAdvectionFdotN(b_)){};
 };
 /////////////////////////////////////////////////////////////////////////////
 // Shallow Water
 // Todo: Make flux for shallow water
-Flux getShallowWaterF() {}
-NormalFlux getShallowWaterFdotN() {}
+// Flux getShallowWaterF() {}
+// NormalFlux getShallowWaterFdotN() {}
 /////////////////////////////////////////////////////////////////////////////
 // Euler
 
@@ -237,23 +312,31 @@ NormalFlux getEulerFdotN(const double gamma_euler = 1.4) {
 }
 
 HyperbolicConservationLaws::HyperbolicConservationLaws(
-    const int num_eq_, const int dim_, FiniteElementSpace &sfes_,
+    const int num_equations_, const int dim_, FiniteElementSpace &sfes_,
     FiniteElementSpace &dfes_, FiniteElementSpace &vfes_, Flux F_,
-    NumericalFlux FudotN_)
+    NormalFlux FudotN_, FluxType fluxname)
     : TimeDependentOperator(0),
-      num_eq(num_eq_),
+      num_equations(num_equations_),
       dim(dim_),
       sfes(sfes_),
       dfes(dfes_),
       vfes(vfes_),
       FudotN(FudotN_),
       F(F_),
-      Adiv(&dfes, &sfes) {}
+      Adiv(&dfes, &sfes) {
+  switch (fluxname) {
+    case FluxType::RUSANOV: {
+      riemann_solver = new RusanovFlux(FudotN, num_equations);
+      break;
+    }
+  }
+}
 
 class EulerSystem : public HyperbolicConservationLaws {
  public:
   EulerSystem(const int dim, FiniteElementSpace &sfes_,
-              FiniteElementSpace &dfes_, FiniteElementSpace &vfes_)
+              FiniteElementSpace &dfes_, FiniteElementSpace &vfes_,
+              FluxType fluxname = FluxType::RUSANOV)
       : HyperbolicConservationLaws(dim + 2, dim, sfes_, dfes_, vfes_,
-                                   getEulerF(), getEulerFdotN()){};
+                                   getEulerF(), getEulerFdotN(), fluxname){};
 };
