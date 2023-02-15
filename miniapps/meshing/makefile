@@ -91,6 +91,8 @@ minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
 pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+reflector-test-seq: %
+	@$(call mfem-test-file,$<,, Meshing miniapp,reflected.mesh)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
