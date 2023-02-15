@@ -10,11 +10,15 @@ typedef std::function<double(const Vector &, const Vector &, Vector &)>
     NormalFlux;
 typedef std::function<double(const Vector &, DenseMatrix &)> Flux;
 
-class HyperbolicConservationLaws;
-class DivFlux;
-class NumericalFlux;
-class RusanovFlux;
-class EulerSystem;
+class HyperbolicConservationLaws; // Base hyperbolic conservation law class : public TimeDependentOperator
+class EulerSystem; // Euler system : public HyperbolicConservationLaws
+class AdvectionEquation; // Advection equation : public HyperbolicConservationLaws
+class BurgersEquation; // Burgers equation : public HyperbolicConservationLaws
+
+// Ingredients for HyperbolicConservationLaws
+class DivFlux; // (F(u), grad phi) : public NonlinearFormIntegrator
+class NumericalFlux; // <hat(F), jump phi> : public NonlinearFormIntegrator
+class RusanovFlux; // hat(F) = RusanovFlux : public NumericalFlux
 
 class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
