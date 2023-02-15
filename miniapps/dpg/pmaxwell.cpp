@@ -1054,7 +1054,7 @@ void E_exact_r(const Vector &x, Vector & E_r)
    std::vector<std::complex<double>> E;
    maxwell_solution(x,E);
    E_r.SetSize(E.size());
-   for (int i = 0; i<E.size(); i++)
+   for (unsigned i = 0; i < E.size(); i++)
    {
       E_r[i]= E[i].real();
    }
@@ -1065,7 +1065,7 @@ void E_exact_i(const Vector &x, Vector & E_i)
    std::vector<std::complex<double>> E;
    maxwell_solution(x, E);
    E_i.SetSize(E.size());
-   for (int i = 0; i<E.size(); i++)
+   for (unsigned i = 0; i < E.size(); i++)
    {
       E_i[i]= E[i].imag();
    }
@@ -1076,7 +1076,7 @@ void curlE_exact_r(const Vector &x, Vector &curlE_r)
    std::vector<std::complex<double>> curlE;
    maxwell_solution_curl(x, curlE);
    curlE_r.SetSize(curlE.size());
-   for (int i = 0; i<curlE.size(); i++)
+   for (unsigned i = 0; i < curlE.size(); i++)
    {
       curlE_r[i]= curlE[i].real();
    }
@@ -1087,7 +1087,7 @@ void curlE_exact_i(const Vector &x, Vector &curlE_i)
    std::vector<std::complex<double>> curlE;
    maxwell_solution_curl(x, curlE);
    curlE_i.SetSize(curlE.size());
-   for (int i = 0; i<curlE.size(); i++)
+   for (unsigned i = 0; i < curlE.size(); i++)
    {
       curlE_i[i]= curlE[i].imag();
    }
@@ -1098,7 +1098,7 @@ void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
    std::vector<std::complex<double>> curlcurlE;
    maxwell_solution_curlcurl(x, curlcurlE);
    curlcurlE_r.SetSize(curlcurlE.size());
-   for (int i = 0; i<curlcurlE.size(); i++)
+   for (unsigned i = 0; i < curlcurlE.size(); i++)
    {
       curlcurlE_r[i]= curlcurlE[i].real();
    }
@@ -1109,7 +1109,7 @@ void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i)
    std::vector<std::complex<double>> curlcurlE;
    maxwell_solution_curlcurl(x, curlcurlE);
    curlcurlE_i.SetSize(curlcurlE.size());
-   for (int i = 0; i<curlcurlE.size(); i++)
+   for (unsigned i = 0; i < curlcurlE.size(); i++)
    {
       curlcurlE_i[i]= curlcurlE[i].imag();
    }
