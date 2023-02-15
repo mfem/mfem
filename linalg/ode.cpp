@@ -417,13 +417,13 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       {
          x.Add(a[i]*dt, k[idx[i]]);
       }
+      t += dt;
    }
    else
    {
       f->Mult(x,k[idx[0]]);
       RKsolver->Step(x,t,dt);
    }
-   t += dt;
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
@@ -514,13 +514,14 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       }
       f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
       x.Add(a[0]*dt, k[idx[0]]);
+      t += dt;
    }
    else
    {
       RKsolver->Step(x,t,dt);
       f->Mult(x,k[idx[0]]);
    }
-   t += dt;
+
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
