@@ -2948,16 +2948,16 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 
    dshape.SetSize(dof, dim);
-   dshapedxt.SetSize(dof, dim);
-   // pelmat.SetSize(dim);
+   dshapedxt.SetSize(dof, sdim);
+   pelmat.SetSize(dof);
 
-   elvect.SetSize(dim*dof);
+   elvect.SetSize(vdim*dof);
 
    // NOTE: DenseMatrix is in column-major order. This is consistent with
    // vectors ordered byNODES. In the resulting DenseMatrix, each column
    // corresponds to a particular vdim.
-   DenseMatrix mat_in(elfun.GetData(), dof, dim);
-   DenseMatrix mat_out(elvect.GetData(), dof, dim);
+   DenseMatrix mat_in(elfun.GetData(), dof, vdim);
+   DenseMatrix mat_out(elvect.GetData(), dof, vdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
