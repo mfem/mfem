@@ -3715,13 +3715,13 @@ static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
       {
          ++a;
       }
+      else if (*b < *a)
+      {
+         ++b;
+      }
       else
       {
-         if (!(*b < *a))
-         {
-            return true; // neither *a < *b nor *b < *a thus a == b
-         }
-         ++b;
+         return true; // neither *a < *b nor *b < *a thus a == b
       }
    }
    return false; // no common element found
