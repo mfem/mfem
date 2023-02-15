@@ -541,6 +541,15 @@ protected: // implementation
    /// Initial traversal state (~ element orientation) for each root element
    /// NOTE: M = root_state.Size() is the number of root elements.
    /// NOTE: the first M items of 'elements' is the coarse mesh.
+
+   /**
+    * @brief nitial traversal state (~ element orientation) for each root element
+    * @details This is zero for most element types, but for quadrilaterals and
+    * hexahedra this is modified from an array of zeroes, to assign an ordering
+    * of the root elements that will give a space filling curve.
+    * @note M = root_state.Size() is the number of root elements, and the first
+    * M items of 'elements' is the coarse mesh.
+    */
    Array<int> root_state;
 
    /// Coordinates of top-level vertices (organized as triples). If empty,

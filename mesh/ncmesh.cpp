@@ -481,18 +481,18 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
    el.node[4] = n4, el.node[5] = n5, el.node[6] = n6, el.node[7] = n7;
 
    // get faces and assign face attributes
-   Face* f[MaxElemFaces];
+   std::array<Face, 8> f;
    const GeomInfo &gi_hex = GI[Geometry::CUBE];
    for (int i = 0; i < gi_hex.nf; i++)
    {
       const auto &fv = gi_hex.faces[i];
-      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+      f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
                        el.node[fv[2]], el.node[fv[3]]);
    }
 
-   f[0]->attribute = fattr0,  f[1]->attribute = fattr1;
-   f[2]->attribute = fattr2,  f[3]->attribute = fattr3;
-   f[4]->attribute = fattr4,  f[5]->attribute = fattr5;
+   f[0].attribute = fattr0,  f[1].attribute = fattr1;
+   f[2].attribute = fattr2,  f[3].attribute = fattr3;
+   f[4].attribute = fattr4,  f[5].attribute = fattr5;
 
    return new_id;
 }
@@ -511,20 +511,20 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
    el.node[3] = n3, el.node[4] = n4, el.node[5] = n5;
 
    // get faces and assign face attributes
-   Face* f[5];
+   std::array<Face, 5> f;
    const GeomInfo &gi_wedge = GI[Geometry::PRISM];
    for (int i = 0; i < gi_wedge.nf; i++)
    {
       const auto &fv = gi_wedge.faces[i];
-      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+      f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
                        el.node[fv[2]], el.node[fv[3]]);
    }
 
-   f[0]->attribute = fattr0;
-   f[1]->attribute = fattr1;
-   f[2]->attribute = fattr2;
-   f[3]->attribute = fattr3;
-   f[4]->attribute = fattr4;
+   f[0].attribute = fattr0;
+   f[1].attribute = fattr1;
+   f[2].attribute = fattr2;
+   f[3].attribute = fattr3;
+   f[4].attribute = fattr4;
 
    return new_id;
 }
@@ -566,20 +566,20 @@ int NCMesh::NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
    el.node[4] = n4;
 
    // get faces and assign face attributes
-   Face* f[5];
+   std::array<Face, 5> f;
    const GeomInfo &gi_pyr = GI[Geometry::PYRAMID];
    for (int i = 0; i < gi_pyr.nf; i++)
    {
       const auto &fv = gi_pyr.faces[i];
-      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
-                       el.node[fv[2]], el.node[fv[3]]);
+      f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
+                      el.node[fv[2]], el.node[fv[3]]);
    }
 
-   f[0]->attribute = fattr0;
-   f[1]->attribute = fattr1;
-   f[2]->attribute = fattr2;
-   f[3]->attribute = fattr3;
-   f[4]->attribute = fattr4;
+   f[0].attribute = fattr0;
+   f[1].attribute = fattr1;
+   f[2].attribute = fattr2;
+   f[3].attribute = fattr3;
+   f[4].attribute = fattr4;
 
    return new_id;
 }
@@ -595,17 +595,17 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
 
    // get (degenerate) faces and assign face attributes
-   Face* f[4];
+   std::array<Face, 4> f;
    const GeomInfo &gi_quad = GI[Geometry::SQUARE];
    for (int i = 0; i < gi_quad.nf; i++)
    {
       const auto &fv = gi_quad.faces[i];
-      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+      f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
                        el.node[fv[2]], el.node[fv[3]]);
    }
 
-   f[0]->attribute = eattr0,  f[1]->attribute = eattr1;
-   f[2]->attribute = eattr2,  f[3]->attribute = eattr3;
+   f[0].attribute = eattr0,  f[1].attribute = eattr1;
+   f[2].attribute = eattr2,  f[3].attribute = eattr3;
 
    return new_id;
 }
@@ -620,18 +620,18 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
 
    // get (degenerate) faces and assign face attributes
-   Face* f[3];
+   std::array<Face, 3> f;
    const GeomInfo &gi_tri = GI[Geometry::TRIANGLE];
    for (int i = 0; i < gi_tri.nf; i++)
    {
       const auto &fv = gi_tri.faces[i];
-      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+      f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
                        el.node[fv[2]], el.node[fv[3]]);
    }
 
-   f[0]->attribute = eattr0;
-   f[1]->attribute = eattr1;
-   f[2]->attribute = eattr2;
+   f[0].attribute = eattr0;
+   f[1].attribute = eattr1;
+   f[2].attribute = eattr2;
 
    return new_id;
 }
