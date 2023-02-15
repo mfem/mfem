@@ -78,7 +78,7 @@ ComputeBalancedWeights(const GridFunction &nodes,
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
    // a = BC / (AB + AC + BC), b = AC / (AB + AC + BC), c = AB / (AB + AC + BC),
    // where A = avg_m_A, B = avg_m_B, C = avg_m_C.
-   // Nested loop to avoid division as some avg may be 0.
+   // Nested loop to avoid division, as some avg may be 0.
    Vector products_no_m(m_cnt); products_no_m = 1.0;
    for (int m_p = 0; m_p < m_cnt; m_p++)
    {
@@ -89,7 +89,7 @@ ComputeBalancedWeights(const GridFunction &nodes,
    }
    const double pnm_sum = products_no_m.Sum();
 
-   if (pnm_sum == 0.0) { weights = 1.0; return; }
+   if (pnm_sum == 0.0) { weights = 1.0 / m_cnt; return; }
    for (int m = 0; m < m_cnt; m++) { weights(m) = products_no_m(m) / pnm_sum; }
 
    MFEM_ASSERT(fabs(weights.Sum() - 1.0) < 1e-14,
