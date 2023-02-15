@@ -135,9 +135,10 @@ define MFEM_EXPORT
 endef
 
 export MFEM_EXPORT
+MFEM_EXPORT_DIR = $(if $(MFEM_DIR),$(MFEM_DIR),..)
 
 mfem-export:
-	@echo "$$MFEM_EXPORT" > ${MFEM_DIR}/mfem_export.h
+	@echo "$$MFEM_EXPORT" > $(MFEM_EXPORT_DIR)/mfem_export.h
 
 clean:
-	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log
+	rm -f $(CONFIG_HPP) $(CONFIG_MK) $(MFEM_EXPORT_DIR)/mfem_export.h sample-runs-build.log
