@@ -53,7 +53,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.5.1)
+set(${PROJECT_NAME}_VERSION 4.5.2)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -576,6 +576,17 @@ target_include_directories(mfem
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     ${TPL_INCLUDE_DIRS})
+if (MFEM_USE_MPI)
+  if (MPI_CXX_COMPILE_FLAGS)
+    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+      "${MPI_CXX_COMPILE_FLAGS}")
+    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
+  endif()
+  if (MPI_CXX_LINK_FLAGS)
+    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
+  endif()
+endif()
+
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
