@@ -185,8 +185,8 @@ NormalFlux getShallowWaterFdotN() {}
 /// @param state current state s = (ρ, u, E)
 /// @param flux flux, F(s) = [ρu, ρuuᵀ+pI, u(E+p)]ᵀ
 /// @return characteristic speed, |u| + (γp/ρ)^(1/2)
-Flux getEulerF(const double gamma_euler=1.4) {
-  return [&](const Vector &state, DenseMatrix &flux) {
+Flux getEulerF(const double gamma_euler = 1.4) {
+  return [=](const Vector &state, DenseMatrix &flux) {
     // Parse current state
     const int dim = state.Size() - 2;
     const double den = state(0);                 // density
@@ -215,8 +215,8 @@ Flux getEulerF(const double gamma_euler=1.4) {
 /// @param nor outer normal (generally not a unit vector)
 /// @param fluxN normal flux, F(s)n = [ρu⋅n, ρuᵀu⋅n+pn, u⋅n(E+p)]
 /// @return characteristic speed, |u| + (γp/ρ)^(1/2)
-NormalFlux getEulerFdotN(const double gamma_euler) {
-  return [&](const Vector &state, const Vector &nor, Vector &fluxN) {
+NormalFlux getEulerFdotN(const double gamma_euler = 1.4) {
+  return [=](const Vector &state, const Vector &nor, Vector &fluxN) {
     const int dim = state.Size() - 2;
     const double den = state(0);
     const Vector mom(state.GetData() + 1, dim);
