@@ -57,9 +57,10 @@ double relativePosition(const Vector &x, const int type)
       double a = 0.5;
       double surface = sin((2*pi/a)*x(0))*cos((2*pi/a)*x(1))+sin((2*pi/a)*x(1))*cos((2*pi/a)*x(2))+sin((2*pi/a)*x(2))*cos((2*pi/a)*x(0));
       double sign = 0.0;
-      if (surface != 0.0){
+      if ( std::abs(surface) >= 1e-10){
 	sign = surface / fabs(surface);
       }
+      
       //  return sign * mag;
       return sign;   
     }

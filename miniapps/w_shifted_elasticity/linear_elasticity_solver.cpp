@@ -15,7 +15,7 @@ namespace mfem {
 
     *fdisplacement=0.0;
 
-    mfem::FiniteElementCollection* lsvec = new H1_FECollection(vorder+2,dim);
+    mfem::FiniteElementCollection* lsvec = new H1_FECollection(vorder,dim);
     mfem::ParFiniteElementSpace* lsfes = new mfem::ParFiniteElementSpace(pmesh,lsvec);
     lsfes->ExchangeFaceNbrData();
 
@@ -50,7 +50,7 @@ namespace mfem {
      }
      else{
        neumann_dist_coef = new Dist_Level_Set_Coefficient(geometricShape);
-       
+
        mfem::FiniteElementCollection* d_vec = new H1_FECollection(vorder+2,dim);
 
        distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
@@ -210,15 +210,16 @@ namespace mfem {
       // IP
       mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, analyticalSurface, 1));
       // ghost penalty
-      mVarf->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
-      /* for (int i = 2; i <= numberStrainTerms; i++){
-	//	 best to use 1.0 / i!
-	double factorial = 1.0;	
-	for (int s = 1; s <= i; s++){
-	  factorial = factorial*s;
-	}*/
+      //      mVarf->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
+      /*  for (int i = 2; i <= numberStrainTerms; i++){
+        //       best to use 1.0 / i!                                                                                                                                                
+        double factorial = 1.0;
+        for (int s = 1; s <= i; s++){
+          factorial = factorial*s;
+        }
+        mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
+      }*/
       mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));      
-	// }
     }
     mVarf->Assemble();   
     mVarf->Finalize();   
@@ -263,15 +264,16 @@ namespace mfem {
 	}
       if (useEmbedded){     
 	// ghost penalty
-	displMass->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
-	for (int i = 2; i <= numberStrainTerms; i++){
-	  // best to use 1.0 / i!
-	  double factorial = 1.0;	
+	//	displMass->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
+	/*	for (int i = 2; i <= numberStrainTerms; i++){
+	  //       best to use 1.0 / i!                                                                                                                                                
+	  double factorial = 1.0;
 	  for (int s = 1; s <= i; s++){
 	    factorial = factorial*s;
 	  }
-	  displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
-	}
+	  mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
+	}*/	
+	displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));
       }
       displMass->Assemble();
       displMass->Finalize();
@@ -350,7 +352,7 @@ namespace mfem {
       //  paraview_dc.RegisterField("normal",normal);
       // paraview_dc.RegisterField("ls_filt_coef",ls_filt_coef);
       paraview_dc.RegisterField("level_set_gf",level_set_gf);
-      paraview_dc.RegisterField("alpha_cut",alphaCut);    
+      //  paraview_dc.RegisterField("alpha_cut",alphaCut);    
       //  paraview_dc.RegisterField("ls_func",ls_func);
       paraview_dc.Save();
     }

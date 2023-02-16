@@ -30,7 +30,7 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
    // This tolerance is relevant for points that are exactly on the zero LS.
-   const double eps = 1e-10;
+   const double eps = 1e-16;
    auto outside_of_domain = [&](double value)
    {
       if (include_cut_cell)
@@ -44,32 +44,41 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
          return (value + eps < 0.0);
       }
    };
-
+   ParFiniteElementSpace * ls_fes = ls_func.ParFESpace();
    Vector vals;
    // Check elements on the current MPI rank
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-      const IntegrationRule &ir = pfes_sltn->GetFE(i)->GetNodes();
-      ls_func.GetValues(i, ir, vals);
+     const IntegrationRule &ir = ls_fes->GetFE(i)->GetNodes();      
+     ElementTransformation *eltrans = ls_fes->GetElementTransformation(i);
     
-      int count = 0;
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         if (outside_of_domain(vals(j))) { count++; }
-      }
+     const int nip = ir.GetNPoints();
+     vals.SetSize(nip);
+     int count = 0;
+     for (int j = 0; j < ir.GetNPoints(); j++)
+       {
+	 const IntegrationPoint &ip = ir.IntPoint(j);
+	 vals(j) = ls_func.GetValue(eltrans->ElementNo, ip);
+	 Vector x;
+	 eltrans->Transform(ip, x);
+	 //	 std::cout << " ip.x " << x(0) << " ip.y " << x(1) << " ip.z " << x(2) << " val " << vals(j) << std::endl;
+	 if (outside_of_domain(vals(j))) { count++; }
+       }
 
       if (count == ir.GetNPoints()) // completely outside
       {
+     
 	inactiveCount++;
 	elemStatus[i] = SBElementType::OUTSIDE;
 	pmesh.SetAttribute(i, max_elem_attr+1);
       }
       else if ((count > 0) && (count < ir.GetNPoints())) // partially outside
       {
+
 	cutCount++;
 	/*MFEM_VERIFY(elemStatus[i] <= SBElementType::OUTSIDE,
       	    " One element cut by multiple level-sets.");*/
-	elemStatus[i] = SBElementType::CUT + level_set_index;
+	elemStatus[i] = SBElementType::CUT /*+ level_set_index*/;
 	if (include_cut_cell){
 	  Array<int> dofs;
 	  pfes_sltn->GetElementVDofs(i, dofs);
