@@ -28,14 +28,18 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   NormalFlux FudotN;
   NumericalFlux *riemann_solver = NULL;  //
   DivFlux *divFu = NULL;  // element integrator, - (F(u), grad phi)
+  std::vector<DenseMatrix> invMe;
   mutable double max_char_speed = 0.0;
+  mutable Vector z;  // Auxiliary vector used in Mult
 
  public:
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, Flux Fu_,
                              NormalFlux FudotN_, FluxType fluxname);
   ~HyperbolicConservationLaws() = default;
 
-  virtual void Mult(const Vector &x, Vector &y) const;
+  void getInvMe(); // get element-wise inverse matrix
+  void Update(); // update after refinement
+  void Mult(const Vector &x, Vector &y) const; // compute y = M\A(x) for time stepping
 };
 
 HyperbolicConservationLaws::HyperbolicConservationLaws(
@@ -46,7 +50,8 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
       num_equations(vfes.GetVDim()),
       FudotN(FudotN_),
       Fu(Fu_),
-      A(&vfes) {
+      A(&vfes),
+      invMe() {
   switch (fluxname) {
     case FluxType::RUSANOV: {
       riemann_solver = new RusanovFlux(FudotN, num_equations);
@@ -57,13 +62,53 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
       }
     }
   }
+  // make divergence operator
   divFu = new DivFlux(Fu);
+  // add element divergence integrator
   A.AddDomainIntegrator(divFu);
+  // add inter-element numerical flux
   A.AddInteriorFaceIntegrator(riemann_solver);
+  // compute local inverse
+  getInvMe();
 }
+
+void HyperbolicConservationLaws::getInvMe() {
+  MassIntegrator mi;
+  invMe.resize(vfes.GetNE());
+  for (int i = 0; i < vfes.GetNE(); i++) {
+    DenseMatrix Me(vfes.GetFE(i)->GetDof());
+    DenseMatrixInverse inv(&Me);
+    mi.AssembleElementMatrix(*vfes.GetFE(i), *vfes.GetElementTransformation(i),
+                             Me);
+    inv.Factor();
+    inv.GetInverseMatrix(invMe[i]);
+  }
+}
+
 void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
-  A.Mult(x, y);
+  if (z.Size() != x.Size()) {
+    z.SetSize(x.Size());
+  }
+  A.Mult(x, z);
+
+  Array<int> vdofs;
+  Vector zval, yval;
+  DenseMatrix zmat, ymat;
+  for (int i = 0; i < vfes.GetNE(); i++) {
+    const int dof = vfes.GetFE(i)->GetDof();
+    vfes.GetElementVDofs(i, vdofs);
+    z.GetSubVector(vdofs, zval);
+    y.GetSubVector(vdofs, yval);
+    zmat.UseExternalData(zval.GetData(), dof, num_equations);
+    ymat.UseExternalData(yval.GetData(), dof, num_equations);
+    mfem::Mult(invMe[i], zmat, ymat);
+  }
   max_char_speed = max(divFu->max_char_speed, riemann_solver->max_char_speed);
+}
+
+void HyperbolicConservationLaws::Update() {
+  A.Update(); // update nonlinear operator
+  getInvMe(); // update mass inverse
 }
 
 class DivFlux : public NonlinearFormIntegrator {
@@ -289,9 +334,9 @@ Flux getBurgersF() {
 
 NormalFlux getBurgersFdotN() {
   return [=](const Vector &u, const Vector &nor, Vector &flux) {
-    const double usquared = u*u;
+    const double usquared = u * u;
     flux = usquared / 2;
-    return sqrt(usquared*u.Size());
+    return sqrt(usquared * u.Size());
   };
 }
 
