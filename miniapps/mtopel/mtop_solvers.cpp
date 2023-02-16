@@ -1335,14 +1335,14 @@ double ComplianceDiffIntegrator::GetElementEnergy(const FiniteElement &el, Eleme
     if(temp==nullptr){return 0.0;}
 
     //integrate the dot product disp*volforce
-    int dim=Tr.GetDimension();
+    int dim=Tr.GetSpaceDim();
 
     Vector grads; grads.SetSize(dim);
     Vector flux; flux.SetSize(dim);
     DenseMatrix CC; CC.SetSize(dim);
 
     const IntegrationRule *ir = nullptr;
-    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+temp->FESpace()->GetOrder(Tr.ElementNo);
+    int order= 4 * el.GetOrder() + Tr.OrderGrad(&el)+2* temp->FESpace()->GetOrder(Tr.ElementNo);
     ir=&IntRules.Get(Tr.GetGeometryType(),order);
 
     double w;
@@ -1360,7 +1360,7 @@ double ComplianceDiffIntegrator::GetElementEnergy(const FiniteElement &el, Eleme
 
         CC.Mult(grads,flux);
 
-         energy=energy+w*(grads*flux);
+        energy=energy+w*(grads*flux);
     }
 
     return energy;
@@ -1370,7 +1370,7 @@ void ComplianceDiffIntegrator::AssembleElementVector(const FiniteElement &el, El
                                                      const Vector &elfun, Vector &elvect)
 {
     const int dof=el.GetDof();
-    const int dim=Tr.GetDimension();
+    const int dim=Tr.GetSpaceDim();
 
     elvect.SetSize(dof); elvect=0.0;
     if(temp==nullptr){return;}
@@ -1378,7 +1378,7 @@ void ComplianceDiffIntegrator::AssembleElementVector(const FiniteElement &el, El
     Vector shapef(dof);
 
     const IntegrationRule *ir = nullptr;
-    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+2*(temp->FESpace()->GetOrder(Tr.ElementNo));
+    int order= 4 * el.GetOrder() + Tr.OrderGrad(&el)+2*(temp->FESpace()->GetOrder(Tr.ElementNo));
     ir=&IntRules.Get(Tr.GetGeometryType(),order);
 
     Vector grads; grads.SetSize(dim);
@@ -1394,18 +1394,14 @@ void ComplianceDiffIntegrator::AssembleElementVector(const FiniteElement &el, El
         w = ip.weight * w;
 
         temp->GetGradient(Tr,grads);
-        diff_tensor->Eval(CC,Tr,ip);
+        diff_tensor->Grad(CC,Tr,ip);
 
         CC.Mult(grads,flux);
 
         double cpl=grads*flux; //compute the compliance
-
-        cpl=cpl*diff_tensor->Grad(Tr,ip); //mult by the gradient
         cpl=-cpl*w;
         el.CalcShape(ip,shapef);
         elvect.Add(cpl,shapef);
-
-
     }
 }
 
@@ -1442,6 +1438,7 @@ double DiffusionComplianceObj::Eval(){
    intgr->SetTemperature(esolv->GetFSolution());
 
    double rt=nf->GetEnergy(*dens);
+
    return rt;
 }
 

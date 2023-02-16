@@ -1062,7 +1062,7 @@ public:
     ~DiffusionSolver();
 
     /// Set the Newton Solver
-    void SetNewtonSolver(double rtol=1e-7, double atol=1e-12,int miter=1000, int prt_level=1);
+    void SetNewtonSolver(double rtol=1e-7, double atol=1e-12,int miter=1000, int prt_level=0);
 
     /// Set the Linear Solver
     void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1000);
@@ -1194,6 +1194,7 @@ public:
     void Eval(DenseMatrix& m,
               ElementTransformation &T, const IntegrationPoint &ip)
     {
+        //m.SetSize(GetWidth());
         //evaluate density
         double dd=1.0;
         if(dens!=nullptr){dd=dens->GetValue(T,ip);}
@@ -1217,7 +1218,8 @@ public:
 
     ///returnas the pointwise gradient with respect to the density
     virtual
-    double Grad(ElementTransformation &T, const IntegrationPoint &ip)
+    void Grad(DenseMatrix& m,
+              ElementTransformation &T, const IntegrationPoint &ip)
     {
         //evaluate density
         double dd=1.0;
@@ -1233,7 +1235,13 @@ public:
         //evaluate hte gradient of the projection
         double pg=PointwiseTrans::HGrad(dd,deta,beta);
         //evaluate the gradient with respect to the density field
-        return (Dmax-Dmin)*pg*pp*std::pow(pd,pp-1.0);
+        double cd=(Dmax-Dmin)*pg*pp*std::pow(pd,pp-1.0);
+
+        m=0.0;
+        for(int i=0;i<GetWidth();i++)
+        {
+            m(i,i)=cd;
+        }
     }
 
 private:
@@ -1315,7 +1323,7 @@ public:
 
     ~DiffusionComplianceObj()
     {
-
+        delete nf;
     }
 
     void SetDiffSolver(DiffusionSolver* esolv_){
