@@ -25,8 +25,9 @@ using namespace mfem;
 int main(int argc, char *argv[]) {
   // 1. Parse command line options.
   const char *mesh_file = NULL;
-  int order = 1;
-  int ref_levels = 5;
+  int order = 3;
+  int ref_levels = 1;
+  int ode_solver_type = 4;  // RK4
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -36,6 +37,9 @@ int main(int argc, char *argv[]) {
   args.AddOption(
       &ref_levels, "-r", "--refine",
       "The number of uniform refinement to be performed (default: 5).");
+  args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                 "ODE solver: 1 - Forward Euler,\n\t"
+                 "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
 
   Mesh mesh =
       (mesh_file != NULL)
@@ -43,10 +47,11 @@ int main(int argc, char *argv[]) {
           : Mesh::MakeCartesian2D(2, 2, mfem::Element::Type::QUADRILATERAL);
 
   const int dim = mesh.Dimension();
+  const int num_equations = dim + 2;
+
   for (int i = 0; i < ref_levels; i++) {
     mesh.UniformRefinement();
   }
-  const int num_equations = dim + 2;
 
   L2_FECollection dg(order, dim);
   // Scalar finite element space
@@ -55,7 +60,34 @@ int main(int argc, char *argv[]) {
   FiniteElementSpace dfes(&mesh, &dg, dim);
   // Vector finite element space for state variable
   FiniteElementSpace vfes(&mesh, &dg, num_equations);
-  HyperbolicConservationLaws *hcl = getEulerSystem(vfes);
+  // Get Euler system
+  HyperbolicConservationLaws *euler = getEulerSystem(vfes);
+
+  ODESolver *ode_solver = getODESolver(ode_solver_type);
+  ode_solver->Init(*euler);
 
   return 0;
+}
+
+ODESolver *getODESolver(const int ode_solver_type) {
+  switch (ode_solver_type) {
+    case 1:
+      return new ForwardEulerSolver;
+      break;
+    case 2:
+      return new RK2Solver(1.0);
+      break;
+    case 3:
+      return new RK3SSPSolver;
+      break;
+    case 4:
+      return new RK4Solver;
+      break;
+    case 6:
+      return new RK6Solver;
+      break;
+    default:
+      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+      throw std::invalid_argument("Failed to create an ODE solver\n");
+  }
 }
