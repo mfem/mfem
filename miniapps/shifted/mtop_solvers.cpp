@@ -1387,6 +1387,12 @@ void CFElasticitySolver::AddDispBC(int id, int dir, Coefficient &val)
         bccz.clear();
     }
 }
+/// Adds displacement BC in all directions.
+void CFElasticitySolver::AddDispBC(int id, mfem::VectorCoefficient& val)
+{
+    bccv[id]=&val;
+}
+
 
 void CFElasticitySolver::SetVolForce(double fx, double fy, double fz)
 {
@@ -1487,6 +1493,29 @@ void CFElasticitySolver::FSolve()
             }
             ess_tdofv.Append(ess_tdofz);
         }
+
+        //vector bc
+        mfem::Array<int> ess_tdofa;
+        for(auto it=bccv.begin();it!=bccv.end();it++)
+        {
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            ess_tdofa.Append(ess_tdof_list);
+            fdisp.ProjectBdrCoefficient(*(it->second), ess_bdr);
+        }
+        //copy tdofs from velocity grid function
+        {
+            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+            for(int ii=0;ii<ess_tdofa.Size();ii++)
+            {
+                sol[ess_tdofa[ii]]=rhs[ess_tdofa[ii]];
+            }
+        }
+        ess_tdofv.Append(ess_tdofa);
+
     }
 
     if(el_markers!=nullptr)
@@ -1601,7 +1630,7 @@ double CFNLElasticityIntegrator::GetElementEnergy(const FiniteElement &el,
     const int dof=el.GetDof();
     const int dim=el.GetDim();
     {
-        const int spaceDim=Tr.GetDimension();
+        const int spaceDim=Tr.GetSpaceDim();
         if(dim!=spaceDim)
         {
             mfem::mfem_error("NLElasticityIntegrator::GetElementEnergy is not define on manifold meshes.");
@@ -1671,9 +1700,6 @@ double CFNLElasticityIntegrator::GetElementEnergy(const FiniteElement &el,
     delete air;//delete algoim integration rule
 
     return energy;
-
-
-
 }
 
 void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
@@ -1720,24 +1746,18 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
     Vector rr(9);
     Vector sh;
 
+    //correction factor for cut elements
+    double corr_factor=1.0;
+
     const IntegrationRule *ir = nullptr;
     AlgoimIntegrationRule* air =nullptr;
     int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);
 
     Vector vlsf;//vector for the level-set-function
-    if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::INSIDE)
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+    if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::CUT)
     {
-        ir=&IntRules.Get(Tr.GetGeometryType(),order);
-    }else
-    {
-        //cut element
-        Array<int> vdofs;
-        const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
-        DofTransformation *doftrans=lsf->FESpace()->GetElementVDofs(Tr.ElementNo,vdofs);
-        lsf->GetSubVector(vdofs,vlsf);
-        //construct algoim integration rule
-        air=new AlgoimIntegrationRule(order,*le,Tr,vlsf);
-        ir=air->GetVolumeIntegrationRule();
+        corr_factor=stiffness_ratio;
     }
 
     double w;
@@ -1763,6 +1783,8 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
 
         // Calcualte the residual at the integration point
         elco->EvalResidual(rr,gradu,Tr,ip);
+        // correct the residual
+        rr*=corr_factor;
 
         sh.SetDataAndSize(rr.GetData()+3*0,dim);
         bsu.AddMult_a(w,sh,ru);
@@ -1775,7 +1797,65 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
         }
 
 
-        //add forcing term
+        //add forcing term only for internal elements
+        if((*marks)[Tr.ElementNo]!=ElementMarker::SBElementType::CUT){
+        if(forc!=nullptr){
+            forc->Eval(ff,Tr,ip);
+            sh.SetDataAndSize(bsu.GetData(),dof);
+            el.CalcPhysShape(Tr,sh);
+            ru.Add(-w*ff[0],sh);
+            rv.Add(-w*ff[1],sh);
+            if(dim==3){rw.Add(-w*ff[2],sh);}
+        }}
+    }
+
+    //surface loading
+    if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::CUT){
+
+    //cut element
+    Array<int> vdofs;
+    const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
+    DofTransformation *doftrans=lsf->FESpace()->GetElementVDofs(Tr.ElementNo,vdofs);
+    lsf->GetSubVector(vdofs,vlsf);
+    //construct algoim integration rule
+    air=new AlgoimIntegrationRule(order,*le,Tr,vlsf);
+    ir=air->GetVolumeIntegrationRule();
+
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        el.CalcPhysDShape(Tr,bsu);
+
+        sh.SetDataAndSize(gradu.GetData()+3*0,dim);
+        bsu.MultTranspose(uu,sh);
+        sh.SetDataAndSize(gradu.GetData()+3*1,dim);
+        bsu.MultTranspose(vv,sh);
+        if(dim==3)
+        {
+            sh.SetDataAndSize(gradu.GetData()+3*2,dim);
+            bsu.MultTranspose(ww,sh);
+        }
+
+        // Calcualte the residual at the integration point
+        elco->EvalResidual(rr,gradu,Tr,ip);
+        // correct the residual
+        rr*=(1.0-corr_factor);
+
+        sh.SetDataAndSize(rr.GetData()+3*0,dim);
+        bsu.AddMult_a(w,sh,ru);
+        sh.SetDataAndSize(rr.GetData()+3*1,dim);
+        bsu.AddMult_a(w,sh,rv);
+        if(dim==3)
+        {
+            sh.SetDataAndSize(rr.GetData()+3*2,dim);
+            bsu.AddMult_a(w,sh,rw);
+        }
+
+        // add vol forces
         if(forc!=nullptr){
             forc->Eval(ff,Tr,ip);
             sh.SetDataAndSize(bsu.GetData(),dof);
@@ -1786,8 +1866,9 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
         }
     }
 
-    //surface loading
-    if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::CUT){
+
+
+
     if(surfl!=nullptr){
         ir=air->GetSurfaceIntegrationRule();
         const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
@@ -1837,7 +1918,7 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
     }
 
     {
-        const int spaceDim=Tr.GetDimension();
+        const int spaceDim=Tr.GetSpaceDim();
         if(dim!=spaceDim)
         {
             mfem::mfem_error("NLElasticityIntegrator::AssembleElementGrad is not defined on manifold meshes.");
@@ -1847,10 +1928,10 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
     if(elco==nullptr){	return;}
 
     //scale factor
-    double sc=1.0;
+    double corr_factor=1.0;
     if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::CUT)
     {
-        sc=1e-5; //stabilize the stiffness matrix
+        corr_factor=stiffness_ratio; //stabilize the stiffness matrix
     }
 
     //gradients
@@ -1905,7 +1986,7 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
             mh.Transpose();
             MultABt(bsu,mh,th);
             MultABt(th,bsu,rh);
-            elmat.AddMatrix(w*sc,rh,ii*dof,jj*dof);
+            elmat.AddMatrix(w*corr_factor,rh,ii*dof,jj*dof);
         }}
     }
 
@@ -1951,7 +2032,7 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
             mh.Transpose();
             MultABt(bsu,mh,th);
             MultABt(th,bsu,rh);
-            elmat.AddMatrix(w*(1.0-sc),rh,ii*dof,jj*dof);
+            elmat.AddMatrix(w*(1.0-stiffness_ratio),rh,ii*dof,jj*dof);
         }}
     }
     delete air;

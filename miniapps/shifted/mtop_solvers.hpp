@@ -862,6 +862,7 @@ public:
         elco=nullptr;
         forc=nullptr;
         surfl=nullptr;
+        stiffness_ratio=1e-6;
     }
 
     CFNLElasticityIntegrator(mfem::BasicElasticityCoefficient& coeff)
@@ -869,6 +870,7 @@ public:
         elco=&coeff;
         forc=nullptr;
         surfl=nullptr;
+        stiffness_ratio=1e-6;
     }
 
     CFNLElasticityIntegrator(mfem::BasicElasticityCoefficient* coeff,
@@ -877,6 +879,7 @@ public:
         elco=coeff;
         forc=vol_forc;
         surfl=nullptr;
+        stiffness_ratio=1e-3;
     }
 
     void SetElasticityCoefficient(mfem::BasicElasticityCoefficient& coeff)
@@ -892,6 +895,11 @@ public:
     void SetSurfaceLoad(mfem::VectorCoefficient& ss)
     {
         surfl=&ss;
+    }
+
+    void SetStiffnessRatio(double val)
+    {
+        stiffness_ratio=val;
     }
 
     /// Set level-set function and the element markers
@@ -920,6 +928,7 @@ private:
     VectorCoefficient* surfl; //surface load
     Array<int>* marks; //markings of the elements
     ParGridFunction* lsf; //level set function
+    double stiffness_ratio; //ratio between the stiffness in the level set and outside
 };
 
 
@@ -955,6 +964,9 @@ public:
 
     /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
     void AddDispBC(int id, int dir, mfem::Coefficient& val);
+
+    /// Adds displacement BC in all directions.
+    void AddDispBC(int id, mfem::VectorCoefficient& val);
 
     /// Clear all displacement BC
     void DelDispBC();
@@ -1068,6 +1080,9 @@ private:
     std::map<int, mfem::Coefficient*> bccy;
     std::map<int, mfem::Coefficient*> bccz;
 
+    // holds BC in vector coefficient form
+    std::map<int, mfem::VectorCoefficient*> bccv;
+
 
     // holds the displacement contrained DOFs
     mfem::Array<int> ess_tdofv;
@@ -1107,6 +1122,137 @@ private:
 };
 
 #endif
+
+
+class QubicPenalty{
+private:
+    double eta;
+    double a;
+    double b;
+    double c;
+    // the maximum is 1.0 and is located at point eta/3.0
+    // all penalties above eta are set to zero and
+    // the gradient at eta and above eta is zero
+public:
+    QubicPenalty(double eta_){
+        eta=eta_;
+        a=27.0/(4.0*eta*eta*eta);
+        b=-27.0/(2.0*eta*eta);
+        c=27.0/(4.0*eta);
+    }
+
+    double Eval(double x){
+        if(x<0.0){return 0.0;}
+        if(x>eta){return 0.0;}
+        return a*x*x*x+b*x*x+c*x;
+    }
+
+    double Grad(double x){
+        if(x<0.0){return 0.0;}
+        if(x>eta){return 0.0;}
+        return 3*a*x*x+2*b*x+c;
+    }
+
+};
+
+class VolPenalIntegrator:public NonlinearFormIntegrator
+{
+public:
+    VolPenalIntegrator(Coefficient* lsf, double eta):qpntl(eta)
+    {
+        level_set=lsf;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun)
+    {
+        int ndof = el.GetDof();
+        int ndim = Tr.GetSpaceDim();
+        double val=0.0;
+        double tal=0.0;
+        int order= 2 * el.GetOrder() +Tr.OrderGrad(&el);
+
+        const IntegrationRule * ir = nullptr;
+        ir = &IntRules.Get(el.GetGeomType(), order);
+        double w;
+        double f;
+        for(int i=0; i < ir->GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            w = Tr.Weight();
+            w = ip.weight * w;
+            f=level_set->Eval(Tr,ip);
+            if(f>0.0){
+                val=val+w;
+            }
+            tal=tal+w;
+        }
+
+        return qpntl.Eval(val/tal);
+
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndof = el.GetDof();
+        int ndim = Tr.GetSpaceDim();
+        double val=0.0;
+        double tal=0.0;
+        int order= 2 * el.GetOrder() +Tr.OrderGrad(&el);
+
+        elvect.SetSize(ndof*ndim); elvect=0.0;
+
+        DenseMatrix bmat(ndof,ndim); //gradients of the shape functions in isoparametric space
+        DenseMatrix pmat(ndof,ndim);
+        DenseMatrix gp; gp.UseExternalData(elvect.GetData(),ndof,ndim);
+
+        const IntegrationRule * ir = nullptr;
+        ir = &IntRules.Get(el.GetGeomType(), order);
+        double w;
+        double f;
+
+        //evaluate the gradients with respect to nodal displacements
+        for(int i=0; i < ir->GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            w = Tr.Weight();
+            w = ip.weight * w;
+            f=level_set->Eval(Tr,ip);
+            if(f>0.0){
+                val=val+w;
+
+                el.CalcDShape(ip,bmat);
+                Mult(bmat,Tr.AdjugateJacobian(),pmat);
+                gp.Add(w,pmat);
+
+            }
+            tal=tal+w;
+        }
+        elvect*=(qpntl.Grad(val/tal)/tal);
+
+    }
+
+    virtual
+    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, DenseMatrix &elmat)
+    {
+
+
+    }
+
+
+private:
+    QubicPenalty qpntl;
+    Coefficient* level_set;
+
+};
+
+
 
 }
 

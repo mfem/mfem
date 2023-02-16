@@ -73,6 +73,334 @@ private:
 
 };
 
+class DispSol2D:public VectorCoefficient
+{
+public:
+    DispSol2D(double E_=1.0, double nu_=0.3,
+              double lx_=1.0,double ly_=1.0):VectorCoefficient(2)
+    {
+        E=E_;
+        nu=nu_;
+        lx=lx_;
+        ly=ly_;
+
+    }
+
+    virtual
+    void  Eval(Vector &V, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        //evaluate the true coordinate of the ip
+        Vector xx; xx.SetSize(T.GetDimension());
+        T.Transform(ip,xx);
+
+        V.SetSize(2);
+
+        V[0] = sin(lx*xx[0])+cos(ly*xx[1]);
+        V[1] = cos(lx*xx[0]+ly*xx[1]);
+    }
+
+private:
+
+    double E;
+    double nu;
+    double lx;
+    double ly;
+};
+
+class StressSol2D:public MatrixCoefficient
+{
+public:
+    StressSol2D(double E_=1.0, double nu_=0.3,
+                double lx_=1.0,double ly_=1.0):MatrixCoefficient(2)
+    {
+        E=E_;
+        nu=nu_;
+        lx=lx_;
+        ly=ly_;
+    }
+
+    virtual
+    void  Eval(DenseMatrix &ss, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        //evaluate the true coordinate of the ip
+        Vector xx; xx.SetSize(T.GetDimension());
+        T.Transform(ip,xx);
+
+
+        ss(0,0) = 2.0*E/(2.0+2.0*nu)*lx*cos(lx*xx[0])
+                +E*nu/(1.0+nu)/(1.0-2.0*nu)*(lx*cos(lx*xx[0])-ly*sin(lx*xx[0]+ly*xx[1]));
+        ss(0,1) = -E*(ly*sin(ly*xx[1])+lx*sin(lx*xx[0]+ly*xx[1]))/(2.0+2.0*nu);
+        ss(1,0) = -E*(ly*sin(ly*xx[1])+lx*sin(lx*xx[0]+ly*xx[1]))/(2.0+2.0*nu);
+        ss(1,1) = -2.0*E/(2.0+2.0*nu)*ly*sin(lx*xx[0]+ly*xx[1])
+                +E*nu/(1.0+nu)/(1.0-2.0*nu)*(lx*cos(lx*xx[0])-ly*sin(lx*xx[0]+ly*xx[1]));
+    }
+
+private:
+
+    double E;
+    double nu;
+    double lx;
+    double ly;
+
+};
+
+class BdrLoadSol2D:public VectorCoefficient
+{
+public:
+    BdrLoadSol2D(StressSol2D* sco_, ParGridFunction* lsf_):VectorCoefficient(2)
+    {
+        sco=sco_;
+        lsf=lsf_;
+    }
+    virtual
+    void  Eval(Vector &vv, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        vv.SetSize(2);
+        Vector n(2);
+        DenseMatrix ss(2);
+        sco->Eval(ss,T,ip);
+        T.SetIntPoint(&ip);
+        lsf->GetGradient(T,n);
+        double nr=n.Norml2();
+        n/=-nr;
+        ss.Mult(n,vv);
+    }
+
+
+private:
+    StressSol2D* sco;
+    ParGridFunction* lsf;
+
+
+};
+
+class ForceSol2D:public VectorCoefficient
+{
+public:
+    ForceSol2D(double E_=1.0, double nu_=0.3,
+               double lx_=1.0,double ly_=1.0):VectorCoefficient(2)
+    {
+         E=E_;
+         nu=nu_;
+         lx=lx_;
+         ly=ly_;
+    }
+
+    virtual
+    void  Eval(Vector &ff, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        //evaluate the true coordinate of the ip
+        Vector xx; xx.SetSize(T.GetDimension());
+        T.Transform(ip,xx);
+
+        ff.SetSize(2);
+
+        ff[0] = 2.0*E/(2.0+2.0*nu)*lx*lx*sin(lx*xx[0])
+                -E*nu/(1.0+nu)/(1.0-2.0*nu)*(-lx*lx*sin(lx*xx[0])-ly*lx*cos(lx*xx[0]+ly*xx[1]))
+                +E*(ly*ly*cos(ly*xx[1])+ly*lx*cos(lx*xx[0]+ly*xx[1]))/(2.0+2.0*nu);
+
+        ff[1] = E*lx*lx*cos(lx*xx[0]+ly*xx[1])/(2.0+2.0*nu)
+                +2.0*E/(2.0+2.0*nu)*ly*ly*cos(lx*xx[0]+ly*xx[1])
+                +E*nu/(1.0+nu)/(1.0-2.0*nu)*ly*ly*cos(lx*xx[0]+ly*xx[1]);
+    }
+
+private:
+
+    double E;
+    double nu;
+    double lx;
+    double ly;
+};
+
+class DispSol3D:public VectorCoefficient
+{
+public:
+    DispSol3D(double E_=1.0, double nu_=0.3,
+              double lx_=1.0,double ly_=1.0, double lz_=1.0):VectorCoefficient(3)
+    {
+        E=E_;
+        nu=nu_;
+        lx=lx_;
+        ly=ly_;
+        lz=lz_;
+
+    }
+
+    virtual
+    void  Eval(Vector &u, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        //evaluate the true coordinate of the ip
+        Vector xx; xx.SetSize(T.GetDimension());
+        T.Transform(ip,xx);
+
+        u.SetSize(3);
+
+        u[0] = sin(lx*xx[0])+cos(ly*xx[1]);
+        u[1] = sin(lx*xx[1])+cos(lz*xx[2]);
+        u[2] = sin(lz*xx[2])+cos(lx*xx[0]);
+    }
+
+private:
+    double E;
+    double nu;
+    double lx;
+    double ly;
+    double lz;
+
+};
+
+
+
+
+class StressSol3D:public MatrixCoefficient
+{
+public:
+    StressSol3D(double E_=1.0, double nu_=0.3,
+              double lx_=1.0,double ly_=1.0, double lz_=1.0):MatrixCoefficient(3)
+    {
+        E=E_;
+        nu=nu_;
+        lx=lx_;
+        ly=ly_;
+        lz=lz_;
+   }
+
+    virtual
+    void  Eval(DenseMatrix &ss, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        //evaluate the true coordinate of the ip
+        Vector xx; xx.SetSize(T.GetDimension());
+        T.Transform(ip,xx);
+
+        double nnu=nu;
+
+        ss(0,0) = 2.0*E/(2.0+2.0*nnu)*lx*cos(lx*xx[0])+E*nnu/(1.0+nnu)/(1.0-2.0*
+        nnu)*(lx*cos(lx*xx[0])+lx*cos(lx*xx[1])+lz*cos(lz*xx[2]));
+
+        ss(0,1) = -E/(2.0+2.0*nnu)*ly*sin(ly*xx[1]);
+        ss(0,2) = -E/(2.0+2.0*nnu)*lx*sin(lx*xx[0]);
+        ss(1,0) = -E/(2.0+2.0*nnu)*ly*sin(ly*xx[1]);
+        ss(1,1) = 2.0*E/(2.0+2.0*nnu)*lx*cos(lx*xx[1])+E*nnu/(1.0+nnu)/(1.0-2.0*
+        nnu)*(lx*cos(lx*xx[0])+lx*cos(lx*xx[1])+lz*cos(lz*xx[2]));
+
+        ss(1,2) = -E/(2.0+2.0*nnu)*lz*sin(lz*xx[2]);
+        ss(2,0) = -E/(2.0+2.0*nnu)*lx*sin(lx*xx[0]);
+        ss(2,1) = -E/(2.0+2.0*nnu)*lz*sin(lz*xx[2]);
+        ss(2,2) = 2.0*E/(2.0+2.0*nnu)*lz*cos(lz*xx[2])+E*nnu/(1.0+nnu)/(1.0-2.0*
+        nnu)*(lx*cos(lx*xx[0])+lx*cos(lx*xx[1])+lz*cos(lz*xx[2]));
+    }
+
+
+
+private:
+    double E;
+    double nu;
+    double lx;
+    double ly;
+    double lz;
+
+};
+
+class ForceSol3D:public VectorCoefficient
+{
+public:
+    ForceSol3D(double E_=1.0, double nu_=0.3,
+              double lx_=1.0,double ly_=1.0, double lz_=1.0):VectorCoefficient(3)
+    {
+        E=E_;
+        nu=nu_;
+        lx=lx_;
+        ly=ly_;
+        lz=lz_;
+
+    }
+
+    virtual
+    void  Eval(Vector &ff, ElementTransformation &T,
+               const IntegrationPoint &ip)
+    {
+        //evaluate the true coordinate of the ip
+        Vector xx; xx.SetSize(T.GetDimension());
+        T.Transform(ip,xx);
+
+        ff.SetSize(3);
+
+        double nnu=nu;
+        ff[0] = 2.0*E/(2.0+2.0*nnu)*lx*lx*sin(lx*xx[0])+E*nnu/(1.0+nnu)/(1.0-2.0*
+  nnu)*lx*lx*sin(lx*xx[0])+E/(2.0+2.0*nnu)*ly*ly*cos(ly*xx[1]);
+        ff[1] = 2.0*E/(2.0+2.0*nnu)*lx*lx*sin(lx*xx[1])+E*nnu/(1.0+nnu)/(1.0-2.0*
+  nnu)*lx*lx*sin(lx*xx[1])+E/(2.0+2.0*nnu)*lz*lz*cos(lz*xx[2]);
+        ff[2] = E/(2.0+2.0*nnu)*lx*lx*cos(lx*xx[0])+2.0*E/(2.0+2.0*nnu)*lz*lz*sin
+  (lz*xx[2])+E*nnu/(1.0+nnu)/(1.0-2.0*nnu)*lz*lz*sin(lz*xx[2]);
+
+    }
+
+private:
+    double E;
+    double nu;
+    double lx;
+    double ly;
+    double lz;
+
+};
+
+class StressCompCoef:public Coefficient
+{
+public:
+    StressCompCoef(StressSol2D* sco_,LinIsoElasticityCoefficient* lco_)
+    {
+        sco2d=sco_;
+        lco=lco_;
+    }
+
+    StressCompCoef(StressSol3D* sco_,LinIsoElasticityCoefficient* lco_)
+    {
+        sco2d=nullptr;
+        sco3d=sco_;
+        lco=lco_;
+    }
+
+
+    double Eval(ElementTransformation &T,
+                const IntegrationPoint &ip)
+    {
+        DenseMatrix ss(3);
+        lco->EvalStress(ss, T, ip);
+
+        DenseMatrix ssc(3);
+        double r=0.0;
+        if(sco2d!=nullptr){
+            ssc=0.0;
+            sco2d->Eval(ssc,T,ip);
+            for(int i=0;i<2;i++){
+            for(int j=0;j<2;j++){
+                r=r+(ssc(i,j)-ss(i,j))*(ssc(i,j)-ss(i,j));
+            }}
+        }else{
+            sco3d->Eval(ssc,T,ip);
+            for(int i=0;i<3;i++){
+            for(int j=0;j<3;j++){
+                r=r+(ssc(i,j)-ss(i,j))*(ssc(i,j)-ss(i,j));
+            }}
+        }
+
+        return sqrt(r);
+
+
+    }
+
+private:
+    StressSol3D* sco3d;
+    StressSol2D* sco2d;
+    LinIsoElasticityCoefficient* lco;
+};
+
 
 int main(int argc, char *argv[])
 {
@@ -130,7 +458,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   FilterSolver* filter=new FilterSolver(0.1,&pmesh);
+   FilterSolver* filter=new FilterSolver(0.1,&pmesh,4);
 
    ParFiniteElementSpace* dfes=filter->GetDesignFES();
    ParFiniteElementSpace* ffes=filter->GetFilterFES();
@@ -139,8 +467,8 @@ int main(int argc, char *argv[])
    ParGridFunction filgf(ffes); filgf=0.0;
 
    {// project the coefficient and filter
-       GyroidCoeff gc(4.0*M_PI);
-       //CheseCoeff  gc(4.0*M_PI);
+       //GyroidCoeff gc(4.0*M_PI);
+       CheseCoeff  gc(2.0*M_PI);
        desgf.ProjectCoefficient(gc);
        Vector tdes(dfes->GetTrueVSize()); tdes=0.0;
        desgf.GetTrueDofs(tdes);
@@ -159,18 +487,75 @@ int main(int argc, char *argv[])
        pmesh.SetAttribute(i,marks[i]);
    }
 
+   DispSol2D dsol2d(1.0,0.3,2.0*M_PI,2.0*M_PI);
+   StressSol2D ssol2d(1.0,0.3,2.0*M_PI,2.0*M_PI);
+   DispSol3D dsol3d(1.0,0.3,2.0*M_PI,2.0*M_PI,2.0*M_PI);
+   StressSol3D ssol3D(1.0,0.3,2.0*M_PI,2.0*M_PI,2.0*M_PI);
 
-   CFElasticitySolver* elsolv=new CFElasticitySolver(&pmesh,2);
-   Vector vf(dim); vf=0.0; vf(1)=10.0;
+
+
+   CFElasticitySolver* elsolv=new CFElasticitySolver(&pmesh,1);
+   Vector vf(dim); vf=0.0; vf(1)=0.0;
    VectorConstantCoefficient* ff=new VectorConstantCoefficient(vf);
    LinIsoElasticityCoefficient* lec=new LinIsoElasticityCoefficient(1.0,0.3);
-   elsolv->SetLinearSolver(1e-8,1e-12,100);
-   elsolv->SetNewtonSolver(1e-6,1e-12,3,1);
-   elsolv->AddMaterial(lec,ff,nullptr);
-   elsolv->AddDispBC(2,4,0.0);
+   elsolv->SetLinearSolver(1e-12,1e-12,200);
+   elsolv->SetNewtonSolver(1e-10,1e-12,20,1);
+   if(dim==2){
+       ForceSol2D* fsol2d= new ForceSol2D(1.0,0.3,2.0*M_PI,2.0*M_PI);
+       BdrLoadSol2D* surf_load2d=new BdrLoadSol2D(&ssol2d,&filgf);
+       elsolv->AddMaterial(lec,fsol2d,surf_load2d);
+       //elsolv->AddMaterial(lec,fsol2d,nullptr);
+       //elsolv->AddMaterial(lec,nullptr,nullptr);
+   }else{//3D
+       ForceSol3D* fsol3d=new ForceSol3D(1.0,0.3,2.0*M_PI,2.0*M_PI,2.0*M_PI);
+       elsolv->AddMaterial(lec,fsol3d,nullptr);
+   }
+   //elsolv->AddDispBC(2,4,0.0);
+   if(dim==2){
+       elsolv->AddDispBC(1,dsol2d);
+       elsolv->AddDispBC(2,dsol2d);
+       elsolv->AddDispBC(3,dsol2d);
+       elsolv->AddDispBC(4,dsol2d);
+   }else{ //3D
+       elsolv->AddDispBC(2,dsol3d);
+   }
    elsolv->SetLSF(filgf,marks);
    elsolv->FSolve();
    ParGridFunction& u=elsolv->GetDisplacements();
+
+   //chack the displacement and the stress coefficients
+   //displacement field
+   ParGridFunction ug(u);
+   L2_FECollection l2fec(4,dim);
+   ParFiniteElementSpace l2fes(&pmesh,&l2fec,1);
+   ParGridFunction errgf(&l2fes);
+   if(dim==2){
+       ug.ProjectCoefficient(dsol2d);
+       lec->SetDisplacementField(ug);
+       StressSol2D sco(1.0,0.3,2.0*M_PI,2.0*M_PI);
+       StressCompCoef scco(&sco,lec);
+       errgf.ProjectCoefficient(scco);
+
+   }else{
+       ug.ProjectCoefficient(dsol3d);
+       lec->SetDisplacementField(ug);
+       StressSol3D sco(1.0,0.3,2.0*M_PI,2.0*M_PI,2.0*M_PI);
+       StressCompCoef scco(&sco,lec);
+       errgf.ProjectCoefficient(scco);
+   }
+
+
+   Array<int> 	emarks(marks);
+   for(int i=0;i<marks.Size();i++){
+       if(marks[i]!=ElementMarker::SBElementType::INSIDE){
+           emarks[i]=0;
+       }else{
+           emarks[i]=1;
+       }
+   }
+   VectorGridFunctionCoefficient vgfv(&u);
+   double err=ug.ComputeL2Error(vgfv,nullptr,&emarks);
+   std::cout<<"err="<<err<<std::endl;
 
 
    // ParaView output.
@@ -180,6 +565,8 @@ int main(int argc, char *argv[])
    dacol.RegisterField("design", &desgf);
    dacol.RegisterField("flter", &filgf);
    dacol.RegisterField("disp",&u);
+   dacol.RegisterField("disp_sol",&ug);
+   dacol.RegisterField("err",&errgf);
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();

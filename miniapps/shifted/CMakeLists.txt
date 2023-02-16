@@ -74,6 +74,11 @@ if (MFEM_USE_MPI)
       ${DIST_COMMON_FILES}
       LIBRARIES mfem mfem-common)
 
+  add_mfem_miniapp(volp_test
+      MAIN volp_test.cpp
+      ${DIST_COMMON_FILES}
+      LIBRARIES mfem mfem-common)
+
   if (MFEM_ENABLE_TESTING)
     add_test(NAME shifted_distance_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
