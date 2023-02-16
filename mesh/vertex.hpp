@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 #include "../general/globals.hpp"
 
+#include <array>
+
 namespace mfem
 {
 

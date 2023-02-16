@@ -22,6 +22,7 @@
 #include "../fem/geom.hpp"
 
 #include <vector>
+#include <unordered_map>
 #include <map>
 #include <iostream>
 
