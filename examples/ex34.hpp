@@ -10,37 +10,61 @@ typedef std::function<double(const Vector &, const Vector &, Vector &)>
     NormalFlux;
 typedef std::function<double(const Vector &, DenseMatrix &)> Flux;
 
-class HyperbolicConservationLaws; // Base hyperbolic conservation law class : public TimeDependentOperator
-class EulerSystem; // Euler system : public HyperbolicConservationLaws
-class AdvectionEquation; // Advection equation : public HyperbolicConservationLaws
-class BurgersEquation; // Burgers equation : public HyperbolicConservationLaws
+// Base hyperbolic conservation law class : public TimeDependentOperator
+class HyperbolicConservationLaws;
 
 // Ingredients for HyperbolicConservationLaws
-class DivFlux; // (F(u), grad phi) : public NonlinearFormIntegrator
-class NumericalFlux; // <hat(F), jump phi> : public NonlinearFormIntegrator
-class RusanovFlux; // hat(F) = RusanovFlux : public NumericalFlux
+class DivFlux;        // (F(u), grad phi) : public NonlinearFormIntegrator
+class NumericalFlux;  // <hat(F), jump phi> : public NonlinearFormIntegrator
+class RusanovFlux;    // hat(F) = RusanovFlux : public NumericalFlux
 
 class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
   const int num_equations;
   FiniteElementSpace &vfes;  // vector space, size: The number of equations
-  FiniteElementSpace &dfes;  // vector space, size: Spatial dimension
-  FiniteElementSpace &sfes;  // scalar space
-  MixedBilinearForm Adiv; // -(F(u), grad phi)
+  NonlinearForm A;           // -(F(u), grad phi) + <hat(F), [[phi]]>
   Flux Fu;
   NormalFlux FudotN;
-  NumericalFlux *riemann_solver = NULL;
+  NumericalFlux *riemann_solver = NULL;  //
+  DivFlux *divFu = NULL;  // element integrator, - (F(u), grad phi)
+  mutable double max_char_speed = 0.0;
 
  public:
-  HyperbolicConservationLaws(const int num_equations_, const int dim_,
-                             FiniteElementSpace &sfes_,
-                             FiniteElementSpace &dfes_,
-                             FiniteElementSpace &vfes_, Flux Fu_,
-                             NormalFlux FudotN_,
-                             FluxType fluxname = FluxType::RUSANOV);
-  virtual ~HyperbolicConservationLaws() = default;
+  HyperbolicConservationLaws(FiniteElementSpace &vfes_, Flux Fu_,
+                             NormalFlux FudotN_, FluxType fluxname);
+  ~HyperbolicConservationLaws() = default;
+
+  virtual void Mult(const Vector &x, Vector &y) const;
 };
+
+HyperbolicConservationLaws::HyperbolicConservationLaws(
+    FiniteElementSpace &vfes_, Flux Fu_, NormalFlux FudotN_, FluxType fluxname)
+    : TimeDependentOperator(0),
+      vfes(vfes_),
+      dim(vfes.GetMesh()->Dimension()),
+      num_equations(vfes.GetVDim()),
+      FudotN(FudotN_),
+      Fu(Fu_),
+      A(&vfes) {
+  switch (fluxname) {
+    case FluxType::RUSANOV: {
+      riemann_solver = new RusanovFlux(FudotN, num_equations);
+      break;
+      default: {
+        throw std::invalid_argument(
+            "The given flux name is not supported. See, enum FluxType");
+      }
+    }
+  }
+  divFu = new DivFlux(Fu);
+  A.AddDomainIntegrator(divFu);
+  A.AddInteriorFaceIntegrator(riemann_solver);
+}
+void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
+  A.Mult(x, y);
+  max_char_speed = max(divFu->max_char_speed, riemann_solver->max_char_speed);
+}
 
 class DivFlux : public NonlinearFormIntegrator {
  private:
@@ -54,7 +78,7 @@ class DivFlux : public NonlinearFormIntegrator {
 
  public:
   double max_char_speed;
-  DivFlux(Flux Fu_) : Fu(Fu_){};
+  DivFlux(Flux &Fu_) : Fu(Fu_){};
 
   void AssembleElementVector(const FiniteElement &elem,
                              ElementTransformation &trans, const Vector &elfun,
@@ -84,8 +108,8 @@ class RusanovFlux : public NumericalFlux {
                        const Vector &nor, Vector &fluxN);
 
  public:
-  /// @brief Compute Rusanov flux fuor the given flux Function and edge by F* =
-  /// 0.5(F(s₁)n + F(s₂)n) - 0.5λ(F(s₁)n + F(s₂)n)
+  /// @brief Compute Rusanov flux fuor the given flux Function and edge
+  /// by F* = 0.5(F(s₁)n + F(s₂)n) - 0.5λ(F(s₁)n + F(s₂)n)
   /// @param FdotN_ flux normal function: F(s, n, Fsn)
   /// @param num_equations the number of equation
   RusanovFlux(NormalFlux FudotN_, const int num_equations)
@@ -245,13 +269,32 @@ NormalFlux getAdvectionFdotN(const Vector &b) {
   };
 }
 
-class AdvectionEquation : public HyperbolicConservationLaws {
- public:
-  AdvectionEquation(const int dim, const Vector &b_, FiniteElementSpace &sfes_,
-                    FiniteElementSpace &dfes_, FiniteElementSpace &vfes_)
-      : HyperbolicConservationLaws(dim + 2, dim, sfes_, dfes_, vfes_,
-                                   getAdvectionF(b_), getAdvectionFdotN(b_)){};
-};
+HyperbolicConservationLaws *getAdvectionEquation(
+    FiniteElementSpace &vfes, const Vector &b,
+    const FluxType fluxname = FluxType::RUSANOV) {
+  Flux Fu = getAdvectionF(b);
+  NormalFlux FudotN = getAdvectionFdotN(b);
+  return new HyperbolicConservationLaws(vfes, Fu, FudotN, fluxname);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// Burgers equation
+Flux getBurgersF() {
+  return [=](const Vector &u, DenseMatrix &flux) {
+    const double speed = u.Norml2();
+    flux = speed / 2;
+    return speed;
+  };
+}
+
+NormalFlux getBurgersFdotN() {
+  return [=](const Vector &u, const Vector &nor, Vector &flux) {
+    const double usquared = u*u;
+    flux = usquared / 2;
+    return sqrt(usquared*u.Size());
+  };
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Shallow Water
 // Todo: Make flux fuor shallow water
@@ -297,50 +340,36 @@ Flux getEulerF(const double gamma_euler = 1.4) {
 NormalFlux getEulerFdotN(const double gamma_euler = 1.4) {
   return [=](const Vector &state, const Vector &nor, Vector &fluxN) {
     const int dim = state.Size() - 2;
-    const double den = state(0);
-    const Vector mom(state.GetData() + 1, dim);
-    const double E = state(1 + dim);
+    const double den = state(0);                 // density, ρ
+    const Vector mom(state.GetData() + 1, dim);  // momentum, m = ρu
+    const double E = state(1 + dim);             // Energy, E
 
+    // pressure
     const double p = (gamma_euler - 1) * (E - mom.Norml2() / (2 * den));
 
+    // F₁(u) = ρu⋅n
     fluxN(0) = mom * nor;
+
+    // normal velocity, u⋅n = (ρu⋅n)/ρ = F₁(u)/ρ
     const double normal_vel = fluxN(0) / den;
 
+    // Fᵢ₊₁(u) = ρu(u⋅n) + pn
     for (int i = 0; i < dim; i++) {
       fluxN(1 + i) = mom(i) * normal_vel + p * nor(i);
     }
+    // Fₙ(u) = (E+p)(u⋅n)
     fluxN(dim) = normal_vel * (E + p);
 
+    // Characteristic speed = |u| + (γp/ρ)^(1/2)
     return mom.Norml2() / den + gamma_euler * p / den;
   };
 }
 
-HyperbolicConservationLaws::HyperbolicConservationLaws(
-    const int num_equations_, const int dim_, FiniteElementSpace &sfes_,
-    FiniteElementSpace &dfes_, FiniteElementSpace &vfes_, Flux Fu_,
-    NormalFlux FudotN_, FluxType fluxname)
-    : TimeDependentOperator(0),
-      num_equations(num_equations_),
-      dim(dim_),
-      sfes(sfes_),
-      dfes(dfes_),
-      vfes(vfes_),
-      FudotN(FudotN_),
-      F(F_),
-      Adiv(&dfes, &sfes) {
-  switch (fluxname) {
-    case FluxType::RUSANOV: {
-      riemann_solver = new RusanovFlux(FudotN, num_equations);
-      break;
-    }
-  }
-}
+HyperbolicConservationLaws *getEulerSystem(
+    FiniteElementSpace &vfes, const FluxType fluxname = FluxType::RUSANOV,
+    const double gamma_euler = 1.4) {
+  Flux Fu = getEulerF(gamma_euler);
+  NormalFlux FudotN = getEulerFdotN(gamma_euler);
 
-class EulerSystem : public HyperbolicConservationLaws {
- public:
-  EulerSystem(const int dim, FiniteElementSpace &sfes_,
-              FiniteElementSpace &dfes_, FiniteElementSpace &vfes_,
-              FluxType fluxname = FluxType::RUSANOV)
-      : HyperbolicConservationLaws(dim + 2, dim, sfes_, dfes_, vfes_,
-                                   getEulerF(), getEulerFdotN(), fluxname){};
-};
+  return new HyperbolicConservationLaws(vfes, Fu, FudotN, fluxname);
+}

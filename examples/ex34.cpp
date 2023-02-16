@@ -12,12 +12,12 @@
 //              General 2D/3D mesh files and finite element polynomial degrees
 //              can be specified by command line options.
 
+#include "ex34.hpp"
 
 #include <fstream>
 #include <iostream>
 
 #include "mfem.hpp"
-#include "ex34.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   const char *mesh_file = NULL;
   int order = 1;
   int ref_levels = 5;
-  
+
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
                  "Mesh file to use (default: 2x2 rectangular mesh).");
@@ -49,9 +49,13 @@ int main(int argc, char *argv[]) {
   const int num_equations = dim + 2;
 
   L2_FECollection dg(order, dim);
-  FiniteElementSpace sfes(&mesh, &dg);
+  // Scalar finite element space
+  FiniteElementSpace sfes(&mesh, &dg, 1);
+  // Vector finite element space for velocity
   FiniteElementSpace dfes(&mesh, &dg, dim);
+  // Vector finite element space for state variable
   FiniteElementSpace vfes(&mesh, &dg, num_equations);
-  EulerSystem euler(dim, sfes, dfes, vfes, FluxType::RUSANOV);
+  HyperbolicConservationLaws *hcl = getEulerSystem(vfes);
+
   return 0;
 }
