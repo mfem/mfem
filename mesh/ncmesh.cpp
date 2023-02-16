@@ -487,7 +487,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
    {
       const auto &fv = gi_hex.faces[i];
       f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
-                       el.node[fv[2]], el.node[fv[3]]);
+                      el.node[fv[2]], el.node[fv[3]]);
    }
 
    f[0].attribute = fattr0,  f[1].attribute = fattr1;
@@ -517,7 +517,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
    {
       const auto &fv = gi_wedge.faces[i];
       f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
-                       el.node[fv[2]], el.node[fv[3]]);
+                      el.node[fv[2]], el.node[fv[3]]);
    }
 
    f[0].attribute = fattr0;
@@ -601,7 +601,7 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
    {
       const auto &fv = gi_quad.faces[i];
       f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
-                       el.node[fv[2]], el.node[fv[3]]);
+                      el.node[fv[2]], el.node[fv[3]]);
    }
 
    f[0].attribute = eattr0,  f[1].attribute = eattr1;
@@ -626,7 +626,7 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    {
       const auto &fv = gi_tri.faces[i];
       f[i] = faces.At(el.node[fv[0]], el.node[fv[1]],
-                       el.node[fv[2]], el.node[fv[3]]);
+                      el.node[fv[2]], el.node[fv[3]]);
    }
 
    f[0].attribute = eattr0;

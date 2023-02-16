@@ -554,6 +554,8 @@ protected: // implementation
 
    /// Coordinates of top-level vertices (organized as triples). If empty,
    /// the Mesh is curved (Nodes != NULL) and NCMesh is topology-only.
+   /// These are vertices that have not been introduced by a refinement, namely
+   /// are from the initial root mesh.
    Array<double> coordinates;
 
    // secondary data
@@ -676,30 +678,134 @@ protected: // implementation
       elements[id].parent = -2; // mark the element as free
    }
 
+
+   /**
+    * @brief Introduce a new hexahedron to the elements array
+    *
+    * @param n0 A node number of the introduced hexahedron
+    * @param n1 A node number of the introduced hexahedron
+    * @param n2 A node number of the introduced hexahedron
+    * @param n3 A node number of the introduced hexahedron
+    * @param n4 A node number of the introduced hexahedron
+    * @param n5 A node number of the introduced hexahedron
+    * @param n6 A node number of the introduced hexahedron
+    * @param n7 A node number of the introduced hexahedron
+    * @param attr The attribute of the hexahedron
+    * @param fattr0 A face attribute of the introduced hexahedron
+    * @param fattr1 A face attribute of the introduced hexahedron
+    * @param fattr2 A face attribute of the introduced hexahedron
+    * @param fattr3 A face attribute of the introduced hexahedron
+    * @param fattr4 A face attribute of the introduced hexahedron
+    * @param fattr5 A face attribute of the introduced hexahedron
+    * @return int Index into `elements` for the new hexahedron
+    */
    int NewHexahedron(int n0, int n1, int n2, int n3,
                      int n4, int n5, int n6, int n7, int attr,
                      int fattr0, int fattr1, int fattr2,
                      int fattr3, int fattr4, int fattr5);
 
+   /**
+    * @brief Introduce a new wedge to the elements array
+    *
+    * @param n0 A node number of the introduced wedge
+    * @param n1 A node number of the introduced wedge
+    * @param n2 A node number of the introduced wedge
+    * @param n3 A node number of the introduced wedge
+    * @param n4 A node number of the introduced wedge
+    * @param n5 A node number of the introduced wedge
+    * @param attr The attribute of the wedge
+    * @param fattr0 A face attribute of the introduced wedge
+    * @param fattr1 A face attribute of the introduced wedge
+    * @param fattr2 A face attribute of the introduced wedge
+    * @param fattr3 A face attribute of the introduced wedge
+    * @param fattr4 A face attribute of the introduced wedge
+    * @return int Index into `elements` for the new wedge
+    */
    int NewWedge(int n0, int n1, int n2,
                 int n3, int n4, int n5, int attr,
                 int fattr0, int fattr1,
                 int fattr2, int fattr3, int fattr4);
 
+   /**
+    * @brief Introduce a new tetrahedron to the elements array
+    *
+    * @param n0 A node number of the introduced tetrahedron
+    * @param n1 A node number of the introduced tetrahedron
+    * @param n2 A node number of the introduced tetrahedron
+    * @param n3 A node number of the introduced tetrahedron
+    * @param attr The attribute of the tetrahedron
+    * @param fattr0 A face attribute of the introduced tetrahedron
+    * @param fattr1 A face attribute of the introduced tetrahedron
+    * @param fattr2 A face attribute of the introduced tetrahedron
+    * @param fattr3 A face attribute of the introduced tetrahedron
+    * @return int Index into `elements` for the new tetrahedron
+    */
    int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                       int fattr0, int fattr1, int fattr2, int fattr3);
 
+   /**
+    * @brief Introduce a new pyramid to the elements array
+    *
+    * @param n0 A node number of the introduced pyramid
+    * @param n1 A node number of the introduced pyramid
+    * @param n2 A node number of the introduced pyramid
+    * @param n3 A node number of the introduced pyramid
+    * @param n4 A node number of the introduced pyramid
+    * @param attr The attribute of the pyramid
+    * @param fattr0 A face attribute of the introduced pyramid
+    * @param fattr1 A face attribute of the introduced pyramid
+    * @param fattr2 A face attribute of the introduced pyramid
+    * @param fattr3 A face attribute of the introduced pyramid
+    * @param fattr4 A face attribute of the introduced pyramid
+    * @return int Index into `elements` for the new pyramid
+    */
    int NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
                   int fattr0, int fattr1, int fattr2, int fattr3,
                   int fattr4);
 
+   /**
+    * @brief Introduce a new quadrilateral to the elements array
+    *
+    * @param n0 A node number of the introduced quadrilateral
+    * @param n1 A node number of the introduced quadrilateral
+    * @param n2 A node number of the introduced quadrilateral
+    * @param n3 A node number of the introduced quadrilateral
+    * @param attr The attribute of the quadrilateral
+    * @param eattr0 An edge attribute of the introduced quadrilateral
+    * @param eattr1 An edge attribute of the introduced quadrilateral
+    * @param eattr2 An edge attribute of the introduced quadrilateral
+    * @param eattr3 An edge attribute of the introduced quadrilateral
+    * @return int Index into `elements` for the new quadrilateral
+    */
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
 
+   /**
+    * @brief Introduce a new triangle to the elements array
+    *
+    * @param n0 A node number of the introduced triangle
+    * @param n1 A node number of the introduced triangle
+    * @param n2 A node number of the introduced triangle
+    * @param attr The attribute of the triangle
+    * @param eattr0 An edge attribute of the introduced triangle
+    * @param eattr1 An edge attribute of the introduced triangle
+    * @param eattr2 An edge attribute of the introduced triangle
+    * @return int Index into `elements` for the new triangle
+    */
    int NewTriangle(int n0, int n1, int n2,
                    int attr, int eattr0, int eattr1, int eattr2);
 
-   int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
+   /**
+    * @brief Introduce a new segment to the elements array
+    *
+    * @param n0 A node number of the introduced segment
+    * @param n1 A node number of the introduced segment
+    * @param attr The attribute of the segment
+    * @param vattr0 A vertex attribute of the introduced segment
+    * @param vattr1 A vertex attribute of the introduced segment
+    * @return int Index into `elements` for the new segment
+    */
+   int NewSegment(int n0, int n1, int attr, int vattr0, int vattr1);
 
    mfem::Element* NewMeshElement(int geom) const;
 
