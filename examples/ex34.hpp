@@ -31,15 +31,21 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   std::vector<DenseMatrix> invMe;
   mutable double max_char_speed = 0.0;
   mutable Vector z;  // Auxiliary vector used in Mult
+  double hmin;
+  int max_order;
+  void computeHmin();
+  void computeInvMe();  // get element-wise inverse matrix
+  void computeMaxOrder();
 
  public:
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, Flux Fu_,
                              NormalFlux FudotN_, FluxType fluxname);
   ~HyperbolicConservationLaws() = default;
 
-  void getInvMe(); // get element-wise inverse matrix
-  void Update(); // update after refinement
-  void Mult(const Vector &x, Vector &y) const; // compute y = M\A(x) for time stepping
+  void Update();  // update after refinement
+  void Mult(const Vector &x,
+            Vector &y) const;  // compute y = M\A(x) for time stepping
+  inline double get_dt() { return max_char_speed / hmin / (2 * max_order + 1); }
 };
 
 HyperbolicConservationLaws::HyperbolicConservationLaws(
@@ -69,10 +75,27 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
   // add inter-element numerical flux
   A.AddInteriorFaceIntegrator(riemann_solver);
   // compute local inverse
-  getInvMe();
+  computeInvMe();
+  computeHmin();
+  computeMaxOrder();
 }
 
-void HyperbolicConservationLaws::getInvMe() {
+void HyperbolicConservationLaws::computeHmin() {
+  Mesh *mesh = vfes.GetMesh();
+  hmin = mesh->GetElementSize(0, 1);
+  for (int i = 0; i < mesh->GetNE(); i++) {
+    hmin = min(mesh->GetElementSize(i, 1), hmin);
+  }
+}
+
+void HyperbolicConservationLaws::computeMaxOrder() {
+  max_order = vfes.GetElementOrder(0);
+  for (int i = 0; i < vfes.GetNE(); i++) {
+    max_order = max(vfes.GetElementOrder(i), max_order);
+  }
+}
+
+void HyperbolicConservationLaws::computeInvMe() {
   MassIntegrator mi;
   invMe.resize(vfes.GetNE());
   for (int i = 0; i < vfes.GetNE(); i++) {
@@ -102,13 +125,14 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
     zmat.UseExternalData(zval.GetData(), dof, num_equations);
     ymat.UseExternalData(yval.GetData(), dof, num_equations);
     mfem::Mult(invMe[i], zmat, ymat);
+    y.SetSubVector(vdofs, ymat.GetData());
   }
   max_char_speed = max(divFu->max_char_speed, riemann_solver->max_char_speed);
 }
 
 void HyperbolicConservationLaws::Update() {
-  A.Update(); // update nonlinear operator
-  getInvMe(); // update mass inverse
+  A.Update();      // update nonlinear operator
+  computeInvMe();  // update mass inverse
 }
 
 class DivFlux : public NonlinearFormIntegrator {
