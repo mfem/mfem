@@ -91,8 +91,8 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
 
          const double C1 = const_c ? C(0,0) : C(q,e);
 
@@ -692,8 +692,8 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                      {
                         const int q = qx + (qy + qz * Q1D) * Q1D;
                         const int k = j >= i ?
-                        3 - (3-i)*(2-i)/2 + j:
-                        3 - (3-j)*(2-j)/2 + i;
+                                      3 - (3-i)*(2-i)/2 + j:
+                                      3 - (3-j)*(2-j)/2 + i;
                         const double O = Q(q,k,e);
                         const double Bz = B(qz,dz);
                         const double Gz = G(qz,dz);

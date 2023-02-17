@@ -124,8 +124,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const double J23 = J(qx,qy,qz,1,2,e);
                   const double J33 = J(qx,qy,qz,2,2,e);
                   const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                  /* */               J21 * (J12 * J33 - J32 * J13) +
-                  /* */               J31 * (J12 * J23 - J22 * J13);
+                                      J21 * (J12 * J33 - J32 * J13) +
+                                      J31 * (J12 * J23 - J22 * J13);
                   const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
                   v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
@@ -598,7 +598,8 @@ static void SmemPAMassApply2D(const int NE,
    auto Y = y_.ReadWrite();
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d, q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d,
+                                                             q1d);
    });
 }
 
