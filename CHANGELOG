@@ -55,7 +55,8 @@ Miscellaneous
   This parameter can still be explicitly overridden with
   VisItDataCollection::SetPadDigitsRank().
 
-- Adds mfem::forall functions to replace MFEM_FORALL macros.
+- Adds mfem::forall functions that can be used inplace of MFEM_FORALL macros,
+  which have been kept for backward compatibility.
 
 API changes
 -----------
