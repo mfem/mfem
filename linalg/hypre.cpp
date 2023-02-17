@@ -514,7 +514,7 @@ void CopyConvertMemory(Memory<SrcT> &src, MemoryClass dst_mc, Memory<DstT> &dst)
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(src, capacity);
    auto dst_p = mfem::Write(dst, capacity);
-   mfem::forall(capacity,  [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
+   mfem::forall(capacity, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 
 
@@ -697,7 +697,7 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(mem_csr.J, nnz);
    auto dst_p = mfem::Write(dst_J, nnz);
-   mfem::forall(nnz,  [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
+   mfem::forall(nnz, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 #endif
 
