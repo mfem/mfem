@@ -477,6 +477,8 @@ public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
    BlockArray& operator=(const BlockArray&) = delete; // not supported
+   BlockArray(BlockArray<T> &&other) = default;
+   BlockArray& operator=(BlockArray&&) = delete; // not supported
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.

@@ -133,10 +133,12 @@ public:
    NCMesh(std::istream &input, int version, int &curved, int &is_nc);
 
    /// Deep copy of another instance.
-   NCMesh(const NCMesh &other);
+   NCMesh(const NCMesh &other) = default;
+   NCMesh(NCMesh &&other) = default;
 
    /// Copy assignment not supported
-   NCMesh& operator=(NCMesh&) = delete;
+   NCMesh& operator=(const NCMesh&) = delete;
+   NCMesh& operator=(NCMesh&&) = delete;
 
    virtual ~NCMesh();
 

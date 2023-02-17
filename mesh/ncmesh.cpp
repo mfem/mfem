@@ -208,24 +208,6 @@ NCMesh::NCMesh(const Mesh *mesh)
    Update();
 }
 
-NCMesh::NCMesh(const NCMesh &other)
-   : Dim(other.Dim)
-   , spaceDim(other.spaceDim)
-   , MyRank(other.MyRank)
-   , Iso(other.Iso)
-   , Geoms(other.Geoms)
-   , Legacy(other.Legacy)
-   , nodes(other.nodes)
-   , faces(other.faces)
-   , elements(other.elements)
-   , shadow(1024, 2048)
-{
-   other.free_element_ids.Copy(free_element_ids);
-   other.root_state.Copy(root_state);
-   other.coordinates.Copy(coordinates);
-   Update();
-}
-
 void NCMesh::InitGeomFlags()
 {
    Geoms = 0;

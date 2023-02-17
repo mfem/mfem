@@ -107,7 +107,7 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &&mesh, int *partitioning_,
                  int part_method)
-: Mesh(mesh), face_nbr_el_to_face(NULL)
+   : Mesh(mesh), face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
@@ -117,7 +117,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &&mesh, int *partitioning_,
 
 ParMesh::ParMesh(MPI_Comm comm, const Mesh &mesh, int *partitioning_,
                  int part_method)
-: Mesh(mesh), face_nbr_el_to_face(NULL)
+   : Mesh(mesh), face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
@@ -125,7 +125,8 @@ ParMesh::ParMesh(MPI_Comm comm, const Mesh &mesh, int *partitioning_,
    DelegatedConstructionParMesh(comm, partitioning_, part_method);
 }
 
-void ParMesh::DelegatedConstructionParMesh(MPI_Comm comm,int *partitioning_, int part_method)
+void ParMesh::DelegatedConstructionParMesh(MPI_Comm comm,int *partitioning_,
+                                           int part_method)
 {
 
 
