@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-PAR_MINIAPPS = curlcurl
+PAR_MINIAPPS = curlcurl periodic2D
 MINIAPPS = $(PAR_MINIAPPS)
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -98,15 +98,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle toroid twist
-	rm -f mesh-explorer shaper extruder trimmer
-	rm -f mesh-optimizer pmesh-optimizer polar-nc
-	rm -f minimal-surface pminimal-surface
-	rm -f curlcurl
+	rm -f *.o *~ 
+	rm -f curlcurl periodic2D
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
-	@rm -f partitioning.txt shaper.mesh extruder.mesh
-	@rm -f optimized* perturbed* polar-nc.mesh
+	@rm -f curlcurl mesh.* sol.*
