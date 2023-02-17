@@ -232,6 +232,7 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
 
 public:
    AdamsBashforthSolver(int s_, const double *a_);
@@ -314,6 +315,7 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
 
 public:
    AdamsMoultonSolver(int s_, const double *a_);

@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "general/communication.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
 
@@ -349,6 +350,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
    smax = std::min(s_,5);
    a = a_;
    k = new Vector[5];
+   dt_ = 0.0;
 
    if (smax <= 2)
    {
@@ -407,6 +409,22 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
+   if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   {
+      s = 0;
+      dt_ = dt;
+
+#ifdef MFEM_USE_MPI
+      if (Mpi::Root())
+#endif
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    s++;
    s = std::min(s, smax);
    if (s == smax)
@@ -446,6 +464,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
    smax = std::min(s_+1,5);
    a = a_;
    k = new Vector[5];
+   dt_ = 0.0;
 
    if (smax <= 3)
    {
@@ -498,6 +517,22 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
+   if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   {
+      s = 0;
+      dt_ = dt;
+
+#ifdef MFEM_USE_MPI
+      if (Mpi::Root())
+#endif
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    if ((s == 0)&&(smax>1))
    {
       f->Mult(x,k[idx[1]]);
