@@ -182,6 +182,10 @@ int main(int argc, char *argv[])
    else if(icase==2){
      Bvec.ProjectCoefficient(*VecCoeff);
      BmatCoeff bmatcoeff(&Bvec);
+     ParBilinearForm *a = new ParBilinearForm(fespace);
+     a->AddDomainIntegrator(new SpecialVectorCurlCurlIntegrator(*VecCoeff, bmatcoeff));
+     a->Assemble();
+     delete a;
    }
 
    /*

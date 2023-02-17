@@ -18,18 +18,18 @@ public:
     virtual ~BmatCoeff() {};
 };
 
-class VectorCurlCurlIntegrator: public BilinearFormIntegrator
+class SpecialVectorCurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
-    VectorCoefficient *BC    = NULL;
-    MatrixCoefficient *BmatC = NULL;
+    VectorCoefficient *BC;
+    BmatCoeff *BmatC;
     Vector shape, divshape, Bvec, tmp, BdotGrad;
     DenseMatrix dshape, dshapedxt, gshape, recmat;
     DenseMatrix Bmat, partrecmat, partrecmat2;
 
 public:
-    VectorCurlCurlIntegrator(VectorCoefficient &BCoeff, MatrixCoefficient &BmatCoeff)
-    { BC = &BCoeff; BmatC=&BmatCoeff;}
+    SpecialVectorCurlCurlIntegrator(VectorCoefficient &BCoeff, BmatCoeff &bmatcoeff)
+    { BC = &BCoeff; BmatC=&bmatcoeff;}
     virtual void AssembleElementMatrix(const FiniteElement &el,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);

@@ -11,7 +11,7 @@ void BmatCoeff::Eval(DenseMatrix &K, ElementTransformation &T, const Integration
     B->GetVectorGradient(T, grad);
     double div = grad(0,0)+grad(1,1)+grad(2,2);
     K.Diag(-div, height);
-    grad.Tranpose();
+    grad.Transpose();
     K+=grad;
 }
 
@@ -20,9 +20,8 @@ void BmatCoeff::Eval(DenseMatrix &K, ElementTransformation &T, const Integration
 //
 //Idea: get a rectangular matrix of vdim by dof*dim first and then AddMult_a_AAt
 //Note this operator only makes sense for dim==vdim==3
-void AssembleElementMatrix(const FiniteElement &el,
-                           ElementTransformation &Trans,
-                           DenseMatrix &elmat)
+void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement &el,
+                           ElementTransformation &Trans,DenseMatrix &elmat)
 {
     int dof = el.GetDof();
     int dim = el.GetDim();
@@ -61,11 +60,11 @@ void AssembleElementMatrix(const FiniteElement &el,
         gshape.GradToDiv (divshape);
 
         //include B.div^T [ok]
-        BC.Eval(Bvec, Trans, ip);
+        BC->Eval(Bvec, Trans, ip);
         MultVWt(Bvec, divshape, recmat);
 
         //include [(grad B)^T - (div B)I].x  [ok]
-        BmatC.Eval(Bmat, Trans, ip);
+        BmatC->Eval(Bmat, Trans, ip);
         for (int j = 0; j < dim; j++){
             for (int i = 0; i < dim; i++){
                 tmp(i)=Bmat(i,j);
