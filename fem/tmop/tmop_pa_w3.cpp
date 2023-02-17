@@ -138,11 +138,11 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
                // metric->EvalW(Jpt);
                const double EvalW =
-               mid == 302 ? EvalW_302(Jpt) :
-               mid == 303 ? EvalW_303(Jpt) :
-               mid == 315 ? EvalW_315(Jpt) :
-               mid == 321 ? EvalW_321(Jpt) :
-               mid == 332 ? EvalW_332(Jpt, metric_param) : 0.0;
+                  mid == 302 ? EvalW_302(Jpt) :
+                  mid == 303 ? EvalW_303(Jpt) :
+                  mid == 315 ? EvalW_315(Jpt) :
+                  mid == 321 ? EvalW_321(Jpt) :
+                  mid == 332 ? EvalW_332(Jpt, metric_param) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
             }

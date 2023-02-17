@@ -103,8 +103,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
             const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
-            /* */               J21 * (J12 * J33 - J32 * J13) +
-            /* */               J31 * (J12 * J23 - J22 * J13);
+                                J21 * (J12 * J33 - J32 * J13) +
+                                J31 * (J12 * J23 - J22 * J13);
             v(q,e) = W[q] * constant * detJ;
          }
       });
