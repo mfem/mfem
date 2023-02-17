@@ -304,9 +304,16 @@ public:
            int part_method = 1);
 
 protected:
-   /// helper method for delegated construction
-   void DelegatedConstructionParMesh(MPI_Comm comm, int *partitioning_ = NULL,
-                                     int part_method = 1);
+   /**
+    * @brief Helper function for performing delegated construction from const
+    * references and rvalue references.
+    *
+    * @param comm The MPI communicator
+    * @param partitioning_ an optional partitioning of the mesh
+    * @param part_method the method to use in the partitioning.
+    */
+   void DelegatedConstructionParMesh(MPI_Comm comm, int *partitioning_,
+                                     int part_method);
 public:
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
