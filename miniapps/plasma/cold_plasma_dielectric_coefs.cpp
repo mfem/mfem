@@ -101,7 +101,7 @@ complex<double> R_cold_plasma(double omega,
    double Te = temp[0] * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n) :
+                 nu_ei(q, coul_log, m, Te, n)  :
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
@@ -1564,31 +1564,24 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case SPARC_RES:
       {
-         double nu0 = p_[0];
+          double r = cyl_ ? rz_[0] : xyz_[0];
+          double z = cyl_ ? rz_[1] : xyz_[1];
 
-         double A = 9.56300019e-02;
-         double B = 1.27703065;
-         double C = -1.47586242e-06;
-         double D = 1.92995180;
+          double x_tok_data[2];
+          Vector xTokVec(x_tok_data, 2);
+          xTokVec[0] = r; xTokVec[1] = z;
 
-         double E = 0.05125891;
-         double F = 1.31119407;
-         double G = -0.00925291;
-         double H = 1.43560241;
+          double psiRZ = 0.0;
+          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-         double r = cyl_ ? rz_[0] : xyz_[0];
-         double z = cyl_ ? rz_[1] : xyz_[1];
+          double psiRZ_center = -2.74980762;
+          double psiRZ_edge = -0.399621132;
 
-         double val1 = B*z - C;
-         double sincfunc1 = A*(sin(val1)/val1) + D;
-
-         double val2 = F*z - G;
-         double sincfunc2 = E*(sin(val2)/val2) + H;
-
-         double res1 = nu0*exp(-pow(r-sincfunc1, 2)/0.002);
-         double res2 = nu0*exp(-pow(r-sincfunc2, 2)/0.002);
-
-         return res1+res2;
+          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+          double nu0 = p_[0];
+          double width = p_[1];
+          return nu0*exp(-pow(sqrt(val)-1.044, 2)/width);
+          
       }
       break;
       case SPARC_DEN:
@@ -1657,9 +1650,56 @@ double PlasmaProfile::Eval(ElementTransformation &T,
                   ne = FRden*exp(-(tempr-2.445)/sl3);
                   if (ne < 1e12){ne = 1e12;}
               }
+               
+               /*
+               // Test param:
+              double pmin1 = 1e12;
+              double lam1 = 2.408;
+              double n1 = 190;
+              ne = (LCFSden - pmin1)* pow(cosh(pow((tempr / lam1), n1)), -1.0) + pmin1;
+            */
           }
           
          return ne;
+      }
+      break;
+      case SPARC_TEMP:
+       {
+           double r = cyl_ ? rz_[0] : xyz_[0];
+           double z = cyl_ ? rz_[1] : xyz_[1];
+
+           double x_tok_data[2];
+           Vector xTokVec(x_tok_data, 2);
+           xTokVec[0] = r; xTokVec[1] = z;
+
+           double psiRZ = 0.0;
+           psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+           double psiRZ_center = -2.74980762;
+           double psiRZ_edge = -0.399621132;
+
+           double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+           int bool_limits = 0;
+
+           if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+
+           double norm_sqrt_psi = 1.0;
+           if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+
+            // FLOOR TEMP:
+            double  Te = 10;
+             
+            // CORE TEMP:
+            double Core = 20e3;
+            double LCFS = 100;
+            double nuee = 3.0;
+            double nuei = 3.0;
+            if (val < 1.0 && bool_limits == 1)
+            {
+                Te = (Core - LCFS)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFS;
+            }
+           return Te;
       }
       break;
       default:

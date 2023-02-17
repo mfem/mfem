@@ -54,7 +54,9 @@ inline std::complex<double> omega_p(double number, double charge,
 // Coulomb logarithm
 inline double CoulombLog(double n, double Te)
 {
-   return log((4.0 * M_PI * pow(epsilon0_ * Te, 1.5)) / (pow(q_, 3) * sqrt(n)));
+   double ntemp = n;
+   if (n < 0){ntemp = -1.0*n;}
+   return log((4.0 * M_PI * pow(epsilon0_ * Te, 1.5)) / (pow(q_, 3) * sqrt(ntemp)));
 }
 
 // Collisional frequency between electrons and ions
@@ -688,7 +690,8 @@ public:
               NUI          =  8,
               CMODDEN      =  9,
               SPARC_RES    = 10,
-              SPARC_DEN    = 11
+              SPARC_DEN    = 11,
+              SPARC_TEMP   = 12
              };
 
 private:
@@ -698,7 +701,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[12] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 1,1};
+   const int np_[13] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 2, 1, 1};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
