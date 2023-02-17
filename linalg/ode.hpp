@@ -222,7 +222,6 @@ public:
    RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
 };
 
-
 /** An explicit Adams-Bashforth method. */
 class AdamsBashforthSolver : public ODESolver
 {
@@ -232,6 +231,7 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
 
 public:
    AdamsBashforthSolver(int s_, const double *a_);
@@ -314,6 +314,7 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
 
 public:
    AdamsMoultonSolver(int s_, const double *a_);
