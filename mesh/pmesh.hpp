@@ -298,8 +298,15 @@ public:
        meshes and quick space-filling curve equipartitioning for nonconforming
        meshes (elements of nonconforming meshes should ideally be ordered as a
        sequence of face-neighbors). */
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+   ParMesh(MPI_Comm comm, Mesh &&mesh, int *partitioning_ = NULL,
            int part_method = 1);
+    ParMesh(MPI_Comm comm, const Mesh &mesh, int *partitioning_ = NULL,
+           int part_method = 1);
+
+protected:
+    /// helper method for delegated construction
+    void DelegatedConstructionParMesh(MPI_Comm comm, int *partitioning_ = NULL, int part_method = 1);
+public:
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the

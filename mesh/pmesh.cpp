@@ -104,13 +104,31 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
    return *this;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
+
+ParMesh::ParMesh(MPI_Comm comm, Mesh &&mesh, int *partitioning_,
                  int part_method)
-   : face_nbr_el_to_face(NULL)
+: Mesh(mesh), face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
+   DelegatedConstructionParMesh(comm, partitioning_, part_method);
+}
+
+ParMesh::ParMesh(MPI_Comm comm, const Mesh &mesh, int *partitioning_,
+                 int part_method)
+: Mesh(mesh), face_nbr_el_to_face(NULL)
+   , glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
+{
+   DelegatedConstructionParMesh(comm, partitioning_, part_method);
+}
+
+void ParMesh::DelegatedConstructionParMesh(MPI_Comm comm,int *partitioning_, int part_method)
+{
+
+
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
 
@@ -118,17 +136,17 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
-   if (mesh.Nonconforming())
+   if (Nonconforming())
    {
       if (partitioning_)
       {
          partitioning = partitioning_;
       }
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      ncmesh = pncmesh = new ParNCMesh(comm, *ncmesh, partitioning);
       if (!partitioning)
       {
-         partitioning = new int[mesh.GetNE()];
-         for (int i = 0; i < mesh.GetNE(); i++)
+         partitioning = new int[GetNE()];
+         for (int i = 0; i < GetNE(); i++)
          {
             partitioning[i] = pncmesh->InitialPartition(i);
          }
@@ -142,19 +160,16 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       pncmesh->GetConformingSharedStructures(*this);
 
       // SetMeshGen(); // called by Mesh::InitFromNCMesh(...) above
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
+      // meshgen = mesh.meshgen; // copy the global 'meshgen'
 
-      mesh.attributes.Copy(attributes);
-      mesh.bdr_attributes.Copy(bdr_attributes);
+      // mesh.attributes.Copy(attributes);
+      // mesh.bdr_attributes.Copy(bdr_attributes);
 
       GenerateNCFaceInfo();
    }
    else // mesh.Conforming()
    {
-      Dim = mesh.Dim;
-      spaceDim = mesh.spaceDim;
-
-      ncmesh = pncmesh = NULL;
+      pncmesh = nullptr;
 
       if (partitioning_)
       {
@@ -162,26 +177,22 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
       else
       {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         partitioning = GeneratePartitioning(NRanks, part_method);
       }
 
       // re-enumerate the partitions to better map to actual processor
       // interconnect topology !?
 
       Array<int> vert_global_local;
-      NumOfVertices = BuildLocalVertices(mesh, partitioning, vert_global_local);
-      NumOfElements = BuildLocalElements(mesh, partitioning, vert_global_local);
+      NumOfVertices = BuildLocalVertices(*this, partitioning, vert_global_local);
+      NumOfElements = BuildLocalElements(*this, partitioning, vert_global_local);
 
       Table *edge_element = NULL;
-      NumOfBdrElements = BuildLocalBoundary(mesh, partitioning,
+      NumOfBdrElements = BuildLocalBoundary(*this, partitioning,
                                             vert_global_local,
                                             activeBdrElem, edge_element);
 
       SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
-
-      mesh.attributes.Copy(attributes);
-      mesh.bdr_attributes.Copy(bdr_attributes);
 
       NumOfEdges = NumOfFaces = 0;
 
@@ -207,13 +218,13 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          groups.Insert(group);
       }
 
-      MFEM_ASSERT(mesh.GetNFaces() == 0 || Dim >= 3, "");
+      MFEM_ASSERT(GetNFaces() == 0 || Dim >= 3, "");
 
-      Array<int> face_group(mesh.GetNFaces());
-      Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
+      Array<int> face_group(GetNFaces());
+      Table *vert_element = GetVertexToElementTable(); // we must delete this
 
-      FindSharedFaces(mesh, partitioning, face_group, groups);
-      int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
+      FindSharedFaces(*this, partitioning, face_group, groups);
+      int nsedges = FindSharedEdges(*this, partitioning, edge_element, groups);
       int nsvert = FindSharedVertices(partitioning, vert_element, groups);
 
       // build the group communication topology
@@ -221,17 +232,17 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       // fill out group_sface, group_sedge, group_svert
       int ngroups = groups.Size()-1, nstris, nsquads;
-      BuildFaceGroup(ngroups, mesh, face_group, nstris, nsquads);
+      BuildFaceGroup(ngroups, *this, face_group, nstris, nsquads);
       BuildEdgeGroup(ngroups, *edge_element);
       BuildVertexGroup(ngroups, *vert_element);
 
       // build shared_faces and sface_lface mapping
-      BuildSharedFaceElems(nstris, nsquads, mesh, partitioning, faces_tbl,
+      BuildSharedFaceElems(nstris, nsquads, *this, partitioning, faces_tbl,
                            face_group, vert_global_local);
       delete faces_tbl;
 
       // build shared_edges and sedge_ledge mapping
-      BuildSharedEdgeElems(nsedges, mesh, vert_global_local, edge_element);
+      BuildSharedEdgeElems(nsedges, *this, vert_global_local, edge_element);
       delete edge_element;
 
       // build svert_lvert mapping
@@ -239,27 +250,26 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       delete vert_element;
 
       SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
 
-   if (mesh.NURBSext)
+   if (NURBSext)
    {
-      MFEM_ASSERT(mesh.GetNodes() &&
-                  mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSext,
+      MFEM_ASSERT(GetNodes() &&
+                  GetNodes()->FESpace()->GetNURBSext() == NURBSext,
                   "invalid NURBS mesh");
-      NURBSext = new ParNURBSExtension(comm, mesh.NURBSext, partitioning,
+      NURBSext = new ParNURBSExtension(comm, NURBSext, partitioning,
                                        activeBdrElem);
    }
 
-   if (mesh.GetNodes()) // curved mesh
+   if (GetNodes()) // curved mesh
    {
       if (!NURBSext)
       {
-         Nodes = new ParGridFunction(this, mesh.GetNodes());
+         Nodes = new ParGridFunction(this, GetNodes());
       }
       else
       {
-         const FiniteElementSpace *glob_fes = mesh.GetNodes()->FESpace();
+         const FiniteElementSpace *glob_fes = GetNodes()->FESpace();
          FiniteElementCollection *nfec =
             FiniteElementCollection::New(glob_fes->FEColl()->Name());
          ParFiniteElementSpace *pfes =
@@ -273,13 +283,13 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       Array<int> gvdofs, lvdofs;
       Vector lnodes;
       int element_counter = 0;
-      for (int i = 0; i < mesh.GetNE(); i++)
+      for (int i = 0; i < GetNE(); i++)
       {
          if (partitioning[i] == MyRank)
          {
             Nodes->FESpace()->GetElementVDofs(element_counter, lvdofs);
-            mesh.GetNodes()->FESpace()->GetElementVDofs(i, gvdofs);
-            mesh.GetNodes()->GetSubVector(gvdofs, lnodes);
+            GetNodes()->FESpace()->GetElementVDofs(i, gvdofs);
+            GetNodes()->GetSubVector(gvdofs, lnodes);
             Nodes->SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
