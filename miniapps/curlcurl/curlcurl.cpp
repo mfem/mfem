@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+#include "CurlCurlIntegrator.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -23,17 +24,19 @@ int main(int argc, char *argv[])
    const char *mesh_file = "extruder_tokamak.mesh";
    int order = 1;
    int par_ref_levels = 1;
+   int icase = 1;
    bool hcurl = false;
    bool Evec = false;
    const char *device_config = "cpu";
-   bool visualization = 1;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact solution.");
    args.AddOption(&hcurl, "-hcurl", "--hcurl", "-no-hcurl", "--no-hcurl", "Use Hcurl or H1.");
-   args.AddOption(&hcurl, "-Evec", "--Evec", "-no-Evec", "--no-Evec", "Test Evec.");
+   args.AddOption(&Evec, "-Evec", "--Evec", "-no-Evec", "--no-Evec", "Test Evec.");
+   args.AddOption(&icase, "-i", "--icase", "icase.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis", "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&par_ref_levels, "-rp", "--parallel-ref-levels",
@@ -131,7 +134,7 @@ int main(int argc, char *argv[])
       fespace_s->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   ParGridFunction x(fespace);
+   ParGridFunction x(fespace), Bvec(fespace);
    VectorFunctionCoefficient *VecCoeff;
    if (false){
        VecCoeff = new VectorFunctionCoefficient(sdim, E_exact);
@@ -145,7 +148,7 @@ int main(int argc, char *argv[])
    divB = 0.0;
    ParMixedBilinearForm *dform=NULL;
    ParBilinearForm *mpform=NULL;
-   if(true && !hcurl){
+   if(icase==1 && !hcurl){
      dform = new ParMixedBilinearForm(fespace, fespace_s);
      dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
      dform->Assemble();
@@ -175,6 +178,10 @@ int main(int argc, char *argv[])
 
      M_solver.Mult(B, X);
      mpform->RecoverFEMSolution(X, rhs, divB);
+   }
+   else if(icase==2){
+     Bvec.ProjectCoefficient(*VecCoeff);
+     BmatCoeff bmatcoeff(&Bvec);
    }
 
    /*
@@ -220,7 +227,25 @@ int main(int argc, char *argv[])
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      if (icase==1){
+        x.Save(sol_ofs);
+      }
+      else{
+        Bvec.Save(sol_ofs);
+      }
+
+      if (false)
+      {
+         ParaViewDataCollection paraview_dc("curlcurl", pmesh);
+         paraview_dc.SetPrefixPath("ParaView");
+         paraview_dc.SetLevelsOfDetail(order);
+         paraview_dc.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc.SetHighOrderOutput(true);
+         paraview_dc.SetCycle(0);
+         paraview_dc.RegisterField("vec",&x);
+         paraview_dc.RegisterField("div",&divB);
+         paraview_dc.Save();
+      }
    }
 
    if (visualization)
@@ -231,18 +256,6 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << divB << flush;
-   }
-
-   {
-      ParaViewDataCollection paraview_dc("curlcurl", pmesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetCycle(0);
-      paraview_dc.RegisterField("vec",&x);
-      paraview_dc.RegisterField("div",&divB);
-      paraview_dc.Save();
    }
 
    delete fespace;
