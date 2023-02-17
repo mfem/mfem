@@ -36,6 +36,7 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
     dshapedxt.SetSize(dof, dim);
     gshape.SetSize(dof, dim);
     recmat.SetSize(dim, dof*dim);   //intermediate mat
+    recmatT.SetSize(dof*dim, dim);   //intermediate mat
     partrecmat.SetSize(dim, dof);
     partrecmat2.SetSize(1, dof);
 
@@ -83,7 +84,7 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
             recmat.AddMatrix(1.0/Trans.Weight(), partrecmat2, i, dof*i);
         }
 
-        recmat.Transpose();
-        Mult_a_AAt(w, recmat, elmat);
+        recmatT.Transpose(recmat);
+        Mult_a_AAt(w, recmatT, elmat);
     }
 }

@@ -11,8 +11,8 @@ class BmatCoeff : public MatrixCoefficient
 private:
     GridFunction *B;
 public:
-    BmatCoeff(GridFunction *B_, int dim_=3) : B(B_), MatrixCoefficient(dim_) {
-        MFEM_ASSERT(B->VectorDim == 3 && dim == 3, "invalid BmatCoeff dim");
+    BmatCoeff(GridFunction *B_, int dim_=3) : MatrixCoefficient(dim_), B(B_) {
+        MFEM_ASSERT(B->VectorDim() == 3 && dim_ == 3, "invalid BmatCoeff dim");
     };
     virtual void Eval(DenseMatrix &K, ElementTransformation &T, const IntegrationPoint &ip);
     virtual ~BmatCoeff() {};
@@ -24,7 +24,7 @@ private:
     VectorCoefficient *BC;
     BmatCoeff *BmatC;
     Vector shape, divshape, Bvec, tmp, BdotGrad;
-    DenseMatrix dshape, dshapedxt, gshape, recmat;
+    DenseMatrix dshape, dshapedxt, gshape, recmat, recmatT;
     DenseMatrix Bmat, partrecmat, partrecmat2;
 
 public:

@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int par_ref_levels = 1;
    int icase = 1;
+   double alpha = 1.0;
    bool hcurl = false;
    bool Evec = false;
    const char *device_config = "cpu";
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
    args.AddOption(&hcurl, "-hcurl", "--hcurl", "-no-hcurl", "--no-hcurl", "Use Hcurl or H1.");
    args.AddOption(&Evec, "-Evec", "--Evec", "-no-Evec", "--no-Evec", "Test Evec.");
    args.AddOption(&icase, "-i", "--icase", "icase.");
+   args.AddOption(&alpha, "-alpha", "--alpha", "alpha.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis", "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&par_ref_levels, "-rp", "--parallel-ref-levels",
@@ -123,6 +125,7 @@ int main(int argc, char *argv[])
    {
       cout << "Number of finite element unknowns: " << size << endl;
       cout << "dim = " << dim << " sdim = "<< sdim << endl;
+      cout << "Number of elements: "<<pmesh->GetNE()<<endl;
    }
 
    // Note that ess_tdof_list is for scalar fespace
@@ -180,11 +183,41 @@ int main(int argc, char *argv[])
      mpform->RecoverFEMSolution(X, rhs, divB);
    }
    else if(icase==2){
+     Coefficient *sigma = new ConstantCoefficient(alpha);
      Bvec.ProjectCoefficient(*VecCoeff);
      BmatCoeff bmatcoeff(&Bvec);
      ParBilinearForm *a = new ParBilinearForm(fespace);
      a->AddDomainIntegrator(new SpecialVectorCurlCurlIntegrator(*VecCoeff, bmatcoeff));
+     a->AddDomainIntegrator(new VectorMassIntegrator(*sigma));
      a->Assemble();
+
+     ParLinearForm b(fespace);
+     Vector onevec(3); onevec=1.0;
+     VectorConstantCoefficient one(onevec);
+     b.AddDomainIntegrator(new VectorDomainLFIntegrator(one));
+     b.Assemble();
+
+     x = 0.0;
+     HypreParMatrix A;
+     Vector B, X;
+     a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+     if (myid == 0)
+     {
+        cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+     }
+
+     HyprePCG pcg(A);
+     HypreBoomerAMG *amg = new HypreBoomerAMG(A);
+     pcg.SetTol(1e-12);
+     pcg.SetMaxIter(500);
+     pcg.SetPrintLevel(2);
+     pcg.SetPreconditioner(*amg);
+     pcg.Mult(B, X);
+     a->RecoverFEMSolution(X, b, x);
+   
+     delete amg;
+     delete sigma;
      delete a;
    }
 
@@ -231,12 +264,7 @@ int main(int argc, char *argv[])
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
-      if (icase==1){
-        x.Save(sol_ofs);
-      }
-      else{
-        Bvec.Save(sol_ofs);
-      }
+      x.Save(sol_ofs);
 
       if (false)
       {
