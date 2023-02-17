@@ -54,6 +54,7 @@ private:
    // Change of basis operators
    ChangeOfBasis_L2 basis_l2;
    ChangeOfBasis_RT basis_rt;
+   ChangeMapType_L2 map_type_l2;
 
    ParBilinearForm mass_l2, mass_rt;
 
@@ -130,12 +131,12 @@ public:
    /// ParFiniteElementSpace&, Coefficient&, const Array<int>&) the zero-block
    /// HdivSaddlePointSolver constructor@endlink).
    HdivSaddlePointSolver(ParMesh &mesh_,
-                               ParFiniteElementSpace &fes_rt_,
-                               ParFiniteElementSpace &fes_l2_,
-                               Coefficient &L_coeff_,
-                               Coefficient &R_coeff_,
-                               const Array<int> &ess_rt_dofs_,
-                               Mode mode_);
+                         ParFiniteElementSpace &fes_rt_,
+                         ParFiniteElementSpace &fes_l2_,
+                         Coefficient &L_coeff_,
+                         Coefficient &R_coeff_,
+                         const Array<int> &ess_rt_dofs_,
+                         Mode mode_);
 
    /// @brief Creates a linear solver for the case when the L2 diagonal block is
    /// zero (for Darcy problems).
@@ -145,10 +146,10 @@ public:
    /// ParFiniteElementSpace&, ParFiniteElementSpace&, Coefficient &,
    /// Coefficient&, const Array<int>&, Mode) the primary constructor@endlink.
    HdivSaddlePointSolver(ParMesh &mesh_,
-                               ParFiniteElementSpace &fes_rt_,
-                               ParFiniteElementSpace &fes_l2_,
-                               Coefficient &R_coeff_,
-                               const Array<int> &ess_rt_dofs_);
+                         ParFiniteElementSpace &fes_rt_,
+                         ParFiniteElementSpace &fes_l2_,
+                         Coefficient &R_coeff_,
+                         const Array<int> &ess_rt_dofs_);
 
    /// @brief Build the linear operator and solver. Must be called when the
    /// coefficients change.

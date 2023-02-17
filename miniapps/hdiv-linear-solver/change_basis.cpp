@@ -63,7 +63,7 @@ void Transpose(const Array<double> &B, Array<double> &Bt)
 {
    const int n = sqrt(B.Size());
    Bt.SetSize(n*n);
-   for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) Bt[i+j*n] = B[j+i*n];
+   for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) { Bt[i+j*n] = B[j+i*n]; }
 }
 
 ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
@@ -135,7 +135,8 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
    const int cb_type = rt_fec->GetClosedBasisType();
    const int ob_type = rt_fec->GetOpenBasisType();
 
-   no_op = (cb_type == BasisType::GaussLobatto && ob_type == BasisType::IntegratedGLL);
+   no_op = (cb_type == BasisType::GaussLobatto &&
+            ob_type == BasisType::IntegratedGLL);
    if (no_op) { return; }
 
    const int pp1 = p + 1;
@@ -353,6 +354,53 @@ void ChangeOfBasis_RT::MultTranspose(const Vector &x, Vector &y) const
 void ChangeOfBasis_RT::MultInverse(const Vector &x, Vector &y) const
 {
    Mult(x, y, INVERSE);
+}
+
+void ModifiedMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   MassIntegrator::AssemblePA(fes);
+
+   const int n = pa_data.Size();
+   const int NE = ne;
+   const int Q1D = quad1D;
+   const auto J = geom->detJ.Read();
+   auto v = pa_data.ReadWrite();
+   MFEM_FORALL(i, n, v[i] /= J[i];);
+}
+
+ChangeMapType_L2::ChangeMapType_L2(FiniteElementSpace &fes)
+   : M_val_inv(fes),
+     M_val_int(&fes)
+{
+   const int dim = fes.GetMesh()->Dimension();
+   no_op = (fes.FEColl()->GetMapType(dim) == FiniteElement::INTEGRAL);
+   if (!no_op)
+   {
+      M_val_int.AddDomainIntegrator(new ModifiedMassIntegrator);
+      M_val_int.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      M_val_int.Assemble();
+      z.SetSize(fes.GetTrueVSize());
+   }
+}
+
+void ChangeMapType_L2::Mult(const Vector &x, Vector &y) const
+{
+   if (no_op) { y = x; }
+   else
+   {
+      M_val_int.Mult(x, z);
+      M_val_inv.Mult(z, y);
+   }
+}
+
+void ChangeMapType_L2::MultTranspose(const Vector &x, Vector &y) const
+{
+   if (no_op) { y = x; }
+   else
+   {
+      M_val_inv.Mult(x, z);
+      M_val_int.Mult(z, y);
+   }
 }
 
 } // namespace mfem

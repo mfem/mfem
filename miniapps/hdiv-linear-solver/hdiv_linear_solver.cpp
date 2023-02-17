@@ -25,7 +25,8 @@ void Reciprocal(Vector &x)
 }
 
 /// Return a new HypreParMatrix with given diagonal entries
-HypreParMatrix *MakeDiagonalMatrix(Vector &diag, const ParFiniteElementSpace &fes)
+HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
+                                   const ParFiniteElementSpace &fes)
 {
    const int n = diag.Size();
 
@@ -74,6 +75,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      ess_rt_dofs(ess_rt_dofs_),
      basis_l2(fes_l2_),
      basis_rt(fes_rt_),
+     map_type_l2(fes_l2_),
      mass_l2(&fes_l2),
      mass_rt(&fes_rt),
      L_coeff(L_coeff_),
@@ -139,7 +141,8 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
 HdivSaddlePointSolver::HdivSaddlePointSolver(
    ParMesh &mesh, ParFiniteElementSpace &fes_rt_, ParFiniteElementSpace &fes_l2_,
    Coefficient &R_coeff_, const Array<int> &ess_rt_dofs_)
-   : HdivSaddlePointSolver(mesh, fes_rt_, fes_l2_, zero, R_coeff_, ess_rt_dofs_, Mode::DARCY)
+   : HdivSaddlePointSolver(mesh, fes_rt_, fes_l2_, zero, R_coeff_, ess_rt_dofs_,
+                           Mode::DARCY)
 { }
 
 void HdivSaddlePointSolver::Setup()
@@ -282,6 +285,7 @@ void HdivSaddlePointSolver::EliminateBC(Vector &b) const
 
 void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
 {
+   w.SetSize(fes_l2.GetTrueVSize());
    b_prime.SetSize(b.Size());
    x_prime.SetSize(x.Size());
 
@@ -293,7 +297,8 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
    const Vector bF(const_cast<Vector&>(b), offsets[1], offsets[2]-offsets[1]);
 
    z.SetSize(bE.Size());
-   basis_l2.MultTranspose(bE, z);
+   map_type_l2.MultTranspose(bE, w);
+   basis_l2.MultTranspose(w, z);
    basis_rt.MultTranspose(bF, bF_prime);
    // Transform by the inverse of the L2 mass matrix
    L_inv->Mult(z, bE_prime);
@@ -317,7 +322,8 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
 
    L_inv->Mult(xE_prime, z);
 
-   basis_l2.Mult(z, xE);
+   basis_l2.Mult(z, w);
+   map_type_l2.Mult(w, xE);
    basis_rt.Mult(xF_prime, xF);
 
    // Update the monolithic solution vector

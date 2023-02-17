@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
 
    const int b1 = BasisType::GaussLobatto, b2 = BasisType::GaussLegendre;
-   const int mt = FiniteElement::INTEGRAL;
+   const int mt = FiniteElement::VALUE;
    RT_FECollection fec_rt(order-1, dim, b1, b2);
    L2_FECollection fec_l2(order-1, dim, b2, mt);
    ParFiniteElementSpace fes_rt(&mesh, &fec_rt);
@@ -157,8 +157,8 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       cout << "Done.\nIterations: "
-            << saddle_point_solver.GetNumIterations()
-            << "\nElapsed: " << tic_toc.RealTime() << endl;
+           << saddle_point_solver.GetNumIterations()
+           << "\nElapsed: " << tic_toc.RealTime() << endl;
    }
 
    ParGridFunction x(&fes_l2);
