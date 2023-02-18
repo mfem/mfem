@@ -11,14 +11,13 @@ void BmatCoeff::Eval(DenseMatrix &K, ElementTransformation &T, const Integration
     B->GetVectorGradient(T, grad);
     double div = grad(0,0)+grad(1,1)+grad(2,2);
     K.Diag(-div, height);
-    grad.Transpose();
     K+=grad;
 }
 
 // Custom integrator
-//  <B (div x) + [(grad B)^T - (div B)I].x - B.grad x, B (div g) + [(grad B)^T - (div B)I].g - B.grad g>
+//  <B (div x) + [(grad B) - (div B)I].x - B.grad x, B (div g) + [(grad B) - (div B)I].g - B.grad g>
 //
-//Idea: get a rectangular matrix of vdim by dof*dim first and then AddMult_a_AAt
+//Idea: get a rectangular matrix of vdim by dof*dim first and then Mult_a_AAt
 //Note this operator only makes sense for dim==vdim==3
 void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement &el,
                            ElementTransformation &Trans,DenseMatrix &elmat)
@@ -64,7 +63,8 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
         BC->Eval(Bvec, Trans, ip);
         MultVWt(Bvec, divshape, recmat);
 
-        //include [(grad B)^T - (div B)I].x  [ok]
+        /*
+        //include [(grad B) - (div B)I].x  [ok]
         BmatC->Eval(Bmat, Trans, ip);
         for (int j = 0; j < dim; j++){
             for (int i = 0; i < dim; i++){
@@ -81,8 +81,9 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
         dshapedxt.Mult(Bvec, BdotGrad);
         partrecmat2.SetRow(0,BdotGrad);
         for (int i = 0; i < dim; i++){
-            recmat.AddMatrix(1.0/Trans.Weight(), partrecmat2, i, dof*i);
+            recmat.AddMatrix(-1.0/Trans.Weight(), partrecmat2, i, dof*i);
         }
+        */
 
         recmatT.Transpose(recmat);
         Mult_a_AAt(w, recmatT, elmat);

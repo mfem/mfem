@@ -8,6 +8,9 @@ using namespace mfem;
 
 void E_exact(const Vector &, Vector &);
 void B_exact(const Vector &, Vector &);
+void B_exact2(const Vector &, Vector &);
+void f_exact(const Vector &, Vector &);
+void u_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 double q0 = 1.2, q2 = 2.8, a_i=2.7832, R0=6.2, Z0=5.1944, B0=1.0;
 int dim;
@@ -134,7 +137,14 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
-      fespace_s->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      if (icase==1)
+      {
+        fespace_s->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      else if(icase==2)
+      {
+        fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
    }
 
    ParGridFunction x(fespace), Bvec(fespace);
@@ -143,7 +153,7 @@ int main(int argc, char *argv[])
        VecCoeff = new VectorFunctionCoefficient(sdim, E_exact);
    }
    else{
-       VecCoeff = new VectorFunctionCoefficient(sdim, B_exact);
+       VecCoeff = new VectorFunctionCoefficient(sdim, B_exact2);
    }
    x.ProjectCoefficient(*VecCoeff);
 
@@ -183,6 +193,11 @@ int main(int argc, char *argv[])
      mpform->RecoverFEMSolution(X, rhs, divB);
    }
    else if(icase==2){
+     Vector onevec(3); onevec=1.0;
+     VectorConstantCoefficient one(onevec);
+     VectorFunctionCoefficient f_rhs(sdim, u_exact), u_coeff(sdim, u_exact);
+     x.ProjectCoefficient(u_coeff);
+
      Coefficient *sigma = new ConstantCoefficient(alpha);
      Bvec.ProjectCoefficient(*VecCoeff);
      BmatCoeff bmatcoeff(&Bvec);
@@ -192,12 +207,9 @@ int main(int argc, char *argv[])
      a->Assemble();
 
      ParLinearForm b(fespace);
-     Vector onevec(3); onevec=1.0;
-     VectorConstantCoefficient one(onevec);
-     b.AddDomainIntegrator(new VectorDomainLFIntegrator(one));
+     b.AddDomainIntegrator(new VectorDomainLFIntegrator(f_rhs));
      b.Assemble();
 
-     x = 0.0;
      HypreParMatrix A;
      Vector B, X;
      a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
@@ -215,42 +227,10 @@ int main(int argc, char *argv[])
      pcg.SetPreconditioner(*amg);
      pcg.Mult(B, X);
      a->RecoverFEMSolution(X, b, x);
-   
      delete amg;
      delete sigma;
      delete a;
    }
-
-   /*
-   Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(1.0);
-   ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
-   a->Assemble();
-
-   OperatorPtr A;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   {
-      if (myid == 0)
-      {
-         cout << "Size of linear system: "
-              << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
-      }
-
-      ParFiniteElementSpace *prec_fespace =
-         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-      HypreAMS ams(*A.As<HypreParMatrix>(), prec_fespace);
-      HyprePCG pcg(*A.As<HypreParMatrix>());
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(500);
-      pcg.SetPrintLevel(2);
-      pcg.SetPreconditioner(ams);
-      pcg.Mult(B, X);
-   }
-   a->RecoverFEMSolution(X, *b, x);
-   */
 
    if (true)
    {
@@ -266,7 +246,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
 
-      if (false)
+      if (true)
       {
          ParaViewDataCollection paraview_dc("curlcurl", pmesh);
          paraview_dc.SetPrefixPath("ParaView");
@@ -275,7 +255,12 @@ int main(int argc, char *argv[])
          paraview_dc.SetHighOrderOutput(true);
          paraview_dc.SetCycle(0);
          paraview_dc.RegisterField("vec",&x);
-         paraview_dc.RegisterField("div",&divB);
+         if (icase==1) {
+             paraview_dc.RegisterField("div",&divB);
+         }
+         else{
+             paraview_dc.RegisterField("B",&Bvec);
+         }
          paraview_dc.Save();
       }
    }
@@ -304,20 +289,22 @@ int main(int argc, char *argv[])
 }
 
 
-void E_exact(const Vector &x, Vector &E)
+void u_exact(const Vector &x, Vector &u)
 {
-   if (dim == 3)
-   {
-      E(0) = sin(kappa * x(1));
-      E(1) = sin(kappa * x(2));
-      E(2) = sin(kappa * x(0));
-   }
-   else
-   {
-      E(0) = sin(kappa * x(1));
-      E(1) = sin(kappa * x(0));
-      if (x.Size() == 3) { E(2) = 0.0; }
-   }
+   u(0) = sin(kappa * x(1));
+   u(1) = sin(kappa * x(2));
+   u(2) = sin(kappa * x(0));
+}
+
+//exact forcing for 
+//f = u + B x curl(curl(u x B)
+void f_exact(const Vector &x, Vector &f)
+{
+    double R2 = x(0)*x(0)+x(1)*x(1);
+    double R6 = R2*R2*R2;
+    f(0) = (R2*(R2*R2 + kappa*kappa*x(0)*x(0))*sin(kappa*x(1)) + 4*cos(kappa*x(1))*kappa*x(0)*x(0)*x(1))/R6;
+    f(1) = sin(kappa*x(2)) + (kappa*R2*sin(kappa*x(1)) + 4*x(1)*cos(kappa*x(1)))*x(1)*kappa*x(0)/R6;
+    f(2) = ( (R2*R2 + kappa*kappa*x(1)*x(1))*sin(kappa*x(0)) + kappa*(x(0)*cos(kappa*x(0)) + x(1)*cos(kappa*x(2))) )/R2/R2;
 }
 
 // transform matrix:
@@ -335,10 +322,23 @@ void B_exact(const Vector &x, Vector &B)
 
    B_R = -Z/q/R*B0;
    B_Z = (R-R0)/q/R*B0;
-   //B_R = 0.0;
-   //B_Z = 0.0;
    B_phi = R0/R*B0;
 
+   cosphi = x(0)/R;
+   sinphi = x(1)/R;
+
+   B(0) = B_R*cosphi-B_phi*sinphi;
+   B(1) = B_R*sinphi+B_phi*cosphi;
+   B(2) = B_Z;
+}
+
+void B_exact2(const Vector &x, Vector &B)
+{
+   const double R = sqrt(x(0)*x(0)+x(1)*x(1));
+   double B_R, B_Z, B_phi, cosphi, sinphi;
+   B_R = 0.0;
+   B_Z = 0.0;
+   B_phi = 1.0/R;
    cosphi = x(0)/R;
    sinphi = x(1)/R;
 
