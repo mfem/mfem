@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
    bool Evec = false;
    const char *device_config = "cpu";
    bool visualization = false;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -42,6 +43,8 @@ int main(int argc, char *argv[])
    args.AddOption(&Evec, "-Evec", "--Evec", "-no-Evec", "--no-Evec", "Test Evec.");
    args.AddOption(&icase, "-i", "--icase", "icase.");
    args.AddOption(&alpha, "-alpha", "--alpha", "alpha.");
+   args.AddOption(&paraview, "-para", "--para", "-no-para", "--no-para",
+                  "Enable or disable Paraview visualization.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis", "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&par_ref_levels, "-rp", "--parallel-ref-levels",
@@ -128,7 +131,7 @@ int main(int argc, char *argv[])
    {
       cout << "Number of finite element unknowns: " << size << endl;
       cout << "dim = " << dim << " sdim = "<< sdim << endl;
-      cout << "Number of elements: "<<pmesh->GetNE()<<endl;
+      cout << "Local number of elements: "<<pmesh->GetNE()<<endl;
    }
 
    // Note that ess_tdof_list is for scalar fespace
@@ -195,7 +198,7 @@ int main(int argc, char *argv[])
    else if(icase==2){
      Vector onevec(3); onevec=1.0;
      VectorConstantCoefficient one(onevec);
-     VectorFunctionCoefficient f_rhs(sdim, u_exact), u_coeff(sdim, u_exact);
+     VectorFunctionCoefficient f_rhs(sdim, f_exact), u_coeff(sdim, u_exact);
      x.ProjectCoefficient(u_coeff);
 
      Coefficient *sigma = new ConstantCoefficient(alpha);
@@ -220,16 +223,23 @@ int main(int argc, char *argv[])
      }
 
      HyprePCG pcg(A);
-     HypreBoomerAMG *amg = new HypreBoomerAMG(A);
+     //HypreBoomerAMG *prec = new HypreBoomerAMG(A);
+     HypreSolver *prec = new HypreILU();
      pcg.SetTol(1e-12);
      pcg.SetMaxIter(500);
      pcg.SetPrintLevel(2);
-     pcg.SetPreconditioner(*amg);
+     pcg.SetPreconditioner(*prec);
      pcg.Mult(B, X);
      a->RecoverFEMSolution(X, b, x);
-     delete amg;
+     delete prec;
      delete sigma;
      delete a;
+
+     double error = x.ComputeL2Error(u_coeff);
+     if (myid == 0)
+     {
+         cout << "\n|| u_h - u ||_{L^2} = " << error << '\n' << endl;
+     }
    }
 
    if (true)
@@ -246,7 +256,7 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
 
-      if (true)
+      if (paraview)
       {
          ParaViewDataCollection paraview_dc("curlcurl", pmesh);
          paraview_dc.SetPrefixPath("ParaView");

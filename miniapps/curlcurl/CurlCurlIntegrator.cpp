@@ -8,6 +8,7 @@ void BmatCoeff::Eval(DenseMatrix &K, ElementTransformation &T, const Integration
 {
     DenseMatrix grad;
     K.SetSize(height, width);
+    K=0.0;
     B->GetVectorGradient(T, grad);
     double div = grad(0,0)+grad(1,1)+grad(2,2);
     K.Diag(-div, height);
@@ -59,11 +60,10 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
         Mult(dshape, Trans.InverseJacobian(), gshape);
         gshape.GradToDiv (divshape);
 
-        //include B.div^T [ok]
+        //include B.div^T
         BC->Eval(Bvec, Trans, ip);
         MultVWt(Bvec, divshape, recmat);
 
-        /*
         //include [(grad B) - (div B)I].x  [ok]
         BmatC->Eval(Bmat, Trans, ip);
         for (int j = 0; j < dim; j++){
@@ -83,7 +83,6 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
         for (int i = 0; i < dim; i++){
             recmat.AddMatrix(-1.0/Trans.Weight(), partrecmat2, i, dof*i);
         }
-        */
 
         recmatT.Transpose(recmat);
         Mult_a_AAt(w, recmatT, elmat);
