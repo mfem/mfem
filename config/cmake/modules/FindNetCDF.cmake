@@ -17,8 +17,9 @@
 include(MfemCmakeUtilities)
 
 # FindHDF5.cmake uses HDF5_ROOT, so we "translate" from the MFEM convention
-# (MFEM's FindHDF5.cmake does not need HDF5_ROOT)
-# set(HDF5_ROOT ${HDF5_DIR} CACHE PATH "")
+# (Needed in some cases, e.g. when HDF5_TARGET_NAMES is set and MFEM's
+# FindHDF5.cmake is not used.)
+set(HDF5_ROOT ${HDF5_DIR} CACHE PATH "")
 
 # We need to guard against the case where HDF5 was already found but without
 # the HL extensions (in which case mfem_find_package will treat the package
@@ -35,6 +36,8 @@ mfem_find_package(NetCDF NETCDF NETCDF_DIR "include" netcdf.h "lib" netcdf
 # The netcdf library will always be the first element of NETCDF_LIBRARIES
 # and we need to insert after that library but before the hdf5 library, so
 # position 1 is used
-# (MFEM's FindHDF5.cmake does not set HDF5_C_LIBRARY_hdf5_hl and the HL library
-# is already added to NETCDF_LIBRARIES)
-# list(INSERT NETCDF_LIBRARIES 1 ${HDF5_C_LIBRARY_hdf5_hl})
+# (Needed in some cases, e.g. when HDF5_TARGET_NAMES is set and MFEM's
+# FindHDF5.cmake is not used.)
+if (HDF5_C_LIBRARY_hdf5_hl)
+  list(INSERT NETCDF_LIBRARIES 1 ${HDF5_C_LIBRARY_hdf5_hl})
+endif()
