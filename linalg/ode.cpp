@@ -9,9 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "general/communication.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
+#ifdef MFEM_USE_MPI
+#include "../general/communication.hpp"
+#endif
 
 namespace mfem
 {
@@ -528,7 +530,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       {
          mfem::out << "WARNING:" << std::endl;
          mfem::out << " - Time stepchanged" << std::endl;
-         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
+         mfem::out << " - Purging Adams-Moulton history" << std::endl;
          mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
       }
    }
