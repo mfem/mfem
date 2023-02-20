@@ -233,6 +233,7 @@ private:
    Array<int> idx;
    ODESolver *RKsolver;
    double dt_;
+   bool print;
 
 public:
    AdamsBashforthSolver(int s_, const double *a_);
@@ -316,6 +317,7 @@ private:
    Array<int> idx;
    ODESolver *RKsolver;
    double dt_;
+   bool print;
 
 public:
    AdamsMoultonSolver(int s_, const double *a_);

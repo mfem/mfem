@@ -366,6 +366,12 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
    {
       RKsolver = new RK4Solver();
    }
+
+#ifdef MFEM_USE_MPI
+   print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
+#else
+   print = true;
+#endif
 }
 
 void AdamsBashforthSolver::GetStateVector(int i, Vector &state)
@@ -416,9 +422,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       s = 0;
       dt_ = dt;
 
-#ifdef MFEM_USE_MPI
-      if (Mpi::Root())
-#endif
+      if (print)
       {
          mfem::out << "WARNING:" << std::endl;
          mfem::out << " - Time stepchanged" << std::endl;
@@ -476,6 +480,12 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
    {
       RKsolver = new SDIRK34Solver();
    }
+
+#ifdef MFEM_USE_MPI
+   print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
+#else
+   print = true;
+#endif
 }
 
 const Vector &AdamsMoultonSolver::GetStateVector(int i)
@@ -524,9 +534,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       s = 0;
       dt_ = dt;
 
-#ifdef MFEM_USE_MPI
-      if (Mpi::Root())
-#endif
+      if (print)
       {
          mfem::out << "WARNING:" << std::endl;
          mfem::out << " - Time stepchanged" << std::endl;
