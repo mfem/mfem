@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(mesh->NURBSext, order);
-      if (master.Size()>0) NURBSext->ConnectBoundaries(master, slave);
+      if (master.Size()>0) { NURBSext->ConnectBoundaries(master, slave); }
       NURBSext->ConnectBoundaries();
    }
    else if (order[0] == -1) // Isoparametric
