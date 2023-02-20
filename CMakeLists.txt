@@ -575,6 +575,7 @@ target_include_directories(mfem
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    # The INSTALL_INTERFACE is handled below
     ${TPL_INCLUDE_DIRS})
 if (MFEM_USE_MPI)
   if (MPI_CXX_COMPILE_FLAGS)
@@ -717,7 +718,7 @@ set(INSTALL_LIB_DIR lib
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
-target_include_directories(mfem
+target_include_directories(mfem BEFORE
   PUBLIC
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
