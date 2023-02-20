@@ -157,14 +157,14 @@ public:
    /// Return a (read-only) list of all essential true dofs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
    double GetGridFunctionEnergy(const Vector &x) const;
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */

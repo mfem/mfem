@@ -284,7 +284,7 @@ public:
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
 
    /// @brief Return total size of allocated memory (tables plus items), in bytes.
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    /// @brief Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
@@ -875,7 +875,7 @@ void HashTable<T>::Reparent(int id,
 }
 
 template<typename T>
-long HashTable<T>::MemoryUsage() const
+std::size_t HashTable<T>::MemoryUsage() const
 {
    return (mask+1) * sizeof(int) + Base::MemoryUsage() + unused.MemoryUsage();
 }

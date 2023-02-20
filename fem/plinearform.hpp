@@ -113,7 +113,14 @@ public:
        build option MFEM_DEBUG is enabled. */
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
+   /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
+   /** When @ref LinearForm::UseFastAssembly "UseFastAssembly(true)" has been
+       called and the linear form assembly is compatible with device execution,
+       the assembly will be executed on the device. */
    void Assemble();
+
+   /// Return true if assembly on device is supported, false otherwise.
+   virtual bool SupportsDevice();
 
    void AssembleSharedFaces();
 

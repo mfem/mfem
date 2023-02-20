@@ -15,7 +15,7 @@
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
-#include "ceed/util.hpp"
+#include "ceed/interface/util.hpp"
 
 #include <cmath>
 #include <cstdarg>
@@ -1199,8 +1199,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       MakeVDimMatrix(*cR);
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
-
-   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -1258,7 +1256,7 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-const Operator *FiniteElementSpace::GetElementRestriction(
+const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
@@ -1273,7 +1271,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
          // The output E-vector layout is: ND x VDIM x NE.
          L2E_nat.Reset(new L2ElementRestriction(*this));
       }
-      return L2E_nat.Ptr();
+      return L2E_nat.Is<ElementRestrictionOperator>();
    }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
@@ -1281,14 +1279,14 @@ const Operator *FiniteElementSpace::GetElementRestriction(
       {
          L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
       }
-      return L2E_lex.Ptr();
+      return L2E_lex.Is<ElementRestrictionOperator>();
    }
    // e_ordering == ElementDofOrdering::NATIVE
    if (L2E_nat.Ptr() == NULL)
    {
       L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
    }
-   return L2E_nat.Ptr();
+   return L2E_nat.Is<ElementRestrictionOperator>();
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
@@ -1960,7 +1958,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          DenseMatrix &lM = localM[g](mi[s]);
          DenseMatrix &lR = localR[g](lR_offset+s);
          MultAtB(lP, lM, lR); // lR = lP^T lM
-         AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
+         mfem::AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
       }
       DenseMatrixInverse lPtMP_inv(lPtMP);
       for (int s = 0; s < nm; s++)
@@ -2007,7 +2005,7 @@ void FiniteElementSpace::DerefinementOperator
          x.GetSubVector(f_vdofs, loc_x);
          loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
                                    fine_vdim);
-         AddMult(lR, loc_x_mat, loc_y_mat);
+         mfem::AddMult(lR, loc_x_mat, loc_y_mat);
       }
       y.SetSubVector(c_vdofs, loc_y);
    }
@@ -2058,10 +2056,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R = (elem_geoms.Size() != 1)
-                     ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-                     : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                                        localR[elem_geoms[0]].SizeI());
+   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<int> mark(R->Height());
    mark = 0;
@@ -2071,6 +2066,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
    int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
@@ -2093,10 +2089,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
 
-            if (!mark[m])
+            if (is_dg || !mark[m])
             {
                lR.GetRow(i, row);
                R->SetRow(r, old_vdofs, row);
+
                mark[m] = 1;
                num_marked++;
             }
@@ -2104,8 +2101,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   MFEM_VERIFY(num_marked == R->Height(),
-               "internal error: not all rows of R were set.");
+   if (!is_dg)
+   {
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
 
    R->Finalize(); // no-op if fixed width
    return R;
@@ -3147,7 +3147,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
+         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
    }
 
    if (NURBSext)
@@ -3612,60 +3612,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input,
    Constructor(m, nurbs_ext, r_fec, vdim, ord);
 
    return r_fec;
-}
-
-
-void QuadratureSpace::Construct()
-{
-   // protected method
-   int offset = 0;
-   const int num_elem = mesh->GetNE();
-   element_offsets = new int[num_elem + 1];
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      int_rule[g] = NULL;
-   }
-   for (int i = 0; i < num_elem; i++)
-   {
-      element_offsets[i] = offset;
-      int geom = mesh->GetElementBaseGeometry(i);
-      if (int_rule[geom] == NULL)
-      {
-         int_rule[geom] = &IntRules.Get(geom, order);
-      }
-      offset += int_rule[geom]->GetNPoints();
-   }
-   element_offsets[num_elem] = size = offset;
-}
-
-QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
-   : mesh(mesh_)
-{
-   const char *msg = "invalid input stream";
-   string ident;
-
-   in >> ident; MFEM_VERIFY(ident == "QuadratureSpace", msg);
-   in >> ident; MFEM_VERIFY(ident == "Type:", msg);
-   in >> ident;
-   if (ident == "default_quadrature")
-   {
-      in >> ident; MFEM_VERIFY(ident == "Order:", msg);
-      in >> order;
-   }
-   else
-   {
-      MFEM_ABORT("unknown QuadratureSpace type: " << ident);
-      return;
-   }
-
-   Construct();
-}
-
-void QuadratureSpace::Save(std::ostream &os) const
-{
-   os << "QuadratureSpace\n"
-      << "Type: default_quadrature\n"
-      << "Order: " << order << '\n';
 }
 
 } // namespace mfem

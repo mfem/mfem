@@ -272,8 +272,8 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
-   Array<FaceGeometricFactors*>
-   face_geom_factors; ///< Optional face geometric factors.
+   Array<FaceGeometricFactors*> face_geom_factors; /**< Optional face geometric
+                                                        factors. */
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -380,7 +380,14 @@ protected:
    void InitRefinementTransforms();
    int FindCoarseElement(int i);
 
-   /// Update the nodes of a curved mesh after refinement
+   /** @brief Update the nodes of a curved mesh after the topological part of a
+       Mesh::Operation, such as refinement, has been performed. */
+   /** If Nodes GridFunction is defined, i.e. not NULL, this method calls
+       NodesUpdated().
+
+       @note Unlike the similarly named public method NodesUpdated() this
+       method modifies the mesh nodes (if they exist) and calls NodesUpdated().
+   */
    void UpdateNodes();
 
    /// Helper to set vertex coordinates given a high-order curvature function.
@@ -468,11 +475,6 @@ protected:
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
                                         Table &el_to_edge);
-
-   /** Return vertex to vertex table. The connections stored in the table
-       are from smaller to bigger vertex index, i.e. if i<j and (i, j) is
-       in the table, then (j, i) is not stored. */
-   void GetVertexToVertexTable(DSTable &) const;
 
    /** Return element to edge table and the indices for the boundary edges.
        The entries in the table are ordered according to the order of the
@@ -710,6 +712,7 @@ public:
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
+   int AddVertex(const Vector &coords);
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
 
@@ -954,20 +957,34 @@ public:
    virtual int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   virtual long ReduceInt(int value) const { return value; }
+   virtual long long ReduceInt(int value) const { return value; }
 
    /// Return the total (global) number of elements.
-   long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+   long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+
+   /** Return vertex to vertex table. The connections stored in the table
+    are from smaller to bigger vertex index, i.e. if i<j and (i, j) is
+    in the table, then (j, i) is not stored. */
+   void GetVertexToVertexTable(DSTable &) const;
 
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
 
        The IntegrationRule used with GetGeometricFactors needs to remain valid
        until the internally stored GeometricFactors objects are destroyed (by
-       either calling Mesh::DeleteGeometricFactors or the Mesh destructor). If
-       the device MemoryType parameter @a d_mt is specified, then the returned
-       object will use that type unless it was previously allocated with a
-       different type. */
+       calling Mesh::DeleteGeometricFactors(), Mesh::NodesUpdated(), or the Mesh
+       destructor).
+
+       If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type.
+
+       The returned pointer points to an internal object that may be invalidated
+       by mesh operations such as refinement, vertex/node movement, etc. Since
+       not all such modifications can be tracked by the Mesh class (e.g. when
+       using the pointer returned by GetNodes() to change the nodes) one needs
+       to account for such changes by calling the method NodesUpdated() which,
+       in particular, will call DeleteGeometricFactors(). */
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
@@ -978,16 +995,42 @@ public:
 
        The IntegrationRule used with GetFaceGeometricFactors needs to remain
        valid until the internally stored FaceGeometricFactors objects are
-       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
-       destructor). */
-   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
-                                                       const int flags,
-                                                       FaceType type);
+       destroyed (by either calling Mesh::DeleteGeometricFactors(),
+       Mesh::NodesUpdated(), or the Mesh destructor).
+
+       If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type.
+
+       The returned pointer points to an internal object that may be invalidated
+       by mesh operations such as refinement, vertex/node movement, etc. Since
+       not all such modifications can be tracked by the Mesh class (e.g. when
+       using the pointer returned by GetNodes() to change the nodes) one needs
+       to account for such changes by calling the method NodesUpdated() which,
+       in particular, will call DeleteGeometricFactors(). */
+   const FaceGeometricFactors* GetFaceGeometricFactors(
+      const IntegrationRule& ir,
+      const int flags,
+      FaceType type,
+      MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
-       for example, after the mesh nodes are modified externally. */
+       for example, after the mesh nodes are modified externally.
+
+       @note In general, the preferred method for resetting the GeometricFactors
+       should be to call NodesUpdated(). */
    void DeleteGeometricFactors();
+
+   /** @brief This function should be called after the mesh node coordinates
+       have been updated externally, e.g. by modifying the internal nodal
+       GridFunction returned by GetNodes(). */
+   /** It deletes internal quantities derived from the node coordinates,
+       such as the (Face)GeometricFactors.
+
+       @note Unlike the similarly named protected method UpdateNodes() this
+       method does not modify the nodes. */
+   void NodesUpdated() { DeleteGeometricFactors(); }
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1040,10 +1083,8 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceGeometry(int i) const
-   {
-      return faces[i]->GetGeometryType();
-   }
+   /// Return the Geometry::Type associated with face @a i.
+   Geometry::Type GetFaceGeometry(int i) const;
 
    Geometry::Type GetElementGeometry(int i) const
    {
@@ -1055,8 +1096,8 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   // deprecated: "base geometry" no longer means anything
-   Geometry::Type GetFaceBaseGeometry(int i) const
+   /// Deprecated in favor of Mesh::GetFaceGeometry
+   MFEM_DEPRECATED Geometry::Type GetFaceBaseGeometry(int i) const
    { return GetFaceGeometry(i); }
 
    Geometry::Type GetElementBaseGeometry(int i) const
@@ -1150,8 +1191,24 @@ public:
    int GetBdrElementEdgeIndex(int i) const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
-       element and its info, i.e. 64*local_bdr_index+bdr_orientation. */
+       element and its info, i.e. 64*local_bdr_index+bdr_orientation.
+
+       The returned bdr_orientation is that of the boundary element relative to
+       the respective face element.
+
+       @sa GetBdrElementAdjacentElement2() */
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
+
+   /** @brief For the given boundary element, bdr_el, return its adjacent
+       element and its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
+
+       The returned inverse_bdr_orientation is the inverse of the orientation of
+       the boundary element relative to the respective face element. In other
+       words this is the orientation of the face element relative to the
+       boundary element.
+
+       @sa GetBdrElementAdjacentElement() */
+   void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
@@ -1169,24 +1226,32 @@ public:
 
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
-   /** Builds the transformation defining the i-th element in the user-defined
-       variable. */
+   /// Builds the transformation defining the i-th element in @a ElTr.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /// Returns the transformation defining the i-th element
+   /// Returns a pointer to the transformation defining the i-th element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetElementTransformation(int i);
 
-   /** Return the transformation defining the i-th element assuming
-       the position of the vertices/nodes are given by 'nodes'. */
+   /// Builds the transformation defining the i-th element in @a ElTr
+   /// assuming position of the vertices/nodes are given by @a nodes.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, const Vector &nodes,
                                  IsoparametricTransformation *ElTr);
 
-   /// Returns the transformation defining the i-th boundary element
-   ElementTransformation * GetBdrElementTransformation(int i);
+   /// Returns a pointer to the transformation defining the i-th boundary
+   /// element. Note that the pointer is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   ElementTransformation *GetBdrElementTransformation(int i);
+
+   /// Builds the transformation defining the i-th boundary element in @a ElTr.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /** @brief Returns the transformation defining the given face element in a
-       user-defined variable. */
+   /// Builds the transformation defining the i-th face element in @a FTr.
+   /// @a FTr must be allocated in advance and will be owned by the caller.
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
 
    /** @brief A helper method that constructs a transformation from the
@@ -1198,14 +1263,18 @@ public:
                                    IsoparametricTransformation &Transf,
                                    int info);
 
-   /// Returns the transformation defining the given face element
+   /// Returns a pointer to the transformation defining the given face element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
-   /** Returns the transformation defining the given edge element.
-       The transformation is stored in a user-defined variable. */
+   /// Builds the transformation defining the i-th edge element in @a EdTr.
+   /// @a EdTr must be allocated in advance and will be owned by the caller.
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr);
 
-   /// Returns the transformation defining the given face element
+   /// Returns a pointer to the transformation defining the given edge element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
    /// Returns (a pointer to an object containing) the following data:
@@ -1238,16 +1307,22 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    virtual FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31);
 
+   /// See GetFaceElementTransformations().
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
       if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
       return GetFaceElementTransformations (FaceNo);
    }
 
+   /// Builds the transformation defining the given boundary face.
+   /// The returned pointer is owned by the caller.
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
    /// Return the local face index for the given boundary face.
@@ -1428,8 +1503,13 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
-   Geometry::Type GetFaceGeometryType(int Face) const;
+   /// Deprecated in favor of Mesh::GetFaceGeometry
+   MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
+   { return GetFaceGeometry(Face); }
+
    Element::Type  GetFaceElementType(int Face) const;
+
+   Array<int> GetFaceToBdrElMap() const;
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
@@ -1510,9 +1590,14 @@ public:
    // mesh is not curved (i.e. Nodes == NULL).
    void MoveNodes(const Vector &displacements);
    void GetNodes(Vector &node_coord) const;
+   /// Updates the vertex/node locations. Invokes NodesUpdated().
    void SetNodes(const Vector &node_coord);
 
    /// Return a pointer to the internal node GridFunction (may be NULL).
+   /** If the mesh is straight-sided (low-order), it may not have a GridFunction
+       for the nodes, in which case this function returns NULL. To ensure that
+       the nodal GridFunction exists, call EnsureNodes().
+       @sa SetCurvature(). */
    GridFunction *GetNodes() { return Nodes; }
    const GridFunction *GetNodes() const { return Nodes; }
    /// Return the mesh nodes ownership flag.
@@ -1520,9 +1605,11 @@ public:
    /// Set the mesh nodes ownership flag.
    void SetNodesOwner(bool nodes_owner) { own_nodes = nodes_owner; }
    /// Replace the internal node GridFunction with the given GridFunction.
+   /** Invokes NodesUpdated(). */
    void NewNodes(GridFunction &nodes, bool make_owner = false);
-   /** Swap the internal node GridFunction pointer and ownership flag members
-       with the given ones. */
+   /** @brief Swap the internal node GridFunction pointer and ownership flag
+       members with the given ones. */
+   /** Invokes NodesUpdated(). */
    void SwapNodes(GridFunction *&nodes, int &own_nodes_);
 
    /// Return the mesh nodes/vertices projected on the given GridFunction.
@@ -1530,7 +1617,7 @@ public:
    /** Replace the internal node GridFunction with a new GridFunction defined
        on the given FiniteElementSpace. The new node coordinates are projected
        (derived) from the current nodes/vertices. */
-   void SetNodalFESpace(FiniteElementSpace *nfes);
+   virtual void SetNodalFESpace(FiniteElementSpace *nfes);
    /** Replace the internal node GridFunction with the given GridFunction. The
        given GridFunction is updated with node coordinates projected (derived)
        from the current nodes/vertices. */
@@ -1538,15 +1625,22 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
-   /** Make sure that the mesh has valid nodes, i.e. its geometry is described
-       by a vector finite element grid function (even if it is a low-order mesh
-       with straight edges). */
+   /** @brief Make sure that the mesh has valid nodes, i.e. its geometry is
+       described by a vector finite element grid function (even if it is a
+       low-order mesh with straight edges).
+
+       @sa GetNodes(). */
    void EnsureNodes();
 
-   /** Set the curvature of the mesh nodes using the given polynomial degree,
-       'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
-       default). */
+   /// Set the curvature of the mesh nodes using the given polynomial degree.
+   /** Creates a nodal GridFunction if one doesn't already exist.
+
+       @param[in]  order       Polynomial degree of the nodal FE space.
+       @param[in]  discont     Whether to use a discontinuous or continuous
+                               finite element space (continuous is default).
+       @param[in]  space_dim   The space dimension (optional).
+       @param[in]  ordering    The Ordering of the finite element space
+                               (Ordering::byVDIM is the default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
@@ -1758,8 +1852,6 @@ public:
       PrintCharacteristics(NULL, NULL, os);
    }
 
-   void MesquiteSmooth(const int mesquite_option = 0);
-
    /** @brief Find the ids of the elements that contain the given points, and
        their corresponding reference coordinates.
 
@@ -1882,7 +1974,7 @@ public:
    };
 
    FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                        FaceType type);
+                        FaceType type, MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)

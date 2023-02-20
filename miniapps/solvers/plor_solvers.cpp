@@ -55,6 +55,12 @@
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l
 //    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe h -rs 0 -o 2
 //    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe l -rs 0 -o 2
+//
+// Device sample runs:
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe h -d cuda
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n -d cuda
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r -d cuda
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
@@ -178,21 +184,19 @@ int main(int argc, char *argv[])
    OperatorHandle A;
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
-   ParLORDiscretization lor(a, ess_dofs);
-   ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
-      solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
+      solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
    }
    else if (RT && dim == 3)
    {
-      solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
+      solv_lor.reset(new LORSolver<HypreADS>(a, ess_dofs));
    }
    else
    {
-      solv_lor.reset(new LORSolver<HypreAMS>(lor, &fes_lor));
+      solv_lor.reset(new LORSolver<HypreAMS>(a, ess_dofs));
    }
 
    CGSolver cg(MPI_COMM_WORLD);

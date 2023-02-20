@@ -110,13 +110,27 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
     In many respects this class behaves like a pointer:
-    * When destroyed, a Memory object does NOT automatically delete any
+    - When destroyed, a Memory object does NOT automatically delete any
       allocated memory.
-    * Only the method Delete() will deallocate a Memory object.
-    * Other methods that modify the object (e.g. New(), Wrap(), etc) will simply
-      overwrite the old contents.
-    * One difference with a pointer is that a const Memory object does not allow
-      modification of the content (unlike e.g. a const pointer).
+    - Only the method Delete() will deallocate a Memory object.
+    - Other methods that modify the object (e.g. New(), Wrap(), etc) will
+      simply overwrite the old contents.
+    In other aspects this class differs from a pointer:
+    - Pointer arithmetic is not supported, MakeAlias() should be used instead.
+    - Const Memory object does not allow modification of the content
+      (unlike e.g. a const pointer).
+    - Move constructor and assignment will transfer ownership flags, and
+      Reset() the moved Memory object.
+    - Copy constructor and assignment copy flags. This may result in two Memory
+      objects owning the data which is an invalid state. This invalid state MUST
+      be resolved by users manually using SetHostPtrOwner(),
+      SetDevicePtrOwner(), or ClearOwnerFlags(). It is also possible to call
+      Delete() on only one of the two Memory objects, however this is
+      discouraged because it bypasses the internal ownership flags.
+    - When moving or copying (between host and device) alias Memory objects
+      and/or their base Memory objects, the consistency of memory flags have
+      to be manually taken care of using either Sync() or SyncAlias(). Failure
+      to do so will result in silent misuse of unsynchronized data.
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
@@ -129,11 +143,11 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     MemoryClass through the methods ReadWrite(), Read(), and Write().
     Requesting such access may result in additional (internally handled)
     memory allocation and/or memory copy.
-    * When ReadWrite() is called, the returned pointer becomes the only
+    - When ReadWrite() is called, the returned pointer becomes the only
       valid pointer.
-    * When Read() is called, the returned pointer becomes valid, however
+    - When Read() is called, the returned pointer becomes valid, however
       the other pointer (host or device) may remain valid as well.
-    * When Write() is called, the returned pointer becomes the only valid
+    - When Write() is called, the returned pointer becomes the only valid
       pointer, however, unlike ReadWrite(), no memory copy will be performed.
 
     The host memory (pointer from MemoryClass::HOST) can be accessed through the
@@ -182,14 +196,27 @@ public:
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
 
-   /// Move constructor: default.
-   Memory(Memory &&orig) = default;
+   /** Move constructor. Sets the pointers and associated ownership of validity
+       flags of @a *this to those of @a other. Resets @a other. */
+   Memory(Memory &&orig)
+   {
+      *this = orig;
+      orig.Reset();
+   }
 
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &orig) = default;
 
-   /// Move-assignment operator: default.
-   Memory &operator=(Memory &&orig) = default;
+   /** Move assignment operator. Sets the pointers and associated ownership of
+       validity flags of @a *this to those of @a other. Resets @a other. */
+   Memory &operator=(Memory &&orig)
+   {
+      // Guard self-assignment:
+      if (this == &orig) { return *this; }
+      *this = orig;
+      orig.Reset();
+      return *this;
+   }
 
    /// Allocate host memory for @a size entries.
    /** The allocation uses the current host memory type returned by
@@ -619,9 +646,8 @@ private: // Static methods used by the Memory<T> class
    static void SetDeviceMemoryType_(void *h_ptr, unsigned flags,
                                     MemoryType d_mt);
 
-   /// Un-register and free memory identified by its host pointer. Returns the
-   /// memory type of the host pointer.
-   static MemoryType Delete_(void *h_ptr, MemoryType mt, unsigned flags);
+   /// Un-register and free memory identified by its host pointer.
+   static void Delete_(void *h_ptr, MemoryType mt, unsigned flags);
 
    /// Free device memory identified by its host pointer
    static void DeleteDevice_(void *h_ptr, unsigned & flags);
@@ -803,6 +829,23 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+
+#ifdef MFEM_USE_ENZYME
+   static void myfree(void* mem, MemoryType MT, unsigned &flags)
+   {
+      MemoryManager::Delete_(mem, MT, flags);
+   }
+   __attribute__((used))
+   inline static void* __enzyme_allocation_like1[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, unsigned&)>(MemoryManager::New_),
+                                                       (void*)1, (void*)"-1,2,3", (void*)myfree
+                                                      };
+   __attribute__((used))
+   inline static void* __enzyme_allocation_like2[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, MemoryType, unsigned, unsigned&)>(MemoryManager::New_),
+                                                       (void*)1, (void*)"-1,2,4", (void*)MemoryManager::Delete_
+                                                      };
+   __attribute__((used))
+   inline static void* __enzyme_function_like[2] = {(void*)MemoryManager::Delete_, (void*)"free"};
+#endif
 };
 
 
@@ -982,8 +1025,12 @@ inline void Memory<T>::Delete()
    const bool mt_host = h_mt == MemoryType::HOST;
    const bool std_delete = !registered && mt_host;
 
-   if (std_delete ||
-       MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
+   if (!std_delete)
+   {
+      MemoryManager::Delete_((void*)h_ptr, h_mt, flags);
+   }
+
+   if (mt_host)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
@@ -1116,7 +1163,7 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
-   if (!(flags & VALID_DEVICE)) { return h_mt; }
+   if (h_ptr == nullptr || !(flags & VALID_DEVICE)) { return h_mt; }
    return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
