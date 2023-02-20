@@ -223,6 +223,7 @@ int main(int argc, char *argv[])
 
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(mesh->NURBSext, order);
+      if (master.Size()>0) NURBSext->ConnectBoundaries(master, slave);
       NURBSext->ConnectBoundaries();
    }
    else if (order[0] == -1) // Isoparametric
@@ -295,7 +296,7 @@ int main(int argc, char *argv[])
          Array<int> master_idx = NURBSext->GetMaster();
          Array<int> slave_idx = NURBSext->GetSlave();
          // Remove periodic BCs
-         for (int i = 0; i < master.Size(); i++)
+         for (int i = 0; i < master_idx.Size(); i++)
          {
             ess_bdr[master_idx[i]-1] = 0;
             ess_bdr[slave_idx[i]-1] = 0;
