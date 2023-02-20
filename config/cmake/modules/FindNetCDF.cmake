@@ -14,6 +14,11 @@
 #   - NETCDF_LIBRARIES
 #   - NETCDF_INCLUDE_DIRS
 
+# Suppress warning about HDF5_ROOT being set
+if (POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif()
+
 include(MfemCmakeUtilities)
 
 # FindHDF5.cmake uses HDF5_ROOT, so we "translate" from the MFEM convention
@@ -40,4 +45,7 @@ mfem_find_package(NetCDF NETCDF NETCDF_DIR "include" netcdf.h "lib" netcdf
 # FindHDF5.cmake is not used.)
 if (HDF5_C_LIBRARY_hdf5_hl)
   list(INSERT NETCDF_LIBRARIES 1 ${HDF5_C_LIBRARY_hdf5_hl})
+  if (NOT NetCDF_FIND_QUIETLY)
+    message(STATUS "Updated NetCDF libraries: ${NETCDF_LIBRARIES}")
+  endif()
 endif()
