@@ -31,6 +31,8 @@ Version 4.5.2, released on February XX, 2023
 - VisItDataCollection now correctly handles data collection names containing
   underscores.
 
+- Added an option to auto-balance compound TMOP metrics.
+
 - Fixed a bug in TMOP metric 301.
 
 - The following integrations have updated minimum version requirements:
