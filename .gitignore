@@ -208,6 +208,7 @@ miniapps/meshing/pmesh-optimizer
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
+miniapps/meshing/mesh-quality
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh

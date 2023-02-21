@@ -16,6 +16,9 @@ Meshing improvements
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
 
+- Added a new miniapp for evaluating mesh quality using size, skewness, and 
+  aspect-ratio computed from the Jacobian of the transformation. 
+
 Discretization improvements
 ---------------------------
 - TBD
