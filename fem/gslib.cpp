@@ -66,7 +66,6 @@ FindPointsGSLIB::FindPointsGSLIB()
 
 FindPointsGSLIB::~FindPointsGSLIB()
 {
-   comm_free(gsl_comm);
    delete gsl_comm;
    delete cr;
    for (int i = 0; i < 4; i++)
