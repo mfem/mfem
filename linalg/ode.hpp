@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include <vector>
 
 namespace mfem
 {
@@ -107,6 +108,13 @@ public:
    {
       mfem_error("ODESolver has no state vectors");
    }
+   virtual void  SetStateVector(Vector &state)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
+
+   static const char *ODETypes;
+   static ODESolver *Select(const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };
@@ -223,36 +231,51 @@ public:
 };
 
 
-/** An explicit Adams-Bashforth method. */
-class AdamsBashforthSolver : public ODESolver
+/** An Linear Multi Step base class. */
+class LMSSolver : public ODESolver
 {
-private:
-   int s, smax;
-   const double *a;
-   Vector *k;
+protected:
+   int ss, smax;
+   std::vector<Vector> k;
    Array<int> idx;
-   ODESolver *RKsolver;
+
+   ODESolver* RKsolver;
    double dt_;
    bool print;
 
 public:
-   AdamsBashforthSolver(int s_, const double *a_);
+   LMSSolver();
+   void SetStageSize(int s_);
+
 
    void Init(TimeDependentOperator &f_) override;
-
-   void Step(Vector &x, double &t, double &dt) override;
+   void ShiftStages();
+   void CheckTimestep(double dt_);
 
    int  GetMaxStateSize() override { return smax; };
-   int  GetStateSize() override { return s; };
+   int  GetStateSize() override { return ss; };
    const Vector &GetStateVector(int i) override;
    void GetStateVector(int i, Vector &state) override;
    void SetStateVector(int i, Vector &state) override;
+   void SetStateVector(Vector &state) override;
 
-   ~AdamsBashforthSolver()
+   ~LMSSolver()
    {
       if (RKsolver) { delete RKsolver; }
-      delete [] k;
    }
+};
+
+
+/** An explicit Adams-Bashforth method. */
+class AdamsBashforthSolver : public LMSSolver
+{
+private:
+   const double *a;
+
+public:
+   AdamsBashforthSolver(int s_, const double *a_);
+
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -308,35 +331,15 @@ public:
 
 
 /** An implicit Adams-Moulton method. */
-class AdamsMoultonSolver : public ODESolver
+class AdamsMoultonSolver : public LMSSolver
 {
 private:
-   int s, smax;
    const double *a;
-   Vector *k;
-   Array<int> idx;
-   ODESolver *RKsolver;
-   double dt_;
-   bool print;
 
 public:
    AdamsMoultonSolver(int s_, const double *a_);
 
-   void Init(TimeDependentOperator &f_) override;
-
    void Step(Vector &x, double &t, double &dt) override;
-
-   int  GetMaxStateSize() override { return smax-1; };
-   int  GetStateSize() override { return s-1; };
-   const Vector &GetStateVector(int i) override;
-   void GetStateVector(int i, Vector &state) override;
-   void SetStateVector(int i, Vector &state) override;
-
-   ~AdamsMoultonSolver()
-   {
-      if (RKsolver) { delete RKsolver; }
-      delete [] k;
-   };
 };
 
 /** A 0-stage, 1st order AM method. */
@@ -705,6 +708,9 @@ public:
    {
       mfem_error("ODESolver has no state vectors");
    }
+
+   static const char *ODETypes;
+   static SecondOrderODESolver *Select(const int ode_solver_type);
 
    virtual ~SecondOrderODESolver() { }
 };

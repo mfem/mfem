@@ -18,6 +18,71 @@
 namespace mfem
 {
 
+
+const char *ODESolver::ODETypes  = "ODE solver: \n\t"
+                                   "        Explicit RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
+                                   "        Explicit AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5,\n\t"
+                                   "        Implicit (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
+                                   "        Implicit (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
+                                   "        Implicit GA      : 40 -- 50  - Generalized-alpha,\n\t"
+                                   "        Implicit AB      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
+
+ODESolver* ODESolver::Select(int ode_solver_type)
+{
+   ODESolver*  ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      // Explicit RK methods
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+
+      // Explicit AB methods
+      case 11: ode_solver = new AB1Solver; break;
+      case 12: ode_solver = new AB2Solver; break;
+      case 13: ode_solver = new AB3Solver; break;
+      case 14: ode_solver = new AB4Solver; break;
+      case 15: ode_solver = new AB5Solver; break;
+
+      // Implicit L-stable methods
+      case 21: ode_solver = new BackwardEulerSolver; break;
+      case 22: ode_solver = new SDIRK23Solver(2); break;
+      case 23: ode_solver = new SDIRK33Solver; break;
+
+      // Implicit A-stable methods (not L-stable)
+      case 32: ode_solver = new ImplicitMidpointSolver; break;
+      case 33: ode_solver = new SDIRK23Solver; break;
+      case 34: ode_solver = new SDIRK34Solver; break;
+
+      // Implicit generalized alpha
+      case 40:  ode_solver = new GeneralizedAlphaSolver(0.0); break;
+      case 41:  ode_solver = new GeneralizedAlphaSolver(0.1); break;
+      case 42:  ode_solver = new GeneralizedAlphaSolver(0.2); break;
+      case 43:  ode_solver = new GeneralizedAlphaSolver(0.3); break;
+      case 44:  ode_solver = new GeneralizedAlphaSolver(0.4); break;
+      case 45:  ode_solver = new GeneralizedAlphaSolver(0.5); break;
+      case 46:  ode_solver = new GeneralizedAlphaSolver(0.6); break;
+      case 47:  ode_solver = new GeneralizedAlphaSolver(0.7); break;
+      case 48:  ode_solver = new GeneralizedAlphaSolver(0.8); break;
+      case 49:  ode_solver = new GeneralizedAlphaSolver(0.9); break;
+      case 50:  ode_solver = new GeneralizedAlphaSolver(1.0); break;
+
+      // Implicit AM methods
+      case 51: ode_solver = new AM1Solver; break;
+      case 52: ode_solver = new AM2Solver; break;
+      case 53: ode_solver = new AM3Solver; break;
+      case 54: ode_solver = new AM4Solver; break;
+
+      default:
+         mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
+         mfem_error("Unknown ODE solver type");
+   }
+   return ode_solver;
+}
+
+
+
 void ODESolver::Init(TimeDependentOperator &f_)
 {
    this->f = &f_;
@@ -347,12 +412,106 @@ const double RK8Solver::c[] =
 };
 
 
-AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
+LMSSolver::LMSSolver()
+{
+   dt_ = -1.0;
+
+#ifdef MFEM_USE_MPI
+   print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
+#else
+   print = true;
+#endif
+}
+
+void LMSSolver::SetStageSize(int s_)
 {
    smax = std::min(s_,5);
+   k.resize(smax);
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = (smax-i)%smax;
+   }
+}
+
+void LMSSolver::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   RKsolver->Init(f_);
+
+   for (int i = 0; i < smax; i++)
+   {
+      k[i].SetSize(f->Width());
+   }
+
+   ss = 0;
+   dt_ = -1.0;
+}
+
+void LMSSolver::ShiftStages()
+{
+   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
+}
+
+void LMSSolver::CheckTimestep(double dt)
+{
+   if (dt_ < 0.0)
+   {
+      dt_ = dt;
+      return;
+   }
+   else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   {
+      ss = 0;
+      dt_ = dt;
+
+      if (print)
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Purging time stepping history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+}
+
+void LMSSolver::GetStateVector(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " AdamsBashforthSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   state = k[idx[i]];
+}
+
+const Vector &LMSSolver::GetStateVector(int i)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " AdamsBashforthSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   return k[idx[i]];
+}
+
+void LMSSolver::SetStateVector(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < smax ),
+                " AdamsBashforthSolver::SetStateVector \n" <<
+                " - Tried to set non-existent state "<<i);
+   k[idx[i]] = state;
+}
+
+void LMSSolver::SetStateVector(Vector &state)
+{
+   k[idx[0]] = state;
+   ShiftStages();
+   ss = std::max(ss++,smax);
+}
+
+AdamsBashforthSolver::AdamsBashforthSolver(int order, const double *a_)
+{
    a = a_;
-   k = new Vector[5];
-   dt_ = 0.0;
+   SetStageSize(order);
 
    if (smax <= 2)
    {
@@ -366,78 +525,17 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
    {
       RKsolver = new RK4Solver();
    }
-
-#ifdef MFEM_USE_MPI
-   print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
-#else
-   print = true;
-#endif
-}
-
-void AdamsBashforthSolver::GetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < s ),
-                " AdamsBashforthSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-
-   state = k[idx[i]];
-}
-
-const Vector &AdamsBashforthSolver::GetStateVector(int i)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < s ),
-                " AdamsBashforthSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-
-   return k[idx[i]];
-}
-
-
-void AdamsBashforthSolver::SetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " AdamsBashforthSolver::SetStateVector \n" <<
-                " - Tried to set non-existent state "<<i);
-   k[idx[i]] = state;
-   s = std::max(i,s);
-}
-
-void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
-{
-   ODESolver::Init(f_);
-   RKsolver->Init(f_);
-   idx.SetSize(smax);
-   for (int i = 0; i < smax; i++)
-   {
-      idx[i] = (smax-i)%smax;
-      k[i].SetSize(f->Width());
-   }
-   s = 0;
 }
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
-   {
-      s = 0;
-      dt_ = dt;
+   CheckTimestep(dt);
 
-      if (print)
-      {
-         mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
-         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
-         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
-      }
-   }
-
-   s++;
-   s = std::min(s, smax);
-   if (s == smax)
+   if (ss >= smax-1)
    {
       f->SetTime(t);
       f->Mult(x, k[idx[0]]);
-      for (int i = 0; i < s; i++)
+      for (int i = 0; i < smax; i++)
       {
          x.Add(a[i]*dt, k[idx[i]]);
       }
@@ -447,10 +545,10 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    {
       f->Mult(x,k[idx[0]]);
       RKsolver->Step(x,t,dt);
+      ss++;
    }
 
-   // Shift the index
-   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
+   ShiftStages();
 }
 
 const double AB1Solver::a[] =
@@ -464,13 +562,10 @@ const double AB4Solver::a[] =
 const double AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
-AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
+AdamsMoultonSolver::AdamsMoultonSolver(int order, const double *a_)
 {
-   s = 0;
-   smax = std::min(s_+1,5);
    a = a_;
-   k = new Vector[5];
-   dt_ = 0.0;
+   SetStageSize(order+1);
 
    if (smax <= 3)
    {
@@ -480,77 +575,19 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
    {
       RKsolver = new SDIRK34Solver();
    }
-
-#ifdef MFEM_USE_MPI
-   print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
-#else
-   print = true;
-#endif
-}
-
-const Vector &AdamsMoultonSolver::GetStateVector(int i)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < s ),
-                " AdamsMoultonSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-   return k[idx[i+1]];
-}
-
-void AdamsMoultonSolver::GetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < s ),
-                " AdamsMoultonSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-   state = k[idx[i+1]];
-}
-
-void AdamsMoultonSolver::SetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " AdamsMoultonSolver::SetStateVector \n" <<
-                " - Tried to set non-existent state "<<i);
-   k[idx[i+1]] = state;
-   s = std::max(i,s);
-}
-
-void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
-{
-   ODESolver::Init(f_);
-   RKsolver->Init(f_);
-   int n = f->Width();
-   idx.SetSize(smax);
-   for (int i = 0; i < smax; i++)
-   {
-      idx[i] = (smax-i)%smax;
-      k[i].SetSize(n);
-   }
-   s = 0;
 }
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
-   {
-      s = 0;
-      dt_ = dt;
+   CheckTimestep(dt);
 
-      if (print)
-      {
-         mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
-         mfem::out << " - Purging Adams-Moulton history" << std::endl;
-         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
-      }
-   }
-
-   if ((s == 0)&&(smax>1))
+   if ((ss == 0)&&(smax>1))
    {
       f->Mult(x,k[idx[1]]);
+      ss++;
    }
-   s++;
-   s = std::min(s, smax);
 
-   if (s >= smax-1)
+   if (ss >= smax-1)
    {
       f->SetTime(t);
       for (int i = 1; i < smax; i++)
@@ -565,11 +602,10 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    {
       RKsolver->Step(x,t,dt);
       f->Mult(x,k[idx[0]]);
+      ss++;
    }
 
-
-   // Shift the index
-   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
+   ShiftStages();
 }
 
 const double AM0Solver::a[] =
@@ -1031,6 +1067,42 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
       t += a_[i] * dt;
    }
 }
+
+const char *SecondOrderODESolver::ODETypes  = "ODE solver: \n\t"
+                                              "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
+                                              "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
+                                              "  13 - CentralDifference, 14 - FoxGoodwin";
+
+SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
+{
+   SecondOrderODESolver*  ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      // Implicit methods
+      case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
+      case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
+      case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
+      case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
+      case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
+      case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
+      case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
+      case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
+      case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
+      case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
+      case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
+
+      case 11: ode_solver = new AverageAccelerationSolver(); break;
+      case 12: ode_solver = new LinearAccelerationSolver(); break;
+      case 13: ode_solver = new CentralDifferenceSolver(); break;
+      case 14: ode_solver = new FoxGoodwinSolver(); break;
+
+      default:
+         mfem::out<<" Second Order ODE solver type: " << ode_solver_type << '\n';
+         mfem_error("Unknown ODE solver type");
+   }
+   return ode_solver;
+}
+
 
 void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
