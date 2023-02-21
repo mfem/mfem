@@ -165,8 +165,8 @@ protected:
 
    enum FlagMask: unsigned
    {
-     // Workaround for use with headers that define REGISTERED as a macro,
-     // e.g. nb30.h (which is included by Windows.h):
+      // Workaround for use with headers that define REGISTERED as a macro,
+      // e.g. nb30.h (which is included by Windows.h):
 #ifndef REGISTERED
       REGISTERED    = 1 << 0, /**< The host pointer is registered with the
                                    MemoryManager */
