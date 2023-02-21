@@ -27,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface mesh-quality
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -110,7 +110,7 @@ clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer
 	rm -f mesh-optimizer pmesh-optimizer polar-nc
-	rm -f minimal-surface pminimal-surface
+	rm -f minimal-surface pminimal-surface mesh-quality
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
