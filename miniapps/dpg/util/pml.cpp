@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-CartesianPML::CartesianPML(Mesh *mesh_, const Array2D<double> &length_)
+CartesianPML::CartesianPML(Mesh *mesh_, Array2D<double> length_)
    : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();

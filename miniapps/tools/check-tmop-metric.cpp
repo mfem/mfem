@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < x_loc.Size(); i++)
    {
       double rate_sum = 0.0;
-      dx = 0.1;
+      double dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
          double err_k = 0.0;

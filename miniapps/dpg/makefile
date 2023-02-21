@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 # Include defaults.mk to get XLINKER
@@ -80,11 +80,6 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
  $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
-
-util/%.o: $(SRC)util/%.cpp $(wildcard $(SRC)util/%.hpp) $(MFEM_LIB_FILE)\
- $(CONFIG_MK) | lib-common
-	mkdir -p $(@D)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
@@ -155,8 +150,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
-	rm -f $(DPG_REAL_OBJ) $(DPG_COMPLEX_OBJ)
+	rm -f *.o *~ diffusion convection-diffusion pdiffusion pconvection-diffusion
+	rm -f *.o *~ acoustics maxwell pacoustics pmaxwell
+	rm -f *.o *~ $(DPG_REAL_OBJ) $(DPG_COMPLEX_OBJ)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

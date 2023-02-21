@@ -871,7 +871,7 @@ void gradp_exact_r(const Vector &x, Vector &grad_r)
    grad_r.SetSize(x.Size());
    vector<complex<double>> grad;
    acoustics_solution_grad(x,grad);
-   for (unsigned i = 0; i < grad.size(); i++)
+   for (int i = 0; i<grad.size(); i++)
    {
       grad_r[i] = grad[i].real();
    }
@@ -882,7 +882,7 @@ void gradp_exact_i(const Vector &x, Vector &grad_i)
    grad_i.SetSize(x.Size());
    vector<complex<double>> grad;
    acoustics_solution_grad(x,grad);
-   for (unsigned i = 0; i < grad.size(); i++)
+   for (int i = 0; i<grad.size(); i++)
    {
       grad_i[i] = grad[i].imag();
    }
