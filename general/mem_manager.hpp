@@ -165,7 +165,15 @@ protected:
 
    enum FlagMask: unsigned
    {
+     // Workaround for use with headers that define REGISTERED as a macro,
+     // e.g. nb30.h (which is included by Windows.h):
+#ifndef REGISTERED
       REGISTERED    = 1 << 0, /**< The host pointer is registered with the
+                                   MemoryManager */
+#endif
+      // Use the following identifier if REGISTERED is defined as a macro,
+      // e.g. nb30.h (which is included by Windows.h):
+      REGISTERED_   = 1 << 0, /**< The host pointer is registered with the
                                    MemoryManager */
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
       OWNS_DEVICE   = 1 << 2, /**< The device pointer will be deleted by
@@ -974,7 +982,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
-   if (!(base.flags & REGISTERED))
+   if (!(base.flags & REGISTERED_))
    {
       if (
 #if !defined(HYPRE_USING_GPU)
@@ -1010,7 +1018,7 @@ template <typename T>
 inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt)
 {
    if (!IsDeviceMemory(d_mt)) { return; }
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED_))
    {
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
                                flags & OWNS_HOST, flags & ALIAS, flags);
@@ -1021,7 +1029,7 @@ inline void Memory<T>::SetDeviceMemoryType(MemoryType d_mt)
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   const bool registered = flags & REGISTERED;
+   const bool registered = flags & REGISTERED_;
    const bool mt_host = h_mt == MemoryType::HOST;
    const bool std_delete = !registered && mt_host;
 
@@ -1040,7 +1048,7 @@ inline void Memory<T>::Delete()
 template <typename T>
 inline void Memory<T>::DeleteDevice(bool copy_to_host)
 {
-   if (flags & REGISTERED)
+   if (flags & REGISTERED_)
    {
       if (copy_to_host) { Read(MemoryClass::HOST, capacity); }
       MemoryManager::DeleteDevice_((void*)h_ptr, flags);
@@ -1100,7 +1108,7 @@ template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
    const size_t bytes = size * sizeof(T);
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED_))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
@@ -1113,7 +1121,7 @@ template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
    const size_t bytes = size * sizeof(T);
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED_))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
@@ -1126,7 +1134,7 @@ template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
    const size_t bytes = size * sizeof(T);
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED_))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
       MemoryManager::Register_(h_ptr, nullptr, capacity*sizeof(T), h_mt,
@@ -1138,12 +1146,12 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
 template <typename T>
 inline void Memory<T>::Sync(const Memory &other) const
 {
-   if (!(flags & REGISTERED) && (other.flags & REGISTERED))
+   if (!(flags & REGISTERED_) && (other.flags & REGISTERED_))
    {
       MFEM_ASSERT(h_ptr == other.h_ptr &&
                   (flags & ALIAS) == (other.flags & ALIAS),
                   "invalid input");
-      flags = (flags | REGISTERED) & ~(OWNS_DEVICE | OWNS_INTERNAL);
+      flags = (flags | REGISTERED_) & ~(OWNS_DEVICE | OWNS_INTERNAL);
    }
    flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
            (other.flags & (VALID_HOST | VALID_DEVICE));
@@ -1153,9 +1161,9 @@ template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
    // Assuming that if *this is registered then base is also registered.
-   MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
+   MFEM_ASSERT(!(flags & REGISTERED_) || (base.flags & REGISTERED_),
                "invalid base state");
-   if (!(base.flags & REGISTERED)) { return; }
+   if (!(base.flags & REGISTERED_)) { return; }
    MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                              base.flags, flags);
 }
@@ -1170,7 +1178,7 @@ inline MemoryType Memory<T>::GetMemoryType() const
 template <typename T>
 inline MemoryType Memory<T>::GetDeviceMemoryType() const
 {
-   if (!(flags & REGISTERED)) { return MemoryType::DEFAULT; }
+   if (!(flags & REGISTERED_)) { return MemoryType::DEFAULT; }
    return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
@@ -1190,7 +1198,7 @@ template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
-   if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
+   if (!(flags & REGISTERED_) && !(src.flags & REGISTERED_))
    {
       if (h_ptr != src.h_ptr && size != 0)
       {
@@ -1210,7 +1218,7 @@ template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED_))
    {
       if (h_ptr != src && size != 0)
       {
@@ -1237,7 +1245,7 @@ template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED_))
    {
       if (h_ptr != dest && size != 0)
       {
