@@ -35,6 +35,9 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
+
 - The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
   formats using the corresponding DataCollection objects. See option 'D' in the
   main menu.
