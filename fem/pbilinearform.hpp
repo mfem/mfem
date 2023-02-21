@@ -31,9 +31,8 @@ class ParBilinearForm : public BilinearForm
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
-   /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction Xaux, Yaux;
-   mutable Vector Ytmp;
+   /// Auxiliary vectors used in TrueAddMult(): L-, L-, and T-vector, resp.
+   mutable Vector Xaux, Yaux, Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 
