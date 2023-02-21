@@ -105,7 +105,7 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 
 // Does a check, and then outputs lots of useful information if the test fails
 #define MFEM_VERIFY(x, msg)                             \
-   if (!(x))                                            \
+   if (!(x)) /*NOLINT*/                                 \
    {                                                    \
       _MFEM_MESSAGE("Verification failed: ("            \
                     << #x << ") is false:\n --> " << msg, 0); \
@@ -123,7 +123,7 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 #ifdef MFEM_DEBUG
 
 #define MFEM_ASSERT(x, msg)                             \
-   if (!(x))                                            \
+   if (!(x)) /*NOLINT*/                                 \
    {                                                    \
       _MFEM_MESSAGE("Assertion failed: ("               \
                     << #x << ") is false:\n --> " << msg, 0); \
@@ -190,7 +190,7 @@ __device__ void abort_msg(T & msg)
 
 // Verify inside a device kernel
 #define MFEM_VERIFY_KERNEL(x,...)    \
-   if (!(x))                         \
+   if (!(x)) /*NOLINT*/              \
    {                                 \
       MFEM_ABORT_KERNEL(__VA_ARGS__) \
    }
@@ -198,7 +198,7 @@ __device__ void abort_msg(T & msg)
 // Assert inside a device kernel
 #ifdef MFEM_DEBUG
 #define MFEM_ASSERT_KERNEL(x,...)    \
-   if (!(x))                         \
+   if (!(x)) /*NOLINT*/              \
    {                                 \
       MFEM_ABORT_KERNEL(__VA_ARGS__) \
    }
