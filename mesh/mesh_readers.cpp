@@ -2107,8 +2107,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     /*
-                     // MFEM does not support pyramids yet
                      case   7: el_order--; //   5-node pyramid
                      case  14: el_order--; //  14-node pyramid (2nd order)
                      case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2121,7 +2119,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         {
                            el_order--; // Gmsh does not define an order 10 pyr
                            elements_3D.push_back(
-                               new Pyramid(&vert_indices[0], phys_domain));
+                              new Pyramid(&vert_indices[0], phys_domain));
                            if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
@@ -2131,7 +2129,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     */
                      case 15: // 1-node point
                      {
                         elements_0D.push_back(
@@ -2336,8 +2333,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  /*
-                  // MFEM does not support pyramids yet
                   case   7: el_order--; //   5-node pyramid
                   case  14: el_order--; //  14-node pyramid (2nd order)
                   case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2350,7 +2345,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      {
                         el_order--;
                         elements_3D.push_back(
-                            new Pyramid(&vert_indices[0], phys_domain));
+                           new Pyramid(&vert_indices[0], phys_domain));
                         if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
@@ -2360,7 +2355,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  */
                   case 15: // 1-node point
                   {
                      elements_0D.push_back(
@@ -2563,16 +2557,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      vm = ho_wdg[el_order];
                      break;
-                  // case Element::PYRAMID:
-                  //    ho_verts = ho_verts_3D[el];
-                  //    el_order = ho_el_order_3D[el];
-                  //    if (ho_pyr[el_order])
-                  //    {
-                  //      ho_pyr[el_order] = new int[ho_verts->Size()];
-                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
-                  //    }
-                  //    vm = ho_pyr[el_order];
-                  //    break;
+                  case Element::PYRAMID:
+                     ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (!ho_pyr[el_order])
+                     {
+                        ho_pyr[el_order] = new int[ho_verts->Size()];
+                        GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
+                     }
+                     vm = ho_pyr[el_order];
+                     break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
