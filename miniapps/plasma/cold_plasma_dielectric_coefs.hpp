@@ -51,6 +51,13 @@ inline std::complex<double> omega_p(double number, double charge,
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
 }
 
+// Thermal Velocity
+inline double vthermal(double Te   /* Joules */,
+                      double mass   /* AMU */)
+{
+   return sqrt( (2.0 * Te) / ( mass * amu_ ) );
+}
+
 // Coulomb logarithm
 inline double CoulombLog(double n, double Te)
 {

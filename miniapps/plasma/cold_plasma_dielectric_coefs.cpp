@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "cold_plasma_dielectric_coefs.hpp"
+#include "Faddeeva.cc"
 
 using namespace std;
 namespace mfem
@@ -18,6 +19,16 @@ using namespace common;
 
 namespace plasma
 {
+
+complex<double> Zfunction(double xi, double floor = 26.0)
+{
+   complex<double> t1(0.0, sqrt(M_PI)*exp(-1.0*pow(xi,2.0)));
+   double tempxi = xi;
+   if ( xi > floor ){tempxi = floor;}
+   else if ( xi < -1.0*floor ){tempxi = -1.0*floor;}
+   complex<double> t2(-1.0*sqrt(M_PI)*exp(-1.0*pow(tempxi,2.0))*Faddeeva::erfi(tempxi),0.0);
+   return t1 + t2;
+}
 
 void StixCoefs_cold_plasma(Vector &V,
                            double omega,
@@ -213,6 +224,79 @@ complex<double> S_cold_plasma(double omega,
    return val;
 }
 
+/*
+complex<double> S_cold_plasma(double omega,
+                              double Bmag,
+                              double nue,
+                              double nui,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              int nuprof,
+                              double res_lim)
+{
+   complex<double> val(1.0, 0.0);
+   complex<double> suscept_particle(0.0,0.0);
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      if (n < 0){n = -1.0*number[i];}
+      double q = charge[i];
+      double m = mass[i];
+      double w_c = omega_c(Bmag, q, m);
+      double w_p = omega_p(n, q, m);
+      double vth = vthermal(Te, m);
+
+      if (i == 0)
+      {
+         suscept_particle = complex<double>((-1.0 * w_p * w_p) / ((omega + w_c) * (omega - w_c)), 0.0);
+      } 
+      // First Harmonic:
+      else if (i == 1 || i == 3)
+      {
+         // Z function:
+         double kperpFW = 0.0;
+         if (i == 1){kperpFW = 28.66;}
+         else if (i == 3){kperpFW = 71.32;}
+         double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
+
+         // n > 0:
+         double xi_p = (omega - w_c)/(18.0*vth);
+         complex<double> Zp = Zfunction(xi_p);
+
+         // n < 0:
+         double xi_m = (omega + w_c)/(18.0*vth);
+         complex<double> Zm = Zfunction(xi_m);
+
+         // Total particle susceptibility contribution:
+         suscept_particle = (pow(w_p,2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
+      }
+      // Second Harmonic:
+      else if (i == 2)
+      {
+         double lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
+         // n > 0:
+         double xi_p = (omega - 2*w_c)/(18.0*vth);
+         complex<double> Zp = Zfunction(xi_p);
+
+         // n < 0:
+         double xi_m = (omega + 2*w_c)/(18.0*vth);
+         complex<double> Zm = Zfunction(xi_m);
+
+         // Total particle susceptibility contribution:
+         suscept_particle = (pow(w_p,2.0)/omega)*lambda*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
+      }
+      val += suscept_particle;
+   }
+   return val;
+}
+*/
 complex<double> D_cold_plasma(double omega,
                               double Bmag,
                               double nue,
@@ -1609,23 +1693,23 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
           // FLOOR DENSITY:
-          double ne = 1e12;
+         double ne = 1e12;
            
           // CORE DENSITY:
-          double Coreden = 4.2e20;
-          double LCFSden = 8.4e19;
-          double nuee = 3.0;
-          double nuei = 3.0;
-          if (val < 1.0 && bool_limits == 1)
+         double Coreden = 4.2e20;
+         double LCFSden = 8.4e19;
+         double nuee = 3.0;
+         double nuei = 3.0;
+         if (val < 1.0 && bool_limits == 1)
           {
              ne = (Coreden - LCFSden)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFSden;
           }
            
           // DENSITY NEAR TOP/BOTTOM DIVERTOR:
-          if (val < 1.0 && bool_limits == 0){ne = 1e12;}
+         if (val < 1.0 && bool_limits == 0){ne = 1e12;}
            
           // SOL DENSITY:
-          if ( val >= 1.0)
+         if ( val >= 1.0)
           {
               // Scale lengths:
               double sl1 = 0.015;
@@ -1688,7 +1772,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
            if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
             // FLOOR TEMP:
-            double  Te = 10;
+            double  Te = 100;
              
             // CORE TEMP:
             double Core = 20e3;
