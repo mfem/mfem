@@ -98,6 +98,10 @@ if (MFEM_USE_MPI)
     MAIN pminimal-surface.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(ext-mesh-mapping
+    MAIN ext-mesh-mapping.cpp
+    LIBRARIES mfem)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     add_test(NAME pmesh-optimizer_np=${MFEM_MPI_NP}
