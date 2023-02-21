@@ -415,6 +415,7 @@ const double RK8Solver::c[] =
 LMSSolver::LMSSolver()
 {
    dt_ = -1.0;
+   ss = 0;
 
 #ifdef MFEM_USE_MPI
    print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
