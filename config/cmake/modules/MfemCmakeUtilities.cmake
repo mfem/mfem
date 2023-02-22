@@ -55,6 +55,10 @@ endmacro()
 # Wrapper for add_library
 macro(mfem_add_library NAME)
   add_library(${NAME} ${ARGN})
+  # handle exports def for windows shared libs case
+  if(WIN32 AND BUILD_SHARED_LIBS)
+    target_compile_definitions(${NAME} PRIVATE MFEM_WINDOWS_DLL_EXPORTS)
+  endif()
 endmacro()
 
 # Simple shortcut to add_custom_target() with option to add the target to the

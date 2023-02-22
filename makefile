@@ -582,9 +582,10 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem_exports.h \
+	   $(SRC)mfem-performance.hpp \
 	   $(PREFIX_INC)/mfem
-	for hdr in mfem.hpp mfem-performance.hpp; do \
+	for hdr in mfem.hpp mfem_exports.h mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
 	      > $(PREFIX_INC)/$$hdr && chmod 640 $(PREFIX_INC)/$$hdr; done
 # install config include
@@ -646,7 +647,7 @@ build-config:
 	      > $(BLD)$${dir}GNUmakefile; done
 	$(MAKE) -C $(BLD)config all
 	cd "$(BUILD_DIR)" && ln -sf "$(MFEM_REAL_DIR)/data" .
-	for hdr in mfem.hpp mfem-performance.hpp; do \
+	for hdr in mfem.hpp mfem_exports.h mfem-performance.hpp; do \
 	   printf "// Auto-generated file.\n%s\n%s\n" \
 	   "#define MFEM_CONFIG_FILE \"$(BUILD_REAL_DIR)/config/_config.hpp\"" \
 	   "#include \"$(MFEM_REAL_DIR)/$${hdr}\"" > $(BLD)$${hdr}; done
