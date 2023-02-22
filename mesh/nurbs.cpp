@@ -3422,10 +3422,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
 void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk)
 {
    MFEM_VERIFY(ijk.Size() == el_to_IJK.NumCols(), "");
-   for (int d=0; d<ijk.Size(); ++d)
-   {
-      ijk[d] = el_to_IJK(elem,d);
-   }
+   el_to_IJK.GetRow(elem, ijk);
 }
 
 
