@@ -20,14 +20,9 @@ using namespace common;
 namespace plasma
 {
 
-complex<double> Zfunction(double xi, double floor = 26.0)
+complex<double> Zfunction(double xi)
 {
-   complex<double> t1(0.0, sqrt(M_PI)*exp(-1.0*pow(xi,2.0)));
-   double tempxi = xi;
-   if ( xi > floor ){tempxi = floor;}
-   else if ( xi < -1.0*floor ){tempxi = -1.0*floor;}
-   complex<double> t2(-1.0*sqrt(M_PI)*exp(-1.0*pow(tempxi,2.0))*Faddeeva::erfi(tempxi),0.0);
-   return t1 + t2;
+   return complex<double>(0,1)*sqrt(M_PI)*Faddeeva::w(xi);
 }
 
 void StixCoefs_cold_plasma(Vector &V,
@@ -176,7 +171,7 @@ complex<double> L_cold_plasma(double omega,
    }
    return val;
 }
-
+/*
 complex<double> S_cold_plasma(double omega,
                               double Bmag,
                               double nue,
@@ -223,8 +218,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> S_cold_plasma(double omega,
                               double Bmag,
                               double nue,
@@ -296,7 +291,7 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
+
 complex<double> D_cold_plasma(double omega,
                               double Bmag,
                               double nue,
