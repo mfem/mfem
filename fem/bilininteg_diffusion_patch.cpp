@@ -144,56 +144,8 @@ void SetupPatch3D(const int Q1Dx,
    });
 }
 
-void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
-{
-#ifndef MFEM_USE_LAPACK
-   MFEM_ABORT("MFEM must be built with LAPACK in order to use NNLS");
-#else
-   NNLS nnls;
-   nnls.SetVerbosity(2);
-
-   Vector rhs_ub(Gt.NumCols());
-   Gt.MultTranspose(w, rhs_ub);
-
-   Vector rhs_lb(rhs_ub);
-   Vector rhs_Gw(rhs_ub);
-
-   const double delta = 1.0e-11;
-   for (int i=0; i<rhs_ub.Size(); ++i)
-   {
-      rhs_lb(i) -= delta;
-      rhs_ub(i) += delta;
-   }
-
-   nnls.NormalizeConstraints(Gt, rhs_lb, rhs_ub);
-   nnls.Solve(Gt, rhs_lb, rhs_ub, sol);
-
-   int nnz = 0;
-   for (int i=0; i<sol.Size(); ++i)
-   {
-      if (sol(i) != 0.0)
-      {
-         nnz++;
-      }
-   }
-
-   mfem::out << "Number of nonzeros in MFEM NNLS solution: " << nnz
-             << ", out of " << sol.Size() << endl;
-
-   // Check residual of NNLS solution
-   Vector res(Gt.NumCols());
-   Gt.MultTranspose(sol, res);
-
-   const double normGsol = res.Norml2();
-   const double normRHS = rhs_Gw.Norml2();
-
-   res -= rhs_Gw;
-   const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
-   mfem::out << "Relative residual norm for MFEM NNLS solution of Gs = Gw: "
-             << relNorm << endl;
-#endif
-}
-
+// Compute a reduced integration rule, using NNLS, for DiffusionIntegrator on a
+// NURBS patch with partial assembly.
 void GetReducedRule(const int nq, const int nd,
                     Array2D<double> const& B,
                     Array2D<double> const& G,
@@ -225,9 +177,8 @@ void GetReducedRule(const int nq, const int nd,
 
       // G is of size nc_dof x nw_dof
       MFEM_VERIFY(nc_dof <= nw_dof, "");
-
-      DenseMatrix Gt(nw_dof, nc_dof);
-      Gt = 0.0;
+      DenseMatrix Gmat(nc_dof, nw_dof);
+      Gmat = 0.0;
 
       Vector w(nw_dof);
       w = 0.0;
@@ -244,13 +195,18 @@ void GetReducedRule(const int nq, const int nd,
          {
             const double Bd = zeroOrder ? B(qx,dx) : G(qx,dx);
 
-            Gt(qx - minD[dof], dx - minDD[dof]) = Bq * Bd;
+            Gmat(dx - minDD[dof], qx - minD[dof]) = Bq * Bd;
          }
       }
 
-      Vector sol(Gt.NumRows());
+      Vector sol(Gmat.NumCols());
 
-      SolveNNLS(Gt, w, sol);
+      NNLS nnls;
+      nnls.SetVerbosity(2);
+      nnls.SetOperator(Gmat);
+
+      nnls.Mult(w, sol);
+
       int nnz = 0;
       for (int i=0; i<sol.Size(); ++i)
       {

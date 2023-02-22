@@ -3554,19 +3554,32 @@ dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
 
 NNLS::NNLS(double const_tol, int min_nnz, int max_nnz, int verbosity,
-           double res_change_termination_tol, double zero_tol, int n_outer,
-           int n_inner, int n_stallCheck)
-   : const_tol_(const_tol), min_nnz_(min_nnz), max_nnz_(max_nnz),
-     verbosity_(verbosity),
+           double res_change_termination_tol, double zero_tol, double rhs_delta,
+           int n_outer, int n_inner, int n_stallCheck)
+   : Solver(0), mat(nullptr), const_tol_(const_tol), min_nnz_(min_nnz),
+     max_nnz_(max_nnz), verbosity_(verbosity),
      res_change_termination_tol_(res_change_termination_tol),
-     zero_tol_(zero_tol), n_outer_(n_outer), n_inner_(n_inner),
-     nStallCheck(n_stallCheck), NNLS_qrres_on_(false),
+     zero_tol_(zero_tol), rhs_delta_(rhs_delta), n_outer_(n_outer),
+     n_inner_(n_inner), nStallCheck(n_stallCheck), NNLS_qrres_on_(false),
      qr_residual_mode_(QRresidualMode::hybrid)
 {
 }
 
 NNLS::~NNLS()
 {}
+
+void NNLS::SetOperator(const Operator &op)
+{
+   mat = dynamic_cast<const DenseMatrix*>(&op);
+   MFEM_VERIFY(mat, "NNLS operator must be of type DenseMatrix");
+
+   // The size of this operator is that of the transpose of op.
+   height = op.Width();
+   width = op.Height();
+
+   row_scaling_.SetSize(mat->NumRows());
+   row_scaling_ = 1.0;
+}
 
 void NNLS::SetVerbosity(const int verbosity_in)
 {
@@ -3582,12 +3595,11 @@ void NNLS::SetQRResidualMode(const QRresidualMode qr_residual_mode)
    }
 }
 
-void NNLS::NormalizeConstraints(DenseMatrix& matTrans, Vector& rhs_lb,
-                                Vector& rhs_ub)
+void NNLS::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
 {
    // Scale everything so that rescaled half gap is the same for all constraints
-   const int n = matTrans.NumRows();
-   const int m = matTrans.NumCols();
+   const int m = mat->NumRows();
+   const int n = mat->NumCols();
 
    MFEM_VERIFY(rhs_lb.Size() == m && rhs_ub.Size() == m, "");
 
@@ -3604,31 +3616,77 @@ void NNLS::NormalizeConstraints(DenseMatrix& matTrans, Vector& rhs_lb,
    Vector halfgap_target(m);
    halfgap_target = 1.0e3 * const_tol_;
 
+   row_scaling_.SetSize(m);
+
    for (int i=0; i<m; ++i)
    {
       const double s = halfgap_target(i) / rhs_halfgap_glob(i);
-      for (int j=0; j<n; ++j)
-      {
-         matTrans(j,i) *= s;
-      }
+      row_scaling_[i] = s;
 
       rhs_lb(i) = (rhs_avg(i) * s) - halfgap_target(i);
       rhs_ub(i) = (rhs_avg(i) * s) + halfgap_target(i);
    }
 }
 
-void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
-                 const Vector& rhs_ub, Vector& soln)
+void NNLS::Mult(const Vector &w, Vector &sol) const
 {
-   int n = matTrans.NumRows();
-   int m = matTrans.NumCols();
+   MFEM_VERIFY(mat, "NNLS operator must be of type DenseMatrix");
+   Vector rhs_ub(mat->NumRows());
+   mat->Mult(w, rhs_ub);
+   rhs_ub *= row_scaling_;
+
+   Vector rhs_lb(rhs_ub);
+   Vector rhs_Gw(rhs_ub);
+
+   for (int i=0; i<rhs_ub.Size(); ++i)
+   {
+      rhs_lb(i) -= rhs_delta_;
+      rhs_ub(i) += rhs_delta_;
+   }
+
+   NormalizeConstraints(rhs_lb, rhs_ub);
+   Solve(rhs_lb, rhs_ub, sol);
+
+   if (verbosity_ > 1)
+   {
+      int nnz = 0;
+      for (int i=0; i<sol.Size(); ++i)
+      {
+         if (sol(i) != 0.0)
+         {
+            nnz++;
+         }
+      }
+
+      mfem::out << "Number of nonzeros in MFEM NNLS solution: " << nnz
+                << ", out of " << sol.Size() << endl;
+
+      // Check residual of NNLS solution
+      Vector res(mat->NumRows());
+      mat->Mult(sol, res);
+      res *= row_scaling_;
+
+      const double normGsol = res.Norml2();
+      const double normRHS = rhs_Gw.Norml2();
+
+      res -= rhs_Gw;
+      const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
+      mfem::out << "Relative residual norm for MFEM NNLS solution of Gs = Gw: "
+                << relNorm << endl;
+   }
+}
+
+void NNLS::Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const
+{
+   int m = mat->NumRows();
+   int n = mat->NumCols();
 
    MFEM_VERIFY(rhs_lb.Size() == m && rhs_lb.Size() == m && soln.Size() == n, "");
    MFEM_VERIFY(n >= m, "NNLS system cannot be over-determined.");
 
    if (max_nnz_ == 0)
    {
-      max_nnz_ = matTrans.NumRows();
+      max_nnz_ = mat->NumCols();
    }
 
    // Prepare right hand side
@@ -3697,8 +3755,11 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
    double mu_tol = 0.0;
 
    {
+      Vector rhs_scaled(rhs_halfgap_glob);
       Vector tmp(n);
-      matTrans.Mult(rhs_halfgap_glob, tmp);
+      rhs_scaled *= row_scaling_;
+      mat->MultTranspose(rhs_scaled, tmp);
+
       mu_tol = 1.0e-15 * tmp.Max();
    }
 
@@ -3777,7 +3838,8 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
       }
 
       // Find the next index
-      matTrans.Mult(res_glob, mu);
+      res_glob *= row_scaling_;
+      mat->MultTranspose(res_glob, mu);
 
       for (int i = 0; i < n_nz_ind; ++i)
       {
@@ -3804,7 +3866,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
             }
             stalled_indices.resize(0);
 
-            matTrans.Mult(res_glob, mu);
+            mat->MultTranspose(res_glob, mu);
 
             for (int i = 0; i < n_nz_ind; ++i)
             {
@@ -3839,7 +3901,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
       for (int i=0; i<m; ++i)
       {
-         mat_0_data(i + (n_glob*m)) = matTrans(imax,i);
+         mat_0_data(i + (n_glob*m)) = (*mat)(i,imax) * row_scaling_[i];
          mat_qr_data(i + (n_glob*m)) = mat_0_data(i + (n_glob*m));
       }
 

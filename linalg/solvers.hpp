@@ -432,7 +432,7 @@ public:
 
    ~OperatorChebyshevSmoother() {}
 
-   void Mult(const Vector&x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const;
 
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
@@ -1232,15 +1232,15 @@ public:
 /** Non-negative least squares (NNLS) solver class, for computing a vector
     with non-negative entries approximately satisfying an under-determined
     linear system. */
-class NNLS
+class NNLS : public Solver
 {
 public:
    /**
    * Constructor*/
-   NNLS(double const_tol=1.0e-14, int min_nnz=0, int max_nnz=0,
-        int verbosity=0,
-        double res_change_termination_tol=1.0e-4,
-        double zero_tol=1.0e-14, int n_outer=100000,
+   NNLS(double const_tol=1.0e-14, int min_nnz=0, int max_nnz=0, int verbosity=0,
+        double res_change_termination_tol=1.0e-4, double zero_tol=1.0e-14,
+        double rhs_delta=1.0e-11,
+        int n_outer=100000,
         int n_inner=100000,
         int n_stallCheck=100);
 
@@ -1248,11 +1248,16 @@ public:
     * Destructor*/
    ~NNLS();
 
+   /// The operator must be a DenseMatrix.
+   void SetOperator(const Operator &op) override;
+
+   void Mult(const Vector &w, Vector &sol) const override;
+
    /**
-    * Set verbosity. If set to 0: print nothing; if 1: just print results;
-    * if 2: print short update on every iteration; if 3: print longer update
-    * each iteration.
-    */
+     * Set verbosity. If set to 0: print nothing; if 1: just print results;
+     * if 2: print short update on every iteration; if 3: print longer update
+     * each iteration.
+     */
    void SetVerbosity(const int verbosity_in);
 
    /**
@@ -1274,7 +1279,7 @@ public:
    /**
     * @brief Solve the NNLS problem. Specifically, we find a vector @a soln,
     * such that rhs_lb < mat*soln < rhs_ub is satisfied, where mat is the
-    * DenseMatrix whose transpose @a matTrans is input.
+    * DenseMatrix input to SetOperator().
     *
     * The method by which we find the solution is the active-set method
     * developed by Lawson and Hanson (1974) using lapack. To decrease rounding
@@ -1284,37 +1289,39 @@ public:
     * computationally expensive. To select whether to use the QR residual method
     * or not, see set_qrresidual_mode above.
     */
-   void Solve(const DenseMatrix& matTrans,
-              const Vector& rhs_lb,
-              const Vector& rhs_ub, Vector& soln);
+   void Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const;
 
    /**
-    * Normalize the constraints such that the tolerances for each constraint
-    * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
-    * cases.
-    */
-   void NormalizeConstraints(DenseMatrix& matTrans, Vector& rhs_lb,
-                             Vector& rhs_ub);
+     * Normalize the constraints such that the tolerances for each constraint
+     * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
+     * cases.
+     */
+   void NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const;
 
 private:
-   double const_tol_;
-   int min_nnz_; // minimum number of nonzero entries
-   int max_nnz_; // maximum number of nonzero entries
+   const DenseMatrix *mat;
+
+   const double const_tol_;
+   const int min_nnz_; // minimum number of nonzero entries
+   mutable int max_nnz_; // maximum number of nonzero entries
    int verbosity_;
 
    /**
     * @brief Threshold on relative change in residual over nStallCheck iterations
     * for stall sensing.
     */
-   double res_change_termination_tol_;
+   const double res_change_termination_tol_;
 
-   double zero_tol_;
-   int n_outer_;
-   int n_inner_;
-   int nStallCheck;
+   const double zero_tol_;
+   const double rhs_delta_;
+   const int n_outer_;
+   const int n_inner_;
+   const int nStallCheck;
 
-   bool NNLS_qrres_on_;
+   mutable bool NNLS_qrres_on_;
    QRresidualMode qr_residual_mode_;
+
+   mutable Vector row_scaling_;
 };
 #endif // MFEM_USE_LAPACK
 
