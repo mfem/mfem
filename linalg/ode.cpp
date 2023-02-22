@@ -507,7 +507,8 @@ void LMSSolver::SetStateVector(Vector &state)
 {
    k[idx[0]] = state;
    ShiftStages();
-   ss = std::max(ss++,smax);
+   ss++;
+   ss = std::max(ss,smax);
 }
 
 AdamsBashforthSolver::AdamsBashforthSolver(int order, const double *a_)
