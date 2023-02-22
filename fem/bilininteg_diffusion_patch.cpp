@@ -16,6 +16,7 @@
 
 #include "../linalg/dtensor.hpp"  // For Reshape
 #include "../general/forall.hpp"
+#include "../linalg/solvers.hpp"  // For NNLS
 
 using namespace std;
 
@@ -173,10 +174,10 @@ void GetReducedRule(const int nq, const int nd,
       const int nc_dof = maxDD[dof] - minDD[dof] + 1;
       const int nw_dof = maxD[dof] - minD[dof] + 1;
 
-      mfem::out << "NNLS system size " << nc_dof << " by " << nw_dof << endl;
-
       // G is of size nc_dof x nw_dof
-      MFEM_VERIFY(nc_dof <= nw_dof, "");
+      MFEM_VERIFY(nc_dof <= nw_dof, "The NNLS system for the reduced integration"
+                  " rule requires more full integration points. Try increasing "
+                  "the order of the full integration rule.");
       DenseMatrix Gmat(nc_dof, nw_dof);
       Gmat = 0.0;
 
