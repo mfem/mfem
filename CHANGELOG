@@ -23,6 +23,13 @@ Version 4.5.2, released on February XX, 2023
 - When using discontinuous (L2) spaces, use local (element-wise) L2 projection
   as the coarsening operator for non-conforming AMR meshes.
 
+- Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
+
+- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
+  formats using the corresponding DataCollection objects. See option 'D' in the
+  main menu.
+
 - Added support for pyramids in Gmsh meshes.
 
 - The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
