@@ -403,7 +403,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    {
       accel_term.coeff->SetTime(time + dt);
    }
-std::cout<<"step1: "<<pmesh->GetMyRank() <<std::endl;
+
    f_form->Assemble();
    f_form->ParallelAssemble(fn);
 
@@ -427,7 +427,7 @@ std::cout<<"step1: "<<pmesh->GetMyRank() <<std::endl;
                               ab2_ * d_Nunm1[i] +
                               ab3_ * d_Nunm2[i];);
    }
-std::cout<<"step2: "<<pmesh->GetMyRank() <<std::endl;
+
    Fext.Add(1.0, fn);
 
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
@@ -450,7 +450,7 @@ std::cout<<"step2: "<<pmesh->GetMyRank() <<std::endl;
                                bd2idt * d_unm1[i] +
                                bd3idt * d_unm2[i];);
    }
-std::cout<<"step3: "<<pmesh->GetMyRank() <<std::endl;
+
    sw_extrap.Stop();
 
    // Pressure Poisson.
@@ -483,7 +483,7 @@ std::cout<<"step3: "<<pmesh->GetMyRank() <<std::endl;
 
    curlcurlu_gf.GetTrueDofs(Lext);
    Lext *= kin_vis;
-std::cout<<"step4: "<<pmesh->GetMyRank() <<std::endl;
+
    sw_curlcurl.Stop();
 
    // \tilde{F} = F - \nu CurlCurl(u)
@@ -496,16 +496,13 @@ std::cout<<"step4: "<<pmesh->GetMyRank() <<std::endl;
 
    // Add boundary terms.
    FText_gf.SetFromTrueDofs(FText);
-   std::cout<<"step5555: "<<pmesh->GetMyRank() <<std::endl;
    FText_bdr_form->Assemble();
-   std::cout<<"step55551: "<<pmesh->GetMyRank() <<std::endl;
    FText_bdr_form->ParallelAssemble(FText_bdr);
-std::cout<<"step5666: "<<pmesh->GetMyRank() <<std::endl;
    g_bdr_form->Assemble();
    g_bdr_form->ParallelAssemble(g_bdr);
    resp.Add(1.0, FText_bdr);
    resp.Add(-bd0 / dt, g_bdr);
-std::cout<<"step5: "<<pmesh->GetMyRank() <<std::endl;
+
    if (pres_dbcs.empty())
    {
       Orthogonalize(resp);
@@ -534,7 +531,7 @@ std::cout<<"step5: "<<pmesh->GetMyRank() <<std::endl;
    iter_spsolve = SpInv->GetNumIterations();
    res_spsolve = SpInv->GetFinalNorm();
    Sp_form->RecoverFEMSolution(X1, resp_gf, pn_gf);
-std::cout<<"step6: "<<pmesh->GetMyRank() <<std::endl;
+
    // If the boundary conditions on the pressure are pure Neumann remove the
    // nullspace by removing the mean of the pressure solution. This is also
    // ensured by the OrthoSolver wrapper for the preconditioner which removes
@@ -577,7 +574,7 @@ std::cout<<"step6: "<<pmesh->GetMyRank() <<std::endl;
    iter_hsolve = HInv->GetNumIterations();
    res_hsolve = HInv->GetFinalNorm();
    H_form->RecoverFEMSolution(X2, resu_gf, un_next_gf);
-std::cout<<"step7: "<<pmesh->GetMyRank() <<std::endl;
+
    un_next_gf.GetTrueDofs(un_next);
 
    // If the current time step is not provisional, accept the computed solution

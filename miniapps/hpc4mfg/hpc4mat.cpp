@@ -72,10 +72,10 @@ namespace mfem {
 
     void SurrogateNLDiffusionCoefficient::MyNeuralNet_MatTensor::readSurrogateModel()
     {
-        std::string tStringWeight1 = "./NeuralNet/tensor_weights1_Ellips.txt";
-        std::string tStringWeight2 = "./NeuralNet/tensor_weights2_Ellips.txt";
-        std::string tStringBias1   = "./NeuralNet/tensor_bias1_Ellips.txt";
-        std::string tStringBias2 = "./NeuralNet/tensor_bias2_Ellips.txt";
+        std::string tStringWeight1 = "./NeuralNet/Circle_weights1_realSize.txt";
+        std::string tStringWeight2 = "./NeuralNet/Circle_weights2_realSize.txt";
+        std::string tStringBias1   = "./NeuralNet/Circle_bias1_realSize.txt";
+        std::string tStringBias2   = "./NeuralNet/Circle_bias2_realSize.txt";
 
         mfem::Ascii tAsciiReader1( tStringWeight1, FileMode::OPEN_RDONLY );
         mfem::Ascii tAsciiReader2( tStringWeight2, FileMode::OPEN_RDONLY );

@@ -66,13 +66,13 @@ int main(int argc, char *argv[])
    bool tPerturbed = false;
    double PerturbationSize = 0.01;
    bool LoadSolVecFromFile = false;
-   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Ellipse;
+   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Ball;
    enum DensityCoeff::ProjectionType tProjectionType = DensityCoeff::ProjectionType::zero_one;
   
-   double tLengthScale = 1.0e-2;
+   double tLengthScale = 0.02;
    double tThreshold = 0.25;
    double tDensity = 1.0e3;
-   double tRefVelocity = 1.0e-3; 
+   double tRefVelocity = 1.0; 
    double tKinViscosity = 1.0e-6; 
    double ReynoldsNumber = tLengthScale * tRefVelocity / tKinViscosity;
 
@@ -84,19 +84,19 @@ int main(int argc, char *argv[])
    s_NavierContext ctx;
    ctx.order = 2;
    ctx.kin_vis = 1.0 / ReynoldsNumber;
-   ctx.t_final = 3.0;
-   ctx.dt = 2e-4;
+   ctx.t_final = 1.0;
+   ctx.dt = 1e-4;
 
    //mesh->EnsureNCMesh(true);
 
-   double MultInX = 1.0;
-   double MultInY = 1.0;
+   double MultInX = 0.02;
+   double MultInY = 0.02;
 
    double Lx = 1.0 * MultInX;
    double Ly = 1.0 * MultInY;
 
-   int NX = 64 * MultInX;
-   int NY = 64 * MultInY;
+   int NX = 64;
+   int NY = 64;
 
 
    Mesh mesh = Mesh::MakeCartesian2D(NX, NY, Element::QUADRILATERAL, true,Lx, Ly);
@@ -150,13 +150,13 @@ int main(int argc, char *argv[])
    {
       srand(run_id+1);  
 
-      double rForceMag = rand() / double(RAND_MAX) * 10;
+      double rForceMag = rand() / double(RAND_MAX) * 1.0;
 
       tRand[0] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //nx
       tRand[1] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //ny
-      tRand[2] = 0.0; //nz
+      tRand[2] = 0.0; //(rand() / double(RAND_MAX))*M_PI*2.0/3.0; //nz
       tRand[3] = 1.0;          //a
-      tRand[4] = rand() * 0.4 / double(RAND_MAX)+0.1;   //eta
+      tRand[4] = 0.006; // rand() * 0.4 / double(RAND_MAX)+0.1;   //eta
       //      tRand[4] = 0.5;   //eta
 
       if( tPerturbed )

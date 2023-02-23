@@ -29,18 +29,48 @@ s_NavierContext ctx;
 // ctx.t_final = 1.0;
 // ctx.dt = 1e-4;
 
+static int BoxIterator = 0;
+
 void vel(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = 1.0;
+   u(0) = 0.2; //1e-4 / 5.0e-4;
+   u(1) = 0.0;
+}
+
+void vel_0(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   u(0) = 0.0; //1e-4 / 5.0e-4;
    u(1) = 0.0;
 }
 
 double pres(const Vector &x, double t)
 {
-   return 0.0;;
+   return 0.0;
+}
+
+
+double BoxFunction(const Vector &x)
+{
+   
+   std::vector<double> rightval_x = {0.2, 0.4, 0.6, 1.2, 0.2, 0.4, 0.6, 1.2 , 0.2, 0.4, 0.6, 1.2 };
+   std::vector<double> leftVal_x = {0.1, 0.3, 0.5, 1.1, 0.1, 0.3, 0.5, 1.1 , 0.1, 0.3, 0.5, 1.1 };
+
+   std::vector<double> lowerVal_y  = {0.1, 0.1, 0.1, 0.1, 0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.8, 0.8 };
+   std::vector<double> upperVal_y = {0.2, 0.2, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4, 0.9, 0.9, 0.9, 0.9 };
+
+   double val = 0.0;
+   if( x[0] > leftVal_x[BoxIterator] && x[0] < rightval_x[BoxIterator] &&
+       x[1] > lowerVal_y[BoxIterator] && x[1] < upperVal_y[BoxIterator] )
+   {
+      val = 1.0;
+   }
+   return val;
 }
 
 int main(int argc, char *argv[])
@@ -75,10 +105,10 @@ int main(int argc, char *argv[])
    enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Spheres;
    enum DensityCoeff::ProjectionType tProjectionType = DensityCoeff::ProjectionType::zero_one;
   
-   double tLengthScale = 1.0e-2;
-   double tThreshold = 0.25;
+   double tLengthScale = 2.0e-2;
+   double tThreshold = 0.3;
    double tDensity = 1.0e3;
-   double tRefVelocity = 1.0e-3; 
+   double tRefVelocity = 5.0e-4; 
    double tKinViscosity = 1.0e-6; 
    double ReynoldsNumber = tLengthScale * tRefVelocity / tKinViscosity;
 
@@ -90,8 +120,8 @@ int main(int argc, char *argv[])
    s_NavierContext ctx;
    ctx.order = 2;
    ctx.kin_vis = 1.0 / ReynoldsNumber;
-   ctx.t_final = 3.0;
-   ctx.dt = 2e-4;
+   ctx.t_final = 1.0;
+   ctx.dt = 1e-4;
 
    //mesh->EnsureNCMesh(true);
 
@@ -118,18 +148,11 @@ int main(int argc, char *argv[])
    if( true )
    {
 
-      mfem::ParaViewDataCollection mPvdc("2D_Mesh", pmesh);
+      mfem::ParaViewDataCollection mPvdc("2D_FullMesh", pmesh);
       mPvdc.SetCycle(0);
       mPvdc.SetTime(0.0);
       mPvdc.Save();
    }
-
-   //----------------------------------------------------------
-
-
-   double preasureGrad = 0.01 + 0.001 *(tForce_Magnitude - 1.0);
-
-   tForce_Magnitude = preasureGrad * tLengthScale /(tDensity * std::pow(tRefVelocity ,2));
  
    //----------------------------------------------------------
    {
@@ -155,6 +178,10 @@ int main(int argc, char *argv[])
       attrVel[1] = 1;
       mFlowsolver->AddVelDirichletBC(vel, attrVel);
 
+      Array<int> attrVel1(pmesh->bdr_attributes.Max());
+      attrVel1[0] = 1;
+      mFlowsolver->AddVelDirichletBC(vel_0, attrVel1);
+
       Array<int> attrPres(pmesh->bdr_attributes.Max());
       attrPres[2] = 1;
       attrPres[3] = 1;
@@ -167,6 +194,10 @@ int main(int argc, char *argv[])
       ParGridFunction *u_gf = mFlowsolver->GetCurrentVelocity();
       ParGridFunction *p_gf = mFlowsolver->GetCurrentPressure();
       ParGridFunction *d_gf = new ParGridFunction(*p_gf);
+      ParGridFunction *u_gf_dim = new ParGridFunction(*u_gf);
+      ParGridFunction *p_gf_dim = new ParGridFunction(*p_gf);
+      *u_gf_dim *= 1e-4;
+      *p_gf_dim *= 1e-5;
       //DensCoeff->SetProjectionType(DensityCoeff::ProjectionType::continuous);
       d_gf->ProjectCoefficient(*DensCoeff);
       DensCoeff->SetProjectionType(DensityCoeff::ProjectionType::zero_one);
@@ -179,6 +210,8 @@ int main(int argc, char *argv[])
       mPvdc->SetTime(0.0);
       mPvdc->RegisterField("velocity", u_gf);
       mPvdc->RegisterField("pressure", p_gf);
+      mPvdc->RegisterField("velocity_dim", u_gf_dim);
+      mPvdc->RegisterField("pressure_dim", p_gf_dim);
       mPvdc->RegisterField("density",  d_gf);
       mPvdc->Save();
 
@@ -201,7 +234,7 @@ int main(int argc, char *argv[])
          //mFlowsolver->GetCurrentVelocity()->norm2();
          //mBp->SetVel(flowsolver.GetProvisionalVelocity());
 
-         if (step % 2000 == 0)
+         if (step % 200 == 0)
          {
             mPvdc->SetCycle(step);
             mPvdc->SetTime(t);
@@ -223,6 +256,44 @@ int main(int argc, char *argv[])
 
       u_gf->Save( uOutputNameGF.c_str() );
       p_gf->Save( pOutputNameGF.c_str() );
+
+      double BoxVal = 0.0;
+
+      int NumBox = 12;
+
+      for( int Ik = 0; Ik < NumBox; Ik++)
+      {
+
+         mfem::Coefficient * tPreasusreCoeff = new mfem::GridFunctionCoefficient( p_gf);
+         mfem::Coefficient * tIndicatorCoeff = new mfem::FunctionCoefficient( BoxFunction );
+         mfem::Coefficient * tFinalCoeff = new mfem::ProductCoefficient( *tPreasusreCoeff, *tIndicatorCoeff);
+   
+         mfem::ParLinearForm BoxQILinearForm(p_gf->ParFESpace());
+         BoxQILinearForm.AddDomainIntegrator( new mfem::DomainLFIntegrator( *tFinalCoeff ) );
+         BoxQILinearForm.Assemble();
+         BoxQILinearForm.ParallelAssemble();
+
+         mfem::ParGridFunction OneGridGunction(p_gf->ParFESpace()); OneGridGunction =1.0;
+         BoxVal = BoxQILinearForm * OneGridGunction;
+         double TotalBoxVal = 0.0;
+
+         MPI_Allreduce(
+            &BoxVal,
+            &TotalBoxVal, 
+            1, 
+            MPI_DOUBLE, 
+            MPI_SUM,
+            MPI_COMM_WORLD);
+
+         if (mpi.Root())
+         {
+            std::cout<<"--------------------------------------------------"<<std::endl;
+            std::cout<<"BoxVal Preassure_star: "<< Ik<<" | "<<TotalBoxVal<< " | Preassure: "<< TotalBoxVal* tDensity * std::pow(tRefVelocity ,2)<<std::endl;
+            std::cout<<"--------------------------------------------------"<<std::endl;
+         }
+
+         BoxIterator = Ik + 1;
+      }
 
       // FiniteElementSpace *fes = u_gf->FESpace();
       // int vdim = fes->GetVDim();
@@ -295,8 +366,8 @@ int main(int argc, char *argv[])
       // }
       delete mPvdc;
       delete d_gf;
-      delete Bp;
       delete DensCoeff;
+      delete mFlowsolver;
    }
 
 

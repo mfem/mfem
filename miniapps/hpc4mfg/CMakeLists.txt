@@ -79,5 +79,14 @@ add_mfem_miniapp(Full3D
     ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
+add_mfem_miniapp(Full2D
+    MAIN Full2D.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Full2D_Darcy
+    MAIN Full2D_Darcy.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
 
 endif ()

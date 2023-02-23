@@ -340,6 +340,7 @@ public:
                 const IntegrationPoint &ip,
                 const Vector& u, Vector& r)
     {
+
         if(false)
         {
             int dim=u.Size();
@@ -366,19 +367,19 @@ public:
 
             r =0.0;
 
-            for(int Ik = 1; Ik <= NumIG; Ik++)
+            for(int Ik = 0; Ik <= NumIG; Ik++)
             {
                 mfem::Vector du(dim);
                 du=u;
 
                 mfem::Vector duu(dim);
                 duu=u;
-                duu[0] = u[0]/NumIG;
-                duu[1] = u[1]/NumIG;
+                duu[0] = u[0]/NumIG * mScalingP;
+                duu[1] = u[1]/NumIG * mScalingP;
                 
                 dr1 = 0.0;
-                du[0] = u[0]/NumIG*Ik;
-                du[1] = u[1]/NumIG*Ik;
+                du[0] = u[0]/NumIG*(Ik+1) * mScalingP;
+                du[1] = u[1]/NumIG*(Ik+1) * mScalingP;
 
                 tNeurolNetTensor->Eval( du, dr1);
 
@@ -386,7 +387,7 @@ public:
                 mfem::DenseMatrix SkewMat(dim-1);  SkewMat = 0.0;
                 mfem::DenseMatrix LLT(dim-1);  LLT = 0.0;
 
-                // tril
+                // tri lower
                 LMat(0,0) = dr1( 0 );
                 LMat(1,0) = dr1( 1 );
                 LMat(1,1) = dr1( 2 );
@@ -413,15 +414,107 @@ public:
                 h.Mult(duu,vel);
 
                 //vel /= (double)NumIG;
-
-                r[0] += vel[0];
-                r[1] += vel[1];
+                // - because v = F(neg grad p)
+                r[0] -= vel[0] * mScalingVel;
+                r[1] -= vel[1] * mScalingVel;
             }
-             //               r.Print();
+            //         std::cout<<"----print pressure grad---"<<std::endl;
+            // u.Print();
+            // std::cout<<"----print vel---"<<std::endl;
+            // r.Print();
             //    std::cout<<"-------"<<std::endl;
 
         }
     }
+
+    // void Grad(const Vector& u, Vector& r)
+    // {
+
+    //     if(false)
+    //     {
+    //         int dim=u.Size();
+    //         mfem::Vector du(dim);
+    //         du=u;
+    //         //mfem::Vector du(u.GetData(),dim);
+
+    //        // mfem::Vector drr(dim); drr = 0.0;
+
+    //          du[0] = du[0];
+    //          du[1] = du[1];
+
+    //         tNeurolNet->Eval( du, r);
+
+    //         //drr.Print();
+    //     }
+    //     else
+    //     {
+    //         int dim=u.Size();
+
+    //         int NumIG = 40;
+
+    //         mfem::Vector dr1((dim-1)*(dim-1));
+
+    //         r =0.0;
+
+    //         for(int Ik = 0; Ik <= NumIG; Ik++)
+    //         {
+    //             mfem::Vector du(dim);
+    //             du=u;
+
+    //             mfem::Vector duu(dim);
+    //             duu=u;
+    //             duu[0] = u[0]/NumIG * mScalingP;
+    //             duu[1] = u[1]/NumIG * mScalingP;
+                
+    //             dr1 = 0.0;
+    //             du[0] = u[0]/NumIG*(Ik+1) * mScalingP;
+    //             du[1] = u[1]/NumIG*(Ik+1) * mScalingP;
+
+    //             tNeurolNetTensor->Eval( du, dr1);
+
+    //             mfem::DenseMatrix LMat(dim-1);  LMat = 0.0;
+    //             mfem::DenseMatrix SkewMat(dim-1);  SkewMat = 0.0;
+    //             mfem::DenseMatrix LLT(dim-1);  LLT = 0.0;
+
+    //             // tril
+    //             LMat(0,0) = dr1( 0 );
+    //             LMat(1,0) = dr1( 1 );
+    //             LMat(1,1) = dr1( 2 );
+  
+    //             MultAAt( LMat, LLT );
+
+    //             // triu
+    //             SkewMat(0,1) = dr1( 3 );
+
+    //             mfem::DenseMatrix SkewMatTrans;
+    //             SkewMatTrans.Transpose(SkewMat);
+
+    //             mfem::DenseMatrix h(dim); h = 0.0;
+    //             LLT+=SkewMat;
+    //             LLT -=SkewMatTrans;
+
+    //             h(0,0) = LLT(0,0);
+    //             h(1,0) = LLT(1,0);
+    //             h(0,1) = LLT(0,1);
+    //             h(1,1) = LLT(1,1);
+
+
+    //             mfem::Vector vel(dim);
+    //             h.Mult(duu,vel);
+
+    //             //vel /= (double)NumIG;
+    //             // - because v = F(neg grad p)
+    //             r[0] += vel[0] * mScalingVel;
+    //             r[1] += vel[1] * mScalingVel;
+    //         }
+    //         //         std::cout<<"----print pressure grad---"<<std::endl;
+    //         // u.Print();
+    //         // std::cout<<"----print vel---"<<std::endl;
+    //         // r.Print();
+    //         //    std::cout<<"-------"<<std::endl;
+
+    //     }
+    // }
 
     void Hessian(ElementTransformation &T,
                  const IntegrationPoint &ip,
@@ -433,8 +526,8 @@ public:
 
         mfem::Vector r(dim*dim);
 
-         du[0] = du[0];
-         du[1] = du[1];
+         du[0] = du[0] * mScalingP;
+         du[1] = du[1] * mScalingP;
 
         //mfem::mfem_error("check size");
 
@@ -463,10 +556,10 @@ public:
             LLT+=SkewMat;
             LLT -=SkewMatTrans;
 
-            h(0,0) = LLT(0,0);
-            h(1,0) = LLT(1,0);
-            h(0,1) = LLT(0,1);
-            h(1,1) = LLT(1,1);
+            h(0,0) = -LLT(0,0) * mScalingP * mScalingVel;
+            h(1,0) = -LLT(1,0) * mScalingP * mScalingVel;
+            h(0,1) = -LLT(0,1) * mScalingP * mScalingVel;
+            h(1,1) = -LLT(1,1) * mScalingP * mScalingVel;
         }
         else
         {
@@ -523,6 +616,12 @@ private:
     MyNeuralNet_MatTensor * tNeurolNetTensor = nullptr;
     MyNeuralNet           * tNeurolNet = nullptr;
 
+     double mScalingP    = 1.0e-0;
+     double mScalingVel  = 1e-0;
+
+    //double mScalingP    = -1.0;
+    //double mScalingVel  = 1.0;
+
 };
 
 class DarcyCoefficient:public BasicNLDiffusionCoefficient
@@ -559,6 +658,7 @@ public:
 
         if( isIsotorpic_ )
         {
+            std::cout<<"Darcy: "<<DarcyScalar_<<std::endl;
             r[0] = -1.0 *(0.5001-u[dim]) / (DarcyScalar_) * u[0];
             r[1] = -1.0 *(0.5001-u[dim]) / (DarcyScalar_) * u[1];
         }
@@ -622,7 +722,7 @@ public:
 
 private:
 
-    double DarcyScalar_ = 0.1;
+    double DarcyScalar_ = 10.1;
     bool   isIsotorpic_ = true;
  
 };
