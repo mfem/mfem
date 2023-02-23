@@ -80,6 +80,10 @@ jobs:
             mpi: par
             build-system: cmake
             hypre-target: int32
+            env:
+              # Use the MPI wrapper with CMake on Ubuntu (at least on v22.04) to
+              # avoid slow linking times due to LTO compile flags.
+              MFEM_EXTRA_CONFIG: '-DMPICXX=mpicxx'
           - os: ubuntu-latest
             target: opt
             codecov: NO
