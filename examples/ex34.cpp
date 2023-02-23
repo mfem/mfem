@@ -60,6 +60,14 @@ int main(int argc, char *argv[]) {
   FiniteElementSpace dfes(&mesh, &dg, dim);
   // Vector finite element space for state variable
   FiniteElementSpace vfes(&mesh, &dg, num_equations);
+  Array<int> offsets(num_equations + 1);
+  for (int k = 0; k <= num_equations; k++) {
+    offsets[k] = k * vfes.GetNDofs();
+  }
+  BlockVector u_block(offsets);
+
+  GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+
   // Get Euler system
   HyperbolicConservationLaws *euler = getEulerSystem(vfes);
 
