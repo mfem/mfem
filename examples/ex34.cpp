@@ -81,19 +81,14 @@ ODESolver *getODESolver(const int ode_solver_type) {
   switch (ode_solver_type) {
     case 1:
       return new ForwardEulerSolver;
-      break;
     case 2:
       return new RK2Solver(1.0);
-      break;
     case 3:
       return new RK3SSPSolver;
-      break;
     case 4:
       return new RK4Solver;
-      break;
     case 6:
       return new RK6Solver;
-      break;
     default:
       cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
       throw std::invalid_argument("Failed to create an ODE solver\n");
