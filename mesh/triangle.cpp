@@ -194,4 +194,9 @@ void Triangle::GetVertices(Array<int> &v) const
    }
 }
 
+const int *Triangle::GetEdgeVertices(int ei) const
+{ 
+   return geom_t::Edges[ei];
+}
+
 } // namespace mfem

@@ -51,8 +51,7 @@ public:
 
    virtual int GetNEdges() const { return 8; }
 
-   virtual const int *GetEdgeVertices(int ei) const
-   { return geom_t::Edges[ei]; }
+   virtual const int *GetEdgeVertices(int ei) const;
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const;
@@ -62,8 +61,7 @@ public:
    virtual int GetNFaceVertices(int fi) const
    { return ( ( fi < 1 ) ? 4 : 3); }
 
-   virtual const int *GetFaceVertices(int fi) const
-   { return geom_t::FaceVert[fi]; }
+   virtual const int *GetFaceVertices(int fi) const;
 
    virtual Element *Duplicate(Mesh *m) const
    { return new Pyramid(indices, attribute); }

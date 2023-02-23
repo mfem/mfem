@@ -1054,6 +1054,8 @@ Constants<Geometry::PYRAMID>::VertToVert::J[8][2] =
    {4, 7}                  // 3,4:7
 };
 
+/// global instance of Geometries
+Geometry Geometries;
 
 GeometryRefiner::GeometryRefiner()
 {

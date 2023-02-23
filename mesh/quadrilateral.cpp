@@ -52,6 +52,11 @@ void Quadrilateral::GetVertices( Array<int> &v ) const
    }
 }
 
+const int *Quadrilateral::GetEdgeVertices(int ei) const
+{
+  return geom_t::Edges[ei]; 
+}
+
 BiLinear2DFiniteElement QuadrilateralFE;
 
 }

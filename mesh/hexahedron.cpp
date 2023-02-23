@@ -49,6 +49,17 @@ void Hexahedron::GetVertices(Array<int> &v) const
    }
 }
 
+const int * Hexahedron::GetEdgeVertices(int ei) const
+{ 
+   return geom_t::Edges[ei]; 
+}
+
+
+const int * Hexahedron::GetFaceVertices(int fi) const
+{ 
+   return geom_t::FaceVert[fi]; 
+}
+
 TriLinear3DFiniteElement HexahedronFE;
 
 }

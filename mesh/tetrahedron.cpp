@@ -332,6 +332,16 @@ void Tetrahedron::GetVertices(Array<int> &v) const
    }
 }
 
+const int *Tetrahedron::GetEdgeVertices(int ei) const
+{ 
+   return geom_t::Edges[ei]; 
+}
+
+const int *Tetrahedron::GetFaceVertices(int fi) const
+{ 
+   return geom_t::FaceVert[fi];
+}
+
 Element *Tetrahedron::Duplicate(Mesh *m) const
 {
 #ifdef MFEM_USE_MEMALLOC

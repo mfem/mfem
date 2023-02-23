@@ -54,6 +54,16 @@ void Pyramid::GetVertices(Array<int> &v) const
    }
 }
 
+const int * Pyramid::GetEdgeVertices(int ei) const
+{ 
+   return geom_t::Edges[ei]; 
+}
+
+const int * Pyramid::GetFaceVertices(int fi) const
+{ 
+   return geom_t::FaceVert[fi];
+}
+
 int Pyramid::GetNFaces(int &nFaceVertices) const
 {
    MFEM_ABORT("this method is not valid for Pyramid elements");

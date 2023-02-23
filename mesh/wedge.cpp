@@ -56,6 +56,17 @@ void Wedge::GetVertices(Array<int> &v) const
    }
 }
 
+const int *Wedge::GetEdgeVertices(int ei) const
+{ 
+   return geom_t::Edges[ei]; 
+}
+
+const int *Wedge::GetFaceVertices(int fi) const
+{ 
+   return geom_t::FaceVert[fi]; 
+}
+
+
 int Wedge::GetNFaces(int &nFaceVertices) const
 {
    MFEM_ABORT("this method is not valid for Wedge elements");

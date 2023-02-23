@@ -77,8 +77,7 @@ public:
 
    virtual int GetNEdges() const { return (3); }
 
-   virtual const int *GetEdgeVertices(int ei) const
-   { return geom_t::Edges[ei]; }
+   virtual const int *GetEdgeVertices(int ei) const;
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
