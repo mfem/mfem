@@ -33,6 +33,9 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   mutable Vector z;  // Auxiliary vector used in Mult
   double hmin;
   int max_order;
+  double cfl = -1.0;
+  double dt = -1.0;
+
   void computeHmin();
   void computeInvMe();  // get element-wise inverse matrix
   void computeMaxOrder();
@@ -45,7 +48,19 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   void Update();  // update after refinement
   void Mult(const Vector &x,
             Vector &y) const;  // compute y = M\A(x) for time stepping
-  inline double get_dt() { return max_char_speed / hmin / (2 * max_order + 1); }
+  inline double get_dt() {
+    if (cfl > 0 & dt > 0)  // when both CFL and dt are specified,
+      // warn user
+      mfem_warning("Both CFL and dt are specified. Using CFL to compute dt.");
+    // if CFL is specified (even if dt is specified), return dt from CFL
+    if (cfl > 0) return cfl * hmin / max_char_speed / (2 * max_order + 1);
+    // if dt is specified,
+    if (dt > 0) return dt;
+    // if both are not specified,
+    mfem_error("Neither dt nor cfl specified");
+  }
+  inline void set_cfl(const double cfl_) { cfl = cfl_; }
+  inline void set_dt(const double dt_) { dt = dt_; }
 };
 
 HyperbolicConservationLaws::HyperbolicConservationLaws(

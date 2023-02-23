@@ -1,16 +1,16 @@
-//                                MFEM Example 0
+//                                MFEM Example 34
 //
-// Compile with: make ex0
+// Compile with: make ex34
 //
-// Sample runs:  ex0
-//               ex0 -m ../data/fichera.mesh
-//               ex0 -m ../data/square-disc.mesh -o 2
+// Sample runs:  ex34
 //
-// Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Laplace
-//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
-//              General 2D/3D mesh files and finite element polynomial degrees
-//              can be specified by command line options.
+// Description: This example code demonstrates the usage of MFEM to define
+//              Hyperbolic Conservation Laws
+//              ∂ₜu + ∇⋅F(u) = 0
+//              with initial condition and periodic boundary conditions.
+//              Currently, advection equation, Burgers' equation, Compressible
+//              Euler equations are implemented. Other equations can be
+//              implemented by defining flux functions.
 
 #include "ex34.hpp"
 
@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
   int order = 3;
   int ref_levels = 1;
   int ode_solver_type = 4;  // RK4
+  double cfl = 0.3;
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
@@ -66,10 +67,13 @@ int main(int argc, char *argv[]) {
   }
   BlockVector u_block(offsets);
 
-  GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+  GridFunction density(&dfes, u_block.GetData() + offsets[0]);
+  GridFunction momentum(&dfes, u_block.GetData() + offsets[1]);
+  GridFunction energy(&dfes, u_block.GetData() + offsets[1 + dim]);
 
   // Get Euler system
   HyperbolicConservationLaws *euler = getEulerSystem(vfes);
+  euler->set_cfl(cfl);
 
   ODESolver *ode_solver = getODESolver(ode_solver_type);
   ode_solver->Init(*euler);
