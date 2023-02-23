@@ -86,7 +86,7 @@
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
+//     mesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
 //     mesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
+   bool bal_expl_combo   = false;
    bool hradaptivity     = false;
    int h_metric_id       = -1;
    bool normalization    = false;
@@ -258,6 +259,9 @@ int main(int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
+   args.AddOption(&bal_expl_combo, "-bec", "--balance-explicit-combo",
+                  "-no-bec", "--balance-explicit-combo",
+                  "Automatic balancing of explicit combo metrics.");
    args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
                   "--no-hr-adaptivity",
                   "Enable hr-adaptivity.");
@@ -780,6 +784,16 @@ int main(int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
+
+   // Automatically balanced gamma in composite metrics.
+   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
+   if (metric_combo && bal_expl_combo)
+   {
+      Vector bal_weights;
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
+      metric_combo->SetWeights(bal_weights);
+   }
+
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
@@ -789,7 +803,6 @@ int main(int argc, char *argv[])
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
    }
-
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -1208,6 +1221,7 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
+   // Report the final energy of the functional.
    const double fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
    double fin_metric_energy = fin_energy;
@@ -1232,7 +1246,7 @@ int main(int argc, char *argv[])
    cout << "The strain energy decreased by: "
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // 16. Visualize the final mesh and metric values.
+   // Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -1246,6 +1260,7 @@ int main(int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
+   // Visualize fitting surfaces and report fitting errors.
    if (surface_fit_const > 0.0)
    {
       if (visualization)
@@ -1262,7 +1277,7 @@ int main(int argc, char *argv[])
                 << "Max fitting error: " << err_max << std::endl;
    }
 
-   // 17. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    if (visualization)
    {
       osockstream sock(19916, "localhost");
