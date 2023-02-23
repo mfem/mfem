@@ -53,7 +53,7 @@ inline std::complex<double> omega_p(double number, double charge,
 
 // Thermal Velocity
 inline double vthermal(double Te   /* Joules */,
-                      double mass   /* AMU */)
+                       double mass   /* AMU */)
 {
    return sqrt( (2.0 * Te) / ( mass * amu_ ) );
 }
@@ -62,8 +62,9 @@ inline double vthermal(double Te   /* Joules */,
 inline double CoulombLog(double n, double Te)
 {
    double ntemp = n;
-   if (n < 0){ntemp = -1.0*n;}
-   return log((4.0 * M_PI * pow(epsilon0_ * Te, 1.5)) / (pow(q_, 3) * sqrt(ntemp)));
+   if (n < 0) {ntemp = -1.0*n;}
+   return log((4.0 * M_PI * pow(epsilon0_ * Te, 1.5)) / (pow(q_,
+                                                             3) * sqrt(ntemp)));
 }
 
 // Collisional frequency between electrons and ions
@@ -702,8 +703,18 @@ public:
              };
 
 private:
-   Type type_;
-   Vector p_;
+
+   struct ProfileParams
+   {
+      Type type;
+      Vector params;
+   };
+
+   std::vector<ProfileParams> params_;
+   std::map<int, int> paramsByAttr_;
+
+   // Type temp_type_;
+   // Vector temp_p_;
    bool cyl_; // Assume cylindrical symmetyry
 
    G_EQDSK_Data *eqdsk_;
@@ -713,10 +724,23 @@ private:
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
 
+   double EvalByType(Type type,
+                     const Vector &params,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
 public:
    PlasmaProfile(Type type, const Vector & params,
                  CoordSystem coord_sys = CARTESIAN_3D,
                  G_EQDSK_Data *eqdsk = NULL);
+
+   // Set default profile type and parameters
+   // (replaces defaults passed to the constructor)
+   void SetParams(Type type, const Vector &params);
+
+   // Set profile type and parameters to be used
+   // with element attributes listed in "attr"
+   void SetParams(const Array<int> attr, Type type, const Vector &params);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);

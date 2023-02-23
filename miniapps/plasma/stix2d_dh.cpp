@@ -613,12 +613,21 @@ int main(int argc, char *argv[])
    double nue = 0;
    double nui = 0;
 
-   PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
-   Vector dpp;
+   Array<int> dpa_vac;
+   Array<int> dpa_sol;
+   Array<int> dpa_cor;
+   Vector dpp_def;
+   Vector dpp_vac;
+   Vector dpp_sol;
+   Vector dpp_cor;
    Vector tpp;
    Vector bpp;
    Vector nepp;
@@ -698,12 +707,54 @@ int main(int argc, char *argv[])
                   "Thickness of extruded mesh in meters.");
    args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
                   "Thickness of cylindrically extruded mesh in degrees.");
-   args.AddOption((int*)&dpt, "-dp", "--density-profile",
+   args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
-   args.AddOption(&dpp, "-dpp", "--density-profile-params",
+   args.AddOption(&dpp_def, "-dpp", "--density-profile-params",
                   "Density Profile Parameters:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&dpa_vac, "-dpa-vac", "-vacuum-density-profile-attr",
+                  "Density Profile Vacuum Attributes");
+   args.AddOption((int*)&dpt_vac, "-dp-vac", "--vacuum-density-profile",
+                  "Density Profile Type (for ions) in Vacuum: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&dpp_vac, "-dpp-vac", "--vacuum-density-profile-params",
+                  "Density Profile Parameters in Vacuum:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&dpa_sol, "-dpa-sol", "-sol-density-profile-attr",
+                  "Density Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&dpt_sol, "-dp-sol", "--sol-density-profile",
+                  "Density Profile Type (for ions) in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&dpp_sol, "-dpp-sol", "--sol-density-profile-params",
+                  "Density Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&dpa_cor, "-dpa-cor", "-core-density-profile-attr",
+                  "Density Profile Core Attributes");
+   args.AddOption((int*)&dpt_cor, "-dp-core", "--core-density-profile",
+                  "Density Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&dpp_cor, "-dpp-core", "--core-density-profile-params",
+                  "Density Profile Parameters in Core region:\n"
                   "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
@@ -905,10 +956,10 @@ int main(int argc, char *argv[])
       device.Print();
    }
 
-   if (dpp.Size() == 0)
+   if (dpp_def.Size() == 0)
    {
-      dpp.SetSize(1);
-      dpp[0] = 1.0e19;
+      dpp_def.SetSize(1);
+      dpp_def[0] = 1.0e19;
    }
 
    if (nepp.Size() == 0)
@@ -966,27 +1017,27 @@ int main(int argc, char *argv[])
          masses.SetSize(2);
          masses[0] = me_u_;
          masses[1] = 2.01410178;
-         switch (dpt)
+         switch (dpt_def)
          {
             case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = dpp_def[0];
                break;
             case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = dpp_def[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = dpp_def[1];
                break;
             case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = dpp_def[1];
                break;
             default:
                numbers[0] = 1.0e19;
@@ -1001,32 +1052,32 @@ int main(int argc, char *argv[])
          masses[0] = me_u_;
          masses[1] = 2.01410178;
          masses[2] = 3.01604928;
-         switch (dpt)
+         switch (dpt_def)
          {
             case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = 0.5*dpp[0];
-               numbers[2] = 0.5*dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*dpp_def[0];
+               numbers[2] = 0.5*dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = 0.5*dpp[0];
-               numbers[2] = 0.5*dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*dpp_def[0];
+               numbers[2] = 0.5*dpp_def[0];
                break;
             case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = 0.5*dpp[1];
-               numbers[2] = 0.5*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*dpp_def[1];
+               numbers[2] = 0.5*dpp_def[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp[1];
-               numbers[1] = 0.5*dpp[1];
-               numbers[2] = 0.5*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*dpp_def[1];
+               numbers[2] = 0.5*dpp_def[1];
                break;
             case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp[1];
-               numbers[1] = 0.5*dpp[1];
-               numbers[2] = 0.5*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*dpp_def[1];
+               numbers[2] = 0.5*dpp_def[1];
                break;
             default:
                numbers[0] = 1.0e19;
@@ -1052,32 +1103,37 @@ int main(int argc, char *argv[])
          masses[0] = me_u_;
          masses[1] = 2.01410178;
          masses[2] = minority[1];
-         switch (dpt)
+         switch (dpt_def)
          {
             case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[0];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[0];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
                break;
             case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
                break;
             case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp[1];
-               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
                break;
             default:
                numbers[0] = 1.0e19;
@@ -1102,37 +1158,42 @@ int main(int argc, char *argv[])
          masses[1] = 2.01410178;
          masses[2] = 3.01604928;
          masses[3] = minority[1];
-         switch (dpt)
+         switch (dpt_def)
          {
             case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
                break;
             case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
                break;
             case PlasmaProfile::PARABOLIC:
-               numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
-               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
                break;
             default:
                numbers[0] = 1.0e19;
@@ -1445,7 +1506,47 @@ int main(int argc, char *argv[])
    }
 
    PlasmaProfile tempCoef(tpt, tpp, coord_sys, eqdsk);
-   PlasmaProfile rhoCoef(dpt, dpp, coord_sys, eqdsk);
+
+   if (mpi.Root())
+   {
+      cout << "   Setting default density profile type " << dpt_def
+           << " with parameters \"";
+      dpp_def.Print(cout);
+   }
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, coord_sys, eqdsk);
+   if (dpa_vac.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "   Setting vacuum density profile type " << dpt_vac
+              << " with parameters \"";
+         dpp_vac.Print(cout);
+         cout << "\" on attributes \"" << dpa_vac << "\".";
+      }
+      rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
+   }
+   if (dpa_sol.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "   Setting scrape-off layer density profile type " << dpt_sol
+              << " with parameters \"";
+         dpp_sol.Print(cout);
+         cout << "\" on attributes \"" << dpa_sol << "\".";
+      }
+      rhoCoef.SetParams(dpa_sol, dpt_sol, dpp_sol);
+   }
+   if (dpa_cor.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "   Setting core density profile type " << dpt_cor
+              << " with parameters \"";
+         dpp_cor.Print(cout);
+         cout << "\" on attributes \"" << dpa_cor << "\".";
+      }
+      rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
+   }
 
    for (int i=0; i<=numbers.Size(); i++)
    {
@@ -2409,6 +2510,12 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-sm"     ) == 0 ||
           strcmp(argv[i], "-bpp"    ) == 0 ||
           strcmp(argv[i], "-dpp"    ) == 0 ||
+          strcmp(argv[i], "-dpp-vac") == 0 ||
+          strcmp(argv[i], "-dpp-sol") == 0 ||
+          strcmp(argv[i], "-dpp-cor") == 0 ||
+          strcmp(argv[i], "-dpa-vac") == 0 ||
+          strcmp(argv[i], "-dpa-sol") == 0 ||
+          strcmp(argv[i], "-dpa-cor") == 0 ||
           strcmp(argv[i], "-tpp"    ) == 0 ||
           strcmp(argv[i], "-nepp"   ) == 0 ||
           strcmp(argv[i], "-nipp"   ) == 0 ||
@@ -2792,7 +2899,7 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
    double thetamin1 = 1.7;
    double thetamax2 = -0.65;
    double thetamin2 = -8.25;
-     
+
    double theta_ext = thetamax1 - thetamin1;
    double rmin = (2.415 + 0.035);
 
@@ -2828,7 +2935,8 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2863,7 +2971,8 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2892,7 +3001,8 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*
+                             (M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2921,10 +3031,10 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
    double thetamin1 = 1.7;
    double thetamax2 = -0.65;
    double thetamin2 = -8.25;
-     
+
    double theta_ext = thetamax1 - thetamin1;
    double rmin = (2.415 + 0.035);
-    
+
    double xmin = rmin*cos(theta);
    double xmax = xmin + 0.04;
 
@@ -2957,7 +3067,8 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2992,7 +3103,8 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -3021,7 +3133,8 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*
+                             (M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }

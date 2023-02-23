@@ -241,7 +241,7 @@ complex<double> S_cold_plasma(double omega,
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
-      if (n < 0){n = -1.0*number[i];}
+      if (n < 0) {n = -1.0*number[i];}
       double q = charge[i];
       double m = mass[i];
       double w_c = omega_c(Bmag, q, m);
@@ -250,15 +250,16 @@ complex<double> S_cold_plasma(double omega,
 
       if (i == 0)
       {
-         suscept_particle = complex<double>((-1.0 * w_p * w_p) / ((omega + w_c) * (omega - w_c)), 0.0);
-      } 
+         suscept_particle = complex<double>((-1.0 * w_p * w_p) / ((omega + w_c) *
+                                                                  (omega - w_c)), 0.0);
+      }
       // First Harmonic:
       else if (i == 1 || i == 3)
       {
          // Z function:
          double kperpFW = 0.0;
-         if (i == 1){kperpFW = 28.66;}
-         else if (i == 3){kperpFW = 71.32;}
+         if (i == 1) {kperpFW = 28.66;}
+         else if (i == 3) {kperpFW = 71.32;}
          double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
 
          // n > 0:
@@ -268,7 +269,8 @@ complex<double> S_cold_plasma(double omega,
          complex<double> Zm = Zfunction((omega + w_c)/(18.0*vth));
 
          // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
+         suscept_particle = (pow(w_p,
+                                 2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -281,7 +283,8 @@ complex<double> S_cold_plasma(double omega,
          complex<double> Zm = Zfunction((omega + 2*w_c)/(18.0*vth));
 
          // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,2.0)/omega)*lambda*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
+         suscept_particle = (pow(w_p,
+                                 2.0)/omega)*lambda*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
       }
       val += suscept_particle;
    }
@@ -357,7 +360,7 @@ complex<double> D_cold_plasma(double omega,
    for (int i=0; i<number.Size(); i++)
    {
       double n = number[i];
-      if (n < 0){n = -1.0*number[i];}
+      if (n < 0) {n = -1.0*number[i];}
       double q = charge[i];
       double m = mass[i];
       double w_c = omega_c(Bmag, q, m);
@@ -366,15 +369,16 @@ complex<double> D_cold_plasma(double omega,
 
       if (i == 0)
       {
-         suscept_particle = complex<double>(((w_p*w_p) / ((omega+w_c) * (omega-w_c))) * (w_c/omega), 0.0);
-      } 
+         suscept_particle = complex<double>(((w_p*w_p) / ((omega+w_c) * (omega-w_c))) *
+                                            (w_c/omega), 0.0);
+      }
       // First Harmonic:
       else if (i == 1 || i == 3)
       {
          // Z function:
          double kperpFW = 0.0;
-         if (i == 1){kperpFW = 28.66;}
-         else if (i == 3){kperpFW = 71.32;}
+         if (i == 1) {kperpFW = 28.66;}
+         else if (i == 3) {kperpFW = 71.32;}
          double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
 
          // n > 0:
@@ -384,7 +388,8 @@ complex<double> D_cold_plasma(double omega,
          complex<double> Zm = Zfunction((omega + w_c)/(18.0*vth));
 
          // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
+         suscept_particle = (pow(w_p,
+                                 2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -397,7 +402,8 @@ complex<double> D_cold_plasma(double omega,
          complex<double> Zm = Zfunction((omega + 2*w_c)/(18.0*vth));
 
          // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,2.0)/omega)*lambda*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
+         suscept_particle = (pow(w_p,
+                                 2.0)/omega)*lambda*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
       }
       val += suscept_particle;
    }
@@ -1494,21 +1500,69 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
                              CoordSystem sys,
                              G_EQDSK_Data *eqdsk)
-   : type_(type), p_(params), cyl_(sys == POLOIDAL), eqdsk_(eqdsk),
+   : cyl_(sys == POLOIDAL), eqdsk_(eqdsk),
      xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 
+   paramsByAttr_[0] = 0;
+   params_.resize(1);
+   params_[0].type = type;
+   params_[0].params = params;
+
    xyz_ = 0.0;
    rz_  = 0.0;
+}
+
+void PlasmaProfile::SetParams(Type type, const Vector &params)
+{
+   MFEM_VERIFY(params.Size() == np_[type],
+               "Incorrect number of parameters, " << params.Size()
+               << ", for profile of type: " << type << ".");
+
+   params_[0].type = type;
+   params_[0].params = params;
+}
+
+void PlasmaProfile::SetParams(const Array<int> attr,
+                              Type type, const Vector &params)
+{
+   MFEM_VERIFY(params.Size() == np_[type],
+               "Incorrect number of parameters, " << params.Size()
+               << ", for profile of type: " << type << ".");
+
+   const int i = params_.size();
+   params_.resize(i+1);
+   params_[i].type = type;
+   params_[i].params = params;
+
+   for (int j=0; j<attr.Size(); j++)
+   {
+      paramsByAttr_[attr[j]] = i;
+   }
 }
 
 double PlasmaProfile::Eval(ElementTransformation &T,
                            const IntegrationPoint &ip)
 {
-   if (type_ != CONSTANT)
+   const int att = T.Attribute;
+   std::map<int, int>::const_iterator p = paramsByAttr_.find(att);
+   if (p != paramsByAttr_.end())
+   {
+      const int i = p->second;
+      return EvalByType(params_[i].type, params_[i].params, T, ip);
+   }
+   return EvalByType(params_[0].type, params_[0].params, T, ip);
+}
+
+double PlasmaProfile::EvalByType(Type type,
+                                 const Vector &params,
+                                 ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   if (type != CONSTANT)
    {
       T.Transform(ip, xyz_);
 
@@ -1519,21 +1573,21 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       }
    }
 
-   switch (type_)
+   switch (type)
    {
       case CONSTANT:
-         return p_[0];
+         return params[0];
          break;
       case GRADIENT:
       {
-         Vector x0(&p_[1], 3);
-         Vector grad(&p_[4],3);
+         Vector x0(const_cast<double*>(&params[1]), 3);
+         Vector grad(const_cast<double*>(&params[4]),3);
 
          if (!cyl_)
          {
             xyz_ -= x0;
 
-            return p_[0] + (grad * xyz_);
+            return params[0] + (grad * xyz_);
          }
          else
          {
@@ -1541,46 +1595,46 @@ double PlasmaProfile::Eval(ElementTransformation &T,
             // assume no phi dependence.
             rz_[0] -= x0[0];
             rz_[1] -= x0[2];
-            return p_[0] + (grad[0] * rz_[0] + grad[2] * rz_[1]);
+            return params[0] + (grad[0] * rz_[0] + grad[2] * rz_[1]);
          }
       }
       break;
       case TANH:
       {
-         Vector x0(&p_[3], 3);
-         Vector grad(&p_[6], 3);
+         Vector x0(const_cast<double*>(&params[3]), 3);
+         Vector grad(const_cast<double*>(&params[6]), 3);
 
          double a = 0.0;
 
          if (!cyl_)
          {
             xyz_ -= x0;
-            a = 0.5 * log(3.0) * (grad * xyz_) / p_[2];
+            a = 0.5 * log(3.0) * (grad * xyz_) / params[2];
          }
          else
          {
             rz_[0] -= x0[0];
             rz_[1] -= x0[2];
-            a = 0.5 * log(3.0) * (grad[0] * rz_[0] + grad[2] * rz_[1]) / p_[2];
+            a = 0.5 * log(3.0) * (grad[0] * rz_[0] + grad[2] * rz_[1]) / params[2];
          }
 
          if (fabs(a) < 10.0)
          {
-            return p_[0] + (p_[1] - p_[0]) * tanh(a);
+            return params[0] + (params[1] - params[0]) * tanh(a);
          }
          else
          {
-            return p_[1];
+            return params[1];
          }
       }
       break;
       case ELLIPTIC_COS:
       {
-         double pmin = p_[0];
-         double pmax = p_[1];
-         double a = p_[2];
-         double b = p_[3];
-         Vector x0(&p_[4], 3);
+         double pmin = params[0];
+         double pmax = params[1];
+         double a = params[2];
+         double b = params[3];
+         Vector x0(const_cast<double*>(&params[4]), 3);
 
          double r = 0.0;
 
@@ -1600,11 +1654,11 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case PARABOLIC:
       {
-         double pmin = p_[0];
-         double pmax = p_[1];
-         double a = p_[2];
-         double b = p_[3];
-         Vector x0(&p_[4], 3);
+         double pmin = params[0];
+         double pmax = params[1];
+         double a = params[2];
+         double b = params[3];
+         Vector x0(const_cast<double*>(&params[4]), 3);
 
          double r = 0.0;
 
@@ -1624,11 +1678,11 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case PEDESTAL:
       {
-         double pmin = p_[0];
-         double pmax = p_[1];
-         double lambda_n = p_[2]; // Damping length
-         double nu = p_[3]; // Strength of decline
-         Vector x0(&p_[4], 3);
+         double pmin = params[0];
+         double pmax = params[1];
+         double lambda_n = params[2]; // Damping length
+         double nu = params[3]; // Strength of decline
+         Vector x0(const_cast<double*>(&params[4]), 3);
 
          double rho = 0.0;
 
@@ -1649,9 +1703,9 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case NUABSORB:
       {
-         double nu0 = p_[0];
-         double decay = p_[1];
-         double shift = p_[2];
+         double nu0 = params[0];
+         double decay = params[1];
+         double shift = params[2];
 
          double d = cyl_ ? rz_[0] : xyz_[0];
 
@@ -1660,9 +1714,9 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case NUE:
       {
-         double nu0 = p_[0];
-         double decay = p_[1];
-         double shift = p_[2];
+         double nu0 = params[0];
+         double decay = params[1];
+         double shift = params[2];
          double rho = sqrt(cyl_ ? (rz_ * rz_) :
                            (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
          //double test = 5e7*exp((rho - 0.97)/0.015);
@@ -1677,9 +1731,9 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case NUI:
       {
-         double rad_res_loc = p_[0];
-         double nu0 = p_[1];
-         double width = p_[2];
+         double rad_res_loc = params[0];
+         double nu0 = params[1];
+         double width = params[2];
          double rho = sqrt(cyl_ ? (rz_ * rz_):
                            (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
          return nu0*exp(-pow(rho-rad_res_loc, 2)/width);
@@ -1707,24 +1761,24 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case SPARC_RES:
       {
-          double r = cyl_ ? rz_[0] : xyz_[0];
-          double z = cyl_ ? rz_[1] : xyz_[1];
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
 
-          double x_tok_data[2];
-          Vector xTokVec(x_tok_data, 2);
-          xTokVec[0] = r; xTokVec[1] = z;
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
 
-          double psiRZ = 0.0;
-          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-          double psiRZ_center = -2.74980762;
-          double psiRZ_edge = -0.399621132;
+         double psiRZ_center = -2.74980762;
+         double psiRZ_edge = -0.399621132;
 
-          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
-          double nu0 = p_[0];
-          double width = p_[1];
-          return nu0*exp(-pow(sqrt(val)-1.044, 2)/width);
-          
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+         double nu0 = params[0];
+         double width = params[1];
+         return nu0*exp(-pow(sqrt(val)-1.044, 2)/width);
+
       }
       break;
       case SPARC_DEN:
@@ -1751,98 +1805,98 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double norm_sqrt_psi = 1.0;
          if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
-          // FLOOR DENSITY:
+         // FLOOR DENSITY:
          double ne = 1e12;
-           
-          // CORE DENSITY:
+
+         // CORE DENSITY:
          double Coreden = 4.2e20;
          double LCFSden = 8.4e19;
          double nuee = 3.0;
          double nuei = 3.0;
          if (val < 1.0 && bool_limits == 1)
-          {
-             ne = (Coreden - LCFSden)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFSden;
-          }
-           
-          // DENSITY NEAR TOP/BOTTOM DIVERTOR:
-         if (val < 1.0 && bool_limits == 0){ne = 1e12;}
-           
-          // SOL DENSITY:
+         {
+            ne = (Coreden - LCFSden)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFSden;
+         }
+
+         // DENSITY NEAR TOP/BOTTOM DIVERTOR:
+         if (val < 1.0 && bool_limits == 0) {ne = 1e12;}
+
+         // SOL DENSITY:
          if ( val >= 1.0)
-          {
-              // Scale lengths:
-              double sl1 = 0.015;
-              double sl2 = 0.006;
-              double sl3 = 0.001;
-              double Olim = LCFSden*exp(-(2.425 - 2.415)/sl1);
-              double FRden = Olim*exp(-(2.445 - 2.425)/sl2);
-              
-              double temp_norm = (sqrt(val) - 1.0) / fabs(1.078669548034668 - 1.0);
-              double tempr = temp_norm*(fabs(2.476101398468018-2.415)) + 2.415;
-              
-              if (tempr >= 2.415 && tempr <= 2.425 )
-              {
-                  ne = LCFSden*exp(-(tempr-2.415)/sl1);
-              }
-              else if (tempr > 2.425 && tempr <= 2.445 )
-              {
-                  ne = Olim*exp(-(tempr-2.425)/sl2);
-              }
-              else
-              {
-                  ne = FRden*exp(-(tempr-2.445)/sl3);
-                  if (ne < 1e12){ne = 1e12;}
-              }
-               
-               /*
-               // Test param:
-              double pmin1 = 1e12;
-              double lam1 = 2.408;
-              double n1 = 190;
-              ne = (LCFSden - pmin1)* pow(cosh(pow((tempr / lam1), n1)), -1.0) + pmin1;
+         {
+            // Scale lengths:
+            double sl1 = 0.015;
+            double sl2 = 0.006;
+            double sl3 = 0.001;
+            double Olim = LCFSden*exp(-(2.425 - 2.415)/sl1);
+            double FRden = Olim*exp(-(2.445 - 2.425)/sl2);
+
+            double temp_norm = (sqrt(val) - 1.0) / fabs(1.078669548034668 - 1.0);
+            double tempr = temp_norm*(fabs(2.476101398468018-2.415)) + 2.415;
+
+            if (tempr >= 2.415 && tempr <= 2.425 )
+            {
+               ne = LCFSden*exp(-(tempr-2.415)/sl1);
+            }
+            else if (tempr > 2.425 && tempr <= 2.445 )
+            {
+               ne = Olim*exp(-(tempr-2.425)/sl2);
+            }
+            else
+            {
+               ne = FRden*exp(-(tempr-2.445)/sl3);
+               if (ne < 1e12) {ne = 1e12;}
+            }
+
+            /*
+            // Test param:
+            double pmin1 = 1e12;
+            double lam1 = 2.408;
+            double n1 = 190;
+            ne = (LCFSden - pmin1)* pow(cosh(pow((tempr / lam1), n1)), -1.0) + pmin1;
             */
-          }
-          
+         }
+
          return ne;
       }
       break;
       case SPARC_TEMP:
-       {
-           double r = cyl_ ? rz_[0] : xyz_[0];
-           double z = cyl_ ? rz_[1] : xyz_[1];
+      {
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
 
-           double x_tok_data[2];
-           Vector xTokVec(x_tok_data, 2);
-           xTokVec[0] = r; xTokVec[1] = z;
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
 
-           double psiRZ = 0.0;
-           psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-           double psiRZ_center = -2.74980762;
-           double psiRZ_edge = -0.399621132;
+         double psiRZ_center = -2.74980762;
+         double psiRZ_edge = -0.399621132;
 
-           double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
-           int bool_limits = 0;
+         int bool_limits = 0;
 
-           if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
 
-           double norm_sqrt_psi = 1.0;
-           if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+         double norm_sqrt_psi = 1.0;
+         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
-            // FLOOR TEMP:
-            double  Te = 100;
-             
-            // CORE TEMP:
-            double Core = 20e3;
-            double LCFS = 100;
-            double nuee = 3.0;
-            double nuei = 3.0;
-            if (val < 1.0 && bool_limits == 1)
-            {
-                Te = (Core - LCFS)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFS;
-            }
-           return Te;
+         // FLOOR TEMP:
+         double  Te = 100;
+
+         // CORE TEMP:
+         double Core = 20e3;
+         double LCFS = 100;
+         double nuee = 3.0;
+         double nuei = 3.0;
+         if (val < 1.0 && bool_limits == 1)
+         {
+            Te = (Core - LCFS)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFS;
+         }
+         return Te;
       }
       break;
       default:
