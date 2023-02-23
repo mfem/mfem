@@ -11,9 +11,7 @@
 
 #include "operator.hpp"
 #include "ode.hpp"
-#ifdef MFEM_USE_MPI
 #include "../general/communication.hpp"
-#endif
 
 namespace mfem
 {
@@ -352,7 +350,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
    smax = std::min(s_,5);
    a = a_;
    k = new Vector[5];
-   dt_ = 0.0;
+   dt_ = -1.0;
 
    if (smax <= 2)
    {
@@ -417,7 +415,7 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon()))
    {
       s = 0;
       dt_ = dt;
@@ -470,7 +468,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
    smax = std::min(s_+1,5);
    a = a_;
    k = new Vector[5];
-   dt_ = 0.0;
+   dt_ = -1.0;
 
    if (smax <= 3)
    {
@@ -529,7 +527,7 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon()))
    {
       s = 0;
       dt_ = dt;
