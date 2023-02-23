@@ -283,6 +283,25 @@ public:
    virtual int Id() const { return 2; }
 };
 
+class TMOP_Metric_003 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
+
+public:
+
+   virtual double EvalW(const DenseMatrix &Jpt) const { return 0.0; };
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {};
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const {};
+
+   virtual int Id() const { return 3; }
+};
+
 /// 2D non-barrier shape (S) metric.
 class TMOP_Metric_004 : public TMOP_QualityMetric
 {

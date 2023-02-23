@@ -439,6 +439,7 @@ int main (int argc, char *argv[])
       // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
+      case 3: metric = new TMOP_Metric_003; break;
       case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;

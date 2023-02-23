@@ -2621,6 +2621,31 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
    }
 
+   if (metric->Id() == 3)
+   {
+      DenseMatrix DHess(dof, dim*(dim+1)/2);
+      DenseMatrix JJpr(dim, dim*(dim+1)/2);
+
+      for (int i = 0; i < ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+
+         const DenseMatrix &Jtr_i = Jtr(i);
+         metric->SetTargetJacobian(Jtr_i);
+         CalcInverse(Jtr_i, Jrt);
+         const double weight = ip.weight;
+
+         el.CalcHessian(ip, DHess);
+         MultAtB(PMatI, DHess, JJpr);
+
+         el.CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+
+         energy += weight*(JJpr.FNorm2()+JJpr(0,1)*JJpr(0,1) + JJpr(1,1)*JJpr(1,1));
+      }
+      return energy;
+   }
+
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
@@ -2921,6 +2946,51 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Vector d_detW_dx(dim);
    Vector d_Winv_dx(dim);
 
+   if (metric->Id() == 3)
+   {
+      DenseMatrix DHess(dof, dim*(dim+1)/2);
+      DenseMatrix JJpr(dim, dim*(dim+1)/2);
+
+      DenseMatrix DHess2(dof, 4);
+      DenseMatrix JJpr2(dim, 4);
+
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         double weight_m = ip.weight;
+
+         el.CalcHessian(ip, DHess); //DHess = Nx3
+         MultAtB(PMatI, DHess, JJpr); //JJpr = 2x3
+
+         for (int i = 0; i < dof; i++)
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               DHess2(i, j) = DHess(i, j);
+            }
+            for (int j = 2; j < 4; j++)
+            {
+               DHess2(i, j) = DHess(i, j-1);
+            }
+         }
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               JJpr2(i, j) = JJpr(i, j);
+            }
+            for (int j = 2; j < 4; j++)
+            {
+               JJpr2(i, j) = JJpr(i, j-1);
+            }
+         }
+
+         JJpr2 *= weight_m * 2.0;
+         AddMultABt(DHess2, JJpr2, PMatO);
+      }
+      return;
+   }
+
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
@@ -3047,6 +3117,70 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->Attribute = T.Attribute;
       Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI);
+   }
+
+   if (metric->Id() == 3)
+   {
+
+      DenseMatrix DHess(dof, dim*(dim+1)/2);
+      DenseMatrix JJpr(dim, dim*(dim+1)/2);
+
+      DenseMatrix DHess2(dof, 4);
+      DenseMatrix JJpr2(dim, 4);
+
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         double weight_m = ip.weight;
+
+         el.CalcHessian(ip, DHess); //DHess = Nx3
+         //           MultAtB(PMatI, DHess, JJpr); //JJpr = 2x3
+
+         for (int i = 0; i < dof; i++)
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               DHess2(i, j) = DHess(i, j);
+            }
+            for (int j = 2; j < 4; j++)
+            {
+               DHess2(i, j) = DHess(i, j-1);
+            }
+         }
+
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               for (int k = 0; k < dim; k++)
+               {
+                  for (int l = 0; l < dim; l++)
+                  {
+                     for (int m = 0; m < dim; m++)
+                     {
+                        for (int n = 0; n < dim; n++)
+                        {
+                           double left = i == l && j == m && n == k?
+                                         2.0 : 0.0;
+                           for (int a = 0; a < dof; a++)
+                           {
+                              for (int b = 0; b < dof; b++)
+                              {
+                                 double right1 = DHess2(a, j+dim*k);
+                                 double right2 = DHess2(b, m+dim*n);
+                                 elmat(a+i*dof,b+l*dof) += weight_m*
+                                                           left*
+                                                           right1*
+                                                           right2;
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
    }
 
    for (int q = 0; q < nqp; q++)
@@ -4088,7 +4222,23 @@ void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
          MultAtB(pos, dshape, A);
          Mult(A, Winv, T);
 
-         metric_gf(gf_dofs[j]) = metric.EvalW(T);
+         if (metric.Id() == 3)
+         {
+            DenseMatrix DHess(dof, dim*(dim+1)/2);
+            DenseMatrix JJpr(dim, dim*(dim+1)/2);
+
+            fe_pos.CalcHessian(ip, DHess);
+            MultAtB(pos, DHess, JJpr);
+
+            metric_gf(gf_dofs[j]) = (JJpr.FNorm2()+JJpr(0,1)*JJpr(0,1) + JJpr(1,1)*JJpr(1,
+                                                                                        1));
+
+         }
+         else
+         {
+
+            metric_gf(gf_dofs[j]) = metric.EvalW(T);
+         }
       }
    }
 }
