@@ -430,7 +430,7 @@ void LMSSolver::SetStageSize(int s_)
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
-      idx[i] = (smax-i)%smax;
+      idx[i] = smax - i - 1;
    }
 }
 
@@ -450,7 +450,7 @@ void LMSSolver::Init(TimeDependentOperator &f_)
 
 void LMSSolver::ShiftStages()
 {
-   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
+   for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
 }
 
 void LMSSolver::CheckTimestep(double dt)
@@ -509,22 +509,27 @@ void LMSSolver::SetStateVector(Vector &state)
    ss = std::max(ss,smax);
 }
 
-AdamsBashforthSolver::AdamsBashforthSolver(int order, const double *a_)
+AdamsBashforthSolver::AdamsBashforthSolver(int stages, const double *a_)
 {
    a = a_;
-   SetStageSize(order);
+   SetStageSize(stages);
 
-   if (smax <= 2)
+   int order = stages;
+   if (order <= 2)
    {
       RKsolver = new RK2Solver();
    }
-   else if (smax == 3)
+   else if (order == 3)
    {
       RKsolver = new RK3SSPSolver();
    }
-   else
+   else if (order == 4)
    {
       RKsolver = new RK4Solver();
+   }
+   else
+   {
+      RKsolver = new RK6Solver();
    }
 }
 
@@ -563,13 +568,13 @@ const double AB4Solver::a[] =
 const double AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
-AdamsMoultonSolver::AdamsMoultonSolver(int order, const double *a_)
+AdamsMoultonSolver::AdamsMoultonSolver(int stages, const double *a_)
 {
    a = a_;
-   SetStageSize(order+1);
+   SetStageSize(stages);
 
-
-   if (smax <= 3)
+   int order = stages+1;
+   if (stages <= 3)
    {
       RKsolver = new SDIRK23Solver();
    }
@@ -584,33 +589,31 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    CheckTimestep(dt);
    if ((ss == 0)&&(smax>1))
    {
-      f->Mult(x,k[idx[1]]);
+      f->Mult(x,k[idx[0]]);
       ss++;
    }
 
-   if (ss >= smax-1)
+   if (ss >= smax)
    {
       f->SetTime(t);
-      for (int i = 1; i < smax; i++)
+      for (int i = 0; i < smax; i++)
       {
-         x.Add(a[i]*dt, k[idx[i]]);
+         x.Add(a[i+1]*dt, k[idx[i]]);
       }
+      ShiftStages();
       f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
       x.Add(a[0]*dt, k[idx[0]]);
       t += dt;
    }
    else
    {
+      ShiftStages();
       RKsolver->Step(x,t,dt);
       f->Mult(x,k[idx[0]]);
       ss++;
    }
-
-   ShiftStages();
 }
 
-const double AM0Solver::a[] =
-{1.0};
 const double AM1Solver::a[] =
 {0.5, 0.5};
 const double AM2Solver::a[] =
@@ -619,7 +622,6 @@ const double AM3Solver::a[] =
 {3.0/8.0, 19.0/24.0,-5.0/24.0, 1.0/24.0};
 const double AM4Solver::a[] =
 {251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
-
 
 void BackwardEulerSolver::Init(TimeDependentOperator &f_)
 {
@@ -635,7 +637,6 @@ void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
-
 void ImplicitMidpointSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
@@ -649,7 +650,6 @@ void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
    x.Add(dt, k);
    t += dt;
 }
-
 
 SDIRK23Solver::SDIRK23Solver(int gamma_opt)
 {
