@@ -11,9 +11,7 @@
 
 #include "operator.hpp"
 #include "ode.hpp"
-#ifdef MFEM_USE_MPI
 #include "../general/communication.hpp"
-#endif
 
 namespace mfem
 {
@@ -570,6 +568,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int order, const double *a_)
    a = a_;
    SetStageSize(order+1);
 
+
    if (smax <= 3)
    {
       RKsolver = new SDIRK23Solver();
@@ -583,7 +582,6 @@ AdamsMoultonSolver::AdamsMoultonSolver(int order, const double *a_)
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
    CheckTimestep(dt);
-
    if ((ss == 0)&&(smax>1))
    {
       f->Mult(x,k[idx[1]]);
