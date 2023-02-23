@@ -262,12 +262,10 @@ complex<double> S_cold_plasma(double omega,
          double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
 
          // n > 0:
-         double xi_p = (omega - w_c)/(18.0*vth);
-         complex<double> Zp = Zfunction(xi_p);
+         complex<double> Zp = Zfunction((omega - w_c)/(18.0*vth));
 
          // n < 0:
-         double xi_m = (omega + w_c)/(18.0*vth);
-         complex<double> Zm = Zfunction(xi_m);
+         complex<double> Zm = Zfunction((omega + w_c)/(18.0*vth));
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
@@ -277,12 +275,10 @@ complex<double> S_cold_plasma(double omega,
       {
          double lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
          // n > 0:
-         double xi_p = (omega - 2*w_c)/(18.0*vth);
-         complex<double> Zp = Zfunction(xi_p);
+         complex<double> Zp = Zfunction((omega - 2*w_c)/(18.0*vth));
 
          // n < 0:
-         double xi_m = (omega + 2*w_c)/(18.0*vth);
-         complex<double> Zm = Zfunction(xi_m);
+         complex<double> Zm = Zfunction((omega + 2*w_c)/(18.0*vth));
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,2.0)/omega)*lambda*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
@@ -291,7 +287,7 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-
+/*
 complex<double> D_cold_plasma(double omega,
                               double Bmag,
                               double nue,
@@ -338,7 +334,75 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
+complex<double> D_cold_plasma(double omega,
+                              double Bmag,
+                              double nue,
+                              double nui,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              int nuprof,
+                              double res_lim)
+{
+   complex<double> val(0.0, 0.0);
+   complex<double> suscept_particle(0.0,0.0);
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      if (n < 0){n = -1.0*number[i];}
+      double q = charge[i];
+      double m = mass[i];
+      double w_c = omega_c(Bmag, q, m);
+      double w_p = omega_p(n, q, m);
+      double vth = vthermal(Te, m);
+
+      if (i == 0)
+      {
+         suscept_particle = complex<double>(((w_p*w_p) / ((omega+w_c) * (omega-w_c))) * (w_c/omega), 0.0);
+      } 
+      // First Harmonic:
+      else if (i == 1 || i == 3)
+      {
+         // Z function:
+         double kperpFW = 0.0;
+         if (i == 1){kperpFW = 28.66;}
+         else if (i == 3){kperpFW = 71.32;}
+         double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
+
+         // n > 0:
+         complex<double> Zp = Zfunction((omega - w_c)/(18.0*vth));
+
+         // n < 0:
+         complex<double> Zm = Zfunction((omega + w_c)/(18.0*vth));
+
+         // Total particle susceptibility contribution:
+         suscept_particle = (pow(w_p,2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
+      }
+      // Second Harmonic:
+      else if (i == 2)
+      {
+         double lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
+         // n > 0:
+         complex<double> Zp = Zfunction((omega - 2*w_c)/(18.0*vth));
+
+         // n < 0:
+         complex<double> Zm = Zfunction((omega + 2*w_c)/(18.0*vth));
+
+         // Total particle susceptibility contribution:
+         suscept_particle = (pow(w_p,2.0)/omega)*lambda*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
+      }
+      val += suscept_particle;
+   }
+   return val;
+}
 complex<double> P_cold_plasma(double omega,
                               double nue,
                               const Vector & number,
