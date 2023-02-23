@@ -342,17 +342,6 @@ public:
    void Step(Vector &x, double &t, double &dt) override;
 };
 
-/** A 0-stage, 1st order AM method. */
-class AM0Solver : public AdamsMoultonSolver
-{
-private:
-   static const double a[1];
-
-public:
-   AM0Solver() : AdamsMoultonSolver(0, a) { }
-};
-
-
 /** A 1-stage, 2nd order AM method. */
 class AM1Solver : public AdamsMoultonSolver
 {
