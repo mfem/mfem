@@ -423,7 +423,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       if (print)
       {
          mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
          mfem::out << " - Purging Adams-Bashforth history" << std::endl;
          mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
       }
@@ -535,7 +535,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       if (print)
       {
          mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
          mfem::out << " - Purging Adams-Moulton history" << std::endl;
          mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
       }
