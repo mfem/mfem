@@ -16,7 +16,6 @@
 
 #include "../linalg/dtensor.hpp"  // For Reshape
 #include "../general/forall.hpp"
-#include "../linalg/solvers.hpp"  // For NNLS
 
 using namespace std;
 
@@ -202,11 +201,15 @@ void GetReducedRule(const int nq, const int nd,
 
       Vector sol(Gmat.NumCols());
 
+#ifdef MFEM_USE_LAPACK
       NNLS nnls;
       nnls.SetVerbosity(2);
       nnls.SetOperator(Gmat);
 
       nnls.Mult(w, sol);
+#else
+      MFEM_ABORT("NNLS requires building with LAPACK");
+#endif
 
       int nnz = 0;
       for (int i=0; i<sol.Size(); ++i)
