@@ -574,7 +574,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int stages, const double *a_)
    SetStageSize(stages);
 
    int order = stages+1;
-   if (stages <= 3)
+   if (order <= 3)
    {
       RKsolver = new SDIRK23Solver();
    }
