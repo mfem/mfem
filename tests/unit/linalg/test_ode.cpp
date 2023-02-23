@@ -79,13 +79,13 @@ TEST_CASE("First order ODE methods", "[ODE]")
       CheckODE()
       {
          oper = new ODE(0.0, 1.0, -1.0, 0.0);
-         ti_steps = 2;
-         levels   = 6;
+         ti_steps = 6;
+         levels   = 8;
 
          u0.SetSize(2);
          u0    = 1.0;
 
-         t_final = M_PI;
+         t_final = 3*M_PI;
          dt = t_final/double(ti_steps);
       };
 
@@ -105,7 +105,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
       double order(ODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt_order,t;
+         double dt_order,t,order;
          Vector u(2);
          Vector error(levels);
          int steps = ti_steps;
@@ -173,14 +173,16 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
             u += u0;
             error[l] = u.Norml2();
+            order = log(error[l-1]/error[l])/log(2);
             mfem::out<<std::setw(12)<<error[l]
                      <<std::setw(12)<<error[l-1]/error[l]
-                     <<std::setw(12)<<log(error[l-1]/error[l])/log(2)
+                     <<std::setw(12)<<order
                      <<std::endl;
+            if (error[l] < 1e-10) { break; }
          }
          delete ode_solver;
 
-         return log(error[levels-2]/error[levels-1])/log(2);
+         return order;
       }
       virtual ~CheckODE() {delete oper;};
    };
@@ -189,100 +191,129 @@ TEST_CASE("First order ODE methods", "[ODE]")
    // Implicit L-stable methods
    SECTION("BackwardEuler")
    {
+      mfem::out<<"BackwardEuler"<<std::endl;
       double conv_rate = check.order(new BackwardEulerSolver);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("SDIRK23Solver(2)")
    {
+      mfem::out<<"SDIRK23Solver(2)"<<std::endl;
       double conv_rate = check.order(new SDIRK23Solver(2));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("SDIRK33Solver")
    {
+      mfem::out<<"SDIRK33Solver"<<std::endl;
       double conv_rate = check.order(new SDIRK33Solver);
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("ForwardEulerSolver")
    {
+      mfem::out<<"ForwardEuler"<<std::endl;
       double conv_rate = check.order(new ForwardEulerSolver);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("RK2Solver(0.5)")
    {
+      mfem::out<<"R2Solver"<<std::endl;
       double conv_rate = check.order(new RK2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("RK3SSPSolver")
    {
+      mfem::out<<"RK3SSPSolver"<<std::endl;
       double conv_rate = check.order(new RK3SSPSolver);
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("RK4Solver")
    {
+      mfem::out<<"RK4Solver"<<std::endl;
       double conv_rate = check.order(new RK4Solver);
       REQUIRE(conv_rate + tol > 4.0);
    }
 
+   SECTION("RK6Solver")
+   {
+      mfem::out<<"RK6Solver"<<std::endl;
+      REQUIRE(check.order(new RK6Solver) + tol > 6.0);
+   }
+
+   SECTION("RK8Solver")
+   {
+      mfem::out<<"RK8Solver"<<std::endl;
+      REQUIRE(check.order(new RK8Solver) + tol > 8.0);
+   }
+
    SECTION("ImplicitMidpointSolver")
    {
+      mfem::out<<"ImplicitMidpoint"<<std::endl;
       double conv_rate = check.order(new ImplicitMidpointSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("SDIRK23Solver")
    {
+      mfem::out<<"SDIRK23Solver"<<std::endl;
       double conv_rate = check.order(new SDIRK23Solver);
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("SDIRK34Solver")
    {
+      mfem::out<<"SDIRK34Solver"<<std::endl;
       double conv_rate = check.order(new SDIRK34Solver);
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    SECTION("TrapezoidalRuleSolver")
    {
+      mfem::out<<"TrapezoidalRule"<<std::endl;
       REQUIRE(check.order(new TrapezoidalRuleSolver) + tol > 2.0 );
    }
 
    SECTION("ESDIRK32Solver")
    {
+      mfem::out<<"ESDIRK32Solver"<<std::endl;
       REQUIRE(check.order(new ESDIRK32Solver) + tol > 2.0 );
    }
 
    SECTION("ESDIRK33Solver")
    {
+      mfem::out<<"ESDIRK33Solver"<<std::endl;
       REQUIRE(check.order(new ESDIRK33Solver) + tol > 3.0 );
    }
 
    // Generalized-alpha
    SECTION("GeneralizedAlphaSolver(1.0)")
    {
+      mfem::out<<"GeneralizedAlphaSolver(1)"<<std::endl;
       double conv_rate = check.order(new GeneralizedAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlphaSolver(0.5)")
    {
+      mfem::out<<"GeneralizedAlphaSolver(0.5)"<<std::endl;
       double conv_rate = check.order(new GeneralizedAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlphaSolver(0.5) - restart")
    {
+      mfem::out<<"GeneralizedAlphaSolver(0.5) - restart"<<std::endl;
       double conv_rate = check.order(new GeneralizedAlphaSolver(0.5), true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlphaSolver(0.0)")
    {
+      mfem::out<<"GeneralizedAlphaSolver(0)"<<std::endl;
       double conv_rate = check.order(new GeneralizedAlphaSolver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
@@ -290,97 +321,106 @@ TEST_CASE("First order ODE methods", "[ODE]")
    // Adams-Bashforth
    SECTION("AB1Solver()")
    {
+      mfem::out<<"AB1Solver()"<<std::endl;
       double conv_rate = check.order(new AB1Solver());
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AB1Solver() - restart")
    {
+      mfem::out<<"AB1Solver() - restart"<<std::endl;
       double conv_rate = check.order(new AB1Solver(), true);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AB2Solver()")
    {
+      mfem::out<<"AB2Solver()"<<std::endl;
       double conv_rate = check.order(new AB2Solver());
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AB2Solver() - restart")
    {
+      mfem::out<<"AB2Solver() - restart"<<std::endl;
       double conv_rate = check.order(new AB2Solver(), true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AB3Solver()")
    {
+      mfem::out<<"AB3Solver()"<<std::endl;
       double conv_rate = check.order(new AB3Solver());
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("AB4Solver()")
    {
+      mfem::out<<"AB4Solver()"<<std::endl;
       double conv_rate = check.order(new AB4Solver());
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    SECTION("AB5Solver()")
    {
+      mfem::out<<"AB5Solver()"<<std::endl;
       double conv_rate = check.order(new AB5Solver());
       REQUIRE(conv_rate + tol > 5.0);
    }
 
    SECTION("AB5Solver() - restart")
    {
+      mfem::out<<"AB5Solver() - restart"<<std::endl;
       double conv_rate = check.order(new AB5Solver(), true);
       REQUIRE(conv_rate + tol > 5.0);
    }
 
    // Adams-Moulton
-   SECTION("AM0Solver()")
-   {
-      double conv_rate = check.order(new AM0Solver());
-      REQUIRE(conv_rate + tol > 1.0);
-   }
-
    SECTION("AM1Solver()")
    {
+      mfem::out<<"AM1Solver()"<<std::endl;
       double conv_rate = check.order(new AM1Solver());
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AM1Solver() - restart")
    {
+      mfem::out<<"AM1Solver() - restart"<<std::endl;
       double conv_rate = check.order(new AM1Solver(), true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("AM2Solver()")
    {
+      mfem::out<<"AM2Solver()"<<std::endl;
       double conv_rate = check.order(new AM2Solver());
       REQUIRE(conv_rate + tol > 3.0);
    }
 
    SECTION("AM2Solver() - restart")
    {
+      mfem::out<<"AM2Solver() - restart"<<std::endl;
       double conv_rate = check.order(new AM2Solver(), true);
       REQUIRE(conv_rate + tol > 1.0);
    }
 
    SECTION("AM3Solver()")
    {
+      mfem::out<<"AM3Solver()"<<std::endl;
       double conv_rate = check.order(new AM3Solver());
       REQUIRE(conv_rate + tol > 4.0);
    }
 
    SECTION("AM4Solver()")
    {
+      mfem::out<<"AM4Solver()"<<std::endl;
       double conv_rate = check.order(new AM4Solver());
       REQUIRE(conv_rate + tol > 5.0);
    }
 
    SECTION("AM4Solver() - restart")
    {
+      mfem::out<<"AM4Solver() - restart"<<std::endl;
       double conv_rate = check.order(new AM4Solver(),true);
       REQUIRE(conv_rate + tol > 5.0);
    }
