@@ -80,9 +80,9 @@ jobs:
             mpi: par
             build-system: cmake
             hypre-target: int32
-            # Use the MPI wrapper with CMake on Ubuntu (at least on v22.04) to
-            # avoid slow linking times due to LTO compile flags.
-            config-opts: '-DMPICXX=mpicxx'
+            # This option can be set to pass additional configuration options to
+            # the MFEM configuration command.
+            # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -213,7 +213,7 @@ jobs:
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v2.2
+      uses: mfem/github-actions/build-mfem@v2.3
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       with:
@@ -225,7 +225,7 @@ jobs:
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
-        config-options: ${{ env.MFEM_EXTRA_CONFIG }} ${{ matrix.config-opts }}
+        config-options: ${{ matrix.config-opts }}
         library-only: ${{ matrix.target == 'dbg' }}
 
     # Run checks (and only checks) on debug targets
