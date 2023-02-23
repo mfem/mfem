@@ -835,8 +835,8 @@ public:
    /// returning the number of printed pointers
    int PrintAliases(std::ostream &out = mfem::out);
 
-   static MemoryType GetHostMemoryType() { return host_mem_type; }
-   static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+   static MemoryType GetHostMemoryType();
+   static MemoryType GetDeviceMemoryType();
 
 #ifdef MFEM_USE_ENZYME
    static void myfree(void* mem, MemoryType MT, unsigned &flags)

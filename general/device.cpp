@@ -177,6 +177,12 @@ Device::~Device()
    Get().device_mem_class = MemoryClass::HOST;
 }
 
+
+Device& Device::Get()
+{
+   return device_singleton;
+}
+
 void Device::Configure(const std::string &device, const int device_id)
 {
    // If a device was configured via the environment, skip the configuration,

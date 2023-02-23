@@ -147,7 +147,7 @@ private:
    char *device_option = NULL;
    Device(Device const&);
    void operator=(Device const&);
-   static Device& Get() { return device_singleton; }
+   static Device& Get();
 
    /// Setup switcher based on configuration settings
    void Setup(const int device_id = 0);

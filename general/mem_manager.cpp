@@ -1647,6 +1647,16 @@ int MemoryManager::PrintAliases(std::ostream &os)
    return n_out;
 }
 
+MemoryType MemoryManager::GetHostMemoryType()
+{
+   return host_mem_type;
+}
+
+MemoryType MemoryManager::GetDeviceMemoryType()
+{
+   return device_mem_type;
+}
+
 int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
                                          unsigned flags)
 {
