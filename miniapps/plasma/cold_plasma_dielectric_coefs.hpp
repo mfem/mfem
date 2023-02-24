@@ -699,7 +699,9 @@ public:
               CMODDEN      =  9,
               SPARC_RES    = 10,
               SPARC_DEN    = 11,
-              SPARC_TEMP   = 12
+              SPARC_TEMP   = 12,
+              CORE         = 13,
+              SOL          = 14
              };
 
 private:
@@ -719,7 +721,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[13] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 2, 1, 1};
+   const int np_[15] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 3, 1, 1, 2, 2};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section

@@ -617,18 +617,24 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_sol = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_cor = PlasmaProfile::CONSTANT;
-   PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_def = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Array<int> dpa_vac;
    Array<int> dpa_sol;
    Array<int> dpa_cor;
+   Array<int> tpa_sol;
+   Array<int> tpa_cor;
    Vector dpp_def;
    Vector dpp_vac;
    Vector dpp_sol;
    Vector dpp_cor;
-   Vector tpp;
+   Vector tpp_def;
+   Vector tpp_sol;
+   Vector tpp_cor;
    Vector bpp;
    Vector nepp;
    Vector nipp;
@@ -707,7 +713,7 @@ int main(int argc, char *argv[])
                   "Thickness of extruded mesh in meters.");
    args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
                   "Thickness of cylindrically extruded mesh in degrees.");
-   args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
+args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
@@ -747,7 +753,7 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
-   args.AddOption(&dpa_cor, "-dpa-cor", "-core-density-profile-attr",
+   args.AddOption(&dpa_cor, "-dpa-core", "-core-density-profile-attr",
                   "Density Profile Core Attributes");
    args.AddOption((int*)&dpt_cor, "-dp-core", "--core-density-profile",
                   "Density Profile Type (for ions) in Core region: \n"
@@ -769,13 +775,41 @@ int main(int argc, char *argv[])
                   "BField Profile Parameters:\n"
                   "  B_P: value at -1, value at 1, "
                   "radius in x, radius in y, location of center, Bz, placeholder.");
-   args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
+   args.AddOption((int*)&tpt_def, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
-   args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
+   args.AddOption(&tpp_def, "-tpp", "--temperature-profile-params",
                   "Temperature Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&tpa_sol, "-tpa-sol", "-sol-temp-profile-attr",
+                  "Temperature Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&tpt_sol, "-tp-sol", "--sol-temp-profile",
+                  "Temperature Profile Type (for ions) in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&tpp_sol, "-tpp-sol", "--sol-temp-profile-params",
+                  "Temperature Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&tpa_cor, "-tpa-core", "-core-temp-profile-attr",
+                  "Temperature Profile Core Attributes");
+   args.AddOption((int*)&tpt_cor, "-tp-core", "--core-temp-profile",
+                  "Temperature Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&tpp_cor, "-tpp-core", "--core-temp-profile-params",
+                  "Temperature Profile Parameters in Core region:\n"
+                  "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient, "
@@ -1207,30 +1241,30 @@ int main(int argc, char *argv[])
    if (temps.Size() == 0)
    {
       temps.SetSize(numbers.Size());
-      if (tpp.Size() == 0)
+      if (tpp_def.Size() == 0)
       {
-         tpp.SetSize(1);
-         tpp[0] = 1.0e3;
-         for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
+         tpp_def.SetSize(1);
+         tpp_def[0] = 1.0e3;
+         for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
       }
       else
       {
-         switch (tpt)
+         switch (tpt_def)
          {
             case PlasmaProfile::CONSTANT:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
                break;
             case PlasmaProfile::GRADIENT:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
                break;
             case PlasmaProfile::TANH:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
                break;
             case PlasmaProfile::PARABOLIC:
-               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
                break;
             default:
                for (int i=0; i<numbers.Size(); i++) {temps[i] = 1e3;}
@@ -1505,7 +1539,35 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile tempCoef(tpt, tpp, coord_sys, eqdsk);
+   if (mpi.Root())
+   {
+      cout << "   Setting default temperature profile type " << tpt_def
+           << " with parameters \"";
+      tpp_def.Print(cout);
+   }
+   PlasmaProfile tempCoef(tpt_def, tpp_def, coord_sys, eqdsk);
+   if (tpa_sol.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "   Setting scrape-off layer temperature profile type " << tpt_sol
+              << " with parameters \"";
+         tpp_sol.Print(cout);
+         cout << "\" on attributes \"" << tpa_sol << "\".";
+      }
+      tempCoef.SetParams(tpa_sol, tpt_sol, tpp_sol);
+   }
+   if (tpa_cor.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "   Setting core temperature profile type " << tpt_cor
+              << " with parameters \"";
+         tpp_cor.Print(cout);
+         cout << "\" on attributes \"" << tpa_cor << "\".";
+      }
+      tempCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
+   }
 
    if (mpi.Root())
    {
@@ -2517,6 +2579,10 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-dpa-sol") == 0 ||
           strcmp(argv[i], "-dpa-cor") == 0 ||
           strcmp(argv[i], "-tpp"    ) == 0 ||
+          strcmp(argv[i], "-tpp-sol") == 0 ||
+          strcmp(argv[i], "-tpp-cor") == 0 ||
+          strcmp(argv[i], "-tpa-sol") == 0 ||
+          strcmp(argv[i], "-tpa-cor") == 0 ||
           strcmp(argv[i], "-nepp"   ) == 0 ||
           strcmp(argv[i], "-nipp"   ) == 0 ||
           strcmp(argv[i], "-B"      ) == 0 ||

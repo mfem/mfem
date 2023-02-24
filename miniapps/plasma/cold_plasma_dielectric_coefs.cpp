@@ -270,7 +270,8 @@ complex<double> S_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
+                                 2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm)
+                                 + complex<double>(0.0,nui);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -284,7 +285,8 @@ complex<double> S_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*lambda*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm);
+                                 2.0)/omega)*lambda*exp(-1.0*lambda)*(0.5)*(1.0/(18.0*vth))*(Zp+Zm)
+                                 + complex<double>(0.0,nui);
       }
       val += suscept_particle;
    }
@@ -389,7 +391,8 @@ complex<double> D_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
+                                 2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm)
+                                 - complex<double>(0.0,nui);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -403,7 +406,8 @@ complex<double> D_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*lambda*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm);
+                                 2.0)/omega)*lambda*exp(-1.0*lambda)*(-0.5)*(1.0/(18.0*vth))*(Zp-Zm)
+                                 - complex<double>(0.0,nui);
       }
       val += suscept_particle;
    }
@@ -1734,9 +1738,12 @@ double PlasmaProfile::EvalByType(Type type,
          double rad_res_loc = params[0];
          double nu0 = params[1];
          double width = params[2];
-         double rho = sqrt(cyl_ ? (rz_ * rz_):
-                           (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
-         return nu0*exp(-pow(rho-rad_res_loc, 2)/width);
+         //double rho = sqrt(cyl_ ? (rz_ * rz_):
+         //                  (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
+
+         double d = cyl_ ? rz_[0] : xyz_[0];
+
+         return nu0*exp(-pow(d-rad_res_loc, 2)/width);
       }
       break;
       case CMODDEN:
@@ -1761,6 +1768,7 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case SPARC_RES:
       {
+         // Captures N_||^2 = L and N_||^2 = R Cutoffs
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
 
@@ -1777,7 +1785,8 @@ double PlasmaProfile::EvalByType(Type type,
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
          double nu0 = params[0];
          double width = params[1];
-         return nu0*exp(-pow(sqrt(val)-1.044, 2)/width);
+         double rad_res_loc = params[2];
+         return nu0*exp(-pow(sqrt(val)-1.044, 2)/width) + nu0*exp(-pow(r-rad_res_loc, 2)/width);
 
       }
       break;
@@ -1897,6 +1906,108 @@ double PlasmaProfile::EvalByType(Type type,
             Te = (Core - LCFS)*pow(1 - pow(sqrt(val), nuei), nuee) + LCFS;
          }
          return Te;
+      }
+      break;
+      case CORE:
+      {
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         double psiRZ_center = -2.74980762;
+         double psiRZ_edge = -0.399621132;
+
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+         int bool_limits = 0;
+
+         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+
+         double norm_sqrt_psi = 1.0;
+         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+
+         double pmax = params[0];
+         double pmin = params[1];
+         double nuee = 3.0;
+         double nuei = 3.0;
+         double pval = pmin;
+         if (val < 1.0 && bool_limits == 1)
+         {
+            pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
+         }
+         return pval;
+      }
+      break;
+      case SOL:
+      {
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         double psiRZ_center = -2.74980762;
+         double psiRZ_edge = -0.399621132;
+
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+         int bool_limits = 0;
+
+         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+
+         double norm_sqrt_psi = 1.0;
+         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+
+         double pmin = params[0];
+         double pmax = params[1];
+
+         // FLOOR VALUE:
+         double pval = pmin;
+
+         // CORE VALUE:
+         if (val < 1.0 && bool_limits == 1){pval = pmax;}
+
+         // VALUE NEAR TOP/BOTTOM DIVERTOR:
+         else if (val < 1.0 && bool_limits == 0) {pval = pmin;}
+
+         // SOL VALUE:
+         else if ( val >= 1.0)
+         {
+            // Scale lengths:
+            double sl1 = 0.015;
+            double sl2 = 0.006;
+            double sl3 = 0.001;
+            double Olim = pmax*exp(-(2.425 - 2.415)/sl1);
+            double FR = Olim*exp(-(2.445 - 2.425)/sl2);
+
+            double temp_norm = (sqrt(val) - 1.0) / fabs(1.078669548034668 - 1.0);
+            double tempr = temp_norm*(fabs(2.476101398468018-2.415)) + 2.415;
+
+            if (tempr >= 2.415 && tempr <= 2.425 )
+            {
+               pval = pmax*exp(-(tempr-2.415)/sl1);
+            }
+            else if (tempr > 2.425 && tempr <= 2.445 )
+            {
+               pval = Olim*exp(-(tempr-2.425)/sl2);
+            }
+            else
+            {
+               pval = FR*exp(-(tempr-2.445)/sl3);
+               if (pval < pmin) {pval = pmin;}
+            }
+         }
+         return pval;
       }
       break;
       default:
