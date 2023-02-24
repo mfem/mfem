@@ -14,6 +14,9 @@
 
 using namespace mfem;
 
+namespace test_GetDerivative_parallel
+{
+
 double func(const Vector &coord)
 {
    if (coord.Size() == 1) { return std::sin(coord(0)); }
@@ -74,3 +77,5 @@ TEST_CASE("GetDerivative", "[Parallel]")
 }
 
 #endif
+
+}

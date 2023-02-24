@@ -71,6 +71,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
+  fem/test_getgradient.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
