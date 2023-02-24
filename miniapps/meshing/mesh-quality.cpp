@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order          = -1;
    int ref_levels     = 0;
    bool visualization = true;
