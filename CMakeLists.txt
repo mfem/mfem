@@ -597,10 +597,10 @@ configure_file(
   "${PROJECT_SOURCE_DIR}/config/cmake/config.hpp.in"
   "${PROJECT_BINARY_DIR}/config/_config.hpp")
 
-# Create substitute mfem.hpp, mfem_exports.h and mfem-performance.hpp in the build directory,
+# Create substitute mfem.hpp, mfem_exports.hpp and mfem-performance.hpp in the build directory,
 # if it is different from the source directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
-  foreach(Header mfem.hpp mfem_exports.h mfem-performance.hpp)
+  foreach(Header mfem.hpp mfem_exports.hpp mfem-performance.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
     file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
@@ -729,7 +729,7 @@ install(TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
-foreach(Header mfem.hpp mfem_exports.h mfem-performance.hpp)
+foreach(Header mfem.hpp mfem_exports.hpp mfem-performance.hpp)
   install(FILES ${PROJECT_BINARY_DIR}/InstallHeaders/${Header}
     DESTINATION ${INSTALL_INCLUDE_DIR})
 endforeach()

@@ -12,6 +12,7 @@
 #ifndef MFEM_GEOM
 #define MFEM_GEOM
 
+#include "../mfem_exports.hpp"
 #include "../config/config.hpp"
 #include "../linalg/densemat.hpp"
 #include "intrules.hpp"
@@ -29,7 +30,7 @@ namespace mfem
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
     Geometry::PYRAMID - w/ vert. (0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1)
 */
-class Geometry
+class MFEM_API Geometry
 {
 public:
    enum Type
@@ -272,10 +273,10 @@ template <> struct Geometry::Constants<Geometry::PYRAMID>
 
 // Defined in fe.cpp to ensure construction after 'mfem::TriangleFE' and
 // `mfem::TetrahedronFE`.
-extern Geometry Geometries;
+MFEM_API extern Geometry Geometries;
 
 
-class RefinedGeometry
+class MFEM_API RefinedGeometry
 {
 public:
    int Times, ETimes;
@@ -321,7 +322,7 @@ public:
    ~GeometryRefiner();
 };
 
-extern GeometryRefiner GlobGeometryRefiner;
+MFEM_API extern GeometryRefiner GlobGeometryRefiner;
 
 }
 
