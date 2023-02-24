@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 
    // Define a GridFunction for geometric parameters associated with the mesh.
    L2_FECollection l2fec(order, pmesh->Dimension());
-   ParFiniteElementSpace fespace(pmesh, &l2fec, nParams);
+   ParFiniteElementSpace fespace(pmesh, &l2fec, nParams); //must order byNodes
    ParGridFunction quality(&fespace);
 
    DenseMatrix jacobian(dim);
@@ -130,13 +130,6 @@ int main(int argc, char *argv[])
 
    VisItDataCollection visit_dc("quality", pmesh);
 
-   // Reorder data by nodes for convenience.
-   ParGridFunction qualityCopy = quality;
-   if (fespace.GetOrdering() == Ordering::byVDIM)
-   {
-      qualityCopy.ReorderByNodes();
-   }
-
    // Visualize different parameters
    int visw = 400;
    int vish = 400;
@@ -152,7 +145,7 @@ int main(int argc, char *argv[])
       socketstream vis1, vis2, vis3;
       if (size)
       {
-         size_gf.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
+         size_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
          if (visit) { visit_dc.RegisterField("Size", &size_gf); }
          if (visualization)
          {
@@ -174,7 +167,7 @@ int main(int argc, char *argv[])
       }
       if (aspect_ratio)
       {
-         aspr_gf.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
+         aspr_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
          if (visit) { visit_dc.RegisterField("Aspect-Ratio", &aspr_gf); }
          if (visualization)
          {
@@ -197,7 +190,7 @@ int main(int argc, char *argv[])
       }
       if (skewness)
       {
-         skew_gf.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
+         skew_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
          if (visit) { visit_dc.RegisterField("Skewness", &skew_gf); }
          if (visualization)
          {
@@ -231,7 +224,7 @@ int main(int argc, char *argv[])
       socketstream vis1, vis2, vis3, vis4, vis5, vis6;
       if (size)
       {
-         size_gf.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
+         size_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
          if (visit) { visit_dc.RegisterField("Size", &size_gf); }
          if (visualization)
          {
@@ -252,8 +245,8 @@ int main(int argc, char *argv[])
       }
       if (aspect_ratio)
       {
-         aspr_gf1.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
-         aspr_gf2.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
+         aspr_gf1.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         aspr_gf2.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
          if (visit)
          {
             visit_dc.RegisterField("Aspect-Ratio", &aspr_gf1);
@@ -309,9 +302,9 @@ int main(int argc, char *argv[])
       }
       if (skewness)
       {
-         skew_gf1.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
-         skew_gf2.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
-         skew_gf3.MakeRef(&scfespace, qualityCopy.GetData() + (idx++)*ndofs);
+         skew_gf1.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         skew_gf2.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         skew_gf3.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
          if (visit)
          {
             visit_dc.RegisterField("Skewness (radians)", &skew_gf1);
