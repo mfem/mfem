@@ -26,8 +26,13 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
+<<<<<<< HEAD
 	shaper extruder mesh-optimizer minimal-surface polar-nc
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface mesh-quality
+=======
+	shaper extruder mesh-optimizer minimal-surface polar-nc reflector
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface
+>>>>>>> 220b22f33be2835bfb18a3045d5bdccf48a013ef
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -91,6 +96,8 @@ minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
 pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+reflector-test-seq: reflector
+	@$(call mfem-test-file,$<,, Meshing miniapp,reflected.mesh)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
@@ -108,14 +115,14 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
-	rm -f mesh-explorer shaper extruder trimmer
+	rm -f mesh-explorer shaper extruder trimmer reflector
 	rm -f mesh-optimizer pmesh-optimizer polar-nc
 	rm -f minimal-surface pminimal-surface mesh-quality
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
+	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
