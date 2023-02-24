@@ -20,7 +20,7 @@ using namespace common;
 namespace plasma
 {
 
-complex<double> Zfunction(double xi)
+complex<double> Zfunction(complex<double> xi)
 {
    return complex<double>(0,1)*sqrt(M_PI)*Faddeeva::w(xi);
 }
@@ -237,6 +237,11 @@ complex<double> S_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(q, coul_log, m, Te, n)  :
+                 nue;
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -244,14 +249,15 @@ complex<double> S_cold_plasma(double omega,
       if (n < 0) {n = -1.0*number[i];}
       double q = charge[i];
       double m = mass[i];
-      double w_c = omega_c(Bmag, q, m);
-      double w_p = omega_p(n, q, m);
-      double vth = vthermal(Te, m);
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m * collision_correction; }
+      complex<double> w_c = omega_c(Bmag, q, m_eff);
+      complex<double> w_p = omega_p(n, q, m_eff);
+      complex<double> vth = vthermal(Te, m_eff);
 
       if (i == 0)
       {
-         suscept_particle = complex<double>((-1.0 * w_p * w_p) / ((omega + w_c) *
-                                                                  (omega - w_c)), 0.0);
+         suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c));
       }
       // First Harmonic:
       else if (i == 1 || i == 3)
@@ -260,7 +266,7 @@ complex<double> S_cold_plasma(double omega,
          double kperpFW = 0.0;
          if (i == 1) {kperpFW = 28.66;}
          else if (i == 3) {kperpFW = 71.32;}
-         double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
 
          // n > 0:
          complex<double> Zp = Zfunction((omega - w_c)/(18.0*vth));
@@ -276,7 +282,7 @@ complex<double> S_cold_plasma(double omega,
       // Second Harmonic:
       else if (i == 2)
       {
-         double lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double> lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
          // n > 0:
          complex<double> Zp = Zfunction((omega - 2*w_c)/(18.0*vth));
 
@@ -358,6 +364,11 @@ complex<double> D_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(q, coul_log, m, Te, n)  :
+                 nue;
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -365,14 +376,15 @@ complex<double> D_cold_plasma(double omega,
       if (n < 0) {n = -1.0*number[i];}
       double q = charge[i];
       double m = mass[i];
-      double w_c = omega_c(Bmag, q, m);
-      double w_p = omega_p(n, q, m);
-      double vth = vthermal(Te, m);
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m * collision_correction; }
+      complex<double> w_c = omega_c(Bmag, q, m_eff);
+      complex<double> w_p = omega_p(n, q, m_eff);
+      complex<double> vth = vthermal(Te, m_eff);
 
       if (i == 0)
       {
-         suscept_particle = complex<double>(((w_p*w_p) / ((omega+w_c) * (omega-w_c))) *
-                                            (w_c/omega), 0.0);
+         suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega);
       }
       // First Harmonic:
       else if (i == 1 || i == 3)
@@ -381,7 +393,7 @@ complex<double> D_cold_plasma(double omega,
          double kperpFW = 0.0;
          if (i == 1) {kperpFW = 28.66;}
          else if (i == 3) {kperpFW = 71.32;}
-         double lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
 
          // n > 0:
          complex<double> Zp = Zfunction((omega - w_c)/(18.0*vth));
@@ -397,7 +409,7 @@ complex<double> D_cold_plasma(double omega,
       // Second Harmonic:
       else if (i == 2)
       {
-         double lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double> lambda = pow(71.32*vth,2.0)/(2*pow(w_c,2.0));
          // n > 0:
          complex<double> Zp = Zfunction((omega - 2*w_c)/(18.0*vth));
 

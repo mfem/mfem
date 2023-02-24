@@ -52,8 +52,8 @@ inline std::complex<double> omega_p(double number, double charge,
 }
 
 // Thermal Velocity
-inline double vthermal(double Te   /* Joules */,
-                       double mass   /* AMU */)
+inline std::complex<double> vthermal(double Te   /* Joules */,
+                       std::complex<double> mass   /* AMU */)
 {
    return sqrt( (2.0 * Te) / ( mass * amu_ ) );
 }
