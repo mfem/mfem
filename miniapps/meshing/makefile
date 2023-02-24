@@ -26,13 +26,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
-<<<<<<< HEAD
-	shaper extruder mesh-optimizer minimal-surface polar-nc
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface mesh-quality
-=======
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface
->>>>>>> 220b22f33be2835bfb18a3045d5bdccf48a013ef
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface mesh-quality
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
