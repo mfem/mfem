@@ -571,7 +571,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    const int pts_el = std::pow(dof_1D, dim);
    const int pts_cnt = NE_split_total * pts_el;
    node_vals.SetSize(vdim * pts_cnt);
-   node_vals *= 0;
+   node_vals = 0.0;
 
    int gsl_mesh_pt_index = 0;
 
@@ -1153,7 +1153,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    distfint.SetSize(pts_cnt);
    if (!gfmax)
    {
-      distfint = 0.;
+      distfint = 0.0;
    }
    else
    {
