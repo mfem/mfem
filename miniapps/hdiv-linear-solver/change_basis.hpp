@@ -82,26 +82,6 @@ public:
    void MultRT_3D(const Vector &x, Vector &y, Mode mode) const;
 };
 
-class ModifiedMassIntegrator : public MassIntegrator
-{
-public:
-   ModifiedMassIntegrator() : MassIntegrator() { }
-   ModifiedMassIntegrator(IntegrationRule &ir) : MassIntegrator(&ir) { }
-   void AssemblePA(const FiniteElementSpace &fes) override;
-};
-
-class ChangeMapType_L2 : public Operator
-{
-   DGMassInverse M_val_inv;
-   BilinearForm M_val_int;
-   bool no_op;
-   mutable Vector z;
-public:
-   ChangeMapType_L2(FiniteElementSpace &fes);
-   void Mult(const Vector &x, Vector &y) const override;
-   void MultTranspose(const Vector &x, Vector &y) const override;
-};
-
 } // namespace mfem
 
 #endif

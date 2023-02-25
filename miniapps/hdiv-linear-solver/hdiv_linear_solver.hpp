@@ -54,7 +54,9 @@ private:
    // Change of basis operators
    ChangeOfBasis_L2 basis_l2;
    ChangeOfBasis_RT basis_rt;
-   ChangeMapType_L2 map_type_l2;
+
+   /// Whether conversion from map type VALUE to INTEGRAL is required.
+   const bool convert_map_type;
 
    ParBilinearForm mass_l2, mass_rt;
 
@@ -85,8 +87,8 @@ private:
    const Mode mode;
    bool zero_l2_block = false;
    QuadratureSpace qs;
-   QuadratureFunction qf;
-   QuadratureFunctionCoefficient l2_qf_coeff;
+   QuadratureFunction W_coeff_qf, W_mix_coeff_qf;
+   QuadratureFunctionCoefficient W_coeff, W_mix_coeff;
 
    ConstantCoefficient zero = ConstantCoefficient(0.0);
 

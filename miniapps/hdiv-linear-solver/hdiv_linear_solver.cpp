@@ -75,15 +75,17 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      ess_rt_dofs(ess_rt_dofs_),
      basis_l2(fes_l2_),
      basis_rt(fes_rt_),
-     map_type_l2(fes_l2_),
+     convert_map_type(fes_l2_.GetFE(0)->GetMapType() == FiniteElement::VALUE),
      mass_l2(&fes_l2),
      mass_rt(&fes_rt),
      L_coeff(L_coeff_),
      R_coeff(R_coeff_),
      mode(mode_),
      qs(mesh, GetMassIntRule(fes_l2)),
-     qf(qs),
-     l2_qf_coeff(qf)
+     W_coeff_qf(qs),
+     W_mix_coeff_qf(qs),
+     W_coeff(W_coeff_qf),
+     W_mix_coeff(W_mix_coeff_qf)
 {
    // If the user gives zero L coefficient, switch mode to DARCY_ZERO
    auto *L_const_coeff = dynamic_cast<ConstantCoefficient*>(&L_coeff);
@@ -95,7 +97,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
                   "Mode::GRAD_DIV incompatible with zero coefficient.");
    }
 
-   mass_l2.AddDomainIntegrator(new MassIntegrator(l2_qf_coeff));
+   mass_l2.AddDomainIntegrator(new MassIntegrator(W_coeff));
    mass_l2.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    mass_rt.AddDomainIntegrator(new VectorFEMassIntegrator(&R_coeff));
@@ -147,29 +149,50 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
 
 void HdivSaddlePointSolver::Setup()
 {
-   if (!zero_l2_block) { L_coeff.Project(qf); }
+   const auto flags = GeometricFactors::DETERMINANTS;
+   auto *geom = fes_l2.GetMesh()->GetGeometricFactors(qs.GetIntRule(0), flags);
 
-   // Reassemble the L2 mass diagonal with the new coefficient
-   mass_l2.Assemble();
-   mass_l2.AssembleDiagonal(L_diag);
-   mass_l2.FormSystemMatrix(empty, L);
+   if (!zero_l2_block) { L_coeff.Project(W_coeff_qf); }
+   // In "grad-div mode", the transformation matrix is scaled by the coefficient
+   // of the mass and divergence matrices.
+   // In "Darcy mode", the transformation matrix is unweighted.
+   if (mode == Mode::GRAD_DIV) { W_mix_coeff_qf = W_coeff_qf; }
+   else { W_mix_coeff_qf = 1.0; }
 
-   if (mode == Mode::GRAD_DIV)
+   // The transformation matrix has to be "mixed" value and integral map type,
+   // which means that the coefficient has to be scaled like the Jacobian
+   // determinant.
+   if (convert_map_type)
    {
-      L_inv.reset(new DGMassInverse(fes_l2, l2_qf_coeff));
-      A_11 = L_inv;
-      Reciprocal(L_diag);
+      const int n = W_mix_coeff_qf.Size();
+      const double *d_detJ = geom->detJ.Read();
+      double *d_w_mix = W_mix_coeff_qf.ReadWrite();
+      double *d_w = W_coeff_qf.ReadWrite();
+      const bool zero_l2 = zero_l2_block;
+      MFEM_FORALL(i, n,
+      {
+         const double detJ = d_detJ[i];
+         if (!zero_l2) { d_w[i] *= detJ*detJ; }
+         d_w_mix[i] *= detJ;
+      });
+   }
+
+   L_inv.reset(new DGMassInverse(fes_l2, W_mix_coeff));
+
+   if (zero_l2_block)
+   {
+      A_11.reset();
    }
    else
    {
-      L_inv.reset(new DGMassInverse(fes_l2));
-      if (zero_l2_block)
+      mass_l2.Assemble();
+      mass_l2.AssembleDiagonal(L_diag);
+      mass_l2.FormSystemMatrix(empty, L);
+
+      A_11.reset(new RAPOperator(*L_inv, *L, *L_inv));
+
+      if (mode == Mode::DARCY)
       {
-         A_11.reset();
-      }
-      else
-      {
-         A_11.reset(new RAPOperator(*L_inv, *L, *L_inv));
          const double *d_L_diag_unweighted = L_diag_unweighted.Read();
          double *d_L_diag = L_diag.ReadWrite();
          MFEM_FORALL(i, L_diag.Size(),
@@ -188,6 +211,7 @@ void HdivSaddlePointSolver::Setup()
    // Form the updated approximate Schur complement
    mass_rt.AssembleDiagonal(R_diag);
 
+   // Update the mass RT diagonal for essential DOFs
    {
       const int *d_I = ess_rt_dofs.Read();
       double *d_R_diag = R_diag.ReadWrite();
@@ -297,8 +321,7 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
    const Vector bF(const_cast<Vector&>(b), offsets[1], offsets[2]-offsets[1]);
 
    z.SetSize(bE.Size());
-   map_type_l2.MultTranspose(bE, w);
-   basis_l2.MultTranspose(w, z);
+   basis_l2.MultTranspose(bE, z);
    basis_rt.MultTranspose(bF, bF_prime);
    // Transform by the inverse of the L2 mass matrix
    L_inv->Mult(z, bE_prime);
@@ -322,8 +345,7 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
 
    L_inv->Mult(xE_prime, z);
 
-   basis_l2.Mult(z, w);
-   map_type_l2.Mult(w, xE);
+   basis_l2.Mult(z, xE);
    basis_rt.Mult(xF_prime, xF);
 
    // Update the monolithic solution vector
