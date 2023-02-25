@@ -26,7 +26,7 @@ HDIV_HEADERS = hdiv_linear_solver.hpp discrete_divergence.hpp change_basis.hpp \
 HDIV_SRC = hdiv_linear_solver.cpp change_basis.cpp discrete_divergence.cpp
 HDIV_OBJ = $(HDIV_SRC:.cpp=.o)
 
-MINIAPPS = grad_div darcy
+MINIAPPS = grad_div darcy residual
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk

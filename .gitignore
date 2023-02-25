@@ -309,6 +309,7 @@ miniapps/solvers/sol.*
 
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div
+miniapps/hdiv-linear-solver/residual
 
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
