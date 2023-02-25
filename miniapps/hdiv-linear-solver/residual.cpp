@@ -3,12 +3,14 @@
 
 #include "hdiv_linear_solver.hpp"
 #include "discrete_divergence.hpp"
-#include "../solvers/lor_mms.hpp"
 
 using namespace std;
 using namespace mfem;
 
 ParMesh LoadParMesh(const char *mesh_file, int ser_ref = 0, int par_ref = 0);
+
+double f(const Vector &xvec);
+double g(const Vector &xvec);
 
 int main(int argc, char *argv[])
 {
@@ -21,6 +23,7 @@ int main(int argc, char *argv[])
    int par_ref = 1;
    int order = 3;
    bool mt_value = true;
+   bool darcy = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -33,6 +36,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&mt_value, "-val", "--value", "-int", "--integral",
                   "Map type integral or value.");
+   args.AddOption(&darcy, "-da", "--darcy", "-g", "--grad-div",
+                  "Grad-div or Darcy problem");
    args.ParseCheck();
 
    Device device(device_config);
@@ -59,24 +64,15 @@ int main(int argc, char *argv[])
 
    Array<int> ess_rt_dofs;
 
-   // Compute the residual of the linear system
-   FunctionCoefficient a_coeff(u);
-   FunctionCoefficient b_coeff([](const Vector &xvec)
-   {
-      const int dim = xvec.Size();
-      const double x = pi*xvec[0], y = pi*xvec[1];
-      if (dim == 2)
-      {
-         return 2*pi2*(2.0 + sin(x)*sin(y));
-      }
-      else // dim == 3
-      {
-         const double z = pi*xvec[2];
-         return 3*pi2*(2.0 + sin(x)*sin(y)*sin(z));
-      }
-   });
+   FunctionCoefficient a_coeff(f);
+   FunctionCoefficient b_coeff(g);
+   ConstantCoefficient one(1.0);
 
-   const auto solver_mode = HdivSaddlePointSolver::Mode::DARCY;
+   Coefficient &div_coeff = darcy ? (Coefficient&)one : (Coefficient&)a_coeff;
+
+   // Solve the system with the saddle-point solver
+   const auto solver_mode = darcy ? HdivSaddlePointSolver::Mode::DARCY
+                            : HdivSaddlePointSolver::Mode::GRAD_DIV;
    HdivSaddlePointSolver saddle_point_solver(
       mesh, fes_rt, fes_l2, a_coeff, b_coeff, ess_rt_dofs, solver_mode);
 
@@ -93,31 +89,33 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { std::cout << "Saddle point solver... " << std::endl; }
    saddle_point_solver.Mult(B_block, X_block);
 
+   // Form the matrix-based system
    ParBilinearForm w(&fes_l2);
    w.AddDomainIntegrator(new MassIntegrator(a_coeff));
    w.Assemble();
    w.Finalize();
-   HypreParMatrix *W = w.ParallelAssemble();
+   std::unique_ptr<HypreParMatrix> W(w.ParallelAssemble());
 
    ParMixedBilinearForm b(&fes_rt, &fes_l2);
-   b.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   b.AddDomainIntegrator(new VectorFEDivergenceIntegrator(div_coeff));
    b.Assemble();
    b.Finalize();
-   HypreParMatrix *B = b.ParallelAssemble();
-   HypreParMatrix *Bt = B->Transpose();
+   std::unique_ptr<HypreParMatrix> B(b.ParallelAssemble());
+   std::unique_ptr<HypreParMatrix> Bt(B->Transpose());
 
    ParBilinearForm m(&fes_rt);
    m.AddDomainIntegrator(new VectorFEMassIntegrator(b_coeff));
    m.Assemble();
    m.Finalize();
-   HypreParMatrix *M = m.ParallelAssemble();
+   std::unique_ptr<HypreParMatrix> M(m.ParallelAssemble());
 
    BlockOperator A(offsets);
-   A.SetBlock(0, 0, W);
-   A.SetBlock(0, 1, B);
-   A.SetBlock(1, 0, Bt);
-   A.SetBlock(1, 1, M, -1.0);
+   A.SetBlock(0, 0, W.get());
+   A.SetBlock(0, 1, B.get());
+   A.SetBlock(1, 0, Bt.get());
+   A.SetBlock(1, 1, M.get(), -1.0);
 
+   // Compute the residual
    BlockVector Y_block(offsets);
    A.Mult(X_block, Y_block);
    Y_block -= B_block;
@@ -130,15 +128,13 @@ int main(int argc, char *argv[])
    const double resnorm1 = nrm2(Y_block)/nrm2(B_block);
    if (Mpi::Root()) { std::cout << "Linear residual norm: " << resnorm1 << "\n\n"; }
 
-   std::cout << Y_block.GetBlock(0).Norml2() << '\n';
-   std::cout << Y_block.GetBlock(1).Norml2() << '\n' << '\n';
-
+   // Solve the system with a matrix-based solver (see ex5p)
    HypreParVector Md(MPI_COMM_WORLD, M->GetGlobalNumRows(),
                      M->GetRowStarts());
    M->GetDiag(Md);
-   HypreParMatrix *MinvBt = B->Transpose();
+   std::unique_ptr<HypreParMatrix> MinvBt(B->Transpose());
    MinvBt->InvScaleRows(Md);
-   HypreParMatrix *S = ParMult(B, MinvBt);
+   std::unique_ptr<HypreParMatrix> S(ParMult(B.get(), MinvBt.get()));
 
    HypreDiagScale M_inv(*M);
    HypreBoomerAMG S_inv(*S);
@@ -165,97 +161,6 @@ int main(int argc, char *argv[])
    const double resnorm2 = nrm2(Y_block)/nrm2(B_block);
    if (Mpi::Root()) { std::cout << "Linear residual norm: " << resnorm2 << "\n\n"; }
 
-   {
-      ChangeOfBasis_RT basis_rt(fes_rt);
-      ChangeOfBasis_L2 basis_l2(fes_l2);
-      HypreParMatrix *D = FormDiscreteDivergenceMatrix(fes_rt, fes_l2, ess_rt_dofs);
-
-      BilinearForm W_mix(&fes_l2);
-      // W_mix.AddDomainIntegrator(new ModifiedMassIntegrator);
-      W_mix.AddDomainIntegrator(new MassIntegrator);
-      W_mix.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      W_mix.Assemble();
-
-      GridFunction x1(&fes_rt);
-      Vector y1(B->Height());
-      Vector x2(x1.Size());
-      Vector y2(B->Height()), z1(B->Height()), z2(B->Height()), z3(B->Height());
-      Vector w(x1.Size());
-
-      x1.Randomize(3);
-      B->Mult(x1, y1);
-
-      basis_rt.MultInverse(x1, x2);
-      D->Mult(x2, z1);
-      basis_l2.Mult(z1, z2);
-      W_mix.Mult(z2, y2);
-
-      y2 -= y1;
-      std::cout << "Difference: " << y2.Norml2() << '\n';
-
-      //    y1.Randomize(1);
-      //    B->MultTranspose(y1, w);
-      //    basis_rt.MultTranspose(w, x1);
-
-      //    W_mix.MultTranspose(y1, z1);
-      //    basis_l2.MultTranspose(z1, z2);
-      //    D->MultTranspose(z2, x2);
-
-      //    x2 -= x1;
-      //    std::cout << "Difference: " << x2.Norml2() << '\n';
-
-      //    ///////
-      //    y1.Randomize(1);
-      //    D->MultTranspose(y1, x1);
-
-      //    // ChangeMapType_L2 cmt(saddle_point_solver.fes_l2, fes_l2, saddle_point_solver.qs);
-
-      //    saddle_point_solver.L_inv->Mult(y1, z1);
-      //    // basis_l2.Mult(z1, z2);
-      //    z2 = z1;
-      //    W_mix.Mult(z2, z3);
-      //    DGMassInverse W_inv(fes_l2);
-      //    W_inv.Mult(z3, y2);
-
-      //    // cmt.Mult(y1, y2);
-
-      //    W_mix.Mult(y2, z3);
-
-      //    z1.Randomize(1);
-      //    std::cout << z3*z1 - y1*z1 << '\n';
-
-      //    B->MultTranspose(y2, w);
-      //    basis_rt.MultTranspose(w, x2);
-
-      //    QuadratureFunction detJinv(saddle_point_solver.qs);
-      //    auto *geom = mesh.GetGeometricFactors(
-      //                    saddle_point_solver.qs.GetIntRule(0),
-      //                    GeometricFactors::DETERMINANTS
-      //                 );
-      //    for (int i = 0; i < geom->detJ.Size(); ++i)
-      //    {
-      //       detJinv[i] = geom->detJ[i];
-      //    }
-      //    QuadratureFunctionCoefficient qf_coeff(detJinv);
-      //    DGMassInverse W_mix_inv(saddle_point_solver.fes_l2, qf_coeff);
-      //    W_mix_inv.Mult(y1, z2);
-      //    basis_l2.Mult(z2, z3);
-
-      //    W_mix.Mult(z3, z2);
-      //    std::cout << z2*z1 - y1*z1 << '\n';
-
-      //    x2 -= x1;
-      //    std::cout << "Difference: " << x2.Norml2() << '\n';
-   }
-
-   delete MinvBt;
-   delete S;
-
-   delete W;
-   delete B;
-   delete Bt;
-   delete M;
-
    return 0;
 }
 
@@ -267,4 +172,37 @@ ParMesh LoadParMesh(const char *mesh_file, int ser_ref, int par_ref)
    serial_mesh.Clear();
    for (int i = 0; i < par_ref; ++i) { mesh.UniformRefinement(); }
    return mesh;
+}
+
+static constexpr double pi = M_PI;
+static constexpr double pi2 = pi*pi;
+
+double f(const Vector &xvec)
+{
+   const int dim = xvec.Size();
+   const double x = pi*xvec[0], y = pi*xvec[1];
+   if (dim == 2)
+   {
+      return 2*pi2*(2.0 + sin(x)*sin(y));
+   }
+   else // dim == 3
+   {
+      const double z = pi*xvec[2];
+      return 3*pi2*(2.0 + sin(x)*sin(y)*sin(z));
+   }
+}
+
+double g(const Vector &xvec)
+{
+   const int dim = xvec.Size();
+   const double x = pi*xvec[0], y = pi*xvec[1];
+   if (dim == 2)
+   {
+      return 2*pi2*(2.0 + cos(x)*cos(y));
+   }
+   else // dim == 3
+   {
+      const double z = pi*xvec[2];
+      return 3*pi2*(2.0 + cos(x)*cos(y)*cos(z));
+   }
 }
