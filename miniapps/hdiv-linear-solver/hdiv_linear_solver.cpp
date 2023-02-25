@@ -191,7 +191,11 @@ void HdivSaddlePointSolver::Setup()
 
       A_11.reset(new RAPOperator(*L_inv, *L, *L_inv));
 
-      if (mode == Mode::DARCY)
+      if (mode == Mode::GRAD_DIV)
+      {
+         Reciprocal(L_diag);
+      }
+      else
       {
          const double *d_L_diag_unweighted = L_diag_unweighted.Read();
          double *d_L_diag = L_diag.ReadWrite();
