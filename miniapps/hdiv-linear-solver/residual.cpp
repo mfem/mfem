@@ -174,35 +174,32 @@ ParMesh LoadParMesh(const char *mesh_file, int ser_ref, int par_ref)
    return mesh;
 }
 
-static constexpr double pi = M_PI;
-static constexpr double pi2 = pi*pi;
-
 double f(const Vector &xvec)
 {
    const int dim = xvec.Size();
-   const double x = pi*xvec[0], y = pi*xvec[1];
+   const double x = xvec[0], y = xvec[1];
    if (dim == 2)
    {
-      return 2*pi2*(2.0 + sin(x)*sin(y));
+      return 2*(2.0 + sin(x)*sin(y));
    }
    else // dim == 3
    {
-      const double z = pi*xvec[2];
-      return 3*pi2*(2.0 + sin(x)*sin(y)*sin(z));
+      const double z = xvec[2];
+      return 3*(2.0 + sin(x)*sin(y)*sin(z));
    }
 }
 
 double g(const Vector &xvec)
 {
    const int dim = xvec.Size();
-   const double x = pi*xvec[0], y = pi*xvec[1];
+   const double x = xvec[0], y = xvec[1];
    if (dim == 2)
    {
-      return 2*pi2*(2.0 + cos(x)*cos(y));
+      return 2*(2.0 + cos(x)*cos(y));
    }
    else // dim == 3
    {
-      const double z = pi*xvec[2];
-      return 3*pi2*(2.0 + cos(x)*cos(y)*cos(z));
+      const double z = xvec[2];
+      return 3*(2.0 + cos(x)*cos(y)*cos(z));
    }
 }
