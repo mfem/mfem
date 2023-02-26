@@ -29,7 +29,8 @@ protected:
 
 public:
    /// Default constructor, results in an empty vector.
-   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0) { }
+   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0)
+   { UseDevice(true); }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
@@ -38,7 +39,7 @@ public:
    QuadratureFunction(QuadratureSpaceBase &qspace_, int vdim_ = 1)
       : Vector(vdim_*qspace_.GetSize()),
         qspace(&qspace_), own_qspace(false), vdim(vdim_)
-   { }
+   { UseDevice(true); }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
@@ -56,7 +57,7 @@ public:
        Vector::Vector(double *, int)). */
    QuadratureFunction(QuadratureSpaceBase *qspace_, double *qf_data, int vdim_ = 1)
       : Vector(qf_data, vdim_*qspace_->GetSize()),
-        qspace(qspace_), own_qspace(false), vdim(vdim_) { }
+        qspace(qspace_), own_qspace(false), vdim(vdim_) { UseDevice(true); }
 
    /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
        in the new object is set to false. */

@@ -31,6 +31,7 @@ QuadratureFunction &QuadratureFunction::operator=(const Vector &v)
 
 
 QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
+   : QuadratureFunction()
 {
    const char *msg = "invalid input stream";
    std::string ident;
