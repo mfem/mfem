@@ -1240,6 +1240,7 @@ public:
    NNLS(double const_tol=1.0e-14, int min_nnz=0, int max_nnz=0, int verbosity=0,
         double res_change_termination_tol=1.0e-4, double zero_tol=1.0e-14,
         double rhs_delta=1.0e-11,
+        bool normalize=true,
         int n_outer=100000,
         int n_inner=100000,
         int n_stallCheck=100);
@@ -1316,7 +1317,9 @@ private:
    const double rhs_delta_;
    const int n_outer_;
    const int n_inner_;
-   const int nStallCheck;
+   const int nStallCheck_;
+
+   const bool normalize_;
 
    mutable bool NNLS_qrres_on_;
    QRresidualMode qr_residual_mode_;
