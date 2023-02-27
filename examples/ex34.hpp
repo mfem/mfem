@@ -39,6 +39,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   void computeHmin();
   void computeInvMe();  // get element-wise inverse matrix
   void computeMaxOrder();
+  void setInitMaxCharSpeed(const GridFunction &u);
 
  public:
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, Flux Fu_,
@@ -93,6 +94,14 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
   computeInvMe();
   computeHmin();
   computeMaxOrder();
+}
+/// @brief Compute maximum characteristic speed for the initial condition.
+/// @warning It should be used only for computing maximum characteristic speed
+/// for initial condition. Mcs will be updated during the assembly procedure
+/// during the time stepping.
+void HyperbolicConservationLaws::setInitMaxCharSpeed(const GridFunction &u) {
+  Vector z(A.Width());
+  A.Mult(u, z);
 }
 
 void HyperbolicConservationLaws::computeHmin() {
