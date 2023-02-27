@@ -37,6 +37,7 @@ int main(int argc, char *argv[]) {
   int order = 3;
   int ref_levels = 1;
   int ode_solver_type = 4;  // RK4
+  int problem = 1;
   double cfl = 0.3;
 
   OptionsParser args(argc, argv);
@@ -50,11 +51,11 @@ int main(int argc, char *argv[]) {
   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                  "ODE solver: 1 - Forward Euler,\n\t"
                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+  args.AddOption(&problem, "-p", "--problem",
+                 "Problem setup to use. See options in velocity_function().");
 
-  Mesh mesh =
-      (mesh_file != NULL)
-          ? Mesh(mesh_file, 1, 1)
-          : Mesh::MakeCartesian2D(2, 2, mfem::Element::Type::QUADRILATERAL);
+  Mesh mesh = (mesh_file != NULL) ? Mesh(mesh_file, 1, 1) : getMesh(problem);
+  mesh.EnsureNCMesh();
 
   const int dim = mesh.Dimension();
   const int num_equations = dim + 2;
@@ -86,6 +87,8 @@ int main(int argc, char *argv[]) {
 
   ODESolver *ode_solver = getODESolver(ode_solver_type);
   ode_solver->Init(*euler);
+
+  VectorFunctionCoefficient u0(num_equations, getInitCond(problem));
 
   return 0;
 }
