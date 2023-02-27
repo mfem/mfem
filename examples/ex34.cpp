@@ -67,9 +67,9 @@ int main(int argc, char *argv[]) {
   }
   BlockVector u_block(offsets);
 
-  GridFunction density(&dfes, u_block.GetData() + offsets[0]);
+  GridFunction density(&sfes, u_block.GetData() + offsets[0]);
   GridFunction momentum(&dfes, u_block.GetData() + offsets[1]);
-  GridFunction energy(&dfes, u_block.GetData() + offsets[1 + dim]);
+  GridFunction energy(&sfes, u_block.GetData() + offsets[1 + dim]);
 
   // Get Euler system
   HyperbolicConservationLaws *euler = getEulerSystem(vfes);
