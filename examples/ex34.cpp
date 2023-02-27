@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
   OptionsParser args(argc, argv);
   args.AddOption(&mesh_file, "-m", "--mesh",
-                 "Mesh file to use (default: 2x2 rectangular mesh).");
+                 "Mesh file to use (default: problem dependent).");
   args.AddOption(&order, "-o", "--order",
                  "Finite element polynomial degree (default: 1).");
   args.AddOption(
@@ -146,7 +146,7 @@ Mesh getMesh(const int problem) {
       return Mesh("../data/periodic-segment.mesh");
     case 2:  // 2D accuracy test
       // (-1, 1) x (-1 ,1), Doubly Periodic
-      return Mesh("../data/periodic-square-2x2.mesh");
+      return Mesh("../data/periodic-square-4x4.mesh");
     case 3:  // 1D Sod's Shock Tube
       // (0, 1), Dirichlet
       return Mesh::MakeCartesian1D(2, 1.0);
@@ -159,10 +159,10 @@ Mesh getMesh(const int problem) {
                                    1.0, 0.1);
     case 6:  // 2D fast vortex
       // (-1, 1) x (-1 ,1), Doubly Periodic
-      return Mesh("../data/periodic-square-2x2.mesh");
+      return Mesh("../data/periodic-square-4x4.mesh");
     case 7:  // 2D slow vortex
       // (-1, 1) x (-1 ,1), Doubly Periodic
-      return Mesh("../data/periodic-square-2x2.mesh");
+      return Mesh("../data/periodic-square-4x4.mesh");
     default:
       mfem_error("Default mesh for the current problem is undefined!");
       throw std::invalid_argument("Invalid Problem.");
