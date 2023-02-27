@@ -85,8 +85,11 @@ int main(int argc, char *argv[]) {
   HyperbolicConservationLaws *euler = getEulerSystem(vfes);
   euler->set_cfl(cfl);
 
+  // Get ODE solver
   ODESolver *ode_solver = getODESolver(ode_solver_type);
   ode_solver->Init(*euler);
+  double t = 0.0;
+  euler->SetTime(t);
 
   VectorFunctionCoefficient u0(num_equations, getInitCond(problem));
 
