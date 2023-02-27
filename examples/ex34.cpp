@@ -53,6 +53,12 @@ int main(int argc, char *argv[]) {
                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
   args.AddOption(&problem, "-p", "--problem",
                  "Problem setup to use. See options in velocity_function().");
+  args.Parse();
+  if (!args.Good()) {
+    args.PrintUsage(cout);
+    return 1;
+  }
+//   args.PrintOptions(cout);
 
   Mesh mesh = (mesh_file != NULL) ? Mesh(mesh_file, 1, 1) : getMesh(problem);
   mesh.EnsureNCMesh();
@@ -81,10 +87,26 @@ int main(int argc, char *argv[]) {
   GridFunction momentum(&dfes, u_block.GetData() + offsets[1]);
   GridFunction energy(&sfes, u_block.GetData() + offsets[1 + dim]);
 
-   // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations, getInitCond(problem));
-   GridFunction sol(&vfes, u_block.GetData());
-   sol.ProjectCoefficient(u0);
+  // Initialize the state.
+  VectorFunctionCoefficient u0(num_equations, getInitCond(problem));
+  GridFunction sol(&vfes, u_block.GetData());
+  sol.ProjectCoefficient(u0);
+
+  // Output the initial solution.
+  {
+    ofstream mesh_ofs("vortex.mesh");
+    mesh_ofs.precision(8);
+    mesh_ofs << mesh;
+
+    for (int k = 0; k < num_equations; k++) {
+      GridFunction uk(&sfes, u_block.GetBlock(k));
+      ostringstream sol_name;
+      sol_name << "vortex-" << k << "-init.gf";
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      sol_ofs << uk;
+    }
+  }
 
   // Get Euler system
   HyperbolicConservationLaws *euler = getEulerSystem(vfes);
@@ -150,6 +172,8 @@ Mesh getMesh(const int problem) {
 InitialCondition getInitCond(const int problem) {
   switch (problem) {
     case 1:  // 1D accuracy test
+      std::cout << "1D Accuracy Test." << std::endl;
+      std::cout << "domain = (-1, 1)" << std::endl;
       return [](const Vector &x, Vector &y) {
         const double density = 1.0 + 0.2 * __sinpi(x(0));
         const double velocity = 1.0;
@@ -163,6 +187,8 @@ InitialCondition getInitCond(const int problem) {
       };
 
     case 2:  // 2D accuracy test
+      std::cout << "2D Accuracy Test." << std::endl;
+      std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
       return [](const Vector &x, Vector &y) {
         const double density = 1.0 + 0.2 * __sinpi(x(0) + x(1));
         const double velocity_x = 0.7;
@@ -179,6 +205,8 @@ InitialCondition getInitCond(const int problem) {
       };
 
     case 3:  // 1D Sod's Shock Tube
+      std::cout << "1D Sod's Shock Tube." << std::endl;
+      std::cout << "domain = (0, 1)" << std::endl;
       return [](const Vector &x, Vector &y) {
         const double density = x(0) < 0.3 ? 1.0 : 0.125;
         const double velocity = x(0) < 0.3 ? 0.75 : 0.0;
