@@ -3555,13 +3555,13 @@ dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
 
 NNLS::NNLS(double const_tol, int min_nnz, int max_nnz, int verbosity,
            double res_change_termination_tol, double zero_tol, double rhs_delta,
-           int n_outer, int n_inner, int n_stallCheck)
+           bool normalize, int n_outer, int n_inner, int n_stallCheck)
    : Solver(0), mat(nullptr), const_tol_(const_tol), min_nnz_(min_nnz),
      max_nnz_(max_nnz), verbosity_(verbosity),
      res_change_termination_tol_(res_change_termination_tol),
-     zero_tol_(zero_tol), rhs_delta_(rhs_delta), n_outer_(n_outer),
-     n_inner_(n_inner), nStallCheck(n_stallCheck), NNLS_qrres_on_(false),
-     qr_residual_mode_(QRresidualMode::hybrid)
+     zero_tol_(zero_tol), rhs_delta_(rhs_delta), normalize_(normalize),
+     n_outer_(n_outer), n_inner_(n_inner), nStallCheck_(n_stallCheck),
+     NNLS_qrres_on_(false), qr_residual_mode_(QRresidualMode::hybrid)
 {
 }
 
@@ -3644,7 +3644,7 @@ void NNLS::Mult(const Vector &w, Vector &sol) const
       rhs_ub(i) += rhs_delta_;
    }
 
-   NormalizeConstraints(rhs_lb, rhs_ub);
+   if (normalize_) { NormalizeConstraints(rhs_lb, rhs_ub); }
    Solve(rhs_lb, rhs_ub, sol);
 
    if (verbosity_ > 1)
@@ -3815,14 +3815,14 @@ void NNLS::Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const
       }
 
       // Check for stall after the first nStallCheck iterations
-      if (oiter > nStallCheck)
+      if (oiter > nStallCheck_)
       {
          double mean0 = 0.0;
          double mean1 = 0.0;
-         for (int i=0; i<nStallCheck/2; ++i)
+         for (int i=0; i<nStallCheck_/2; ++i)
          {
             mean0 += l2_res_hist[oiter - i];
-            mean1 += l2_res_hist[oiter - (nStallCheck) - i];
+            mean1 += l2_res_hist[oiter - (nStallCheck_) - i];
          }
 
          double mean_res_change = (mean1 / mean0) - 1.0;
