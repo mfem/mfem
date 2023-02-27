@@ -21,8 +21,8 @@
 // Compile with: make mesh-quality
 // Sample runs:
 // Visualize using GLVis and VisIt the geometric parameters for blade.mesh
-// mpirun -np 4 mesh-quality -m blade.mesh -size -aspr -skew -vis -visit
-// mpirun -np 4 mesh-quality -m ../../data/square-disc.mesh  -o 2 -size -aspr -skew -vis
+// mesh-quality -m blade.mesh -size -aspr -skew -vis -visit
+// mesh-quality -m ../../data/square-disc.mesh  -o 2 -size -aspr -skew -vis
 
 #include "mfem.hpp"
 #include <fstream>
@@ -34,9 +34,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
-   Hypre::Init();
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order          = -1;
@@ -77,10 +74,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   args.PrintOptions(cout);
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < ref_levels; lev++)
@@ -89,27 +83,24 @@ int main(int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-
    const int nParams = dim == 2 ? 4 : 12;
    if (order < 0)
    {
-      order = pmesh->GetNodes() == NULL ? 1 :
-              pmesh->GetNodes()->FESpace()->GetFE(0)->GetOrder();
+      order = mesh->GetNodes() == NULL ? 1 :
+              mesh->GetNodes()->FESpace()->GetFE(0)->GetOrder();
    }
 
    // Define a GridFunction for geometric parameters associated with the mesh.
-   L2_FECollection l2fec(order, pmesh->Dimension());
-   ParFiniteElementSpace fespace(pmesh, &l2fec, nParams); //must order byNodes
-   ParGridFunction quality(&fespace);
+   L2_FECollection l2fec(order, mesh->Dimension());
+   FiniteElementSpace fespace(mesh, &l2fec, nParams); //must order byNodes
+   GridFunction quality(&fespace);
 
    DenseMatrix jacobian(dim);
    Vector geomParams;
    Array<int> vdofs;
    Vector vals;
    // Compute the geometric parameter at the dofs of each element.
-   for (int e = 0; e < pmesh->GetNE(); e++)
+   for (int e = 0; e < mesh->GetNE(); e++)
    {
       const FiniteElement *fe = fespace.GetFE(e);
       const IntegrationRule &ir = fe->GetNodes();
@@ -118,8 +109,8 @@ int main(int argc, char *argv[])
       for (int q = 0; q < ir.GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
-         pmesh->GetElementJacobian(e, jacobian, &ip);
-         pmesh->GetGeometricParametersFromJacobian(jacobian, geomParams);
+         mesh->GetElementJacobian(e, jacobian, &ip);
+         mesh->GetGeometricParametersFromJacobian(jacobian, geomParams);
          for (int n = 0; n < nParams; n++)
          {
             vals(q + n*ir.GetNPoints()) = geomParams(n);
@@ -128,7 +119,7 @@ int main(int argc, char *argv[])
       quality.SetSubVector(vdofs, vals);
    }
 
-   VisItDataCollection visit_dc("quality", pmesh);
+   VisItDataCollection visit_dc("quality", mesh);
 
    // Visualize different parameters
    int visw = 400;
@@ -136,12 +127,12 @@ int main(int argc, char *argv[])
    int cx = 0;
    int cy = 0;
    int gap = 10;
-   ParFiniteElementSpace scfespace(pmesh, &l2fec);
+   FiniteElementSpace scfespace(mesh, &l2fec);
    int ndofs = scfespace.GetNDofs();
    if (dim == 2)
    {
       int idx = 0;
-      ParGridFunction size_gf, aspr_gf, skew_gf;
+      GridFunction size_gf, aspr_gf, skew_gf;
       socketstream vis1, vis2, vis3;
       if (size)
       {
@@ -154,16 +145,8 @@ int main(int argc, char *argv[])
          }
          double min_size = size_gf.Min(),
                 max_size = size_gf.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_size, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_size, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
-         if (myid == 0)
-         {
-            cout << "Min size:           " << min_size << endl;
-            cout << "Max size:           " << max_size << endl;
-         }
-
+         cout << "Min size:           " << min_size << endl;
+         cout << "Max size:           " << max_size << endl;
       }
       if (aspect_ratio)
       {
@@ -177,16 +160,9 @@ int main(int argc, char *argv[])
          }
          double min_aspr = aspr_gf.Min(),
                 max_aspr = aspr_gf.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_aspr, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_aspr, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          max_aspr = max(1.0/min_aspr, max_aspr);
-         if (myid == 0)
-         {
-            cout << "Worst aspect-ratio: " << max_aspr << endl;
-            cout << "(in any direction)" << endl;
-         }
+         cout << "Worst aspect-ratio: " << max_aspr << endl;
+         cout << "(in any direction)" << endl;
       }
       if (skewness)
       {
@@ -200,15 +176,8 @@ int main(int argc, char *argv[])
          }
          double min_skew = skew_gf.Min(),
                 max_skew = skew_gf.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_skew, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_skew, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
-         if (myid == 0)
-         {
-            cout << "Min skew (in deg):  " << min_skew*180/M_PI << endl;
-            cout << "Max skew (in deg):  " << max_skew*180/M_PI << endl;
-         }
+         cout << "Min skew (in deg):  " << min_skew*180/M_PI << endl;
+         cout << "Max skew (in deg):  " << max_skew*180/M_PI << endl;
       }
       if (visit)
       {
@@ -233,15 +202,8 @@ int main(int argc, char *argv[])
          }
          double min_size = size_gf.Min(),
                 max_size = size_gf.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_size, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_size, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
-         if (myid == 0)
-         {
-            cout << "Min size:            " << min_size << endl;
-            cout << "Max size:            " << max_size << endl;
-         }
+         cout << "Min size:            " << min_size << endl;
+         cout << "Max size:            " << max_size << endl;
       }
       if (aspect_ratio)
       {
@@ -263,20 +225,11 @@ int main(int argc, char *argv[])
          }
          double min_aspr1 = aspr_gf1.Min(),
                 max_aspr1 = aspr_gf1.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_aspr1, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_aspr1, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          max_aspr1 = max(1.0/min_aspr1, max_aspr1);
 
          double min_aspr2 = aspr_gf2.Min(),
                 max_aspr2 = aspr_gf2.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_aspr2, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_aspr2, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          max_aspr2 = max(1.0/min_aspr2, max_aspr2);
-
          double max_aspr = max(max_aspr1, max_aspr2);
 
          Vector aspr_gf3(aspr_gf1.Size());
@@ -286,19 +239,11 @@ int main(int argc, char *argv[])
          }
          double min_aspr3 = aspr_gf3.Min(),
                 max_aspr3 = aspr_gf3.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_aspr3, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_aspr3, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          max_aspr3 = max(1.0/min_aspr3, max_aspr3);
-
          max_aspr = max(max_aspr, max_aspr3);
 
-         if (myid == 0)
-         {
-            cout << "Worst aspect-ratio:  " << max_aspr << endl;
-            cout << "(in any direction)" << endl;
-         }
+         cout << "Worst aspect-ratio:  " << max_aspr << endl;
+         cout << "(in any direction)" << endl;
       }
       if (skewness)
       {
@@ -326,36 +271,18 @@ int main(int argc, char *argv[])
          }
          double min_skew1 = skew_gf1.Min(),
                 max_skew1 = skew_gf1.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_skew1, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_skew1, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
-
          double min_skew2 = skew_gf2.Min(),
                 max_skew2 = skew_gf2.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_skew2, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_skew2, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
-
          double min_skew3 = skew_gf3.Min(),
                 max_skew3 = skew_gf3.Max();
-         MPI_Allreduce(MPI_IN_PLACE, &min_skew3, 1,
-                       MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE, &max_skew3, 1,
-                       MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
-         if (myid == 0)
-         {
-            cout << "Min skew 1 (in deg): " << min_skew1*180/M_PI << endl;
-            cout << "Max skew 1 (in deg): " << max_skew1*180/M_PI << endl;
+         cout << "Min skew 1 (in deg): " << min_skew1*180/M_PI << endl;
+         cout << "Max skew 1 (in deg): " << max_skew1*180/M_PI << endl;
 
-            cout << "Min skew 2 (in deg): " << min_skew2*180/M_PI << endl;
-            cout << "Max skew 2 (in deg): " << max_skew2*180/M_PI << endl;
+         cout << "Min skew 2 (in deg): " << min_skew2*180/M_PI << endl;
+         cout << "Max skew 2 (in deg): " << max_skew2*180/M_PI << endl;
 
-            cout << "Min skew 3 (in deg): " << min_skew3*180/M_PI << endl;
-            cout << "Max skew 3 (in deg): " << max_skew3*180/M_PI << endl;
-         }
-
+         cout << "Min skew 3 (in deg): " << min_skew3*180/M_PI << endl;
+         cout << "Max skew 3 (in deg): " << max_skew3*180/M_PI << endl;
       }
       if (visit)
       {
@@ -364,6 +291,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   delete pmesh;
+   delete mesh;
    return 0;
 }
