@@ -18,6 +18,56 @@ class DivFlux;        // (F(u), grad phi) : public NonlinearFormIntegrator
 class NumericalFlux;  // <hat(F), jump phi> : public NonlinearFormIntegrator
 class RusanovFlux;    // hat(F) = RusanovFlux : public NumericalFlux
 
+class DivFlux : public NonlinearFormIntegrator {
+ private:
+  Flux Fu;
+  Vector shape;        // placeholder for shape function eval
+  Vector funval;       // placeholder for solution value
+  DenseMatrix dshape;  // placeholder for reference gradient of shape function
+  DenseMatrix gshape;  // placeholder for physical gradient of shape function
+  DenseMatrix Fmat;    // placeholder for flux eval
+  DenseMatrix Jadj;    // placeholder for Jacobian adjoint
+
+ public:
+  double max_char_speed;
+  DivFlux(Flux &Fu_) : Fu(Fu_){};
+
+  void AssembleElementVector(const FiniteElement &elem,
+                             ElementTransformation &trans, const Vector &elfun,
+                             Vector &elvect);
+};
+
+class NumericalFlux : public NonlinearFormIntegrator {
+ protected:
+  NormalFlux FudotN;
+  virtual double riemannSolver(const Vector &state1, const Vector &state2,
+                               const Vector &nor, Vector &fluxN) = 0;
+
+ public:
+  double max_char_speed;
+  NumericalFlux(NormalFlux FudotN_) : FudotN(FudotN_){};
+  ~NumericalFlux() = default;
+
+  void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                          FaceElementTransformations &Tr, const Vector &elfun,
+                          Vector &elvect);
+};
+
+class RusanovFlux : public NumericalFlux {
+ private:
+  Vector flux1, flux2;
+  double riemannSolver(const Vector &state1, const Vector &state2,
+                       const Vector &nor, Vector &fluxN);
+
+ public:
+  /// @brief Compute Rusanov flux fuor the given flux Function and edge
+  /// by F* = 0.5(F(s₁)n + F(s₂)n) - 0.5λ(F(s₁)n + F(s₂)n)
+  /// @param FdotN_ flux normal function: F(s, n, Fsn)
+  /// @param num_equations the number of equation
+  RusanovFlux(NormalFlux FudotN_, const int num_equations)
+      : NumericalFlux(FudotN_), flux1(num_equations), flux2(num_equations){};
+};
+
 class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
@@ -29,7 +79,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   NumericalFlux *riemann_solver = NULL;  //
   DivFlux *divFu = NULL;  // element integrator, - (F(u), grad phi)
   std::vector<DenseMatrix> invMe;
-  mutable double max_char_speed = 0.0;
+  mutable double max_char_speed = NAN;
   mutable Vector z;  // Auxiliary vector used in Mult
   double hmin;
   int max_order;
@@ -54,11 +104,18 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
       // warn user
       mfem_warning("Both CFL and dt are specified. Using CFL to compute dt.");
     // if CFL is specified (even if dt is specified), return dt from CFL
-    if (cfl > 0) return cfl * hmin / max_char_speed / (2 * max_order + 1);
+    if (cfl > 0) {
+      if (!isfinite(max_char_speed))
+        mfem_error(
+            "Max Characteristic Speed is not initialized. See, "
+            "HyperbolicConservationLaws::setInitMaxCharSpeed");
+      return cfl * hmin / max_char_speed / (2 * max_order + 1);
+    }
     // if dt is specified,
     if (dt > 0) return dt;
     // if both are not specified,
     mfem_error("Neither dt nor cfl specified");
+    return NAN;
   }
   inline void set_cfl(const double cfl_) { cfl = cfl_; }
   inline void set_dt(const double dt_) { dt = dt_; }
@@ -68,11 +125,11 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
     FiniteElementSpace &vfes_, Flux Fu_, NormalFlux FudotN_, FluxType fluxname)
     : TimeDependentOperator(0),
       vfes(vfes_),
-      dim(vfes.GetMesh()->Dimension()),
-      num_equations(vfes.GetVDim()),
+      dim(vfes_.GetMesh()->Dimension()),
+      num_equations(vfes_.GetVDim()),
       FudotN(FudotN_),
       Fu(Fu_),
-      A(&vfes),
+      A(&vfes_),
       invMe() {
   switch (fluxname) {
     case FluxType::RUSANOV: {
@@ -158,56 +215,6 @@ void HyperbolicConservationLaws::Update() {
   A.Update();      // update nonlinear operator
   computeInvMe();  // update mass inverse
 }
-
-class DivFlux : public NonlinearFormIntegrator {
- private:
-  Flux Fu;
-  Vector shape;        // placeholder for shape function eval
-  Vector funval;       // placeholder for solution value
-  DenseMatrix dshape;  // placeholder for reference gradient of shape function
-  DenseMatrix gshape;  // placeholder for physical gradient of shape function
-  DenseMatrix Fmat;    // placeholder for flux eval
-  DenseMatrix Jadj;    // placeholder for Jacobian adjoint
-
- public:
-  double max_char_speed;
-  DivFlux(Flux &Fu_) : Fu(Fu_){};
-
-  void AssembleElementVector(const FiniteElement &elem,
-                             ElementTransformation &trans, const Vector &elfun,
-                             Vector &elvect);
-};
-
-class NumericalFlux : public NonlinearFormIntegrator {
- protected:
-  NormalFlux FudotN;
-  virtual double riemannSolver(const Vector &state1, const Vector &state2,
-                               const Vector &nor, Vector &fluxN) = 0;
-
- public:
-  double max_char_speed;
-  NumericalFlux(NormalFlux FudotN_) : FudotN(FudotN_){};
-  ~NumericalFlux() = default;
-
-  void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
-                          FaceElementTransformations &Tr, const Vector &elfun,
-                          Vector &elvect);
-};
-
-class RusanovFlux : public NumericalFlux {
- private:
-  Vector flux1, flux2;
-  double riemannSolver(const Vector &state1, const Vector &state2,
-                       const Vector &nor, Vector &fluxN);
-
- public:
-  /// @brief Compute Rusanov flux fuor the given flux Function and edge
-  /// by F* = 0.5(F(s₁)n + F(s₂)n) - 0.5λ(F(s₁)n + F(s₂)n)
-  /// @param FdotN_ flux normal function: F(s, n, Fsn)
-  /// @param num_equations the number of equation
-  RusanovFlux(NormalFlux FudotN_, const int num_equations)
-      : NumericalFlux(FudotN_), flux1(num_equations), flux2(num_equations){};
-};
 
 double RusanovFlux::riemannSolver(const Vector &state1, const Vector &state2,
                                   const Vector &nor, Vector &fluxN) {
