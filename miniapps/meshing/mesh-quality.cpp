@@ -188,8 +188,8 @@ int main(int argc, char *argv[])
    else if (dim == 3)
    {
       int idx = 0;
-      ParGridFunction size_gf, aspr_gf1, aspr_gf2,
-                      skew_gf1, skew_gf2, skew_gf3;
+      GridFunction size_gf, aspr_gf1, aspr_gf2,
+                   skew_gf1, skew_gf2, skew_gf3;
       socketstream vis1, vis2, vis3, vis4, vis5, vis6;
       if (size)
       {
