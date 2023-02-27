@@ -404,25 +404,31 @@ NormalFlux getBurgersFdotN() {
 // Euler
 
 /// @brief Compute Euler Flux
-/// @param state current state s = (ρ, u, E)
-/// @param flux fulux, F(s) = [ρu, ρuuᵀ+pI, u(E+p)]ᵀ
-/// @return characteristic speed, |u| + (γp/ρ)^(1/2)
+/// @param gamma_euler Specific heat ratio
+/// @return lambda function Flux F(const Vector & state, DenseMatrix
+/// &Fstate)->double max_char_speed = |u|+(γp/ρ)^(1/2)
 Flux getEulerF(const double gamma_euler = 1.4) {
   return [=](const Vector &state, DenseMatrix &flux) {
     // Parse current state
     const int dim = state.Size() - 2;
+    flux.SetSize(state.Size(), dim);
     const double den = state(0);                 // density
     const Vector mom(state.GetData() + 1, dim);  // momentum
     const double E = state(1 + dim);             // energy
 
     // Pressure = (γ - 1)(E - ρ|u|^2/2)
-    const double p = (gamma_euler - 1) * (E - mom.Norml2() / (2 * den));
+    const double p = (gamma_euler - 1) * (E - mom * mom / (2 * den));
+
+    if (den < 0) mfem_error("Negative density detected. Abort");
+    if (E < 0) mfem_error("Negative energy detected. Abort");
+    if (p < 0) mfem_error("Negative pressure detected. Abort");
+
     // Enthalpy
     const double H = (E + p) / den;
     for (int i = 0; i < dim; i++) {
       flux(0, i) = mom(i);
       const double vel_i = mom(i) / den;  // compute i'th velocity
-      for (int j = 0; j < dim; i++) {
+      for (int j = 0; j < dim; j++) {
         flux(1 + j, i) = mom(j) * vel_i;
       }
       flux(1 + i, i) += p;
@@ -432,20 +438,25 @@ Flux getEulerF(const double gamma_euler = 1.4) {
   };
 }
 
-/// @brief Compute Euler flux dot normal
-/// @param state current state s = (ρ, u, E)
-/// @param nor outer normal (generally not a unit vector)
-/// @param fluxN normal flux, F(s)n = [ρu⋅n, ρuᵀu⋅n+pn, u⋅n(E+p)]
-/// @return characteristic speed, |u| + (γp/ρ)^(1/2)
+/// @brief Compute Euler Normal Flux
+/// @param gamma_euler Specific heat ratio
+/// @return lambda function NormalFlux F(const Vector & state,
+///         const Vector & nor, Vector &Fstate_dot_n))
+///         ->double max_char_speed = |u|+(γp/ρ)^(1/2)
 NormalFlux getEulerFdotN(const double gamma_euler = 1.4) {
   return [=](const Vector &state, const Vector &nor, Vector &fluxN) {
+    fluxN.SetSize(state.Size());
     const int dim = state.Size() - 2;
     const double den = state(0);                 // density, ρ
     const Vector mom(state.GetData() + 1, dim);  // momentum, m = ρu
     const double E = state(1 + dim);             // Energy, E
 
     // pressure
-    const double p = (gamma_euler - 1) * (E - mom.Norml2() / (2 * den));
+    const double p = (gamma_euler - 1) * (E - mom * mom / (2 * den));
+
+    if (den < 0) mfem_error("Negative density detected. Abort");
+    if (E < 0) mfem_error("Negative energy detected. Abort");
+    if (p < 0) mfem_error("Negative pressure detected. Abort");
 
     // F₁(u) = ρu⋅n
     fluxN(0) = mom * nor;
@@ -461,7 +472,7 @@ NormalFlux getEulerFdotN(const double gamma_euler = 1.4) {
     fluxN(dim) = normal_vel * (E + p);
 
     // Characteristic speed = |u| + (γp/ρ)^(1/2)
-    return mom.Norml2() / den + gamma_euler * p / den;
+    return mom.Norml2() / den + sqrt(gamma_euler * p / den);
   };
 }
 
