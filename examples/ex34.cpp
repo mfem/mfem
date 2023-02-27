@@ -81,6 +81,11 @@ int main(int argc, char *argv[]) {
   GridFunction momentum(&dfes, u_block.GetData() + offsets[1]);
   GridFunction energy(&sfes, u_block.GetData() + offsets[1 + dim]);
 
+   // Initialize the state.
+   VectorFunctionCoefficient u0(num_equations, getInitCond(problem));
+   GridFunction sol(&vfes, u_block.GetData());
+   sol.ProjectCoefficient(u0);
+
   // Get Euler system
   HyperbolicConservationLaws *euler = getEulerSystem(vfes);
   euler->set_cfl(cfl);
@@ -90,8 +95,6 @@ int main(int argc, char *argv[]) {
   ode_solver->Init(*euler);
   double t = 0.0;
   euler->SetTime(t);
-
-  VectorFunctionCoefficient u0(num_equations, getInitCond(problem));
 
   return 0;
 }
