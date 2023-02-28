@@ -74,15 +74,31 @@ unsigned int sqrti(unsigned int a)
    return (root >> 1);
 }
 
-void GetSquare(int np, int &nr, int &nc)
+int GetGridRows(MPI_Comm comm, int npdep)
 {
-   nr = (int)sqrti((unsigned int)np);
+   int np;
+   MPI_Comm_size(comm, &np);
+   MFEM_VERIFY(npdep > 0 && np % npdep == 0 && !(npdep & (npdep - 1)),
+               "SuperLUSolver: 3D partition depth must be a power of two "
+               "and evenly divide the number of processors!");
+   int nr = (int)sqrti((unsigned int)(np / npdep));
    while (np % nr != 0 && nr > 0)
    {
       nr--;
    }
-   nc = (int)(np / nr);
-   MFEM_VERIFY(nr * nc == np, "Impossible processor partition!");
+   MFEM_VERIFY(nr > 0,
+               "SuperLUSolver: Unable to determine processor grid for np = " << np);
+   return nr;
+}
+
+int GetGridCols(MPI_Comm comm, int npdep, int nr)
+{
+   int np;
+   MPI_Comm_size(comm, &np);
+   int nc = np / (nr * npdep);
+   MFEM_VERIFY(nr * nc * npdep == np,
+               "SuperLUSolver: Impossible processor partition!");
+   return nc;
 }
 
 namespace mfem
@@ -242,19 +258,18 @@ SuperLURowLocMatrix::~SuperLURowLocMatrix()
 }
 
 SuperLUSolver::SuperLUSolver(MPI_Comm comm, int npdep)
-   : APtr_(NULL),
-     nrhs_(0),
-     npdep_(npdep)
+   : nprow_(GetGridRows(comm, npdep)),
+     npcol_(GetGridCols(comm, npdep, nprow_)),
+     npdep_(npdep),
+     APtr_(NULL),
+     nrhs_(0)
 {
    Init(comm);
 }
 
 SuperLUSolver::SuperLUSolver(SuperLURowLocMatrix &A, int npdep)
-   : APtr_(&A),
-     nrhs_(0),
-     npdep_(npdep)
+   : SuperLUSolver(A.GetComm(), npdep)
 {
-   Init(A.GetComm());
    SetOperator(A);
 }
 
@@ -324,20 +339,24 @@ void SuperLUSolver::Init(MPI_Comm comm)
    ScalePermstructPtr_ = new ScalePermstruct_t;
    LUstructPtr_        = new LUstruct_t;
    SOLVEstructPtr_     = new SOLVEstruct_t;
+
+   // Initialize process grid
 #if SUPERLU_DIST_MAJOR_VERSION > 7 || \
    (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
    if (npdep_ > 1)
    {
-      gridPtr_         = new gridinfo3d_t;
+      gridPtr_ = new gridinfo3d_t;
+      superlu_gridinit3d(comm, nprow_, npcol_, npdep_, (gridinfo3d_t *)gridPtr_);
    }
    else
 #endif
    {
-      gridPtr_         = new gridinfo_t;
+      gridPtr_ = new gridinfo_t;
+      MFEM_VERIFY(npdep_ == 1,
+                  "SuperLUSolver: 3D partitioning is only available for "
+                  "SuperLU_DIST version >= 7.2.0!");
+      superlu_gridinit(comm, nprow_, npcol_, (gridinfo_t *)gridPtr_);
    }
-
-   // Initialize process grid
-   SetupGrid(comm);
 
    // Set default options:
    //    options.Fact = DOFACT;
@@ -359,42 +378,6 @@ void SuperLUSolver::Init(MPI_Comm comm)
       options->Algo3d = YES;
    }
 #endif
-}
-
-void SuperLUSolver::SetupGrid(MPI_Comm comm)
-{
-   int nprocs;
-   MPI_Comm_size(comm, &nprocs);
-
-#if SUPERLU_DIST_MAJOR_VERSION > 7 || \
-   (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
-   if (npdep_ > 1)
-   {
-      gridinfo3d_t *grid3d = (gridinfo3d_t *)gridPtr_;
-
-      int mask = npdep_ - 1;
-      MFEM_VERIFY(!(npdep_ & mask),
-                  "SuperLUSolver::SetupGrid: 3D partition depth must be a power "
-                  "of two!");
-      MFEM_VERIFY(nprocs % npdep_ == 0,
-                  "SuperLUSolver::SetupGrid: Number of processors must be "
-                  "evenly divisible by 3D partition depth!");
-      GetSquare(nprocs / npdep_, nprow_, npcol_);
-
-      superlu_gridinit3d(comm, nprow_, npcol_, npdep_, grid3d);
-   }
-   else
-#endif
-   {
-      gridinfo_t *grid = (gridinfo_t *)gridPtr_;
-
-      MFEM_VERIFY(npdep_ == 1,
-                  "SuperLUSolver::SetupGrid: 3D partitioning is only available for "
-                  "version >= 7.2.0!");
-      GetSquare(nprocs, nprow_, npcol_);
-
-      superlu_gridinit(comm, nprow_, npcol_, grid);
-   }
 }
 
 void SuperLUSolver::SetPrintStatistics(bool print_stat)
