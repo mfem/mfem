@@ -13,6 +13,7 @@
 # Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
 # Version 3.8 or newer is required for direct CUDA support.
 cmake_minimum_required(VERSION 3.8)
+message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -24,8 +25,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
-message(STATUS "(optional) USER_CONFIG = ${USER_CONFIG}")
-include("${USER_CONFIG}" OPTIONAL)
+include("${USER_CONFIG}" OPTIONAL RESULT_VARIABLE USER_CONFIG_LOADED)
+if (USER_CONFIG_LOADED)
+  set(USER_CONFIG_LOADED "LOADED")
+endif()
+message(STATUS "Loading USER_CONFIG = ${USER_CONFIG} (${USER_CONFIG_LOADED})")
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/defaults.cmake")
 
 # Allow overwriting of the compiler by setting CXX/MPICXX on the command line or
@@ -181,6 +185,23 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
+endif()
+
+# Shared build on Windows
+if (WIN32 AND BUILD_SHARED_LIBS)
+  # CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS works only with MSVC?
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON CACHE BOOL
+      "Automatically export symbols for shared Windows DLL build")
+  # Place all .dll and .exe files in the same sub-directory, 'bin/<config>', of
+  # the build directory, so that the .exe files can find the .dll files at
+  # runtime:
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+  # Note: CMake tests are run from the build-tree sub-directory where the test
+  # is defined, e.g. <build-dir>/tests/unit, so hard coded paths to meshes still
+  # work fine.
+  # Not strictly necessary:
+  # set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+  # set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 endif()
 
 # AMD HIP
@@ -519,6 +540,7 @@ list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 
+message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
@@ -586,6 +608,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
+set(MFEM_SHARED_BUILD ${BUILD_SHARED_LIBS})
 configure_file(
   "${PROJECT_SOURCE_DIR}/config/cmake/config.hpp.in"
   "${PROJECT_BINARY_DIR}/config/_config.hpp")
@@ -757,10 +780,8 @@ endif()
 
 # Install the configuration header files
 install(FILES ${PROJECT_BINARY_DIR}/config/_config.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config
-  RENAME config.hpp)
-
-install(FILES ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
+  ${PROJECT_SOURCE_DIR}/config/config.hpp
+  ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config)
 
 # Package the whole thing up nicely
