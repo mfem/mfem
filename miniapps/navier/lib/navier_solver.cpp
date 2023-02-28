@@ -326,13 +326,6 @@ void NavierSolver::UpdateTimestepHistory(double dt)
 void NavierSolver::Step(double &time, double dt, int current_step,
                         bool provisional)
 {
-   // RANS
-   if (rans_model)
-   {
-      // kv = rans_model->EvaluateTo(time + dt);
-      // kv_gf -= kv;
-   }
-
    sw_step.Start();
 
    SetTimeIntegrationCoefficients(current_step);
@@ -982,13 +975,6 @@ void NavierSolver::EvaluateMonomialBasis(const int N, const double x, Vector &L)
    {
       L(i) = std::pow(x, i);
    }
-}
-
-void NavierSolver::SetRANSModel(std::shared_ptr<RANSModel> k)
-{
-   rans_model = k;
-
-   // rans_model->Setup(*pfes);
 }
 
 void NavierSolver::EnableFilter(FilterMethod f)

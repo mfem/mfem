@@ -15,7 +15,7 @@
 #define NAVIER_VERSION 0.1
 
 #include "mfem.hpp"
-#include "rans/rans_model.hpp"
+#include "turbulence_model.hpp"
 #include "kernels/curl_evaluator.hpp"
 #include "kernels/mean_evaluator.hpp"
 #include "kernels/stress_evaluator.hpp"
@@ -294,7 +294,7 @@ public:
       return &kin_vis_gf;
    }
 
-   void SetRANSModel(std::shared_ptr<RANSModel> k);
+   void SetTurbulenceModel(std::shared_ptr<TurbulenceModel> k);
 
 protected:
    /// Print information about the Navier version.
@@ -502,9 +502,6 @@ protected:
    FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction u_filter_basis_gf, u_low_modes_gf, hpfrt_gf;
-
-   // RANS
-   std::shared_ptr<RANSModel> rans_model;
 
    StressEvaluator *stress_evaluator = nullptr;
    CurlEvaluator *curl_evaluator = nullptr;

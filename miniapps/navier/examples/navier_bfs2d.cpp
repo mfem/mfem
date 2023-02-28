@@ -218,7 +218,6 @@ int main(int argc, char *argv[])
    const double dx = AvgElementSize(*pmesh);
    HeatDistanceSolver dist_solver(dx * dx);
    // PLapDistanceSolver dist_solver(p, newton_iter);
-   dist_solver.print_level = 0;
    dist_solver.ComputeScalarDistance(ls_coeff, *wall_distance_gf);
 
    wall_distance_coeff = new GridFunctionCoefficient(wall_distance_gf);

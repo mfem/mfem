@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
    ParGridFunction *p_gf = navier.GetCurrentPressure();
 
-   std::shared_ptr<RANSModel> rans_model;
+   std::shared_ptr<TurbulenceModel> rans_model;
    std::shared_ptr<ODESolver> rans_ode;
    ParGridFunction *wall_distance_gf = nullptr, *k_gf = nullptr,
                     *nu_t_gf = nullptr;
