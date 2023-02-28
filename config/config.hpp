@@ -30,11 +30,18 @@
 #endif
 
 // Windows specific options
-#ifdef _WIN32
-#ifndef _USE_MATH_DEFINES
+#if defined(_WIN32) && !defined(_USE_MATH_DEFINES)
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
 #endif
+#if defined(_WIN32) && defined(MFEM_SHARED_BUILD)
+#ifdef mfem_EXPORTS
+#define MFEM_EXPORT __declspec(dllexport)
+#else
+#define MFEM_EXPORT __declspec(dllimport)
+#endif
+#else
+#define MFEM_EXPORT
 #endif
 // On Cygwin the option -std=c++11 prevents the definition of M_PI. Defining
 // the following macro allows us to get M_PI and some needed functions, e.g.
