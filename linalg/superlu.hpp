@@ -126,26 +126,20 @@ public:
    void SetParSymbFact(bool par);
    void SetFact(superlu::Fact fact);
 
+   // Processor grid for SuperLU_DIST.
+   const int nprow_, npcol_, npdep_;
+
 private:
    // Initialize the solver.
    void Init(MPI_Comm comm);
-
-   // Allocate the MPI communicators. This routine is called internally by
-   // Init().
-   void SetupGrid(MPI_Comm comm);
 
    // Handle error message from call to SuperLU solver.
    void HandleError(int info) const;
 
 protected:
    const SuperLURowLocMatrix *APtr_;
-
-   mutable Vector sol_;
-   mutable int    nrhs_;
-
-   int nprow_;
-   int npcol_;
-   int npdep_;
+   mutable Vector             sol_;
+   mutable int                nrhs_;
 
    /** The actual types of the following pointers are hidden to avoid exposing
        the SuperLU header files to the entire library. Their types are given in
