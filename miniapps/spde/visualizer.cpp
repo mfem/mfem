@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details
 
 #include "visualizer.hpp"
+#include <string>
 
 namespace mfem {
 namespace spde {
@@ -31,57 +32,65 @@ void Visualizer::ExportToParaView() {
   paraview_dc.Save();
 }
 
-void Visualizer::SendToGLVis() {
-  char vishost[] = "localhost";
+void Visualizer::SendToGLVis() const {
+  std::string vishost{"localhost"};
   int visport = 19916;
   int num_procs = Mpi::WorldSize();
   int process_rank = Mpi::WorldRank();
   socketstream uout;
   std::ostringstream oss_u;
-  uout.open(vishost, visport);
+  uout.open(vishost.c_str(), visport);
   uout.precision(8);
   oss_u.str("");
   oss_u.clear();
   oss_u << "Random Field";
   uout << "parallel " << num_procs << " " << process_rank << "\n"
        << "solution\n"
-       << *mesh_ << g1_ << "window_title '" << oss_u.str() << "'" << std::flush;
+       << *mesh_ << g1_ << "window_geometry 0 20 400 350 "
+       << "window_title '" << oss_u.str() << "'" << std::flush;
   uout.close();
 
   if (!is_3D_) {
     return;
   }
 
-  socketstream vout, wout, lout;
-  std::ostringstream oss_v, oss_w, oss_l;
-  vout.open(vishost, visport);
+  socketstream vout;
+  std::ostringstream oss_v;
+  vout.open(vishost.c_str(), visport);
   vout.precision(8);
   oss_v.str("");
   oss_v.clear();
   oss_v << "Topological Support";
   vout << "parallel " << num_procs << " " << process_rank << "\n"
        << "solution\n"
-       << *mesh_ << g2_ << "window_title '" << oss_v.str() << "'" << std::flush;
+       << *mesh_ << g2_ << "window_geometry 403 20 400 350 "
+       << "window_title '" << oss_v.str() << "'" << std::flush;
   vout.close();
 
-  wout.open(vishost, visport);
+  socketstream wout;
+  std::ostringstream oss_w;
+  wout.open(vishost.c_str(), visport);
   wout.precision(8);
   oss_w.str("");
   oss_w.clear();
   oss_w << "Imperfect Topology";
   wout << "parallel " << num_procs << " " << process_rank << "\n"
        << "solution\n"
-       << *mesh_ << g3_ << "window_title '" << oss_w.str() << "'" << std::flush;
+       << *mesh_ << g3_ << "window_geometry 0 420 400 350 "
+       << "window_title '" << oss_w.str() << "'" << std::flush;
   wout.close();
 
-  lout.open(vishost, visport);
+  socketstream lout;
+  std::ostringstream oss_l;
+  lout.open(vishost.c_str(), visport);
   lout.precision(8);
   oss_l.str("");
   oss_l.clear();
   oss_l << "Level Set";
   lout << "parallel " << num_procs << " " << process_rank << "\n"
        << "solution\n"
-       << *mesh_ << g4_ << "window_title '" << oss_l.str() << "'" << std::flush;
+       << *mesh_ << g4_ << "window_geometry 403 420 400 350 "
+       << "window_title '" << oss_l.str() << "'" << std::flush;
   lout.close();
 }
 
