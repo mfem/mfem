@@ -59,14 +59,14 @@ topology with the command line arguments `-top` (0 = particles,1 = octet truss).
 
 Generate 5 particles with random imperfections
 ```bash
-mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
        -l1 0.015 -l2 0.015 -l3 0.015 -s 0.01 \
        -t 0.08 -n 5 -pl2 3 -top 0 -rs
 ```
 
 Generate an Octet-Truss with random imperfections
 ```bash
-mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
        -l1 0.02 -l2 0.02 -l3 0.02 -s 0.01 \
        -t 0.08 -top 1 -rs
 ```
@@ -74,14 +74,14 @@ mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
 Generate an Octet-Truss with random imperfections following a uniform 
 distribution
 ```bash
-mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
        -l1 0.02 -l2 0.02 -l3 0.02 -umin 0.01 -umax 0.05 \
        -t 0.08 -top 1 -urf -rs
 ```
 
 A 2D random field with anisotropy
 ```
-mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 4 \
+mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 4 \
        -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 \
        -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh
 ```
@@ -115,7 +115,7 @@ Turn on/off with `-pvis/-no-pvis' command line arguments.
   mini-app to other topologies (e.g. [2, Example 3]) by 
   implementing an appropriate *distance metric*. We recommend creating a child 
   class of `MaterialTopology` (see `material_metrics.hpp`) and swapping the line
-  in `main.cpp` in which we create the respective object.
+  in `generate_random_field.cpp` in which we create the respective object.
 * The matrix $\underline{\underline{\Theta}}$ can be specified with length 
   scales `-l1,-l2,-l3` and Euler angles `-e1,-e2,-e3`. We construct a diagonal 
   matrix `D = diag([l1,l2,l3])` and rotation matrix `R(e1,e2,e3)` and compute 

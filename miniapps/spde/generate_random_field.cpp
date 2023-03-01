@@ -18,26 +18,26 @@
 //
 //  Runs:
 //   -> Basic usage:
-//     mpirun -np 4 ./miniapps/spde/main
+//     mpirun -np 4 ./miniapps/spde/generate_random_field
 //
 //   -> Generate 5 particles with random imperfections
-//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+//     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
 //            -l1 0.015 -l2 0.015 -l3 0.015 -s 0.01 \
 //            -t 0.08 -n 5 -pl2 3 -top 0 -rs
 //
 //   -> Generate an Octet-Truss with random imperfections
-//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+//     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
 //            -l1 0.02 -l2 0.02 -l3 0.02 -s 0.01 \
 //            -t 0.08 -top 1 -rs
 //
 //   -> Generate an Octet-Truss with random imperfections following a uniform
 //      distribution
-//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+//     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
 //            -l1 0.02 -l2 0.02 -l3 0.02 -umin 0.01 -umax 0.05 \
 //            -t 0.08 -top 1 -urf -rs
 //
 //   -> A 2D random field with anisotropy
-//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 4 \
+//     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 4 \
 //            -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 \
 //            -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh
 // ===========================================================================
