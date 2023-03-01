@@ -62,6 +62,10 @@ add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(reflector
+  MAIN reflector.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
