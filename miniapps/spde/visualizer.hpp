@@ -27,7 +27,7 @@ class Visualizer {
         is_3D_(is_3D) {}
 
   void ExportToParaView();
-  void SendToGLVis();
+  void SendToGLVis() const;
 
  private:
   ParMesh *mesh_;
