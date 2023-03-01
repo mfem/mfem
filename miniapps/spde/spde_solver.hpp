@@ -98,7 +98,7 @@ class SPDESolver {
 
   /// Writes the solution of the PDE from the previous call to Solve() to the
   /// linear from b (with appropriate transformations).
-  void UpdateRHS(ParLinearForm &b);
+  void UpdateRHS(ParLinearForm &b) const;
 
   // Compute the coefficients for the rational approximation of the solution.
   void ComputeRationalCoefficients(double exponent);
@@ -111,13 +111,13 @@ class SPDESolver {
 
   // Transformation matrices (needed to construct the linear systems and
   // solutions)
-  const SparseMatrix *restriction_matrix_;
-  const Operator *prolongation_matrix_;
+  const SparseMatrix *restriction_matrix_ = nullptr;
+  const Operator *prolongation_matrix_ = nullptr;
 
   // Members to solve the linear system.
   Vector X_;
   Vector B_;
-  HypreParMatrix *Op_;
+  HypreParMatrix *Op_ = nullptr;
 
   // Information of the finite element space.
   Array<int> ess_tdof_list_;
