@@ -30,7 +30,7 @@ SPDE_COMMON_SRC = boundary.cpp material_metrics.cpp spde_solver.cpp transformati
 SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = main
+PAR_MINIAPPS = generate_random_field
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
