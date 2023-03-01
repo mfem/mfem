@@ -296,14 +296,14 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
     restriction_matrix_->Mult(x, X_);
   }
 
-  delete Op_;
-  Op_ = Add(1.0, stiffness_, alpha, mass_bc_);  //  construct Operator
-  HypreParMatrix *Ae = Op_->EliminateRowsCols(ess_tdof_list_);
-  Op_->EliminateBC(*Ae, ess_tdof_list_, X_, B_);  // only for homogeneous BC
+  HypreParMatrix *Op =
+      Add(1.0, stiffness_, alpha, mass_bc_);  //  construct Operator
+  HypreParMatrix *Ae = Op->EliminateRowsCols(ess_tdof_list_);
+  Op->EliminateBC(*Ae, ess_tdof_list_, X_, B_);  // only for homogeneous BC
 
   for (int i = 0; i < exponent; i++) {
-    // Solve the linear system Op_ X_ = B_
-    SolveLinearSystem();
+    // Solve the linear system Op X_ = B_
+    SolveLinearSystem(Op);
     k_.RecoverFEMSolution(X_, b, x);
     if (repeated_solve_) {
       // Prepare for next iteration. X is a primal and B is a dual vector. B_
@@ -314,10 +314,11 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
       previous_solution.AddDomainIntegrator(new DomainLFIntegrator(gfc));
       previous_solution.Assemble();
       prolongation_matrix_->MultTranspose(previous_solution, B_);
-      Op_->EliminateBC(*Ae, ess_tdof_list_, X_, B_);
+      Op->EliminateBC(*Ae, ess_tdof_list_, X_, B_);
     }
   }
   delete Ae;
+  delete Op;
 }
 
 void SPDESolver::LiftSolution(ParGridFunction &x) {
@@ -373,15 +374,15 @@ void SPDESolver::UpdateRHS(ParLinearForm &b) const {
   }
 }
 
-void SPDESolver::SolveLinearSystem() {
-  HypreBoomerAMG prec(*Op_);
+void SPDESolver::SolveLinearSystem(const HypreParMatrix *Op) {
+  HypreBoomerAMG prec(*Op);
   prec.SetPrintLevel(-1);
   CGSolver cg(MPI_COMM_WORLD);
   cg.SetRelTol(1e-12);
   cg.SetMaxIter(2000);
   cg.SetPrintLevel(3);
   cg.SetPreconditioner(prec);
-  cg.SetOperator(*Op_);
+  cg.SetOperator(*Op);
   cg.Mult(B_, X_);
 }
 

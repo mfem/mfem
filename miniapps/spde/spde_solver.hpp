@@ -47,9 +47,6 @@ class SPDESolver {
              double l1 = 0.1, double l2 = 0.1, double l3 = 0.1, double e1 = 0.0,
              double e2 = 0.0, double e3 = 0.0);
 
-  /// Destructor.
-  ~SPDESolver() { delete Op_; };
-
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
   /// need b later on, make a copy of it before calling this function.
@@ -86,7 +83,7 @@ class SPDESolver {
 
   // Each PDE gives rise to a linear system. This call solves the linear system
   // with PCG and Boomer AMG preconditioner.
-  void SolveLinearSystem();
+  void SolveLinearSystem(const HypreParMatrix *Op);
 
   /// Activate repeated solve capabilities. E.g. if the PDE is of the form
   /// A^N x = b. This method solves the PDE A x = b for the first time, and
@@ -117,7 +114,6 @@ class SPDESolver {
   // Members to solve the linear system.
   Vector X_;
   Vector B_;
-  HypreParMatrix *Op_ = nullptr;
 
   // Information of the finite element space.
   Array<int> ess_tdof_list_;
