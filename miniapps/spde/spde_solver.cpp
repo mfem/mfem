@@ -20,14 +20,11 @@ namespace spde {
 SPDESolver::SPDESolver(double nu, const Boundary &bc,
                        ParFiniteElementSpace *fespace, double l1, double l2,
                        double l3, double e1, double e2, double e3)
-    : nu_(nu),
-      bc_(bc),
-      fespace_ptr_(fespace),
-      k_(fespace),
+    : k_(fespace),
       m_(fespace),
-      restriction_matrix_(nullptr),
-      prolongation_matrix_(nullptr),
-      Op_(nullptr),
+      fespace_ptr_(fespace),
+      bc_(bc),
+      nu_(nu),
       l1_(l1),
       l2_(l2),
       l3_(l3),
@@ -43,7 +40,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
   // Resize the marker arrays for the boundary conditions
   // Number of boundary attributes in the mesh
   int nbc{0};
-  auto &bdr_attributes = fespace_ptr_->GetParMesh()->bdr_attributes;
+  const auto &bdr_attributes = fespace_ptr_->GetParMesh()->bdr_attributes;
   if (bdr_attributes.Size() > 0) {
     // Assumes a contiguous range of boundary attributes (1, 2, 3, ...)
     nbc = bdr_attributes.Max() - bdr_attributes.Min() + 1;
@@ -79,7 +76,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
   int dim = fespace_ptr_->GetParMesh()->Dimension();
   int space_dim = fespace_ptr_->GetParMesh()->SpaceDimension();
   alpha_ = (nu_ + dim / 2.0) / 2.0;  // fractional exponent
-  integer_order_of_exponent_ = std::floor(alpha_);
+  integer_order_of_exponent_ = static_cast<int>(std::floor(alpha_));
   double exponent_to_approximate = alpha_ - integer_order_of_exponent_;
 
   // Compute the rational approximation coefficients.
@@ -196,7 +193,7 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
 void SPDESolver::GenerateRandomField(ParGridFunction &x, int seed) {
   // Create the stochastic load
   if (seed == std::numeric_limits<int>::max()) {
-    seed = std::time(nullptr);
+    seed = static_cast<int>(std::time(nullptr));
   }
   ParLinearForm b(fespace_ptr_);
   auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
@@ -362,7 +359,7 @@ void SPDESolver::LiftSolution(ParGridFunction &x) {
   apply_lift_ = false;
 }
 
-void SPDESolver::UpdateRHS(ParLinearForm &b) {
+void SPDESolver::UpdateRHS(ParLinearForm &b) const {
   if (!repeated_solve_) {
     // This function is only relevant for repeated solves.
     return;
