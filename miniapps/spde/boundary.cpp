@@ -66,7 +66,7 @@ void Boundary::VerifyDefinedBoundaries(const Mesh &mesh) const {
       MFEM_ABORT("  Boundary "
                  << it.first
                  << " is not defined on the mesh but in Boundary class."
-                 << "Exiting...");
+                 << "Exiting...")
     }
   }
 
@@ -92,7 +92,7 @@ void Boundary::VerifyDefinedBoundaries(const Mesh &mesh) const {
   for (const auto &it : boundary_attributes) {
     if (it.second == BoundaryType::kPeriodic) {
       MFEM_ABORT("  Periodic boundaries must be defined on the mesh"
-                 << ", not in Boundaries. Exiting...");
+                 << ", not in Boundaries. Exiting...")
     }
   }
 
@@ -101,7 +101,7 @@ void Boundary::VerifyDefinedBoundaries(const Mesh &mesh) const {
 
 void Boundary::ComputeBoundaryError(const ParGridFunction &solution) {
   const ParFiniteElementSpace &fes = *solution.ParFESpace();
-  ParMesh &pmesh = *fes.GetParMesh();
+  const ParMesh &pmesh = *fes.GetParMesh();
 
   if (Mpi::Root()) {
     mfem::out << "<Boundary::ComputeBoundaryError>"
@@ -116,7 +116,8 @@ void Boundary::ComputeBoundaryError(const ParGridFunction &solution) {
   // Index i needs to be incremented by one to map to the boundary attributes
   // in the mesh.
   for (int i = 0; i < pmesh.bdr_attributes.Max(); i++) {
-    double error, avg;
+    double error{0};
+    double avg{0};
     Array<int> bdr(pmesh.bdr_attributes.Max());
     bdr = 0;
     bdr[i] = 1;
@@ -208,7 +209,9 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
   const ParFiniteElementSpace &fes = *x.ParFESpace();
   MFEM_ASSERT(fes.GetVDim() == 1, "");
   ParMesh &mesh = *fes.GetParMesh();
-  Vector shape, loc_dofs, w_nor;
+  Vector shape;
+  Vector loc_dofs;
+  Vector w_nor;
   DenseMatrix dshape;
   Array<int> dof_ids;
   for (int i = 0; i < mesh.GetNBE(); i++) {

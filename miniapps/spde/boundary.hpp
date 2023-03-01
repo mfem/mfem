@@ -19,7 +19,7 @@
 namespace mfem {
 namespace spde {
 
-enum BoundaryType { kNeumann, kDirichlet, kRobin, kPeriodic, kUndefined };
+enum class BoundaryType { kNeumann, kDirichlet, kRobin, kPeriodic, kUndefined };
 
 struct Boundary {
   Boundary() = default;
