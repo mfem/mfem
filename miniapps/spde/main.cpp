@@ -62,8 +62,6 @@ enum TopologicalSupport { kParticles, kOctetTruss };
 int main(int argc, char *argv[]) {
   // 0. Initialize MPI.
   Mpi::Init(argc, argv);
-  int num_procs = Mpi::WorldSize();
-  int myid = Mpi::WorldRank();
   Hypre::Init();
 
   // 1. Parse command-line options.
@@ -194,15 +192,11 @@ int main(int argc, char *argv[]) {
   if (is_3d) {
     if (topological_support == TopologicalSupport::kOctetTruss) {
       mdm = new OctetTrussTopology();
-    } else {
+    } else if (topological_support == TopologicalSupport::kParticles) {
       // Create the same random particles on all processors.
       std::vector<double> random_positions(3 * number_of_particles);
       std::vector<double> random_rotations(9 * number_of_particles);
       if (Mpi::Root()) {
-        if (topological_support != TopologicalSupport::kParticles) {
-          mfem::out << "Warning: Selected topological support not valid.\n"
-                    << "         Fall back to kParticles." << std::endl;
-        }
         // Generate random positions and rotations. We generate them on the root
         // process and then broadcast them to all processes because we need the
         // same random positions and rotations on all processes.
@@ -218,6 +212,12 @@ int main(int argc, char *argv[]) {
 
       mdm = new ParticleTopology(pl1, pl2, pl3, random_positions,
                                  random_rotations);
+    } else {
+      if (Mpi::Root()) {
+        mfem::out << "Error: Selected topological support not valid."
+                  << std::endl;
+      }
+      return 1;
     }
 
     // II.2 Define lambda to wrap the call to the distance metric.
