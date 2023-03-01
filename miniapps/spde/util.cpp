@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details
 
 #include "util.hpp"
+#include <algorithm>
 
 namespace mfem {
 
@@ -17,9 +18,7 @@ void FillWithRandomNumbers(std::vector<double> &x, double a, double b) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> dis(a, b);
-  for (int i = 0; i < x.size(); i++) {
-    x[i] = dis(gen);
-  }
+  std::for_each(x.begin(), x.end(), [&](double &v) { v = dis(gen); });
 }
 
 void FillWithRandomRotations(std::vector<double> &x) {
@@ -52,4 +51,4 @@ void FillWithRandomRotations(std::vector<double> &x) {
   }
 }
 
-} // namespace mfem
+}  // namespace mfem
