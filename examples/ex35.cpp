@@ -7,6 +7,7 @@
 //     ex35 -alpha 10
 //     ex35 -lambda 0.1 -mu 0.1
 //     ex35 -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+//     ex35 -r 6 -o 1 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve a
@@ -256,7 +257,7 @@ int main(int argc, char *argv[])
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
-   H1_FECollection filter_fec(order-1, dim); // space for ρ̃
+   H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
                                BasisType::Positive); // space for ρ
    FiniteElementSpace state_fes(&mesh, &state_fec,dim);
@@ -431,7 +432,7 @@ int main(int argc, char *argv[])
          sout_rho << "solution\n" << mesh << rho
                   << "window_title 'Control variable ρ'" << flush;
 
-         GridFunction r_gf(&control_fes);
+         GridFunction r_gf(&filter_fes);
          r_gf.ProjectCoefficient(SIMP_cf);
          sout_r << "solution\n" << mesh << r_gf
                 << "window_title 'Design density r(ρ̃)'" << flush;
