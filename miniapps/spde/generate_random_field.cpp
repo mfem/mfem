@@ -70,12 +70,12 @@ int main(int argc, char *argv[]) {
   int num_refs = 3;
   int num_parallel_refs = 3;
   int number_of_particles = 3;
-  int topological_support = TopologicalSupport::kParticles;
-  double nu = 1.0;
-  double tau = 1.0;
-  double l1 = 1;
-  double l2 = 1;
-  double l3 = 1;
+  int topological_support = TopologicalSupport::kOctetTruss;
+  double nu = 2.0;
+  double tau = 0.08;
+  double l1 = 0.02;
+  double l2 = 0.02;
+  double l3 = 0.02;
   double e1 = 0;
   double e2 = 0;
   double e3 = 0;
@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
   double uniform_min = 0.0;
   double uniform_max = 1.0;
   double offset = 0.0;
-  double scale = 1.0;
+  double scale = 0.01;
   double level_set_threshold = 0.0;
   bool paraview_export = true;
   bool glvis_export = true;
