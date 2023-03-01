@@ -126,7 +126,11 @@ public:
    int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::POINT>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::POINT>
 {
    static const int Dimension = 0;
    static const int NumVert = 1;
@@ -136,7 +140,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::POINT>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::SEGMENT>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::SEGMENT>
 {
    static const int Dimension = 1;
    static const int NumVert = 2;
@@ -148,7 +156,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::SEGMENT>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::TRIANGLE>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::TRIANGLE>
 {
    static const int Dimension = 2;
    static const int NumVert = 3;
@@ -174,7 +186,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::TRIANGLE>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::SQUARE>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::SQUARE>
 {
    static const int Dimension = 2;
    static const int NumVert = 4;
@@ -194,7 +210,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::SQUARE>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::TETRAHEDRON>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::TETRAHEDRON>
 {
    static const int Dimension = 3;
    static const int NumVert = 4;
@@ -216,7 +236,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::TETRAHEDRON>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::CUBE>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::CUBE>
 {
    static const int Dimension = 3;
    static const int NumVert = 8;
@@ -234,7 +258,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::CUBE>
    };
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::PRISM>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::PRISM>
 {
    static const int Dimension = 3;
    static const int NumVert = 6;
@@ -252,7 +280,11 @@ template <> struct MFEM_EXPORT Geometry::Constants<Geometry::PRISM>
    };
 };
 
-template <> struct MFEM_EXPORT Geometry::Constants<Geometry::PYRAMID>
+template <> struct
+/// @cond Suppress_Doxygen_warnings
+   MFEM_EXPORT
+/// @endcond
+   Geometry::Constants<Geometry::PYRAMID>
 {
    static const int Dimension = 3;
    static const int NumVert = 5;
