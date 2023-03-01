@@ -38,10 +38,10 @@ class UniformGRFTransformer : public GFTransformer {
  public:
   UniformGRFTransformer() = default;
   UniformGRFTransformer(double min, double max) : min_(min), max_(max) {}
-  virtual ~UniformGRFTransformer() = default;
+  ~UniformGRFTransformer() override = default;
   /// Transforms a GridFunction representing a Gaussian random field to a
   /// uniform random field between a and b.
-  virtual void Transform(ParGridFunction &x) const override;
+  void Transform(ParGridFunction &x) const override;
 
  private:
   double min_ = 0.0;
@@ -52,10 +52,10 @@ class UniformGRFTransformer : public GFTransformer {
 class OffsetTransformer : public GFTransformer {
  public:
   OffsetTransformer() = default;
-  OffsetTransformer(double offset) : offset_(offset) {}
-  virtual ~OffsetTransformer() = default;
+  explicit OffsetTransformer(double offset) : offset_(offset) {}
+  ~OffsetTransformer() override = default;
   /// Offsets a grid function by an constant offset.
-  virtual void Transform(ParGridFunction &x) const override;
+  void Transform(ParGridFunction &x) const override;
 
  private:
   double offset_ = 0.0;
@@ -65,10 +65,10 @@ class OffsetTransformer : public GFTransformer {
 class ScaleTransformer : public GFTransformer {
  public:
   ScaleTransformer() = default;
-  ScaleTransformer(double scale) : scale_(scale) {}
-  virtual ~ScaleTransformer() = default;
+  explicit ScaleTransformer(double scale) : scale_(scale) {}
+  ~ScaleTransformer() override = default;
   /// Scales a grid function by an constant factor.
-  virtual void Transform(ParGridFunction &x) const override;
+  void Transform(ParGridFunction &x) const override;
 
  private:
   double scale_ = 1.0;
@@ -78,10 +78,10 @@ class ScaleTransformer : public GFTransformer {
 class LevelSetTransformer : public GFTransformer {
  public:
   LevelSetTransformer() = default;
-  LevelSetTransformer(double threshold) : threshold_(threshold) {}
-  virtual ~LevelSetTransformer() = default;
+  explicit LevelSetTransformer(double threshold) : threshold_(threshold) {}
+  ~LevelSetTransformer() override = default;
   /// Applies a level set to the GridFunction.
-  virtual void Transform(ParGridFunction &x) const override;
+  void Transform(ParGridFunction &x) const override;
 
  private:
   double threshold_ = 0.0;
