@@ -40,10 +40,16 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
   StopWatch sw;
   sw.Start();
 
-  // ToDo: "_" missing; nbc not filled nor used.
   // Resize the marker arrays for the boundary conditions
-  dbc_marker_.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
-  rbc_marker_.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
+  // Number of boundary attributes in the mesh
+  int nbc{0};
+  auto &bdr_attributes = fespace_ptr_->GetParMesh()->bdr_attributes;
+  if (bdr_attributes.Size() > 0) {
+    // Assumes a contiguous range of boundary attributes (1, 2, 3, ...)
+    nbc = bdr_attributes.Max() - bdr_attributes.Min() + 1;
+  }
+  dbc_marker_.SetSize(nbc);
+  rbc_marker_.SetSize(nbc);
   dbc_marker_ = 0;
   rbc_marker_ = 0;
 
@@ -71,6 +77,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
 
   // Compute the rational approximation coefficients.
   int dim = fespace_ptr_->GetParMesh()->Dimension();
+  int space_dim = fespace_ptr_->GetParMesh()->SpaceDimension();
   alpha_ = (nu_ + dim / 2.0) / 2.0;  // fractional exponent
   integer_order_of_exponent_ = std::floor(alpha_);
   double exponent_to_approximate = alpha_ - integer_order_of_exponent_;
@@ -82,8 +89,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
 
   // Assemble stiffness matrix
   auto diffusion_tensor =
-      ConstructMatrixCoefficient(l1_, l2_, l3_, e1_, e2_, e3_, nu_,
-                                 fespace_ptr_->GetParMesh()->Dimension());
+      ConstructMatrixCoefficient(l1_, l2_, l3_, e1_, e2_, e3_, nu_, space_dim);
   MatrixConstantCoefficient diffusion_coefficient(diffusion_tensor);
   k_.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coefficient));
   ConstantCoefficient robin_coefficient(bc_.robin_coefficient);
