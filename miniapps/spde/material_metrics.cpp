@@ -32,15 +32,15 @@ void ParticleTopology::Initialize(std::vector<double> &random_positions,
   // 1. Initialize the particle positions.
   particle_positions_.resize(number_of_particles_);
   particle_orientations_.resize(number_of_particles_);
-  for (int i = 0; i < number_of_particles_; i++) {
+  for (size_t i = 0; i < number_of_particles_; i++) {
     // 2.1 Read the positions.
-    int idx_pos = i * 3;
+    size_t idx_pos = i * 3;
     Vector particle_position({random_positions[idx_pos],
                               random_positions[idx_pos + 1],
                               random_positions[idx_pos + 2]});
 
     // 2.2 Read the random rotations.
-    int idx_rot = i * 9;
+    size_t idx_rot = i * 9;
     DenseMatrix R(3, 3);
     R(0, 0) = random_rotations[idx_rot + 0];
     R(0, 1) = random_rotations[idx_rot + 1];
@@ -83,7 +83,7 @@ double OctetTrussTopology::ComputeMetric(const Vector &x) {
   std::vector<double> dist_vector;
 
   // 2. Compute the distance to each periodic points to all edges.
-  for (auto point : periodic_points) {
+  for (const auto &point : periodic_points) {
     for (auto edge : edges_) {
       dist_vector.push_back(edge.GetDistanceTo(point));
     }
@@ -121,7 +121,7 @@ void OctetTrussTopology::Initialize() {
 }
 
 void OctetTrussTopology::CreatePeriodicPoints(
-    const Vector &x, std::vector<Vector> &periodic_points) {
+    const Vector &x, std::vector<Vector> &periodic_points) const {
   Vector xx(x);
   // Compute the diplaced ghost points. Computation assumes domain [0,1]^3.
   double d_x[3] = {1, 0, 0};
@@ -154,4 +154,4 @@ void OctetTrussTopology::CreatePeriodicPoints(
   periodic_points.push_back(x_shifted_z_neg);
 }
 
-} // namespace mfem
+}  // namespace mfem
