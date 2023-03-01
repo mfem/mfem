@@ -3983,8 +3983,8 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
                int dof_index = surf_fit_marker_dof_index[i];
                for (int d = 0; d < hess_dim; d++)
                {
-                  (*surf_fit_hess)[dof_index*dim + d] =
-                     surf_fit_hess_int(i*dim + d);
+                  (*surf_fit_hess)[dof_index*hess_dim + d] =
+                     surf_fit_hess_int(i*hess_dim + d);
                }
             }
          }
