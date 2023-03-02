@@ -65,6 +65,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
    }
 
    SetSize(s);
+   HostWrite();
 
    int p = 0;
    for (i = 0; i < np; i++)
@@ -85,6 +86,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
 void Vector::Load(std::istream &in, int Size)
 {
    SetSize(Size);
+   HostWrite();
 
    for (int i = 0; i < size; i++)
    {
