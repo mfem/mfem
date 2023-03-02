@@ -214,7 +214,7 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 3. Multiply element-wise by the inverse mass matrices.
   Vector zval;
   Array<int> vdofs;
-//   const int dof = vfes.GetFE(0)->GetDof();
+  //   const int dof = vfes.GetFE(0)->GetDof();
   DenseMatrix zmat, ymat;
 
   for (int i = 0; i < vfes.GetNE(); i++) {
@@ -451,7 +451,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
     // Get the normal vector and the flux on the face
     if (nor.Size() == 1)
-      nor = 1.0;
+      nor(0) = Tr.GetElement1IntPoint().x > 0 ? 1.0 : -1.0;
     else
       CalcOrtho(Tr.Jacobian(), nor);
 
@@ -599,7 +599,7 @@ void EulerInitialCondition(const Vector &x, Vector &y) {
 // Initial condition
 void BurgersInitialCondition(const Vector &x, Vector &y) {
   if (problem == 1) {
-    y(0) = __sinpi(x(0) * 2 + 1);
+    y(0) = __sinpi(x(0) * 2);
   } else if (problem == 2) {
     y(0) = __sinpi(x.Sum());
   } else if (problem == 3) {
