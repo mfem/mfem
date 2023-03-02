@@ -22,7 +22,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   const int dim;
 
   FiniteElementSpace &vfes;
-  Operator &faceForm;
+  NonlinearForm &faceForm;
   MixedBilinearForm &divA;
   std::vector<DenseMatrix> Me_inv;
   //   DenseTensor Me_inv;
@@ -41,9 +41,10 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
 
  public:
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
-                             Operator &A_);
+                             NonlinearForm &faceForm_);
 
   virtual void Mult(const Vector &x, Vector &y) const;
+  void Update();
 
   virtual ~HyperbolicConservationLaws() {}
 };
@@ -54,8 +55,9 @@ class EulerSystem : public HyperbolicConservationLaws {
                      DenseMatrix &flux) const;
 
  public:
-  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_, Operator &A_)
-      : HyperbolicConservationLaws(vfes_, divA_, A_){};
+  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+              NonlinearForm &faceForm_)
+      : HyperbolicConservationLaws(vfes_, divA_, faceForm_){};
 };
 
 class BurgersEquation : public HyperbolicConservationLaws {
@@ -65,8 +67,8 @@ class BurgersEquation : public HyperbolicConservationLaws {
 
  public:
   BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-                  Operator &A_)
-      : HyperbolicConservationLaws(vfes_, divA_, A_){};
+                  NonlinearForm &faceForm_)
+      : HyperbolicConservationLaws(vfes_, divA_, faceForm_){};
 };
 
 // Implements a simple numerical flux
@@ -144,11 +146,11 @@ class BurgersFaceIntegrator : public FaceIntegrator {
 
 // Implementation of class HyperbolicConservationLaws
 HyperbolicConservationLaws::HyperbolicConservationLaws(
-    FiniteElementSpace &vfes_, MixedBilinearForm &divA_, Operator &A_)
-    : TimeDependentOperator(A_.Height()),
+    FiniteElementSpace &vfes_, MixedBilinearForm &divA_, NonlinearForm &faceForm_)
+    : TimeDependentOperator(faceForm_.Height()),
       dim(vfes_.GetFE(0)->GetDim()),
       vfes(vfes_),
-      faceForm(A_),
+      faceForm(faceForm_),
       divA(divA_),
       Me_inv(0),
       state(num_equation),
@@ -172,6 +174,16 @@ void HyperbolicConservationLaws::ComputeInvMass() {
     inv.Factor();
     inv.GetInverseMatrix(Me_inv[i]);
   }
+}
+
+void HyperbolicConservationLaws::Update() {
+  width = faceForm.Width();
+  height = faceForm.Height();
+
+  faceForm.Update();
+  divA.Update();
+  divA.Assemble();
+  ComputeInvMass();
 }
 
 void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
