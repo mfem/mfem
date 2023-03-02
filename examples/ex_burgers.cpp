@@ -44,7 +44,7 @@
 
 #include "mfem.hpp"
 
-// Classes FE_Evolution, NumericalFlux, and FaceIntegrator
+// Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "ex35.hpp"
 

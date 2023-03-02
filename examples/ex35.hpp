@@ -17,7 +17,7 @@ extern const double gas_constant;
 
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form.
-class FE_Evolution : public TimeDependentOperator {
+class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
 
@@ -38,31 +38,31 @@ class FE_Evolution : public TimeDependentOperator {
                              DenseMatrix &flux) const = 0;
 
  public:
-  FE_Evolution(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_);
+  HyperbolicConservationLaws(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_);
 
   virtual void Mult(const Vector &x, Vector &y) const;
 
-  virtual ~FE_Evolution() {}
+  virtual ~HyperbolicConservationLaws() {}
 };
 
-class EulerSystem : public FE_Evolution {
+class EulerSystem : public HyperbolicConservationLaws {
  private:
   double ComputeFlux(const Vector &state, const int dim,
                      DenseMatrix &flux) const;
 
  public:
   EulerSystem(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_)
-      : FE_Evolution(vfes_, A_, Aflux_){};
+      : HyperbolicConservationLaws(vfes_, A_, Aflux_){};
 };
 
-class BurgersEquation : public FE_Evolution {
+class BurgersEquation : public HyperbolicConservationLaws {
  private:
   double ComputeFlux(const Vector &state, const int dim,
                      DenseMatrix &flux) const;
 
  public:
   BurgersEquation(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_)
-      : FE_Evolution(vfes_, A_, Aflux_){};
+      : HyperbolicConservationLaws(vfes_, A_, Aflux_){};
 };
 
 // Implements a simple numerical flux
@@ -138,8 +138,8 @@ class BurgersFaceIntegrator : public FaceIntegrator {
       : FaceIntegrator(rsolver_, dim){};
 };
 
-// Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_, Operator &A_,
+// Implementation of class HyperbolicConservationLaws
+HyperbolicConservationLaws::HyperbolicConservationLaws(FiniteElementSpace &vfes_, Operator &A_,
                            SparseMatrix &Aflux_)
     : TimeDependentOperator(A_.Height()),
       dim(vfes_.GetFE(0)->GetDim()),
@@ -164,7 +164,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_, Operator &A_,
   }
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const {
+void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 0. Reset wavespeed computation before operator application.
   max_char_speed = 0.;
 
@@ -315,7 +315,7 @@ double BurgersFaceIntegrator::ComputeFluxDotN(const Vector &state,
 // }
 
 // Compute the flux at solution nodes.
-void FE_Evolution::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const {
+void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const {
   const int flux_dof = flux_.SizeI();
   const int flux_dim = flux_.SizeJ();
 
