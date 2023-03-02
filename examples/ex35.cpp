@@ -195,17 +195,17 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  MixedBilinearForm Aflux(&dfes, &fes);
-  Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
-  Aflux.Assemble();
+  MixedBilinearForm divA(&dfes, &fes);
+  divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
+  divA.Assemble();
 
-  NonlinearForm A(&vfes);
-  A.AddInteriorFaceIntegrator(new EulerFaceIntegrator(new RusanovFlux(), dim));
+  NonlinearForm faceForm(&vfes);
+  faceForm.AddInteriorFaceIntegrator(new EulerFaceIntegrator(new RusanovFlux(), dim));
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  EulerSystem euler(vfes, A, Aflux.SpMat());
+  EulerSystem euler(vfes, faceForm, divA.SpMat());
 
   // Visualize the density
   socketstream sout;
@@ -249,9 +249,9 @@ int main(int argc, char *argv[]) {
   if (cfl > 0) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
     // maximum char speed at all quadrature points on all faces.
-    Vector z(A.Width());
+    Vector z(faceForm.Width());
     max_char_speed = 0.;
-    A.Mult(sol, z);
+    faceForm.Mult(sol, z);
     dt = cfl * hmin / max_char_speed / (2 * order + 1);
   }
 
