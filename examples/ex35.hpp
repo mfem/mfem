@@ -146,7 +146,8 @@ class BurgersFaceIntegrator : public FaceIntegrator {
 
 // Implementation of class HyperbolicConservationLaws
 HyperbolicConservationLaws::HyperbolicConservationLaws(
-    FiniteElementSpace &vfes_, MixedBilinearForm &divA_, NonlinearForm &faceForm_)
+    FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+    NonlinearForm &faceForm_)
     : TimeDependentOperator(faceForm_.Height()),
       dim(vfes_.GetFE(0)->GetDim()),
       vfes(vfes_),
@@ -164,26 +165,28 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
 
 void HyperbolicConservationLaws::ComputeInvMass() {
   DenseMatrix Me;
-  DenseMatrixInverse inv(&Me);
   MassIntegrator mi;
   Me_inv.resize(vfes.GetNE());
   for (int i = 0; i < vfes.GetNE(); i++) {
     Me.SetSize(vfes.GetFE(i)->GetDof());
     mi.AssembleElementMatrix(*vfes.GetFE(i), *vfes.GetElementTransformation(i),
                              Me);
+    DenseMatrixInverse inv(&Me);
     inv.Factor();
     inv.GetInverseMatrix(Me_inv[i]);
   }
 }
 
 void HyperbolicConservationLaws::Update() {
-  width = faceForm.Width();
-  height = faceForm.Height();
-
   faceForm.Update();
   divA.Update();
   divA.Assemble();
   ComputeInvMass();
+
+  width = faceForm.Width();
+  height = faceForm.Height();
+  flux.SetSize(vfes.GetNDofs(), dim, num_equation);
+  z.SetSize(height);
 }
 
 void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
@@ -211,14 +214,15 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 3. Multiply element-wise by the inverse mass matrices.
   Vector zval;
   Array<int> vdofs;
-  const int dof = vfes.GetFE(0)->GetDof();
-  DenseMatrix zmat, ymat(dof, num_equation);
+//   const int dof = vfes.GetFE(0)->GetDof();
+  DenseMatrix zmat, ymat;
 
   for (int i = 0; i < vfes.GetNE(); i++) {
     // Return the vdofs ordered byNODES
     vfes.GetElementVDofs(i, vdofs);
     z.GetSubVector(vdofs, zval);
-    zmat.UseExternalData(zval.GetData(), dof, num_equation);
+    zmat.UseExternalData(zval.GetData(), vfes.GetFE(i)->GetDof(), num_equation);
+    ymat.SetSize(Me_inv[i].Height(), num_equation);
     mfem::Mult(Me_inv[i], zmat, ymat);
     y.SetSubVector(vdofs, ymat.GetData());
   }
