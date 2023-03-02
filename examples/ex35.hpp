@@ -23,6 +23,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
 
   FiniteElementSpace &vfes;
   Operator &faceForm;
+  MixedBilinearForm &divA;
   SparseMatrix &Aflux;
   DenseTensor Me_inv;
 
@@ -38,7 +39,8 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
                              DenseMatrix &flux) const = 0;
 
  public:
-  HyperbolicConservationLaws(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_);
+  HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
+                             Operator &A_);
 
   virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -51,8 +53,8 @@ class EulerSystem : public HyperbolicConservationLaws {
                      DenseMatrix &flux) const;
 
  public:
-  EulerSystem(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_)
-      : HyperbolicConservationLaws(vfes_, A_, Aflux_){};
+  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_, Operator &A_)
+      : HyperbolicConservationLaws(vfes_, divA_, A_){};
 };
 
 class BurgersEquation : public HyperbolicConservationLaws {
@@ -61,8 +63,9 @@ class BurgersEquation : public HyperbolicConservationLaws {
                      DenseMatrix &flux) const;
 
  public:
-  BurgersEquation(FiniteElementSpace &vfes_, Operator &A_, SparseMatrix &Aflux_)
-      : HyperbolicConservationLaws(vfes_, A_, Aflux_){};
+  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+                  Operator &A_)
+      : HyperbolicConservationLaws(vfes_, divA_, A_){};
 };
 
 // Implements a simple numerical flux
@@ -139,19 +142,20 @@ class BurgersFaceIntegrator : public FaceIntegrator {
 };
 
 // Implementation of class HyperbolicConservationLaws
-HyperbolicConservationLaws::HyperbolicConservationLaws(FiniteElementSpace &vfes_, Operator &A_,
-                           SparseMatrix &Aflux_)
+HyperbolicConservationLaws::HyperbolicConservationLaws(
+    FiniteElementSpace &vfes_, MixedBilinearForm &divA_, Operator &A_)
     : TimeDependentOperator(A_.Height()),
       dim(vfes_.GetFE(0)->GetDim()),
       vfes(vfes_),
       faceForm(A_),
-      Aflux(Aflux_),
+      divA(divA_),
       Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
       state(num_equation),
       f(num_equation, dim),
       flux(vfes.GetNDofs(), dim, num_equation),
       z(faceForm.Height()) {
   // Standard local assembly and inversion for energy mass matrices.
+  divA.Assemble();
   const int dof = vfes.GetFE(0)->GetDof();
   DenseMatrix Me(dof);
   DenseMatrixInverse inv(&Me);
@@ -183,7 +187,7 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   for (int k = 0; k < num_equation; k++) {
     Vector fk(flux(k).GetData(), dim * vfes.GetNDofs());
     Vector zk(z.GetData() + k * vfes.GetNDofs(), vfes.GetNDofs());
-    Aflux.AddMult(fk, zk);
+    divA.SpMat().AddMult(fk, zk);
   }
 
   // 3. Multiply element-wise by the inverse mass matrices.
@@ -315,7 +319,8 @@ double BurgersFaceIntegrator::ComputeFluxDotN(const Vector &state,
 // }
 
 // Compute the flux at solution nodes.
-void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const {
+void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
+                                         DenseTensor &flux_) const {
   const int flux_dof = flux_.SizeI();
   const int flux_dim = flux_.SizeJ();
 
