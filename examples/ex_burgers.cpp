@@ -109,8 +109,8 @@ int main(int argc, char *argv[]) {
   Mesh mesh(mesh_file, 1, 1);
   const int dim = mesh.Dimension();
 
-//   MFEM_ASSERT(dim == 2,
-//               "Need a two-dimensional mesh for the problem definition");
+  //   MFEM_ASSERT(dim == 2,
+  //               "Need a two-dimensional mesh for the problem definition");
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -181,18 +181,17 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  MixedBilinearForm Aflux(&dfes, &fes);
-  Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
-  Aflux.Assemble();
+  MixedBilinearForm divA(&dfes, &fes);
+  divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
-  NonlinearForm A(&fes);
-  A.AddInteriorFaceIntegrator(
+  NonlinearForm faceForm(&fes);
+  faceForm.AddInteriorFaceIntegrator(
       new BurgersFaceIntegrator(new RusanovFlux(), dim));
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  BurgersEquation burgers(fes, A, Aflux.SpMat());
+  BurgersEquation burgers(fes, divA, faceForm);
 
   // Visualize the density
   socketstream sout;
@@ -236,9 +235,9 @@ int main(int argc, char *argv[]) {
   if (cfl > 0) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
     // maximum char speed at all quadrature points on all faces.
-    Vector z(A.Width());
+    Vector z(burgers.Width());
     max_char_speed = 0.;
-    A.Mult(sol, z);
+    burgers.Mult(sol, z);
     dt = cfl * hmin / max_char_speed / (2 * order + 1);
   }
 
