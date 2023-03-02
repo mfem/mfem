@@ -11,70 +11,52 @@ extern int problem;
 // Maximum characteristic speed (updated by integrators)
 extern double max_char_speed;
 
-// Time-dependent operator for the right-hand side of the ODE representing the
-// DG weak form.
+// Base Hyperbolic conservation law class.
+// This contains all methods needed except the flux function.
 class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
   const int num_equation;
 
-  FiniteElementSpace &vfes;
-  NonlinearForm &faceForm;
-  MixedBilinearForm &divA;
-  std::vector<DenseMatrix> Me_inv;
-  //   DenseTensor Me_inv;
+  FiniteElementSpace
+      &vfes;  // Vector finite element space containing conserved variables
+  NonlinearForm &faceForm;  // Face integration form. Should contain
+                            // ComputeFluxDotN and Riemann Solver
+  MixedBilinearForm &divA;  // Element integration form, (u, grad V) where u is
+                            // scalar, V is vector
+  std::vector<DenseMatrix> Me_inv;  // element-wise inverse mass matrix
 
+  // auxiliary variables
   mutable Vector state;
   mutable DenseMatrix f;
   mutable DenseTensor flux;
   mutable Vector z;
 
+  // Get flux value for given states for all elements
   void GetFlux(const DenseMatrix &state_, DenseTensor &flux_) const;
-
- protected:
-  virtual double ComputeFlux(const Vector &state, const int dim,
-                             DenseMatrix &flux) const = 0;
+  // Compute element-wise inverse mass matrix
   void ComputeInvMass();
 
+ protected:
+  // Compute flux for given states at a node
+  // WARNING: This should be implemented in the sub-class
+  virtual double ComputeFlux(const Vector &state, const int dim,
+                             DenseMatrix &flux) const = 0;
+
  public:
+  // Constructor
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
                              NonlinearForm &faceForm_, const int num_equation_);
-
+  // Apply M\(DIV F(U) + JUMP HAT{F}(U))
   virtual void Mult(const Vector &x, Vector &y) const;
+  // Update operators when mesh and finite element spaces are updated
   void Update();
 
   virtual ~HyperbolicConservationLaws() {}
 };
 
-class EulerSystem : public HyperbolicConservationLaws {
- private:
-  const double specific_heat_ratio;
-  const double gas_constant;
-  double ComputeFlux(const Vector &state, const int dim,
-                     DenseMatrix &flux) const;
-
- public:
-  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-              NonlinearForm &faceForm_, const double specific_heat_ratio_ = 1.4,
-              const double gas_constant_ = 1.0)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
-                                   vfes_.GetMesh()->Dimension() + 2),
-        specific_heat_ratio(specific_heat_ratio_),
-        gas_constant(gas_constant_){};
-};
-
-class BurgersEquation : public HyperbolicConservationLaws {
- private:
-  double ComputeFlux(const Vector &state, const int dim,
-                     DenseMatrix &flux) const;
-
- public:
-  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-                  NonlinearForm &faceForm_)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
-};
-
-// Implements a simple numerical flux
+// Abstract Numerical flux.
+// Eval: state, flux, speed, normal |-> flux
 class NumericalFlux {
  public:
   NumericalFlux(){};
@@ -85,21 +67,8 @@ class NumericalFlux {
   }
 };
 
-class UpwindFlux : public NumericalFlux {
- public:
-  void Eval(const Vector &state1, const Vector &state2, const Vector &flux1,
-            const Vector &flux2, const double maxE, const Vector &nor,
-            Vector &flux);
-};
-
-class RusanovFlux : public NumericalFlux {
- public:
-  void Eval(const Vector &state1, const Vector &state2, const Vector &flux1,
-            const Vector &flux2, const double maxE, const Vector &nor,
-            Vector &flux);
-};
-
-// Interior face term: <F.n(u),[w]>
+// Interior face term: <hat{F}.n,[w]>
+// where hat{F}.n is determined by NumericalFlux rsolver.
 class FaceIntegrator : public NonlinearFormIntegrator {
  private:
   const int num_equation;
@@ -119,7 +88,15 @@ class FaceIntegrator : public NonlinearFormIntegrator {
 
  public:
   FaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                 const int num_equation_);
+                 const int num_equation_)
+      : num_equation(num_equation_),
+        rsolver(rsolver_),
+        funval1(num_equation_),
+        funval2(num_equation_),
+        flux1(num_equation_),
+        flux2(num_equation_),
+        nor(dim),
+        fluxN(num_equation_){};
 
   virtual void AssembleFaceVector(const FiniteElement &el1,
                                   const FiniteElement &el2,
@@ -127,29 +104,9 @@ class FaceIntegrator : public NonlinearFormIntegrator {
                                   const Vector &elfun, Vector &elvect);
 };
 
-class EulerFaceIntegrator : public FaceIntegrator {
- private:
-  const double specific_heat_ratio;
-  const double gas_constant;
-  double ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &flux);
-
- public:
-  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                      const double specific_heat_ratio_ = 1.4,
-                      const double gas_constant_ = 1.0)
-      : FaceIntegrator(rsolver_, dim, dim + 2),
-        specific_heat_ratio(specific_heat_ratio_),
-        gas_constant(gas_constant_){};
-};
-
-class BurgersFaceIntegrator : public FaceIntegrator {
- private:
-  double ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &flux);
-
- public:
-  BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
-      : FaceIntegrator(rsolver_, dim, 1){};
-};
+//////////////////////////////////////////////////////////////////
+///        HYPERBOLIC CONSERVATION LAWS IMPLEMENTATION         ///
+//////////////////////////////////////////////////////////////////
 
 // Implementation of class HyperbolicConservationLaws
 HyperbolicConservationLaws::HyperbolicConservationLaws(
@@ -236,89 +193,6 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   }
 }
 
-
-// Compute the vector flux F(u)
-double EulerSystem::ComputeFlux(const Vector &state, const int dim,
-                                DenseMatrix &flux) const {
-  const double den = state(0);
-  const Vector den_vel(state.GetData() + 1, dim);
-  const double den_energy = state(1 + dim);
-
-  const double pres = (specific_heat_ratio - 1.0) *
-                      (den_energy - 0.5 * (den_vel * den_vel) / den);
-
-  MFEM_ASSERT(den >= 0, "Negative Density");
-  MFEM_ASSERT(pres >= 0, "Negative Pressure");
-  MFEM_ASSERT(den_energy >= 0, "Negative Energy");
-
-  for (int d = 0; d < dim; d++) {
-    flux(0, d) = den_vel(d);
-    for (int i = 0; i < dim; i++) {
-      flux(1 + i, d) = den_vel(i) * den_vel(d) / den;
-    }
-    flux(1 + d, d) += pres;
-  }
-
-  const double H = (den_energy + pres) / den;
-  for (int d = 0; d < dim; d++) {
-    flux(1 + dim, d) = den_vel(d) * H;
-  }
-
-  const double sound = sqrt(specific_heat_ratio * pres / den);
-  const double vel = sqrt(den_vel * den_vel) / den;
-
-  return vel + sound;
-}
-
-// Compute the scalar F(u).n
-
-double EulerFaceIntegrator::ComputeFluxDotN(const Vector &state,
-                                            const Vector &nor, Vector &fluxN) {
-  // NOTE: nor in general is not a unit normal
-  const int dim = nor.Size();
-  const double den = state(0);
-  const Vector den_vel(state.GetData() + 1, dim);
-  const double den_energy = state(1 + dim);
-
-  const double pres = (specific_heat_ratio - 1.0) *
-                      (den_energy - 0.5 * (den_vel * den_vel) / den);
-
-  MFEM_ASSERT(den >= 0, "Negative Density");
-  MFEM_ASSERT(pres >= 0, "Negative Pressure");
-  MFEM_ASSERT(den_energy >= 0, "Negative Energy");
-
-  double den_velN = 0;
-  for (int d = 0; d < dim; d++) {
-    den_velN += den_vel(d) * nor(d);
-  }
-
-  fluxN(0) = den_velN;
-  for (int d = 0; d < dim; d++) {
-    fluxN(1 + d) = den_velN * den_vel(d) / den + pres * nor(d);
-  }
-
-  const double H = (den_energy + pres) / den;
-  fluxN(1 + dim) = den_velN * H;
-
-  const double sound = sqrt(specific_heat_ratio * pres / den);
-  const double vel = sqrt(den_vel * den_vel) / den;
-
-  return vel + sound;
-}
-// Compute the vector flux F(u)
-double BurgersEquation::ComputeFlux(const Vector &state, const int dim,
-                                    DenseMatrix &flux) const {
-  flux = state * state * 0.5;
-  return abs(state(0));
-}
-
-double BurgersFaceIntegrator::ComputeFluxDotN(const Vector &state,
-                                              const Vector &nor,
-                                              Vector &fluxN) {
-  fluxN = nor.Sum() * (state * state) * 0.5;
-  return abs(state(0));
-}
-
 // Compute the flux at solution nodes.
 void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
                                          DenseTensor &flux_) const {
@@ -345,40 +219,9 @@ void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
   }
 }
 
-// Implementation of class NumericalFlux
-void UpwindFlux::Eval(const Vector &state1, const Vector &state2,
-                      const Vector &flux1, const Vector &flux2,
-                      const double maxE, const Vector &nor, Vector &flux) {
-  // NOTE: nor in general is not a unit normal
-
-  mfem_error("Not Implemented");
-}
-
-void RusanovFlux::Eval(const Vector &state1, const Vector &state2,
-                       const Vector &flux1, const Vector &flux2,
-                       const double maxE, const Vector &nor, Vector &flux) {
-  // NOTE: nor in general is not a unit normal
-
-  flux = 0.0;
-  flux += state1;
-  flux -= state2;
-  flux *= maxE * sqrt(nor * nor);
-  flux += flux1;
-  flux += flux2;
-  flux *= 0.5;
-}
-
-// Implementation of class FaceIntegrator
-FaceIntegrator::FaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                               const int num_equation_)
-    : num_equation(num_equation_),
-      rsolver(rsolver_),
-      funval1(num_equation_),
-      funval2(num_equation_),
-      flux1(num_equation_),
-      flux2(num_equation_),
-      nor(dim),
-      fluxN(num_equation_) {}
+//////////////////////////////////////////////////////////////////
+///                       FACE INTEGRATOR                      ///
+//////////////////////////////////////////////////////////////////
 
 void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
                                         const FiniteElement &el2,
@@ -404,10 +247,10 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
   // Integration order calculation from DGTraceIntegrator
   int intorder;
-  if (Tr.Elem2No >= 0)
+  if (Tr.Elem2No >= 0) {
     intorder = (min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) +
                 2 * max(el1.GetOrder(), el2.GetOrder()));
-  else {
+  } else {
     intorder = Tr.Elem1->OrderW() + 2 * el1.GetOrder();
   }
   if (el1.Space() == FunctionSpace::Pk) {
@@ -454,6 +297,138 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
     }
   }
 }
+
+//////////////////////////////////////////////////////////////////
+///                      NUMERICAL FLUXES                      ///
+//////////////////////////////////////////////////////////////////
+
+// Rusanov Flux
+class RusanovFlux : public NumericalFlux {
+ public:
+  void Eval(const Vector &state1, const Vector &state2, const Vector &flux1,
+            const Vector &flux2, const double maxE, const Vector &nor,
+            Vector &flux) {
+    // NOTE: nor in general is not a unit normal
+
+    flux = 0.0;
+    flux += state1;
+    flux -= state2;
+    flux *= maxE * sqrt(nor * nor);
+    flux += flux1;
+    flux += flux2;
+    flux *= 0.5;
+  }
+};
+
+// Upwind Flux, Not Yet Implemented
+class UpwindFlux : public NumericalFlux {
+ public:
+  void Eval(const Vector &state1, const Vector &state2, const Vector &flux1,
+            const Vector &flux2, const double maxE, const Vector &nor,
+            Vector &flux) {
+    // NOTE: nor in general is not a unit normal
+    mfem_error("Not Implemented");
+  }
+};
+
+//////////////////////////////////////////////////////////////////
+///                        EULER SYSTEM                        ///
+//////////////////////////////////////////////////////////////////
+
+// Euler System main class. Overload ComputeFlux
+class EulerSystem : public HyperbolicConservationLaws {
+ private:
+  const double specific_heat_ratio;
+  const double gas_constant;
+  double ComputeFlux(const Vector &state, const int dim,
+                     DenseMatrix &flux) const {
+    const double den = state(0);
+    const Vector den_vel(state.GetData() + 1, dim);
+    const double den_energy = state(1 + dim);
+
+    const double pres = (specific_heat_ratio - 1.0) *
+                        (den_energy - 0.5 * (den_vel * den_vel) / den);
+
+    MFEM_ASSERT(den >= 0, "Negative Density");
+    MFEM_ASSERT(pres >= 0, "Negative Pressure");
+    MFEM_ASSERT(den_energy >= 0, "Negative Energy");
+
+    for (int d = 0; d < dim; d++) {
+      flux(0, d) = den_vel(d);
+      for (int i = 0; i < dim; i++) {
+        flux(1 + i, d) = den_vel(i) * den_vel(d) / den;
+      }
+      flux(1 + d, d) += pres;
+    }
+
+    const double H = (den_energy + pres) / den;
+    for (int d = 0; d < dim; d++) {
+      flux(1 + dim, d) = den_vel(d) * H;
+    }
+
+    const double sound = sqrt(specific_heat_ratio * pres / den);
+    const double vel = sqrt(den_vel * den_vel) / den;
+
+    return vel + sound;
+  }
+
+ public:
+  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+              NonlinearForm &faceForm_, const double specific_heat_ratio_ = 1.4,
+              const double gas_constant_ = 1.0)
+      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
+                                   vfes_.GetMesh()->Dimension() + 2),
+        specific_heat_ratio(specific_heat_ratio_),
+        gas_constant(gas_constant_){};
+};
+
+// Euler System face integration. Overload ComputeFluxDotN
+class EulerFaceIntegrator : public FaceIntegrator {
+ private:
+  const double specific_heat_ratio;
+  const double gas_constant;
+  double ComputeFluxDotN(const Vector &state, const Vector &nor,
+                         Vector &fluxN) {
+    // NOTE: nor in general is not a unit normal
+    const int dim = nor.Size();
+    const double den = state(0);
+    const Vector den_vel(state.GetData() + 1, dim);
+    const double den_energy = state(1 + dim);
+
+    const double pres = (specific_heat_ratio - 1.0) *
+                        (den_energy - 0.5 * (den_vel * den_vel) / den);
+
+    MFEM_ASSERT(den >= 0, "Negative Density");
+    MFEM_ASSERT(pres >= 0, "Negative Pressure");
+    MFEM_ASSERT(den_energy >= 0, "Negative Energy");
+
+    double den_velN = 0;
+    for (int d = 0; d < dim; d++) {
+      den_velN += den_vel(d) * nor(d);
+    }
+
+    fluxN(0) = den_velN;
+    for (int d = 0; d < dim; d++) {
+      fluxN(1 + d) = den_velN * den_vel(d) / den + pres * nor(d);
+    }
+
+    const double H = (den_energy + pres) / den;
+    fluxN(1 + dim) = den_velN * H;
+
+    const double sound = sqrt(specific_heat_ratio * pres / den);
+    const double vel = sqrt(den_vel * den_vel) / den;
+
+    return vel + sound;
+  }
+
+ public:
+  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
+                      const double specific_heat_ratio_ = 1.4,
+                      const double gas_constant_ = 1.0)
+      : FaceIntegrator(rsolver_, dim, dim + 2),
+        specific_heat_ratio(specific_heat_ratio_),
+        gas_constant(gas_constant_){};
+};
 
 // Initial condition
 void EulerInitialCondition(const Vector &x, Vector &y) {
@@ -534,6 +509,39 @@ void EulerInitialCondition(const Vector &x, Vector &y) {
     mfem_error("Invalid problem.");
   }
 }
+
+//////////////////////////////////////////////////////////////////
+///                      BURGERS EQUATION                      ///
+//////////////////////////////////////////////////////////////////
+
+// Burgers equation main class. Overload ComputeFlux
+class BurgersEquation : public HyperbolicConservationLaws {
+ private:
+  double ComputeFlux(const Vector &state, const int dim,
+                     DenseMatrix &flux) const {
+    flux = state * state * 0.5;
+    return abs(state(0));
+  };
+
+ public:
+  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+                  NonlinearForm &faceForm_)
+      : HyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
+};
+
+// Burgers equation face integration. Overload ComputeFluxDotN
+class BurgersFaceIntegrator : public FaceIntegrator {
+ private:
+  double ComputeFluxDotN(const Vector &state, const Vector &nor,
+                         Vector &fluxN) {
+    fluxN = nor.Sum() * (state * state) * 0.5;
+    return abs(state(0));
+  };
+
+ public:
+  BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
+      : FaceIntegrator(rsolver_, dim, 1){};
+};
 
 // Initial condition
 void BurgersInitialCondition(const Vector &x, Vector &y) {
