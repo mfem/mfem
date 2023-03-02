@@ -197,7 +197,6 @@ int main(int argc, char *argv[]) {
   //    flux divergence, and assemble the corresponding mass matrix.
   MixedBilinearForm divA(&dfes, &fes);
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
-  divA.Assemble();
 
   NonlinearForm faceForm(&vfes);
   faceForm.AddInteriorFaceIntegrator(new EulerFaceIntegrator(new RusanovFlux(), dim));
@@ -205,7 +204,7 @@ int main(int argc, char *argv[]) {
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  EulerSystem euler(vfes, faceForm, divA.SpMat());
+  EulerSystem euler(vfes, divA, faceForm);
 
   // Visualize the density
   socketstream sout;
@@ -251,7 +250,8 @@ int main(int argc, char *argv[]) {
     // maximum char speed at all quadrature points on all faces.
     Vector z(faceForm.Width());
     max_char_speed = 0.;
-    faceForm.Mult(sol, z);
+    euler.Mult(sol, z);
+    // faceForm.Mult(sol, z);
     dt = cfl * hmin / max_char_speed / (2 * order + 1);
   }
 

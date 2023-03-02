@@ -24,8 +24,8 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   FiniteElementSpace &vfes;
   Operator &faceForm;
   MixedBilinearForm &divA;
-  SparseMatrix &Aflux;
-  DenseTensor Me_inv;
+  std::vector<DenseMatrix> Me_inv;
+  //   DenseTensor Me_inv;
 
   mutable Vector state;
   mutable DenseMatrix f;
@@ -37,6 +37,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
  protected:
   virtual double ComputeFlux(const Vector &state, const int dim,
                              DenseMatrix &flux) const = 0;
+  void ComputeInvMass();
 
  public:
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
@@ -149,22 +150,27 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
       vfes(vfes_),
       faceForm(A_),
       divA(divA_),
-      Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
+      Me_inv(0),
       state(num_equation),
       f(num_equation, dim),
       flux(vfes.GetNDofs(), dim, num_equation),
       z(faceForm.Height()) {
   // Standard local assembly and inversion for energy mass matrices.
   divA.Assemble();
-  const int dof = vfes.GetFE(0)->GetDof();
-  DenseMatrix Me(dof);
+  ComputeInvMass();
+}
+
+void HyperbolicConservationLaws::ComputeInvMass() {
+  DenseMatrix Me;
   DenseMatrixInverse inv(&Me);
   MassIntegrator mi;
+  Me_inv.resize(vfes.GetNE());
   for (int i = 0; i < vfes.GetNE(); i++) {
+    Me.SetSize(vfes.GetFE(i)->GetDof());
     mi.AssembleElementMatrix(*vfes.GetFE(i), *vfes.GetElementTransformation(i),
                              Me);
     inv.Factor();
-    inv.GetInverseMatrix(Me_inv(i));
+    inv.GetInverseMatrix(Me_inv[i]);
   }
 }
 
@@ -201,7 +207,7 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
     vfes.GetElementVDofs(i, vdofs);
     z.GetSubVector(vdofs, zval);
     zmat.UseExternalData(zval.GetData(), dof, num_equation);
-    mfem::Mult(Me_inv(i), zmat, ymat);
+    mfem::Mult(Me_inv[i], zmat, ymat);
     y.SetSubVector(vdofs, ymat.GetData());
   }
 }
