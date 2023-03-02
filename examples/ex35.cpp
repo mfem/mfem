@@ -65,9 +65,9 @@ void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  problem = 3;
+  problem = 2;
   const char *mesh_file = "../data/periodic-square.mesh";
-  int ref_levels = 1;
+  int ref_levels = 2;
   int order = 3;
   int ode_solver_type = 4;
   double t_final = 2.0;
@@ -169,34 +169,33 @@ int main(int argc, char *argv[]) {
   // The solution u has components {density, x-momentum, y-momentum, energy}.
   // These are stored contiguously in the BlockVector u_block.
 
+  Array<int> offsets(num_equation + 1);
+  for (int k = 0; k <= num_equation; k++) {
+    offsets[k] = k * vfes.GetNDofs();
+  }
+  BlockVector u_block(offsets);
+
+  // Momentum grid function on dfes for visualization.
+  GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
   // Initialize the state.
   VectorFunctionCoefficient u0(num_equation, EulerInitialCondition);
-  GridFunction sol(&vfes);
+  GridFunction sol(&vfes, u_block.GetData());
   sol.ProjectCoefficient(u0);
 
-  //   // Output the initial solution.
-  //   {
-  //     ofstream mesh_ofs("vortex.mesh");
-  //     mesh_ofs.precision(precision);
-  //     mesh_ofs << mesh;
-
-  //   Array<int> offsets(num_equation + 1);
-  //   for (int k = 0; k <= num_equation; k++) {
-  //     offsets[k] = k * vfes.GetNDofs();
-  //   }
-  //   BlockVector u_block(offsets);
-
-  //   // Momentum grid function on dfes for visualization.
-  //   GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
-  //     for (int k = 0; k < num_equation; k++) {
-  //       GridFunction uk(&fes, u_block.GetBlock(k));
-  //       ostringstream sol_name;
-  //       sol_name << "vortex-" << k << "-init.gf";
-  //       ofstream sol_ofs(sol_name.str().c_str());
-  //       sol_ofs.precision(precision);
-  //       sol_ofs << uk;
-  //     }
-  //   }
+  // Output the initial solution.
+  {
+    ofstream mesh_ofs("vortex.mesh");
+    mesh_ofs.precision(precision);
+    mesh_ofs << mesh;
+    for (int k = 0; k < num_equation; k++) {
+      GridFunction uk(&fes, u_block.GetBlock(k));
+      ostringstream sol_name;
+      sol_name << "vortex-" << k << "-init.gf";
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(precision);
+      sol_ofs << uk;
+    }
+  }
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
@@ -214,25 +213,25 @@ int main(int argc, char *argv[]) {
 
   // Visualize the density
   socketstream sout;
-  //   if (visualization) {
-  //     char vishost[] = "localhost";
-  //     int visport = 19916;
+  if (visualization) {
+    char vishost[] = "localhost";
+    int visport = 19916;
 
-  //     sout.open(vishost, visport);
-  //     if (!sout) {
-  //       cout << "Unable to connect to GLVis server at " << vishost << ':'
-  //            << visport << endl;
-  //       visualization = false;
-  //       cout << "GLVis visualization disabled.\n";
-  //     } else {
-  //       sout.precision(precision);
-  //       sout << "solution\n" << mesh << mom;
-  //       sout << "pause\n";
-  //       sout << flush;
-  //       cout << "GLVis visualization paused."
-  //            << " Press space (in the GLVis window) to resume it.\n";
-  //     }
-  //   }
+    sout.open(vishost, visport);
+    if (!sout) {
+      cout << "Unable to connect to GLVis server at " << vishost << ':'
+           << visport << endl;
+      visualization = false;
+      cout << "GLVis visualization disabled.\n";
+    } else {
+      sout.precision(precision);
+      sout << "solution\n" << mesh << mom;
+      sout << "pause\n";
+      sout << flush;
+      cout << "GLVis visualization paused."
+           << " Press space (in the GLVis window) to resume it.\n";
+    }
+  }
 
   // Determine the minimum element size.
   double hmin = 0.0;
@@ -251,11 +250,11 @@ int main(int argc, char *argv[]) {
   euler.SetTime(t);
   ode_solver->Init(euler);
 
-  Vector zeros(mesh.GetNE());
-  zeros = 0.0;
+//   Vector zeros(mesh.GetNE());
+//   zeros = 0.0;
   //   mesh.DerefineByError(zeros, 1.0);
-  mesh.UniformRefinement();
-  UpdateSystem(fes, dfes, vfes, euler, sol, ode_solver);
+//   mesh.UniformRefinement();
+//   UpdateSystem(fes, dfes, vfes, euler, sol, ode_solver);
 
   if (cfl > 0) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
@@ -281,9 +280,9 @@ int main(int argc, char *argv[]) {
     done = (t >= t_final - 1e-8 * dt);
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
-      //   if (visualization) {
-      //     sout << "solution\n" << mesh << mom << flush;
-      //   }
+      if (visualization) {
+        sout << "solution\n" << mesh << mom << flush;
+      }
     }
   }
 
@@ -292,14 +291,14 @@ int main(int argc, char *argv[]) {
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
   //    "glvis -m vortex.mesh -g vortex-1-final.gf".
-  //   for (int k = 0; k < num_equation; k++) {
-  //     GridFunction uk(&fes, u_block.GetBlock(k));
-  //     ostringstream sol_name;
-  //     sol_name << "vortex-" << k << "-final.gf";
-  //     ofstream sol_ofs(sol_name.str().c_str());
-  //     sol_ofs.precision(precision);
-  //     sol_ofs << uk;
-  //   }
+  for (int k = 0; k < num_equation; k++) {
+    GridFunction uk(&fes, u_block.GetBlock(k));
+    ostringstream sol_name;
+    sol_name << "vortex-" << k << "-final.gf";
+    ofstream sol_ofs(sol_name.str().c_str());
+    sol_ofs.precision(precision);
+    sol_ofs << uk;
+  }
 
   // 10. Compute the L2 solution error summed for all components.
   //   if (t_final == 2.0) {
