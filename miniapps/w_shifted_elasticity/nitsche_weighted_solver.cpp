@@ -50,6 +50,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
       
@@ -131,6 +132,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -202,6 +204,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -262,6 +265,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -336,6 +340,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -412,6 +417,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -477,6 +483,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -551,6 +558,7 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 

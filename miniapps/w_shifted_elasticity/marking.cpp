@@ -16,16 +16,16 @@ namespace mfem
 
 void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
 {
-   elemStatus.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
-   ess_inactive.SetSize(pfes_sltn->GetVSize());
-   ess_inactive = -1;
+  // elemStatus.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
+  //  ess_inactive.SetSize(pfes_sltn->GetVSize());
+  //  ess_inactive = -1;
    const int max_elem_attr = (pmesh.attributes).Max();
    int activeCount = 0;
    int inactiveCount = 0;
    int cutCount = 0;
 
-   if (!initial_marking_done) { elemStatus = SBElementType::INSIDE; }
-   else { level_set_index += 1; }
+   // if (!initial_marking_done) { elemStatus = SBElementType::INSIDE; }
+   //  else { level_set_index += 1; }
 
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
@@ -49,18 +49,12 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
    // Check elements on the current MPI rank
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-     const IntegrationRule &ir = ls_fes->GetFE(i)->GetNodes();      
-     ElementTransformation *eltrans = ls_fes->GetElementTransformation(i);
-    
-     const int nip = ir.GetNPoints();
-     vals.SetSize(nip);
+     const IntegrationRule &ir = ls_fes->GetFE(i)->GetNodes();
+     ls_func.GetValues(i, ir, vals);
+     // ElementTransformation *eltrans = ls_fes->GetElementTransformation(i);
      int count = 0;
      for (int j = 0; j < ir.GetNPoints(); j++)
        {
-	 const IntegrationPoint &ip = ir.IntPoint(j);
-	 vals(j) = ls_func.GetValue(eltrans->ElementNo, ip);
-	 Vector x;
-	 eltrans->Transform(ip, x);
 	 //	 std::cout << " ip.x " << x(0) << " ip.y " << x(1) << " ip.z " << x(2) << " val " << vals(j) << std::endl;
 	 if (outside_of_domain(vals(j))) { count++; }
        }

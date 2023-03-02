@@ -33,6 +33,7 @@ using namespace mfem;
 
 namespace mfem
 {
+  void AddOneToBinaryArray(Array<int> & binary, int size, int dim);
   // Performs full assembly for the normal velocity mass matrix operator.
   class GhostStressFullGradPenaltyIntegrator : public BilinearFormIntegrator
   {

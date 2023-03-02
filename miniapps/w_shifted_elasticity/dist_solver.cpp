@@ -38,7 +38,6 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete Lap;
 }
 
-
 void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
                                         ParGridFunction &dist_v)
 {

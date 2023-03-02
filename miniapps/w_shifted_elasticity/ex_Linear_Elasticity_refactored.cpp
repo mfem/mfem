@@ -38,14 +38,11 @@ double pi = 3.141592653589793e0;
 
 int main(int argc, char *argv[])
 {
-  StopWatch chrono;
   Mpi::Init(argc, argv);
   int num_procs = Mpi::WorldSize();
   int myid = Mpi::WorldRank();
   Hypre::Init();
-  bool verbose = (myid == 0);
-
-
+     
    // 1. Parse command line options
   //  const char *mesh_file = "./mesh_1.exo";
   //  const char *mesh_file = "./square01_tri.mesh";
@@ -53,9 +50,9 @@ int main(int argc, char *argv[])
 
   int displacementOrder = 1;
   int ser_ref_levels = 0;
-  const char *device_config = "cpu";
-  double shearModCoefficient = 0.0;
-  double bulkModCoefficient = 0.0;
+  //  const char *device_config = "cpu";
+  double shearModCoefficient = (1000/13.0);
+  double bulkModCoefficient = (500.0/3.0);
   bool visualization = false;
   bool useEmbedded = false;
   int geometricShape = 0;
@@ -99,20 +96,42 @@ int main(int argc, char *argv[])
                   "--no-mumps-solver", "Use the MUMPS Solver.");
 #endif
 
-   args.ParseCheck();
-   Device device(device_config);
+   args.Parse();
+   if (!args.Good())
+     {
+       if (myid == 0)
+	 {
+	   args.PrintUsage(cout);
+	 }
+       return 1;
+     }
+   if (myid == 0)
+     {
+       args.PrintOptions(cout);
+     }
+   // args.ParseCheck();
+   // Device device(device_config);
+   // if (myid == 0) { device.Print(); }
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh *mesh;
-   mesh = new Mesh(mesh_file, true, true);
+   mesh = new Mesh(mesh_file, 1, 1);
+   //  std::cout << " elem " << mesh->GetNE() << std::endl;
    for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); }
-
+   //   std::cout << " myid  " << myid << " elem " << mesh->GetNE() << std::endl;
+ 
    int dim = mesh->Dimension();
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-
    delete mesh;
-
+   // std::cout << " myid  " << myid << " elem " << pmesh->GetNE() << std::endl;
+ 
+   MPI_Comm comm = pmesh->GetComm();
+   int i = 1;
+   int i_sum = 0.0;
+   
+   //   pmesh->ExchangeFaceNbrNodes();
+   //   mesh->Clear();
    // 5. Define the coefficients, analytical solution, and rhs of the PDE.
    VectorFunctionCoefficient fcoeff(dim, fFun);
    VectorFunctionCoefficient ucoeff(dim, uFun_ex);
@@ -122,7 +141,10 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient ucoeff3D(dim, uFun_ex3D);
    ShiftedMatrixFunctionCoefficient traction_shifted3D(dim, traction_ex3D);
    MatrixFunctionCoefficient traction_3D(dim, traction_ex3D);
-   
+   MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh->GetComm());     
+   if (myid == 0){
+     std::cout << " before calling linear elastic solve " << i_sum << std::endl;
+   }       
    mfem::LinearElasticitySolver* ssolv=new mfem::LinearElasticitySolver(pmesh, displacementOrder, useEmbedded, geometricShape, nTerms, numberStrainTerms, ghostPenaltyCoefficient, mumps_solver, useAnalyticalShape, visualization);
    ssolv->AddMaterial(shearModCoefficient,bulkModCoefficient);
    if ( problemType == 1){
@@ -158,30 +180,33 @@ int main(int argc, char *argv[])
 
 void fFun(const Vector & x, Vector & f )
 {
-  // assumes kappa = 500/3 and mu = 76.9230769231
-  f(0) = -(0.2*(759.200338546*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))) + 115.384615385*((pi*pi*cos((pi*(x(0)+0.5))/7.0)*cos((pi*(x(1)+0.5))/3.0))/210.0 + (pi*pi*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5)))/10.0) +(759.200338546*(cos((pi*(x(0)+0.5))/7.0)*cos((pi*(x(1)+0.5))/3.0)-21.0*cos(pi*x(1))*sin(pi*x(0))))/210.0);
-  f(1) = -(-(759.200338546*(sin((pi*(x(0)+0.5))/7.0)*sin((pi*(x(1)+0.5))/3.0)+49*cos(pi*x(0))*sin(pi*x(1))))/490 -(1.0/45.0)*(759.200338546*sin((pi*(x(0)+0.5))/7.0)*sin((pi*(x(1)+0.5))/3.0)) - 115.384615385*((pi*pi*sin((pi*(x(0)+0.5))/7.0)*sin((pi*(x(1)+0.5))/3.0))/90.0 - (pi*pi*cos(pi*(x(1)+0.5))*sin(pi*(x(0)+0.5)))/10.0));
+  double kappa = 500.0/3.0;
+  double mu = 1000.0/13.0;
+  
+  f(0) = -(0.2*(pi*pi*mu*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))) + (kappa-(2.0/3.0)*mu)*((pi*pi*cos((pi*(x(0)+0.5))/7.0)*cos((pi*(x(1)+0.5))/3.0))/210.0 + 0.1*pi*pi*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))) + mu*0.1*pi*pi*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5)) + mu*(pi*pi/210.0)*cos((pi/7.0)*(x(0)+0.5))*cos((pi/3.0)*(x(1)+0.5)) ) * 1.0; 
+
+  f(1) = - (-(pi/3.0)*(pi/15.0)*mu*sin((pi/7.0)*(x(0)+0.5))*sin((pi/3.0)*(x(1)+0.5))+(kappa-(2.0/3.0)*mu)*((pi/10.0)*pi*sin(pi*(x(0)+0.5))*cos(pi*(x(1)+0.5))-(pi/30.0)*(pi/3.0)*sin((pi/7.0)*(x(0)+0.5))*sin((pi/3.0)*(x(1)+0.5))) + mu*((pi/10.0)*pi*sin(pi*(x(0)+0.5))*cos(pi*(x(1)+0.5))-(pi/70.0)*(pi/7.0)*sin((pi/7.0)*(x(0)+0.5))*sin((pi/3.0)*(x(1)+0.5))) ) * 1.0;
 }
 
 void uFun_ex(const Vector & x, Vector & u)
 {
-  u(0) = -0.1*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5));
-  u(1) = 0.1*sin(pi*(x(0)+0.5)/7.0)*sin(pi*(x(1)+0.5)/3.0);
+  u(0) = -0.1*cos(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))*1.0;
+  u(1) = 0.1*sin(pi*(x(0)+0.5)/7.0)*sin(pi*(x(1)+0.5)/3.0)*1.0;
 }
 
 void traction_ex(const Vector & x, DenseMatrix & tN )
 {
   double kappa = 500.0/3.0;
-  double mu = 76.9230769231;
+  double mu = 1000.0/13.0;
   double sigma_xx = (pi/5.0)*mu*sin(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))+(kappa-(2.0/3.0)*mu)*((pi/10.0)*sin(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))+(pi/30.0)*sin((pi/7.0)*(x(0)+0.5))*cos((pi/3.0)*(x(1)+0.5)));
   double sigma_xy = mu*(-(pi/10.0)*cos(pi*(x(0)+0.5))*cos(pi*(x(1)+0.5))+(pi/70.0)*cos((pi/7.0)*(x(0)+0.5))*sin((pi/3.0)*(x(1)+0.5)));
   double sigma_yx = mu*(-(pi/10.0)*cos(pi*(x(0)+0.5))*cos(pi*(x(1)+0.5))+(pi/70.0)*cos((pi/7.0)*(x(0)+0.5))*sin((pi/3.0)*(x(1)+0.5)));
   double sigma_yy = (pi/15.0)*mu*sin((pi/7.0)*(x(0)+0.5))*cos((pi/3.0)*(x(1)+0.5))+(kappa-(2.0/3.0)*mu)*((pi/10.0)*sin(pi*(x(0)+0.5))*sin(pi*(x(1)+0.5))+(pi/30.0)*sin((pi/7.0)*(x(0)+0.5))*cos((pi/3.0)*(x(1)+0.5)));
   tN = 0.0; 
-  tN(0,0) = sigma_xx;
-  tN(0,1) = sigma_xy;
-  tN(1,0) = sigma_yx;
-  tN(1,1) = sigma_yy;
+  tN(0,0) = sigma_xx*1.0;
+  tN(0,1) = sigma_xy*1.0;
+  tN(1,0) = sigma_yx*1.0;
+  tN(1,1) = sigma_yy*1.0;
 }
 
 
@@ -189,13 +214,13 @@ void fFun3D(const Vector & x, Vector & f )
 {
   // assumes kappa = 500/3 and mu = 76.9230769231
   double kappa = 500.0/3.0;
-  double mu = 76.9230769231;
+  double mu = 1000.0/13.0;
 
-  f(0) = -(384.615384615*(pi*x(1)*0.025*cos(pi*x(0)*x(1)*x(2)*0.5)+(pi*pi/420.0)*cos(pi*x(0)/7.0)*cos(pi*x(1)/3.0)*cos(pi*x(2)/5.0)-pi*pi*0.0125*x(0)*x(1)*x(1)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5))+211.538461538*0.2*pi*pi*cos(pi*x(0))*cos(pi*x(2))*sin(pi*x(1)));
+  f(0) = -((kappa+(1.0/3.0)*mu)*pi*x(1)*(1.0/20.0)*cos(pi*x(0)*x(1)*x(2)*0.5)+(kappa+(1.0/3.0)*mu)*(pi*pi/210.0)*cos(pi*x(0)/7.0)*cos(pi*x(1)/3.0)*cos(pi*x(2)/5.0)-(kappa+(1.0/3.0)*mu)*pi*pi*(1.0/40.0)*x(0)*x(1)*x(1)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+(4*mu+(kappa-(2.0/3.0)*mu))*0.1*pi*pi*cos(pi*x(0))*cos(pi*x(2))*sin(pi*x(1)));
   
-  f(1) = -(384.615384615*(pi*x(0)*0.025*cos(pi*x(0)*x(1)*x(2)*0.5)-pi*pi*0.0125*x(0)*x(0)*x(1)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+0.05*pi*pi*cos(pi*x(1))*cos(pi*x(2))*sin(pi*x(0)))-pi*pi*3.45613117042*sin(pi*x(0)/7.0)*sin(pi*x(1)/3.0)*cos(pi*x(2)/5.0));
+  f(1) = -(2.0*(kappa+(1.0/3.0)*mu)*(pi*x(0)*0.025*cos(pi*x(0)*x(1)*x(2)*0.5)-pi*pi*0.0125*x(0)*x(0)*x(1)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+0.05*pi*pi*cos(pi*x(1))*cos(pi*x(2))*sin(pi*x(0)))-pi*pi*(mu*((1.0/45.0)+(1.0/250.0)+(1.0/490.0)-(1.0/135.0))+kappa/90.0)*sin(pi*x(0)/7.0)*sin(pi*x(1)/3.0)*cos(pi*x(2)/5.0));
 
-  f(2) = (269.230769231*pi*pi*0.025*x(0)*x(0)*x(1)*x(1)*sin(pi*x(0)*x(1)*x(2)*0.5)+0.025*mu*pi*pi*x(0)*x(0)*x(2)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+0.025*mu*pi*pi*x(1)*x(1)*x(2)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+1.28205128205*pi*pi*sin(pi*x(0)/7.0)*cos(pi*x(1)/3.0)*sin(pi*x(2)/5.0)+19.2307692308*pi*pi*sin(pi*x(0))*sin(pi*x(1))*sin(pi*x(2)));
+  f(2) = (kappa+(4.0/3.0)*mu)*pi*pi*0.025*x(0)*x(0)*x(1)*x(1)*sin(pi*x(0)*x(1)*x(2)*0.5)+0.025*mu*pi*pi*x(0)*x(0)*x(2)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+0.025*mu*pi*pi*x(1)*x(1)*x(2)*x(2)*sin(pi*x(0)*x(1)*x(2)*0.5)+(kappa+(1.0/3.0)*mu)*(1.0/150.0)*pi*pi*sin(pi*x(0)/7.0)*cos(pi*x(1)/3.0)*sin(pi*x(2)/5.0)+(kappa+(1.0/3.0)*mu)*0.1*pi*pi*sin(pi*x(0))*sin(pi*x(1))*sin(pi*x(2));
 
 }
 
@@ -209,7 +234,8 @@ void uFun_ex3D(const Vector & x, Vector & u)
 void traction_ex3D(const Vector & x, DenseMatrix & tN )
 {
   double kappa = 500.0/3.0;
-  double mu = 76.9230769231;
+  double mu = 1000.0/13.0;
+
   double u_11 = 0.1 * pi * sin(pi*x(0)) * sin(pi*x(1)) * cos(pi*x(2));
   double u_12 = -0.1 * pi * cos(pi*x(0)) * cos(pi*x(1)) * cos(pi*x(2));
   double u_13 = 0.1 * pi * cos(pi*x(0)) * sin(pi*x(1)) * sin(pi*x(2));

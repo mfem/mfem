@@ -48,8 +48,14 @@ public:
                      bool include_cut_cell_)
       : pmesh(pm), pfes_sltn(&pfes),
         include_cut_cell(include_cut_cell_), initial_marking_done(false),
-        level_set_index(0) { }
-
+        level_set_index(0)
+  {
+    elemStatus.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
+    elemStatus = SBElementType::INSIDE;
+    ess_inactive.SetSize(pfes_sltn->GetVSize());
+    ess_inactive = -1; 
+  }
+  
    /// Mark all the elements in the mesh using the @a SBElementType.
    /// A point is considered inside when the level set function is positive.
    /// Assumes the ExchangeFaceNbrData() has been called for pmesh, ls_func.

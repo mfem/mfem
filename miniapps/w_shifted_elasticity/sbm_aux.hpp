@@ -25,7 +25,7 @@ double relativePosition(const Vector &x, const int type)
       center(1) = 0.5;
       double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
       const double radius = 0.2;
-      return (radiusOfPt - radius)/fabs(radiusOfPt - radius); // positive is the domain
+      return -(radiusOfPt - radius)/fabs(radiusOfPt - radius); // positive is the domain
     }
   else if (type == 2) // sphere of radius 0.2 - centered at 0.5, 0.5
     {
@@ -56,11 +56,11 @@ double relativePosition(const Vector &x, const int type)
       
       double a = 0.5;
       double surface = sin((2*pi/a)*x(0))*cos((2*pi/a)*x(1))+sin((2*pi/a)*x(1))*cos((2*pi/a)*x(2))+sin((2*pi/a)*x(2))*cos((2*pi/a)*x(0));
-      double sign = 0.0;
+      double sign = -1.0;
       if ( std::abs(surface) >= 1e-10){
-	sign = surface / fabs(surface);
+	sign = -surface / fabs(surface);
       }
-      
+      //      std::cout << " sign " << sign << std::endl;
       //  return sign * mag;
       return sign;   
     }
@@ -460,7 +460,7 @@ public:
   {
     Vector x(3);
     T.Transform(ip, x);
-    double dist = relativePosition(x, type);
+    double dist = -relativePosition(x, type);
     return dist;
   }
 };
@@ -492,3 +492,109 @@ public:
     return dist;
   }
 };
+
+void DiffuseH1(ParGridFunction &g, double c)
+{
+  //  g = 0.0;
+  ParFiniteElementSpace &pfes = *g.ParFESpace();
+  auto check_h1 = dynamic_cast<const H1_FECollection *>(pfes.FEColl());
+  MFEM_VERIFY(check_h1 && pfes.GetVDim() == 1,
+	      "This solver supports only scalar H1 spaces.");
+  // Compute average mesh size (assumes similar cells).
+  ParMesh &pmesh = *pfes.GetParMesh();
+  double dx, loc_area = 0.0;
+  for (int i = 0; i < pmesh.GetNE(); i++)
+    {
+      loc_area += pmesh.GetElementVolume(i);
+    }
+  double glob_area;
+  MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
+		MPI_SUM, pmesh.GetComm());
+  const int glob_zones = pmesh.GetGlobalNE();
+  switch (pmesh.GetElementBaseGeometry(0))
+    {
+    case Geometry::SEGMENT:
+      dx = glob_area / glob_zones; break;
+    case Geometry::SQUARE:
+      dx = sqrt(glob_area / glob_zones); break;
+    case Geometry::TRIANGLE:
+      dx = sqrt(2.0 * glob_area / glob_zones); break;
+    case Geometry::CUBE:
+      dx = pow(glob_area / glob_zones, 1.0/3.0); break;
+    case Geometry::TETRAHEDRON:
+      dx = pow(6.0 * glob_area / glob_zones, 1.0/3.0); break;
+    default: MFEM_ABORT("Unknown zone type!"); dx = 0.0;
+    }
+  int myid;
+  MPI_Comm_rank(pmesh.GetComm(), &myid);  
+  // Set up RHS.
+  ParLinearForm b(&pfes);
+  GridFunctionCoefficient g_old_coeff(&g);
+  b.AddDomainIntegrator(new DomainLFIntegrator(g_old_coeff));
+  b.Assemble();
+  int i = 1;
+  int i_sum = 0.0;  
+  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm());     
+  if (myid == 0){
+    std::cout << " assembled RHS " << i_sum << std::endl;
+  }      
+      
+  // Diffusion and mass terms in the LHS.
+  ParBilinearForm a_n(&pfes);
+  a_n.AddDomainIntegrator(new MassIntegrator);
+  L2_FECollection alpha_fec(0, pmesh.Dimension());
+  ParFiniteElementSpace alpha_fes(&pmesh, &alpha_fec);
+  ParGridFunction c_coeff(&alpha_fes);
+  c_coeff = c * dx * dx;
+  a_n.AddDomainIntegrator(new WeightedDiffusionIntegrator(&pmesh, c_coeff));
+  
+  // ConstantCoefficient c_coeff(c * dx * dx);
+  // a_n.AddDomainIntegrator(new DiffusionIntegrator(c_coeff));
+  
+  a_n.Assemble();
+  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm());     
+  if (myid == 0){
+    std::cout << " assembled LHS " << i_sum << std::endl;
+  }      
+  // Solver.
+  CGSolver cg(pmesh.GetComm());
+  cg.SetRelTol(1e-12);
+  //  cg.SetAbsTol(0.0);   
+  cg.SetMaxIter(100);
+  cg.SetPrintLevel(-1);
+  OperatorPtr A;
+  Vector B, X;
+  if (myid == 0){
+    std::cout << " before LS " << i_sum << std::endl;
+  }      
+  // Solve with Neumann BC.
+  Array<int> ess_tdof_list;
+  a_n.FormLinearSystem(ess_tdof_list, g, b, A, X, B);
+  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm());    
+  if (myid == 0){
+    std::cout << " formed LS " << i_sum << std::endl;
+  }      
+
+  auto *prec = new HypreBoomerAMG;
+  prec->SetPrintLevel(-1);
+  cg.SetPreconditioner(*prec);
+  cg.SetOperator(*A);
+  //  X = 0.0;
+  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm()); 
+  if (myid == 0){
+    std::cout << " before mult " << i_sum << std::endl;
+  }      
+  cg.Mult(B, X);
+  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm()); 
+  if (myid == 0){
+    std::cout << " after mult " << i_sum << std::endl;
+  }     
+
+  a_n.RecoverFEMSolution(X, b, g);
+  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm()); 
+  if (myid == 0){
+    std::cout << " recover sol " << i_sum << std::endl;
+  }     
+
+  delete prec;
+}
