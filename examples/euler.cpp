@@ -1,14 +1,14 @@
-//                                MFEM Example 18
+//                                MFEM Euler Equation examples
 //
-// Compile with: make ex18
+// Compile with: make euler
 //
 // Sample runs:
 //
-//       ex18 -p 1 -r 2 -o 1 -s 3
-//       ex18 -p 1 -r 1 -o 3 -s 4
-//       ex18 -p 1 -r 0 -o 5 -s 6
-//       ex18 -p 2 -r 1 -o 1 -s 3
-//       ex18 -p 2 -r 0 -o 3 -s 3
+//       euler -p 1 -r 2 -o 1 -s 3
+//       euler -p 1 -r 1 -o 3 -s 4
+//       euler -p 1 -r 0 -o 5 -s 6
+//       euler -p 2 -r 1 -o 1 -s 3
+//       euler -p 2 -r 0 -o 3 -s 3
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -46,26 +46,59 @@
 
 // Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
 // shared between the serial and parallel version of the example.
-#include "ex35.hpp"
+#include "hyperbolic_conservation_laws.hpp"
 
-// Choice for the problem setup. See InitialCondition in ex18.hpp.
-int problem;
-
-// Equation constant parameters.
-const int num_equation = 4;
-const double specific_heat_ratio = 1.4;
-const double gas_constant = 1.0;
+// Choice for the problem setup. See InitialCondition in euler.hpp.
 
 // Maximum characteristic speed (updated by integrators)
 double max_char_speed;
+int problem;
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
                   FiniteElementSpace &vfes, HyperbolicConservationLaws &euler,
                   GridFunction &sol, ODESolver *ode_solver);
 
+// Euler System main class. Overload ComputeFlux
+class EulerSystem : public HyperbolicConservationLaws {
+ private:
+  const double specific_heat_ratio;
+  const double gas_constant;
+  double ComputeFlux(const Vector &state, const int dim,
+                     DenseMatrix &flux) const;
+
+ public:
+  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+              NonlinearForm &faceForm_, const double specific_heat_ratio_ = 1.4,
+              const double gas_constant_ = 1.0)
+      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
+                                   vfes_.GetMesh()->Dimension() + 2),
+        specific_heat_ratio(specific_heat_ratio_),
+        gas_constant(gas_constant_){};
+};
+
+// Euler System face integration. Overload ComputeFluxDotN
+class EulerFaceIntegrator : public FaceIntegrator {
+ private:
+  const double specific_heat_ratio;
+  const double gas_constant;
+  double ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &fluxN);
+
+ public:
+  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
+                      const double specific_heat_ratio_ = 1.4,
+                      const double gas_constant_ = 1.0)
+      : FaceIntegrator(rsolver_, dim, dim + 2),
+        specific_heat_ratio(specific_heat_ratio_),
+        gas_constant(gas_constant_){};
+};
+void EulerInitialCondition(const Vector &x, Vector &y);
+
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   problem = 2;
+  const double specific_heat_ratio = 1.4;
+  const double gas_constant = 1.0;
+
   const char *mesh_file = "../data/periodic-square.mesh";
   int ref_levels = 2;
   int order = 3;
@@ -116,6 +149,8 @@ int main(int argc, char *argv[]) {
   MFEM_ASSERT(dim == 2,
               "Need a two-dimensional mesh for the problem definition");
 
+  const int num_equations = dim + 2;
+
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
   ODESolver *ode_solver = NULL;
@@ -156,7 +191,7 @@ int main(int argc, char *argv[]) {
   // Finite element space for a mesh-dim vector quantity (momentum)
   FiniteElementSpace dfes(&mesh, &fec, dim, Ordering::byNODES);
   // Finite element space for all variables together (total thermodynamic state)
-  FiniteElementSpace vfes(&mesh, &fec, num_equation, Ordering::byNODES);
+  FiniteElementSpace vfes(&mesh, &fec, num_equations, Ordering::byNODES);
 
   // This example depends on this ordering of the space.
   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
@@ -169,8 +204,8 @@ int main(int argc, char *argv[]) {
   // The solution u has components {density, x-momentum, y-momentum, energy}.
   // These are stored contiguously in the BlockVector u_block.
 
-  Array<int> offsets(num_equation + 1);
-  for (int k = 0; k <= num_equation; k++) {
+  Array<int> offsets(num_equations + 1);
+  for (int k = 0; k <= num_equations; k++) {
     offsets[k] = k * vfes.GetNDofs();
   }
   BlockVector u_block(offsets);
@@ -178,7 +213,7 @@ int main(int argc, char *argv[]) {
   // Momentum grid function on dfes for visualization.
   GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
   // Initialize the state.
-  VectorFunctionCoefficient u0(num_equation, EulerInitialCondition);
+  VectorFunctionCoefficient u0(num_equations, EulerInitialCondition);
   GridFunction sol(&vfes, u_block.GetData());
   sol.ProjectCoefficient(u0);
 
@@ -187,7 +222,7 @@ int main(int argc, char *argv[]) {
     ofstream mesh_ofs("vortex.mesh");
     mesh_ofs.precision(precision);
     mesh_ofs << mesh;
-    for (int k = 0; k < num_equation; k++) {
+    for (int k = 0; k < num_equations; k++) {
       GridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-init.gf";
@@ -203,6 +238,8 @@ int main(int argc, char *argv[]) {
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
   NonlinearForm faceForm(&vfes);
+  EulerFaceIntegrator hatF(new RusanovFlux(), dim);
+  faceForm.AddInteriorFaceIntegrator(&hatF);
   faceForm.AddInteriorFaceIntegrator(
       new EulerFaceIntegrator(new RusanovFlux(), dim));
 
@@ -250,11 +287,11 @@ int main(int argc, char *argv[]) {
   euler.SetTime(t);
   ode_solver->Init(euler);
 
-//   Vector zeros(mesh.GetNE());
-//   zeros = 0.0;
+  //   Vector zeros(mesh.GetNE());
+  //   zeros = 0.0;
   //   mesh.DerefineByError(zeros, 1.0);
-//   mesh.UniformRefinement();
-//   UpdateSystem(fes, dfes, vfes, euler, sol, ode_solver);
+  //   mesh.UniformRefinement();
+  //   UpdateSystem(fes, dfes, vfes, euler, sol, ode_solver);
 
   if (cfl > 0) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
@@ -291,7 +328,7 @@ int main(int argc, char *argv[]) {
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
   //    "glvis -m vortex.mesh -g vortex-1-final.gf".
-  for (int k = 0; k < num_equation; k++) {
+  for (int k = 0; k < num_equations; k++) {
     GridFunction uk(&fes, u_block.GetBlock(k));
     ostringstream sol_name;
     sol_name << "vortex-" << k << "-final.gf";
@@ -324,4 +361,153 @@ void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
   fes.UpdatesFinished();
   dfes.UpdatesFinished();
   vfes.UpdatesFinished();
+}
+
+//////////////////////////////////////////////////////////////////
+///                        EULER SYSTEM                        ///
+//////////////////////////////////////////////////////////////////
+double EulerSystem::ComputeFlux(const Vector &state, const int dim,
+                                DenseMatrix &flux) const {
+  const double den = state(0);
+  const Vector den_vel(state.GetData() + 1, dim);
+  const double den_energy = state(1 + dim);
+
+  const double pres = (specific_heat_ratio - 1.0) *
+                      (den_energy - 0.5 * (den_vel * den_vel) / den);
+
+  MFEM_ASSERT(den >= 0, "Negative Density");
+  MFEM_ASSERT(pres >= 0, "Negative Pressure");
+  MFEM_ASSERT(den_energy >= 0, "Negative Energy");
+
+  for (int d = 0; d < dim; d++) {
+    flux(0, d) = den_vel(d);
+    for (int i = 0; i < dim; i++) {
+      flux(1 + i, d) = den_vel(i) * den_vel(d) / den;
+    }
+    flux(1 + d, d) += pres;
+  }
+
+  const double H = (den_energy + pres) / den;
+  for (int d = 0; d < dim; d++) {
+    flux(1 + dim, d) = den_vel(d) * H;
+  }
+
+  const double sound = sqrt(specific_heat_ratio * pres / den);
+  const double vel = sqrt(den_vel * den_vel) / den;
+
+  return vel + sound;
+}
+
+double EulerFaceIntegrator::ComputeFluxDotN(const Vector &state,
+                                            const Vector &nor, Vector &fluxN) {
+  // NOTE: nor in general is not a unit normal
+  const int dim = nor.Size();
+  const double den = state(0);
+  const Vector den_vel(state.GetData() + 1, dim);
+  const double den_energy = state(1 + dim);
+
+  const double pres = (specific_heat_ratio - 1.0) *
+                      (den_energy - 0.5 * (den_vel * den_vel) / den);
+
+  MFEM_ASSERT(den >= 0, "Negative Density");
+  MFEM_ASSERT(pres >= 0, "Negative Pressure");
+  MFEM_ASSERT(den_energy >= 0, "Negative Energy");
+
+  double den_velN = 0;
+  for (int d = 0; d < dim; d++) {
+    den_velN += den_vel(d) * nor(d);
+  }
+
+  fluxN(0) = den_velN;
+  for (int d = 0; d < dim; d++) {
+    fluxN(1 + d) = den_velN * den_vel(d) / den + pres * nor(d);
+  }
+
+  const double H = (den_energy + pres) / den;
+  fluxN(1 + dim) = den_velN * H;
+
+  const double sound = sqrt(specific_heat_ratio * pres / den);
+  const double vel = sqrt(den_vel * den_vel) / den;
+
+  return vel + sound;
+}
+
+// Initial condition
+void EulerInitialCondition(const Vector &x, Vector &y) {
+  MFEM_ASSERT(x.Size() == 2, "");
+  if (problem < 3) {
+    const double specific_heat_ratio = 1.4;
+    const double gas_constant = 1.0;
+
+    double radius = 0, Minf = 0, beta = 0;
+    if (problem == 1) {
+      // "Fast vortex"
+      radius = 0.2;
+      Minf = 0.5;
+      beta = 1. / 5.;
+    } else if (problem == 2) {
+      // "Slow vortex"
+      radius = 0.2;
+      Minf = 0.05;
+      beta = 1. / 50.;
+    } else {
+      mfem_error(
+          "Cannot recognize problem."
+          "Options are: 1 - fast vortex, 2 - slow vortex");
+    }
+
+    const double xc = 0.0, yc = 0.0;
+
+    // Nice units
+    const double vel_inf = 1.;
+    const double den_inf = 1.;
+
+    // Derive remainder of background state from this and Minf
+    const double pres_inf =
+        (den_inf / specific_heat_ratio) * (vel_inf / Minf) * (vel_inf / Minf);
+    const double temp_inf = pres_inf / (den_inf * gas_constant);
+
+    double r2rad = 0.0;
+    r2rad += (x(0) - xc) * (x(0) - xc);
+    r2rad += (x(1) - yc) * (x(1) - yc);
+    r2rad /= (radius * radius);
+
+    const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
+
+    const double velX =
+        vel_inf * (1 - beta * (x(1) - yc) / radius * exp(-0.5 * r2rad));
+    const double velY =
+        vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
+    const double vel2 = velX * velX + velY * velY;
+
+    const double specific_heat = gas_constant * specific_heat_ratio * shrinv1;
+    const double temp = temp_inf - 0.5 * (vel_inf * beta) * (vel_inf * beta) /
+                                       specific_heat * exp(-r2rad);
+
+    const double den = den_inf * pow(temp / temp_inf, shrinv1);
+    const double pres = den * gas_constant * temp;
+    const double energy = shrinv1 * pres / den + 0.5 * vel2;
+
+    y(0) = den;
+    y(1) = den * velX;
+    y(2) = den * velY;
+    y(3) = den * energy;
+  } else if (problem == 3) {
+    // std::cout << "2D Accuracy Test." << std::endl;
+    // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
+    const double density = 1.0 + 0.2 * __sinpi(x(0) + x(1));
+    const double velocity_x = 0.7;
+    const double velocity_y = 0.3;
+    const double pressure = 1.0;
+    const double energy =
+        pressure / (1.4 - 1.0) +
+        density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y);
+
+    y(0) = density;
+    y(1) = density * velocity_x;
+    y(2) = density * velocity_y;
+    y(3) = energy;
+  } else {
+    mfem_error("Invalid problem.");
+  }
 }

@@ -46,18 +46,40 @@
 
 // Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
 // shared between the serial and parallel version of the example.
-#include "ex35.hpp"
+#include "hyperbolic_conservation_laws.hpp"
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem;
 
 // Equation constant parameters.
 const int num_equation = 1;
-const double specific_heat_ratio = 1.4;
-const double gas_constant = 1.0;
-
 // Maximum characteristic speed (updated by integrators)
 double max_char_speed;
+
+// Burgers equation main class. Overload ComputeFlux
+class BurgersEquation : public HyperbolicConservationLaws {
+ private:
+  double ComputeFlux(const Vector &state, const int dim,
+                     DenseMatrix &flux) const;
+
+ public:
+  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+                  NonlinearForm &faceForm_)
+      : HyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
+};
+
+// Burgers equation face integration. Overload ComputeFluxDotN
+class BurgersFaceIntegrator : public FaceIntegrator {
+ private:
+  double ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &fluxN);
+
+ public:
+  BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
+      : FaceIntegrator(rsolver_, dim, 1){};
+};
+
+// Initial condition
+void BurgersInitialCondition(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
@@ -282,4 +304,34 @@ int main(int argc, char *argv[]) {
   delete ode_solver;
 
   return 0;
+}
+
+//////////////////////////////////////////////////////////////////
+///                      BURGERS EQUATION                      ///
+//////////////////////////////////////////////////////////////////
+double BurgersEquation::ComputeFlux(const Vector &state, const int dim,
+                                    DenseMatrix &flux) const {
+  flux = state * state * 0.5;
+  return abs(state(0));
+};
+
+double BurgersFaceIntegrator::ComputeFluxDotN(const Vector &state,
+                                              const Vector &nor,
+                                              Vector &fluxN) {
+  fluxN = nor.Sum() * (state * state) * 0.5;
+  return abs(state(0));
+};
+
+// Initial condition
+void BurgersInitialCondition(const Vector &x, Vector &y) {
+  if (problem == 1) {
+    y(0) = __sinpi(x(0) * 2);
+  } else if (problem == 2) {
+    y(0) = __sinpi(x.Sum());
+  } else if (problem == 3) {
+    y = 0.0;
+    y(0) = x(0) < 0.5 ? 1.0 : 2.0;
+  } else {
+    mfem_error("Invalid problem.");
+  }
 }
