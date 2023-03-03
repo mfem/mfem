@@ -44,9 +44,8 @@ class FaceIntegrator : public NonlinearFormIntegrator {
                                  Vector &flux) = 0;
 
  public:
-  FaceIntegrator(NumericalFlux *rsolver_,
-                 const int dim, const int num_equations_,
-                 const int IntOrderOffset_ = 3)
+  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+                 const int num_equations_, const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
@@ -57,9 +56,8 @@ class FaceIntegrator : public NonlinearFormIntegrator {
         flux2(num_equations_),
         nor(dim),
         fluxN(num_equations_){};
-  FaceIntegrator(NumericalFlux *rsolver_,
-                 const int dim, const int num_equations_,
-                 const IntegrationRule *ir)
+  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+                 const int num_equations_, const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
         max_char_speed(),
@@ -137,8 +135,8 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 #ifdef MFEM_USE_MPI
   double getParMaxCharSpeed() {
     int myid = Mpi::WorldRank();
-    MPI_Reduce(&myid, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX, 0,
-               MPI_COMM_WORLD);
+    MPI_Allreduce(&myid, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+                  MPI_COMM_WORLD);
     return max_char_speed;
   }
 #endif
@@ -409,8 +407,8 @@ class EulerSystem : public DGHyperbolicConservationLaws {
   }
 
  public:
-  EulerSystem(FiniteElementSpace &vfes_,
-              MixedBilinearForm &divA_, FaceIntegrator &faceForm_,
+  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+              FaceIntegrator &faceForm_,
               const double specific_heat_ratio_ = 1.4,
               const double gas_constant_ = 1.0)
       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
@@ -459,8 +457,8 @@ class EulerFaceIntegrator : public FaceIntegrator {
   }
 
  public:
-  EulerFaceIntegrator(NumericalFlux *rsolver_,
-                      const int dim, const double specific_heat_ratio_ = 1.4,
+  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
+                      const double specific_heat_ratio_ = 1.4,
                       const double gas_constant_ = 1.0)
       : FaceIntegrator(rsolver_, dim, dim + 2),
         specific_heat_ratio(specific_heat_ratio_),
@@ -481,10 +479,9 @@ class BurgersEquation : public DGHyperbolicConservationLaws {
   };
 
  public:
-  BurgersEquation(FiniteElementSpace &vfes_,
-                  MixedBilinearForm &divA_, FaceIntegrator &faceForm_)
-      : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
-                                     1){};
+  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+                  FaceIntegrator &faceForm_)
+      : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
 };
 
 // Burgers equation face integration. Overload ComputeFluxDotN
@@ -497,8 +494,7 @@ class BurgersFaceIntegrator : public FaceIntegrator {
   };
 
  public:
-  BurgersFaceIntegrator(NumericalFlux *rsolver_,
-                        const int dim)
+  BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
       : FaceIntegrator(rsolver_, dim, 1){};
 };
 
@@ -534,9 +530,8 @@ class ShallowWater : public DGHyperbolicConservationLaws {
   };
 
  public:
-  ShallowWater(FiniteElementSpace &vfes_,
-               MixedBilinearForm &divA_, FaceIntegrator &faceForm_,
-               const double g_ = 9.81)
+  ShallowWater(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+               FaceIntegrator &faceForm_, const double g_ = 9.81)
       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
                                      1 + vfes_.GetFE(0)->GetDim()),
         g(g_){};
@@ -568,7 +563,7 @@ class ShallowWaterFaceIntegrator : public FaceIntegrator {
   };
 
  public:
-  ShallowWaterFaceIntegrator(NumericalFlux *rsolver_,
-                             const int dim_, const double g_ = 9.81)
+  ShallowWaterFaceIntegrator(NumericalFlux *rsolver_, const int dim_,
+                             const double g_ = 9.81)
       : FaceIntegrator(rsolver_, dim_, 1 + dim_), g(g_){};
 };
