@@ -53,18 +53,20 @@ int problem;
 void EulerInitialCondition(const Vector &x, Vector &y);
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, HyperbolicConservationLaws &euler,
+                  FiniteElementSpace &vfes, DGHyperbolicConservationLaws &euler,
                   GridFunction &sol, ODESolver *ode_solver);
 
 void EulerInitialCondition(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  problem = 3;
+  problem = 2;
   const double specific_heat_ratio = 1.4;
   const double gas_constant = 1.0;
-  const char *mesh_file = "../data/periodic-square-4x4.mesh";
-  int ref_levels = 4;
+
+  const char *mesh_file = "../data/periodic-square.mesh";
+  int IntOrderOffset = 3;
+  int ref_levels = 2;
   int order = 3;
   int ode_solver_type = 4;
   double t_final = 2.0;
@@ -207,16 +209,19 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  MixedBilinearForm divA(&dfes, &fes);
-  divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
+  EulerElementFormIntegrator *eulerElementFormIntegrator =
+      new EulerElementFormIntegrator(dim, IntOrderOffset, specific_heat_ratio,
+                                     gas_constant);
 
-  EulerFaceIntegrator *eulerFaceIntegrator = new EulerFaceIntegrator(
-      new RusanovFlux(), dim, specific_heat_ratio, gas_constant);
+  EulerFaceFormIntegrator *eulerFaceFormIntegrator =
+      new EulerFaceFormIntegrator(new RusanovFlux(), dim, IntOrderOffset,
+                              specific_heat_ratio, gas_constant);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  EulerSystem euler(vfes, divA, *eulerFaceIntegrator);
+  DGHyperbolicConservationLaws euler(vfes, *eulerElementFormIntegrator,
+                                     *eulerFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
@@ -319,7 +324,7 @@ int main(int argc, char *argv[]) {
 }
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, HyperbolicConservationLaws &euler,
+                  FiniteElementSpace &vfes, DGHyperbolicConservationLaws &euler,
                   GridFunction &sol, ODESolver *ode_solver) {
   fes.Update();
   dfes.Update();

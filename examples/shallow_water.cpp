@@ -54,7 +54,7 @@ void ShallowWaterInitialCondition(const Vector &x, Vector &y);
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
                   FiniteElementSpace &vfes,
-                  HyperbolicConservationLaws &shallowWater, GridFunction &sol,
+                  DGHyperbolicConservationLaws &shallowWater, GridFunction &sol,
                   ODESolver *ode_solver);
 
 int main(int argc, char *argv[]) {
@@ -63,9 +63,10 @@ int main(int argc, char *argv[]) {
   const double g = 9.81;
 
   const char *mesh_file = "../data/periodic-square-4x4.mesh";
-  int ref_levels = 4;
-  int order = 1;
-  int ode_solver_type = 3;
+  int IntOrderOffset = 3;
+  int ref_levels = 3;
+  int order = 3;
+  int ode_solver_type = 4;
   double t_final = 20.0;
   double dt = -0.01;
   double cfl = 0.3;
@@ -202,16 +203,17 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  MixedBilinearForm divA(&dfes, &fes);
-  divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
+  ShallowWaterElementFormIntegrator *shallowWaterElementFormIntegrator =
+      new ShallowWaterElementFormIntegrator(dim, IntOrderOffset);
 
-  ShallowWaterFaceIntegrator *shallowWaterFaceIntegrator =
-      new ShallowWaterFaceIntegrator(new RusanovFlux(), dim, g);
+  ShallowWaterFaceFormIntegrator *shallowWaterFaceFormIntegrator =
+      new ShallowWaterFaceFormIntegrator(new RusanovFlux(), dim, IntOrderOffset);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  ShallowWater shallowWater(vfes, divA, *shallowWaterFaceIntegrator);
+  DGHyperbolicConservationLaws shallowWater(vfes, *shallowWaterElementFormIntegrator,
+                                     *shallowWaterFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
@@ -315,7 +317,7 @@ int main(int argc, char *argv[]) {
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
                   FiniteElementSpace &vfes,
-                  HyperbolicConservationLaws &shallowWater, GridFunction &sol,
+                  DGHyperbolicConservationLaws &shallowWater, GridFunction &sol,
                   ODESolver *ode_solver) {
   fes.Update();
   dfes.Update();
