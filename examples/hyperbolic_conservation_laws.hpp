@@ -119,7 +119,7 @@ class FaceIntegrator : public NonlinearFormIntegrator {
 
 // Base Hyperbolic conservation law class.
 // This contains all methods needed except the flux function.
-class HyperbolicConservationLaws : public TimeDependentOperator {
+class DGHyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
   const int num_equations;
@@ -153,7 +153,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
 
  public:
   // Constructor
-  HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
+  DGHyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
                              FaceIntegrator &faceForm_,
                              const int num_equations_);
   // Apply M\(DIV F(U) + JUMP HAT{F}(U))
@@ -162,15 +162,15 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   void Update();
   inline double getMaxCharSpeed() { return max_char_speed; };
 
-  virtual ~HyperbolicConservationLaws() {}
+  virtual ~DGHyperbolicConservationLaws() {}
 };
 
 //////////////////////////////////////////////////////////////////
 ///        HYPERBOLIC CONSERVATION LAWS IMPLEMENTATION         ///
 //////////////////////////////////////////////////////////////////
 
-// Implementation of class HyperbolicConservationLaws
-HyperbolicConservationLaws::HyperbolicConservationLaws(
+// Implementation of class DGHyperbolicConservationLaws
+DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
     FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
     FaceIntegrator &faceIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
@@ -195,7 +195,7 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
   width = z.Size();
 }
 
-void HyperbolicConservationLaws::ComputeInvMass() {
+void DGHyperbolicConservationLaws::ComputeInvMass() {
   DenseMatrix Me;
   MassIntegrator mi;
   Me_inv.resize(vfes.GetNE());
@@ -209,7 +209,7 @@ void HyperbolicConservationLaws::ComputeInvMass() {
   }
 }
 
-void HyperbolicConservationLaws::Update() {
+void DGHyperbolicConservationLaws::Update() {
   faceForm.Update();
   divA.Update();
   divA.Assemble();
@@ -221,7 +221,7 @@ void HyperbolicConservationLaws::Update() {
   z.SetSize(height);
 }
 
-void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
+void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 0. Reset wavespeed computation before operator application.
   max_char_speed = 0.;
   faceIntegrator.resetMaxCharSpeed();
@@ -263,7 +263,7 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
 }
 
 // Compute the flux at solution nodes.
-void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
+void DGHyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
                                          DenseTensor &flux_) const {
   const int flux_dof = flux_.SizeI();
   const int flux_dim = flux_.SizeJ();
@@ -426,7 +426,7 @@ class UpwindFlux : public NumericalFlux {
 //////////////////////////////////////////////////////////////////
 
 // Euler System main class. Overload ComputeFlux
-class EulerSystem : public HyperbolicConservationLaws {
+class EulerSystem : public DGHyperbolicConservationLaws {
  private:
   const double specific_heat_ratio;
   const double gas_constant;
@@ -467,7 +467,7 @@ class EulerSystem : public HyperbolicConservationLaws {
               FaceIntegrator &faceForm_,
               const double specific_heat_ratio_ = 1.4,
               const double gas_constant_ = 1.0)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
+      : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
                                    vfes_.GetMesh()->Dimension() + 2),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
@@ -526,7 +526,7 @@ class EulerFaceIntegrator : public FaceIntegrator {
 //////////////////////////////////////////////////////////////////
 
 // Burgers equation main class. Overload ComputeFlux
-class BurgersEquation : public HyperbolicConservationLaws {
+class BurgersEquation : public DGHyperbolicConservationLaws {
  private:
   double ComputeFlux(const Vector &state, const int dim,
                      DenseMatrix &flux) const {
@@ -537,7 +537,7 @@ class BurgersEquation : public HyperbolicConservationLaws {
  public:
   BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
                   FaceIntegrator &faceForm_)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
+      : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
 };
 
 // Burgers equation face integration. Overload ComputeFluxDotN
@@ -559,7 +559,7 @@ class BurgersFaceIntegrator : public FaceIntegrator {
 //////////////////////////////////////////////////////////////////
 
 // Burgers equation main class. Overload ComputeFlux
-class ShallowWater : public HyperbolicConservationLaws {
+class ShallowWater : public DGHyperbolicConservationLaws {
  private:
   const double g;
   double ComputeFlux(const Vector &state, const int dim,
@@ -588,7 +588,7 @@ class ShallowWater : public HyperbolicConservationLaws {
  public:
   ShallowWater(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
                FaceIntegrator &faceForm_, const double g_ = 9.81)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
+      : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
                                    1 + vfes_.GetFE(0)->GetDim()),
         g(g_){};
 };
