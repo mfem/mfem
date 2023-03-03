@@ -60,11 +60,11 @@ void EulerInitialCondition(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  problem = 2;
+  problem = 3;
   const double specific_heat_ratio = 1.4;
   const double gas_constant = 1.0;
-  const char *mesh_file = "../data/periodic-square.mesh";
-  int ref_levels = 2;
+  const char *mesh_file = "../data/periodic-square-4x4.mesh";
+  int ref_levels = 4;
   int order = 3;
   int ode_solver_type = 4;
   double t_final = 2.0;
@@ -105,15 +105,24 @@ int main(int argc, char *argv[]) {
   }
   args.PrintOptions(cout);
 
+
   // 2. Read the mesh from the given mesh file. This example requires a 2D
   //    periodic mesh, such as ../data/periodic-square.mesh.
   Mesh mesh(mesh_file, 1, 1);
   const int dim = mesh.Dimension();
+  Vector minbox, maxbox;
+  mesh.GetBoundingBox(minbox, maxbox);
+  cout << "(" << minbox(0) << ", " << maxbox(0) << ") x (" << minbox(1) << ", " << maxbox(1) << ")" << endl;
+//   mesh.Transform([](const Vector &x, Vector &y) {
+//     y(0) = (x(0) - 0.5) * 2;
+//     return;
+//   });
 
-  MFEM_ASSERT(dim == 2,
-              "Need a two-dimensional mesh for the problem definition");
+      //   MFEM_ASSERT(dim == 2,
+      //               "Need a two-dimensional mesh for the problem
+      //               definition");
 
-  const int num_equations = dim + 2;
+      const int num_equations = dim + 2;
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -201,8 +210,8 @@ int main(int argc, char *argv[]) {
   MixedBilinearForm divA(&dfes, &fes);
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
-  EulerFaceIntegrator *eulerFaceIntegrator = new EulerFaceIntegrator(new RusanovFlux(), dim,
-                                          specific_heat_ratio, gas_constant);
+  EulerFaceIntegrator *eulerFaceIntegrator = new EulerFaceIntegrator(
+      new RusanovFlux(), dim, specific_heat_ratio, gas_constant);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
@@ -325,8 +334,8 @@ void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
 
 // Initial condition
 void EulerInitialCondition(const Vector &x, Vector &y) {
-  MFEM_ASSERT(x.Size() == 2, "");
   if (problem < 3) {
+    MFEM_ASSERT(x.Size() == 2, "");
     const double specific_heat_ratio = 1.4;
     const double gas_constant = 1.0;
 
@@ -384,6 +393,7 @@ void EulerInitialCondition(const Vector &x, Vector &y) {
     y(2) = den * velY;
     y(3) = den * energy;
   } else if (problem == 3) {
+    MFEM_ASSERT(x.Size() == 2, "");
     // std::cout << "2D Accuracy Test." << std::endl;
     // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
     const double density = 1.0 + 0.2 * __sinpi(x(0) + x(1));
@@ -398,6 +408,19 @@ void EulerInitialCondition(const Vector &x, Vector &y) {
     y(1) = density * velocity_x;
     y(2) = density * velocity_y;
     y(3) = energy;
+  } else if (problem == 4) {
+    MFEM_ASSERT(x.Size() == 1, "");
+    // std::cout << "2D Accuracy Test." << std::endl;
+    // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
+    const double density = 1.0 + 0.2 * __sinpi(x(0));
+    const double velocity_x = 1.0;
+    const double pressure = 1.0;
+    const double energy =
+        pressure / (1.4 - 1.0) + density * 0.5 * (velocity_x * velocity_x);
+
+    y(0) = density;
+    y(1) = density * velocity_x;
+    y(2) = energy;
   } else {
     mfem_error("Invalid problem.");
   }
