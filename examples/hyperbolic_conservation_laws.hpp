@@ -341,6 +341,9 @@ void HyperboilcElementFormIntegrator::AssembleElementVector(
 
     elfun_mat.MultTranspose(shape, state);
     const double mcs = ComputeFlux(state, flux);
+    *max_char_speed = mcs > *max_char_speed ? mcs : *max_char_speed;
+
+    AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
   }
 }
 //////////////////////////////////////////////////////////////////
@@ -393,9 +396,7 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
     rsolver->Eval(state1, state2, flux1, flux2, mcs, nor, fluxN);
 
     // Update max char speed
-    if (mcs > *max_char_speed) {
-      *max_char_speed = mcs;
-    }
+    *max_char_speed = mcs > *max_char_speed ? mcs : *max_char_speed;
 
     fluxN *= ip.weight;
     for (int k = 0; k < num_equations; k++) {
