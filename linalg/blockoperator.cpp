@@ -138,7 +138,7 @@ BlockOperator::~BlockOperator()
       {
          for (int jCol=0; jCol < nColBlocks; ++jCol)
          {
-            delete op(jCol,iRow);
+            delete op(iRow,jCol);
          }
       }
    }
