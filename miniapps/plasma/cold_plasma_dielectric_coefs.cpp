@@ -34,6 +34,7 @@ void StixCoefs_cold_plasma(Vector &V,
                            const Vector & charge,
                            const Vector & mass,
                            const Vector & temp,
+                           double iontemp,
                            int nuprof,
                            bool realPart)
 {
@@ -47,6 +48,7 @@ void StixCoefs_cold_plasma(Vector &V,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   //double Ti = iontemp * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
@@ -98,6 +100,7 @@ complex<double> R_cold_plasma(double omega,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof)
 {
    complex<double> val(1.0, 0.0);
@@ -105,6 +108,7 @@ complex<double> R_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   //double Ti = iontemp * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
@@ -136,6 +140,7 @@ complex<double> L_cold_plasma(double omega,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof,
                               double res_lim)
 {
@@ -144,6 +149,7 @@ complex<double> L_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   //double Ti = iontemp * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
@@ -180,6 +186,7 @@ complex<double> S_cold_plasma(double omega,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof,
                               double res_lim)
 {
@@ -188,6 +195,7 @@ complex<double> S_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double Ti = iontemp * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
@@ -228,6 +236,7 @@ complex<double> S_cold_plasma(double omega,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof,
                               double res_lim)
 {
@@ -237,6 +246,8 @@ complex<double> S_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double Ti = iontemp * q_;
+   //if (Te < 0) {Te = -1.0*temp[0] * q_;}
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
@@ -253,7 +264,9 @@ complex<double> S_cold_plasma(double omega,
       if (i == 0) { m_eff = m * collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
-      complex<double> vth = vthermal(Te, m_eff);
+      double T = Te;
+      if (i == 3) {T = Te + Ti;}
+      complex<double> vth = vthermal(T, m_eff);
 
       if (i == 0)
       {
@@ -307,6 +320,7 @@ complex<double> D_cold_plasma(double omega,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof,
                               double res_lim)
 {
@@ -315,6 +329,7 @@ complex<double> D_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double Ti = iontemp * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
@@ -355,6 +370,7 @@ complex<double> D_cold_plasma(double omega,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof,
                               double res_lim)
 {
@@ -364,6 +380,8 @@ complex<double> D_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double Ti = iontemp * q_;
+   //if (Te < 0) {Te = -1.0*temp[0] * q_;}
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n)  :
@@ -380,7 +398,9 @@ complex<double> D_cold_plasma(double omega,
       if (i == 0) { m_eff = m * collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
-      complex<double> vth = vthermal(Te, m_eff);
+      double T = Te;
+      if (i == 3) {T = Te + Ti;}
+      complex<double> vth = vthermal(T, m_eff);
 
       if (i == 0)
       {
@@ -425,12 +445,14 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
+/*
 complex<double> P_cold_plasma(double omega,
                               double nue,
                               const Vector & number,
                               const Vector & charge,
                               const Vector & mass,
                               const Vector & temp,
+                              double iontemp,
                               int nuprof)
 {
    complex<double> val(1.0, 0.0);
@@ -438,6 +460,7 @@ complex<double> P_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double Ti = iontemp * q_;
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
@@ -453,6 +476,41 @@ complex<double> P_cold_plasma(double omega,
       if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega);
+   }
+   return val;
+}
+*/
+complex<double> P_cold_plasma(double omega,
+                              double nue,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              double iontemp,
+                              int nuprof)
+{
+   complex<double> val(1.0, 0.0);
+   complex<double> suscept_particle(0.0,0.0);
+   double n = number[0];
+   double q = charge[0];
+   double m = mass[0];
+   double Te = temp[0] * q_;
+
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      if (n < 0) {n = -1.0*number[i];}
+      double q = charge[i];
+      double m = mass[i];
+      double w_p = omega_p(n, q, m);
+      complex<double> vth = vthermal(Te, m);
+      suscept_particle = -1.0*(w_p * w_p) / (omega * omega);
+      if (i == 0)
+      {
+         complex<double> Z = Zfunction(omega/(18.0*vth));
+         suscept_particle = (pow(w_p,2.0)/pow(18*vth, 2.0))*(2*(1+(omega/(18.0*vth))*Z));
+      }
+      val += suscept_particle;
    }
    return val;
 }
@@ -888,6 +946,7 @@ StixCoefBase::StixCoefBase(const ParGridFunction & B,
                            const ParGridFunction & nui,
                            const BlockVector & density,
                            const BlockVector & temp,
+                           const ParGridFunction & iontemp,
                            const ParFiniteElementSpace & L2FESpace,
                            const ParFiniteElementSpace & H1FESpace,
                            double omega,
@@ -901,6 +960,7 @@ StixCoefBase::StixCoefBase(const ParGridFunction & B,
      nui_(nui),
      density_(density),
      temp_(temp),
+     iontemp_(iontemp),
      L2FESpace_(L2FESpace),
      H1FESpace_(H1FESpace),
      omega_(omega),
@@ -921,6 +981,7 @@ StixCoefBase::StixCoefBase(StixCoefBase & s)
      nui_(s.GetNui()),
      density_(s.GetDensityFields()),
      temp_(s.GetTemperatureFields()),
+     iontemp_(s.GetTi()),
      L2FESpace_(s.GetDensityFESpace()),
      H1FESpace_(s.GetTemperatureFESpace()),
      omega_(s.GetOmega()),
@@ -970,6 +1031,7 @@ StixLCoef::StixLCoef(const ParGridFunction & B,
                      const ParGridFunction & nui,
                      const BlockVector & density,
                      const BlockVector & temp,
+                     const ParGridFunction & iontemp,
                      const ParFiniteElementSpace & L2FESpace,
                      const ParFiniteElementSpace & H1FESpace,
                      double omega,
@@ -978,7 +1040,7 @@ StixLCoef::StixLCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -989,6 +1051,7 @@ double StixLCoef::Eval(ElementTransformation &T,
    double Bmag = this->getBMagnitude(T, ip);
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -996,7 +1059,7 @@ double StixLCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    // Return the selected component
    if (realPart_)
@@ -1014,6 +1077,7 @@ StixRCoef::StixRCoef(const ParGridFunction & B,
                      const ParGridFunction & nui,
                      const BlockVector & density,
                      const BlockVector & temp,
+                     const ParGridFunction & iontemp,
                      const ParFiniteElementSpace & L2FESpace,
                      const ParFiniteElementSpace & H1FESpace,
                      double omega,
@@ -1022,7 +1086,7 @@ StixRCoef::StixRCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1033,6 +1097,7 @@ double StixRCoef::Eval(ElementTransformation &T,
    double Bmag = this->getBMagnitude(T, ip);
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -1040,7 +1105,8 @@ double StixRCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_,
-                                     charges_, masses_, temp_vals_, nuprof_);
+                                     charges_, masses_, temp_vals_, 
+                                     Ti_vals_, nuprof_);
 
    // Return the selected component
    if (realPart_)
@@ -1058,6 +1124,7 @@ StixSCoef::StixSCoef(const ParGridFunction & B,
                      const ParGridFunction & nui,
                      const BlockVector & density,
                      const BlockVector & temp,
+                     const ParGridFunction & iontemp,
                      const ParFiniteElementSpace & L2FESpace,
                      const ParFiniteElementSpace & H1FESpace,
                      double omega,
@@ -1066,7 +1133,7 @@ StixSCoef::StixSCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1077,6 +1144,7 @@ double StixSCoef::Eval(ElementTransformation &T,
    double Bmag = this->getBMagnitude(T, ip);
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -1084,7 +1152,7 @@ double StixSCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    // Return the selected component
    if (realPart_)
@@ -1102,6 +1170,7 @@ StixDCoef::StixDCoef(const ParGridFunction & B,
                      const ParGridFunction & nui,
                      const BlockVector & density,
                      const BlockVector & temp,
+                     const ParGridFunction & iontemp,
                      const ParFiniteElementSpace & L2FESpace,
                      const ParFiniteElementSpace & H1FESpace,
                      double omega,
@@ -1110,7 +1179,7 @@ StixDCoef::StixDCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1121,6 +1190,7 @@ double StixDCoef::Eval(ElementTransformation &T,
    double Bmag = this->getBMagnitude(T, ip);
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -1128,7 +1198,7 @@ double StixDCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    // Return the selected component
    if (realPart_)
@@ -1146,6 +1216,7 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
                      const ParGridFunction & nui,
                      const BlockVector & density,
                      const BlockVector & temp,
+                     const ParGridFunction & iontemp,
                      const ParFiniteElementSpace & L2FESpace,
                      const ParFiniteElementSpace & H1FESpace,
                      double omega,
@@ -1154,7 +1225,7 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1164,13 +1235,14 @@ double StixPCoef::Eval(ElementTransformation &T,
    // Collect density and temperature field values
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
    complex<double> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temp_vals_, nuprof_);
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
 
    // Return the selected component
    if (realPart_)
@@ -1188,6 +1260,7 @@ StixTensorBase::StixTensorBase(const ParGridFunction & B,
                                const ParGridFunction & nui,
                                const BlockVector & density,
                                const BlockVector & temp,
+                               const ParGridFunction & iontemp,
                                const ParFiniteElementSpace & L2FESpace,
                                const ParFiniteElementSpace & H1FESpace,
                                double omega,
@@ -1196,7 +1269,7 @@ StixTensorBase::StixTensorBase(const ParGridFunction & B,
                                int nuprof,
                                double res_lim,
                                bool realPart)
-   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace,
+   : StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega, charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1248,6 +1321,7 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    const ParGridFunction & nui,
                                    const BlockVector & density,
                                    const BlockVector & temp,
+                                   const ParGridFunction & iontemp,
                                    const ParFiniteElementSpace & L2FESpace,
                                    const ParFiniteElementSpace & H1FESpace,
                                    double omega,
@@ -1257,7 +1331,7 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    double res_lim,
                                    bool realPart)
    : MatrixCoefficient(3),
-     StixTensorBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+     StixTensorBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                     charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1272,6 +1346,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    BVec_ /= Bmag;
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -1279,12 +1354,12 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    // Evaluate the Stix Coefficients
    complex<double> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temp_vals_, nuprof_);
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
    this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
@@ -1355,6 +1430,7 @@ InverseDielectricTensor::InverseDielectricTensor(
    const ParGridFunction & nui,
    const BlockVector & density,
    const BlockVector & temp,
+   const ParGridFunction & iontemp,
    const ParFiniteElementSpace & L2FESpace,
    const ParFiniteElementSpace & H1FESpace,
    double omega,
@@ -1364,7 +1440,7 @@ InverseDielectricTensor::InverseDielectricTensor(
    double res_lim,
    bool realPart)
    : MatrixCoefficient(3),
-     StixTensorBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+     StixTensorBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                     charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1380,6 +1456,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    BVec_ /= Bmag;
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -1387,12 +1464,12 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    // Evaluate the Stix Coefficients
    complex<double> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temp_vals_, nuprof_);
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    complex<double> Q = S * S - D * D;
    complex<double> QInv = 1.0 / Q;
@@ -1413,6 +1490,7 @@ SPDDielectricTensor::SPDDielectricTensor(
    const ParGridFunction & nui,
    const BlockVector & density,
    const BlockVector & temp,
+   const ParGridFunction & iontemp,
    const ParFiniteElementSpace & L2FESpace,
    const ParFiniteElementSpace & H1FESpace,
    double omega,
@@ -1421,7 +1499,7 @@ SPDDielectricTensor::SPDDielectricTensor(
    int nuprof,
    double res_lim)
    : MatrixCoefficient(3),
-     StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+     StixCoefBase(B, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, res_lim, true)
 {}
 
@@ -1436,6 +1514,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    BVec_ /= Bmag;
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
 
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
@@ -1462,12 +1541,12 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    */
    complex<double> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temp_vals_, nuprof_);
+                                     charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, nuprof_, res_lim_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    epsilon(0,0) = abs(S + (P - S) * BVec_(0) * BVec_(0));
    epsilon(1,1) = abs(S + (P - S) * BVec_(1) * BVec_(1));
@@ -1788,6 +1867,7 @@ double PlasmaProfile::EvalByType(Type type,
          Vector xTokVec(x_tok_data, 2);
          xTokVec[0] = r; xTokVec[1] = z;
 
+         // N_||^2 = R cutoff:
          double psiRZ = 0.0;
          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
@@ -1795,10 +1875,18 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ_edge = -0.399621132;
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+         
          double nu0 = params[0];
          double width = params[1];
-         double rad_res_loc = params[2];
-         return nu0*exp(-pow(sqrt(val)-1.044, 2)/width) + nu0*exp(-pow(r-rad_res_loc, 2)/width);
+
+         // N_||^2 = L cutoff:
+         double A = 9.56300019e-02;
+         double B = 4.2; 
+         double C = -1.47586242e-06;
+         double D = 1.815;
+         double sincfunc = A*(sin(B*z - C)/(B*z - C)) + D;
+
+         return nu0*exp(-pow(sqrt(val)-1.044, 2)/width) + nu0*exp(-pow(r-sincfunc, 2.0)/width);
 
       }
       break;
@@ -2393,6 +2481,44 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             }
          }
    }
+}
+
+StixFrame::StixFrame(const ParGridFunction & B,
+                     bool xdir, CoordSystem sys)
+   : VectorCoefficient(3), B_(B), xdir_(xdir), 
+   cyl_(sys == POLOIDAL), xyz_(3), rz_(2), BUnitVec_(3), UnitVec_(3)
+{
+   xyz_ = 0.0;
+   rz_  = 0.0;
+   BUnitVec_ = 0.0;
+   UnitVec_ = 0.0;
+}
+
+void StixFrame::Eval(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+{
+   V.SetSize(3); V = 0.0;
+   T.SetIntPoint(&ip);
+   T.Transform(ip, xyz_);
+
+   B_.GetVectorValue(T.ElementNo, ip, BUnitVec_);
+
+   if (cyl_)
+   {
+      rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+      rz_[1] = xyz_[2];
+   }
+
+   if (!xdir_)
+   {
+      UnitVec_[0] = 1/sqrt(2);
+   }
+   else
+   {
+      UnitVec_[1] = 1/sqrt(2);
+   }
+
+
 }
 
 

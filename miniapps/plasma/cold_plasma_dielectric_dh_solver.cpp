@@ -518,6 +518,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      e_b_(NULL),
      h_b_(NULL),
      e_perp_(NULL),
+     e_plus_(NULL),
+     e_min_(NULL),
      h_v_(NULL),
      e_v_(NULL),
      d_v_(NULL),
@@ -625,6 +627,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       *h_b_ = 0.0;
       e_perp_ = new ParComplexGridFunction(L2VFESpace_);
       *e_perp_ = 0.0;
+      e_plus_ = new ParComplexGridFunction(L2FESpace_);
+      *e_plus_ = 0.0;
+      e_min_ = new ParComplexGridFunction(L2FESpace_);
+      *e_min_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
@@ -1143,6 +1149,8 @@ CPDSolverDH::~CPDSolverDH()
    delete e_b_;
    delete h_b_;
    delete e_perp_;
+   delete e_plus_;
+   delete e_min_;
    delete b_hat_;
    // delete e_r_;
    // delete e_i_;
@@ -1505,6 +1513,8 @@ CPDSolverDH::Update()
    if (e_b_) { e_b_->Update(); }
    if (h_b_) { h_b_->Update(); }
    if (e_perp_) { e_perp_->Update(); }
+   if (e_plus_) { e_plus_->Update(); }
+   if (e_min_) { e_min_->Update(); }
    if (h_v_) { h_v_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
@@ -2143,6 +2153,10 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_EB", &e_b_->imag());
       visit_dc.RegisterField("Re_EPerp", &e_perp_->real());
       visit_dc.RegisterField("Im_EPerp", &e_perp_->imag());
+      visit_dc.RegisterField("Re_Emin", &e_min_->real());
+      visit_dc.RegisterField("Im_Emin", &e_min_->imag());
+      visit_dc.RegisterField("Re_Eplus", &e_plus_->real());
+      visit_dc.RegisterField("Im_Eplus", &e_plus_->imag());
       visit_dc.RegisterField("Re_HB", &h_b_->real());
       visit_dc.RegisterField("Im_HB", &h_b_->imag());
       // visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
@@ -2270,7 +2284,7 @@ CPDSolverDH::WriteVisItFields(int it)
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
 
-         VectorGridFunctionCoefficient h_r(&h_->real());
+         VectorGridFunctionCoefficient h_r(&h_->real());  
          VectorGridFunctionCoefficient h_i(&h_->imag());
          InnerProductCoefficient hbrCoef(h_r, *BCoef_);
          InnerProductCoefficient hbiCoef(h_i, *BCoef_);
@@ -2284,6 +2298,25 @@ CPDSolverDH::WriteVisItFields(int it)
          MatrixVectorProductCoefficient eperp_iCoef(Ibb, e_i);
 
          e_perp_ ->ProjectCoefficient(eperp_rCoef, eperp_iCoef);
+
+         // Finding E+ and E-
+         
+         StixFrame xStix(*b_hat_,true);
+         StixFrame yStix(*b_hat_,false);
+
+         InnerProductCoefficient ReExStix(xStix, e_r);
+         InnerProductCoefficient ReEyStix(yStix, e_r);
+         InnerProductCoefficient ImExStix(xStix, e_i);
+         InnerProductCoefficient ImEyStix(yStix, e_i);
+         
+         SumCoefficient eplus_r(ReExStix,ImEyStix,1.0,-1.0);
+         SumCoefficient eplus_i(ImExStix,ReEyStix);
+         SumCoefficient emin_r(ReExStix,ImEyStix);
+         SumCoefficient emin_i(ImExStix,ReEyStix,1.0,-1.0);
+
+         e_plus_->ProjectCoefficient(eplus_r,eplus_i);
+         e_min_->ProjectCoefficient(emin_r,emin_i);
+         
          /*
               MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
               MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);

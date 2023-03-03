@@ -88,6 +88,7 @@ void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
                            const Vector & charge,
                            const Vector & mass,
                            const Vector & temp,
+                           double iontemp,
                            int nuprof,
                            bool realPart);
 
@@ -97,6 +98,7 @@ std::complex<double> R_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
+                                   double iontemp,
                                    int nuprof);
 
 std::complex<double> L_cold_plasma(double omega, double Bmag,
@@ -105,6 +107,7 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
+                                   double iontemp,
                                    int nuprof,
                                    double res_lim);
 
@@ -113,6 +116,7 @@ std::complex<double> P_cold_plasma(double omega, double nue,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
+                                   double iontemp,
                                    int nuprof);
 
 std::complex<double> S_cold_plasma(double omega, double Bmag,
@@ -121,6 +125,7 @@ std::complex<double> S_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
+                                   double iontemp,
                                    int nuprof,
                                    double res_lim);
 
@@ -130,6 +135,7 @@ std::complex<double> D_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
+                                   double iontemp,
                                    int nuprof,
                                    double res_lim);
 
@@ -334,6 +340,7 @@ public:
                 const ParGridFunction & nui,
                 const BlockVector & density,
                 const BlockVector & temp,
+                const ParGridFunction & iontemp,
                 const ParFiniteElementSpace & L2FESpace,
                 const ParFiniteElementSpace & H1FESpace,
                 double omega,
@@ -360,6 +367,7 @@ public:
    const ParGridFunction & GetBField() const { return B_; }
    const ParGridFunction & GetNue() const { return nue_; }
    const ParGridFunction & GetNui() const { return nui_; }
+   const ParGridFunction & GetTi() const { return iontemp_; }
    const BlockVector & GetDensityFields() const { return density_; }
    const BlockVector & GetTemperatureFields() const { return temp_; }
    const ParFiniteElementSpace & GetDensityFESpace() const
@@ -380,6 +388,7 @@ protected:
    const ParGridFunction & B_;
    const ParGridFunction & nue_;
    const ParGridFunction & nui_;
+   const ParGridFunction & iontemp_;
    const BlockVector & density_;
    const BlockVector & temp_;
    const ParFiniteElementSpace & L2FESpace_;
@@ -398,6 +407,7 @@ protected:
    Vector temp_vals_;
    double nue_vals_;
    double nui_vals_;
+   double Ti_vals_;
    const Vector & charges_;
    const Vector & masses_;
 };
@@ -410,6 +420,7 @@ public:
              const ParGridFunction & nui,
              const BlockVector & density,
              const BlockVector & temp,
+             const ParGridFunction & iontemp,
              const ParFiniteElementSpace & L2FESpace,
              const ParFiniteElementSpace & H1FESpace,
              double omega,
@@ -434,6 +445,7 @@ public:
              const ParGridFunction & nui,
              const BlockVector & density,
              const BlockVector & temp,
+             const ParGridFunction & iontemp,
              const ParFiniteElementSpace & L2FESpace,
              const ParFiniteElementSpace & H1FESpace,
              double omega,
@@ -458,6 +470,7 @@ public:
              const ParGridFunction & nui,
              const BlockVector & density,
              const BlockVector & temp,
+             const ParGridFunction & iontemp,
              const ParFiniteElementSpace & L2FESpace,
              const ParFiniteElementSpace & H1FESpace,
              double omega,
@@ -482,6 +495,7 @@ public:
              const ParGridFunction & nui,
              const BlockVector & density,
              const BlockVector & temp,
+             const ParGridFunction & iontemp,
              const ParFiniteElementSpace & L2FESpace,
              const ParFiniteElementSpace & H1FESpace,
              double omega,
@@ -506,6 +520,7 @@ public:
              const ParGridFunction & nui,
              const BlockVector & density,
              const BlockVector & temp,
+             const ParGridFunction & iontemp,
              const ParFiniteElementSpace & L2FESpace,
              const ParFiniteElementSpace & H1FESpace,
              double omega,
@@ -530,6 +545,7 @@ public:
                   const ParGridFunction & nui,
                   const BlockVector & density,
                   const BlockVector & temp,
+                  const ParGridFunction & iontemp,
                   const ParFiniteElementSpace & L2FESpace,
                   const ParFiniteElementSpace & H1FESpace,
                   double omega,
@@ -557,6 +573,7 @@ public:
                     const ParGridFunction & nui,
                     const BlockVector & density,
                     const BlockVector & temp,
+                    const ParGridFunction & iontemp,
                     const ParFiniteElementSpace & L2FESpace,
                     const ParFiniteElementSpace & H1FESpace,
                     double omega,
@@ -583,6 +600,7 @@ public:
                            const ParGridFunction & nui,
                            const BlockVector & density,
                            const BlockVector & temp,
+                           const ParGridFunction & iontemp,
                            const ParFiniteElementSpace & L2FESpace,
                            const ParFiniteElementSpace & H1FESpace,
                            double omega,
@@ -609,6 +627,7 @@ public:
                        const ParGridFunction & nui,
                        const BlockVector & density,
                        const BlockVector & temp,
+                       const ParGridFunction & iontemp,
                        const ParFiniteElementSpace & L2FESpace,
                        const ParFiniteElementSpace & H1FESpace,
                        double omega,
@@ -721,7 +740,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[15] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 3, 1, 1, 2, 2};
+   const int np_[15] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 2, 1, 1, 2, 2};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
@@ -785,6 +804,28 @@ public:
              const IntegrationPoint &ip);
 };
 
+class StixFrame : public VectorCoefficient
+{
+public:
+   enum CoordSystem {CARTESIAN_3D, POLOIDAL};
+
+private:
+   bool cyl_; // Assume cylindrical symmetyry
+
+   mutable Vector xyz_; // 3D coordinate in computational mesh
+   mutable Vector rz_;  // 2D coordinate in poloidal cross section
+   mutable Vector BUnitVec_; // 3D BField unit vector
+   mutable Vector UnitVec_; // 3D unit vector
+   const ParGridFunction & B_;
+   bool xdir_;
+
+public:
+   StixFrame(const ParGridFunction & B, bool xdir,
+                 CoordSystem coord_sys = CARTESIAN_3D);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
 
 } // namespace plasma
 
