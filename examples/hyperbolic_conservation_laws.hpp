@@ -34,8 +34,7 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
   DenseMatrix dshape;
 
  protected:
-  virtual double ComputeFlux(const Vector &state, const Vector &nor,
-                             Vector &flux) = 0;
+  virtual double ComputeFlux(const Vector &state, DenseMatrix &flux) = 0;
 
  public:
   HyperboilcElementFormIntegrator(const int dim, const int num_equations_,
@@ -315,7 +314,7 @@ void DGHyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
 }
 
 //////////////////////////////////////////////////////////////////
-///                       FACE INTEGRATOR                      ///
+///                      ELEMENT INTEGRATOR                    ///
 //////////////////////////////////////////////////////////////////
 
 void HyperboilcElementFormIntegrator::AssembleElementVector(
@@ -341,6 +340,7 @@ void HyperboilcElementFormIntegrator::AssembleElementVector(
     el.CalcPhysDShape(Tr, dshape);
 
     elfun_mat.MultTranspose(shape, state);
+    const double mcs = ComputeFlux(state, flux);
   }
 }
 //////////////////////////////////////////////////////////////////
