@@ -34,7 +34,7 @@
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
 #endif
-#if defined(_WIN32) && defined(MFEM_SHARED_BUILD)
+#if defined(_MSC_VER) && defined(MFEM_SHARED_BUILD)
 #ifdef mfem_EXPORTS
 #define MFEM_EXPORT __declspec(dllexport)
 #else
