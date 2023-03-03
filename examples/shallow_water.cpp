@@ -53,23 +53,24 @@ int problem;
 void ShallowWaterInitialCondition(const Vector &x, Vector &y);
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, HyperbolicConservationLaws &shallowWater,
-                  GridFunction &sol, ODESolver *ode_solver);
+                  FiniteElementSpace &vfes,
+                  HyperbolicConservationLaws &shallowWater, GridFunction &sol,
+                  ODESolver *ode_solver);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  problem = 2;
-  const double g=9.81;
+  problem = 1;
+  const double g = 9.81;
 
-  const char *mesh_file = "../data/periodic-square.mesh";
-  int ref_levels = 2;
-  int order = 3;
+  const char *mesh_file = "../data/periodic-square-4x4.mesh";
+  int ref_levels = 6;
+  int order = 0;
   int ode_solver_type = 4;
-  double t_final = 2.0;
+  double t_final = 20.0;
   double dt = -0.01;
   double cfl = 0.3;
   bool visualization = true;
-  int vis_steps = 50;
+  int vis_steps = 10;
 
   int precision = 8;
   cout.precision(precision);
@@ -144,6 +145,11 @@ int main(int argc, char *argv[]) {
   for (int lev = 0; lev < ref_levels; lev++) {
     mesh.UniformRefinement();
   }
+  mesh.Transform([](const Vector &x, Vector &y) {
+    y(0) = x(0) * 50.0;
+    y(1) = x(1) * 50.0;
+    return;
+  });
 
   // 5. Define the discontinuous DG finite element space of the given
   //    polynomial order on the refined mesh.
@@ -171,8 +177,6 @@ int main(int argc, char *argv[]) {
     offsets[k] = k * vfes.GetNDofs();
   }
   BlockVector u_block(offsets);
-
-  mesh.Transform
 
   // Momentum grid function on dfes for visualization.
   GridFunction height(&fes, u_block.GetData());
@@ -202,13 +206,12 @@ int main(int argc, char *argv[]) {
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
   ShallowWaterFaceIntegrator *shallowWaterFaceIntegrator =
-      new ShallowWaterFaceIntegrator(new RusanovFlux(), dim,
-                                     g);
+      new ShallowWaterFaceIntegrator(new RusanovFlux(), dim, g);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  EulerSystem shallowWater(vfes, divA, *shallowWaterFaceIntegrator);
+  ShallowWater shallowWater(vfes, divA, *shallowWaterFaceIntegrator);
 
   // Visualize the density
   socketstream sout;
@@ -311,8 +314,9 @@ int main(int argc, char *argv[]) {
 }
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, HyperbolicConservationLaws &shallowWater,
-                  GridFunction &sol, ODESolver *ode_solver) {
+                  FiniteElementSpace &vfes,
+                  HyperbolicConservationLaws &shallowWater, GridFunction &sol,
+                  ODESolver *ode_solver) {
   fes.Update();
   dfes.Update();
   vfes.Update();
@@ -326,77 +330,18 @@ void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
 
 // Initial condition
 void ShallowWaterInitialCondition(const Vector &x, Vector &y) {
-  MFEM_ASSERT(x.Size() == 2, "");
-  if (problem < 3) {
+  if (problem == 1) {
+    const double maxval = 10;
+    const double minval = 6;
+    const double r_sigma = 0.05;
+    const double xc = 0.0;
+    const double yc = 0.0;
+    const double dx = x(0) - xc;
+    const double dy = x(1) - yc;
 
-    double radius = 0, Minf = 0, beta = 0;
-    if (problem == 1) {
-      // "Fast vortex"
-      radius = 0.2;
-      Minf = 0.5;
-      beta = 1. / 5.;
-    } else if (problem == 2) {
-      // "Slow vortex"
-      radius = 0.2;
-      Minf = 0.05;
-      beta = 1. / 50.;
-    } else {
-      mfem_error(
-          "Cannot recognize problem."
-          "Options are: 1 - fast vortex, 2 - slow vortex");
-    }
-
-    const double xc = 0.0, yc = 0.0;
-
-    // Nice units
-    const double vel_inf = 1.;
-    const double den_inf = 1.;
-
-    // Derive remainder of background state from this and Minf
-    const double pres_inf =
-        (den_inf / specific_heat_ratio) * (vel_inf / Minf) * (vel_inf / Minf);
-    const double temp_inf = pres_inf / (den_inf * gas_constant);
-
-    double r2rad = 0.0;
-    r2rad += (x(0) - xc) * (x(0) - xc);
-    r2rad += (x(1) - yc) * (x(1) - yc);
-    r2rad /= (radius * radius);
-
-    const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
-
-    const double velX =
-        vel_inf * (1 - beta * (x(1) - yc) / radius * exp(-0.5 * r2rad));
-    const double velY =
-        vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
-    const double vel2 = velX * velX + velY * velY;
-
-    const double specific_heat = gas_constant * specific_heat_ratio * shrinv1;
-    const double temp = temp_inf - 0.5 * (vel_inf * beta) * (vel_inf * beta) /
-                                       specific_heat * exp(-r2rad);
-
-    const double den = den_inf * pow(temp / temp_inf, shrinv1);
-    const double pres = den * gas_constant * temp;
-    const double energy = shrinv1 * pres / den + 0.5 * vel2;
-
-    y(0) = den;
-    y(1) = den * velX;
-    y(2) = den * velY;
-    y(3) = den * energy;
-  } else if (problem == 3) {
-    // std::cout << "2D Accuracy Test." << std::endl;
-    // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
-    const double density = 1.0 + 0.2 * __sinpi(x(0) + x(1));
-    const double velocity_x = 0.7;
-    const double velocity_y = 0.3;
-    const double pressure = 1.0;
-    const double energy =
-        pressure / (1.4 - 1.0) +
-        density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y);
-
-    y(0) = density;
-    y(1) = density * velocity_x;
-    y(2) = density * velocity_y;
-    y(3) = energy;
+    y(0) = maxval * exp(-0.5 * r_sigma * (dx * dx + dy * dy)) + minval;
+    y(1) = 0.0;
+    y(2) = 0.0;
   } else {
     mfem_error("Invalid problem.");
   }
