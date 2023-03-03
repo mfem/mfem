@@ -54,14 +54,13 @@ void ShallowWaterInitialCondition(const Vector &x, Vector &y);
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
                   FiniteElementSpace &vfes,
-                  HyperbolicConservationLaws &shallowWater, GridFunction &sol,
+                  DGHyperbolicConservationLaws &shallowWater, GridFunction &sol,
                   ODESolver *ode_solver);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   problem = 1;
   const double g = 9.81;
-  double max_char_speed;
 
   const char *mesh_file = "../data/periodic-square-4x4.mesh";
   int ref_levels = 3;
@@ -207,12 +206,12 @@ int main(int argc, char *argv[]) {
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
   ShallowWaterFaceIntegrator *shallowWaterFaceIntegrator =
-      new ShallowWaterFaceIntegrator(max_char_speed, new RusanovFlux(), dim, g);
+      new ShallowWaterFaceIntegrator(new RusanovFlux(), dim, g);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  ShallowWater shallowWater(max_char_speed, vfes, divA, *shallowWaterFaceIntegrator);
+  ShallowWater shallowWater(vfes, divA, *shallowWaterFaceIntegrator);
 
   // Visualize the density
   socketstream sout;
@@ -316,7 +315,7 @@ int main(int argc, char *argv[]) {
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
                   FiniteElementSpace &vfes,
-                  HyperbolicConservationLaws &shallowWater, GridFunction &sol,
+                  DGHyperbolicConservationLaws &shallowWater, GridFunction &sol,
                   ODESolver *ode_solver) {
   fes.Update();
   dfes.Update();
