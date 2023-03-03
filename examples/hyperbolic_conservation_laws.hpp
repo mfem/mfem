@@ -29,7 +29,7 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
   double *max_char_speed;
   const int IntOrderOffset;
   Vector shape;
-  Vector funval;
+  Vector state;
   DenseMatrix flux;
   DenseMatrix dshape;
 
@@ -43,16 +43,15 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
-        funval(num_equations_),
+        state(num_equations_),
         flux(num_equations_, dim){};
   HyperboilcElementFormIntegrator(const int dim, const int num_equations_,
                                   const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
-        max_char_speed(),
         IntOrderOffset(0),
-        funval(num_equations_),
-        flux(num_equations_){};
+        state(num_equations_),
+        flux(num_equations_, dim){};
 
   const IntegrationRule &GetRule(const FiniteElement &el) {
     int order;
@@ -79,8 +78,8 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
   NumericalFlux *rsolver;
   Vector shape1;
   Vector shape2;
-  Vector funval1;
-  Vector funval2;
+  Vector state1;
+  Vector state2;
   Vector flux1;
   Vector flux2;
   Vector nor;
@@ -98,8 +97,8 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
         rsolver(rsolver_),
-        funval1(num_equations_),
-        funval2(num_equations_),
+        state1(num_equations_),
+        state2(num_equations_),
         flux1(num_equations_),
         flux2(num_equations_),
         nor(dim),
@@ -112,8 +111,8 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
         max_char_speed(),
         IntOrderOffset(0),
         rsolver(rsolver_),
-        funval1(num_equations_),
-        funval2(num_equations_),
+        state1(num_equations_),
+        state2(num_equations_),
         flux1(num_equations_),
         flux2(num_equations_),
         nor(dim),
@@ -373,8 +372,8 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
     el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
     // Interpolate elfun at the point
-    elfun1_mat.MultTranspose(shape1, funval1);
-    elfun2_mat.MultTranspose(shape2, funval2);
+    elfun1_mat.MultTranspose(shape1, state1);
+    elfun2_mat.MultTranspose(shape2, state2);
 
     // Get the normal vector and the flux on the face
     if (nor.Size() == 1)
@@ -382,9 +381,9 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
     else
       CalcOrtho(Tr.Jacobian(), nor);
 
-    const double mcs = max(ComputeFluxDotN(funval1, nor, flux1),
-                           ComputeFluxDotN(funval2, nor, flux2));
-    rsolver->Eval(funval1, funval2, flux1, flux2, mcs, nor, fluxN);
+    const double mcs = max(ComputeFluxDotN(state1, nor, flux1),
+                           ComputeFluxDotN(state2, nor, flux2));
+    rsolver->Eval(state1, state2, flux1, flux2, mcs, nor, fluxN);
 
     // Update max char speed
     if (mcs > *max_char_speed) {
