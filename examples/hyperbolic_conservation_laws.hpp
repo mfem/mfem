@@ -22,6 +22,54 @@ class NumericalFlux {
   }
 };
 
+// Element term: (F(u), grad v)
+class HyperboilcElementForm : public NonlinearFormIntegrator {
+ private:
+  const int num_equations;
+  double *max_char_speed;
+  const int IntOrderOffset;
+  Vector shape;
+  Vector funval;
+  DenseMatrix flux;
+  DenseMatrix dshape;
+
+ protected:
+  virtual double ComputeFlux(const Vector &state, const Vector &nor,
+                             Vector &flux) = 0;
+
+ public:
+  HyperboilcElementForm(const int dim, const int num_equations_,
+                        const int IntOrderOffset_ = 3)
+      : NonlinearFormIntegrator(),
+        num_equations(num_equations_),
+        IntOrderOffset(IntOrderOffset_),
+        funval(num_equations_),
+        flux(num_equations_, dim){};
+  HyperboilcElementForm(const int dim, const int num_equations_,
+                        const IntegrationRule *ir)
+      : NonlinearFormIntegrator(ir),
+        num_equations(num_equations_),
+        max_char_speed(),
+        IntOrderOffset(0),
+        funval(num_equations_),
+        flux(num_equations_){};
+
+  const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                 const FiniteElement &test_fe) {
+    int order;
+    order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
+    return IntRules.Get(trial_fe.GetGeomType(), order);
+  }
+  void setMaxCharSpeed(double &max_char_speed_) {
+    max_char_speed = &max_char_speed_;
+  }
+
+  virtual void AssembleElementVector(const FiniteElement &el,
+                                     FaceElementTransformations &Tr,
+                                     const Vector &elfun, Vector &elvect);
+  virtual ~HyperboilcElementForm() {}
+};
+
 // Interior face term: <hat{F}.n,[w]>
 // where hat{F}.n is determined by NumericalFlux rsolver.
 class HyperbolicFaceForm : public NonlinearFormIntegrator {
@@ -45,7 +93,7 @@ class HyperbolicFaceForm : public NonlinearFormIntegrator {
 
  public:
   HyperbolicFaceForm(NumericalFlux *rsolver_, const int dim,
-                 const int num_equations_, const int IntOrderOffset_ = 3)
+                     const int num_equations_, const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
@@ -57,7 +105,7 @@ class HyperbolicFaceForm : public NonlinearFormIntegrator {
         nor(dim),
         fluxN(num_equations_){};
   HyperbolicFaceForm(NumericalFlux *rsolver_, const int dim,
-                 const int num_equations_, const IntegrationRule *ir)
+                     const int num_equations_, const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
         max_char_speed(),
@@ -97,7 +145,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   FiniteElementSpace
       &vfes;  // Vector finite element space containing conserved variables
   HyperbolicFaceForm &faceIntegrator;  // Face integration form. Should contain
-                                   // ComputeFluxDotN and Riemann Solver
+                                       // ComputeFluxDotN and Riemann Solver
   NonlinearForm faceForm;
   MixedBilinearForm &divA;  // Element integration form, (u, grad V) where u is
                             // scalar, V is vector
@@ -269,10 +317,23 @@ void DGHyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
 ///                       FACE INTEGRATOR                      ///
 //////////////////////////////////////////////////////////////////
 
+void HyperboilcElementForm::AssembleElementVector(
+    const FiniteElement &el, FaceElementTransformations &Tr,
+    const Vector &elfun, Vector &elvect) {
+  const int dof = el.GetDof();
+
+  shape.SetSize(dof);
+  dshape.SetSize(dof, dim);
+}
+//////////////////////////////////////////////////////////////////
+///                       FACE INTEGRATOR                      ///
+//////////////////////////////////////////////////////////////////
+
 void HyperbolicFaceForm::AssembleFaceVector(const FiniteElement &el1,
-                                        const FiniteElement &el2,
-                                        FaceElementTransformations &Tr,
-                                        const Vector &elfun, Vector &elvect) {
+                                            const FiniteElement &el2,
+                                            FaceElementTransformations &Tr,
+                                            const Vector &elfun,
+                                            Vector &elvect) {
   // Compute the term <F.n(u),[w]> on the interior faces.
   const int dof1 = el1.GetDof();
   const int dof2 = el2.GetDof();
