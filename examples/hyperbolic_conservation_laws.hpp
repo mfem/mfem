@@ -54,11 +54,10 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
         funval(num_equations_),
         flux(num_equations_){};
 
-  const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                 const FiniteElement &test_fe) {
+  const IntegrationRule &GetRule(const FiniteElement &el) {
     int order;
-    order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
-    return IntRules.Get(trial_fe.GetGeomType(), order);
+    order = 2 * el.GetOrder() + IntOrderOffset;
+    return IntRules.Get(el.GetGeomType(), order);
   }
   void setMaxCharSpeed(double &max_char_speed_) {
     max_char_speed = &max_char_speed_;
@@ -327,6 +326,16 @@ void HyperboilcElementFormIntegrator::AssembleElementVector(
 
   shape.SetSize(dof);
   dshape.SetSize(dof, el.GetDim());
+
+  elvect.SetSize(dof * num_equations);
+  elvect = 0.0;
+
+  const DenseMatrix elfun_mat(elfun.GetData(), dof, num_equations);
+  DenseMatrix elvect_mat(elvect.GetData(), dof, num_equations);
+
+  const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el);
+  for (int i = 0; i < ir->GetNPoints(); i++) {
+  }
 }
 //////////////////////////////////////////////////////////////////
 ///                       FACE INTEGRATOR                      ///
@@ -345,9 +354,9 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
   elvect.SetSize((dof1 + dof2) * num_equations);
   elvect = 0.0;
 
-  DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equations);
-  DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equations, dof2,
-                         num_equations);
+  const DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equations);
+  const DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equations, dof2,
+                               num_equations);
 
   DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equations);
   DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2,
