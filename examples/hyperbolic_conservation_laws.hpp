@@ -23,7 +23,7 @@ class NumericalFlux {
 };
 
 // Element term: (F(u), grad v)
-class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
+class HyperbolicElementFormIntegrator : public NonlinearFormIntegrator {
  private:
   const int num_equations;
   double *max_char_speed;
@@ -37,14 +37,14 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
   virtual double ComputeFlux(const Vector &state, DenseMatrix &flux) = 0;
 
  public:
-  HyperboilcElementFormIntegrator(const int dim, const int num_equations_,
+  HyperbolicElementFormIntegrator(const int dim, const int num_equations_,
                                   const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
         state(num_equations_),
         flux(num_equations_, dim){};
-  HyperboilcElementFormIntegrator(const int dim, const int num_equations_,
+  HyperbolicElementFormIntegrator(const int dim, const int num_equations_,
                                   const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
@@ -64,7 +64,7 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
   virtual void AssembleElementVector(const FiniteElement &el,
                                      ElementTransformation &Tr,
                                      const Vector &elfun, Vector &elvect);
-  virtual ~HyperboilcElementFormIntegrator() {}
+  virtual ~HyperbolicElementFormIntegrator() {}
 };
 
 // Interior face term: <hat{F}.n,[w]>
@@ -143,7 +143,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Vector finite element space containing conserved variables
   FiniteElementSpace &vfes;
   // Element integration form. Should contain ComputeFlux
-  HyperboilcElementFormIntegrator &elementFormIntegrator;
+  HyperbolicElementFormIntegrator &elementFormIntegrator;
   // Face integration form. Should contain ComputeFluxDotN and Riemann Solver
   HyperbolicFaceFormIntegrator &faceFormIntegrator;
   // Base Nonlinear Form
@@ -161,7 +161,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Constructor
   DGHyperbolicConservationLaws(
       FiniteElementSpace &vfes_,
-      HyperboilcElementFormIntegrator &elementFormIntegrator_,
+      HyperbolicElementFormIntegrator &elementFormIntegrator_,
       HyperbolicFaceFormIntegrator &faceFormIntegrator_,
       const int num_equations_);
   // Apply M\(DIV F(U) + JUMP HAT{F}(U))
@@ -188,7 +188,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
     FiniteElementSpace &vfes_,
-    HyperboilcElementFormIntegrator &elementFormIntegrator_,
+    HyperbolicElementFormIntegrator &elementFormIntegrator_,
     HyperbolicFaceFormIntegrator &faceFormIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
       dim(vfes_.GetFE(0)->GetDim()),
@@ -261,7 +261,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
 //////////////////////////////////////////////////////////////////
 ///                      ELEMENT INTEGRATOR                    ///
 //////////////////////////////////////////////////////////////////
-void HyperboilcElementFormIntegrator::AssembleElementVector(
+void HyperbolicElementFormIntegrator::AssembleElementVector(
     const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
     Vector &elvect) {
   const int dof = el.GetDof();
@@ -389,7 +389,7 @@ class UpwindFlux : public NumericalFlux {
 //////////////////////////////////////////////////////////////////
 ///                        EULER SYSTEM                        ///
 //////////////////////////////////////////////////////////////////
-class EulerElementFormIntegrator : public HyperboilcElementFormIntegrator {
+class EulerElementFormIntegrator : public HyperbolicElementFormIntegrator {
  private:
   const double specific_heat_ratio;
   const double gas_constant;
@@ -429,14 +429,14 @@ class EulerElementFormIntegrator : public HyperboilcElementFormIntegrator {
   EulerElementFormIntegrator(const int dim, const int IntOrderOffset_ = 3,
                              const double specific_heat_ratio_ = 1.4,
                              const double gas_constant_ = 1.0)
-      : HyperboilcElementFormIntegrator(dim, dim + 2, IntOrderOffset_),
+      : HyperbolicElementFormIntegrator(dim, dim + 2, IntOrderOffset_),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_) {}
 
   EulerElementFormIntegrator(const int dim, const IntegrationRule *ir,
                              const double specific_heat_ratio_ = 1.4,
                              const double gas_constant_ = 1.0)
-      : HyperboilcElementFormIntegrator(dim, dim + 2, ir),
+      : HyperbolicElementFormIntegrator(dim, dim + 2, ir),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_) {}
 };
