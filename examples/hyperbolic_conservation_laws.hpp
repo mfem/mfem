@@ -22,6 +22,36 @@ class NumericalFlux {
   }
 };
 
+/// @brief (F(u), grad v) nonlinear form integrator where the abstract method
+/// ComputeFlux: const Vector &state = u -> const DenseMatrix flux = F(u) should
+/// be overloaded.
+class DGHyperbolicFormIntegrator : public NonlinearFormIntegrator {
+ private:
+  double max_char_speed;
+  int IntOrderOffset;
+
+ protected:
+  virtual double ComputeFlux(const Vector &state, DenseMatrix &flux) = 0;
+
+ public:
+  DGHyperbolicFormIntegrator(const IntegrationRule *ir = NULL)
+      : NonlinearFormIntegrator(ir), IntOrderOffset(0){};
+  DGHyperbolicFormIntegrator(const int IntOrderOffset_ = 3)
+      : NonlinearFormIntegrator(NULL), IntOrderOffset(IntOrderOffset_){};
+
+  const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                 const FiniteElement &test_fe) {
+    int order;
+    order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
+    return IntRules.Get(trial_fe.GetGeomType(), order);
+  }
+
+  void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, Vector &elvect);
+  inline double getMaxCharSpeed() { return max_char_speed; }
+  inline void resetMaxCharSpeed() { max_char_speed = 0.0; }
+};
+
 // Interior face term: <hat{F}.n,[w]>
 // where hat{F}.n is determined by NumericalFlux rsolver.
 class FaceIntegrator : public NonlinearFormIntegrator {
@@ -255,6 +285,39 @@ void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
     if (mcs > max_char_speed) {
       max_char_speed = mcs;
     }
+  }
+}
+
+void DGHyperbolicFormIntegrator::AssembleElementVector(
+    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
+    Vector &elvect) {
+  const int dof = el.GetDof();
+  const int dim = el.GetDim();
+  const int num_equations = elfun.Size() / dof;
+
+  Vector shape(dof);
+  Vector state(num_equations);
+  DenseMatrix dshape(dof, dim);
+  DenseMatrix flux(num_equations, dim);
+
+  const DenseMatrix elfunmat(elfun.GetData(), dof, num_equations);
+  DenseMatrix elvectmat(elvect.GetData(), dof, num_equations);
+
+  elvect.SetSize(dof);
+  elvect = 0.0;
+
+  const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+  for (int i = 0; i < ir->GetNPoints(); i++) {
+    const IntegrationPoint &ip = ir->IntPoint(i);
+    Tr.SetIntPoint(&ip);
+
+    el.CalcShape(ip, shape);
+    elfunmat.Mult(shape, state);
+    const double mcs = ComputeFlux(shape, flux);
+    max_char_speed = mcs > max_char_speed ? mcs : max_char_speed;
+
+    el.CalcPhysDShape(Tr, dshape);
+    AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvectmat);
   }
 }
 
