@@ -1,14 +1,14 @@
-//                                MFEM Euler Equation examples
+//                                MFEM Example 18
 //
-// Compile with: make euler
+// Compile with: make ex18
 //
 // Sample runs:
 //
-//       euler -p 1 -r 2 -o 1 -s 3
-//       euler -p 1 -r 1 -o 3 -s 4
-//       euler -p 1 -r 0 -o 5 -s 6
-//       euler -p 2 -r 1 -o 1 -s 3
-//       euler -p 2 -r 0 -o 3 -s 3
+//       ex18 -p 1 -r 2 -o 1 -s 3
+//       ex18 -p 1 -r 1 -o 3 -s 4
+//       ex18 -p 1 -r 0 -o 5 -s 6
+//       ex18 -p 2 -r 1 -o 1 -s 3
+//       ex18 -p 2 -r 0 -o 3 -s 3
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -50,19 +50,17 @@
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem;
-void EulerInitialCondition(const Vector &x, Vector &y);
+void ShallowWaterInitialCondition(const Vector &x, Vector &y);
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, HyperbolicConservationLaws &euler,
+                  FiniteElementSpace &vfes, HyperbolicConservationLaws &shallowWater,
                   GridFunction &sol, ODESolver *ode_solver);
-
-void EulerInitialCondition(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   problem = 2;
-  const double specific_heat_ratio = 1.4;
-  const double gas_constant = 1.0;
+  const double g=9.81;
+
   const char *mesh_file = "../data/periodic-square.mesh";
   int ref_levels = 2;
   int order = 3;
@@ -113,7 +111,7 @@ int main(int argc, char *argv[]) {
   MFEM_ASSERT(dim == 2,
               "Need a two-dimensional mesh for the problem definition");
 
-  const int num_equations = dim + 2;
+  const int num_equations = dim + 1;
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -174,10 +172,12 @@ int main(int argc, char *argv[]) {
   }
   BlockVector u_block(offsets);
 
+  mesh.Transform
+
   // Momentum grid function on dfes for visualization.
-  GridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+  GridFunction height(&fes, u_block.GetData());
   // Initialize the state.
-  VectorFunctionCoefficient u0(num_equations, EulerInitialCondition);
+  VectorFunctionCoefficient u0(num_equations, ShallowWaterInitialCondition);
   GridFunction sol(&vfes, u_block.GetData());
   sol.ProjectCoefficient(u0);
 
@@ -201,13 +201,14 @@ int main(int argc, char *argv[]) {
   MixedBilinearForm divA(&dfes, &fes);
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
-  EulerFaceIntegrator *eulerFaceIntegrator = new EulerFaceIntegrator(new RusanovFlux(), dim,
-                                          specific_heat_ratio, gas_constant);
+  ShallowWaterFaceIntegrator *shallowWaterFaceIntegrator =
+      new ShallowWaterFaceIntegrator(new RusanovFlux(), dim,
+                                     g);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  EulerSystem euler(vfes, divA, *eulerFaceIntegrator);
+  EulerSystem shallowWater(vfes, divA, *shallowWaterFaceIntegrator);
 
   // Visualize the density
   socketstream sout;
@@ -223,7 +224,7 @@ int main(int argc, char *argv[]) {
       cout << "GLVis visualization disabled.\n";
     } else {
       sout.precision(precision);
-      sout << "solution\n" << mesh << mom;
+      sout << "solution\n" << mesh << height;
       sout << "pause\n";
       sout << flush;
       cout << "GLVis visualization paused."
@@ -245,22 +246,22 @@ int main(int argc, char *argv[]) {
   tic_toc.Start();
 
   double t = 0.0;
-  euler.SetTime(t);
-  ode_solver->Init(euler);
+  shallowWater.SetTime(t);
+  ode_solver->Init(shallowWater);
 
   //   Vector zeros(mesh.GetNE());
   //   zeros = 0.0;
   //   mesh.DerefineByError(zeros, 1.0);
   //   mesh.UniformRefinement();
-  //   UpdateSystem(fes, dfes, vfes, euler, sol, ode_solver);
+  //   UpdateSystem(fes, dfes, vfes, shallowWater, sol, ode_solver);
 
   if (cfl > 0) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
     // maximum char speed at all quadrature points on all faces.
-    Vector z(vfes.GetNDofs() * num_equations);
-    euler.Mult(sol, z);
+    Vector z(shallowWater.Width());
+    shallowWater.Mult(sol, z);
     // faceForm.Mult(sol, z);
-    dt = cfl * hmin / euler.getMaxCharSpeed() / (2 * order + 1);
+    dt = cfl * hmin / shallowWater.getMaxCharSpeed() / (2 * order + 1);
   }
 
   // Integrate in time.
@@ -270,7 +271,7 @@ int main(int argc, char *argv[]) {
 
     ode_solver->Step(sol, t, dt_real);
     if (cfl > 0) {
-      dt = cfl * hmin / euler.getMaxCharSpeed() / (2 * order + 1);
+      dt = cfl * hmin / shallowWater.getMaxCharSpeed() / (2 * order + 1);
     }
     ti++;
 
@@ -278,7 +279,7 @@ int main(int argc, char *argv[]) {
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
       if (visualization) {
-        sout << "solution\n" << mesh << mom << flush;
+        sout << "solution\n" << mesh << height << flush;
       }
     }
   }
@@ -310,25 +311,23 @@ int main(int argc, char *argv[]) {
 }
 
 void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, HyperbolicConservationLaws &euler,
+                  FiniteElementSpace &vfes, HyperbolicConservationLaws &shallowWater,
                   GridFunction &sol, ODESolver *ode_solver) {
   fes.Update();
   dfes.Update();
   vfes.Update();
   sol.Update();
-  euler.Update();
-  ode_solver->Init(euler);
+  shallowWater.Update();
+  ode_solver->Init(shallowWater);
   fes.UpdatesFinished();
   dfes.UpdatesFinished();
   vfes.UpdatesFinished();
 }
 
 // Initial condition
-void EulerInitialCondition(const Vector &x, Vector &y) {
+void ShallowWaterInitialCondition(const Vector &x, Vector &y) {
   MFEM_ASSERT(x.Size() == 2, "");
   if (problem < 3) {
-    const double specific_heat_ratio = 1.4;
-    const double gas_constant = 1.0;
 
     double radius = 0, Minf = 0, beta = 0;
     if (problem == 1) {

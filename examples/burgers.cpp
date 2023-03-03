@@ -51,39 +51,24 @@
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem;
 
-// Equation constant parameters.
-const int num_equation = 1;
-// Maximum characteristic speed (updated by integrators)
-double max_char_speed;
-
-// Burgers equation main class. Overload ComputeFlux
-class BurgersEquation : public HyperbolicConservationLaws {
- private:
-  double ComputeFlux(const Vector &state, const int dim,
-                     DenseMatrix &flux) const;
-
- public:
-  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-                  NonlinearForm &faceForm_)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
-};
-
-// Burgers equation face integration. Overload ComputeFluxDotN
-class BurgersFaceIntegrator : public FaceIntegrator {
- private:
-  double ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &fluxN);
-
- public:
-  BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
-      : FaceIntegrator(rsolver_, dim, 1){};
-};
 
 // Initial condition
-void BurgersInitialCondition(const Vector &x, Vector &y);
+void BurgersInitialCondition(const Vector &x, Vector &y) {
+  if (problem == 1) {
+    y(0) = __sinpi(x(0) * 2);
+  } else if (problem == 2) {
+    y(0) = __sinpi(x.Sum());
+  } else if (problem == 3) {
+    y = 0.0;
+    y(0) = x(0) < 0.5 ? 1.0 : 2.0;
+  } else {
+    mfem_error("Invalid problem.");
+  }
+}
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  problem = 3;
+  problem = 2;
   const char *mesh_file = "../data/periodic-square.mesh";
   int ref_levels = 5;
   int order = 1;
@@ -184,7 +169,7 @@ int main(int argc, char *argv[]) {
   // These are stored contiguously in the BlockVector u_block.
 
   // Initialize the state.
-  VectorFunctionCoefficient u0(num_equation, BurgersInitialCondition);
+  VectorFunctionCoefficient u0(1, BurgersInitialCondition);
   GridFunction sol(&fes);
   sol.ProjectCoefficient(u0);
 
@@ -206,14 +191,12 @@ int main(int argc, char *argv[]) {
   MixedBilinearForm divA(&dfes, &fes);
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
-  NonlinearForm faceForm(&fes);
-  faceForm.AddInteriorFaceIntegrator(
-      new BurgersFaceIntegrator(new RusanovFlux(), dim));
+  BurgersFaceIntegrator *burgersFaceIntegrator = new BurgersFaceIntegrator(new RusanovFlux(), dim);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  BurgersEquation burgers(fes, divA, faceForm);
+  BurgersEquation burgers(fes, divA, *burgersFaceIntegrator);
 
   // Visualize the density
   socketstream sout;
@@ -258,9 +241,8 @@ int main(int argc, char *argv[]) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
     // maximum char speed at all quadrature points on all faces.
     Vector z(burgers.Width());
-    max_char_speed = 0.;
     burgers.Mult(sol, z);
-    dt = cfl * hmin / max_char_speed / (2 * order + 1);
+    dt = cfl * hmin / burgers.getMaxCharSpeed() / (2 * order + 1);
   }
 
   // Integrate in time.
@@ -270,7 +252,7 @@ int main(int argc, char *argv[]) {
 
     ode_solver->Step(sol, t, dt_real);
     if (cfl > 0) {
-      dt = cfl * hmin / max_char_speed / (2 * order + 1);
+      dt = cfl * hmin / burgers.getMaxCharSpeed() / (2 * order + 1);
     }
     ti++;
 
@@ -304,34 +286,4 @@ int main(int argc, char *argv[]) {
   delete ode_solver;
 
   return 0;
-}
-
-//////////////////////////////////////////////////////////////////
-///                      BURGERS EQUATION                      ///
-//////////////////////////////////////////////////////////////////
-double BurgersEquation::ComputeFlux(const Vector &state, const int dim,
-                                    DenseMatrix &flux) const {
-  flux = state * state * 0.5;
-  return abs(state(0));
-};
-
-double BurgersFaceIntegrator::ComputeFluxDotN(const Vector &state,
-                                              const Vector &nor,
-                                              Vector &fluxN) {
-  fluxN = nor.Sum() * (state * state) * 0.5;
-  return abs(state(0));
-};
-
-// Initial condition
-void BurgersInitialCondition(const Vector &x, Vector &y) {
-  if (problem == 1) {
-    y(0) = __sinpi(x(0) * 2);
-  } else if (problem == 2) {
-    y(0) = __sinpi(x.Sum());
-  } else if (problem == 3) {
-    y = 0.0;
-    y(0) = x(0) < 0.5 ? 1.0 : 2.0;
-  } else {
-    mfem_error("Invalid problem.");
-  }
 }
