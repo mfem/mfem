@@ -103,6 +103,7 @@ int main (int argc, char *argv[])
    bool material         = false;
    int mesh_node_ordering = 0;
    int amr_iters         = 0;
+   bool mu_linearization  = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -227,6 +228,9 @@ int main (int argc, char *argv[])
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&amr_iters, "-amriter", "--amr-iter",
                   "Number of amr iterations on background mesh");
+   args.AddOption(&mu_linearization, "-mulin", "--mu-linearization", "-no-mulin",
+                  "--no-mu-linearization",
+                  "Linearized form of metric.");
    args.Parse();
    if (!args.Good())
    {
@@ -375,6 +379,8 @@ int main (int argc, char *argv[])
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
    }
+   if (mu_linearization) { metric->EnableLinearization(); }
+
 
    if (metric_id < 300)
    {

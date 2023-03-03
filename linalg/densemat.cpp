@@ -550,6 +550,15 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
    }
 }
 
+void DenseMatrix::Add(const double c, const double *A)
+{
+   const int s = Width()*Height();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] += c*A[i];
+   }
+}
+
 DenseMatrix &DenseMatrix::operator=(double c)
 {
    const int s = Height()*Width();
@@ -1946,6 +1955,22 @@ void Add(double alpha, const DenseMatrix &A,
    MFEM_ASSERT(A.Width() == C.Width(), "");
    MFEM_ASSERT(B.Width() == C.Width(), "");
    Add(alpha, A.GetData(), beta, B.GetData(), C);
+}
+
+double DoubleDotProduct(const DenseMatrix &A,
+                        const DenseMatrix &B)
+{
+   MFEM_ASSERT(A.Height() == B.Height(), "");
+   MFEM_ASSERT(A.Width() == B.Width(), "");
+   double doubledot = 0.0;
+   for (int j = 0; j < A.Width(); j++)
+   {
+      for (int i = 0; i < A.Height(); i++)
+      {
+         doubledot += A(i, j)*B(i, j);
+      }
+   }
+   return doubledot;
 }
 
 bool LinearSolve(DenseMatrix& A, double* X, double TOL)

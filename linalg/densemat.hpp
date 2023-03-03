@@ -210,6 +210,10 @@ public:
    /// Adds the matrix A multiplied by the number c to the matrix
    void Add(const double c, const DenseMatrix &A);
 
+   /// Adds the matrix A multiplied by the number c to the matrix,
+   /// assuming A has the same dimensions and uses column-major layout.
+   void Add(const double c, const double *A);
+
    /// Sets the matrix elements equal to constant c
    DenseMatrix &operator=(double c);
 
@@ -422,6 +426,9 @@ void Add(double alpha, const double *A,
 /// C = alpha*A + beta*B
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
+
+double DoubleDotProduct(const DenseMatrix &A, const DenseMatrix &B);
+
 
 /// @brief Solves the dense linear system, `A * X = B` for `X`
 ///
