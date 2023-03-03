@@ -63,7 +63,7 @@ class HyperboilcElementFormIntegrator : public NonlinearFormIntegrator {
   }
 
   virtual void AssembleElementVector(const FiniteElement &el,
-                                     FaceElementTransformations &Tr,
+                                     ElementTransformation &Tr,
                                      const Vector &elfun, Vector &elvect);
   virtual ~HyperboilcElementFormIntegrator() {}
 };
@@ -319,8 +319,8 @@ void DGHyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
 //////////////////////////////////////////////////////////////////
 
 void HyperboilcElementFormIntegrator::AssembleElementVector(
-    const FiniteElement &el, FaceElementTransformations &Tr,
-    const Vector &elfun, Vector &elvect) {
+    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
+    Vector &elvect) {
   const int dof = el.GetDof();
 
   shape.SetSize(dof);
@@ -334,6 +334,13 @@ void HyperboilcElementFormIntegrator::AssembleElementVector(
 
   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el);
   for (int i = 0; i < ir->GetNPoints(); i++) {
+    const IntegrationPoint &ip = ir->IntPoint(i);
+    Tr.SetIntPoint(&ip);
+
+    el.CalcShape(ip, shape);
+    el.CalcPhysDShape(Tr, dshape);
+
+    elfun_mat.MultTranspose(shape, state);
   }
 }
 //////////////////////////////////////////////////////////////////
