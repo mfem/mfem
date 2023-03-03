@@ -815,7 +815,6 @@ private:
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
    mutable Vector BUnitVec_; // 3D BField unit vector
-   mutable Vector UnitVec_; // 3D unit vector
    const ParGridFunction & B_;
    bool xdir_;
 

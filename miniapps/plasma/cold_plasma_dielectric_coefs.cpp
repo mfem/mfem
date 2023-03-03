@@ -2486,12 +2486,11 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
 StixFrame::StixFrame(const ParGridFunction & B,
                      bool xdir, CoordSystem sys)
    : VectorCoefficient(3), B_(B), xdir_(xdir), 
-   cyl_(sys == POLOIDAL), xyz_(3), rz_(2), BUnitVec_(3), UnitVec_(3)
+   cyl_(sys == POLOIDAL), xyz_(3), rz_(2), BUnitVec_(3)
 {
    xyz_ = 0.0;
    rz_  = 0.0;
    BUnitVec_ = 0.0;
-   UnitVec_ = 0.0;
 }
 
 void StixFrame::Eval(Vector &V, ElementTransformation &T,
@@ -2509,16 +2508,30 @@ void StixFrame::Eval(Vector &V, ElementTransformation &T,
       rz_[1] = xyz_[2];
    }
 
+   double theta = acos(BUnitVec_[2]); // theta = cos^{-1}(zhat*bhat)
+   Vector K(3); K = 0.0; // khat = zhat x bhat
+   K[0] = -1.0*BUnitVec_[1]; K[1] = BUnitVec_[0];
+   double Knorm = K.Norml2();
+
+   double q0 = cos(theta/2.0);
+   double q1 = sin(theta/2.0)*K[0]/Knorm;
+   double q2 = sin(theta/2.0)*K[1]/Knorm;
+   double q3 = sin(theta/2.0)*K[2]/Knorm;
+
    if (!xdir_)
    {
-      UnitVec_[0] = 1/sqrt(2);
+      V[0] = 2.0*(q2*q1 + q0*q3);
+      V[1] = q0*q0 - q1*q1 + q2*q2 - q3*q3;
+      V[2] = 2.0*(q2*q3 - q0*q1);
+      V *= 1/sqrt(2);
    }
    else
    {
-      UnitVec_[1] = 1/sqrt(2);
+      V[0] = q0*q0 + q1*q1 - q2*q2 - q3*q3;
+      V[1] = 2.0*(q1*q2 - q0*q3);
+      V[2] = 2.0*(q1*q3 - q0*q2);
+      V *= 1/sqrt(2);
    }
-
-
 }
 
 
