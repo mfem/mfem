@@ -63,6 +63,8 @@ int main(int argc, char *argv[]) {
   problem = 2;
   const double specific_heat_ratio = 1.4;
   const double gas_constant = 1.0;
+  double max_char_speed;
+  
   const char *mesh_file = "../data/periodic-square.mesh";
   int ref_levels = 2;
   int order = 3;
@@ -201,13 +203,14 @@ int main(int argc, char *argv[]) {
   MixedBilinearForm divA(&dfes, &fes);
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
-  EulerFaceIntegrator *eulerFaceIntegrator = new EulerFaceIntegrator(new RusanovFlux(), dim,
-                                          specific_heat_ratio, gas_constant);
+  EulerFaceIntegrator *eulerFaceIntegrator =
+      new EulerFaceIntegrator(max_char_speed, new RusanovFlux(), dim,
+                              specific_heat_ratio, gas_constant);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  EulerSystem euler(vfes, divA, *eulerFaceIntegrator);
+  EulerSystem euler(max_char_speed, vfes, divA, *eulerFaceIntegrator);
 
   // Visualize the density
   socketstream sout;
@@ -258,9 +261,10 @@ int main(int argc, char *argv[]) {
     // Find a safe dt, using a temporary vector. Calling Mult() computes the
     // maximum char speed at all quadrature points on all faces.
     Vector z(vfes.GetNDofs() * num_equations);
+    max_char_speed = 0.0;
     euler.Mult(sol, z);
     // faceForm.Mult(sol, z);
-    dt = cfl * hmin / euler.getMaxCharSpeed() / (2 * order + 1);
+    dt = cfl * hmin / max_char_speed / (2 * order + 1);
   }
 
   // Integrate in time.
@@ -270,7 +274,7 @@ int main(int argc, char *argv[]) {
 
     ode_solver->Step(sol, t, dt_real);
     if (cfl > 0) {
-      dt = cfl * hmin / euler.getMaxCharSpeed() / (2 * order + 1);
+      dt = cfl * hmin / max_char_speed / (2 * order + 1);
     }
     ti++;
 

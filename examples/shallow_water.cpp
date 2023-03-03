@@ -61,10 +61,11 @@ int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   problem = 1;
   const double g = 9.81;
+  double max_char_speed;
 
   const char *mesh_file = "../data/periodic-square-4x4.mesh";
-  int ref_levels = 6;
-  int order = 0;
+  int ref_levels = 3;
+  int order = 3;
   int ode_solver_type = 4;
   double t_final = 20.0;
   double dt = -0.01;
@@ -206,12 +207,12 @@ int main(int argc, char *argv[]) {
   divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
 
   ShallowWaterFaceIntegrator *shallowWaterFaceIntegrator =
-      new ShallowWaterFaceIntegrator(new RusanovFlux(), dim, g);
+      new ShallowWaterFaceIntegrator(max_char_speed, new RusanovFlux(), dim, g);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  ShallowWater shallowWater(vfes, divA, *shallowWaterFaceIntegrator);
+  ShallowWater shallowWater(max_char_speed, vfes, divA, *shallowWaterFaceIntegrator);
 
   // Visualize the density
   socketstream sout;

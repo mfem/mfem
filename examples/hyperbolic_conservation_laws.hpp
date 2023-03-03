@@ -27,7 +27,7 @@ class NumericalFlux {
 class FaceIntegrator : public NonlinearFormIntegrator {
  private:
   const int num_equations;
-  double *max_char_speed;
+  double &max_char_speed;
   const int IntOrderOffset;
   NumericalFlux *rsolver;
   Vector shape1;
@@ -44,11 +44,12 @@ class FaceIntegrator : public NonlinearFormIntegrator {
                                  Vector &flux) = 0;
 
  public:
-  FaceIntegrator(double &max_char_speed, NumericalFlux *rsolver_, const int dim,
-                 const int num_equations_, const int IntOrderOffset_ = 3)
+  FaceIntegrator(double &max_char_speed_, NumericalFlux *rsolver_,
+                 const int dim, const int num_equations_,
+                 const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
-        max_char_speed(&max_char_speed),
+        max_char_speed(max_char_speed_),
         IntOrderOffset(IntOrderOffset_),
         rsolver(rsolver_),
         funval1(num_equations_),
@@ -57,11 +58,12 @@ class FaceIntegrator : public NonlinearFormIntegrator {
         flux2(num_equations_),
         nor(dim),
         fluxN(num_equations_){};
-  FaceIntegrator(double &max_char_speed, NumericalFlux *rsolver_, const int dim,
-                 const int num_equations_, const IntegrationRule *ir)
+  FaceIntegrator(double &max_char_speed_, NumericalFlux *rsolver_,
+                 const int dim, const int num_equations_,
+                 const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
-        max_char_speed(&max_char_speed),
+        max_char_speed(max_char_speed_),
         IntOrderOffset(0),
         rsolver(rsolver_),
         funval1(num_equations_),
@@ -77,14 +79,6 @@ class FaceIntegrator : public NonlinearFormIntegrator {
     order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
     return IntRules.Get(trial_fe.GetGeomType(), order);
   }
-  inline double getMaxCharSpeed() { return *max_char_speed; }
-#ifdef MFEM_USE_MPI
-  double getParMaxCharSpeed() {
-    int myid = Mpi::WorldRank();
-    MPI_Reduce(&myid, max_char_speed, 1, MPI_DOUBLE, MPI_MAX, 0,
-               MPI_COMM_WORLD);
-  }
-#endif
 
   virtual void AssembleFaceVector(const FiniteElement &el1,
                                   const FiniteElement &el2,
@@ -108,13 +102,13 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   MixedBilinearForm &divA;  // Element integration form, (u, grad V) where u is
                             // scalar, V is vector
   std::vector<DenseMatrix> Me_inv;  // element-wise inverse mass matrix
+  double &max_char_speed;
 
   // auxiliary variables
   mutable Vector state;
   mutable DenseMatrix f;
   mutable DenseTensor flux;
   mutable Vector z;
-  mutable double max_char_speed;
 
   // Get flux value for given states for all elements
   void GetFlux(const DenseMatrix &state_, DenseTensor &flux_) const;
@@ -129,14 +123,22 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
 
  public:
   // Constructor
-  HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
-                             FaceIntegrator &faceForm_,
+  HyperbolicConservationLaws(double &max_char_speed_, FiniteElementSpace &vfes_,
+                             MixedBilinearForm &divA, FaceIntegrator &faceForm_,
                              const int num_equations_);
   // Apply M\(DIV F(U) + JUMP HAT{F}(U))
   virtual void Mult(const Vector &x, Vector &y) const;
   // Update operators when mesh and finite element spaces are updated
   void Update();
-  inline double getMaxCharSpeed() { return max_char_speed; };
+  inline double getMaxCharSpeed() { return max_char_speed; }
+#ifdef MFEM_USE_MPI
+  double getParMaxCharSpeed() {
+    int myid = Mpi::WorldRank();
+    MPI_Reduce(&myid, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+    return max_char_speed;
+  }
+#endif
 
   virtual ~HyperbolicConservationLaws() {}
 };
@@ -147,7 +149,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
 
 // Implementation of class HyperbolicConservationLaws
 HyperbolicConservationLaws::HyperbolicConservationLaws(
-    FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
+    double &max_char_speed, FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
     FaceIntegrator &faceIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
       dim(vfes_.GetFE(0)->GetDim()),
@@ -161,7 +163,7 @@ HyperbolicConservationLaws::HyperbolicConservationLaws(
       f(num_equations, dim),
       flux(vfes.GetNDofs(), dim, num_equations),
       z(vfes_.GetNDofs() * num_equations_),
-      max_char_speed(0.0) {
+      max_char_speed(max_char_speed) {
   // Standard local assembly and inversion for energy mass matrices.
   divA.Assemble();
   faceForm.AddInteriorFaceIntegrator(&faceIntegrator);
@@ -211,7 +213,6 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
 
   DenseMatrix xmat(x.GetData(), vfes.GetNDofs(), num_equations);
   GetFlux(xmat, flux);
-  max_char_speed = max(max_char_speed, faceIntegrator.getMaxCharSpeed());
 
   for (int k = 0; k < num_equations; k++) {
     Vector fk(flux(k).GetData(), dim * vfes.GetNDofs());
@@ -314,8 +315,8 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
     rsolver->Eval(funval1, funval2, flux1, flux2, mcs, nor, fluxN);
 
     // Update max char speed
-    if (mcs > *max_char_speed) {
-      *max_char_speed = mcs;
+    if (mcs > max_char_speed) {
+      max_char_speed = mcs;
     }
 
     fluxN *= ip.weight;
@@ -405,11 +406,11 @@ class EulerSystem : public HyperbolicConservationLaws {
   }
 
  public:
-  EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-              FaceIntegrator &faceForm_,
+  EulerSystem(double &max_char_speed_, FiniteElementSpace &vfes_,
+              MixedBilinearForm &divA_, FaceIntegrator &faceForm_,
               const double specific_heat_ratio_ = 1.4,
               const double gas_constant_ = 1.0)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
+      : HyperbolicConservationLaws(max_char_speed_, vfes_, divA_, faceForm_,
                                    vfes_.GetMesh()->Dimension() + 2),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
@@ -477,9 +478,10 @@ class BurgersEquation : public HyperbolicConservationLaws {
   };
 
  public:
-  BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-                  FaceIntegrator &faceForm_)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
+  BurgersEquation(double &max_char_speed_, FiniteElementSpace &vfes_,
+                  MixedBilinearForm &divA_, FaceIntegrator &faceForm_)
+      : HyperbolicConservationLaws(max_char_speed_, vfes_, divA_, faceForm_,
+                                   1){};
 };
 
 // Burgers equation face integration. Overload ComputeFluxDotN
@@ -529,9 +531,10 @@ class ShallowWater : public HyperbolicConservationLaws {
   };
 
  public:
-  ShallowWater(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-               FaceIntegrator &faceForm_, const double g_ = 9.81)
-      : HyperbolicConservationLaws(vfes_, divA_, faceForm_,
+  ShallowWater(double &max_char_speed_, FiniteElementSpace &vfes_,
+               MixedBilinearForm &divA_, FaceIntegrator &faceForm_,
+               const double g_ = 9.81)
+      : HyperbolicConservationLaws(max_char_speed_, vfes_, divA_, faceForm_,
                                    1 + vfes_.GetFE(0)->GetDim()),
         g(g_){};
 };
