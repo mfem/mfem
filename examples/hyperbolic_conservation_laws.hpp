@@ -489,7 +489,7 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
   EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                          const int num_equations_, const IntegrationRule *ir,
+                          const IntegrationRule *ir,
                           const double specific_heat_ratio_ = 1.4,
                           const double gas_constant_ = 1.0)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 2, ir),
@@ -534,73 +534,81 @@ class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir){};
 };
 
-// //////////////////////////////////////////////////////////////////
-// ///                        SHALLOW WATER                       ///
-// //////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+///                        SHALLOW WATER                       ///
+//////////////////////////////////////////////////////////////////
 
-// // Burgers equation main class. Overload ComputeFlux
-// class ShallowWater : public DGHyperbolicConservationLaws {
-//  private:
-//   const double g;
-//   double ComputeFlux(const Vector &state, const int dim,
-//                      DenseMatrix &flux) const {
-//     const double height = state(0);
-//     const Vector h_vel(state.GetData() + 1, dim);
+// ShallowWater equation element integration. Overload ComputeFlux
+class ShallowWaterElementFormIntegrator
+    : public HyperbolicElementFormIntegrator {
+ private:
+  const double g;
+  double ComputeFlux(const Vector &state, DenseMatrix &flux) {
+    const int dim = state.Size() - 1;
+    const double height = state(0);
+    const Vector h_vel(state.GetData() + 1, dim);
 
-//     const double energy = 0.5 * g * (height * height);
+    const double energy = 0.5 * g * (height * height);
 
-//     MFEM_ASSERT(height >= 0, "Negative Height");
+    MFEM_ASSERT(height >= 0, "Negative Height");
 
-//     for (int d = 0; d < dim; d++) {
-//       flux(0, d) = h_vel(d);
-//       for (int i = 0; i < dim; i++) {
-//         flux(1 + i, d) = h_vel(i) * h_vel(d) / height;
-//       }
-//       flux(1 + d, d) += energy;
-//     }
+    for (int d = 0; d < dim; d++) {
+      flux(0, d) = h_vel(d);
+      for (int i = 0; i < dim; i++) {
+        flux(1 + i, d) = h_vel(i) * h_vel(d) / height;
+      }
+      flux(1 + d, d) += energy;
+    }
 
-//     const double sound = sqrt(g * height);
-//     const double vel = sqrt(h_vel * h_vel) / height;
+    const double sound = sqrt(g * height);
+    const double vel = sqrt(h_vel * h_vel) / height;
 
-//     return vel + sound;
-//   };
+    return vel + sound;
+  };
 
-//  public:
-//   ShallowWater(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-//                HyperbolicFaceFormIntegrator &faceForm_, const double g_
-//                = 9.81)
-//       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
-//                                      1 + vfes_.GetFE(0)->GetDim()),
-//         g(g_){};
-// };
+ public:
+  ShallowWaterElementFormIntegrator(const int dim,
+                                    const int IntOrderOffset_ = 3,
+                                    const double g_ = 9.81)
+      : HyperbolicElementFormIntegrator(dim, dim + 1, IntOrderOffset_), g(g_){};
+  ShallowWaterElementFormIntegrator(const int dim, const IntegrationRule *ir,
+                                    const double g_ = 9.81)
+      : HyperbolicElementFormIntegrator(dim, dim + 1, ir), g(g_){};
+};
 
-// // Burgers equation face integration. Overload ComputeFluxDotN
-// class ShallowWaterFaceIntegrator : public HyperbolicFaceFormIntegrator {
-//  private:
-//   const double g;
-//   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-//                          Vector &fluxN) {
-//     const int dim = nor.Size();
-//     const double height = state(0);
-//     const Vector h_vel(state.GetData() + 1, dim);
+// ShallowWater equation face integration. Overload ComputeFluxDotN
+class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
+ private:
+  const double g;
+  double ComputeFluxDotN(const Vector &state, const Vector &nor,
+                         Vector &fluxN) {
+    const int dim = nor.Size();
+    const double height = state(0);
+    const Vector h_vel(state.GetData() + 1, dim);
 
-//     const double energy = 0.5 * g * (height * height);
+    const double energy = 0.5 * g * (height * height);
 
-//     MFEM_ASSERT(height >= 0, "Negative Height");
-//     fluxN(0) = h_vel * nor;
-//     const double normal_vel = fluxN(0) / height;
-//     for (int i = 0; i < dim; i++) {
-//       fluxN(1 + i) = normal_vel * h_vel(i) + energy * nor(i);
-//     }
+    MFEM_ASSERT(height >= 0, "Negative Height");
+    fluxN(0) = h_vel * nor;
+    const double normal_vel = fluxN(0) / height;
+    for (int i = 0; i < dim; i++) {
+      fluxN(1 + i) = normal_vel * h_vel(i) + energy * nor(i);
+    }
 
-//     const double sound = sqrt(g * height);
-//     const double vel = sqrt(h_vel * h_vel) / height;
+    const double sound = sqrt(g * height);
+    const double vel = sqrt(h_vel * h_vel) / height;
 
-//     return vel + sound;
-//   };
+    return vel + sound;
+  };
 
-//  public:
-//   ShallowWaterFaceIntegrator(NumericalFlux *rsolver_, const int dim_,
-//                              const double g_ = 9.81)
-//       : HyperbolicFaceFormIntegrator(rsolver_, dim_, 1 + dim_), g(g_){};
-// };
+ public:
+  ShallowWaterFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                                 const int IntOrderOffset_ = 3,
+                                 const double g_ = 9.81)
+      : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_),
+        g(g_){};
+  ShallowWaterFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                                 const IntegrationRule *ir,
+                                 const double g_ = 9.81)
+      : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_){};
+};
