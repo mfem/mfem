@@ -24,7 +24,7 @@ class NumericalFlux {
 
 // Interior face term: <hat{F}.n,[w]>
 // where hat{F}.n is determined by NumericalFlux rsolver.
-class FaceIntegrator : public NonlinearFormIntegrator {
+class HyperbolicFaceForm : public NonlinearFormIntegrator {
  private:
   const int num_equations;
   double *max_char_speed;
@@ -44,7 +44,7 @@ class FaceIntegrator : public NonlinearFormIntegrator {
                                  Vector &flux) = 0;
 
  public:
-  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+  HyperbolicFaceForm(NumericalFlux *rsolver_, const int dim,
                  const int num_equations_, const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
@@ -56,7 +56,7 @@ class FaceIntegrator : public NonlinearFormIntegrator {
         flux2(num_equations_),
         nor(dim),
         fluxN(num_equations_){};
-  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+  HyperbolicFaceForm(NumericalFlux *rsolver_, const int dim,
                  const int num_equations_, const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
@@ -84,7 +84,7 @@ class FaceIntegrator : public NonlinearFormIntegrator {
                                   const FiniteElement &el2,
                                   FaceElementTransformations &Tr,
                                   const Vector &elfun, Vector &elvect);
-  virtual ~FaceIntegrator() {}
+  virtual ~HyperbolicFaceForm() {}
 };
 
 // Base Hyperbolic conservation law class.
@@ -96,7 +96,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 
   FiniteElementSpace
       &vfes;  // Vector finite element space containing conserved variables
-  FaceIntegrator &faceIntegrator;  // Face integration form. Should contain
+  HyperbolicFaceForm &faceIntegrator;  // Face integration form. Should contain
                                    // ComputeFluxDotN and Riemann Solver
   NonlinearForm faceForm;
   MixedBilinearForm &divA;  // Element integration form, (u, grad V) where u is
@@ -125,7 +125,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Constructor
   DGHyperbolicConservationLaws(FiniteElementSpace &vfes_,
                                MixedBilinearForm &divA,
-                               FaceIntegrator &faceForm_,
+                               HyperbolicFaceForm &faceForm_,
                                const int num_equations_);
   // Apply M\(DIV F(U) + JUMP HAT{F}(U))
   virtual void Mult(const Vector &x, Vector &y) const;
@@ -151,7 +151,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
     FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-    FaceIntegrator &faceIntegrator_, const int num_equations_)
+    HyperbolicFaceForm &faceIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
       dim(vfes_.GetFE(0)->GetDim()),
       num_equations(num_equations_),
@@ -269,7 +269,7 @@ void DGHyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
 ///                       FACE INTEGRATOR                      ///
 //////////////////////////////////////////////////////////////////
 
-void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
+void HyperbolicFaceForm::AssembleFaceVector(const FiniteElement &el1,
                                         const FiniteElement &el2,
                                         FaceElementTransformations &Tr,
                                         const Vector &elfun, Vector &elvect) {
@@ -408,7 +408,7 @@ class EulerSystem : public DGHyperbolicConservationLaws {
 
  public:
   EulerSystem(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-              FaceIntegrator &faceForm_,
+              HyperbolicFaceForm &faceForm_,
               const double specific_heat_ratio_ = 1.4,
               const double gas_constant_ = 1.0)
       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
@@ -418,7 +418,7 @@ class EulerSystem : public DGHyperbolicConservationLaws {
 };
 
 // Euler System face integration. Overload ComputeFluxDotN
-class EulerFaceIntegrator : public FaceIntegrator {
+class EulerFaceIntegrator : public HyperbolicFaceForm {
  private:
   const double specific_heat_ratio;
   const double gas_constant;
@@ -460,7 +460,7 @@ class EulerFaceIntegrator : public FaceIntegrator {
   EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
                       const double specific_heat_ratio_ = 1.4,
                       const double gas_constant_ = 1.0)
-      : FaceIntegrator(rsolver_, dim, dim + 2),
+      : HyperbolicFaceForm(rsolver_, dim, dim + 2),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
 };
@@ -480,12 +480,12 @@ class BurgersEquation : public DGHyperbolicConservationLaws {
 
  public:
   BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-                  FaceIntegrator &faceForm_)
+                  HyperbolicFaceForm &faceForm_)
       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
 };
 
 // Burgers equation face integration. Overload ComputeFluxDotN
-class BurgersFaceIntegrator : public FaceIntegrator {
+class BurgersFaceIntegrator : public HyperbolicFaceForm {
  private:
   double ComputeFluxDotN(const Vector &state, const Vector &nor,
                          Vector &fluxN) {
@@ -495,7 +495,7 @@ class BurgersFaceIntegrator : public FaceIntegrator {
 
  public:
   BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
-      : FaceIntegrator(rsolver_, dim, 1){};
+      : HyperbolicFaceForm(rsolver_, dim, 1){};
 };
 
 //////////////////////////////////////////////////////////////////
@@ -531,14 +531,14 @@ class ShallowWater : public DGHyperbolicConservationLaws {
 
  public:
   ShallowWater(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-               FaceIntegrator &faceForm_, const double g_ = 9.81)
+               HyperbolicFaceForm &faceForm_, const double g_ = 9.81)
       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
                                      1 + vfes_.GetFE(0)->GetDim()),
         g(g_){};
 };
 
 // Burgers equation face integration. Overload ComputeFluxDotN
-class ShallowWaterFaceIntegrator : public FaceIntegrator {
+class ShallowWaterFaceIntegrator : public HyperbolicFaceForm {
  private:
   const double g;
   double ComputeFluxDotN(const Vector &state, const Vector &nor,
@@ -565,5 +565,5 @@ class ShallowWaterFaceIntegrator : public FaceIntegrator {
  public:
   ShallowWaterFaceIntegrator(NumericalFlux *rsolver_, const int dim_,
                              const double g_ = 9.81)
-      : FaceIntegrator(rsolver_, dim_, 1 + dim_), g(g_){};
+      : HyperbolicFaceForm(rsolver_, dim_, 1 + dim_), g(g_){};
 };
