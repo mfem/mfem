@@ -27,7 +27,7 @@ class NumericalFlux {
 class FaceIntegrator : public NonlinearFormIntegrator {
  private:
   const int num_equations;
-  double max_char_speed;
+  double *max_char_speed;
   const int IntOrderOffset;
   NumericalFlux *rsolver;
   Vector shape1;
@@ -44,11 +44,11 @@ class FaceIntegrator : public NonlinearFormIntegrator {
                                  Vector &flux) = 0;
 
  public:
-  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+  FaceIntegrator(double &max_char_speed, NumericalFlux *rsolver_, const int dim,
                  const int num_equations_, const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
-        max_char_speed(0.0),
+        max_char_speed(&max_char_speed),
         IntOrderOffset(IntOrderOffset_),
         rsolver(rsolver_),
         funval1(num_equations_),
@@ -57,11 +57,11 @@ class FaceIntegrator : public NonlinearFormIntegrator {
         flux2(num_equations_),
         nor(dim),
         fluxN(num_equations_){};
-  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+  FaceIntegrator(double &max_char_speed, NumericalFlux *rsolver_, const int dim,
                  const int num_equations_, const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
-        max_char_speed(0.0),
+        max_char_speed(&max_char_speed),
         IntOrderOffset(0),
         rsolver(rsolver_),
         funval1(num_equations_),
@@ -77,8 +77,14 @@ class FaceIntegrator : public NonlinearFormIntegrator {
     order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
     return IntRules.Get(trial_fe.GetGeomType(), order);
   }
-  inline double getMaxCharSpeed() { return max_char_speed; }
-  inline void resetMaxCharSpeed() { max_char_speed = 0.0; }
+  inline double getMaxCharSpeed() { return *max_char_speed; }
+#ifdef MFEM_USE_MPI
+  double getParMaxCharSpeed() {
+    int myid = Mpi::WorldRank();
+    MPI_Reduce(&myid, max_char_speed, 1, MPI_DOUBLE, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+  }
+#endif
 
   virtual void AssembleFaceVector(const FiniteElement &el1,
                                   const FiniteElement &el2,
@@ -194,7 +200,6 @@ void HyperbolicConservationLaws::Update() {
 void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 0. Reset wavespeed computation before operator application.
   max_char_speed = 0.;
-  faceIntegrator.resetMaxCharSpeed();
   // 1. Create the vector z with the face terms -<F.n(u), [w]>.
   faceForm.Mult(x, z);
 
@@ -309,8 +314,8 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
     rsolver->Eval(funval1, funval2, flux1, flux2, mcs, nor, fluxN);
 
     // Update max char speed
-    if (mcs > max_char_speed) {
-      max_char_speed = mcs;
+    if (mcs > *max_char_speed) {
+      *max_char_speed = mcs;
     }
 
     fluxN *= ip.weight;
@@ -450,10 +455,10 @@ class EulerFaceIntegrator : public FaceIntegrator {
   }
 
  public:
-  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                      const double specific_heat_ratio_ = 1.4,
+  EulerFaceIntegrator(double &max_char_speed_, NumericalFlux *rsolver_,
+                      const int dim, const double specific_heat_ratio_ = 1.4,
                       const double gas_constant_ = 1.0)
-      : FaceIntegrator(rsolver_, dim, dim + 2),
+      : FaceIntegrator(max_char_speed_, rsolver_, dim, dim + 2),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
 };
@@ -487,8 +492,9 @@ class BurgersFaceIntegrator : public FaceIntegrator {
   };
 
  public:
-  BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
-      : FaceIntegrator(rsolver_, dim, 1){};
+  BurgersFaceIntegrator(double &max_char_speed_, NumericalFlux *rsolver_,
+                        const int dim)
+      : FaceIntegrator(max_char_speed_, rsolver_, dim, 1){};
 };
 
 //////////////////////////////////////////////////////////////////
@@ -556,7 +562,7 @@ class ShallowWaterFaceIntegrator : public FaceIntegrator {
   };
 
  public:
-  ShallowWaterFaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                             const double g_ = 9.81)
-      : FaceIntegrator(rsolver_, dim, 1 + dim), g(g_){};
+  ShallowWaterFaceIntegrator(double &max_char_speed_, NumericalFlux *rsolver_,
+                             const int dim_, const double g_ = 9.81)
+      : FaceIntegrator(max_char_speed_, rsolver_, dim_, 1 + dim_), g(g_){};
 };
