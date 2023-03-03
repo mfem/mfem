@@ -26,8 +26,9 @@ class NumericalFlux {
 // where hat{F}.n is determined by NumericalFlux rsolver.
 class FaceIntegrator : public NonlinearFormIntegrator {
  private:
-  const int num_equation;
+  const int num_equations;
   double max_char_speed;
+  const int IntOrderOffset;
   NumericalFlux *rsolver;
   Vector shape1;
   Vector shape2;
@@ -44,16 +45,38 @@ class FaceIntegrator : public NonlinearFormIntegrator {
 
  public:
   FaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                 const int num_equation_)
-      : num_equation(num_equation_),
+                 const int num_equations_, const int IntOrderOffset_ = 3)
+      : NonlinearFormIntegrator(),
+        num_equations(num_equations_),
         max_char_speed(0.0),
+        IntOrderOffset(IntOrderOffset_),
         rsolver(rsolver_),
-        funval1(num_equation_),
-        funval2(num_equation_),
-        flux1(num_equation_),
-        flux2(num_equation_),
+        funval1(num_equations_),
+        funval2(num_equations_),
+        flux1(num_equations_),
+        flux2(num_equations_),
         nor(dim),
-        fluxN(num_equation_){};
+        fluxN(num_equations_){};
+  FaceIntegrator(NumericalFlux *rsolver_, const int dim,
+                 const int num_equations_, const IntegrationRule *ir)
+      : NonlinearFormIntegrator(ir),
+        num_equations(num_equations_),
+        max_char_speed(0.0),
+        IntOrderOffset(0),
+        rsolver(rsolver_),
+        funval1(num_equations_),
+        funval2(num_equations_),
+        flux1(num_equations_),
+        flux2(num_equations_),
+        nor(dim),
+        fluxN(num_equations_){};
+
+  const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                 const FiniteElement &test_fe) {
+    int order;
+    order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
+    return IntRules.Get(trial_fe.GetGeomType(), order);
+  }
   inline double getMaxCharSpeed() { return max_char_speed; }
   inline void resetMaxCharSpeed() { max_char_speed = 0.0; }
 
@@ -69,7 +92,7 @@ class FaceIntegrator : public NonlinearFormIntegrator {
 class HyperbolicConservationLaws : public TimeDependentOperator {
  private:
   const int dim;
-  const int num_equation;
+  const int num_equations;
 
   FiniteElementSpace
       &vfes;  // Vector finite element space containing conserved variables
@@ -102,7 +125,7 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
   // Constructor
   HyperbolicConservationLaws(FiniteElementSpace &vfes_, MixedBilinearForm &divA,
                              FaceIntegrator &faceForm_,
-                             const int num_equation_);
+                             const int num_equations_);
   // Apply M\(DIV F(U) + JUMP HAT{F}(U))
   virtual void Mult(const Vector &x, Vector &y) const;
   // Update operators when mesh and finite element spaces are updated
@@ -119,19 +142,19 @@ class HyperbolicConservationLaws : public TimeDependentOperator {
 // Implementation of class HyperbolicConservationLaws
 HyperbolicConservationLaws::HyperbolicConservationLaws(
     FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-    FaceIntegrator &faceIntegrator_, const int num_equation_)
-    : TimeDependentOperator(vfes_.GetNDofs() * num_equation_),
+    FaceIntegrator &faceIntegrator_, const int num_equations_)
+    : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
       dim(vfes_.GetFE(0)->GetDim()),
-      num_equation(num_equation_),
+      num_equations(num_equations_),
       vfes(vfes_),
       faceIntegrator(faceIntegrator_),
       faceForm(&vfes),
       divA(divA_),
       Me_inv(0),
-      state(num_equation),
-      f(num_equation, dim),
-      flux(vfes.GetNDofs(), dim, num_equation),
-      z(vfes_.GetNDofs() * num_equation_),
+      state(num_equations),
+      f(num_equations, dim),
+      flux(vfes.GetNDofs(), dim, num_equations),
+      z(vfes_.GetNDofs() * num_equations_),
       max_char_speed(0.0) {
   // Standard local assembly and inversion for energy mass matrices.
   divA.Assemble();
@@ -164,7 +187,7 @@ void HyperbolicConservationLaws::Update() {
 
   width = faceForm.Width();
   height = faceForm.Height();
-  flux.SetSize(vfes.GetNDofs(), dim, num_equation);
+  flux.SetSize(vfes.GetNDofs(), dim, num_equations);
   z.SetSize(height);
 }
 
@@ -179,13 +202,13 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // i.  computing the flux approximately as a grid function by interpolating
   //     at the solution nodes.
   // ii. multiplying this grid function by a (constant) mixed bilinear form for
-  //     each of the num_equation, computing (F(u), grad(w)) for each equation.
+  //     each of the num_equations, computing (F(u), grad(w)) for each equation.
 
-  DenseMatrix xmat(x.GetData(), vfes.GetNDofs(), num_equation);
+  DenseMatrix xmat(x.GetData(), vfes.GetNDofs(), num_equations);
   GetFlux(xmat, flux);
   max_char_speed = max(max_char_speed, faceIntegrator.getMaxCharSpeed());
 
-  for (int k = 0; k < num_equation; k++) {
+  for (int k = 0; k < num_equations; k++) {
     Vector fk(flux(k).GetData(), dim * vfes.GetNDofs());
     Vector zk(z.GetData() + k * vfes.GetNDofs(), vfes.GetNDofs());
     divA.SpMat().AddMult(fk, zk);
@@ -201,8 +224,9 @@ void HyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
     // Return the vdofs ordered byNODES
     vfes.GetElementVDofs(i, vdofs);
     z.GetSubVector(vdofs, zval);
-    zmat.UseExternalData(zval.GetData(), vfes.GetFE(i)->GetDof(), num_equation);
-    ymat.SetSize(Me_inv[i].Height(), num_equation);
+    zmat.UseExternalData(zval.GetData(), vfes.GetFE(i)->GetDof(),
+                         num_equations);
+    ymat.SetSize(Me_inv[i].Height(), num_equations);
     mfem::Mult(Me_inv[i], zmat, ymat);
     y.SetSubVector(vdofs, ymat.GetData());
   }
@@ -215,13 +239,13 @@ void HyperbolicConservationLaws::GetFlux(const DenseMatrix &x_,
   const int flux_dim = flux_.SizeJ();
 
   for (int i = 0; i < flux_dof; i++) {
-    for (int k = 0; k < num_equation; k++) {
+    for (int k = 0; k < num_equations; k++) {
       state(k) = x_(i, k);
     }
     const double mcs = ComputeFlux(state, flux_dim, f);
 
     for (int d = 0; d < flux_dim; d++) {
-      for (int k = 0; k < num_equation; k++) {
+      for (int k = 0; k < num_equations; k++) {
         flux_(i, d, k) = f(k, d);
       }
     }
@@ -249,30 +273,18 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
   shape1.SetSize(dof1);
   shape2.SetSize(dof2);
 
-  elvect.SetSize((dof1 + dof2) * num_equation);
+  elvect.SetSize((dof1 + dof2) * num_equations);
   elvect = 0.0;
 
-  DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equation);
-  DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equation, dof2,
-                         num_equation);
+  DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equations);
+  DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equations, dof2,
+                         num_equations);
 
-  DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equation);
-  DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation, dof2,
-                          num_equation);
+  DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equations);
+  DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2,
+                          num_equations);
 
-  // Integration order calculation from DGTraceIntegrator
-  int intorder;
-  if (Tr.Elem2No >= 0) {
-    intorder = (min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) +
-                2 * max(el1.GetOrder(), el2.GetOrder()));
-  } else {
-    intorder = Tr.Elem1->OrderW() + 2 * el1.GetOrder();
-  }
-  if (el1.Space() == FunctionSpace::Pk) {
-    intorder++;
-  }
-  const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
-
+  const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el1, el2);
   for (int i = 0; i < ir->GetNPoints(); i++) {
     const IntegrationPoint &ip = ir->IntPoint(i);
 
@@ -302,7 +314,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
     }
 
     fluxN *= ip.weight;
-    for (int k = 0; k < num_equation; k++) {
+    for (int k = 0; k < num_equations; k++) {
       for (int s = 0; s < dof1; s++) {
         elvect1_mat(s, k) -= fluxN(k) * shape1(s);
       }
