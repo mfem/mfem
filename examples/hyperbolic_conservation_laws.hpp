@@ -442,7 +442,7 @@ class EulerElementFormIntegrator : public HyperbolicElementFormIntegrator {
 };
 
 // Euler System face integration. Overload ComputeFluxDotN
-class EulerFaceIntegrator : public HyperbolicFaceFormIntegrator {
+class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
  private:
   const double specific_heat_ratio;
   const double gas_constant;
@@ -481,54 +481,58 @@ class EulerFaceIntegrator : public HyperbolicFaceFormIntegrator {
   }
 
  public:
-  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                      const int IntOrderOffset_ = 3,
-                      const double specific_heat_ratio_ = 1.4,
-                      const double gas_constant_ = 1.0)
+  EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                          const int IntOrderOffset_ = 3,
+                          const double specific_heat_ratio_ = 1.4,
+                          const double gas_constant_ = 1.0)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 2, IntOrderOffset_),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
-  EulerFaceIntegrator(NumericalFlux *rsolver_, const int dim,
-                      const int num_equations_, const IntegrationRule *ir,
-                      const double specific_heat_ratio_ = 1.4,
-                      const double gas_constant_ = 1.0)
+  EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                          const int num_equations_, const IntegrationRule *ir,
+                          const double specific_heat_ratio_ = 1.4,
+                          const double gas_constant_ = 1.0)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 2, ir),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
 };
 
-// //////////////////////////////////////////////////////////////////
-// ///                      BURGERS EQUATION                      ///
-// //////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+///                      BURGERS EQUATION                      ///
+//////////////////////////////////////////////////////////////////
 
-// // Burgers equation main class. Overload ComputeFlux
-// class BurgersEquation : public DGHyperbolicConservationLaws {
-//  private:
-//   double ComputeFlux(const Vector &state, const int dim,
-//                      DenseMatrix &flux) const {
-//     flux = state * state * 0.5;
-//     return abs(state(0));
-//   };
+// Burgers equation main class. Overload ComputeFlux
+class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
+ private:
+  double ComputeFlux(const Vector &state, DenseMatrix &flux) {
+    flux = state * state * 0.5;
+    return abs(state(0));
+  };
 
-//  public:
-//   BurgersEquation(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-//                   HyperbolicFaceFormIntegrator &faceForm_)
-//       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_, 1){};
-// };
+ public:
+  BurgersElementFormIntegrator(const int dim, const int IntOrderOffset_ = 3)
+      : HyperbolicElementFormIntegrator(dim, 1, IntOrderOffset_){};
+  BurgersElementFormIntegrator(const int dim, const IntegrationRule *ir)
+      : HyperbolicElementFormIntegrator(dim, 1, ir){};
+};
 
-// // Burgers equation face integration. Overload ComputeFluxDotN
-// class BurgersFaceIntegrator : public HyperbolicFaceFormIntegrator {
-//  private:
-//   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-//                          Vector &fluxN) {
-//     fluxN = nor.Sum() * (state * state) * 0.5;
-//     return abs(state(0));
-//   };
+// Burgers equation face integration. Overload ComputeFluxDotN
+class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
+ private:
+  double ComputeFluxDotN(const Vector &state, const Vector &nor,
+                         Vector &fluxN) {
+    fluxN = nor.Sum() * (state * state) * 0.5;
+    return abs(state(0));
+  };
 
-//  public:
-//   BurgersFaceIntegrator(NumericalFlux *rsolver_, const int dim)
-//       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1){};
-// };
+ public:
+  BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                            const int IntOrderOffset_ = 3)
+      : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, IntOrderOffset_){};
+  BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                            const IntegrationRule *ir)
+      : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir){};
+};
 
 // //////////////////////////////////////////////////////////////////
 // ///                        SHALLOW WATER                       ///
@@ -563,7 +567,8 @@ class EulerFaceIntegrator : public HyperbolicFaceFormIntegrator {
 
 //  public:
 //   ShallowWater(FiniteElementSpace &vfes_, MixedBilinearForm &divA_,
-//                HyperbolicFaceFormIntegrator &faceForm_, const double g_ = 9.81)
+//                HyperbolicFaceFormIntegrator &faceForm_, const double g_
+//                = 9.81)
 //       : DGHyperbolicConservationLaws(vfes_, divA_, faceForm_,
 //                                      1 + vfes_.GetFE(0)->GetDim()),
 //         g(g_){};

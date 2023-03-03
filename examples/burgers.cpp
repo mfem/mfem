@@ -69,7 +69,9 @@ void BurgersInitialCondition(const Vector &x, Vector &y) {
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   problem = 2;
+
   const char *mesh_file = "../data/periodic-square.mesh";
+  int IntOrderOffset = 3;
   int ref_levels = 5;
   int order = 1;
   int ode_solver_type = 4;
@@ -188,15 +190,17 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  MixedBilinearForm divA(&dfes, &fes);
-  divA.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
+  BurgersElementFormIntegrator *burgersElementFormIntegrator =
+      new BurgersElementFormIntegrator(dim, IntOrderOffset);
 
-  BurgersFaceIntegrator *burgersFaceIntegrator = new BurgersFaceIntegrator(new RusanovFlux(), dim);
+  BurgersFaceFormIntegrator *burgersFaceFormIntegrator =
+      new BurgersFaceFormIntegrator(new RusanovFlux(), dim, IntOrderOffset);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  BurgersEquation burgers(fes, divA, *burgersFaceIntegrator);
+  DGHyperbolicConservationLaws burgers(fes, *burgersElementFormIntegrator,
+                                     *burgersFaceFormIntegrator, 1);
 
   // Visualize the density
   socketstream sout;

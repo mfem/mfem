@@ -205,8 +205,8 @@ int main(int argc, char *argv[]) {
       new EulerElementFormIntegrator(dim, IntOrderOffset, specific_heat_ratio,
                                      gas_constant);
 
-  EulerFaceIntegrator *eulerFaceFormIntegrator =
-      new EulerFaceIntegrator(new RusanovFlux(), dim, IntOrderOffset,
+  EulerFaceFormIntegrator *eulerFaceFormIntegrator =
+      new EulerFaceFormIntegrator(new RusanovFlux(), dim, IntOrderOffset,
                               specific_heat_ratio, gas_constant);
 
   // 8. Define the time-dependent evolution operator describing the ODE
