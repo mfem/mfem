@@ -63,9 +63,9 @@ int main(int argc, char *argv[]) {
   const double g = 9.81;
 
   const char *mesh_file = "../data/periodic-square-4x4.mesh";
-  int IntOrderOffset = 3;
+  int IntOrderOffset = 10;
   int ref_levels = 3;
-  int order = 3;
+  int order = 6;
   int ode_solver_type = 4;
   double t_final = 20.0;
   double dt = -0.01;
@@ -147,8 +147,8 @@ int main(int argc, char *argv[]) {
     mesh.UniformRefinement();
   }
   mesh.Transform([](const Vector &x, Vector &y) {
-    y(0) = x(0) * 25.0 + 25.0;
-    y(1) = x(1) * 25.0 + 25.0;
+    y(0) = x(0) * 25.0;
+    y(1) = x(1) * 25.0;
     return;
   });
 
@@ -333,22 +333,15 @@ void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
 // Initial condition
 void ShallowWaterInitialCondition(const Vector &x, Vector &y) {
   if (problem == 1) {
-    // const double r_sigma = 0.05;
-    // const double xc = 0.0;
-    // const double yc = 0.0;
-    // const double dx = x(0) - xc;
-    // const double dy = x(1) - yc;
-    // const double r = sqrt(dx * dx + dy * dy);
-    // if (r < 1.e-09)
-    //   y(0) = 1 + (1 - r * r / 6);
-    // else
-    //   y(0) = 1 + sin(r) / r;
-    const double xc = 25.0;
-    const double yc = 25.0;
+    const double maxval = 10;
+    const double minval = 6;
+    const double r_sigma = 0.05;
+    const double xc = 0.0;
+    const double yc = 0.0;
     const double dx = x(0) - xc;
     const double dy = x(1) - yc;
-    const double r2 = dx*dx + dy*dy;
-    y(0) = r2 > 121.0 ? 1.0 : 10.0;
+
+    y(0) = maxval * exp(-0.5 * r_sigma * (dx * dx + dy * dy)) + minval;
     y(1) = 0.0;
     y(2) = 0.0;
   } else {
