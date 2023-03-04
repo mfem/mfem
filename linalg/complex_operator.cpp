@@ -587,7 +587,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
 
    SparseMatrix diag_r, diag_i, offd_r, offd_i;
-   HYPRE_BigInt * cmap_r, * cmap_i;
+   HYPRE_BigInt * cmap_r = NULL, * cmap_i = NULL;
 
    int nrows_r = 0, nrows_i = 0, ncols_r = 0, ncols_i = 0;
    int ncols_offd_r = 0, ncols_offd_i = 0;
