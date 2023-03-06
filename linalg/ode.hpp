@@ -241,12 +241,19 @@ protected:
 
    ODESolver* RKsolver;
    double dt_;
-   bool print;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
 
 public:
    LMSSolver();
    void SetStageSize(int s_);
-
 
    void Init(TimeDependentOperator &f_) override;
    void ShiftStages();

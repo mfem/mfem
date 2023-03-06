@@ -415,12 +415,6 @@ LMSSolver::LMSSolver()
    dt_ = -1.0;
    smax = -1;
    ss = 0;
-
-#ifdef MFEM_USE_MPI
-   print = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
-#else
-   print = true;
-#endif
 }
 
 void LMSSolver::SetStageSize(int s_)
@@ -465,7 +459,7 @@ void LMSSolver::CheckTimestep(double dt)
       ss = 0;
       dt_ = dt;
 
-      if (print)
+      if (print())
       {
          mfem::out << "WARNING:" << std::endl;
          mfem::out << " - Time stepchanged" << std::endl;
