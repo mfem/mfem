@@ -118,11 +118,9 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
-examples/gingko/ex1
-examples/gingko/refined.mesh
-examples/gingko/sol.gf
-examples/gingko/mesh.*
-examples/gingko/sol.*
+examples/ginkgo/ex1
+examples/ginkgo/refined.mesh
+examples/ginkgo/sol.gf
 
 examples/hiop/ex9
 examples/hiop/ex9p
@@ -148,8 +146,8 @@ examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
 examples/petsc/mode_*
 
-examples/pumi/ex1
-examples/pumi/ex[126]p
+examples/pumi/ex[12]
+examples/pumi/ex[16]p
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
 examples/pumi/mesh.*
