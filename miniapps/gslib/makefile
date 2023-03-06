@@ -93,4 +93,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f perturbed.*
+	@rm -f interpolated.gf
