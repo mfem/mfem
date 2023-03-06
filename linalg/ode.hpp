@@ -12,6 +12,7 @@
 #ifndef MFEM_ODE
 #define MFEM_ODE
 
+#include "../general/communication.hpp"
 #include "../config/config.hpp"
 #include "operator.hpp"
 #include <vector>
