@@ -26,7 +26,7 @@ SEQ_EXAMPLES = ex0 ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 \
   ex31 ex33 ex34 advection burgers shallow_water euler
 PAR_EXAMPLES = ex0p ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p \
   ex12p ex13p ex14p ex15p ex16p ex17p ex18p ex19p ex20p ex21p ex22p ex24p \
-  ex25p ex26p ex27p ex28p ex29p ex30p ex31p ex32p ex33p shallow_waterp eulerp
+  ex25p ex26p ex27p ex28p ex29p ex30p ex31p ex32p ex33p advectionp burgersp shallow_waterp eulerp
 SEQ_DEVICE_EXAMPLES = ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26
 PAR_DEVICE_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p \
   ex24p ex25p ex26p
@@ -102,7 +102,10 @@ ifeq ($(MFEM_USE_MPI),YES)
 ex18p: $(SRC)ex18.hpp
 ex33p: $(SRC)ex33.hpp
 eulerp: $(SRC)hyperbolic_conservation_laws.hpp
+advectionp: $(SRC)hyperbolic_conservation_laws.hpp
+burgersp: $(SRC)hyperbolic_conservation_laws.hpp
 shallow_waterp: $(SRC)hyperbolic_conservation_laws.hpp
+eulerp: $(SRC)hyperbolic_conservation_laws.hpp
 endif
 
 MFEM_TESTS = EXAMPLES

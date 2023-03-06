@@ -61,21 +61,25 @@ void UpdateSystem(FiniteElementSpace &fes,
                   ODESolver *ode_solver);
 
 int main(int argc, char *argv[]) {
+  Mpi::Init(argc, argv);
+  const int numProcs = Mpi::WorldSize();
+  const int myRank = Mpi::WorldRank();
+  Hypre::Init();
+
   // 1. Parse command-line options.
   int problem = 1;
-  const double specific_heat_ratio = 1.4;
-  const double gas_constant = 1.0;
 
   const char *mesh_file = "";
   int IntOrderOffset = 3;
-  int ref_levels = 2;
+  int ser_ref_levels = 0;
+  int par_ref_levels = 2;
   int order = 3;
   int ode_solver_type = 4;
-  double t_final = M_1_PI;
+  double t_final = 2.0;
   double dt = -0.01;
   double cfl = 0.3;
   bool visualization = true;
-  int vis_steps = 1;
+  int vis_steps = 50;
 
   int precision = 8;
   cout.precision(precision);
@@ -84,8 +88,10 @@ int main(int argc, char *argv[]) {
   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
   args.AddOption(&problem, "-p", "--problem",
                  "Problem setup to use. See options in velocity_function().");
-  args.AddOption(&ref_levels, "-r", "--refine",
-                 "Number of times to refine the mesh uniformly.");
+  args.AddOption(&ser_ref_levels, "-rs", "--serial-refine",
+                 "Number of times to refine the serial mesh uniformly.");
+  args.AddOption(&par_ref_levels, "-rs", "--parallel-refine",
+                 "Number of times to refine the parallel mesh uniformly.");
   args.AddOption(&order, "-o", "--order",
                  "Order (degree) of the finite elements.");
   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -104,7 +110,7 @@ int main(int argc, char *argv[]) {
 
   args.Parse();
   if (!args.Good()) {
-    args.PrintUsage(cout);
+    if (Mpi::Root()) args.PrintUsage(cout);
     return 1;
   }
   // When the user does not provide mesh file,
@@ -112,7 +118,7 @@ int main(int argc, char *argv[]) {
   if ((mesh_file == NULL) || (mesh_file[0] == '\0')) {  // if NULL or empty
     BurgersMesh(problem, &mesh_file);  // get default mesh file name
   }
-  args.PrintOptions(cout);
+  if (Mpi::Root()) args.PrintOptions(cout);
 
   // 2. Read the mesh from the given mesh file.
   Mesh mesh = Mesh(mesh_file);
@@ -120,10 +126,28 @@ int main(int argc, char *argv[]) {
   const int num_equations = 1;
 
   // perform uniform refine
-  for (int lev = 0; lev < ref_levels; lev++) {
+  for (int lev = 0; lev < ser_ref_levels; lev++) {
     mesh.UniformRefinement();
   }
+
+  if (numProcs > mesh.GetNE()) {
+    if (Mpi::Root()) {
+      mfem_warning(
+          "The number of processor is larger than the number of elements.\n"
+          "Refine serial meshes until the number of elements is large enough");
+    }
+    while (mesh.GetNE() < numProcs) {
+      mesh.UniformRefinement();
+    }
+  }
   if (dim > 1) mesh.EnsureNCMesh();
+
+  ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
+  mesh.Clear();
+  for (int lev = 0; lev < par_ref_levels; lev++) {
+    pmesh.UniformRefinement();
+  }
+  if (dim > 1) pmesh.EnsureNCMesh();
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -153,29 +177,35 @@ int main(int argc, char *argv[]) {
   //    polynomial order on the refined mesh.
   DG_FECollection fec(order, dim);
   // Finite element space for a scalar (thermodynamic quantity)
-  FiniteElementSpace fes(&mesh, &fec);
+  ParFiniteElementSpace fes(&pmesh, &fec);
 
   // This example depends on this ordering of the space.
   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
-  cout << "Number of unknowns: " << fes.GetVSize() << endl;
+  if (Mpi::Root()) {
+    cout << "Number of unknowns: " << fes.GetVSize() << endl;
+  }
 
   // 6. Define the initial conditions, save the corresponding mesh and grid
   //    functions to a file. This can be opened with GLVis with the -gc option.
   // Initialize the state.
   VectorFunctionCoefficient u0(num_equations, BurgersInitialCondition(problem));
-  GridFunction sol(&fes);
+  ParGridFunction sol(&fes);
   sol.ProjectCoefficient(u0);
 
   // Output the initial solution.
   {
-    ofstream mesh_ofs("vortex.mesh");
+    ostringstream mesh_name;
+    mesh_name << "burgers-mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+    ofstream mesh_ofs(mesh_name.str().c_str());
     mesh_ofs.precision(precision);
-    mesh_ofs << mesh;
+    mesh_ofs << pmesh;
+
     for (int k = 0; k < num_equations; k++) {
-      GridFunction uk(&fes, sol.GetData() + fes.GetNDofs() * k);
+      ParGridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
       ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init.gf";
+      sol_name << "burgers-" << k << "-init." << setfill('0') << setw(6)
+               << Mpi::WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
@@ -190,7 +220,7 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   BurgersFaceFormIntegrator *burgersFaceFormIntegrator =
       new BurgersFaceFormIntegrator(numericalFlux, dim, IntOrderOffset);
-  NonlinearForm nonlinForm(&fes);
+  ParNonlinearForm nonlinForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
@@ -207,27 +237,34 @@ int main(int argc, char *argv[]) {
 
     sout.open(vishost, visport);
     if (!sout) {
-      cout << "Unable to connect to GLVis server at " << vishost << ':'
-           << visport << endl;
       visualization = false;
-      cout << "GLVis visualization disabled.\n";
+      if (Mpi::Root()) {
+        cout << "Unable to connect to GLVis server at " << vishost << ':'
+             << visport << endl;
+        cout << "GLVis visualization disabled.\n";
+      }
     } else {
+      sout << "parallel " << numProcs << " " << myRank << "\n";
       sout.precision(precision);
-      sout << "solution\n" << mesh << sol;
+      sout << "solution\n" << pmesh << sol;
       sout << "pause\n";
       sout << flush;
-      cout << "GLVis visualization paused."
-           << " Press space (in the GLVis window) to resume it.\n";
+      if (Mpi::Root()) {
+        cout << "GLVis visualization paused."
+             << " Press space (in the GLVis window) to resume it.\n";
+      }
+      MPI_Barrier(pmesh.GetComm());
     }
   }
 
   // Determine the minimum element size.
-  double hmin = 0.0;
+  double hmin;
   if (cfl > 0) {
-    hmin = mesh.GetElementSize(0, 1);
-    for (int i = 1; i < mesh.GetNE(); i++) {
-      hmin = min(mesh.GetElementSize(i, 1), hmin);
+    double my_hmin = pmesh.GetNE() > 0 ? pmesh.GetElementSize(0, 1) : INFINITY;
+    for (int i = 1; i < pmesh.GetNE(); i++) {
+      my_hmin = min(pmesh.GetElementSize(i, 1), my_hmin);
     }
+    MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
   }
 
   // Start the timer.
@@ -243,8 +280,12 @@ int main(int argc, char *argv[]) {
     // maximum char speed at all quadrature points on all faces.
     Vector z(sol.Size());
     burgers.Mult(sol, z);
-    // faceForm.Mult(sol, z);
-    dt = cfl * hmin / burgers.getMaxCharSpeed() / (2 * order + 1);
+
+    double max_char_speed;
+    double my_max_char_speed = burgers.getMaxCharSpeed();
+    MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+                  pmesh.GetComm());
+    dt = cfl * hmin / max_char_speed / (2 * order + 1);
   }
 
   // Integrate in time.
@@ -254,38 +295,59 @@ int main(int argc, char *argv[]) {
 
     ode_solver->Step(sol, t, dt_real);
     if (cfl > 0) {
-      dt = cfl * hmin / burgers.getMaxCharSpeed() / (2 * order + 1);
+      double max_char_speed;
+      double my_max_char_speed = burgers.getMaxCharSpeed();
+      MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      dt = cfl * hmin / max_char_speed / (2 * order + 1);
     }
     ti++;
 
     done = (t >= t_final - 1e-8 * dt);
     if (done || ti % vis_steps == 0) {
-      cout << "time step: " << ti << ", time: " << t << endl;
+      if (Mpi::Root()) {
+        cout << "time step: " << ti << ", time: " << t << endl;
+      }
       if (visualization) {
-        sout << "solution\n" << mesh << sol << flush;
+        sout << "parallel " << numProcs << " " << myRank << "\n";
+        sout << "solution\n" << pmesh << sol << flush;
+        MPI_Barrier(pmesh.GetComm());
       }
     }
   }
-
+  MPI_Barrier(pmesh.GetComm());
   tic_toc.Stop();
-  cout << " done, " << tic_toc.RealTime() << "s." << endl;
+  if (Mpi::Root()) {
+    cout << " done, " << tic_toc.RealTime() << "s." << endl;
+  }
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
-  //    "glvis -m burgers.mesh -g burgers-1-final.gf".
-  for (int k = 0; k < num_equations; k++) {
-    GridFunction uk(&fes, sol.GetData() + fes.GetNDofs());
-    ostringstream sol_name;
-    sol_name << "burgers-" << k << "-final.gf";
-    ofstream sol_ofs(sol_name.str().c_str());
-    sol_ofs.precision(precision);
-    sol_ofs << uk;
+  //    "glvis -m vortex.mesh -g burgers-1-final.gf".
+  {
+    ostringstream mesh_name;
+    mesh_name << "burgers-mesh-final." << setfill('0') << setw(6)
+              << Mpi::WorldRank();
+    ofstream mesh_ofs(mesh_name.str().c_str());
+    mesh_ofs.precision(precision);
+    mesh_ofs << pmesh;
+
+    for (int k = 0; k < num_equations; k++) {
+      ParGridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
+      ostringstream sol_name;
+      sol_name << "burgers-" << k << "-final." << setfill('0') << setw(6)
+               << Mpi::WorldRank();
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(precision);
+      sol_ofs << uk;
+    }
   }
 
   // 10. Compute the L2 solution error summed for all components.
   //   if (t_final == 2.0) {
   const double error = sol.ComputeLpError(2, u0);
-  cout << "Solution error: " << error << endl;
-  //   }
+  if (Mpi::Root()) {
+    cout << "Solution error: " << error << endl;
+  }
 
   // Free the used memory.
   delete ode_solver;
