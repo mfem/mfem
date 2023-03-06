@@ -160,4 +160,4 @@ clean-build:
 clean-exec:
 	@rm -rf mesh.* sol.* sol_p.* sol_u.* Example5*
 	@rm -f ex9-mesh.* ex9-init.* ex9-final.* Example9*
-	@rm -f deformed.* velocity.* elastic_energy.*
+	@rm -f deformed.* velocity.* elastic_energy.* mode_*

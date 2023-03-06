@@ -194,6 +194,9 @@ miniapps/gslib/field-diff
 miniapps/gslib/field-interp
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
+miniapps/gslib/schwarz_ex1
+miniapps/gslib/schwarz_ex1p
+miniapps/gslib/interpolated.gf
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -245,6 +248,7 @@ miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
+miniapps/navier/navier_cht
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
