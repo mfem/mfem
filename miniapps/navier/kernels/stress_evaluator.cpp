@@ -101,6 +101,43 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
    }
    else if (dim == 3)
    {
+      const int id = (d1d << 4) | q1d;
+      switch (id)
+      {
+         case 0x22:
+         {
+            StressEvaluatorApply3D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+                                         geom->J,
+                                         geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
+         case 0x33:
+         {
+            StressEvaluatorApply3D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+                                         geom->J,
+                                         geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
+         case 0x55:
+         {
+            StressEvaluatorApply3D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
+                                         geom->J,
+                                         geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
+         case 0x77:
+         {
+            StressEvaluatorApply3D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
+                                         geom->J,
+                                         geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
+         default:
+            MFEM_ABORT("unknown kernel");
+      }
+   }
+   else
+   {
       MFEM_ABORT("unknown kernel");
    }
 

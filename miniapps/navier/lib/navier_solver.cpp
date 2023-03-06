@@ -143,6 +143,10 @@ void NavierSolver::Setup(double dt)
                                           *un_gf.ParFESpace(),
                                           gll_ir);
 
+   Vector ones(pfes->GetTrueVSize());
+   ones = 1.0;
+   volume = mean_evaluator->ComputeIntegral(ones);
+
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
    auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
