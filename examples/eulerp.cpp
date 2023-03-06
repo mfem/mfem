@@ -200,19 +200,25 @@ int main(int argc, char *argv[]) {
   sol.ProjectCoefficient(u0);
 
   // Output the initial solution.
-  {
-    ofstream mesh_ofs("vortex.mesh");
-    mesh_ofs.precision(precision);
-    mesh_ofs << mesh;
-    for (int k = 0; k < num_equations; k++) {
-      GridFunction uk(&fes, u_block.GetBlock(k));
-      ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init.gf";
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(precision);
-      sol_ofs << uk;
-    }
-  }
+   {
+      ostringstream mesh_name;
+      mesh_name << "vortex-mesh." << setfill('0')
+                << setw(6) << Mpi::WorldRank();
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(precision);
+      mesh_ofs << pmesh;
+
+      for (int k = 0; k < num_equations; k++)
+      {
+         ParGridFunction uk(&fes, u_block.GetBlock(k));
+         ostringstream sol_name;
+         sol_name << "vortex-" << k << "-init."
+                  << setfill('0') << setw(6) << Mpi::WorldRank();
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(precision);
+         sol_ofs << uk;
+      }
+   }
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
