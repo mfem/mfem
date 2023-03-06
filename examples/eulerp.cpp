@@ -118,8 +118,6 @@ int main(int argc, char *argv[]) {
     args.PrintOptions(cout);
   }
 
-  cout << "Hello from " << Mpi::WorldRank() << endl;
-
   // 2. Read the mesh from the given mesh file. This example requires a 2D
   //    periodic mesh, such as ../data/periodic-square.mesh.
   Mesh mesh(mesh_file, 1, 1);
