@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
   for (int lev = 0; lev < ref_levels; lev++) {
     mesh.UniformRefinement();
   }
-  mesh.EnsureNCMesh();
+  if (dim > 1) mesh.EnsureNCMesh();
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws euler(vfes, nonlinForm,
+  DGHyperbolicConservationLaws euler(&vfes, &nonlinForm,
                                      *eulerElementFormIntegrator,
                                      *eulerFaceFormIntegrator, num_equations);
 
@@ -462,7 +462,7 @@ SpatialFunction EulerInitialCondition(const int problem,
     case 4:
       return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y) {
         MFEM_ASSERT(x.Size() == 1, "");
-        const double density = 1.0 + 0.2 * __sinpi(2*x(0));
+        const double density = 1.0 + 0.2 * __sinpi(2 * x(0));
         const double velocity_x = 1.0;
         const double pressure = 1.0;
         const double energy =

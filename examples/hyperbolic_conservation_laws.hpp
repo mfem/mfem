@@ -142,13 +142,13 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   const int dim;
   const int num_equations;
   // Vector finite element space containing conserved variables
-  FiniteElementSpace &vfes;
+  FiniteElementSpace *vfes;
   // Element integration form. Should contain ComputeFlux
   HyperbolicElementFormIntegrator &elementFormIntegrator;
   // Face integration form. Should contain ComputeFluxDotN and Riemann Solver
   HyperbolicFaceFormIntegrator &faceFormIntegrator;
   // Base Nonlinear Form
-  NonlinearForm nonlinearForm;
+  NonlinearForm *nonlinearForm;
   // element-wise inverse mass matrix
   std::vector<DenseMatrix> Me_inv;
   // global maximum characteristic speed. Updated by form integrators
@@ -161,7 +161,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
  public:
   // Constructor
   DGHyperbolicConservationLaws(
-      FiniteElementSpace &vfes_, NonlinearForm &nonlinForm_,
+      FiniteElementSpace *vfes_, NonlinearForm *nonlinForm_,
       HyperbolicElementFormIntegrator &elementFormIntegrator_,
       HyperbolicFaceFormIntegrator &faceFormIntegrator_,
       const int num_equations_);
@@ -180,25 +180,25 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-    FiniteElementSpace &vfes_, NonlinearForm &nonlinearForm_,
+    FiniteElementSpace *vfes_, NonlinearForm *nonlinearForm_,
     HyperbolicElementFormIntegrator &elementFormIntegrator_,
     HyperbolicFaceFormIntegrator &faceFormIntegrator_, const int num_equations_)
-    : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
-      dim(vfes_.GetFE(0)->GetDim()),
+    : TimeDependentOperator(vfes_->GetNDofs() * num_equations_),
+      dim(vfes_->GetFE(0)->GetDim()),
       num_equations(num_equations_),
       vfes(vfes_),
       elementFormIntegrator(elementFormIntegrator_),
       faceFormIntegrator(faceFormIntegrator_),
       nonlinearForm(nonlinearForm_),
       Me_inv(0),
-      z(vfes_.GetNDofs() * num_equations_) {
+      z(vfes_->GetNDofs() * num_equations_) {
   // Standard local assembly and inversion for energy mass matrices.
   ComputeInvMass();
   elementFormIntegrator.setMaxCharSpeed(max_char_speed);
   faceFormIntegrator.setMaxCharSpeed(max_char_speed);
 
-  nonlinearForm.AddDomainIntegrator(&elementFormIntegrator);
-  nonlinearForm.AddInteriorFaceIntegrator(&faceFormIntegrator);
+  nonlinearForm->AddDomainIntegrator(&elementFormIntegrator);
+  nonlinearForm->AddInteriorFaceIntegrator(&faceFormIntegrator);
 
   height = z.Size();
   width = z.Size();
@@ -207,10 +207,10 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
 void DGHyperbolicConservationLaws::ComputeInvMass() {
   DenseMatrix Me;
   MassIntegrator mi;
-  Me_inv.resize(vfes.GetNE());
-  for (int i = 0; i < vfes.GetNE(); i++) {
-    Me.SetSize(vfes.GetFE(i)->GetDof());
-    mi.AssembleElementMatrix(*vfes.GetFE(i), *vfes.GetElementTransformation(i),
+  Me_inv.resize(vfes->GetNE());
+  for (int i = 0; i < vfes->GetNE(); i++) {
+    Me.SetSize(vfes->GetFE(i)->GetDof());
+    mi.AssembleElementMatrix(*vfes->GetFE(i), *vfes->GetElementTransformation(i),
                              Me);
     DenseMatrixInverse inv(&Me);
     inv.Factor();
@@ -219,11 +219,11 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
 }
 
 void DGHyperbolicConservationLaws::Update() {
-  nonlinearForm.Update();
+  nonlinearForm->Update();
   ComputeInvMass();
 
-  width = nonlinearForm.Width();
-  height = nonlinearForm.Height();
+  width = nonlinearForm->Width();
+  height = nonlinearForm->Height();
   z.SetSize(height);
 }
 
@@ -231,19 +231,19 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 0. Reset wavespeed computation before operator application.
   max_char_speed = 0.;
   // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
-  nonlinearForm.Mult(x, z);
+  nonlinearForm->Mult(x, z);
 
   // 3. Multiply element-wise by the inverse mass matrices.
   Vector zval;
   Array<int> vdofs;
-  //   const int dof = vfes.GetFE(0)->GetDof();
+  //   const int dof = vfes->GetFE(0)->GetDof();
   DenseMatrix zmat, ymat;
 
-  for (int i = 0; i < vfes.GetNE(); i++) {
+  for (int i = 0; i < vfes->GetNE(); i++) {
     // Return the vdofs ordered byNODES
-    vfes.GetElementVDofs(i, vdofs);
+    vfes->GetElementVDofs(i, vdofs);
     z.GetSubVector(vdofs, zval);
-    zmat.UseExternalData(zval.GetData(), vfes.GetFE(i)->GetDof(),
+    zmat.UseExternalData(zval.GetData(), vfes->GetFE(i)->GetDof(),
                          num_equations);
     ymat.SetSize(Me_inv[i].Height(), num_equations);
     mfem::Mult(Me_inv[i], zmat, ymat);
