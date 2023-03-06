@@ -69,7 +69,7 @@ public:
 };
 
 class Linear1DFiniteElement;
-extern Linear1DFiniteElement SegmentFE;
+extern MFEM_EXPORT Linear1DFiniteElement SegmentFE;
 
 }
 

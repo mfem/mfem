@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 
    // 2. Compute the rational expansion coefficients that define the
    //    integer-order PDEs.
-   const int power_of_laplace = floor(alpha);
+   const int power_of_laplace = (int)floor(alpha);
    double exponent_to_approximate = alpha - power_of_laplace;
    bool integer_order = false;
    // Check if alpha is an integer or not.

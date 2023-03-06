@@ -25,11 +25,11 @@
 #include <winsock.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
+// Link with ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
 #endif
 typedef int socklen_t;
 #define close closesocket
-// Link with ws2_32.lib
-#pragma comment(lib, "ws2_32.lib")
 #endif
 
 using namespace std;
