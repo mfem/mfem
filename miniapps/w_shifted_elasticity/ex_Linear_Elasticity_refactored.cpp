@@ -1,5 +1,5 @@
 // Sample run:  
-// mpirun -np 1 ./ex_Linear_Elasticity_WSBM -m ./square01_tri.mesh -bulkModCoef 166.66666666667 -shearModCoef 76.9230769231 -emb -gS 1 -rs 2 -tO 2 -do 2 -gPenCoef 1.0 -nST 2 -mumps -level-set
+// mpirun -np 1 ./ex_Linear_Elasticity_WSBM -m ./square01_tri.mesh -poissonsRatio 0.3 -youngsModulus 200 -emb -gS 1 -rs 2 -tO 2 -do 2 -gPenCoef 1.0 -nST 2 -mumps -level-set
 //              -bulkModCoef is the flag for setting the bulk modulus.
 //              -shearModCoef is the flag for setting the shear modulus. 
 //              -emb is the flag, when added, for activating the embedded data structure of the code.
@@ -51,8 +51,8 @@ int main(int argc, char *argv[])
   int displacementOrder = 1;
   int ser_ref_levels = 0;
   //  const char *device_config = "cpu";
-  double shearModCoefficient = (1000/13.0);
-  double bulkModCoefficient = (500.0/3.0);
+  double poissonsRatio = 0.3;
+  double youngsModulus = 200.0; // in MPA
   bool visualization = false;
   bool useEmbedded = false;
   int geometricShape = 0;
@@ -69,10 +69,10 @@ int main(int argc, char *argv[])
   args.AddOption(&displacementOrder, "-do", "--displacementOrder", "Finite element displacement polynomial degree");
   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
 		 "Number of times to refine the mesh uniformly in serial.");
-  args.AddOption(&shearModCoefficient, "-shearModCoef", "--shearModulusCoefficient",
-		 "Value of shear modulus.");
-  args.AddOption(&bulkModCoefficient, "-bulkModCoef", "--bulkModulusCoefficient",
-		 "Value of bulk modulus.");
+  args.AddOption(&poissonsRatio, "-poissonsRatio", "--poissonsRatioCoefficient",
+		 "Value of Poisson's ratio.");
+  args.AddOption(&youngsModulus, "-youngsModulus", "--youngsModulusCoefficient",
+		 "Value of Young's modulus.");
   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
 		 "--no-visualization",
 		 "Enable or disable GLVis visualization.");
@@ -109,10 +109,10 @@ int main(int argc, char *argv[])
      {
        args.PrintOptions(cout);
      }
-   // args.ParseCheck();
-   // Device device(device_config);
-   // if (myid == 0) { device.Print(); }
 
+   double shearModCoefficient = youngsModulus/(2.0*(1.0+poissonsRatio));
+   double bulkModCoefficient = youngsModulus*poissonsRatio/((1.0+poissonsRatio)*(1.0-2.0*poissonsRatio)) + (2.0/3.0)*shearModCoefficient;
+ 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh *mesh;
    mesh = new Mesh(mesh_file, 1, 1);
