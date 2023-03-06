@@ -103,9 +103,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_LAPACK
       "MFEM_USE_LAPACK\n"
 #endif
-#ifdef MFEM_USE_LEGACY_OPENMP
-      "MFEM_USE_LEGACY_OPENMP\n"
-#endif
 #ifdef MFEM_USE_LIBUNWIND
       "MFEM_USE_LIBUNWIND\n"
 #endif

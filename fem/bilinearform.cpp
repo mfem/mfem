@@ -70,7 +70,6 @@ BilinearForm::BilinearForm(FiniteElementSpace *f)
    sequence = f->GetSequence();
    mat = mat_e = NULL;
    extern_bfs = 0;
-   element_matrices = NULL;
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = 0;
@@ -88,7 +87,6 @@ BilinearForm::BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps)
    sequence = f->GetSequence();
    mat_e = NULL;
    extern_bfs = 1;
-   element_matrices = NULL;
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = ps;
@@ -329,13 +327,6 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
 {
-   if (element_matrices)
-   {
-      elmat.SetSize(element_matrices->SizeI(), element_matrices->SizeJ());
-      elmat = element_matrices->GetData(i);
-      return;
-   }
-
    if (domain_integs.Size())
    {
       const FiniteElement &fe = *fes->GetFE(i);
@@ -443,21 +434,12 @@ void BilinearForm::Assemble(int skip_zeros)
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
-   DenseMatrix elmat, *elmat_p;
+   DenseMatrix elmat;
 
    if (mat == NULL)
    {
       AllocMat();
    }
-
-#ifdef MFEM_USE_LEGACY_OPENMP
-   int free_element_matrices = 0;
-   if (!element_matrices)
-   {
-      ComputeElementMatrices();
-      free_element_matrices = 1;
-   }
-#endif
 
    if (domain_integs.Size())
    {
@@ -476,55 +458,43 @@ void BilinearForm::Assemble(int skip_zeros)
       {
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
-         if (element_matrices)
+         elmat.SetSize(0);
+         for (int k = 0; k < domain_integs.Size(); k++)
          {
-            elmat_p = &(*element_matrices)(i);
-         }
-         else
-         {
-            elmat.SetSize(0);
-            for (int k = 0; k < domain_integs.Size(); k++)
+            if ( domain_integs_marker[k] == NULL ||
+                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
-               if ( domain_integs_marker[k] == NULL ||
-                    (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+               const FiniteElement &fe = *fes->GetFE(i);
+               eltrans = fes->GetElementTransformation(i);
+               domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+               if (elmat.Size() == 0)
                {
-                  const FiniteElement &fe = *fes->GetFE(i);
-                  eltrans = fes->GetElementTransformation(i);
-                  domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-                  if (elmat.Size() == 0)
-                  {
-                     elmat = elemmat;
-                  }
-                  else
-                  {
-                     elmat += elemmat;
-                  }
+                  elmat = elemmat;
+               }
+               else
+               {
+                  elmat += elemmat;
                }
             }
-            if (elmat.Size() == 0)
-            {
-               continue;
-            }
-            else
-            {
-               elmat_p = &elmat;
-            }
-            if (doftrans)
-            {
-               doftrans->TransformDual(elmat);
-            }
-            elmat_p = &elmat;
+         }
+         if (elmat.Size() == 0)
+         {
+            continue;
+         }
+         if (doftrans)
+         {
+            doftrans->TransformDual(elmat);
          }
          if (static_cond)
          {
-            static_cond->AssembleMatrix(i, *elmat_p);
+            static_cond->AssembleMatrix(i, elmat);
          }
          else
          {
-            mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
+            mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             if (hybridization)
             {
-               hybridization->AssembleMatrix(i, *elmat_p);
+               hybridization->AssembleMatrix(i, elmat);
             }
          }
       }
@@ -583,18 +553,17 @@ void BilinearForm::Assemble(int skip_zeros)
          {
             doftrans->TransformDual(elmat);
          }
-         elmat_p = &elmat;
          if (!static_cond)
          {
-            mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
+            mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             if (hybridization)
             {
-               hybridization->AssembleBdrMatrix(i, *elmat_p);
+               hybridization->AssembleBdrMatrix(i, elmat);
             }
          }
          else
          {
-            static_cond->AssembleBdrMatrix(i, *elmat_p);
+            static_cond->AssembleBdrMatrix(i, elmat);
          }
       }
    }
@@ -677,13 +646,6 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
    }
-
-#ifdef MFEM_USE_LEGACY_OPENMP
-   if (free_element_matrices)
-   {
-      FreeElementMatrices();
-   }
-#endif
 }
 
 void BilinearForm::ConformingAssemble()
@@ -949,48 +911,6 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
    }
 }
 
-void BilinearForm::ComputeElementMatrices()
-{
-   if (element_matrices || domain_integs.Size() == 0 || fes->GetNE() == 0)
-   {
-      return;
-   }
-
-   int num_elements = fes->GetNE();
-   int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
-
-   element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
-                                      num_elements);
-
-   DenseMatrix tmp;
-   IsoparametricTransformation eltrans;
-
-#ifdef MFEM_USE_LEGACY_OPENMP
-   #pragma omp parallel for private(tmp,eltrans)
-#endif
-   for (int i = 0; i < num_elements; i++)
-   {
-      DenseMatrix elmat(element_matrices->GetData(i),
-                        num_dofs_per_el, num_dofs_per_el);
-      const FiniteElement &fe = *fes->GetFE(i);
-#ifdef MFEM_DEBUG
-      if (num_dofs_per_el != fe.GetDof()*fes->GetVDim())
-         mfem_error("BilinearForm::ComputeElementMatrices:"
-                    " all elements must have same number of dofs");
-#endif
-      fes->GetElementTransformation(i, &eltrans);
-
-      domain_integs[0]->AssembleElementMatrix(fe, eltrans, elmat);
-      for (int k = 1; k < domain_integs.Size(); k++)
-      {
-         // note: some integrators may not be thread-safe
-         domain_integs[k]->AssembleElementMatrix(fe, eltrans, tmp);
-         elmat += tmp;
-      }
-      elmat.ClearExternalData();
-   }
-}
-
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                         const Vector &sol, Vector &rhs,
                                         DiagonalPolicy dpolicy)
@@ -1150,7 +1070,6 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
 
    delete mat_e;
    mat_e = NULL;
-   FreeElementMatrices();
    delete static_cond;
    static_cond = NULL;
 
@@ -1177,7 +1096,6 @@ BilinearForm::~BilinearForm()
 {
    delete mat_e;
    delete mat;
-   delete element_matrices;
    delete static_cond;
    delete hybridization;
 

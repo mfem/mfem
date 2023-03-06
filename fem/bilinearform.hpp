@@ -114,8 +114,6 @@ protected:
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
-   DenseTensor *element_matrices; ///< Owned.
-
    StaticCondensation *static_cond; ///< Owned.
    Hybridization *hybridization; ///< Owned.
 
@@ -133,7 +131,7 @@ protected:
    BilinearForm() : Matrix(0)
    {
       fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
+      mat = mat_e = NULL; extern_bfs = 0;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
@@ -540,18 +538,7 @@ public:
    */
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override;
 
-   /// Compute and store internally all element matrices.
-   void ComputeElementMatrices();
-
-   /// Free the memory used by the element matrices.
-   void FreeElementMatrices()
-   { delete element_matrices; element_matrices = NULL; }
-
    /// Compute the element matrix of the given element
-   /** The element matrix is computed by calling the domain integrators
-       or the one stored internally by a prior call of ComputeElementMatrices()
-       is returned when available.
-   */
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
 
    /// Compute the boundary element matrix of the given boundary element

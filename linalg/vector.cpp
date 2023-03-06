@@ -106,9 +106,6 @@ const double &Vector::Elem(int i) const
 double Vector::operator*(const double *v) const
 {
    double dot = 0.0;
-#ifdef MFEM_USE_LEGACY_OPENMP
-   #pragma omp parallel for reduction(+:dot)
-#endif
    for (int i = 0; i < size; i++)
    {
       dot += data[i] * v[i];
@@ -319,7 +316,6 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
                "incompatible Vectors!");
 
-#if !defined(MFEM_USE_LEGACY_OPENMP)
    const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
    const int N = v.size;
    // Note: get read access first, in case v is the same as v1/v2.
@@ -327,13 +323,6 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    auto x2 = v2.Read(use_dev);
    auto y = v.Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = x1[i] + x2[i]; });
-#else
-   #pragma omp parallel for
-   for (int i = 0; i < v.size; i++)
-   {
-      v.data[i] = v1.data[i] + v2.data[i];
-   }
-#endif
 }
 
 void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
@@ -351,7 +340,6 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    }
    else
    {
-#if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
       const int N = v.size;
       // Note: get read access first, in case v is the same as v1/v2.
@@ -362,16 +350,6 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       {
          d_z[i] = d_x[i] + alpha * d_y[i];
       });
-#else
-      const double *v1p = v1.data, *v2p = v2.data;
-      double *vp = v.data;
-      const int s = v.size;
-      #pragma omp parallel for
-      for (int i = 0; i < s; i++)
-      {
-         vp[i] = v1p[i] + alpha*v2p[i];
-      }
-#endif
    }
 }
 
@@ -390,7 +368,6 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
    }
    else
    {
-#if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
@@ -401,17 +378,6 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       {
          zd[i] = a * (xd[i] + yd[i]);
       });
-#else
-      const double *xp = x.data;
-      const double *yp = y.data;
-      double       *zp = z.data;
-      const int      s = x.size;
-      #pragma omp parallel for
-      for (int i = 0; i < s; i++)
-      {
-         zp[i] = a * (xp[i] + yp[i]);
-      }
-#endif
    }
 }
 
@@ -445,7 +411,6 @@ void add(const double a, const Vector &x,
 #endif
    else
    {
-#if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
@@ -456,17 +421,6 @@ void add(const double a, const Vector &x,
       {
          zd[i] = a * xd[i] + b * yd[i];
       });
-#else
-      const double *xp = x.data;
-      const double *yp = y.data;
-      double       *zp = z.data;
-      const int      s = x.size;
-      #pragma omp parallel for
-      for (int i = 0; i < s; i++)
-      {
-         zp[i] = a * xp[i] + b * yp[i];
-      }
-#endif
    }
 }
 
@@ -475,7 +429,6 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
 
-#if !defined(MFEM_USE_LEGACY_OPENMP)
    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
    const int N = x.size;
    // Note: get read access first, in case z is the same as x/y.
@@ -486,17 +439,6 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    {
       zd[i] = xd[i] - yd[i];
    });
-#else
-   const double *xp = x.data;
-   const double *yp = y.data;
-   double       *zp = z.data;
-   const int     s = x.size;
-   #pragma omp parallel for
-   for (int i = 0; i < s; i++)
-   {
-      zp[i] = xp[i] - yp[i];
-   }
-#endif
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
@@ -514,7 +456,6 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
    }
    else
    {
-#if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
@@ -525,17 +466,6 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       {
          zd[i] = a * (xd[i] - yd[i]);
       });
-#else
-      const double *xp = x.data;
-      const double *yp = y.data;
-      double       *zp = z.data;
-      const int      s = x.size;
-      #pragma omp parallel for
-      for (int i = 0; i < s; i++)
-      {
-         zp[i] = a * (xp[i] - yp[i]);
-      }
-#endif
    }
 }
 

@@ -74,9 +74,6 @@
 // Enable the OpenMP backend.
 #cmakedefine MFEM_USE_OPENMP
 
-// [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
-#cmakedefine MFEM_USE_LEGACY_OPENMP
-
 // Internal MFEM option: enable group/batch allocation for some small objects.
 #cmakedefine MFEM_USE_MEMALLOC
 

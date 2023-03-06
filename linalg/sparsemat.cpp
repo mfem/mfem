@@ -764,7 +764,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       return;
    }
 
-#ifndef MFEM_USE_LEGACY_OPENMP
    const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
@@ -885,24 +884,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       });
 
    }
-
-#else // MFEM_USE_LEGACY_OPENMP
-   const double *Ap = A, *xp = x.GetData();
-   double *yp = y.GetData();
-   const int *Jp = J, *Ip = I;
-
-   #pragma omp parallel for
-   for (int i = 0; i < height; i++)
-   {
-      double d = 0.0;
-      const int end = Ip[i+1];
-      for (int j = Ip[i]; j < end; j++)
-      {
-         d += Ap[j] * xp[Jp[j]];
-      }
-      yp[i] += a * d;
-   }
-#endif // MFEM_USE_LEGACY_OPENMP
 }
 
 void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const

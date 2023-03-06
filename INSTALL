@@ -309,10 +309,6 @@ MFEM_THREAD_SAFE = YES/NO
    Use thread-safe implementation for some classes/methods. This comes at the
    cost of extra memory allocation and de-allocation.
 
-MFEM_USE_LEGACY_OPENMP = YES/NO
-   Enable (basic) experimental OpenMP support. Requires MFEM_THREAD_SAFE.
-   This option is deprecated.
-
 MFEM_USE_OPENMP = YES/NO
    Enable the OpenMP backend.
 
@@ -611,8 +607,8 @@ The specific libraries and their options are:
        http://math-atlas.sourceforge.net (ATLAS)
   Options: LAPACK_OPT (currently not used/needed), LAPACK_LIB.
 
-- OpenMP (optional), usually part of compiler, used when either MFEM_USE_OPENMP
-  or MFEM_USE_LEGACY_OPENMP is set to YES.
+- OpenMP (optional), usually part of compiler, used when MFEM_USE_OPENMP is set
+  to YES.
   Options: OPENMP_OPT, OPENMP_LIB.
 
 - High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
@@ -959,7 +955,6 @@ MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
-MFEM_USE_LEGACY_OPENMP
 MFEM_USE_OPENMP
 MFEM_USE_MEMALLOC
 MFEM_TIMER_TYPE - Set automatically, can be overwritten.
