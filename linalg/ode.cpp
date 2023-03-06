@@ -11,7 +11,6 @@
 
 #include "operator.hpp"
 #include "ode.hpp"
-#include "../general/communication.hpp"
 
 namespace mfem
 {
