@@ -18,7 +18,6 @@
 #define MFEM_GHOST_PENALTY
 
 #include "mfem.hpp"
-#include "AnalyticalGeometricShape.hpp"
 #include "marking.hpp"
 
 using namespace std;
@@ -38,7 +37,7 @@ namespace mfem
   class GhostStressFullGradPenaltyIntegrator : public BilinearFormIntegrator
   {
   private:
-    const ParMesh *pmesh;
+    ParMesh *pmesh;
     double penaltyParameter;
     Coefficient *mu;
     Coefficient *kappa;
@@ -47,7 +46,7 @@ namespace mfem
     int nTerms;
     double dupPenaltyParameter;
   public:
-    GhostStressFullGradPenaltyIntegrator(const ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), dupPenaltyParameter(penParameter) { }
+    GhostStressFullGradPenaltyIntegrator(ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), dupPenaltyParameter(penParameter) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,

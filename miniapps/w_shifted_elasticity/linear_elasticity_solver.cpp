@@ -37,7 +37,7 @@ namespace mfem {
      
      level_set_gf =  new ParGridFunction(lsfes);
      level_set_gf->ExchangeFaceNbrData();
-     analyticalSurface = new ShiftedFaceMarker(*pmesh, *vfes, 1);
+     analyticalSurface = new ShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
      if (useAnalyticalShape){
        neumann_dist_coef = new Dist_Coefficient(geometricShape);
        level_set_gf->ProjectCoefficient(*neumann_dist_coef);
@@ -149,9 +149,10 @@ namespace mfem {
    ess_elem.SetSize(max_elem_attr);
    ess_elem = 1;
    if (useEmbedded && (max_elem_attr >= 2)){
-     ess_elem[max_elem_attr-1] = 0;
+     ess_elem[ShiftedFaceMarker::SBElementType::OUTSIDE-1] = 0;
    }
-       
+   // ess_elem.Print(std::cout,1);
+
    switch (pmesh->GetElementBaseGeometry(0))
     {
     case Geometry::TRIANGLE:
@@ -220,13 +221,14 @@ namespace mfem {
 
     ParLinearForm *fform(new ParLinearForm(vfes));
     fform->AddDomainIntegrator(new WeightedVectorForceIntegrator(*alphaCut, *volforce), ess_elem);
+     
     for(auto it=surf_loads.begin();it!=surf_loads.end();it++)
     {
       fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(*alphaCut, *(it->second), analyticalSurface),*(it->first));
     }
    
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
-    {
+    {    
       // Nitsche
       fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(*alphaCut, *shearMod, *bulkMod, *(it->second), analyticalSurface),*(it->first));
       // Normal Penalty
@@ -260,15 +262,6 @@ namespace mfem {
       // IP
       mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, analyticalSurface, 1));
       // ghost penalty
-      //      mVarf->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
-      /*  for (int i = 2; i <= numberStrainTerms; i++){
-        //       best to use 1.0 / i!                                                                                                                                                
-        double factorial = 1.0;
-        for (int s = 1; s <= i; s++){
-          factorial = factorial*s;
-        }
-        mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
-      }*/
       mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));      
     }
   
@@ -276,7 +269,7 @@ namespace mfem {
     mVarf->Finalize();
   
     mVarf->ParallelAssemble();  
-    //    HypreParMatrix *displ_Mass = NULL;
+    //  HypreParMatrix *displ_Mass = NULL;
     //  displ_Mass = mVarf->ParallelAssemble();
     
     std::cout << " Done " << std::endl;
@@ -285,7 +278,8 @@ namespace mfem {
     OperatorPtr A;
     Vector B, X;
     mVarf->FormLinearSystem(ess_vdofs, *fdisplacement, *fform, A, X, B);
-    
+    std::cout << " FormLinearSysterm " << std::endl;
+     
     if (mumps_solver){
       MUMPSSolver mumps;
       mumps.SetPrintLevel(1);
@@ -316,15 +310,6 @@ namespace mfem {
 	}
       if (useEmbedded){     
 	// ghost penalty
-	//	displMass->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
-	/*	for (int i = 2; i <= numberStrainTerms; i++){
-	  //       best to use 1.0 / i!                                                                                                                                                
-	  double factorial = 1.0;
-	  for (int s = 1; s <= i; s++){
-	    factorial = factorial*s;
-	  }
-	  mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
-	}*/	
 	displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));
       }
       displMass->Assemble();
@@ -332,7 +317,7 @@ namespace mfem {
 
       HypreParMatrix *displ_Mass = NULL;
       displ_Mass = displMass->ParallelAssemble();
-
+      
       HypreParMatrix *DMe = NULL;
       DMe = displ_Mass->EliminateRowsCols(ess_vdofs);
       prec = new HypreBoomerAMG(*displ_Mass);
@@ -369,10 +354,9 @@ namespace mfem {
     if (useEmbedded){
       Array<int> elem_marker(pmesh->GetNE());
       elem_marker = 0;
-      Array<int> &elemStatus = analyticalSurface->GetElement_Status();
       for (int e = 0; e < vfes->GetNE(); e++)
 	{
-	  if ( (elemStatus[e] == AnalyticalGeometricShape::SBElementType::INSIDE) || (elemStatus[e] == AnalyticalGeometricShape::SBElementType::CUT)) {
+	  if ( (pmesh->GetAttribute(e) == ShiftedFaceMarker::SBElementType::INSIDE) || (pmesh->GetAttribute(e) == ShiftedFaceMarker::SBElementType::CUT)) {
 	    elem_marker[e] = 1;
 	  }	 
 	}

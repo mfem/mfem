@@ -68,7 +68,7 @@ namespace mfem
 						       ElementTransformation &Trans)
   {
     int order = Trans.OrderGrad(&trial_fe) /*+ test_fe.GetOrder() + Trans.OrderJ()*/;
-    return IntRules.Get(trial_fe.GetGeomType(), 2*order);
+    return IntRules.Get(trial_fe.GetGeomType(), 5*order);
   }
 
   void WeightedStressForceIntegrator::AssembleElementMatrix(const FiniteElement &el,

@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
      ssolv->AddShiftedNormalStressBC(traction_shifted3D);
      ssolv->SetExactDisplacementSolution(ucoeff3D);
    }
-   ssolv->SetNewtonSolver(1.0e-12,0.0,100000,1);
+   ssolv->SetNewtonSolver(1.0e-14,0.0,100000,1);
    ssolv->FSolve();
    ssolv->ComputeL2Errors();
    ssolv->VisualizeFields();

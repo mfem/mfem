@@ -22,7 +22,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-EX_LINEAR_ELASTICITY_WSBM_SRC = ex_Linear_Elasticity_refactored.cpp nitsche_weighted_solver.cpp volume_weighted_integrals.cpp  volume_fractions.cpp linear_elasticity_solver.cpp ghost_penalty.cpp shifted_weighted_solver.cpp dist_solver.cpp marking.cpp AnalyticalGeometricShape.cpp
+EX_LINEAR_ELASTICITY_WSBM_SRC = ex_Linear_Elasticity_refactored.cpp nitsche_weighted_solver.cpp volume_weighted_integrals.cpp  volume_fractions.cpp linear_elasticity_solver.cpp ghost_penalty.cpp shifted_weighted_solver.cpp dist_solver.cpp marking.cpp
 EX_LINEAR_ELASTICITY_WSBM_OBJ = $(EX_LINEAR_ELASTICITY_WSBM_SRC:.cpp=.o)
 
 PAR_MINIAPPS = ex_Linear_Elasticity_WSBM

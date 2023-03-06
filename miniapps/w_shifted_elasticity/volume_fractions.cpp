@@ -27,7 +27,7 @@ namespace mfem
   {
     IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
     auto pfes = alpha.ParFESpace();
-    const IntegrationRule &ir = IntRulesLo.Get(pfes->GetFE(0)->GetGeomType(), 25);
+    const IntegrationRule &ir = IntRulesLo.Get(pfes->GetFE(0)->GetGeomType(), 25 ); // second slot is 25
     const int NE = alpha.ParFESpace()->GetNE(), nqp = ir.GetNPoints();
     for (int e = 0; e < NE; e++)
       {

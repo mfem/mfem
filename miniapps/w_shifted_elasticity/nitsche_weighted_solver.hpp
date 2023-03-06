@@ -18,7 +18,6 @@
 #define MFEM_WEIGHTED_NITSCHE_SOLVER
 
 #include "mfem.hpp"
-#include "AnalyticalGeometricShape.hpp"
 #include "marking.hpp"
 
 using namespace std;

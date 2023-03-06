@@ -18,7 +18,6 @@
 #define MFEM_SHIFTED_WEIGHTED_SOLVER
 
 #include "mfem.hpp"
-#include "AnalyticalGeometricShape.hpp"
 #include "marking.hpp"
 
 using namespace std;

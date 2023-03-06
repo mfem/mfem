@@ -18,7 +18,6 @@
 #define MFEM_VOLUME_FRACTIONS
 
 #include "mfem.hpp"
-#include "AnalyticalGeometricShape.hpp"
 #include "marking.hpp"
 
 

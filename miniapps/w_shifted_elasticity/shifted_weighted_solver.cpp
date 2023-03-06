@@ -62,36 +62,11 @@ namespace mfem
 									FaceElementTransformations &Tr,
 									DenseMatrix &elmat)
   {
-    Array<int> &elemStatus = analyticalSurface->GetElement_Status();
     MPI_Comm comm = pmesh->GetComm();
     int myid;
     MPI_Comm_rank(comm, &myid);
     int NEproc = pmesh->GetNE();
-    int elem1 = Tr.Elem1No;
-    int elem2 = Tr.Elem2No;
-   
-    int elemStatus1 = elemStatus[elem1];
-    int elemStatus2;
-    if (Tr.Elem2No >= NEproc)
-      {
-        elemStatus2 = elemStatus[NEproc+par_shared_face_count];
-	par_shared_face_count++;
-   }
-    else
-      {
-        elemStatus2 = elemStatus[elem2];
-      }
-
-    const int e = Tr.ElementNo;
-    bool elem1_inside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem1_cut = (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem1_outside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    bool elem2_inside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem2_cut = (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem2_outside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) || (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
+    if ( (Tr.Attribute == 77) || (Tr.Attribute == 11) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
       elmat.SetSize(2*dofs_cnt*dim);
@@ -343,37 +318,11 @@ namespace mfem
 									 FaceElementTransformations &Tr,
 									 DenseMatrix &elmat)
   {
-    Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-
     MPI_Comm comm = pmesh->GetComm();
     int myid;
     MPI_Comm_rank(comm, &myid);
     int NEproc = pmesh->GetNE();
-
-    //  std::cout << " I AM IN ASSEMBLE FACE " << std::endl;
-    int elem1 = Tr.Elem1No;
-    int elem2 = Tr.Elem2No;
-    int elemStatus1 = elemStatus[elem1];
-    int elemStatus2;
-    if (Tr.Elem2No >= NEproc)
-      {
-        elemStatus2 = elemStatus[NEproc+par_shared_face_count];
-	par_shared_face_count++;
-      }
-    else
-      {
-        elemStatus2 = elemStatus[elem2];
-      }
-    const int e = Tr.ElementNo;
-    bool elem1_inside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem1_cut = (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem1_outside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    bool elem2_inside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem2_cut = (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem2_outside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) || (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
+    if ( (Tr.Attribute == 11) || (Tr.Attribute == 77) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
       elmat.SetSize(2*dofs_cnt*dim);
@@ -496,35 +445,12 @@ namespace mfem
 								     FaceElementTransformations &Tr,
 								     Vector &elvect)
   {
-    Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-
     MPI_Comm comm = pmesh->GetComm();
     int myid;
     MPI_Comm_rank(comm, &myid);
     int NEproc = pmesh->GetNE();
-    int elem1 = Tr.Elem1No;
-    int elem2 = Tr.Elem2No;
-
-    int elemStatus1 = elemStatus[elem1];
-    int elemStatus2;
-    if (Tr.Elem2No >= NEproc)
-      {
-        elemStatus2 = elemStatus[NEproc+par_shared_face_count];
-	par_shared_face_count++;
-      }
-    else
-      {
-        elemStatus2 = elemStatus[elem2];
-      }
-    const int e = Tr.ElementNo;
-    bool elem1_inside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem1_cut = (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem1_outside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
+    if ( (Tr.Attribute == 11) || (Tr.Attribute == 77) ){
     
-    bool elem2_inside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem2_cut = (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem2_outside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) || (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
       const int dim = el.GetDim();
       const int dofs_cnt = el.GetDof();
       elvect.SetSize(2*dofs_cnt*dim);
