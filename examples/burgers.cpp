@@ -169,13 +169,13 @@ int main(int argc, char *argv[]) {
 
   // Output the initial solution.
   {
-    ofstream mesh_ofs("vortex.mesh");
+    ofstream mesh_ofs("burgers.mesh");
     mesh_ofs.precision(precision);
     mesh_ofs << mesh;
     for (int k = 0; k < num_equations; k++) {
       GridFunction uk(&fes, sol.GetData() + fes.GetNDofs() * k);
       ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init.gf";
+      sol_name << "burgers-" << k << "-init.gf";
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;

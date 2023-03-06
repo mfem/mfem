@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
   }
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
-  //    "glvis -m vortex.mesh -g burgers-1-final.gf".
+  //    "glvis -m burgers.mesh -g burgers-1-final.gf".
   {
     ostringstream mesh_name;
     mesh_name << "burgers-mesh-final." << setfill('0') << setw(6)
