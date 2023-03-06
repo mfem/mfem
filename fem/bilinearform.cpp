@@ -422,6 +422,12 @@ void BilinearForm::Assemble(int skip_zeros)
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
+
+         if (domain_integs[k]->Patchwise())
+         {
+            MFEM_VERIFY(mesh->NURBSext, "Patchwise integration requires a "
+                        << "NURBS mesh");
+         }
       }
 
       // Element-wise integration
