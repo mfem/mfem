@@ -178,7 +178,7 @@ endif()
 #-------------------------------------------------------------------------------
 
 # MFEM_DEBUG
-if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
+if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG|RelWithDebInfo|relwithdebinfo|RELWITHDEBINFO")
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
