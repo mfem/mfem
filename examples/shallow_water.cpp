@@ -204,10 +204,10 @@ int main(int argc, char *argv[]) {
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
   ShallowWaterElementFormIntegrator *shallowWaterElementFormIntegrator =
-      new ShallowWaterElementFormIntegrator(dim, IntOrderOffset);
+      new ShallowWaterElementFormIntegrator(dim, g, IntOrderOffset);
 
   ShallowWaterFaceFormIntegrator *shallowWaterFaceFormIntegrator =
-      new ShallowWaterFaceFormIntegrator(new RusanovFlux(), dim, IntOrderOffset);
+      new ShallowWaterFaceFormIntegrator(new RusanovFlux(), dim, g, IntOrderOffset);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time

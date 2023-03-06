@@ -34,7 +34,8 @@ class HyperbolicElementFormIntegrator : public NonlinearFormIntegrator {
   DenseMatrix dshape;
 
  protected:
-  virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr, DenseMatrix &flux) = 0;
+  virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                             DenseMatrix &flux) = 0;
 
  public:
   HyperbolicElementFormIntegrator(const int dim, const int num_equations_,
@@ -86,7 +87,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
 
  protected:
   virtual double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                                 FaceElementTransformations &Tr, Vector &flux) = 0;
+                                 ElementTransformation &Tr, Vector &flux) = 0;
 
  public:
   HyperbolicFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
@@ -334,8 +335,9 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
     else
       CalcOrtho(Tr.Jacobian(), nor);
 
-    const double mcs = max(ComputeFluxDotN(state1, nor, Tr, flux1),
-                           ComputeFluxDotN(state2, nor, Tr, flux2));
+    const double mcs = max(
+        ComputeFluxDotN(state1, nor, Tr.GetElement1Transformation(), flux1),
+        ComputeFluxDotN(state2, nor, Tr.GetElement2Transformation(), flux2));
     rsolver->Eval(state1, state2, flux1, flux2, mcs, nor, fluxN);
 
     // Update max char speed
@@ -393,7 +395,8 @@ class EulerElementFormIntegrator : public HyperbolicElementFormIntegrator {
  private:
   const double specific_heat_ratio;
   const double gas_constant;
-  double ComputeFlux(const Vector &state, ElementTransformation &Tr, DenseMatrix &flux) {
+  double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                     DenseMatrix &flux) {
     const int dim = state.Size() - 2;
     const double den = state(0);
     const Vector den_vel(state.GetData() + 1, dim);
@@ -426,16 +429,16 @@ class EulerElementFormIntegrator : public HyperbolicElementFormIntegrator {
   }
 
  public:
-  EulerElementFormIntegrator(const int dim, const int IntOrderOffset_ = 3,
-                             const double specific_heat_ratio_ = 1.4,
-                             const double gas_constant_ = 1.0)
+  EulerElementFormIntegrator(const int dim, const double specific_heat_ratio_,
+                             const double gas_constant_,
+                             const int IntOrderOffset_ = 3)
       : HyperbolicElementFormIntegrator(dim, dim + 2, IntOrderOffset_),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_) {}
 
-  EulerElementFormIntegrator(const int dim, const IntegrationRule *ir,
-                             const double specific_heat_ratio_ = 1.4,
-                             const double gas_constant_ = 1.0)
+  EulerElementFormIntegrator(const int dim, const double specific_heat_ratio_,
+                             const double gas_constant_,
+                             const IntegrationRule *ir)
       : HyperbolicElementFormIntegrator(dim, dim + 2, ir),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_) {}
@@ -447,7 +450,7 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
   const double specific_heat_ratio;
   const double gas_constant;
   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                         FaceElementTransformations &Tr, Vector &fluxN) {
+                         ElementTransformation &Tr, Vector &fluxN) {
     // NOTE: nor in general is not a unit normal
     const int dim = nor.Size();
     const double den = state(0);
@@ -482,16 +485,15 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
 
  public:
   EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                          const int IntOrderOffset_ = 3,
-                          const double specific_heat_ratio_ = 1.4,
-                          const double gas_constant_ = 1.0)
+                          const double specific_heat_ratio_,
+                          const double gas_constant_,
+                          const int IntOrderOffset_ = 3)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 2, IntOrderOffset_),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
   EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                          const IntegrationRule *ir,
-                          const double specific_heat_ratio_ = 1.4,
-                          const double gas_constant_ = 1.0)
+                          const double specific_heat_ratio_,
+                          const double gas_constant_, const IntegrationRule *ir)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 2, ir),
         specific_heat_ratio(specific_heat_ratio_),
         gas_constant(gas_constant_){};
@@ -504,10 +506,11 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
 // Burgers equation main class. Overload ComputeFlux
 class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
  private:
-  double ComputeFlux(const Vector &state, ElementTransformation &Tr, DenseMatrix &flux) {
+  double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                     DenseMatrix &flux) {
     flux = state * state * 0.5;
     return abs(state(0));
-  };
+  }
 
  public:
   BurgersElementFormIntegrator(const int dim, const int IntOrderOffset_ = 3)
@@ -520,10 +523,10 @@ class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
 class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
  private:
   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                         FaceElementTransformations &Tr, Vector &fluxN) {
+                         ElementTransformation &Tr, Vector &fluxN) {
     fluxN = nor.Sum() * (state * state) * 0.5;
     return abs(state(0));
-  };
+  }
 
  public:
   BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
@@ -534,37 +537,65 @@ class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir){};
 };
 
-// Burgers equation main class. Overload ComputeFlux
-class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
+//////////////////////////////////////////////////////////////////
+///                      BURGERS EQUATION                      ///
+//////////////////////////////////////////////////////////////////
+
+// Advection equation main class. Overload ComputeFlux
+class AdvectionElementFormIntegrator : public HyperbolicElementFormIntegrator {
  private:
-  double ComputeFlux(const Vector &state, ElementTransformation &Tr, DenseMatrix &flux) {
-    flux = state * state * 0.5;
-    return abs(state(0));
-  };
+  VectorCoefficient &b;
+  Vector bval;
+  double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                     DenseMatrix &flux) {
+    b.Eval(bval, Tr, Tr.GetIntPoint());
+    const int dim = bval.Size();
+    const int num_equations = state.Size();
+    for (int j = 0; j < dim; j++) {
+      for (int i = 0; i < num_equations; i++) {
+        flux(i, j) = bval(j) * state(i);
+      }
+    }
+    return bval.Norml2();
+  }
 
  public:
-  BurgersElementFormIntegrator(const int dim, const int IntOrderOffset_ = 3)
-      : HyperbolicElementFormIntegrator(dim, 1, IntOrderOffset_){};
-  BurgersElementFormIntegrator(const int dim, const IntegrationRule *ir)
-      : HyperbolicElementFormIntegrator(dim, 1, ir){};
+  AdvectionElementFormIntegrator(const int dim, VectorCoefficient &b_,
+                                 const int IntOrderOffset_ = 3)
+      : HyperbolicElementFormIntegrator(dim, 1, IntOrderOffset_),
+        b(b_),
+        bval(dim){};
+  AdvectionElementFormIntegrator(const int dim, VectorCoefficient &b_,
+                                 const IntegrationRule *ir)
+      : HyperbolicElementFormIntegrator(dim, 1, ir), b(b_), bval(dim){};
 };
 
-// Burgers equation face integration. Overload ComputeFluxDotN
-class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
+// Advection equation face integration. Overload ComputeFluxDotN
+class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
  private:
+  VectorCoefficient &b;
+  Vector bval;
   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                         FaceElementTransformations &Tr, Vector &fluxN) {
-    fluxN = nor.Sum() * (state * state) * 0.5;
-    return abs(state(0));
-  };
+                         ElementTransformation &Tr, Vector &fluxN) {
+    b.Eval(bval, Tr, Tr.GetIntPoint());
+    const double bN = bval * nor;
+    const int num_equations = state.Size();
+    for (int i = 0; i < num_equations; i++) {
+      fluxN(i) = bN * state(i);
+    }
+    return bval.Norml2();
+  }
 
  public:
-  BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                            const int IntOrderOffset_ = 3)
-      : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, IntOrderOffset_){};
-  BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                            const IntegrationRule *ir)
-      : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir){};
+  AdvectionFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                              VectorCoefficient &b_,
+                              const int IntOrderOffset_ = 3)
+      : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, IntOrderOffset_),
+        b(b_),
+        bval(dim){};
+  AdvectionFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+                              VectorCoefficient &b_, const IntegrationRule *ir)
+      : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim){};
 };
 
 //////////////////////////////////////////////////////////////////
@@ -576,7 +607,8 @@ class ShallowWaterElementFormIntegrator
     : public HyperbolicElementFormIntegrator {
  private:
   const double g;
-  double ComputeFlux(const Vector &state, ElementTransformation &Tr, DenseMatrix &flux) {
+  double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                     DenseMatrix &flux) {
     const int dim = state.Size() - 1;
     const double height = state(0);
     const Vector h_vel(state.GetData() + 1, dim);
@@ -597,15 +629,14 @@ class ShallowWaterElementFormIntegrator
     const double vel = sqrt(h_vel * h_vel) / height;
 
     return vel + sound;
-  };
+  }
 
  public:
-  ShallowWaterElementFormIntegrator(const int dim,
-                                    const int IntOrderOffset_ = 3,
-                                    const double g_ = 9.81)
+  ShallowWaterElementFormIntegrator(const int dim, const double g_,
+                                    const int IntOrderOffset_ = 3)
       : HyperbolicElementFormIntegrator(dim, dim + 1, IntOrderOffset_), g(g_){};
-  ShallowWaterElementFormIntegrator(const int dim, const IntegrationRule *ir,
-                                    const double g_ = 9.81)
+  ShallowWaterElementFormIntegrator(const int dim, const double g_,
+                                    const IntegrationRule *ir)
       : HyperbolicElementFormIntegrator(dim, dim + 1, ir), g(g_){};
 };
 
@@ -614,7 +645,7 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
  private:
   const double g;
   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                         FaceElementTransformations &Tr, Vector &fluxN) {
+                         ElementTransformation &Tr, Vector &fluxN) {
     const int dim = nor.Size();
     const double height = state(0);
     const Vector h_vel(state.GetData() + 1, dim);
@@ -632,16 +663,14 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
     const double vel = sqrt(h_vel * h_vel) / height;
 
     return vel + sound;
-  };
+  }
 
  public:
   ShallowWaterFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                                 const int IntOrderOffset_ = 3,
-                                 const double g_ = 9.81)
+                                 const double g_, const int IntOrderOffset_ = 3)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_),
         g(g_){};
   ShallowWaterFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
-                                 const IntegrationRule *ir,
-                                 const double g_ = 9.81)
+                                 const double g_, const IntegrationRule *ir)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_){};
 };
