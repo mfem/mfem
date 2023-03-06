@@ -1069,7 +1069,8 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    }
    os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel(),bdr,lscale);
+   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel(),
+                  bdr,lscale);
 
    // dump out the grid functions as point data
    os << "<PointData >\n";
