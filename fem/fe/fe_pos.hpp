@@ -73,8 +73,8 @@ public:
                                  DofToQuad::Mode mode) const
    {
       return (mode == DofToQuad::FULL) ?
-             ScalarFiniteElement::GetDofToQuad(ir, mode) :
-             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+             FiniteElement::GetDofToQuad(ir, mode) :
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
 };
 

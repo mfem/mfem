@@ -203,6 +203,7 @@ miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
 miniapps/meshing/trimmer
+miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/minimal-surface
@@ -219,6 +220,7 @@ miniapps/meshing/mesh-explorer-paraview/
 miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
+miniapps/meshing/reflected.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
@@ -278,6 +280,7 @@ miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-metric-magnitude
 
 miniapps/toys/automata
 miniapps/toys/life
