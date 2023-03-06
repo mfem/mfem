@@ -195,11 +195,12 @@ int main(int argc, char *argv[]) {
 
   BurgersFaceFormIntegrator *burgersFaceFormIntegrator =
       new BurgersFaceFormIntegrator(new RusanovFlux(), dim, IntOrderOffset);
+  NonlinearForm nonlinForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws burgers(fes, *burgersElementFormIntegrator,
+  DGHyperbolicConservationLaws burgers(fes, nonlinForm, *burgersElementFormIntegrator,
                                      *burgersFaceFormIntegrator, 1);
 
   // Visualize the density

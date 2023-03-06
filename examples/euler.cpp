@@ -216,11 +216,12 @@ int main(int argc, char *argv[]) {
   EulerFaceFormIntegrator *eulerFaceFormIntegrator =
       new EulerFaceFormIntegrator(new RusanovFlux(), dim, specific_heat_ratio,
                                      gas_constant, IntOrderOffset);
+  NonlinearForm nonlinForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws euler(vfes, *eulerElementFormIntegrator,
+  DGHyperbolicConservationLaws euler(vfes, nonlinForm, *eulerElementFormIntegrator,
                                      *eulerFaceFormIntegrator, num_equations);
 
   // Visualize the density

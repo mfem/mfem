@@ -161,7 +161,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
  public:
   // Constructor
   DGHyperbolicConservationLaws(
-      FiniteElementSpace &vfes_,
+      FiniteElementSpace &vfes_, NonlinearForm &nonlinForm_,
       HyperbolicElementFormIntegrator &elementFormIntegrator_,
       HyperbolicFaceFormIntegrator &faceFormIntegrator_,
       const int num_equations_);
@@ -170,14 +170,6 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Update operators when mesh and finite element spaces are updated
   void Update();
   inline double getMaxCharSpeed() { return max_char_speed; }
-#ifdef MFEM_USE_MPI
-  double getParMaxCharSpeed() {
-    int myid = Mpi::WorldRank();
-    MPI_Allreduce(&myid, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
-                  MPI_COMM_WORLD);
-    return max_char_speed;
-  }
-#endif
 
   virtual ~DGHyperbolicConservationLaws() {}
 };
@@ -188,7 +180,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-    FiniteElementSpace &vfes_,
+    FiniteElementSpace &vfes_, NonlinearForm &nonlinearForm_,
     HyperbolicElementFormIntegrator &elementFormIntegrator_,
     HyperbolicFaceFormIntegrator &faceFormIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
@@ -197,7 +189,7 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
       vfes(vfes_),
       elementFormIntegrator(elementFormIntegrator_),
       faceFormIntegrator(faceFormIntegrator_),
-      nonlinearForm(&vfes),
+      nonlinearForm(nonlinearForm_),
       Me_inv(0),
       z(vfes_.GetNDofs() * num_equations_) {
   // Standard local assembly and inversion for energy mass matrices.
