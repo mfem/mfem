@@ -47,7 +47,7 @@
 
 // Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
 // shared between the serial and parallel version of the example.
-#include "hyperbolic_conservation_laws.hpp"
+#include "fem/hyperbolic_conservation_laws.hpp"
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
