@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
                  "Problem setup to use. See options in velocity_function().");
   args.AddOption(&ser_ref_levels, "-rs", "--serial-refine",
                  "Number of times to refine the serial mesh uniformly.");
-  args.AddOption(&par_ref_levels, "-rs", "--parallel-refine",
+  args.AddOption(&par_ref_levels, "-rp", "--parallel-refine",
                  "Number of times to refine the parallel mesh uniformly.");
   args.AddOption(&order, "-o", "--order",
                  "Order (degree) of the finite elements.");
@@ -205,7 +205,8 @@ int main(int argc, char *argv[]) {
   // Output the initial solution.
   {
     ostringstream mesh_name;
-    mesh_name << "shallow-water-mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+    mesh_name << "shallow-water-mesh." << setfill('0') << setw(6)
+              << Mpi::WorldRank();
     ofstream mesh_ofs(mesh_name.str().c_str());
     mesh_ofs.precision(precision);
     mesh_ofs << pmesh;
