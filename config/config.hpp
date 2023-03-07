@@ -34,6 +34,18 @@
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
 #endif
+// Macro MFEM_EXPORT: this macro is used when declaring exported global
+// variables and static class variables in public header files, e.g.:
+//    extern MFEM_EXPORT Geometry Geometries;
+//    static MFEM_EXPORT Device device_singleton;
+// In cases where a class contains multiple static variables, instead of marking
+// all such variables with MFEM_EXPORT, one can mark the class with MFEM_EXPORT,
+// e.g.:
+//    class MFEM_EXPORT MemoryManager ...
+// Note: MFEM's GitHub CI includes a shared MSVC build that will fail if a
+// variable that needs MFEM_EXPORT does not have it. However, builds with
+// optional external libraries are not tested and may require separate checks to
+// determine the necessity of MFEM_EXPORT.
 #if defined(_MSC_VER) && defined(MFEM_SHARED_BUILD)
 #ifdef mfem_EXPORTS
 #define MFEM_EXPORT __declspec(dllexport)
