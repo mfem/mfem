@@ -57,10 +57,8 @@
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation (requires GSLIB):
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete size+orientation:
+//      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
@@ -744,20 +742,9 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         if (metric_id == 14 || metric_id == 36)
-         {
-            ConstantCoefficient size_coeff(0.1*0.1);
-            size.ProjectCoefficient(size_coeff);
-            tc->SetSerialDiscreteTargetSize(size);
-         }
-
-         if (metric_id == 85)
-         {
-            FunctionCoefficient aspr_coeff(discrete_aspr_2d);
-            aspr.ProjectCoefficient(aspr_coeff);
-            DiffuseField(aspr,2);
-            tc->SetSerialDiscreteTargetAspectRatio(aspr);
-         }
+         ConstantCoefficient size_coeff(0.1*0.1);
+         size.ProjectCoefficient(size_coeff);
+         tc->SetSerialDiscreteTargetSize(size);
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
