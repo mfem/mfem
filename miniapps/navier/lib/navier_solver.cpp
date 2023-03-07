@@ -227,6 +227,7 @@ void NavierSolver::Setup(double dt)
       vdlfi->SetIntRule(&gll_ir);
       f_form->AddDomainIntegrator(vdlfi);
    }
+   f_form->UseFastAssembly(true);
 
    // Build diagonal vector from velocity Mass operator
    Mv_form->AssembleDiagonal(mv);
