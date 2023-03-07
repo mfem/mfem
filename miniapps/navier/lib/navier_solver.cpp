@@ -25,15 +25,6 @@ static inline void vmul(const Vector &x, Vector &y)
    MFEM_FORALL(i, x.Size(), d_y[i] = d_x[i] * d_y[i];);
 }
 
-void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
-{
-   Array<BilinearFormIntegrator *> *bffis = src->GetDBFI();
-   for (int i = 0; i < bffis->Size(); ++i)
-   {
-      dst->AddDomainIntegrator((*bffis)[i]);
-   }
-}
-
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    : pmesh(mesh), order(order), kin_vis(kin_vis),
      gll_rules(0, Quadrature1D::GaussLobatto)
