@@ -76,18 +76,28 @@ double Edge::GetDistanceTo(const Vector &x) const {
 }
 
 double OctetTrussTopology::ComputeMetric(const Vector &x) {
+  // Define the point in the vector which differentiates between the periodic
+  // points and the inner points.
+  constexpr size_t periodic_edges = 6;
+
   // 1. Fill a vector with x and it's ghost points mimicking the periodicity
   //    of the topology.
   std::vector<Vector> periodic_points;
   CreatePeriodicPoints(x, periodic_points);
   std::vector<double> dist_vector;
 
-  // 2. Compute the distance to each periodic points to all edges.
+  // 2. Compute the distance to each periodic points to the outer edges.
   for (const auto &point : periodic_points) {
-    for (auto edge : edges_) {
-      dist_vector.push_back(edge.GetDistanceTo(point));
+    for (size_t i = 0; i < periodic_edges; i++) {
+      dist_vector.push_back(edges_[i].GetDistanceTo(point));
     }
   }
+
+  // 3. Add distance between x and the remaining inner edges
+  for (size_t i = periodic_edges; i < edges_.size(); i++) {
+    dist_vector.push_back(edges_[i].GetDistanceTo(x));
+  }
+
   // 3. Choose the smallest number in the vector dist_vector.
   double min_dist = *std::min_element(dist_vector.begin(), dist_vector.end());
   return min_dist;
@@ -95,7 +105,7 @@ double OctetTrussTopology::ComputeMetric(const Vector &x) {
 
 void OctetTrussTopology::Initialize() {
   // 1. Create the points defining the topology (begin and end points of the
-  //    edges).
+  //    edges). Outer structure
   double p1_data[3] = {0, 0, 0};
   double p2_data[3] = {0, 1, 1};
   double p3_data[3] = {1, 0, 1};
@@ -111,13 +121,64 @@ void OctetTrussTopology::Initialize() {
   points_.push_back(p3);
   points_.push_back(p4);
 
-  // 2. Create the edges.
-  for (size_t i = 0; i < points_.size(); i++) {
-    for (size_t j = i + 1; j < points_.size(); j++) {
+  // 2. Create the inner structure
+  double p5_data[3] = {0, 0.5, 0.5};   // left
+  double p6_data[3] = {1, 0.5, 0.5};   // right
+  double p7_data[3] = {0.5, 0, 0.5};   // bottom
+  double p8_data[3] = {0.5, 1, 0.5};   // top
+  double p9_data[3] = {0.5, 0.5, 0};   // front
+  double p10_data[3] = {0.5, 0.5, 1};  // back
+
+  Vector p5(p5_data, 3);
+  Vector p6(p6_data, 3);
+  Vector p7(p7_data, 3);
+  Vector p8(p8_data, 3);
+  Vector p9(p9_data, 3);
+  Vector p10(p10_data, 3);
+
+  points_.push_back(p5);
+  points_.push_back(p6);
+  points_.push_back(p7);
+  points_.push_back(p8);
+  points_.push_back(p9);
+  points_.push_back(p10);
+
+  // 3. Create the outer edges.
+  for (size_t i = 0; i < 4; i++) {
+    for (size_t j = i + 1; j < 4; j++) {
       Edge edge(points_[i], points_[j]);
       edges_.push_back(edge);
     }
   }
+
+  // 4. Create the inner edges from p5 and p6 to p7, p8, p9, p10; plus the
+  //    latter four connected in a cycle.
+  Edge edge5(points_[4], points_[6]);
+  Edge edge6(points_[4], points_[7]);
+  Edge edge7(points_[4], points_[8]);
+  Edge edge8(points_[4], points_[9]);
+  Edge edge9(points_[5], points_[6]);
+  Edge edge10(points_[5], points_[7]);
+  Edge edge11(points_[5], points_[8]);
+  Edge edge12(points_[5], points_[9]);
+  Edge edge13(points_[6], points_[8]);
+  Edge edge14(points_[6], points_[9]);
+  Edge edge15(points_[7], points_[8]);
+  Edge edge16(points_[7], points_[9]);
+
+  // Push into edges vector
+  edges_.push_back(edge5);
+  edges_.push_back(edge6);
+  edges_.push_back(edge7);
+  edges_.push_back(edge8);
+  edges_.push_back(edge9);
+  edges_.push_back(edge10);
+  edges_.push_back(edge11);
+  edges_.push_back(edge12);
+  edges_.push_back(edge13);
+  edges_.push_back(edge14);
+  edges_.push_back(edge15);
+  edges_.push_back(edge16);
 }
 
 void OctetTrussTopology::CreatePeriodicPoints(
