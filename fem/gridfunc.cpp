@@ -2058,7 +2058,7 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
 }
 
 void GridFunction::AccumulateAndCountBdrValues(
-   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr,
+   Coefficient *coeff[], VectorCoefficient *vcoeff, const Array<int> &attr,
    Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
@@ -2200,7 +2200,7 @@ static void accumulate_dofs(const Array<int> &dofs, const Vector &vals,
 }
 
 void GridFunction::AccumulateAndCountBdrTangentValues(
-   VectorCoefficient &vcoeff, Array<int> &bdr_attr,
+   VectorCoefficient &vcoeff, const Array<int> &bdr_attr,
    Array<int> &values_counter)
 {
    const FiniteElement *fe;
@@ -2576,7 +2576,7 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 }
 
 void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                                         Array<int> &attr)
+                                         const Array<int> &attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
@@ -2593,7 +2593,8 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 #endif
 }
 
-void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
+                                         const Array<int> &attr)
 {
    Array<int> values_counter;
    // this->HostReadWrite(); // done inside the next call
@@ -2623,7 +2624,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 }
 
 void GridFunction::ProjectBdrCoefficientNormal(
-   VectorCoefficient &vcoeff, Array<int> &bdr_attr)
+   VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
 #if 0
    // implementation for the case when the face dofs are integrals of the
@@ -2698,7 +2699,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
 }
 
 void GridFunction::ProjectBdrCoefficientTangent(
-   VectorCoefficient &vcoeff, Array<int> &bdr_attr)
+   VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
