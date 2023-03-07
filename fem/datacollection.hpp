@@ -387,7 +387,7 @@ public:
 #endif
       // Use the following identifier if NO_ERROR is defined as a macro,
       // e.g. winerror.h (which is included by Windows.h):
-      NO_ERROR_   = 0,
+      No_Error    = 0,
       READ_ERROR  = 1,
       WRITE_ERROR = 2
    };
@@ -395,7 +395,7 @@ public:
    /// Get the current error state
    int Error() const { return error; }
    /// Reset the error state
-   void ResetError(int err_state = NO_ERROR_) { error = err_state; }
+   void ResetError(int err_state = No_Error) { error = err_state; }
 
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
