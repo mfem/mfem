@@ -224,20 +224,20 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  ShallowWaterElementFormIntegrator *shallowWaterElementFormIntegrator =
-      new ShallowWaterElementFormIntegrator(dim, g, IntOrderOffset);
+  ShallowWaterElementFormIntegrator shallowWaterElementFormIntegrator(
+      dim, g, IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  ShallowWaterFaceFormIntegrator *shallowWaterFaceFormIntegrator =
-      new ShallowWaterFaceFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
+  ShallowWaterFaceFormIntegrator shallowWaterFaceFormIntegrator(
+      numericalFlux, dim, g, IntOrderOffset);
   ParNonlinearForm nonlinForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws shallowWater(
-      &vfes, &nonlinForm, *shallowWaterElementFormIntegrator,
-      *shallowWaterFaceFormIntegrator, num_equations);
+      &vfes, nonlinForm, shallowWaterElementFormIntegrator,
+      shallowWaterFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;

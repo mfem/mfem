@@ -93,19 +93,10 @@ $(SUBDIRS_TPRINT):
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex34: $(SRC)ex34.hpp
-advection: $(SRC)hyperbolic_conservation_laws.hpp
-burgers: $(SRC)hyperbolic_conservation_laws.hpp
-shallow_water: $(SRC)hyperbolic_conservation_laws.hpp
-euler: $(SRC)hyperbolic_conservation_laws.hpp
 
 ifeq ($(MFEM_USE_MPI),YES)
 ex18p: $(SRC)ex18.hpp
 ex33p: $(SRC)ex33.hpp
-eulerp: $(SRC)hyperbolic_conservation_laws.hpp
-advectionp: $(SRC)hyperbolic_conservation_laws.hpp
-burgersp: $(SRC)hyperbolic_conservation_laws.hpp
-shallow_waterp: $(SRC)hyperbolic_conservation_laws.hpp
-eulerp: $(SRC)hyperbolic_conservation_laws.hpp
 endif
 
 MFEM_TESTS = EXAMPLES

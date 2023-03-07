@@ -15,11 +15,11 @@
 //               discontinuous Galerkin (DG) formulation.
 //
 //               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
+//               whereby a advection is transported by a uniform flow. Since all
 //               boundaries are periodic here, the method's accuracy can be
 //               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
-//               to its initial location.
+//               the initial condition at a later time when the advection
+//               returns to its initial location.
 //
 //               Note that as the order of the spatial discretization increases,
 //               the timestep must become smaller. This example currently uses a
@@ -199,7 +199,8 @@ int main(int argc, char *argv[]) {
   // Output the initial solution.
   {
     ostringstream mesh_name;
-    mesh_name << "vortex-mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+    mesh_name << "advection-mesh." << setfill('0') << setw(6)
+              << Mpi::WorldRank();
     ofstream mesh_ofs(mesh_name.str().c_str());
     mesh_ofs.precision(precision);
     mesh_ofs << pmesh;
@@ -207,7 +208,7 @@ int main(int argc, char *argv[]) {
     for (int k = 0; k < num_equations; k++) {
       ParGridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
       ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init." << setfill('0') << setw(6)
+      sol_name << "advection-" << k << "-init." << setfill('0') << setw(6)
                << Mpi::WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
@@ -217,20 +218,20 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  AdvectionElementFormIntegrator *advectionElementFormIntegrator =
-      new AdvectionElementFormIntegrator(dim, b, IntOrderOffset);
+  AdvectionElementFormIntegrator advectionElementFormIntegrator(dim, b,
+                                                                IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  AdvectionFaceFormIntegrator *advectionFaceFormIntegrator =
-      new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
+  AdvectionFaceFormIntegrator advectionFaceFormIntegrator(numericalFlux, dim, b,
+                                                          IntOrderOffset);
   ParNonlinearForm nonlinForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws advection(
-      &fes, &nonlinForm, *advectionElementFormIntegrator,
-      *advectionFaceFormIntegrator, num_equations);
+      &fes, nonlinForm, advectionElementFormIntegrator,
+      advectionFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
@@ -325,10 +326,10 @@ int main(int argc, char *argv[]) {
   }
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
-  //    "glvis -m vortex.mesh -g vortex-1-final.gf".
+  //    "glvis -m advection.mesh -g advection-1-final.gf".
   {
     ostringstream mesh_name;
-    mesh_name << "vortex-mesh-final." << setfill('0') << setw(6)
+    mesh_name << "advection-mesh-final." << setfill('0') << setw(6)
               << Mpi::WorldRank();
     ofstream mesh_ofs(mesh_name.str().c_str());
     mesh_ofs.precision(precision);
@@ -337,7 +338,7 @@ int main(int argc, char *argv[]) {
     for (int k = 0; k < num_equations; k++) {
       ParGridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
       ostringstream sol_name;
-      sol_name << "vortex-" << k << "-final." << setfill('0') << setw(6)
+      sol_name << "advection-" << k << "-final." << setfill('0') << setw(6)
                << Mpi::WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);

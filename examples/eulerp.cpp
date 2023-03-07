@@ -224,22 +224,20 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  EulerElementFormIntegrator *eulerElementFormIntegrator =
-      new EulerElementFormIntegrator(dim, specific_heat_ratio, gas_constant,
-                                     IntOrderOffset);
+  EulerElementFormIntegrator eulerElementFormIntegrator(
+      dim, specific_heat_ratio, gas_constant, IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  EulerFaceFormIntegrator *eulerFaceFormIntegrator =
-      new EulerFaceFormIntegrator(numericalFlux, dim, specific_heat_ratio,
-                                  gas_constant, IntOrderOffset);
+  EulerFaceFormIntegrator eulerFaceFormIntegrator(
+      numericalFlux, dim, specific_heat_ratio, gas_constant, IntOrderOffset);
   ParNonlinearForm nonlinForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws euler(&vfes, &nonlinForm,
-                                     *eulerElementFormIntegrator,
-                                     *eulerFaceFormIntegrator, num_equations);
+  DGHyperbolicConservationLaws euler(&vfes, nonlinForm,
+                                     eulerElementFormIntegrator,
+                                     eulerFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
