@@ -211,7 +211,7 @@ protected:
    Array<int> f_spaceOffsets;
    Array<int> p_spaceOffsets;
 
-   Table *el_dof, *bel_dof, *p_dof;
+   Table *el_dof, *bel_dof;
 
    Array<int> el_to_patch;
    Array<int> bel_to_patch;
@@ -415,31 +415,8 @@ public:
        @a elem, in the knot-span tensor product ordering for its patch. */
    void GetElementIJK(int elem, Array<int> & ijk);
 
-   /** Returns an array of tensor product degrees of freedom for patch index
-       @a patch. Only the 3D case is supported currently. */
-   const Array3D<int>& GetPatchDofs(const int patch);
-
-   /** Returns the number of 1D degrees of freedom in dimension @a dim for
-       patch index @a patch. */
-   int NumPatchDofs1D(const int patch, const int dim);
-
-private:
-
-   /// Tensor product degrees of freedom for each patch, 3D case.
-   std::vector<Array3D<int>> patchDofs;
-
-   /// Number of degrees of freedom in patch p, dimension d is ndof1D(p,d).
-   Array2D<int> ndof1D;
-
-   /** In patch p, dimension d, patch_ijk[p][d] is the set of knot span indices
-    representing elements. */
-   std::vector<std::vector<std::set<int>>> patch_ijk;
-
-   /// Sets up data returned by GetPatchDofs().
-   void GeneratePatchDofTable();
-
-   /// Implements GeneratePatchDofTable for the 3D case.
-   void Generate3DPatchDofTable();
+   // Returns an array of degrees of freedom for patch index
+   void GetPatchDofs(const int patch, Array<int> &dofs);
 };
 
 

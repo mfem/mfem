@@ -527,7 +527,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
       Q1D[d] = ir1d[d]->GetNPoints();
 
       orders[d] = pkv[d]->GetOrder();
-      D1D[d] = mesh->NURBSext->NumPatchDofs1D(patch,d);
+      D1D[d] = pkv[d]->GetNCP();
 
       Vector shapeKV(orders[d]+1);
       Vector dshapeKV(orders[d]+1);
@@ -1085,7 +1085,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
       Q1D[d] = ir1d[d]->GetNPoints();
 
       orders[d] = pkv[d]->GetOrder();
-      D1D[d] = mesh->NURBSext->NumPatchDofs1D(patch,d);
+      D1D[d] = pkv[d]->GetNCP();
 
       Vector shapeKV(orders[d]+1);
       Vector dshapeKV(orders[d]+1);

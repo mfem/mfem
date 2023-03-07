@@ -2770,118 +2770,53 @@ void NURBSExtension::Generate3DElementDofTable()
    el_dof = new Table(NumOfActiveElems, el_dof_list);
 }
 
-int NURBSExtension::NumPatchDofs1D(const int patch, const int dim)
+void NURBSExtension::GetPatchDofs(const int patch, Array<int> &dofs)
 {
-   if (ndof1D.NumRows() <= patch)
-   {
-      GeneratePatchDofTable();
-   }
-
-   return ndof1D(patch, dim);
-}
-
-const Array3D<int>& NURBSExtension::GetPatchDofs(const int patch)
-{
-   if ((int) patchDofs.size() <= patch)
-   {
-      GeneratePatchDofTable();
-   }
-
-   return patchDofs[patch];
-}
-
-void NURBSExtension::GeneratePatchDofTable()
-{
-   if (Dimension() == 3)
-   {
-      Generate3DPatchDofTable();
-   }
-   else
-   {
-      MFEM_ABORT("Only 3D supported currently in GeneratePatchDofTable");
-   }
-}
-
-void NURBSExtension::Generate3DPatchDofTable()
-{
-   int eg = 0;
    const KnotVector *kv[3];
    NURBSPatchMap p2g(this);
 
-   Array<Connection> p_dof_list;
+   p2g.SetPatchDofMap(patch, kv);
 
-   ndof1D.SetSize(GetNP(), 3);
-   patchDofs.resize(GetNP());
-   patch_ijk.resize(GetNP());
-
-   for (int p = 0; p < GetNP(); p++)
+   if (Dimension() == 1)
    {
-      p2g.SetPatchDofMap(p, kv);
+      const int nx = kv[0]->GetNCP();
+      dofs.SetSize(nx);
 
-      std::vector<std::set<int>> dofIndices(3);
-      patch_ijk[p].resize(3);
-
-      // Load dofs
-      const int ord0 = kv[0]->GetOrder();
-      const int ord1 = kv[1]->GetOrder();
-      const int ord2 = kv[2]->GetOrder();
-      for (int k = 0; k < kv[2]->GetNKS(); k++)
+      for (int i=0; i<nx; ++i)
       {
-         if (kv[2]->isElement(k))
+         dofs[i] = DofMap(p2g(i));
+      }
+   }
+   else if (Dimension() == 2)
+   {
+      const int nx = kv[0]->GetNCP();
+      const int ny = kv[1]->GetNCP();
+      dofs.SetSize(nx * ny);
+
+      for (int j=0; j<ny; ++j)
+         for (int i=0; i<nx; ++i)
          {
-            for (int j = 0; j < kv[1]->GetNKS(); j++)
-            {
-               if (kv[1]->isElement(j))
-               {
-                  for (int i = 0; i < kv[0]->GetNKS(); i++)
-                  {
-                     if (kv[0]->isElement(i))
-                     {
-                        if (activeElem[eg])
-                        {
-                           Connection conn(p,0);
-                           for (int kk = 0; kk <= ord2; kk++)
-                           {
-                              for (int jj = 0; jj <= ord1; jj++)
-                              {
-                                 for (int ii = 0; ii <= ord0; ii++)
-                                 {
-                                    conn.to = DofMap(p2g(i+ii, j+jj, k+kk));
-                                    p_dof_list.Append(conn);
-                                    dofIndices[0].insert(i+ii);
-                                    patch_ijk[p][0].insert(i);
-                                 }
-                                 dofIndices[1].insert(j+jj);
-                                 patch_ijk[p][1].insert(j);
-                              }
-                              dofIndices[2].insert(k+kk);
-                              patch_ijk[p][2].insert(k);
-                           }
-                        }
-                        eg++;
-                     }
-                  }
-               }
-            }
+            dofs[i + (nx * j)] = DofMap(p2g(i, j));
          }
-      }
+   }
+   else if (Dimension() == 3)
+   {
+      const int nx = kv[0]->GetNCP();
+      const int ny = kv[1]->GetNCP();
+      const int nz = kv[2]->GetNCP();
+      dofs.SetSize(nx * ny * nz);
 
-      for (int d=0; d<3; ++d)
-      {
-         ndof1D(p,d) = dofIndices[d].size();
-      }
-
-      patchDofs[p].SetSize(ndof1D(p,0), ndof1D(p,1), ndof1D(p,2));
-
-      for (auto k : dofIndices[2])
-         for (auto j : dofIndices[1])
-            for (auto i : dofIndices[0])
+      for (int k=0; k<nz; ++k)
+         for (int j=0; j<ny; ++j)
+            for (int i=0; i<nx; ++i)
             {
-               patchDofs[p](i,j,k) = DofMap(p2g(i, j, k));
+               dofs[i + (nx * (j + (k * ny)))] = DofMap(p2g(i, j, k));
             }
    }
-   // We must NOT sort p_dof_list in this case.
-   p_dof = new Table(GetNP(), p_dof_list);
+   else
+   {
+      MFEM_ABORT("Only 1D/2D/3D supported currently in NURBSExtension::GetPatchDofs");
+   }
 }
 
 void NURBSExtension::GenerateBdrElementDofTable()
