@@ -267,77 +267,108 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
    // Vector zero;
    // newton_solver.Mult(zero, x);
 
+   int i_method = 1;
    int do_control = 1;
    if (do_control) {
 
      SparseMatrix * K = op.GetK();
      SparseMatrix * F = op.GetF();
      SparseMatrix * H = op.GetH();
-
-     // cout << K->MaxNorm() << endl;
-     // cout << F->MaxNorm() << endl;
-     // cout << H->MaxNorm() << endl;
-     // if (true) {
-     //   return;
-     // }
      
      Vector * uv = op.get_uv();
      Vector * g = op.get_g();
 
-     // double weight = 1.0;
+     double weight = 1;
+     double delta = 1; // scaling for u
+     double mu = 1; // scaling for By
+     
      // (*uv) *= weight;
     
      GridFunction eq_res(&fespace);
      Vector reg_res(uv->Size());
      GridFunction opt_res(&fespace);
+     Vector other(uv->Size());
+     GridFunction other_y(&fespace);
+     
+     other = 0.0;
 
      GridFunction pv(&fespace);
      pv = 0.0;
 
-     Array<int> row_offsets(4);
-     Array<int> col_offsets(4);
-     row_offsets[0] = 0;
-     row_offsets[1] = pv.Size();
-     row_offsets[2] = row_offsets[1] + uv->Size();
-     row_offsets[3] = row_offsets[2] + pv.Size();
-     col_offsets[0] = 0;
-     col_offsets[1] = pv.Size();
-     col_offsets[2] = col_offsets[1] + uv->Size();
-     col_offsets[3] = col_offsets[2] + pv.Size();       
+     int n_off = 3;
+     if (i_method == 1) {
+       n_off += 1;
+     }
+     Array<int> row_offsets(n_off);
+     Array<int> col_offsets(n_off);
+     if (i_method == 1) {
+       row_offsets[0] = 0;
+       row_offsets[1] = pv.Size();
+       row_offsets[2] = row_offsets[1] + uv->Size();
+       row_offsets[3] = row_offsets[2] + pv.Size();
+       col_offsets[0] = 0;
+       col_offsets[1] = pv.Size();
+       col_offsets[2] = col_offsets[1] + uv->Size();
+       col_offsets[3] = col_offsets[2] + pv.Size();
+     } else {
+       row_offsets[0] = 0;
+       row_offsets[1] = pv.Size();
+       row_offsets[2] = row_offsets[1] + pv.Size();
+       col_offsets[0] = 0;
+       col_offsets[1] = pv.Size();
+       col_offsets[2] = col_offsets[1] + pv.Size();
+     }
 
      double error_old;
      double error;
      LinearForm solver_error(&fespace);
      for (int i = 0; i < max_newton_iter; ++i) {
 
-       // print out objective function and regularization
+       // if (i > 5) {
+       //   weight = 1e-2;
+       // }
+       // if (i > 7) {
+       //   weight = 1e-4;
+       // }
+       // if (i > 10) {
+       //   weight = 1e-6;
+       // }
+
        
+       // print out objective function and regularization
+
        SparseMatrix *By = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
+       // uv->Print();
+       // cout << By->MaxNorm() << endl;
+       // cout << K->MaxNorm() << endl;
+       // cout << F->MaxNorm() << endl;
+       // cout << H->MaxNorm() << endl;
+       // if (true) {
+       //   return;
+       // }
        // B(y^n) - F u^n
        op.Mult(x, eq_res);
 
-       double obj = 0;
-       for (int j = 0; j < alpha_coeffs->size(); ++j) {
-         double psi_val = 0;
-         Vector coeffs = (*alpha_coeffs)[j];
-         Array<int> inds = (*J_inds)[j];
-         for (int k = 0; k < coeffs.Size(); ++k) {
-           // cout << inds[k] << endl;
-           psi_val += x[inds[k]] * coeffs[k];
-         }
-         obj += (psi_val - 6.864813e-02) * (psi_val - 6.864813e-02);
-       }
+       // double obj = 0;
+       // for (int j = 0; j < alpha_coeffs->size(); ++j) {
+       //   double psi_val = 0;
+       //   Vector coeffs = (*alpha_coeffs)[j];
+       //   Array<int> inds = (*J_inds)[j];
+       //   for (int k = 0; k < coeffs.Size(); ++k) {
+       //     // cout << inds[k] << endl;
+       //     psi_val += x[inds[k]] * coeffs[k];
+       //   }
+       //   obj += (psi_val - 6.864813e-02) * (psi_val - 6.864813e-02);
+       // }
        // x^T K x - g^T x
        double true_obj = K->InnerProduct(x, x) - ((*g) * x) + N_control * (6.864813e-02) * (6.864813e-02);
-       double regularization = H->InnerProduct(*uv, *uv);
+       double regularization = weight * (H->InnerProduct(*uv, *uv));
        // printf("true obj: %.3e\n", true_obj);
 
        error = GetMaxError(eq_res);
        double max_opt_res = GetMaxError(opt_res);
        double max_reg_res = GetMaxError(reg_res);
-
-       
        
        if (i == 0) {
          // printf("i: %3d, nonl_res: %.3e, opt_res: %.3e, reg_res: %.3e, obj: %.3e, lst_sq: %.3e, reg: %.3e\n", i, error, max_opt_res, max_reg_res, true_obj+regularization, true_obj, regularization);
@@ -353,6 +384,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
        // H u^n - F^T p^n
        H->Mult(*uv, reg_res);
+       reg_res *= weight;
        F->AddMultTranspose(pv, reg_res, -1.0);
 
        // K y^n + B_y^T p^n - g
@@ -360,31 +392,69 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
        By->AddMultTranspose(pv, opt_res);
        add(opt_res, -1.0, *g, opt_res);
 
-       SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
+       SparseMatrix *FT = Transpose(*F);
+       // SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
+       SparseMatrix *mF(F);
+       *mF *= -1.0;
+
        SparseMatrix *mFT = Transpose(*mF);
+
+       SparseMatrix *scale_H = Add(weight / delta, *H, 0.0, *H);
+       SparseMatrix *scale_mF = Add(mu / delta, *mF, 0.0, *mF);
+       SparseMatrix *scale_By = Add(mu, *By, 0.0, *By);
+       
        SparseMatrix *ByT = Transpose(*By);
+
+       SparseMatrix *mFFT = Mult(*F, *mFT);
+       SparseMatrix *wmFFT = Add(1.0 / weight, *mFFT, 0.0, *mFFT);
+
 
        BlockMatrix *Mat;
        Mat = new BlockMatrix(row_offsets, col_offsets);
-       Mat->SetBlock(0, 0, By);
-       Mat->SetBlock(0, 1, mF);
-       Mat->SetBlock(1, 1, H);
-       Mat->SetBlock(1, 2, mFT);
-       Mat->SetBlock(2, 0, K);
-       Mat->SetBlock(2, 2, ByT);
-       SparseMatrix * MAT = Mat->CreateMonolithic();
-       
        BlockVector Vec(row_offsets);
+       if (i_method == 1) {
+         // Mat->SetBlock(0, 0, By);
+         Mat->SetBlock(0, 0, scale_By);
+         Mat->SetBlock(0, 1, scale_mF);
+         // Mat->SetBlock(0, 1, mF);
+         
+         Mat->SetBlock(1, 1, scale_H);
+         // Mat->SetBlock(1, 1, H);
+         Mat->SetBlock(1, 2, mFT);
+         
+         Mat->SetBlock(2, 0, K);
+         Mat->SetBlock(2, 2, ByT);
+         
+         Vec.GetBlock(0) = eq_res;
+         Vec.GetBlock(1) = reg_res;
+         Vec.GetBlock(2) = opt_res;
+         Vec.GetBlock(0) *= mu;
+         
+       } else {
+         Mat->SetBlock(0, 0, By);
+         Mat->SetBlock(0, 1, wmFFT);
+         Mat->SetBlock(1, 0, K);
+         Mat->SetBlock(1, 1, ByT);
+
+         other_y = 0.0;
+         F->AddMult(reg_res, other_y, 1.0 / weight);
+         add(eq_res, 1.0, other_y, other_y);
+         
+         Vec.GetBlock(0) = other_y;
+         Vec.GetBlock(1) = opt_res;
+       }
+       SparseMatrix * MAT = Mat->CreateMonolithic();
+
+       // MAT->PrintMatlab();
+       // if (true) {
+       //   return;
+       // }
        // option one
        // By->AddMult(x, eq_res, -1.0);
        // Vec.GetBlock(0) = 0.0;
        // add(Vec.GetBlock(0), -1.0, eq_res, Vec.GetBlock(0));
        // Vec.GetBlock(1) = 0.0;
        // Vec.GetBlock(2) = *g;
-
-       Vec.GetBlock(0) = eq_res;
-       Vec.GetBlock(1) = reg_res;
-       Vec.GetBlock(2) = opt_res;
 
        BlockVector dx(row_offsets);
        dx = 0.0;
@@ -395,12 +465,48 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
        int gmres_kdim = kdim;
        GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
 
+       Vector err_vec(Vec.Size());
+       MAT->Mult(dx, err_vec);
+       err_vec -= Vec;
+       // cout << err_vec.Max() << endl;
+       // cout << err_vec.Min() << endl;
+       
        double alpha = 1;
        add(dx, alpha-1.0, dx, dx);
+
+       if (i_method == 1) {
+         x -= dx.GetBlock(0);
+
+         // dx.GetBlock(1).Print();
+
+         dx.GetBlock(1) *= 1.0 / delta;
+         // dx.GetBlock(1).Print();
+         
+         *uv -= dx.GetBlock(1);
+         pv -= dx.GetBlock(2);
+       } else {
+         x -= dx.GetBlock(0);
+         pv -= dx.GetBlock(1);
+
+         other = 0.0;
+         FT->Mult(dx.GetBlock(1), other);
+         other -= reg_res;
+         other *= 1.0 / weight;
+         *uv += other;
+
+       }
+
        
-       x -= dx.GetBlock(0);
-       *uv -= dx.GetBlock(1);
-       pv -= dx.GetBlock(2);
+       // x.Print();
+       // uv->Print();
+         
+       
+       // cout << x(15) << endl;
+       // cout << (*uv)(3) << endl;
+       // cout << pv(18) << endl;
+       // if (true) {
+       //   return;
+       // }
 
        // dx = 0.0;
 

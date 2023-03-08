@@ -2,7 +2,13 @@
 
 # more coils
 # iter psi relations
-# 
+#
+
+# todo!
+# take a look at the tolerances, should probably be squared!
+# minres - useful for symmetric systems
+# block diag PC
+# more newton steps
 
 alpha=0.9
 beta=1.5
@@ -19,8 +25,8 @@ refinement_factor=2
 do_test=0
 do_manufactured_solution=0
 max_krylov_iter=1000
-max_newton_iter=12
-krylov_tol=1e-12
+max_newton_iter=30
+krylov_tol=1e-24 # check this...
 newton_tol=1e-12
 # center solenoids
 c6=4.552585e+06

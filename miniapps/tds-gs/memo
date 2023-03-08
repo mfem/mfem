@@ -1,0 +1,80 @@
+i:   0, nonl_res: 9.888e+06, ratio          , opt_res:          , reg_res:          , obj: 3.084e+13, lst_sq: 1.772e-01, reg: 3.084e+13
+total saddles found: 1
+total saddles found: 1
+i:   1, nonl_res: 2.432e+05, ratio 4.066e+01, opt_res: 5.510e-02, reg_res: 4.553e+06, obj: 9.774e+02, lst_sq: 9.774e+02, reg: 4.240e-12
+total saddles found: 0
+total saddles found: 0
+i:   2, nonl_res: 7.393e+04, ratio 3.290e+00, opt_res: 1.902e+01, reg_res: 1.703e-06, obj: 4.972e+04, lst_sq: 4.972e+04, reg: 1.283e-06
+total saddles found: 0
+total saddles found: 0
+i:   3, nonl_res: 4.918e+02, ratio 1.503e+02, opt_res: 1.678e+03, reg_res: 4.282e-14, obj: 5.921e+04, lst_sq: 5.921e+04, reg: 2.613e-06
+total saddles found: 0
+total saddles found: 0
+i:   4, nonl_res: 7.098e-01, ratio 6.929e+02, opt_res: 8.755e+02, reg_res: 3.541e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.733e-06
+total saddles found: 0
+total saddles found: 0
+i:   5, nonl_res: 1.103e-04, ratio 6.438e+03, opt_res: 3.364e+00, reg_res: 2.846e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+total saddles found: 0
+total saddles found: 0
+i:   6, nonl_res: 5.033e-07, ratio 2.190e+02, opt_res: 1.007e-03, reg_res: 2.694e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+total saddles found: 0
+total saddles found: 0
+i:   7, nonl_res: 6.426e-07, ratio 7.833e-01, opt_res: 3.140e-09, reg_res: 3.388e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+total saddles found: 0
+total saddles found: 0
+i:   8, nonl_res: 4.768e-07, ratio 1.348e+00, opt_res: 1.783e-11, reg_res: 1.618e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+total saddles found: 0
+total saddles found: 0
+i:   9, nonl_res: 5.879e-07, ratio 8.111e-01, opt_res: 1.323e-11, reg_res: 6.166e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+total saddles found: 0
+total saddles found: 0
+i:  10, nonl_res: 9.537e-07, ratio 6.165e-01, opt_res: 8.498e-12, reg_res: 3.270e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+total saddles found: 0
+total saddles found: 0
+i:  11, nonl_res: 5.879e-07, ratio 1.622e+00, opt_res: 1.235e-11, reg_res: 5.167e-19, obj: 5.955e+04, lst_sq: 5.955e+04, reg: 2.730e-06
+
+-10.7203
+9.1597e-08
+3.06771e-07
+
+-31.996
+-1.63425e-05
+0.000478447
+
+-10.7203
+9.1597e-08
+3.06771e-07
+
+
+-0.225219 -5.38427 -8.92326 -10.0003 -10.3921 -9.17713 -8.8501 -8.7153
+-7.59326 -3.71141 -1.82389 -2.46106 -5.17442 -8.81131 -10.4663 -10.7203
+
+
+
+1.38498 1.2553 -0.189568 -0.749789 -0.763456 0.333686 0.344572 0.132162
+-0.751775 0.915241 0.973284 0.761944 -0.132132 -2.18968 -3.27008 -3.37102
+
+1.38468 1.25396 -0.192105 -0.753254 -0.766858 0.330892 0.342685 0.130569
+-0.752769 0.914221 0.97276 0.761227 -0.133987 -2.19238 -3.27313 -3.37416
+
+
+
+
+1143.28 -24786.9 -30220.4 -22056.6 -2848.11 4.55258e+06 -3.1806e+06 1
+1 1 1
+i:   0, nonl_res: 9.888e+06, ratio          , opt_res:          , reg_res:          , obj: 3.084e+13, lst_sq: 1.772e-01, reg: 3.084e+13
+6.69968e-05 6.5378e-05 3.25412e-05 1.58776e-05 1.16521e-05 3.15718e-05 0.000116421 0.000209775
+0.000285775 0.000293737 0.0001657
+total saddles found: 0
+total saddles found: 0
+6.69968e-05 6.5378e-05 3.25412e-05 1.58776e-05 1.16521e-05 3.15718e-05 0.000116421 0.000209775
+0.000285775 0.000293737 0.0001657
+i:   1, nonl_res: 2.278e+05, ratio 4.341e+01, opt_res: 5.510e-02, reg_res: 4.553e+06, obj: 1.543e+04, lst_sq: 1.543e+04, reg: 2.642e-07
+-0.000112763 -0.000111518 -8.05609e-05 -5.8622e-05 -4.3397e-05 -0.000120215 -0.000464446 -0.000807431
+-0.000841973 -0.000502912 -0.000244757
+total saddles found: 0
+total saddles found: 0
+-0.000112763 -0.000111518 -8.05609e-05 -5.8622e-05 -4.3397e-05 -0.000120215 -0.000464446 -0.000807431
+-0.000841973 -0.000502912 -0.000244757
+i:   2, nonl_res: 6.240e+03, ratio 3.651e+01, opt_res: 5.810e+02, reg_res: 5.875e-04, obj: 5.630e+04, lst_sq: 5.630e+04, reg: 1.941e-06
+  C-c C-c^C
