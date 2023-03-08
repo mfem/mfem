@@ -359,6 +359,7 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
    Vector xE(x, offsets[0], offsets[1]-offsets[0]);
    Vector xF(x, offsets[1], offsets[2]-offsets[1]);
 
+   z.SetSize(bE.Size()); // Size of z may have changed in EliminateBC
    L_inv->Mult(xE_prime, z);
 
    basis_l2.Mult(z, xE);
