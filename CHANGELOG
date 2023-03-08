@@ -26,6 +26,9 @@ Version 4.5.2, released on February XX, 2023
 - When using discontinuous (L2) spaces, use local (element-wise) L2 projection
   as the coarsening operator for non-conforming AMR meshes.
 
+- Added support for GridFunction::GetGradients() and
+  GriFunction::GetVectorGradient() on face-neighbor elements.
+
 - Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
   hexahedral mesh about a plane.
 
@@ -101,9 +104,6 @@ Discretization improvements
 
 - Added a class CoefficientVector for efficient access of variable coefficient
   values at quadrature points (in particular for GPU/device kernels).
-
-- Added support for GridFunction::GetGradients() and
-  GriFunction::GetVectorGradient() on face-neighbor elements.
 
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
