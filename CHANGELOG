@@ -17,6 +17,9 @@ Version 4.5.2, released on February XX, 2023
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 
+- Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
+  domain boundary.
+
 - Added a fast normalization-based distance solver, see the Distance miniapp
   in the miniapps/shifted/ directory.
 
@@ -25,10 +28,6 @@ Version 4.5.2, released on February XX, 2023
 
 - Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
   hexahedral mesh about a plane.
-
-- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
-  formats using the corresponding DataCollection objects. See option 'D' in the
-  main menu.
 
 - Added support for pyramids in Gmsh meshes.
 
