@@ -617,8 +617,8 @@ int NURBSPatch::SetLoopDirection(int dir)
       {
          sd = Dim;
          nd = ni;
-
-         return Dim;
+         ls = Dim;
+         return ls;
       }
       else
       {
@@ -633,15 +633,15 @@ int NURBSPatch::SetLoopDirection(int dir)
       {
          sd = Dim;
          nd = ni;
-
-         return nj*Dim;
+         ls = nj*Dim;
+         return ls;
       }
       else if (dir == 1)
       {
          sd = ni*Dim;
          nd = nj;
-
-         return ni*Dim;
+         ls = ni*Dim;
+         return ls;
       }
       else
       {
@@ -656,22 +656,22 @@ int NURBSPatch::SetLoopDirection(int dir)
       {
          sd = Dim;
          nd = ni;
-
-         return nj*nk*Dim;
+         ls = nj*nk*Dim;
+         return ls;
       }
       else if (dir == 1)
       {
          sd = ni*Dim;
          nd = nj;
-
-         return ni*nk*Dim;
+         ls = ni*nk*Dim;
+         return ls;
       }
       else if (dir == 2)
       {
          sd = ni*nj*Dim;
          nd = nk;
-
-         return ni*nj*Dim;
+         ls = ni*nj*Dim;
+         return ls;
       }
       else
       {
@@ -778,14 +778,14 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
    {
       for (int ll = 0; ll < size; ll++)
       {
-         newp(k,ll) = oldp(k,ll);
+         newp.slice(k,ll) = oldp.slice(k,ll);
       }
    }
    for (int k = (b-1); k < ml; k++)
    {
       for (int ll = 0; ll < size; ll++)
       {
-         newp(k+rr+1,ll) = oldp(k,ll);
+         newp.slice(k+rr+1,ll) = oldp.slice(k,ll);
       }
    }
 
@@ -799,7 +799,7 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
          newkv[k] = oldkv[i];
          for (int ll = 0; ll < size; ll++)
          {
-            newp(k-pl-1,ll) = oldp(i-pl-1,ll);
+            newp.slice(k-pl-1,ll) = oldp.slice(i-pl-1,ll);
          }
 
          k--;
@@ -808,7 +808,7 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
 
       for (int ll = 0; ll < size; ll++)
       {
-         newp(k-pl-1,ll) = newp(k-pl,ll);
+         newp.slice(k-pl-1,ll) = newp.slice(k-pl,ll);
       }
 
       for (int l = 1; l <= pl; l++)
@@ -819,7 +819,7 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
          {
             for (int ll = 0; ll < size; ll++)
             {
-               newp(ind-1,ll) = newp(ind,ll);
+               newp.slice(ind-1,ll) = newp.slice(ind,ll);
             }
          }
          else
@@ -827,7 +827,7 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
             alfa = alfa/(newkv[k+l] - oldkv[i-pl+l]);
             for (int ll = 0; ll < size; ll++)
             {
-               newp(ind-1,ll) = alfa*newp(ind-1,ll) + (1.0-alfa)*newp(ind,ll);
+               newp.slice(ind-1,ll) = alfa*newp.slice(ind-1,ll) + (1.0-alfa)*newp.slice(ind,ll);
             }
          }
       }
@@ -931,7 +931,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
    ua = oldkv[0];
    for (l = 0; l < size; l++)
    {
-      newp(0,l) = oldp(0,l);
+      newp.slice(0,l) = oldp.slice(0,l);
    }
    for (i = 0; i <= ph; i++)
    {
@@ -942,7 +942,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
    {
       for (l = 0; l < size; l++)
       {
-         bpts(i,l) = oldp(i,l);
+         bpts(i,l) = oldp.slice(i,l);
       }
    }
 
@@ -1023,7 +1023,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
                   alf = (ub-newkv[i])/(ua-newkv[i]);
                   for (l = 0; l < size; l++)
                   {
-                     newp(i,l) = alf*newp(i,l)-(1.0-alf)*newp(i-1,l);
+                     newp.slice(i,l) = alf*newp.slice(i,l)-(1.0-alf)*newp.slice(i-1,l);
                   }
                }
                if (j >= lbz)
@@ -1065,7 +1065,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
       {
          for (l = 0; l < size; l++)
          {
-            newp(cind,l) =  ebpts(j,l);
+            newp.slice(cind,l) =  ebpts(j,l);
          }
          cind = cind +1;
       }
@@ -1081,7 +1081,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
          for (j = r; j <= p; j++)
             for (l = 0; l < size; l++)
             {
-               bpts(j,l) = oldp(b-p+j,l);
+               bpts(j,l) = oldp.slice(b-p+j,l);
             }
 
          a = b;
@@ -1108,7 +1108,7 @@ void NURBSPatch::FlipDirection(int dir)
    for (int id = 0; id < nd/2; id++)
       for (int i = 0; i < size; i++)
       {
-         Swap<double>((*this)(id,i), (*this)(nd-1-id,i));
+         Swap<double>((*this).slice(id,i), (*this).slice(nd-1-id,i));
       }
    kv[dir]->Flip();
 }
@@ -1132,7 +1132,7 @@ void NURBSPatch::SwapDirections(int dir1, int dir2)
    for (int id = 0; id < nd; id++)
       for (int i = 0; i < size; i++)
       {
-         (*newpatch)(id,i) = (*this)(id,i);
+         (*newpatch).slice(id,i) = (*this).slice(id,i);
       }
 
    swap(newpatch);
@@ -2477,8 +2477,8 @@ void NURBSExtension::GenerateOffsets()
 
       if (dim == 1)
       {
-         meshCounter  += KnotVec(e)->GetNE() - 1;
-         spaceCounter += KnotVec(e)->GetNCP() - 2;
+         meshCounter  += KnotVec(0)->GetNE() - 1;
+         spaceCounter += KnotVec(0)->GetNCP() - 2;
       }
       else if (dim == 2)
       {
@@ -3448,9 +3448,9 @@ void NURBSExtension::Get1DPatchNets(const Vector &coords, int vdim)
          const int l = DofMap(p2g(i));
          for (int d = 0; d < vdim; d++)
          {
-            Patch(i,d) = coords(l*vdim + d)*weights(l);
+           // IDO 1D  Patch(i,d) = coords(l*vdim + d)*weights(l);
          }
-         Patch(i,vdim) = weights(l);
+        // IDO 1D Patch(i,vdim) = weights(l);
       }
    }
 
@@ -3546,9 +3546,9 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
          const int l = p2g(i);
          for (int d = 0; d < vdim; d++)
          {
-            coords(l*vdim + d) = Patch(i,d)/Patch(i,vdim);
+         // IDO 1D    coords(l*vdim + d) = Patch(i,d)/Patch(i,vdim);
          }
-         weights(l) = Patch(i,vdim);
+        // IDO 1D  weights(l) = Patch(i,vdim);
       }
 
       delete patches[p];

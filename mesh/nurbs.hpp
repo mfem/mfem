@@ -95,14 +95,16 @@ protected:
 
    Array<KnotVector *> kv;
 
-   int sd, nd;
+   int sd, nd, ls;
 
    void swap(NURBSPatch *np);
 
    // Special B-NET access functions
    int SetLoopDirection(int dir);
-   inline       double &operator()(int i, int j);
-   inline const double &operator()(int i, int j) const;
+   inline       double &slice(int i, int j);
+   inline const double &slice(int i, int j) const;
+
+
 
    void init(int dim_);
 
@@ -138,6 +140,9 @@ public:
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
+   inline       double &operator()(int i, int j);
+   inline const double &operator()(int i, int j) const;
+
    inline       double &operator()(int i, int j, int l);
    inline const double &operator()(int i, int j, int l) const;
 
@@ -491,14 +496,41 @@ public:
 
 // Inline function implementations
 
-inline double &NURBSPatch::operator()(int i, int j)
+inline double &NURBSPatch::slice(int i, int j)
 {
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j) const
+inline const double &NURBSPatch::slice(int i, int j) const
 {
    return data[j%sd + sd*(i + (j/sd)*nd)];
+}
+
+
+inline double &NURBSPatch::operator()(int i, int l)
+{
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= ni || nj > 0 || nk > 0 ||
+       l < 0 || l >= Dim)
+   {
+      mfem_error("NURBSPatch::operator() 1D");
+   }
+#endif
+
+   return data[i*Dim+l];
+}
+
+inline const double &NURBSPatch::operator()(int i, int l) const
+{
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= ni ||  nj > 0 || nk > 0 ||
+       l < 0 || l >= Dim)
+   {
+      mfem_error("NURBSPatch::operator() const 1D");
+   }
+#endif
+
+   return data[i*Dim+l];
 }
 
 inline double &NURBSPatch::operator()(int i, int j, int l)
