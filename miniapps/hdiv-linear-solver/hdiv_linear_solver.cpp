@@ -129,7 +129,19 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
    if (mode == Mode::DARCY && !zero_l2_block)
    {
       ParBilinearForm mass_l2_unweighted(&fes_l2);
-      mass_l2_unweighted.AddDomainIntegrator(new MassIntegrator);
+      QuadratureFunction det_J_qf(qs);
+      QuadratureFunctionCoefficient det_J_coeff(det_J_qf);
+      if (convert_map_type)
+      {
+         const auto flags = GeometricFactors::DETERMINANTS;
+         auto *geom = fes_l2.GetMesh()->GetGeometricFactors(qs.GetIntRule(0), flags);
+         det_J_qf = geom->detJ;
+         mass_l2_unweighted.AddDomainIntegrator(new MassIntegrator(det_J_coeff));
+      }
+      else
+      {
+         mass_l2_unweighted.AddDomainIntegrator(new MassIntegrator);
+      }
       mass_l2_unweighted.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       mass_l2_unweighted.Assemble();
       const int n_l2 = fes_l2.GetTrueVSize();
