@@ -2111,7 +2111,7 @@ void NURBSExtension::GenerateActiveVertices()
       p2g.SetPatchVertexMap(p, kv);
 
       nx = p2g.nx();
-      ny = p2g.ny();
+      ny = (dim >= 2) ? p2g.ny() : 1;
       nz = (dim == 3) ? p2g.nz() : 1;
 
       for (int k = 0; k < nz; k++)
@@ -2122,7 +2122,13 @@ void NURBSExtension::GenerateActiveVertices()
             {
                if (activeElem[g_el])
                {
-                  if (dim == 2)
+                  if (dim == 1)
+                  {
+                     vert[0] = p2g(i  );
+                     vert[1] = p2g(i+1);
+                     nv = 2;
+                  }
+                  else if (dim == 2)
                   {
                      vert[0] = p2g(i,  j  );
                      vert[1] = p2g(i+1,j  );
@@ -2237,6 +2243,8 @@ void NURBSExtension::MergeGridFunctions(
 
 void NURBSExtension::CheckPatches()
 {
+   if (Dimension() == 1 ) return;
+
    Array<int> edges;
    Array<int> oedge;
 
@@ -2314,15 +2322,20 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
    Array<int> edges, orient;
 
    kv.SetSize(Dimension());
-   patchTopo->GetElementEdges(p, edges, orient);
 
-   if (Dimension() == 2)
+   if (Dimension() == 1)
    {
+      kv[0] = KnotVec(p);
+   }
+   else if (Dimension() == 2)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[1]);
    }
    else
    {
+      patchTopo->GetElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[3]);
       kv[2] = KnotVec(edges[8]);
@@ -2335,15 +2348,19 @@ const
    Array<int> edges, orient;
 
    kv.SetSize(Dimension());
-   patchTopo->GetElementEdges(p, edges, orient);
-
-   if (Dimension() == 2)
+   if (Dimension() == 1)
    {
+      kv[0] = KnotVec(p);
+   }
+   else if (Dimension() == 2)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[1]);
    }
    else
    {
+      patchTopo->GetElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[3]);
       kv[2] = KnotVec(edges[8]);
@@ -2356,14 +2373,15 @@ void NURBSExtension::GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv)
    Array<int> orient;
 
    kv.SetSize(Dimension() - 1);
-   patchTopo->GetBdrElementEdges(p, edges, orient);
 
    if (Dimension() == 2)
    {
+      patchTopo->GetBdrElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
    }
-   else
+   else if (Dimension() == 3)
    {
+      patchTopo->GetBdrElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[1]);
    }
@@ -2376,14 +2394,15 @@ void NURBSExtension::GetBdrPatchKnotVectors(
    Array<int> orient;
 
    kv.SetSize(Dimension() - 1);
-   patchTopo->GetBdrElementEdges(p, edges, orient);
 
    if (Dimension() == 2)
    {
+      patchTopo->GetBdrElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
    }
-   else
+   else if (Dimension() == 3)
    {
+      patchTopo->GetBdrElementEdges(p, edges, orient);
       kv[0] = KnotVec(edges[0]);
       kv[1] = KnotVec(edges[1]);
    }
@@ -2473,7 +2492,7 @@ void NURBSExtension::GenerateOffsets()
       p_meshOffsets[p]  = meshCounter;
       p_spaceOffsets[p] = spaceCounter;
 
-      patchTopo->GetElementEdges(p, edges, orient);
+
 
       if (dim == 1)
       {
@@ -2482,6 +2501,7 @@ void NURBSExtension::GenerateOffsets()
       }
       else if (dim == 2)
       {
+         patchTopo->GetElementEdges(p, edges, orient);
          meshCounter +=
             (KnotVec(edges[0])->GetNE() - 1) *
             (KnotVec(edges[1])->GetNE() - 1);
@@ -2491,6 +2511,7 @@ void NURBSExtension::GenerateOffsets()
       }
       else
       {
+         patchTopo->GetElementEdges(p, edges, orient);
          meshCounter +=
             (KnotVec(edges[0])->GetNE() - 1) *
             (KnotVec(edges[3])->GetNE() - 1) *
@@ -2535,8 +2556,8 @@ void NURBSExtension::CountBdrElements()
    {
       GetBdrPatchKnotVectors(p, kv);
 
-      int ne = kv[0]->GetNE();
-      for (int d = 1; d < dim; d++)
+      int ne = 1;
+      for (int d = 0; d < dim; d++)
       {
          ne *= kv[d]->GetNE();
       }
@@ -4018,14 +4039,20 @@ void ParNURBSExtension::BuildGroups(const int *partitioning_,
 void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
 {
    Ext->patchTopo->GetElementVertices(p, verts);
-   Ext->patchTopo->GetElementEdges(p, edges, oedge);
-   if (Ext->Dimension() == 2)
+
+   if (Ext->Dimension() == 1)
    {
+      kv[0] = Ext->KnotVec(p);
+   }
+   else if (Ext->Dimension() == 2)
+   {
+      Ext->patchTopo->GetElementEdges(p, edges, oedge);
       kv[0] = Ext->KnotVec(edges[0]);
       kv[1] = Ext->KnotVec(edges[1]);
    }
-   else
+   else if (Ext->Dimension() == 3)
    {
+      Ext->patchTopo->GetElementEdges(p, edges, oedge);
       Ext->patchTopo->GetElementFaces(p, faces, oface);
 
       kv[0] = Ext->KnotVec(edges[0]);
@@ -4040,17 +4067,25 @@ void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
 {
    Ext->patchTopo->GetBdrElementVertices(p, verts);
    Ext->patchTopo->GetBdrElementEdges(p, edges, oedge);
-   kv[0] = Ext->KnotVec(edges[0], oedge[0], &okv[0]);
-   if (Ext->Dimension() == 3)
+
+   if (Ext->Dimension() == 1)
+   {
+
+   }
+   else if (Ext->Dimension() == 2)
+   {
+      kv[0] = Ext->KnotVec(edges[0], oedge[0], &okv[0]);
+      opatch = oedge[0];
+   }
+   else if (Ext->Dimension() == 3)
    {
       faces.SetSize(1);
       Ext->patchTopo->GetBdrElementFace(p, &faces[0], &opatch);
+
+      kv[0] = Ext->KnotVec(edges[0], oedge[0], &okv[0]);
       kv[1] = Ext->KnotVec(edges[1], oedge[1], &okv[1]);
    }
-   else
-   {
-      opatch = oedge[0];
-   }
+
 }
 
 void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
