@@ -15,10 +15,10 @@
 //               discontinuous Galerkin (DG) formulation.
 //
 //               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
+//               whereby a euler is transported by a uniform flow. Since all
 //               boundaries are periodic here, the method's accuracy can be
 //               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
+//               the initial condition at a later time when the euler returns
 //               to its initial location.
 //
 //               Note that as the order of the spatial discretization increases,
@@ -177,13 +177,13 @@ int main(int argc, char *argv[]) {
 
   // Output the initial solution.
   {
-    ofstream mesh_ofs("vortex.mesh");
+    ofstream mesh_ofs("euler.mesh");
     mesh_ofs.precision(precision);
     mesh_ofs << mesh;
     for (int k = 0; k < num_equations; k++) {
       GridFunction uk(&fes, sol.GetData() + fes.GetNDofs() * k);
       ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init.gf";
+      sol_name << "euler-" << k << "-init.gf";
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
@@ -192,20 +192,22 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  EulerElementFormIntegrator eulerElementFormIntegrator(
-      dim, specific_heat_ratio, gas_constant, IntOrderOffset);
+  EulerElementFormIntegrator *eulerElementFormIntegrator =
+      new EulerElementFormIntegrator(dim, specific_heat_ratio, gas_constant,
+                                     IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  EulerFaceFormIntegrator eulerFaceFormIntegrator(
-      numericalFlux, dim, specific_heat_ratio, gas_constant, IntOrderOffset);
+  EulerFaceFormIntegrator *eulerFaceFormIntegrator =
+      new EulerFaceFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                  gas_constant, IntOrderOffset);
   NonlinearForm nonlinForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws euler(&vfes, nonlinForm,
-                                     eulerElementFormIntegrator,
-                                     eulerFaceFormIntegrator, num_equations);
+                                     *eulerElementFormIntegrator,
+                                     *eulerFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
@@ -281,11 +283,11 @@ int main(int argc, char *argv[]) {
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
-  //    "glvis -m vortex.mesh -g vortex-1-final.gf".
+  //    "glvis -m euler.mesh -g euler-1-final.gf".
   for (int k = 0; k < num_equations; k++) {
     GridFunction uk(&fes, sol.GetData() + fes.GetNDofs());
     ostringstream sol_name;
-    sol_name << "vortex-" << k << "-final.gf";
+    sol_name << "euler-" << k << "-final.gf";
     ofstream sol_ofs(sol_name.str().c_str());
     sol_ofs.precision(precision);
     sol_ofs << uk;
@@ -346,7 +348,7 @@ SpatialFunction EulerInitialCondition(const int problem,
         MFEM_ASSERT(x.Size() == 2, "");
 
         double radius = 0, Minf = 0, beta = 0;
-        // "Fast vortex"
+        // "Fast euler"
         radius = 0.2;
         Minf = 0.5;
         beta = 1. / 5.;
@@ -395,7 +397,7 @@ SpatialFunction EulerInitialCondition(const int problem,
         MFEM_ASSERT(x.Size() == 2, "");
 
         double radius = 0, Minf = 0, beta = 0;
-        // "Slow vortex"
+        // "Slow euler"
         radius = 0.2;
         Minf = 0.05;
         beta = 1. / 50.;

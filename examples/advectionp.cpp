@@ -218,20 +218,20 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  AdvectionElementFormIntegrator advectionElementFormIntegrator(dim, b,
-                                                                IntOrderOffset);
+  AdvectionElementFormIntegrator *advectionElementFormIntegrator =
+      new AdvectionElementFormIntegrator(dim, b, IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  AdvectionFaceFormIntegrator advectionFaceFormIntegrator(numericalFlux, dim, b,
-                                                          IntOrderOffset);
+  AdvectionFaceFormIntegrator *advectionFaceFormIntegrator =
+      new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
   ParNonlinearForm nonlinForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws advection(
-      &fes, nonlinForm, advectionElementFormIntegrator,
-      advectionFaceFormIntegrator, num_equations);
+      &fes, nonlinForm, *advectionElementFormIntegrator,
+      *advectionFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;

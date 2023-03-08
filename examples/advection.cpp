@@ -10,33 +10,18 @@
 //       advection -p 2 -r 1 -o 1 -s 3
 //       advection -p 2 -r 0 -o 3 -s 3
 //
-// Description:  This example code solves the compressible Advection system of
-//               equations, a model nonlinear hyperbolic PDE, with a
-//               discontinuous Galerkin (DG) formulation.
+// Description:  This example code solves the advection equation uₜ + ∇⋅(bu) = 0
+//               with a discontinuous Galerkin (DG) formulation and explicit
+//               time stepping methods.
 //
-//               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
-//               boundaries are periodic here, the method's accuracy can be
-//               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
-//               to its initial location.
+//               The semi-discrete formulation is given by
+//               (uₜ, v) - (bu, ∇v) + <(b⋅n){{u}} + ½|b|[[u]], [[v]]> = 0.
+//               It uses CFL condition to derive time step size,
+//               dt = CFL * hmin / |b| / (2*pmax + 1)
+//               where hmin is the minimum element size, and pmax is the maximum
+//               polynomial order.
 //
-//               Note that as the order of the spatial discretization increases,
-//               the timestep must become smaller. This example currently uses a
-//               simple estimate derived by Cockburn and Shu for the 1D RKDG
-//               method. An additional factor can be tuned by passing the --cfl
-//               (or -c shorter) flag.
-//
-//               The example demonstrates user-defined bilinear and nonlinear
-//               form integrators for systems of equations that are defined with
-//               block vectors, and how these are used with an operator for
-//               explicit time integrators. In this case the system also
-//               involves an external approximate Riemann solver for the DG
-//               interface flux. It also demonstrates how to use GLVis for
-//               in-situ visualization of vector grid functions.
-//
-//               We recommend viewing examples 9, 14 and 17 before viewing this
-//               example.
+//               This example demonstrates that the
 
 #include <fstream>
 #include <iostream>
@@ -170,13 +155,13 @@ int main(int argc, char *argv[]) {
 
   // Output the initial solution.
   {
-    ofstream mesh_ofs("vortex.mesh");
+    ofstream mesh_ofs("advection.mesh");
     mesh_ofs.precision(precision);
     mesh_ofs << mesh;
     for (int k = 0; k < num_equations; k++) {
       GridFunction uk(&fes, sol.GetData() + fes.GetNDofs() * k);
       ostringstream sol_name;
-      sol_name << "vortex-" << k << "-init.gf";
+      sol_name << "advection-" << k << "-init.gf";
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
@@ -185,20 +170,20 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  AdvectionElementFormIntegrator advectionElementFormIntegrator(dim, b,
-                                                                IntOrderOffset);
+  AdvectionElementFormIntegrator *advectionElementFormIntegrator =
+      new AdvectionElementFormIntegrator(dim, b, IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  AdvectionFaceFormIntegrator advectionFaceFormIntegrator(numericalFlux, dim, b,
-                                                          IntOrderOffset);
+  AdvectionFaceFormIntegrator *advectionFaceFormIntegrator =
+      new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
   NonlinearForm nonlinForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws advection(
-      &fes, nonlinForm, advectionElementFormIntegrator,
-      advectionFaceFormIntegrator, num_equations);
+      &fes, nonlinForm, *advectionElementFormIntegrator,
+      *advectionFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
@@ -272,11 +257,11 @@ int main(int argc, char *argv[]) {
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
-  //    "glvis -m vortex.mesh -g vortex-1-final.gf".
+  //    "glvis -m advection.mesh -g advection-1-final.gf".
   for (int k = 0; k < num_equations; k++) {
     GridFunction uk(&fes, sol.GetData() + fes.GetNDofs());
     ostringstream sol_name;
-    sol_name << "vortex-" << k << "-final.gf";
+    sol_name << "advection-" << k << "-final.gf";
     ofstream sol_ofs(sol_name.str().c_str());
     sol_ofs.precision(precision);
     sol_ofs << uk;

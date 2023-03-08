@@ -16,10 +16,10 @@
 //               discontinuous Galerkin (DG) formulation.
 //
 //               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
+//               whereby a shallow_water is transported by a uniform flow. Since all
 //               boundaries are periodic here, the method's accuracy can be
 //               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
+//               the initial condition at a later time when the shallow_water returns
 //               to its initial location.
 //
 //               Note that as the order of the spatial discretization increases,
@@ -224,20 +224,20 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  ShallowWaterElementFormIntegrator shallowWaterElementFormIntegrator(
-      dim, g, IntOrderOffset);
+  ShallowWaterElementFormIntegrator *shallowWaterElementFormIntegrator =
+      new ShallowWaterElementFormIntegrator(dim, g, IntOrderOffset);
 
   NumericalFlux *numericalFlux = new RusanovFlux();
-  ShallowWaterFaceFormIntegrator shallowWaterFaceFormIntegrator(
-      numericalFlux, dim, g, IntOrderOffset);
+  ShallowWaterFaceFormIntegrator *shallowWaterFaceFormIntegrator =
+      new ShallowWaterFaceFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
   ParNonlinearForm nonlinForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws shallowWater(
-      &vfes, nonlinForm, shallowWaterElementFormIntegrator,
-      shallowWaterFaceFormIntegrator, num_equations);
+      &vfes, nonlinForm, *shallowWaterElementFormIntegrator,
+      *shallowWaterFaceFormIntegrator, num_equations);
 
   // Visualize the density
   socketstream sout;
@@ -334,7 +334,7 @@ int main(int argc, char *argv[]) {
   }
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
-  //    "glvis -m vortex.mesh -g vortex-1-final.gf".
+  //    "glvis -m shallow_water.mesh -g shallow_water-1-final.gf".
   {
     ostringstream mesh_name;
     mesh_name << "shallow-water-mesh-final." << setfill('0') << setw(6)
