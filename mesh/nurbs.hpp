@@ -238,6 +238,7 @@ protected:
    // periodic BC helper functions
    void InitDofMap();
    void ConnectBoundaries();
+   void ConnectBoundaries1D(int bnd0, int bnd1);
    void ConnectBoundaries2D(int bnd0, int bnd1);
    void ConnectBoundaries3D(int bnd0, int bnd1);
    int DofMap(int dof) const
@@ -253,13 +254,14 @@ protected:
    void CountBdrElements();
 
    // generate the mesh elements
+   void Get1DElementTopo(Array<Element *> &elements) const;
    void Get2DElementTopo(Array<Element *> &elements) const;
    void Get3DElementTopo(Array<Element *> &elements) const;
 
    // generate the boundary mesh elements
+   void Get1DBdrElementTopo(Array<Element *> &boundary) const;
    void Get2DBdrElementTopo(Array<Element *> &boundary) const;
    void Get3DBdrElementTopo(Array<Element *> &boundary) const;
-
 
    // FE space generation functions
 
@@ -269,6 +271,7 @@ protected:
 
    // generate elem_to_global-dof table for the active elements
    // define el_to_patch, el_to_IJK, activeDof (as bool)
+   void Generate1DElementDofTable();
    void Generate2DElementDofTable();
    void Generate3DElementDofTable();
 
@@ -277,17 +280,20 @@ protected:
 
    // generate the bdr-elem_to_global-dof table for the active bdr. elements
    // define bel_to_patch, bel_to_IJK
+   void Generate1DBdrElementDofTable();
    void Generate2DBdrElementDofTable();
    void Generate3DBdrElementDofTable();
 
    // FE --> Patch translation functions
    void GetPatchNets  (const Vector &Nodes, int vdim);
+   void Get1DPatchNets(const Vector &Nodes, int vdim);
    void Get2DPatchNets(const Vector &Nodes, int vdim);
    void Get3DPatchNets(const Vector &Nodes, int vdim);
 
    // Patch --> FE translation functions
    // Side effects: delete the patches, update the weights from the patches
    void SetSolutionVector  (Vector &Nodes, int vdim);
+   void Set1DSolutionVector(Vector &Nodes, int vdim);
    void Set2DSolutionVector(Vector &Nodes, int vdim);
    void Set3DSolutionVector(Vector &Nodes, int vdim);
 
