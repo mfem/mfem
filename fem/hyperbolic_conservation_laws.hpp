@@ -318,7 +318,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Face integration form. Should contain ComputeFluxDotN and Riemann Solver
   HyperbolicFaceFormIntegrator &faceFormIntegrator;
   // Base Nonlinear Form
-  NonlinearForm &nonlinearForm;
+  NonlinearForm *nonlinearForm;
   // element-wise inverse mass matrix
   std::vector<DenseMatrix> Me_inv;
   // global maximum characteristic speed. Updated by form integrators
@@ -341,7 +341,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
    * @param num_equations_ the number of equations
    */
   DGHyperbolicConservationLaws(
-      FiniteElementSpace *vfes_, NonlinearForm &nonlinForm_,
+      FiniteElementSpace *vfes_, NonlinearForm *nonlinForm_,
       HyperbolicElementFormIntegrator &elementFormIntegrator_,
       HyperbolicFaceFormIntegrator &faceFormIntegrator_,
       const int num_equations_);
@@ -367,7 +367,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-    FiniteElementSpace *vfes_, NonlinearForm &nonlinearForm_,
+    FiniteElementSpace *vfes_, NonlinearForm *nonlinearForm_,
     HyperbolicElementFormIntegrator &elementFormIntegrator_,
     HyperbolicFaceFormIntegrator &faceFormIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_->GetNDofs() * num_equations_),
@@ -384,8 +384,8 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
   elementFormIntegrator.setMaxCharSpeed(max_char_speed);
   faceFormIntegrator.setMaxCharSpeed(max_char_speed);
 
-  nonlinearForm.AddDomainIntegrator(&elementFormIntegrator);
-  nonlinearForm.AddInteriorFaceIntegrator(&faceFormIntegrator);
+  nonlinearForm->AddDomainIntegrator(&elementFormIntegrator);
+  nonlinearForm->AddInteriorFaceIntegrator(&faceFormIntegrator);
 
   height = z.Size();
   width = z.Size();
@@ -407,11 +407,11 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
 }
 
 void DGHyperbolicConservationLaws::Update() {
-  nonlinearForm.Update();
+  nonlinearForm->Update();
   ComputeInvMass();
 
-  width = nonlinearForm.Width();
-  height = nonlinearForm.Height();
+  width = nonlinearForm->Width();
+  height = nonlinearForm->Height();
   z.SetSize(height);
 }
 
@@ -419,7 +419,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 0. Reset wavespeed computation before operator application.
   max_char_speed = 0.;
   // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
-  nonlinearForm.Mult(x, z);
+  nonlinearForm->Mult(x, z);
 
   // 2. Multiply element-wise by the inverse mass matrices.
   Vector zval;             // local dual vector storage
