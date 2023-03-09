@@ -1868,12 +1868,12 @@ void NURBSExtension::ConnectBoundaries()
 
 void NURBSExtension::ConnectBoundaries1D(int bnd0, int bnd1)
 {
-   int idx0 = -1, idx1 = -1;
+ /*  int idx0 = -1, idx1 = -1;
    for (int b = 0; b < GetNBP(); b++)
    {
       if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
       if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
-   }
+   }*/
 
    mfem_error("NURBSExtension::ConnectBoundaries1D not implemented");
    /*   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
@@ -2749,8 +2749,6 @@ void NURBSExtension::Get1DBdrElementTopo(Array<Element *> &boundary) const
    for (int b = 0; b < GetNBP(); b++)
    {
       p2g.SetBdrPatchVertexMap(b, kv, okv);
-      int nx = p2g.nx();
-
       int bdr_patch_attr = patchTopo->GetBdrAttribute(b);
 
       if (activeBdrElem[g_be])
@@ -3066,7 +3064,6 @@ void NURBSExtension::Generate1DBdrElementDofTable()
    for (int b = 0; b < GetNBP(); b++)
    {
       p2g.SetBdrPatchDofMap(b, kv, okv);
-      const int nx = p2g.nx(); // NCP-1
       // Load dofs
       if (activeBdrElem[gbe])
       {
