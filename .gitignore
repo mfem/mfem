@@ -110,6 +110,20 @@ examples/ex28_*
 examples/ex28p_*
 examples/flux.*
 
+examples/advection-*
+examples/advection
+examples/advectionp
+examples/burgers-*
+examples/burgers
+examples/burgersp
+examples/shallow-water-*
+examples/shallow_water
+examples/shallow_waterp
+examples/euler-*
+examples/euler
+examples/eulerp
+examples/*.mesh
+
 examples/amgx/ex1
 examples/amgx/ex1p
 examples/amgx/.logamgx
