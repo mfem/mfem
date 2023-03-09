@@ -7,34 +7,34 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "nodepair.hpp"
+//#include "nodepair.hpp"
 
 using namespace std;
 using namespace mfem;
 
 Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref)
 {
-  ElementTransformation *trans = mesh.GetElementTransformation(elem);
-  const int dim = mesh.Dimension();
-  const int spaceDim = trans->GetSpaceDim();
+   ElementTransformation *trans = mesh.GetElementTransformation(elem);
+   const int dim = mesh.Dimension();
+   const int spaceDim = trans->GetSpaceDim();
 
-  MFEM_VERIFY(spaceDim == 3, "");
+   MFEM_VERIFY(spaceDim == 3, "");
 
-  Vector n(spaceDim);
+   Vector n(spaceDim);
 
-  IntegrationPoint ip;
-  ip.Set(ref, dim);
+   IntegrationPoint ip;
+   ip.Set(ref, dim);
 
-  trans->SetIntPoint(&ip);
-  //CalcOrtho(trans->Jacobian(), n);  // Works only for face transformations
-  const DenseMatrix jac = trans->Jacobian();
+   trans->SetIntPoint(&ip);
+   //CalcOrtho(trans->Jacobian(), n);  // Works only for face transformations
+   const DenseMatrix jac = trans->Jacobian();
 
-  int dimNormal = -1;
-  int normalSide = -1;
+   int dimNormal = -1;
+   int normalSide = -1;
 
-  const double tol = 1.0e-8;
-  for (int i=0; i<dim; ++i)
-    {
+   const double tol = 1.0e-8;
+   for (int i=0; i<dim; ++i)
+   {
       const double d0 = std::abs(ref[i]);
       const double d1 = std::abs(ref[i] - 1.0);
 
@@ -42,40 +42,44 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref)
       // TODO: this works only for hexahedral meshes!
 
       if (d < tol)
-	{
-	  MFEM_VERIFY(dimNormal == -1, "");
-	  dimNormal = i;
-
-	  if (d0 < tol)
-	    normalSide = 0;
-	  else
-	    normalSide = 1;
-	}
-    }
-
-  MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
-
-  MFEM_VERIFY(dim == 3, "");
-
-  std::vector<Vector> tang(2);
-
-  int tangDir[2] = {-1, -1};
-  {
-    int t = 0;
-    for (int i=0; i<dim; ++i)
       {
-	if (i != dimNormal)
-	  {
-	    tangDir[t] = i;
-	    t++;
-	  }
+         MFEM_VERIFY(dimNormal == -1, "");
+         dimNormal = i;
+
+         if (d0 < tol)
+         {
+            normalSide = 0;
+         }
+         else
+         {
+            normalSide = 1;
+         }
+      }
+   }
+
+   MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
+
+   MFEM_VERIFY(dim == 3, "");
+
+   std::vector<Vector> tang(2);
+
+   int tangDir[2] = {-1, -1};
+   {
+      int t = 0;
+      for (int i=0; i<dim; ++i)
+      {
+         if (i != dimNormal)
+         {
+            tangDir[t] = i;
+            t++;
+         }
       }
 
-    MFEM_VERIFY(t == 2, "");
-  }
+      MFEM_VERIFY(t == 2, "");
+   }
 
-  for (int i=0; i<2; ++i)
-    {
+   for (int i=0; i<2; ++i)
+   {
       tang[i].SetSize(3);
 
       Vector tangRef(3);
@@ -83,33 +87,35 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref)
       tangRef[tangDir[i]] = 1.0;
 
       jac.Mult(tangRef, tang[i]);
-    }
+   }
 
-  Vector c(3);  // Cross product
+   Vector c(3);  // Cross product
 
-  c[0] = (tang[0][1] * tang[1][2]) - (tang[0][2] * tang[1][1]);
-  c[1] = (tang[0][2] * tang[1][0]) - (tang[0][0] * tang[1][2]);
-  c[2] = (tang[0][0] * tang[1][1]) - (tang[0][1] * tang[1][0]);
+   c[0] = (tang[0][1] * tang[1][2]) - (tang[0][2] * tang[1][1]);
+   c[1] = (tang[0][2] * tang[1][0]) - (tang[0][0] * tang[1][2]);
+   c[2] = (tang[0][0] * tang[1][1]) - (tang[0][1] * tang[1][0]);
 
-  c /= c.Norml2();
+   c /= c.Norml2();
 
-  Vector nref(3);
-  nref = 0.0;
-  nref[dimNormal] = 1.0;
+   Vector nref(3);
+   nref = 0.0;
+   nref[dimNormal] = 1.0;
 
-  Vector ndir(3);
-  jac.Mult(nref, ndir);
+   Vector ndir(3);
+   jac.Mult(nref, ndir);
 
-  ndir /= ndir.Norml2();
-  
-  const double dp = ndir * c;
+   ndir /= ndir.Norml2();
 
-  // TODO: eliminate c?
-  n = c;
-  if (dp < 0.0)
-    n *= -1.0;
-  
-  return n;
+   const double dp = ndir * c;
+
+   // TODO: eliminate c?
+   n = c;
+   if (dp < 0.0)
+   {
+      n *= -1.0;
+   }
+
+   return n;
 }
 
 // Coordinates in xyz are assumed to be ordered as [X, Y, Z]
@@ -150,46 +156,63 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
 
    bool allfound = true;
    for (auto code : codes)
-     if (code == 2) allfound = false;
+      if (code == 2) { allfound = false; }
 
    MFEM_VERIFY(allfound, "A point was not found");
 
    cout << "Maximum distance of projected points: " << dist.Max() << endl;
 
    for (int i=0; i<np; ++i)
-     {
-       cout << "Point " << i << ": (";
-       for (int j=0; j<dim; ++j)
-	 {
-	   cout << xyz[i + (j*np)];
-	   if (j == dim-1)
-	     cout << ")" << endl;
-	   else
-	     cout << ", ";
-	 }
+   {
+      cout << "Point " << i << ": (";
+      for (int j=0; j<dim; ++j)
+      {
+         cout << xyz[i + (j*np)];
+         if (j == dim-1)
+         {
+            cout << ")" << endl;
+         }
+         else
+         {
+            cout << ", ";
+         }
+      }
 
-       cout << "  element: " << elems[i] << endl;
-       cout << "  element " << elems[i] << " vertices:" << endl;
-       Array<int> vert;
-       mesh.GetElementVertices(elems[i], vert);
-       for (auto v : vert)
-	 cout << "    " << v << endl;
+      cout << "  element: " << elems[i] << endl;
+      cout << "  element " << elems[i] << " vertices:" << endl;
+      Array<int> vert;
+      mesh.GetElementVertices(elems[i], vert);
+      for (auto v : vert)
+      {
+         cout << "    " << v << endl;
+      }
 
-       cout << "  reference coordinates: (";
-       for (int j=0; j<dim; ++j)
-	 {
-	   cout << refcrd[(i*dim) + j];
-	   if (j == dim-1)
-	     cout << ")" << endl;
-	   else
-	     cout << ", ";
-	 }
+      cout << "  reference coordinates: (";
+      for (int j=0; j<dim; ++j)
+      {
+         cout << refcrd[(i*dim) + j];
+         if (j == dim-1)
+         {
+            cout << ")" << endl;
+         }
+         else
+         {
+            cout << ", ";
+         }
+      }
 
-       Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim));
-       cout << "  normal vector: ";
-       normal.Print();
-       cout << endl;
-     }
+      Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim));
+      cout << "  normal vector: ";
+      normal.Print();
+
+      IntegrationPoint ip;
+      ip.Set(refcrd.GetData() + (i*dim), dim);
+      ElementTransformation *trans = mesh.GetElementTransformation(elems[i]);
+      Vector phys(trans->GetSpaceDim());
+      trans->Transform(ip, phys);
+      cout << "  physical coordinates: ";
+      phys.Print();
+   }
 }
 
 int main(int argc, char *argv[])
@@ -224,22 +247,26 @@ int main(int argc, char *argv[])
    attr.Sort();
    cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
    for (auto a : attr)
-     cout << a << endl;
+   {
+      cout << a << endl;
+   }
 
    Array<int> bdryFaces2;  // TODO: remove this?
 
    std::set<int> bdryVerts2;
    for (int b=0; b<mesh2.GetNBE(); ++b)
-     {
-       if (attr.FindSorted(mesh2.GetBdrAttribute(b)) >= 0)
-	 {
-	   bdryFaces2.Append(b);
-	   Array<int> vert;
-	   mesh2.GetBdrElementVertices(b, vert);
-	   for (auto v : vert)
-	     bdryVerts2.insert(v);
-	 }
-     }
+   {
+      if (attr.FindSorted(mesh2.GetBdrAttribute(b)) >= 0)
+      {
+         bdryFaces2.Append(b);
+         Array<int> vert;
+         mesh2.GetBdrElementVertices(b, vert);
+         for (auto v : vert)
+         {
+            bdryVerts2.insert(v);
+         }
+      }
+   }
 
    int npoints = bdryVerts2.size();
    Vector xyz(dim * npoints);
@@ -249,33 +276,22 @@ int main(int argc, char *argv[])
 
    int count = 0;
    for (auto v : bdryVerts2)
-     {
-       cout << v << ": " << mesh2.GetVertex(v)[0] << ", "
-	    << mesh2.GetVertex(v)[1] << ", "
-	    << mesh2.GetVertex(v)[2] << endl;
+   {
+      cout << v << ": " << mesh2.GetVertex(v)[0] << ", "
+           << mesh2.GetVertex(v)[1] << ", "
+           << mesh2.GetVertex(v)[2] << endl;
 
-       for (int i=0; i<dim; ++i)
-	 xyz[count + (i * npoints)] = mesh2.GetVertex(v)[i];
+      for (int i=0; i<dim; ++i)
+      {
+         xyz[count + (i * npoints)] = mesh2.GetVertex(v)[i];
+      }
 
-       count++;
-     }
+      count++;
+   }
 
    MFEM_VERIFY(count == npoints, "");
 
    FindPointsInMesh(mesh1, xyz);
 
-   Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim));
-
-   cout << "  normal vector: ";
-   normal.Print();
-   cout << endl;
-   IntegrationPoint ip;
-   ip.Set(refcrd.GetData() + (i*dim), dim);
-   ElementTransformation *trans = mesh.GetElementTransformation(elems[i]);
-   Vector phys(trans->GetSpaceDim());
-   trans->Transform(ip, phys);
-   cout << "  physical coordinates: ";
-   phys.Print();
-   cout << endl;
    return 0;
 }
