@@ -230,7 +230,7 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   ShallowWaterFaceFormIntegrator *shallowWaterFaceFormIntegrator =
       new ShallowWaterFaceFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
-  ParNonlinearForm nonlinForm(&vfes);
+  ParNonlinearForm *nonlinForm = new ParNonlinearForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time

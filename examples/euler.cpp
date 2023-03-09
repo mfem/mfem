@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
   EulerFaceFormIntegrator *eulerFaceFormIntegrator =
       new EulerFaceFormIntegrator(numericalFlux, dim, specific_heat_ratio,
                                   gas_constant, IntOrderOffset);
-  NonlinearForm nonlinForm(&vfes);
+  NonlinearForm *nonlinForm = new NonlinearForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time

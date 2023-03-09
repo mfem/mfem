@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   BurgersFaceFormIntegrator *burgersFaceFormIntegrator =
       new BurgersFaceFormIntegrator(numericalFlux, dim, IntOrderOffset);
-  ParNonlinearForm nonlinForm(&fes);
+  ParNonlinearForm *nonlinForm = new ParNonlinearForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time

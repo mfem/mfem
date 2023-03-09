@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   AdvectionFaceFormIntegrator *advectionFaceFormIntegrator =
       new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
-  NonlinearForm nonlinForm(&fes);
+  NonlinearForm *nonlinForm = new NonlinearForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
