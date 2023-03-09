@@ -12,7 +12,7 @@
 #ifndef MFEM_ODE
 #define MFEM_ODE
 
-#include "config/config.hpp"
+#include "../config/config.hpp"
 #include "operator.hpp"
 #include "general/communication.hpp"
 
