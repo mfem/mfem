@@ -842,7 +842,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
             alfa = alfa/(newkv[k+l] - oldkv[i-pl+l]);
             for (int ll = 0; ll < size; ll++)
             {
-               newp.slice(ind-1,ll) = alfa*newp.slice(ind-1,ll) + (1.0-alfa)*newp.slice(ind,ll);
+               newp.slice(ind-1,ll) = alfa*newp.slice(ind-1,ll) + (1.0-alfa)*newp.slice(ind,
+                                                                                        ll);
             }
          }
       }
@@ -2258,7 +2259,7 @@ void NURBSExtension::MergeGridFunctions(
 
 void NURBSExtension::CheckPatches()
 {
-   if (Dimension() == 1 ) return;
+   if (Dimension() == 1 ) { return; }
 
    Array<int> edges;
    Array<int> oedge;
