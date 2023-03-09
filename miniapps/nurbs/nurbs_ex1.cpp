@@ -10,6 +10,7 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+//               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -131,6 +132,7 @@ int main(int argc, char *argv[])
    Array<int> slave(0);
    bool static_cond = false;
    bool visualization = 1;
+   int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
    double kappa = -1;
@@ -165,6 +167,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&lod, "-lod", "--level-of-detail",
+                  "Refinement level for 1D solution output (0 means no output).");
    args.Parse();
    if (!args.Good())
    {
@@ -399,6 +403,34 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
+   }
+
+   if (mesh->Dimension() == 1 && lod > 0)
+   {
+      ofstream sol2_ofs("solution.dat");
+      sol2_ofs.precision(8);
+      double dx = 1.0/mesh->GetNE();
+      Vector      vals,coords;
+      GridFunction *nodes = mesh->GetNodes();
+      if (!nodes)
+      {
+         nodes = new GridFunction(fespace);
+         mesh->GetNodes(*nodes);
+      }
+
+      for (int i = 0; i <  mesh->GetNE(); i++)
+      {
+         int geom       = mesh->GetElementBaseGeometry(i);
+         RefinedGeometry *refined_geo = GlobGeometryRefiner.Refine(( Geometry::Type)geom, lod, 1);
+
+         x.GetValues(i, refined_geo->RefPts, vals);
+         nodes->GetValues(i, refined_geo->RefPts, coords);
+
+         for (int j = 0; j < vals.Size(); j++)
+         {
+            sol2_ofs<<coords[j]<<" "<<vals[j]<<endl;
+         }
+      }
    }
 
    // 14. Save data in the VisIt format
