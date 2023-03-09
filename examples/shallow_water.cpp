@@ -200,13 +200,13 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   ShallowWaterFaceFormIntegrator *shallowWaterFaceFormIntegrator = new ShallowWaterFaceFormIntegrator(
       numericalFlux, dim, g, IntOrderOffset);
-  NonlinearForm *nonlinForm = new NonlinearForm(&vfes);
+  NonlinearForm nonlinearForm(&vfes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws shallowWater(
-      &vfes, nonlinForm, *shallowWaterElementFormIntegrator,
+      &vfes, nonlinearForm, *shallowWaterElementFormIntegrator,
       *shallowWaterFaceFormIntegrator, num_equations);
 
   // Visualize the density

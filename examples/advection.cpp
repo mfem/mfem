@@ -176,13 +176,13 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   AdvectionFaceFormIntegrator *advectionFaceFormIntegrator =
       new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
-  NonlinearForm *nonlinForm = new NonlinearForm(&fes);
+  NonlinearForm nonlinearForm(&fes);
 
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
   DGHyperbolicConservationLaws advection(
-      &fes, nonlinForm, *advectionElementFormIntegrator,
+      &fes, nonlinearForm, *advectionElementFormIntegrator,
       *advectionFaceFormIntegrator, num_equations);
 
   // Visualize the density
