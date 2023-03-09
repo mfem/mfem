@@ -33,8 +33,7 @@ public:
 
    float GetMaxWavespeed(const Vector &x);
 
-   void GetDensityBounds(GridFunction &solution, int dim, double gamma, int num_equation,
-                         Vector &avgs, Vector &d_min, Vector &d_max);
+   void GetDensityBounds(GridFunction &solution, Vector &avgs, Vector &d_min, Vector &d_max);
    void ApplyLimiter(GridFunction &solution, int dim, double gamma, int num_equation,
                      Vector &avgs, Vector &d_min, Vector &d_max);
 
@@ -569,93 +568,30 @@ bool StateIsPhysical(const Vector &state, const int dim)
    return true;
 }
 
-void EulerSystem::GetDensityBounds(GridFunction &solution, int dim, double gamma, int num_equation,
-                                   Vector &avgs, Vector &d_min, Vector &d_max) {
-
-   Vector dofs = Vector();
-   // Gridfunction ordered by [rho_0, rho_1, ..., rhou[0], rhou[1], ...]
-   solution.GetTrueDofs(dofs);
-
-   int nelems = solution.FESpace()->GetMesh()->GetNE();
-
-   // Constant order elements only
-   int p = solution.FESpace()->GetElementOrder(0);
-   int elem_ndofs = (p+1)*(p+1);
-
-   Vector sol_l = Vector(num_equation);
-   Vector sol_r = Vector(num_equation);
-   Vector f_intl = Vector(dim);
-   Vector f_intr = Vector(dim);
-
-   // Tolerance and minimum value for density bounds
-   double tol = pow(10, -6.0);
+void EulerSystem::GetDensityBounds(GridFunction &solution, Vector &avgs, Vector &d_min, Vector &d_max) {
 
    // Get element neighbor map
    Table etable = solution.FESpace()->GetMesh()->ElementToElementTable();
+   int nelems = solution.FESpace()->GetMesh()->GetNE();
+   double tol = pow(10, -6.0);
 
    for (int i = 0; i < nelems; i++) {
       d_min(i) = std::numeric_limits<double>::max();
       d_max(i) = 0.0;
 
-      // Compute min/max density within element
-      for (int j = 0; j < elem_ndofs; j++) {
-         d_min(i) = min(d_min(i), dofs(i*elem_ndofs + j));
-         d_max(i) = max(d_max(i), dofs(i*elem_ndofs + j));
-      }
-
-      // Get average solution within element
-      for (int j = 0; j < num_equation; j++) {
-         sol_l(j) = avgs(i + j*nelems);
-      }
-
-      // Get average density flux within element
-      for (int j = 0; j < dim; j++) {
-         f_intl(j) = sol_l(1 + j);
-      }
-
-      // Get element center and average max wavespeed
-      double lam_l = ComputeMaxCharSpeed(sol_l, dim, specific_heat_ratio, num_equation);
-
       // Get and loop through face-adjacent elements
       Array<int> adj_elems;
       etable.GetRow(i, adj_elems);
       for (int k : adj_elems) {
-         // Get neighbor element average solution and density flux
-         for (int j = 0; j < num_equation; j++) {
-            sol_r(j) = avgs(k + j*nelems);
-         }
-         for (int j = 0; j < dim; j++) {
-            f_intr(j) = sol_r(1 + j);
-         }
-
-         // Get max wavespeed for the Riemann problem between the two states (using Davis estimate)
-         double lam_r = ComputeMaxCharSpeed(sol_r, dim, specific_heat_ratio, num_equation);
-         double lam_max = max(lam_l, lam_r);
-
-         // Compute Riemann-averaged density over the Riemann fan
-         double dfdotn = 0.0;
-         for (int j = 0; j < dim; j++) {
-            dfdotn += (f_intr(j) - f_intl(j))*(f_intr(j) - f_intl(j));
-         }
-         dfdotn = sqrt(dfdotn);
-
-         double d_bar = 0.5*(sol_l(0) + sol_r(0)) - 0.5*dfdotn/lam_max;
-
-         // Update density bounds
-         d_min(i) = min(d_min(i), d_bar);
-         d_max(i) = max(d_max(i), d_bar);
-
-         d_bar = 0.5*(sol_l(0) + sol_r(0)) + 0.5*dfdotn/lam_max;
-
-         // Update density bounds
-         d_min(i) = min(d_min(i), d_bar);
-         d_max(i) = max(d_max(i), d_bar);
+         // Compute minima/maxima over neighbor element average density
+         d_min(i) = min(d_min(i), avgs(k));
+         d_max(i) = max(d_max(i), avgs(k));
       }
 
-   // Add tolerances and minimum bounds
-   d_min(i) -= tol;
-   d_max(i) += tol;
-   d_min(i) = max(d_min(i), tol);
+      // Add tolerances and minimum bounds
+      d_min(i) -= tol;
+      d_max(i) += tol;
+      d_min(i) = max(d_min(i), tol);
    }
 }
 
