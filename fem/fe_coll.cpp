@@ -3446,6 +3446,7 @@ NURBSFECollection::NURBSFECollection(int Order)
    : FiniteElementCollection((Order == VariableOrder) ? 1 : Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
+   PointFE          = new PointFiniteElement();
    SegmentFE        = new NURBS1DFiniteElement(order);
    QuadrilateralFE  = new NURBS2DFiniteElement(order);
    ParallelepipedFE = new NURBS3DFiniteElement(order);
@@ -3468,9 +3469,10 @@ void NURBSFECollection::SetOrder(int Order) const
 
 NURBSFECollection::~NURBSFECollection()
 {
-   delete ParallelepipedFE;
-   delete QuadrilateralFE;
+   delete PointFE;
    delete SegmentFE;
+   delete QuadrilateralFE;
+   delete ParallelepipedFE;
 }
 
 const FiniteElement *
@@ -3478,6 +3480,7 @@ NURBSFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
+      case Geometry::POINT:       return PointFE;
       case Geometry::SEGMENT:     return SegmentFE;
       case Geometry::SQUARE:      return QuadrilateralFE;
       case Geometry::CUBE:        return ParallelepipedFE;
