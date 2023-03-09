@@ -421,7 +421,8 @@ int main(int argc, char *argv[])
       for (int i = 0; i <  mesh->GetNE(); i++)
       {
          int geom       = mesh->GetElementBaseGeometry(i);
-         RefinedGeometry *refined_geo = GlobGeometryRefiner.Refine(( Geometry::Type)geom, lod, 1);
+         RefinedGeometry *refined_geo = GlobGeometryRefiner.Refine(( Geometry::Type)geom,
+                                                                   lod, 1);
 
          x.GetValues(i, refined_geo->RefPts, vals);
          nodes->GetValues(i, refined_geo->RefPts, coords);
