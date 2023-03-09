@@ -21,6 +21,9 @@ CMakeFiles/
 # Default install location
 /mfem/
 
+# Typical build directory
+/build/
+
 # Generated files in main directory, config/ and docs/
 /deps.mk
 config/_config.hpp

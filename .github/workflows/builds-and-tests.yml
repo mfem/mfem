@@ -74,6 +74,10 @@ jobs:
             codecov: YES
           - os: windows-latest
             codecov: NO
+          - os: windows-latest
+            target: opt
+            mpi: par
+            config-opts: '-DBUILD_SHARED_LIBS=ON'
           - os: ubuntu-latest
             target: opt
             codecov: NO
