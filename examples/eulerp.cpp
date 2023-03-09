@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
   // 8. Define the time-dependent evolution operator describing the ODE
   //    right-hand side, and perform time-integration (looping over the time
   //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws euler(&vfes, nonlinForm,
+  DGHyperbolicConservationLaws euler(&vfes, nonlinearForm,
                                      *eulerElementFormIntegrator,
                                      *eulerFaceFormIntegrator, num_equations);
 
