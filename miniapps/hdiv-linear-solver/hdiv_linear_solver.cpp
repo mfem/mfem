@@ -273,7 +273,7 @@ void HdivSaddlePointSolver::Setup()
 void HdivSaddlePointSolver::EliminateBC(Vector &b) const
 {
    const int n_ess_dofs = ess_rt_dofs.Size();
-   if (n_ess_dofs == 0) { return; }
+   if (fes_l2.GetParMesh()->ReduceInt(n_ess_dofs) == 0) { return; }
 
    const int n_l2 = offsets[1];
    const int n_rt = offsets[2]-offsets[1];
