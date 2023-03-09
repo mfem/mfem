@@ -281,7 +281,7 @@ void HdivSaddlePointSolver::EliminateBC(Vector &b) const
    Vector bF(b, n_l2, n_rt);
 
    // SetBC must be called first
-   MFEM_VERIFY(x_bc.Size() == n_rt, "BCs not set");
+   MFEM_VERIFY(x_bc.Size() == n_rt || n_ess_dofs == 0, "BCs not set");
 
    // Create a vector z that has the BC values at essential DOFs, zero elsewhere
    z.SetSize(n_rt);
