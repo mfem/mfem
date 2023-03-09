@@ -78,7 +78,7 @@ class HyperbolicElementFormIntegrator : public NonlinearFormIntegrator {
  private:
   const int num_equations;  // the number of equations
   // The maximum characterstic speed, updated during element vector assembly
-  double *max_char_speed;
+  double max_char_speed;
   const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
   Vector shape;              // shape function value at an integration point
   Vector state;              // state value at an integration point
@@ -150,8 +150,12 @@ class HyperbolicElementFormIntegrator : public NonlinearFormIntegrator {
    * @param max_char_speed_ maximum characteristic speed (its pointer will be
    * used)
    */
-  void setMaxCharSpeed(double &max_char_speed_) {
-    max_char_speed = &max_char_speed_;
+  inline void setMaxCharSpeed(double max_char_speed_) {
+    max_char_speed = max_char_speed_;
+  }
+
+  inline double getMaxCharSpeed(){
+    return max_char_speed;
   }
 
   /**
@@ -190,7 +194,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
  private:
   const int num_equations;  // the number of equations
   // The maximum characterstic speed, updated during face vector assembly
-  double *max_char_speed;
+  double max_char_speed;
   const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
   NumericalFlux *rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
   Vector shape1;  // shape function value at an integration point - first elem
@@ -232,6 +236,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
                                const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
+        max_char_speed(0.0),
         IntOrderOffset(IntOrderOffset_),
         rsolver(rsolver_),
         state1(num_equations_),
@@ -253,7 +258,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
                                const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
-        max_char_speed(),
+        max_char_speed(0.0),
         IntOrderOffset(0),
         rsolver(rsolver_),
         state1(num_equations_),
@@ -284,8 +289,12 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
    * @param max_char_speed_ maximum characteristic speed (its pointer will be
    * used)
    */
-  void setMaxCharSpeed(double &max_char_speed_) {
-    max_char_speed = &max_char_speed_;
+  inline void setMaxCharSpeed(double max_char_speed_) {
+    max_char_speed = max_char_speed_;
+  }
+
+  inline double getMaxCharSpeed(){
+    return max_char_speed;
   }
 
   /**
@@ -417,9 +426,12 @@ void DGHyperbolicConservationLaws::Update() {
 
 void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   // 0. Reset wavespeed computation before operator application.
-  max_char_speed = 0.;
+  elementFormIntegrator.setMaxCharSpeed(0.0);
+  faceFormIntegrator.setMaxCharSpeed(0.0);
   // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
   nonlinearForm->Mult(x, z);
+  max_char_speed = max(elementFormIntegrator.getMaxCharSpeed(), faceFormIntegrator.getMaxCharSpeed());
+  
 
   // 2. Multiply element-wise by the inverse mass matrices.
   Vector zval;             // local dual vector storage
@@ -475,7 +487,7 @@ void HyperbolicElementFormIntegrator::AssembleElementVector(
     // compute F(u,x) and point maximum characteristic speed
     const double mcs = ComputeFlux(state, Tr, flux);
     // update maximum characteristic speed
-    *max_char_speed = mcs > *max_char_speed ? mcs : *max_char_speed;
+    max_char_speed = mcs > max_char_speed ? mcs : max_char_speed;
     // integrate (F(u,x), grad v)
     AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
   }
@@ -539,7 +551,7 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
     rsolver->Eval(state1, state2, fluxN1, fluxN2, mcs, nor, fluxN);
 
     // Update the global max char speed
-    *max_char_speed = mcs > *max_char_speed ? mcs : *max_char_speed;
+    max_char_speed = mcs > max_char_speed ? mcs : max_char_speed;
 
     // pre-multiply integration weight to flux
     fluxN *= ip.weight;
