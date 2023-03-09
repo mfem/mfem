@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
-#include "general/communication.hpp"
+#include "../general/communication.hpp"
 
 namespace mfem
 {
