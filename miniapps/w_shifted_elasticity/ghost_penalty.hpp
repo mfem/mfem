@@ -23,12 +23,11 @@
 using namespace std;
 using namespace mfem;
 
-/// BilinearFormIntegrator for the high-order extension of shifted boundary
-/// method.
-/// A(u, w) = -<2*mu*epsilon(u) n, w>
-///           -<(p*I) n, w>
-///           -<u, sigma(w,q) n> // transpose of the above two terms
-///           +<alpha h^{-1} u , w >
+/// Ghost Penalty
+/// A(u,v) = \sum_{1}^{nTerms} (penPar/i!) h^{2*i-1) < [[ sigma(u),(i-1) ]], [[sigma(v),(i-1)]] >
+/// where [[sigma_{0}]] = sigma_{ij} n_tilda_{j} 
+///       [[sigma_{1}]] = sigma_{ij,k} n_tilda_{k}
+///       ....
 
 namespace mfem
 {

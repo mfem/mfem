@@ -1,7 +1,7 @@
 // Sample run:  
 // mpirun -np 1 ./ex_Linear_Elasticity_WSBM -m ./square01_tri.mesh -poissonsRatio 0.3 -youngsModulus 200 -emb -gS 1 -rs 2 -tO 2 -do 2 -gPenCoef 1.0 -nST 2 -mumps -level-set
-//              -bulkModCoef is the flag for setting the bulk modulus.
-//              -shearModCoef is the flag for setting the shear modulus. 
+//              -poissonsRatio is the flag for setting Poisson's ratio.
+//              -youngsModulus is the flag for setting Young's modulus. 
 //              -emb is the flag, when added, for activating the embedded data structure of the code.
 //              -gS is the flag for setting the type of geometry for the level set to use.
 //              -do is the flag for setting the polynomial order for the displacement.
@@ -44,13 +44,10 @@ int main(int argc, char *argv[])
   Hypre::Init();
      
    // 1. Parse command line options
-  //  const char *mesh_file = "./mesh_1.exo";
-  //  const char *mesh_file = "./square01_tri.mesh";
   const char *mesh_file = "./square01_quad.mesh";
 
   int displacementOrder = 1;
   int ser_ref_levels = 0;
-  //  const char *device_config = "cpu";
   double poissonsRatio = 0.3;
   double youngsModulus = 200.0; // in MPA
   bool visualization = false;
@@ -110,43 +107,33 @@ int main(int argc, char *argv[])
        args.PrintOptions(cout);
      }
 
+   // 2. Calculate the shear and bulk moduli from Poisson's ratio and Young's modulus 
    double shearModCoefficient = youngsModulus/(2.0*(1.0+poissonsRatio));
    double bulkModCoefficient = youngsModulus*poissonsRatio/((1.0+poissonsRatio)*(1.0-2.0*poissonsRatio)) + (2.0/3.0)*shearModCoefficient;
  
-   // 2. Read the mesh from the given mesh file, and refine once uniformly.
+   // 3. Read the mesh from the given mesh file, and refine uniformly.
    Mesh *mesh;
    mesh = new Mesh(mesh_file, 1, 1);
-   //  std::cout << " elem " << mesh->GetNE() << std::endl;
    for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); }
-   //   std::cout << " myid  " << myid << " elem " << mesh->GetNE() << std::endl;
- 
    int dim = mesh->Dimension();
-
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   // std::cout << " myid  " << myid << " elem " << pmesh->GetNE() << std::endl;
- 
-   MPI_Comm comm = pmesh->GetComm();
-   int i = 1;
-   int i_sum = 0.0;
    
-   //   pmesh->ExchangeFaceNbrNodes();
-   //   mesh->Clear();
-   // 5. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 4. Define the coefficients, analytical solution, and rhs of the PDE.
    VectorFunctionCoefficient fcoeff(dim, fFun);
    VectorFunctionCoefficient ucoeff(dim, uFun_ex);
    ShiftedMatrixFunctionCoefficient traction_shifted(dim, traction_ex);
-
    VectorFunctionCoefficient fcoeff3D(dim, fFun3D);
    VectorFunctionCoefficient ucoeff3D(dim, uFun_ex3D);
    ShiftedMatrixFunctionCoefficient traction_shifted3D(dim, traction_ex3D);
    MatrixFunctionCoefficient traction_3D(dim, traction_ex3D);
-   MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh->GetComm());     
-   if (myid == 0){
-     std::cout << " before calling linear elastic solve " << i_sum << std::endl;
-   }       
+   
+   // 5. Create the Linear Elasticity solver
    mfem::LinearElasticitySolver* ssolv=new mfem::LinearElasticitySolver(pmesh, displacementOrder, useEmbedded, geometricShape, nTerms, numberStrainTerms, ghostPenaltyCoefficient, mumps_solver, useAnalyticalShape, visualization);
+   
+   // 6. Set material coefficients, boundary conditions, shifted boundary condition and exact solution
    ssolv->AddMaterial(shearModCoefficient,bulkModCoefficient);
+ 
    if ( problemType == 1){
      ssolv->SetVolForce(fcoeff);
      ssolv->AddDisplacementBC(1,ucoeff);
@@ -167,6 +154,7 @@ int main(int argc, char *argv[])
      ssolv->AddShiftedNormalStressBC(traction_shifted3D);
      ssolv->SetExactDisplacementSolution(ucoeff3D);
    }
+   // 7. Set Newton solver parameters, solve, compute L2 error and visualize fields    
    ssolv->SetNewtonSolver(1.0e-14,0.0,100000,1);
    ssolv->FSolve();
    ssolv->ComputeL2Errors();

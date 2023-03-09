@@ -24,12 +24,14 @@ using namespace std;
 using namespace mfem;
 
 /// BilinearFormIntegrator for the high-order extension of shifted boundary
-/// method.
-/// A(u, w) = -<2*mu*epsilon(u) n, w>
-///           -<(p*I) n, w>
-///           -<u, sigma(w,q) n> // transpose of the above two terms
-///           +<alpha h^{-1} u , w >
+/// method for linear elasticity under Neumann boundary conditions
+/// A(u, v) = <{S(sigma(u))}_{gamma} n (n_tilda^{+} . n), alpha^{+} v^{+} - alpha^{-} v^{-}>
+///           -<{sigma(u)}_{gamma} n_tilda^{+}, alpha^{+} v^{+} - alpha^{-} v^{-}>
 
+/// l(v)    = <tN (n_tilda^{+} . n), alpha^{+} v^{+} - alpha^{-} v^{-}>
+
+/// where  {X} = alpha^{+} X^{+} + alpha^{-} X^{-}
+///        S(X) = X + X,i d_i + 0.5 * X,ij d_i d_j ....  
 namespace mfem
 {
 
@@ -87,6 +89,7 @@ public:
              const Vector &D);
 };
 
+  /// A(u, v) = <{S(sigma(u))}_{gamma} n (n_tilda^{+} . n), alpha^{+} v^{+} - alpha^{-} v^{-}>
   class WeightedShiftedStressBoundaryForceIntegrator : public BilinearFormIntegrator
   {
   private:
@@ -109,6 +112,7 @@ public:
 				    DenseMatrix &elmat);
   };
 
+  /// A(u, v) = -<{sigma(u)}_{gamma} n_tilda^{+}, alpha^{+} v^{+} - alpha^{-} v^{-}>
   class WeightedShiftedStressBoundaryForceTransposeIntegrator : public BilinearFormIntegrator
   {
   private:
@@ -126,6 +130,8 @@ public:
 				    FaceElementTransformations &Tr,
 				    DenseMatrix &elmat);
   };
+
+  /// l(v)    = <tN (n_tilda^{+} . n), alpha^{+} v^{+} - alpha^{-} v^{-}>
   class WeightedShiftedStressNitscheBCForceIntegrator : public LinearFormIntegrator
   {
   private:

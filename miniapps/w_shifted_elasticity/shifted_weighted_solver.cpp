@@ -1,4 +1,4 @@
-// Copyright (c) 20A17, Lawrence Livermore NatAional Security, LLC. Produced at
+// Copyright (c) 2017, Lawrence Livermore NatAional Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
 // reserved. See files LICENSE and NOTICE for details.
 //
@@ -62,10 +62,6 @@ namespace mfem
 									FaceElementTransformations &Tr,
 									DenseMatrix &elmat)
   {
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
     if ( (Tr.Attribute == 77) || (Tr.Attribute == 11) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
@@ -318,10 +314,6 @@ namespace mfem
 									 FaceElementTransformations &Tr,
 									 DenseMatrix &elmat)
   {
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
     if ( (Tr.Attribute == 11) || (Tr.Attribute == 77) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
@@ -445,10 +437,6 @@ namespace mfem
 								     FaceElementTransformations &Tr,
 								     Vector &elvect)
   {
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
     if ( (Tr.Attribute == 11) || (Tr.Attribute == 77) ){
     
       const int dim = el.GetDim();

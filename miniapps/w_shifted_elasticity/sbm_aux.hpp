@@ -25,7 +25,7 @@ double relativePosition(const Vector &x, const int type)
       center(1) = 0.5;
       double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
       const double radius = 0.2;
-      return -(radiusOfPt - radius)/fabs(radiusOfPt - radius); // positive is the domain
+      return (radiusOfPt - radius)/fabs(radiusOfPt - radius); // positive is the domain
     }
   else if (type == 2) // sphere of radius 0.2 - centered at 0.5, 0.5
     {
@@ -48,7 +48,7 @@ double relativePosition(const Vector &x, const int type)
       normal(1) = 0.0;
       normal(2) = 1.0;
       double location = normal(2) * (x(2)-point(2));
-      return -location/fabs(location); // positive is the domain
+      return location/fabs(location); // positive is the domain
     }  
   else if (type == 3)
     {
@@ -56,12 +56,10 @@ double relativePosition(const Vector &x, const int type)
       
       double a = 0.5;
       double surface = sin((2*pi/a)*x(0))*cos((2*pi/a)*x(1))+sin((2*pi/a)*x(1))*cos((2*pi/a)*x(2))+sin((2*pi/a)*x(2))*cos((2*pi/a)*x(0));
-      double sign = -1.0;
+      double sign = 1.0;
       if ( std::abs(surface) >= 1e-10){
-	sign = -surface / fabs(surface);
+	sign = surface / fabs(surface);
       }
-      //      std::cout << " sign " << sign << std::endl;
-      //  return sign * mag;
       return sign;   
     }
   else
@@ -442,7 +440,7 @@ public:
     Vector x(3);
     T.Transform(ip, x);
     double dist = relativePosition(x, type);
-    return (dist >= 0.0) ? -1.0 : 1.0;
+    return (dist >= 0.0) ? 1.0 : -1.0;
   }
 };
 
@@ -460,7 +458,7 @@ public:
   {
     Vector x(3);
     T.Transform(ip, x);
-    double dist = -relativePosition(x, type);
+    double dist = relativePosition(x, type);
     return dist;
   }
 };
@@ -532,13 +530,7 @@ void DiffuseH1(ParGridFunction &g, double c)
   GridFunctionCoefficient g_old_coeff(&g);
   b.AddDomainIntegrator(new DomainLFIntegrator(g_old_coeff));
   b.Assemble();
-  int i = 1;
-  int i_sum = 0.0;  
-  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm());     
-  if (myid == 0){
-    std::cout << " assembled RHS " << i_sum << std::endl;
-  }      
-      
+  
   // Diffusion and mass terms in the LHS.
   ParBilinearForm a_n(&pfes);
   a_n.AddDomainIntegrator(new MassIntegrator);
@@ -552,10 +544,6 @@ void DiffuseH1(ParGridFunction &g, double c)
   // a_n.AddDomainIntegrator(new DiffusionIntegrator(c_coeff));
   
   a_n.Assemble();
-  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm());     
-  if (myid == 0){
-    std::cout << " assembled LHS " << i_sum << std::endl;
-  }      
   // Solver.
   CGSolver cg(pmesh.GetComm());
   cg.SetRelTol(1e-12);
@@ -564,37 +552,17 @@ void DiffuseH1(ParGridFunction &g, double c)
   cg.SetPrintLevel(-1);
   OperatorPtr A;
   Vector B, X;
-  if (myid == 0){
-    std::cout << " before LS " << i_sum << std::endl;
-  }      
   // Solve with Neumann BC.
   Array<int> ess_tdof_list;
   a_n.FormLinearSystem(ess_tdof_list, g, b, A, X, B);
-  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm());    
-  if (myid == 0){
-    std::cout << " formed LS " << i_sum << std::endl;
-  }      
-
+ 
   auto *prec = new HypreBoomerAMG;
   prec->SetPrintLevel(-1);
   cg.SetPreconditioner(*prec);
   cg.SetOperator(*A);
   //  X = 0.0;
-  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm()); 
-  if (myid == 0){
-    std::cout << " before mult " << i_sum << std::endl;
-  }      
-  cg.Mult(B, X);
-  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm()); 
-  if (myid == 0){
-    std::cout << " after mult " << i_sum << std::endl;
-  }     
-
+  cg.Mult(B, X); 
   a_n.RecoverFEMSolution(X, b, g);
-  MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh.GetComm()); 
-  if (myid == 0){
-    std::cout << " recover sol " << i_sum << std::endl;
-  }     
 
   delete prec;
 }

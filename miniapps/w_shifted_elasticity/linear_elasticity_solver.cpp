@@ -3,155 +3,120 @@
 
 namespace mfem {
 
-  LinearElasticitySolver::LinearElasticitySolver(mfem::ParMesh* mesh_, int vorder, bool useEmb, int gS, int nT, int nStrainTerms, double ghostPenCoeff, bool useMumps, bool useAS, bool vis): pmesh(mesh_), displacementOrder(vorder), useEmbedded(useEmb), geometricShape(gS), nTerms(nT), numberStrainTerms(nStrainTerms), ghostPenaltyCoefficient(ghostPenCoeff), mumps_solver(useMumps), useAnalyticalShape(useAS), visualization(vis), fdisplacement(NULL), volforce(NULL), prec(NULL),  ns(NULL), vfes(NULL), vfec(NULL), alpha_fes(NULL), alpha_fec(NULL), shearMod(NULL), bulkMod(NULL), exactDisplacement(NULL), ess_elem(pmesh->attributes.Max()), C_I(0.0), analyticalSurface(NULL), neumann_dist_coef(NULL), distance_vec_space(NULL), distance(NULL), normal_vec_space(NULL), normal(NULL), ls_func(NULL), level_set_gf(NULL), dist_vec(NULL), normal_vec(NULL), alphaCut(NULL)
+  LinearElasticitySolver::LinearElasticitySolver(mfem::ParMesh* mesh_, int vorder, bool useEmb, int gS, int nT, int nStrainTerms, double ghostPenCoeff, bool useMumps, bool useAS, bool vis): pmesh(mesh_), displacementOrder(vorder), useEmbedded(useEmb), geometricShape(gS), nTerms(nT), numberStrainTerms(nStrainTerms), ghostPenaltyCoefficient(ghostPenCoeff), mumps_solver(useMumps), useAnalyticalShape(useAS), visualization(vis), fdisplacement(NULL), volforce(NULL), prec(NULL),  ns(NULL), vfes(NULL), vfec(NULL), alpha_fes(NULL), alpha_fec(NULL), shearMod(NULL), bulkMod(NULL), exactDisplacement(NULL), ess_elem(pmesh->attributes.Max()), C_I(0.0), marker(NULL), neumann_dist_coef(NULL), distance_vec_space(NULL), distance(NULL), normal_vec_space(NULL), normal(NULL), level_set_gf(NULL), dist_vec(NULL), normal_vec(NULL), alphaCut(NULL)
   {
     int dim=pmesh->Dimension();
+    // 5a. Define the FECollection and FESpace for the displacement and then create it  
     vfec=new H1_FECollection(vorder,dim);
     vfes=new mfem::ParFiniteElementSpace(pmesh,vfec,dim);
     vfes->ExchangeFaceNbrData();
-
     fdisplacement = new ParGridFunction(vfes);
-
     *fdisplacement=0.0;
+
+    // 5b. Define the FECollection and FESpace for the level-set      
     mfem::FiniteElementCollection* lsvec = new H1_FECollection(vorder+2,dim);
     mfem::ParFiniteElementSpace* lsfes = new mfem::ParFiniteElementSpace(pmesh,lsvec);
     lsfes->ExchangeFaceNbrData();
 
+    // 5c. Define the FECollection and FESpace for the volume fractions, create it and setting it to 1
     alpha_fec = new L2_FECollection(0, pmesh->Dimension());
     alpha_fes = new ParFiniteElementSpace(pmesh, alpha_fec);
     alpha_fes->ExchangeFaceNbrData();
-
     alphaCut = new ParGridFunction(alpha_fes);
     alphaCut->ExchangeFaceNbrData();  
     *alphaCut = 1;
-
-    int myid;
-    MPI_Comm_rank(pmesh->GetComm(), &myid);
-    int i = 1;
-    int i_sum = 0.0;
     
    if (useEmbedded){
-     // Weak Boundary condition imposition: all tests use v.n = 0 on the boundary
-     // We need to define ess_tdofs and ess_vdofs, but they will be kept empty
-     Array<int> ess_tdofs;
-     
+     // 5.d Create the level set grid function and the marking class
      level_set_gf =  new ParGridFunction(lsfes);
      level_set_gf->ExchangeFaceNbrData();
-     analyticalSurface = new ShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
+     marker = new ShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
+
      if (useAnalyticalShape){
+       // 5.e if we are using an analytical surface to describe the geometry
+       //     Dist_Coefficient just returns +1 or -1 for inside or outside domain 
        neumann_dist_coef = new Dist_Coefficient(geometricShape);
+       // 5.f project the neumann dist coef to the level set gf 
        level_set_gf->ProjectCoefficient(*neumann_dist_coef);
        // Exchange information for ghost elements i.e. elements that share a face
        // with element on the current processor, but belong to another processor.
        level_set_gf->ExchangeFaceNbrData();
        // Setup the class to mark all elements based on whether they are located
        // inside or outside the true domain, or intersected by the true boundary.
-       analyticalSurface->MarkElements(*level_set_gf);
-  
+       // In addition, we also mark the surrogate edges and the ghost penalty ones
+       marker->MarkElements(*level_set_gf);
+
+       // 5.g Create the distance and normal vectors 
        dist_vec = new Dist_Vector_Coefficient(dim, geometricShape);
        normal_vec = new Normal_Vector_Coefficient(dim, geometricShape);
      }
      else{
-       /* neumann_dist_coef = new Dist_Level_Set_Coefficient(geometricShape);
-
-       mfem::FiniteElementCollection* d_vec = new H1_FECollection(vorder+2,dim);
-
-       distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
-       normal_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
-       distance_vec_space->ExchangeFaceNbrData();
-       normal_vec_space->ExchangeFaceNbrData();
-   
-       distance = new ParGridFunction(distance_vec_space);
-       *distance = 0.0;
-       normal = new ParGridFunction(normal_vec_space);
-       *normal = 0.0;
-
-       PDEFilter filter(*pmesh, 0.1);
-       filter.Filter(*neumann_dist_coef, *level_set_gf);
-       // Exchange information for ghost elements i.e. elements that share a face
-       // with element on the current processor, but belong to another processor.
-       level_set_gf->ExchangeFaceNbrData();
-       // Setup the class to mark all elements based on whether they are located
-       // inside or outside the true domain, or intersected by the true boundary.
-       analyticalSurface->MarkElements(*level_set_gf);
-      
-       GridFunctionCoefficient ls_filt_coeff(level_set_gf);       
-
-       NormalizationDistanceSolver dist_solver;
-       dist_solver.ComputeVectorDistance(ls_filt_coeff, *distance); 
-       dist_solver.ComputeVectorNormal(ls_filt_coeff, *distance, *normal);
-       distance->ExchangeFaceNbrData();
-       normal->ExchangeFaceNbrData();
-       
-       dist_vec = new VectorGridFunctionCoefficient(distance);
-       normal_vec = new VectorGridFunctionCoefficient(normal);*/
-
+       // 5.e if we are using a level set to describe the geometry
+       //     Dist_Level_Set_Coefficient just returns +1 or -1 for inside or outside domain     
        neumann_dist_coef = new Dist_Level_Set_Coefficient(geometricShape);
-       
-       mfem::FiniteElementCollection* d_vec = new H1_FECollection(vorder+2,dim);
-       
+
+       // 5.f Define the FECollection and FESpace for the distance and normal vectors
+       //     Create and set them to 1 
+       mfem::FiniteElementCollection* d_vec = new H1_FECollection(vorder+2,dim);       
        distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
        normal_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
        distance_vec_space->ExchangeFaceNbrData();
-       normal_vec_space->ExchangeFaceNbrData();
-   
+       normal_vec_space->ExchangeFaceNbrData();   
        distance = new ParGridFunction(distance_vec_space);
        *distance = 0.0;
        normal = new ParGridFunction(normal_vec_space);
        *normal = 0.0;
 
+       // 5.g project the neumann dist coef to the level set gf and smooth it.
+       //    To smooth it, code is using DiffuseH1, but one can also use the PDEFilter
+       //    Just uncomment the filter lines and comment out the DiffuseH1
        level_set_gf->ProjectCoefficient(*neumann_dist_coef);
        // PDEFilter filter(*pmesh, 0.1);
        //  filter.Filter(*neumann_dist_coef, *level_set_gf);
-       MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh->GetComm());     
-       if (myid == 0){
-	 std::cout << " before calling diffusion " << i_sum << std::endl;
-       }        
        DiffuseH1(*level_set_gf, 1.0);
-       MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh->GetComm());     
-       if (myid == 0){
-	 std::cout << " after calling diffusion " << i_sum << std::endl;
-       }        
-      
+       // Exchange information for ghost elements i.e. elements that share a face
+       // with element on the current processor, but belong to another processor.      
        level_set_gf->ExchangeFaceNbrData();     
        // Setup the class to mark all elements based on whether they are located
        // inside or outside the true domain, or intersected by the true boundary.
-       analyticalSurface->MarkElements(*level_set_gf);
-       MPI_Allreduce(&i, &i_sum, 1, MPI_INT, MPI_SUM, pmesh->GetComm());     
-       if (myid == 0){
-	 std::cout << " after marking " << i_sum << std::endl;
-       }        
-      
-       GridFunctionCoefficient ls_filt_coeff(level_set_gf);       
+       marker->MarkElements(*level_set_gf);
 
+       // 5.h Create a grid function coefficient from the smoothed level-set
+       //     Use it to populate the distance and normal grid functions
+       //     Create the distance and normal vector grid function coefficients
+       GridFunctionCoefficient ls_filt_coeff(level_set_gf);       
        NormalizationDistanceSolver dist_solver;
        dist_solver.ComputeVectorDistance(ls_filt_coeff, *distance); 
        dist_solver.ComputeVectorNormal(ls_filt_coeff, *distance, *normal);
        distance->ExchangeFaceNbrData();
-       normal->ExchangeFaceNbrData();
-       
+       normal->ExchangeFaceNbrData();       
        dist_vec = new VectorGridFunctionCoefficient(distance);
        normal_vec = new VectorGridFunctionCoefficient(normal);
      }
-     
+
+     // 5.i Populate the volume fractions using the level_set grid function
      UpdateAlpha(*alphaCut, *vfes, *level_set_gf, geometricShape);
      alphaCut->ExchangeFaceNbrData();
 
-     Array<int> ess_inactive_dofs = analyticalSurface->GetEss_Vdofs();
+     // 5.j Get the inactive dofs to remove them from the linear systerm
+     Array<int> ess_tdofs;
+     Array<int> ess_inactive_dofs = marker->GetEss_Vdofs();
      vfes->GetRestrictionMatrix()->BooleanMult(ess_inactive_dofs, ess_tdofs);
      vfes->MarkerToList(ess_tdofs, ess_vdofs);
        
    }
+   // 5.k Create the shear and bulk moduli classes  
    shearMod = new ShearModulus(pmesh);
    bulkMod = new BulkModulus(pmesh);
- 
+
+   // 5.l Create a vector of size equal to the highes number attribute and set it to 1     
    const int max_elem_attr = pmesh->attributes.Max();
    ess_elem.SetSize(max_elem_attr);
    ess_elem = 1;
+   //    Set the entry corresponding to the inactive attribute to 0 
    if (useEmbedded && (max_elem_attr >= 2)){
      ess_elem[ShiftedFaceMarker::SBElementType::OUTSIDE-1] = 0;
    }
-   // ess_elem.Print(std::cout,1);
 
    switch (pmesh->GetElementBaseGeometry(0))
     {
@@ -178,8 +143,10 @@ namespace mfem {
     delete pmesh;  
     delete shearMod;
     delete bulkMod;
+    delete fdisplacement;
+    delete alphaCut;
      if (useEmbedded){
-      delete analyticalSurface;
+      delete marker;
       delete distance_vec_space;
       delete distance;
       delete normal_vec_space;
@@ -187,6 +154,7 @@ namespace mfem {
       delete level_set_gf;
       delete dist_vec;
       delete normal_vec;
+      delete neumann_dist_coef;
     }
 
     surf_loads.clear();
@@ -220,25 +188,24 @@ namespace mfem {
     double penaltyParameter_bf = 10.0*2*C_I*2;
 
     ParLinearForm *fform(new ParLinearForm(vfes));
-    fform->AddDomainIntegrator(new WeightedVectorForceIntegrator(*alphaCut, *volforce), ess_elem);
-     
+    fform->AddDomainIntegrator(new WeightedVectorForceIntegrator(*alphaCut, *volforce), ess_elem);     
     for(auto it=surf_loads.begin();it!=surf_loads.end();it++)
     {
-      fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(*alphaCut, *(it->second), analyticalSurface),*(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(*alphaCut, *(it->second), marker),*(it->first));
     }
    
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
     {    
       // Nitsche
-      fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(*alphaCut, *shearMod, *bulkMod, *(it->second), analyticalSurface),*(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(*alphaCut, *shearMod, *bulkMod, *(it->second), marker),*(it->first));
       // Normal Penalty
-      fform->AddBdrFaceIntegrator(new WeightedNormalDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, *(it->second), analyticalSurface), *(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedNormalDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, *(it->second), marker), *(it->first));
       // Tangential Penalty
-      fform->AddBdrFaceIntegrator(new WeightedTangentialDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, *(it->second), analyticalSurface), *(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedTangentialDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, *(it->second), marker), *(it->first));
     }
     if (useEmbedded){
       // Nitsche
-      fform->AddInteriorFaceIntegrator(new WeightedShiftedStressNitscheBCForceIntegrator(pmesh, *alphaCut, *shifted_traction_BC, dist_vec, normal_vec, analyticalSurface, 1));
+      fform->AddInteriorFaceIntegrator(new WeightedShiftedStressNitscheBCForceIntegrator(pmesh, *alphaCut, *shifted_traction_BC, dist_vec, normal_vec, marker, 1));
     }
     fform->Assemble();    
     fform->ParallelAssemble();
@@ -248,21 +215,21 @@ namespace mfem {
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
     {
       // Nitsche
-      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceIntegrator(*alphaCut, *shearMod, *bulkMod, analyticalSurface),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceIntegrator(*alphaCut, *shearMod, *bulkMod, marker),*(it->first));
       // IP
-      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceTransposeIntegrator(*alphaCut, *shearMod, *bulkMod, analyticalSurface),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceTransposeIntegrator(*alphaCut, *shearMod, *bulkMod, marker),*(it->first));
       // Normal Penalty
-      mVarf->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, analyticalSurface),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, marker),*(it->first));
       // Tangential Penalty
-      mVarf->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, analyticalSurface),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, marker),*(it->first));
     }
     if (useEmbedded){     
       // Nitsche
-      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, dist_vec, normal_vec, analyticalSurface, nTerms, 1));
+      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, dist_vec, normal_vec, marker, nTerms, 1));
       // IP
-      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, analyticalSurface, 1));
+      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, marker, 1));
       // ghost penalty
-      mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));      
+      mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, marker, numberStrainTerms));      
     }
   
     mVarf->Assemble();   
@@ -278,7 +245,6 @@ namespace mfem {
     OperatorPtr A;
     Vector B, X;
     mVarf->FormLinearSystem(ess_vdofs, *fdisplacement, *fform, A, X, B);
-    std::cout << " FormLinearSysterm " << std::endl;
      
     if (mumps_solver){
       MUMPSSolver mumps;
@@ -297,20 +263,19 @@ namespace mfem {
      
       // PRECONDITIONER
       ParGridFunction * UnitVal = new ParGridFunction(alpha_fes);
-      *UnitVal = 1;
-      
+      *UnitVal = 1;      
       ParBilinearForm *displMass(new ParBilinearForm(vfes));
       displMass->AddDomainIntegrator(new WeightedStressForceIntegrator(*UnitVal, *shearMod, *bulkMod),ess_elem);
       for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
 	{
 	  // Normal Penalty
-	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *bulkMod, analyticalSurface),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *bulkMod, marker),*(it->first));
 	  // Tangential Penalty
-	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *shearMod, analyticalSurface),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *shearMod, marker),*(it->first));
 	}
       if (useEmbedded){     
 	// ghost penalty
-	displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, numberStrainTerms));
+	displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, marker, numberStrainTerms));
       }
       displMass->Assemble();
       displMass->Finalize();
@@ -339,16 +304,12 @@ namespace mfem {
   }
 
   void LinearElasticitySolver::ComputeL2Errors(){
-    // 12. Create the grid functions u and p. Compute the L2 error norms.
-    //  p.MakeRef(pfes, x.GetBlock(1), 0);
-    // 13. Compute the L2 error norms.
     int order_quad = max(2, 6*displacementOrder+1);
     const IntegrationRule *irs[Geometry::NumGeom];
     for (int i=0; i < Geometry::NumGeom; ++i)
       {
 	irs[i] = &(IntRules.Get(i, order_quad));
       }
-
     double err_u  = fdisplacement->ComputeL2Error(*exactDisplacement,irs);
     MPI_Comm comm = pmesh->GetComm();
     if (useEmbedded){
@@ -384,12 +345,9 @@ namespace mfem {
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
       paraview_dc.RegisterField("displacement",fdisplacement);
-      //  paraview_dc.RegisterField("distance",distance);
-      //  paraview_dc.RegisterField("normal",normal);
-      // paraview_dc.RegisterField("ls_filt_coef",ls_filt_coef);
-      paraview_dc.RegisterField("level_set_gf",level_set_gf);
-      //  paraview_dc.RegisterField("alpha_cut",alphaCut);    
-      //  paraview_dc.RegisterField("ls_func",ls_func);
+      if (useEmbedded && !useAnalyticalShape){
+	paraview_dc.RegisterField("level_set_gf",level_set_gf);
+      }
       paraview_dc.Save();
     }
   }

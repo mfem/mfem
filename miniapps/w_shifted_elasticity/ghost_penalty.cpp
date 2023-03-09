@@ -19,15 +19,12 @@
 
 namespace mfem
 {
+  /*
   void GhostStressFullGradPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
 								const FiniteElement &fe2,
 								FaceElementTransformations &Tr,
 								DenseMatrix &elmat)
   {
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
     if (Tr.Attribute == 77){
       const int dim = fe.GetDim();
       const int h1dofs_cnt = fe.GetDof();
@@ -349,7 +346,7 @@ namespace mfem
       elmat.SetSize(2*h1dofs_cnt*dim);
       elmat = 0.0;
     }
-  }  
+  }  */
   
   void AddOneToBinaryArray(Array<int> & binary, int size, int dim){
     if (dim == 3){
@@ -371,16 +368,12 @@ namespace mfem
       }
     }
   }
-  /*
+  
   void GhostStressFullGradPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
 								const FiniteElement &fe2,
 								FaceElementTransformations &Tr,
 								DenseMatrix &elmat)
   {
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
     if (Tr.Attribute == 77){
       const int dim = fe.GetDim();
       const int h1dofs_cnt = fe.GetDof();
@@ -603,5 +596,5 @@ namespace mfem
       elmat = 0.0;
     }
   }
- */ 
+  
 }

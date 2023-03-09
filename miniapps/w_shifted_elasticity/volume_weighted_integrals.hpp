@@ -22,12 +22,11 @@
 using namespace std;
 using namespace mfem;
 
-/// BilinearFormIntegrator for the high-order extension of shifted boundary
-/// method.
-/// A(u, w) = -<2*mu*epsilon(u) n, w>
-///           -<(p*I) n, w>
-///           -<u, sigma(w,q) n> // transpose of the above two terms
-///           +<alpha h^{-1} u , w >
+
+/// A(u, v) = (alpha sigma(u), epsilon(v) )
+
+/// l(v)    =  (alpha f, v)
+
 namespace mfem
 {
   class WeightedDiffusionIntegrator : public BilinearFormIntegrator
@@ -45,7 +44,8 @@ namespace mfem
 				   const FiniteElement &test_fe,
 				   ElementTransformation &Trans);
   };
-  
+
+  /// A(u, v) = (alpha sigma(u), epsilon(v) )
   class WeightedStressForceIntegrator : public BilinearFormIntegrator
   {
   private:
@@ -64,7 +64,8 @@ public:
 				   ElementTransformation &Trans);
     
   };
-  
+
+  /// l(v)    =  (alpha f, v)
   class WeightedVectorForceIntegrator : public LinearFormIntegrator
 {
 private:
