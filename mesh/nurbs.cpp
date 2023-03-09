@@ -409,7 +409,22 @@ void NURBSPatch::init(int dim_)
    Dim = dim_;
    sd = nd = -1;
 
-   if (kv.Size() == 2)
+   if (kv.Size() == 1)
+   {
+      ni = kv[0]->GetNCP();
+      nj = -1;
+      nk = -1;
+
+      data = new double[ni*Dim];
+
+#ifdef MFEM_DEBUG
+      for (int i = 0; i < ni*Dim; i++)
+      {
+         data[i] = -999.99;
+      }
+#endif
+   }
+   else if (kv.Size() == 2)
    {
       ni = kv[0]->GetNCP();
       nj = kv[1]->GetNCP();
@@ -3538,7 +3553,7 @@ void NURBSExtension::SetSolutionVector(Vector &coords, int vdim)
 {
    if (Dimension() == 1)
    {
-      Set2DSolutionVector(coords, vdim);
+      Set1DSolutionVector(coords, vdim);
    }
    else if (Dimension() == 2)
    {
@@ -3567,9 +3582,9 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
          const int l = p2g(i);
          for (int d = 0; d < vdim; d++)
          {
-         // IDO 1D    coords(l*vdim + d) = Patch(i,d)/Patch(i,vdim);
+            coords(l*vdim + d) = Patch(i,d)/Patch(i,vdim);
          }
-        // IDO 1D  weights(l) = Patch(i,vdim);
+         weights(l) = Patch(i,vdim);
       }
 
       delete patches[p];
@@ -4123,20 +4138,22 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
    GetPatchKnotVectors(p, kv);
 
    I = kv[0]->GetNCP() - 2;
-   J = kv[1]->GetNCP() - 2;
 
    for (int i = 0; i < verts.Size(); i++)
    {
       verts[i] = Ext->v_spaceOffsets[verts[i]];
    }
-
-   for (int i = 0; i < edges.Size(); i++)
+   if (Ext->Dimension() == 2)
    {
-      edges[i] = Ext->e_spaceOffsets[edges[i]];
+      J = kv[1]->GetNCP() - 2;
+      for (int i = 0; i < edges.Size(); i++)
+      {
+         edges[i] = Ext->e_spaceOffsets[edges[i]];
+      }
    }
-
-   if (Ext->Dimension() == 3)
+   else if (Ext->Dimension() == 3)
    {
+      J = kv[1]->GetNCP() - 2;
       K = kv[2]->GetNCP() - 2;
 
       for (int i = 0; i < faces.Size(); i++)
@@ -4164,7 +4181,7 @@ void NURBSPatchMap::SetBdrPatchVertexMap(int p, const KnotVector *kv[],
    {
       pOffset = Ext->e_meshOffsets[edges[0]];
    }
-   else
+   else if (Ext->Dimension() == 3)
    {
       J = kv[1]->GetNE() - 1;
 
@@ -4192,7 +4209,7 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
    {
       pOffset = Ext->e_spaceOffsets[edges[0]];
    }
-   else
+   else if (Ext->Dimension() == 3)
    {
       J = kv[1]->GetNCP() - 2;
 
