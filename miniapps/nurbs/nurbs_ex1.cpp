@@ -409,7 +409,6 @@ int main(int argc, char *argv[])
    {
       ofstream sol2_ofs("solution.dat");
       sol2_ofs.precision(8);
-      double dx = 1.0/mesh->GetNE();
       Vector      vals,coords;
       GridFunction *nodes = mesh->GetNodes();
       if (!nodes)
