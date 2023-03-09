@@ -424,6 +424,7 @@ private:
    int *partitioning;
 
    Table *GetGlobalElementDofTable();
+   Table *Get1DGlobalElementDofTable();
    Table *Get2DGlobalElementDofTable();
    Table *Get3DGlobalElementDofTable();
 
