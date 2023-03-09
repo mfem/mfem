@@ -15,7 +15,6 @@ if (MFEM_USE_MPI)
 	shifted_weighted_solver.cpp
 	volume_fractions.cpp
 	volume_weighted_integrals.cpp
-	AnalyticalGeometricShape.cpp
 	ghost_penalty.cpp
 	marking.cpp
 	dist_solver.cpp
@@ -25,7 +24,6 @@ if (MFEM_USE_MPI)
 	shifted_weighted_solver.hpp
 	volume_fractions.hpp
 	volume_weighted_integrals.hpp
-	AnalyticalGeometricShape.hpp
 	ghost_penalty.hpp
 	marking.hpp
 	dist_solver.hpp
