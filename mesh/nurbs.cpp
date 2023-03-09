@@ -3405,15 +3405,19 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      patchTopo->GetElementEdges(p, edges, orient);
-
-      if (Dimension()==2)
+      if (Dimension()==1)
       {
+         pkv[0] = kv[KnotInd(p)];
+      }
+      else if (Dimension()==2)
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
          pkv[0] = kv[KnotInd(edges[0])];
          pkv[1] = kv[KnotInd(edges[1])];
       }
-      else
+      else if (Dimension()==3)
       {
+         patchTopo->GetElementEdges(p, edges, orient);
          pkv[0] = kv[KnotInd(edges[0])];
          pkv[1] = kv[KnotInd(edges[3])];
          pkv[2] = kv[KnotInd(edges[8])];
@@ -3432,15 +3436,19 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      patchTopo->GetElementEdges(p, edges, orient);
-
-      if (Dimension()==2)
+      if (Dimension()==1)
       {
+         pkv[0] = kv[KnotInd(p)];
+      }
+      else if (Dimension()==2)
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
          pkv[0] = kv[KnotInd(edges[0])];
          pkv[1] = kv[KnotInd(edges[1])];
       }
-      else
+      else if (Dimension()==3)
       {
+         patchTopo->GetElementEdges(p, edges, orient);
          pkv[0] = kv[KnotInd(edges[0])];
          pkv[1] = kv[KnotInd(edges[3])];
          pkv[2] = kv[KnotInd(edges[8])];
@@ -3484,9 +3492,9 @@ void NURBSExtension::Get1DPatchNets(const Vector &coords, int vdim)
          const int l = DofMap(p2g(i));
          for (int d = 0; d < vdim; d++)
          {
-           // IDO 1D  Patch(i,d) = coords(l*vdim + d)*weights(l);
+            Patch(i,d) = coords(l*vdim + d)*weights(l);
          }
-        // IDO 1D Patch(i,vdim) = weights(l);
+         Patch(i,vdim) = weights(l);
       }
    }
 
