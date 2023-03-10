@@ -58,10 +58,6 @@ SpatialFunction EulerInitialCondition(const int problem,
                                       const double specific_heat_ratio,
                                       const double gas_constant);
 
-void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, DGHyperbolicConservationLaws &euler,
-                  GridFunction &sol, ODESolver *ode_solver);
-
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   int problem = 1;
@@ -73,7 +69,7 @@ int main(int argc, char *argv[]) {
   int ref_levels = 2;
   int order = 3;
   int ode_solver_type = 4;
-  double t_final = 2.0;
+  double t_final = 0.2;
   double dt = -0.01;
   double cfl = 0.3;
   bool visualization = true;
@@ -117,15 +113,15 @@ int main(int argc, char *argv[]) {
   args.PrintOptions(cout);
 
   // 2. Read the mesh from the given mesh file.
-  Mesh mesh = Mesh(mesh_file);
-  const int dim = mesh.Dimension();
+  Mesh *mesh = new Mesh(mesh_file);
+  const int dim = mesh->Dimension();
   const int num_equations = dim + 2;
 
   // perform uniform refine
   for (int lev = 0; lev < ref_levels; lev++) {
-    mesh.UniformRefinement();
+    mesh->UniformRefinement();
   }
-  if (dim > 1) mesh.EnsureNCMesh();
+  if (dim > 1) mesh->EnsureNCMesh();
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -152,19 +148,21 @@ int main(int argc, char *argv[]) {
   }
 
   // 4. Define the discontinuous DG finite element space of the given
-  //    polynomial order on the refined mesh.
-  DG_FECollection fec(order, dim);
+  //    polynomial order on the refined mesh->
+  DG_FECollection *fec = new DG_FECollection(order, dim);
   // Finite element space for a scalar (thermodynamic quantity)
-  FiniteElementSpace fes(&mesh, &fec);
+  FiniteElementSpace *fes = new FiniteElementSpace(mesh, fec);
   // Finite element space for a mesh-dim vector quantity (momentum)
-  FiniteElementSpace dfes(&mesh, &fec, dim, Ordering::byNODES);
+  FiniteElementSpace *dfes =
+      new FiniteElementSpace(mesh, fec, dim, Ordering::byNODES);
   // Finite element space for all variables together (total thermodynamic state)
-  FiniteElementSpace vfes(&mesh, &fec, num_equations, Ordering::byNODES);
+  FiniteElementSpace *vfes =
+      new FiniteElementSpace(mesh, fec, num_equations, Ordering::byNODES);
 
   // This example depends on this ordering of the space.
-  MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+  MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES, "");
 
-  cout << "Number of unknowns: " << vfes.GetVSize() << endl;
+  cout << "Number of unknowns: " << vfes->GetVSize() << endl;
 
   // 6. Define the initial conditions, save the corresponding mesh and grid
   //    functions to a file. This can be opened with GLVis with the -gc option.
@@ -172,7 +170,7 @@ int main(int argc, char *argv[]) {
   VectorFunctionCoefficient u0(
       num_equations,
       EulerInitialCondition(problem, specific_heat_ratio, gas_constant));
-  GridFunction sol(&vfes);
+  GridFunction sol(vfes);
   sol.ProjectCoefficient(u0);
 
   // Output the initial solution.
@@ -181,7 +179,7 @@ int main(int argc, char *argv[]) {
     mesh_ofs.precision(precision);
     mesh_ofs << mesh;
     for (int k = 0; k < num_equations; k++) {
-      GridFunction uk(&fes, sol.GetData() + fes.GetNDofs() * k);
+      GridFunction uk(fes, sol.GetData() + fes->GetNDofs() * k);
       ostringstream sol_name;
       sol_name << "euler-" << k << "-init.gf";
       ofstream sol_ofs(sol_name.str().c_str());
@@ -190,25 +188,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // 7. Set up the nonlinear form corresponding to the DG discretization of the
-  //    flux divergence, and assemble the corresponding mass matrix.
-  EulerElementFormIntegrator *eulerElementFormIntegrator =
-      new EulerElementFormIntegrator(dim, specific_heat_ratio, gas_constant,
-                                     IntOrderOffset);
-
   NumericalFlux *numericalFlux = new RusanovFlux();
-  EulerFaceFormIntegrator *eulerFaceFormIntegrator =
-      new EulerFaceFormIntegrator(numericalFlux, dim, specific_heat_ratio,
-                                  gas_constant, IntOrderOffset);
-  NonlinearForm nonlinearForm(&vfes);
 
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws euler(&vfes, nonlinearForm,
-                                     *eulerElementFormIntegrator,
-                                     *eulerFaceFormIntegrator, num_equations);
-
+  DGHyperbolicConservationLaws euler = getEulerSystem(
+      vfes, numericalFlux, specific_heat_ratio, gas_constant, IntOrderOffset);
   // Visualize the density
   socketstream sout;
   if (visualization) {
@@ -222,9 +205,9 @@ int main(int argc, char *argv[]) {
       visualization = false;
       cout << "GLVis visualization disabled.\n";
     } else {
-      GridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
+      GridFunction mom(dfes, sol.GetData() + fes->GetNDofs());
       sout.precision(precision);
-      sout << "solution\n" << mesh << mom;
+      sout << "solution\n" << *mesh << mom;
       sout << "pause\n";
       sout << flush;
       cout << "GLVis visualization paused."
@@ -235,9 +218,9 @@ int main(int argc, char *argv[]) {
   // Determine the minimum element size.
   double hmin = 0.0;
   if (cfl > 0) {
-    hmin = mesh.GetElementSize(0, 1);
-    for (int i = 1; i < mesh.GetNE(); i++) {
-      hmin = min(mesh.GetElementSize(i, 1), hmin);
+    hmin = mesh->GetElementSize(0, 1);
+    for (int i = 1; i < mesh->GetNE(); i++) {
+      hmin = min(mesh->GetElementSize(i, 1), hmin);
     }
   }
 
@@ -273,8 +256,8 @@ int main(int argc, char *argv[]) {
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
       if (visualization) {
-        GridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
-        sout << "solution\n" << mesh << mom << flush;
+        GridFunction mom(dfes, sol.GetData() + fes->GetNDofs());
+        sout << "solution\n" << *mesh << mom << flush;
       }
     }
   }
@@ -285,7 +268,7 @@ int main(int argc, char *argv[]) {
   // 9. Save the final solution. This output can be viewed later using GLVis:
   //    "glvis -m euler.mesh -g euler-1-final.gf".
   for (int k = 0; k < num_equations; k++) {
-    GridFunction uk(&fes, sol.GetData() + fes.GetNDofs());
+    GridFunction uk(fes, sol.GetData() + fes->GetNDofs());
     ostringstream sol_name;
     sol_name << "euler-" << k << "-final.gf";
     ofstream sol_ofs(sol_name.str().c_str());
@@ -303,20 +286,6 @@ int main(int argc, char *argv[]) {
   delete ode_solver;
 
   return 0;
-}
-
-void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, DGHyperbolicConservationLaws &euler,
-                  GridFunction &sol, ODESolver *ode_solver) {
-  fes.Update();
-  dfes.Update();
-  vfes.Update();
-  sol.Update();
-  euler.Update();
-  ode_solver->Init(euler);
-  fes.UpdatesFinished();
-  dfes.UpdatesFinished();
-  vfes.UpdatesFinished();
 }
 
 void EulerMesh(const int problem, const char **mesh_file) {

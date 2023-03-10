@@ -42,10 +42,6 @@ void AdvectionMesh(const int problem, const char **mesh_file);
 SpatialFunction AdvectionInitialCondition(const int problem);
 SpatialFunction AdvectionVelocityVector(const int problem);
 
-void UpdateSystem(FiniteElementSpace &fes,
-                  DGHyperbolicConservationLaws &advection, GridFunction &sol,
-                  ODESolver *ode_solver);
-
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   int problem = 1;
@@ -55,7 +51,7 @@ int main(int argc, char *argv[]) {
   int ref_levels = 4;
   int order = 3;
   int ode_solver_type = 4;
-  double t_final = 10.0;
+  double t_final = 1.0;
   double dt = -0.01;
   double cfl = 0.3;
   bool visualization = true;
@@ -99,15 +95,15 @@ int main(int argc, char *argv[]) {
   args.PrintOptions(cout);
 
   // 2. Read the mesh from the given mesh file.
-  Mesh mesh = Mesh(mesh_file);
-  const int dim = mesh.Dimension();
+  Mesh *mesh = new Mesh(mesh_file);
+  const int dim = mesh->Dimension();
   const int num_equations = 1;
 
   // perform uniform refine
   for (int lev = 0; lev < ref_levels; lev++) {
-    mesh.UniformRefinement();
+    mesh->UniformRefinement();
   }
-  if (dim > 1) mesh.EnsureNCMesh();
+  if (dim > 1) mesh->EnsureNCMesh();
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -134,15 +130,15 @@ int main(int argc, char *argv[]) {
   }
 
   // 4. Define the discontinuous DG finite element space of the given
-  //    polynomial order on the refined mesh.
-  DG_FECollection fec(order, dim);
+  //    polynomial order on the refined mesh->
+  DG_FECollection *fec = new DG_FECollection(order, dim);
   // Finite element space for a scalar (thermodynamic quantity)
-  FiniteElementSpace fes(&mesh, &fec);
+  FiniteElementSpace *fes = new FiniteElementSpace(mesh, fec);
 
   // This example depends on this ordering of the space.
-  MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+  MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES, "");
 
-  cout << "Number of unknowns: " << fes.GetVSize() << endl;
+  cout << "Number of unknowns: " << fes->GetVSize() << endl;
 
   // 6. Define the initial conditions, save the corresponding mesh and grid
   //    functions to a file. This can be opened with GLVis with the -gc option.
@@ -150,7 +146,7 @@ int main(int argc, char *argv[]) {
   VectorFunctionCoefficient u0(num_equations,
                                AdvectionInitialCondition(problem));
   VectorFunctionCoefficient b(dim, AdvectionVelocityVector(problem));
-  GridFunction sol(&fes);
+  GridFunction sol(fes);
   sol.ProjectCoefficient(u0);
 
   // Output the initial solution.
@@ -159,7 +155,7 @@ int main(int argc, char *argv[]) {
     mesh_ofs.precision(precision);
     mesh_ofs << mesh;
     for (int k = 0; k < num_equations; k++) {
-      GridFunction uk(&fes, sol.GetData() + fes.GetNDofs() * k);
+      GridFunction uk(fes, sol.GetData() + fes->GetNDofs() * k);
       ostringstream sol_name;
       sol_name << "advection-" << k << "-init.gf";
       ofstream sol_ofs(sol_name.str().c_str());
@@ -168,22 +164,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // 7. Set up the nonlinear form corresponding to the DG discretization of the
-  //    flux divergence, and assemble the corresponding mass matrix.
-  AdvectionElementFormIntegrator *advectionElementFormIntegrator =
-      new AdvectionElementFormIntegrator(dim, b, IntOrderOffset);
-
   NumericalFlux *numericalFlux = new RusanovFlux();
-  AdvectionFaceFormIntegrator *advectionFaceFormIntegrator =
-      new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
-  NonlinearForm nonlinearForm(&fes);
-
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws advection(
-      &fes, nonlinearForm, *advectionElementFormIntegrator,
-      *advectionFaceFormIntegrator, num_equations);
+  DGHyperbolicConservationLaws advection =
+      getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset);
 
   // Visualize the density
   socketstream sout;
@@ -199,7 +182,7 @@ int main(int argc, char *argv[]) {
       cout << "GLVis visualization disabled.\n";
     } else {
       sout.precision(precision);
-      sout << "solution\n" << mesh << sol;
+      sout << "solution\n" << *mesh << sol;
       sout << "pause\n";
       sout << flush;
       cout << "GLVis visualization paused."
@@ -210,9 +193,9 @@ int main(int argc, char *argv[]) {
   // Determine the minimum element size.
   double hmin = 0.0;
   if (cfl > 0) {
-    hmin = mesh.GetElementSize(0, 1);
-    for (int i = 1; i < mesh.GetNE(); i++) {
-      hmin = min(mesh.GetElementSize(i, 1), hmin);
+    hmin = mesh->GetElementSize(0, 1);
+    for (int i = 1; i < mesh->GetNE(); i++) {
+      hmin = min(mesh->GetElementSize(i, 1), hmin);
     }
   }
 
@@ -248,7 +231,7 @@ int main(int argc, char *argv[]) {
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
       if (visualization) {
-        sout << "solution\n" << mesh << sol << flush;
+        sout << "solution\n" << *mesh << sol << flush;
       }
     }
   }
@@ -259,7 +242,7 @@ int main(int argc, char *argv[]) {
   // 9. Save the final solution. This output can be viewed later using GLVis:
   //    "glvis -m advection.mesh -g advection-1-final.gf".
   for (int k = 0; k < num_equations; k++) {
-    GridFunction uk(&fes, sol.GetData() + fes.GetNDofs());
+    GridFunction uk(fes, sol.GetData() + fes->GetNDofs());
     ostringstream sol_name;
     sol_name << "advection-" << k << "-final.gf";
     ofstream sol_ofs(sol_name.str().c_str());
@@ -277,16 +260,6 @@ int main(int argc, char *argv[]) {
   delete ode_solver;
 
   return 0;
-}
-
-void UpdateSystem(FiniteElementSpace &fes,
-                  DGHyperbolicConservationLaws &advection, GridFunction &sol,
-                  ODESolver *ode_solver) {
-  fes.Update();
-  sol.Update();
-  advection.Update();
-  ode_solver->Init(advection);
-  fes.UpdatesFinished();
 }
 
 void AdvectionMesh(const int problem, const char **mesh_file) {

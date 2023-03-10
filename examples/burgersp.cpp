@@ -56,10 +56,6 @@ void BurgersMesh(const int problem, const char **mesh_file);
 
 SpatialFunction BurgersInitialCondition(const int problem);
 
-void UpdateSystem(FiniteElementSpace &fes,
-                  DGHyperbolicConservationLaws &burgers, GridFunction &sol,
-                  ODESolver *ode_solver);
-
 int main(int argc, char *argv[]) {
   Mpi::Init(argc, argv);
   const int numProcs = Mpi::WorldSize();
@@ -121,33 +117,33 @@ int main(int argc, char *argv[]) {
   if (Mpi::Root()) args.PrintOptions(cout);
 
   // 2. Read the mesh from the given mesh file.
-  Mesh mesh = Mesh(mesh_file);
-  const int dim = mesh.Dimension();
+  Mesh *mesh = new Mesh(mesh_file);
+  const int dim = mesh->Dimension();
   const int num_equations = 1;
 
   // perform uniform refine
   for (int lev = 0; lev < ser_ref_levels; lev++) {
-    mesh.UniformRefinement();
+    mesh->UniformRefinement();
   }
 
-  if (numProcs > mesh.GetNE()) {
+  if (numProcs > mesh->GetNE()) {
     if (Mpi::Root()) {
       mfem_warning(
           "The number of processor is larger than the number of elements.\n"
           "Refine serial meshes until the number of elements is large enough");
     }
-    while (mesh.GetNE() < numProcs) {
-      mesh.UniformRefinement();
+    while (mesh->GetNE() < numProcs) {
+      mesh->UniformRefinement();
     }
   }
-  if (dim > 1) mesh.EnsureNCMesh();
+  if (dim > 1) mesh->EnsureNCMesh();
 
-  ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
-  mesh.Clear();
+  ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+  delete mesh;
   for (int lev = 0; lev < par_ref_levels; lev++) {
-    pmesh.UniformRefinement();
+    pmesh->UniformRefinement();
   }
-  if (dim > 1) pmesh.EnsureNCMesh();
+  if (dim > 1) pmesh->EnsureNCMesh();
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -174,35 +170,36 @@ int main(int argc, char *argv[]) {
   }
 
   // 4. Define the discontinuous DG finite element space of the given
-  //    polynomial order on the refined mesh.
-  DG_FECollection fec(order, dim);
+  //    polynomial order on the refined mesh->
+  DG_FECollection *fec = new DG_FECollection(order, dim);
   // Finite element space for a scalar (thermodynamic quantity)
-  ParFiniteElementSpace fes(&pmesh, &fec);
+  ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);
 
   // This example depends on this ordering of the space.
-  MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+  MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES, "");
 
   if (Mpi::Root()) {
-    cout << "Number of unknowns: " << fes.GetVSize() << endl;
+    cout << "Number of unknowns: " << fes->GetVSize() << endl;
   }
 
   // 6. Define the initial conditions, save the corresponding mesh and grid
   //    functions to a file. This can be opened with GLVis with the -gc option.
   // Initialize the state.
   VectorFunctionCoefficient u0(num_equations, BurgersInitialCondition(problem));
-  ParGridFunction sol(&fes);
+  ParGridFunction sol(fes);
   sol.ProjectCoefficient(u0);
 
   // Output the initial solution.
   {
     ostringstream mesh_name;
-    mesh_name << "burgers-mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+    mesh_name << "burgers-mesh->" << setfill('0') << setw(6)
+              << Mpi::WorldRank();
     ofstream mesh_ofs(mesh_name.str().c_str());
     mesh_ofs.precision(precision);
     mesh_ofs << pmesh;
 
     for (int k = 0; k < num_equations; k++) {
-      ParGridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
+      ParGridFunction uk(fes, sol.GetData() + k * fes->GetNDofs());
       ostringstream sol_name;
       sol_name << "burgers-" << k << "-init." << setfill('0') << setw(6)
                << Mpi::WorldRank();
@@ -214,20 +211,9 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  BurgersElementFormIntegrator *burgersElementFormIntegrator =
-      new BurgersElementFormIntegrator(dim, IntOrderOffset);
-
   NumericalFlux *numericalFlux = new RusanovFlux();
-  BurgersFaceFormIntegrator *burgersFaceFormIntegrator =
-      new BurgersFaceFormIntegrator(numericalFlux, dim, IntOrderOffset);
-  ParNonlinearForm nonlinearForm(&fes);
-
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  DGHyperbolicConservationLaws burgers(
-      &fes, nonlinearForm, *burgersElementFormIntegrator, *burgersFaceFormIntegrator,
-      num_equations);
+  DGHyperbolicConservationLaws burgers =
+      getParBurgersEquation(fes, numericalFlux, IntOrderOffset);
 
   // Visualize the density
   socketstream sout;
@@ -246,25 +232,26 @@ int main(int argc, char *argv[]) {
     } else {
       sout << "parallel " << numProcs << " " << myRank << "\n";
       sout.precision(precision);
-      sout << "solution\n" << pmesh << sol;
+      sout << "solution\n" << *pmesh << sol;
       sout << "pause\n";
       sout << flush;
       if (Mpi::Root()) {
         cout << "GLVis visualization paused."
              << " Press space (in the GLVis window) to resume it.\n";
       }
-      MPI_Barrier(pmesh.GetComm());
+      MPI_Barrier(pmesh->GetComm());
     }
   }
 
   // Determine the minimum element size.
   double hmin;
   if (cfl > 0) {
-    double my_hmin = pmesh.GetNE() > 0 ? pmesh.GetElementSize(0, 1) : INFINITY;
-    for (int i = 1; i < pmesh.GetNE(); i++) {
-      my_hmin = min(pmesh.GetElementSize(i, 1), my_hmin);
+    double my_hmin =
+        pmesh->GetNE() > 0 ? pmesh->GetElementSize(0, 1) : INFINITY;
+    for (int i = 1; i < pmesh->GetNE(); i++) {
+      my_hmin = min(pmesh->GetElementSize(i, 1), my_hmin);
     }
-    MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+    MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
   }
 
   // Start the timer.
@@ -284,7 +271,7 @@ int main(int argc, char *argv[]) {
     double max_char_speed;
     double my_max_char_speed = burgers.getMaxCharSpeed();
     MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
-                  pmesh.GetComm());
+                  pmesh->GetComm());
     dt = cfl * hmin / max_char_speed / (2 * order + 1);
   }
 
@@ -298,7 +285,7 @@ int main(int argc, char *argv[]) {
       double max_char_speed;
       double my_max_char_speed = burgers.getMaxCharSpeed();
       MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
+                    pmesh->GetComm());
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
     }
     ti++;
@@ -310,12 +297,12 @@ int main(int argc, char *argv[]) {
       }
       if (visualization) {
         sout << "parallel " << numProcs << " " << myRank << "\n";
-        sout << "solution\n" << pmesh << sol << flush;
-        MPI_Barrier(pmesh.GetComm());
+        sout << "solution\n" << *pmesh << sol << flush;
+        MPI_Barrier(pmesh->GetComm());
       }
     }
   }
-  MPI_Barrier(pmesh.GetComm());
+  MPI_Barrier(pmesh->GetComm());
   tic_toc.Stop();
   if (Mpi::Root()) {
     cout << " done, " << tic_toc.RealTime() << "s." << endl;
@@ -332,7 +319,7 @@ int main(int argc, char *argv[]) {
     mesh_ofs << pmesh;
 
     for (int k = 0; k < num_equations; k++) {
-      ParGridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
+      ParGridFunction uk(fes, sol.GetData() + k * fes->GetNDofs());
       ostringstream sol_name;
       sol_name << "burgers-" << k << "-final." << setfill('0') << setw(6)
                << Mpi::WorldRank();
@@ -353,21 +340,6 @@ int main(int argc, char *argv[]) {
   delete ode_solver;
 
   return 0;
-}
-
-void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes,
-                  DGHyperbolicConservationLaws &burgers, GridFunction &sol,
-                  ODESolver *ode_solver) {
-  fes.Update();
-  dfes.Update();
-  vfes.Update();
-  sol.Update();
-  burgers.Update();
-  ode_solver->Init(burgers);
-  fes.UpdatesFinished();
-  dfes.UpdatesFinished();
-  vfes.UpdatesFinished();
 }
 
 void BurgersMesh(const int problem, const char **mesh_file) {
