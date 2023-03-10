@@ -65,12 +65,12 @@ protected:
    int size;
 
    /// @brief Move the contents of @a v into the calling vector.
-   /** This is needed in addition to the move constructor/assignment operators since  
-       ownership flags must be checked before completing standard move assignment operations. 
+   /** This is needed in addition to the move constructor/assignment operators since
+       ownership flags must be checked before completing standard move assignment operations.
        We also want to keep the move workflow centralized in a single call. */
    void Move(Vector&& v);
 
- public:
+public:
 
    /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
        data through Memory<double>'s default constructor. */

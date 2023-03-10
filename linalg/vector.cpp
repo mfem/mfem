@@ -51,7 +51,8 @@ Vector::Vector(const Vector &v)
 
 Vector::Vector(Vector&& v) { Move(std::move(v)); }
 
-void Vector::Move(Vector &&v) {
+void Vector::Move(Vector &&v)
+{
    data = std::move(v.data);
    // Self-assignment-safe way to move v.size to size:
    const auto size_tmp = v.size;
@@ -156,9 +157,12 @@ Vector &Vector::operator=(Vector &&v)
    // Move assignments are only safe if we own the underlying data.
    // If we don't, we could be breaking ownership contracts. This could happen during
    // third party library calls, e.g. Sundials N vector operations.
-   if (OwnsData()) {
+   if (OwnsData())
+   {
       Move(std::move(v));
-   } else {
+   }
+   else
+   {
       // If we don't own the data, force use of the copy assignment operator instead.
       this->operator=(const_cast<const mfem::Vector&>(v));
    }
