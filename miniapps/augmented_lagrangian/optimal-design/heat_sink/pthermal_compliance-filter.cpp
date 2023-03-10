@@ -555,8 +555,9 @@ int main(int argc, char *argv[])
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
       paraview_dc->SetHighOrderOutput(true);
       paraview_dc->SetTime(0.0); // set the time
-      paraview_dc->RegisterField("soln",&u);
-      paraview_dc->RegisterField("dens",&rho);
+      // paraview_dc->RegisterField("soln",&u);
+      // paraview_dc->RegisterField("dens",&rho);
+      paraview_dc->RegisterField("dens_filter",&rho_filter);
    }
    // 12. AL iterations
    int step = 0;
