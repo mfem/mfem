@@ -1396,12 +1396,12 @@ TensorProductPRefinementTransferOperator(
    localL.UseDevice(true);
    localH.UseDevice(true);
 
-   MFEM_VERIFY(dynamic_cast<const ElementRestriction*>(elem_restrict_lex_h),
+   const auto *elem_restrict =
+      dynamic_cast<const ConformingElementRestriction*>(elem_restrict_lex_h);
+   MFEM_VERIFY(elem_restrict,
                "High order element restriction is of unsupported type");
-
    mask.SetSize(localH.Size(), Device::GetMemoryType());
-   static_cast<const ElementRestriction*>(elem_restrict_lex_h)
-   ->BooleanMask(mask);
+   elem_restrict->BooleanMask(mask);
    mask.UseDevice(true);
 }
 

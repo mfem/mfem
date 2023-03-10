@@ -618,7 +618,7 @@ public:
        L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
-   const ElementRestrictionOperator *GetElementRestriction(
+   const ElementRestriction *GetElementRestriction(
       ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.

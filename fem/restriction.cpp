@@ -12,20 +12,18 @@
 #include "restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
+#ifdef MFEM_USE_MPI
+#include "pfespace.hpp"
+#endif
 #include "../general/forall.hpp"
 #include <climits>
-
-#ifdef MFEM_USE_MPI
-
-#include "pfespace.hpp"
-
-#endif
 
 namespace mfem
 {
 
-ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
-                                       ElementDofOrdering e_ordering)
+ConformingElementRestriction::ConformingElementRestriction(
+   const FiniteElementSpace &f,
+   ElementDofOrdering e_ordering)
    : fes(f),
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
@@ -103,7 +101,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    offsets[0] = 0;
 }
 
-void ElementRestriction::Mult(const Vector& x, Vector& y) const
+void ConformingElementRestriction::Mult(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -125,7 +123,8 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
+void ConformingElementRestriction::MultUnsigned(const Vector& x,
+                                                Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -147,12 +146,13 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
 }
 
 template <bool ADD>
-void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
+static void TAddMultTranspose(const int nd, const int vd, const bool t,
+                              const int ndofs, const int ne,
+                              const Array<int>& offsets,
+                              const Array<int>& indices,
+                              const Vector& x, Vector& y)
 {
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
@@ -176,21 +176,23 @@ void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+void ConformingElementRestriction::MultTranspose(const Vector& x,
+                                                 Vector& y) const
 {
    constexpr bool ADD = false;
-   TAddMultTranspose<ADD>(x, y);
+   TAddMultTranspose<ADD>(dof, vdim, byvdim, ndofs, ne, offsets, indices, x, y);
 }
 
-void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
-                                          const double a) const
+void ConformingElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                                    const double a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    constexpr bool ADD = true;
-   TAddMultTranspose<ADD>(x, y);
+   TAddMultTranspose<ADD>(dof, vdim, byvdim, ndofs, ne, offsets, indices, x, y);
 }
 
-void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
+void ConformingElementRestriction::MultTransposeUnsigned(const Vector& x,
+                                                         Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -217,7 +219,7 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::BooleanMask(Vector& y) const
+void ConformingElementRestriction::BooleanMask(Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -254,8 +256,8 @@ void ElementRestriction::BooleanMask(Vector& y) const
    }
 }
 
-void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
-                                          SparseMatrix &mat) const
+void ConformingElementRestriction::FillSparseMatrix(const Vector &mat_ea,
+                                                    SparseMatrix &mat) const
 {
    mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
    const int nnz = FillI(mat);
@@ -293,7 +295,7 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
    return ind;
 }
 
-int ElementRestriction::FillI(SparseMatrix &mat) const
+int ConformingElementRestriction::FillI(SparseMatrix &mat) const
 {
    static constexpr int Max = MaxNbNbr;
    const int all_dofs = ndofs;
@@ -370,8 +372,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    return h_I[nTdofs];
 }
 
-void ElementRestriction::FillJAndData(const Vector &ea_data,
-                                      SparseMatrix &mat) const
+void ConformingElementRestriction::FillJAndData(const Vector &ea_data,
+                                                SparseMatrix &mat) const
 {
    static constexpr int Max = MaxNbNbr;
    const int all_dofs = ndofs;
@@ -497,11 +499,10 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
 }
 
 template <bool ADD>
-void L2ElementRestriction::TAddMultTranspose(const Vector &x, Vector &y) const
+static void L2TAddMultTranspose(const int nd, const int vd, const bool t,
+                                const int ndofs, const int ne,
+                                const Vector &x, Vector &y)
 {
-   const int nd = ndof;
-   const int vd = vdim;
-   const bool t = byvdim;
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
    mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
@@ -520,7 +521,7 @@ void L2ElementRestriction::TAddMultTranspose(const Vector &x, Vector &y) const
 void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 {
    constexpr bool ADD = false;
-   TAddMultTranspose<ADD>(x, y);
+   L2TAddMultTranspose<ADD>(ndof, vdim, byvdim, ndofs, ne, x, y);
 }
 
 void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
@@ -528,7 +529,7 @@ void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    constexpr bool ADD = true;
-   TAddMultTranspose<ADD>(x, y);
+   L2TAddMultTranspose<ADD>(ndof, vdim, byvdim, ndofs, ne, x, y);
 }
 
 void L2ElementRestriction::FillI(SparseMatrix &mat) const
@@ -1150,7 +1151,7 @@ void L2FaceRestriction::SingleValuedConformingAddMultTranspose(
          for (int j = offset; j < next_offset; ++j)
          {
             int idx_j = d_indices[j];
-            dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+            dof_value += d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
          }
          d_y(t?c:i,t?i:c) += dof_value;
       }
@@ -1181,9 +1182,8 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
             int idx_j = d_indices[j];
             bool isE1 = idx_j < dofs;
             idx_j = isE1 ? idx_j : idx_j - dofs;
-            dof_value +=  isE1 ?
-                          d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
-                          :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
+            dof_value += (isE1 ? d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
+                          : d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs));
          }
          d_y(t?c:i,t?i:c) += dof_value;
       }

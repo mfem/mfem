@@ -65,7 +65,7 @@ protected:
    mutable Vector local_x, local_y;
    mutable Vector int_face_x, int_face_y;
    mutable Vector bdr_face_x, bdr_face_y;
-   const Operator *elem_restrict; // Not owned
+   const ElementRestriction *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
@@ -180,8 +180,8 @@ protected:
    mutable Vector local_trial, local_test, temp_trial, temp_test;
    mutable Vector int_face_trial, int_face_test, int_face_y;
    mutable Vector bdr_face_trial, bdr_face_test, bdr_face_y;
-   const Operator *elem_restrict_trial; // Not owned
-   const Operator *elem_restrict_test;  // Not owned
+   const ElementRestriction *elem_restrict_trial; // Not owned
+   const ElementRestriction *elem_restrict_test;  // Not owned
    const FaceRestriction *int_face_restrict_lex_trial; // Not owned
    const FaceRestriction *int_face_restrict_lex_test;  // Not owned
    const FaceRestriction *bdr_face_restrict_lex_trial; // Not owned

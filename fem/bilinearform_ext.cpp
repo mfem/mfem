@@ -69,7 +69,7 @@ void MFBilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
                          Device::GetDeviceMemoryType());
       int_face_y.SetSize(int_face_restrict_lex->Height(),
                          Device::GetDeviceMemoryType());
-      int_face_y.UseDevice(true); // ensure 'int_face_y = 0.0' is done on device
+      int_face_y.UseDevice(true);
    }
 
    const bool has_bdr_integs = (a->GetBFBFI()->Size() > 0 ||
@@ -84,7 +84,7 @@ void MFBilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
                          Device::GetDeviceMemoryType());
       bdr_face_y.SetSize(bdr_face_restrict_lex->Height(),
                          Device::GetDeviceMemoryType());
-      bdr_face_y.UseDevice(true); // ensure 'bdr_face_y = 0.0' is done on device
+      bdr_face_y.UseDevice(true);
    }
 }
 
@@ -123,16 +123,7 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &diag) const
          {
             integ->AssembleDiagonalMF(local_y);
          }
-         const ElementRestriction *H1elem_restrict =
-            dynamic_cast<const ElementRestriction *>(elem_restrict);
-         if (H1elem_restrict)
-         {
-            H1elem_restrict->MultTransposeUnsigned(local_y, diag);
-         }
-         else
-         {
-            elem_restrict->MultTranspose(local_y, diag);
-         }
+         elem_restrict->MultTransposeUnsigned(local_y, diag);
       }
       else
       {
@@ -340,16 +331,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &diag) const
          {
             integ->AssembleDiagonalPA(local_y);
          }
-         const ElementRestriction *H1elem_restrict =
-            dynamic_cast<const ElementRestriction *>(elem_restrict);
-         if (H1elem_restrict)
-         {
-            H1elem_restrict->MultTransposeUnsigned(local_y, diag);
-         }
-         else
-         {
-            elem_restrict->MultTranspose(local_y, diag);
-         }
+         elem_restrict->MultTransposeUnsigned(local_y, diag);
       }
       else
       {
@@ -935,9 +917,9 @@ void FABilinearFormExtension::Assemble()
    {
       if (fes->IsDGSpace())
       {
-         const L2ElementRestriction *restE =
+         const auto *restE =
             static_cast<const L2ElementRestriction *>(elem_restrict);
-         const L2FaceRestriction *restF =
+         const auto *restF =
             static_cast<const L2FaceRestriction *>(int_face_restrict_lex);
          MFEM_VERIFY(fes->Conforming(),
                      "Full Assembly not yet supported on NCMesh.");
@@ -956,8 +938,8 @@ void FABilinearFormExtension::Assemble()
       }
       else
       {
-         const ElementRestriction &rest =
-            static_cast<const ElementRestriction&>(*elem_restrict);
+         const auto &rest =
+            static_cast<const ConformingElementRestriction&>(*elem_restrict);
          rest.FillJAndData(ea_data, *mat);
       }
    }
@@ -967,9 +949,9 @@ void FABilinearFormExtension::Assemble()
       mat->OverrideSize(height, width);
       if (fes->IsDGSpace())
       {
-         const L2ElementRestriction *restE =
+         const auto *restE =
             static_cast<const L2ElementRestriction *>(elem_restrict);
-         const L2FaceRestriction *restF =
+         const auto *restF =
             static_cast<const L2FaceRestriction *>(int_face_restrict_lex);
          MFEM_VERIFY(fes->Conforming(),
                      "Full Assembly not yet supported on NCMesh.");
@@ -1005,10 +987,10 @@ void FABilinearFormExtension::Assemble()
          }
          I[0] = 0;
       }
-      else // Continuous Galerkin case
+      else
       {
-         const ElementRestriction &rest =
-            static_cast<const ElementRestriction &>(*elem_restrict);
+         const auto &rest =
+            static_cast<const ConformingElementRestriction &>(*elem_restrict);
          rest.FillSparseMatrix(ea_data, *mat);
       }
       a->mat = mat;
@@ -1194,7 +1176,8 @@ void MFMixedBilinearFormExtension::SetupRestrictionOperators(
    }
    if (elem_restrict_test)
    {
-      local_test.SetSize(elem_restrict_test->Height(), Device::GetDeviceMemoryType());
+      local_test.SetSize(elem_restrict_test->Height(),
+                         Device::GetDeviceMemoryType());
       local_test.UseDevice(true); // ensure 'local_test = 0.0' is done on device
    }
 
@@ -1209,8 +1192,7 @@ void MFMixedBilinearFormExtension::SetupRestrictionOperators(
                                           FaceType::Interior);
          int_face_trial.SetSize(int_face_restrict_lex_trial->Height(),
                                 Device::GetDeviceMemoryType());
-         int_face_trial.UseDevice(
-            true); // ensure 'int_face_trial = 0.0' is done on device
+         int_face_trial.UseDevice(true);
       }
       if (int_face_restrict_lex_test == nullptr)
       {
@@ -1219,7 +1201,7 @@ void MFMixedBilinearFormExtension::SetupRestrictionOperators(
                                          FaceType::Interior);
          int_face_test.SetSize(int_face_restrict_lex_test->Height(),
                                Device::GetDeviceMemoryType());
-         int_face_test.UseDevice(true); // ensure 'int_face_test = 0.0' is done on device
+         int_face_test.UseDevice(true);
       }
    }
 
@@ -1235,8 +1217,7 @@ void MFMixedBilinearFormExtension::SetupRestrictionOperators(
                                           m);
          bdr_face_trial.SetSize(bdr_face_restrict_lex_trial->Height(),
                                 Device::GetDeviceMemoryType());
-         bdr_face_trial.UseDevice(
-            true); // ensure 'bdr_face_trial = 0.0' is done on device
+         bdr_face_trial.UseDevice(true);
       }
       if (bdr_face_restrict_lex_test == nullptr)
       {
@@ -1246,7 +1227,7 @@ void MFMixedBilinearFormExtension::SetupRestrictionOperators(
                                          m);
          bdr_face_test.SetSize(bdr_face_restrict_lex_test->Height(),
                                Device::GetDeviceMemoryType());
-         bdr_face_test.UseDevice(true); // ensure 'bdr_face_test = 0.0' is done on device
+         bdr_face_test.UseDevice(true);
       }
    }
 }
@@ -1522,16 +1503,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
    if (elem_restrict_trial && integrators.Size() > 0)
    {
-      const ElementRestriction *H1elem_restrict_trial =
-         dynamic_cast<const ElementRestriction *>(elem_restrict_trial);
-      if (H1elem_restrict_trial)
-      {
-         H1elem_restrict_trial->MultUnsigned(D, local_trial);
-      }
-      else
-      {
-         elem_restrict_trial->Mult(D, local_trial);
-      }
+      elem_restrict_trial->MultUnsigned(D, local_trial);
    }
    if (elem_restrict_test && integrators.Size() > 0)
    {
@@ -1541,16 +1513,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
          integ->AssembleDiagonalPA_ADAt(elem_restrict_trial ? local_trial : D,
                                         local_test);
       }
-      const ElementRestriction *H1elem_restrict_test =
-         dynamic_cast<const ElementRestriction *>(elem_restrict_test);
-      if (H1elem_restrict_test)
-      {
-         H1elem_restrict_test->MultTransposeUnsigned(local_test, diag);
-      }
-      else
-      {
-         elem_restrict_test->MultTranspose(local_test, diag);
-      }
+      elem_restrict_test->MultTransposeUnsigned(local_test, diag);
    }
    else
    {

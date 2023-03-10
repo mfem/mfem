@@ -103,9 +103,9 @@ void BatchedLOR_ADS::FormCurlMatrix()
    Form3DFaceToEdge(face2edge);
 
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const auto *R_f = dynamic_cast<const ElementRestriction*>(
+   const auto *R_f = dynamic_cast<const ConformingElementRestriction*>(
                         face_fes.GetElementRestriction(ordering));
-   const auto *R_e = dynamic_cast<const ElementRestriction*>(
+   const auto *R_e = dynamic_cast<const ConformingElementRestriction*>(
                         edge_fes.GetElementRestriction(ordering));
    MFEM_VERIFY(R_f != NULL && R_e != NULL, "");
 

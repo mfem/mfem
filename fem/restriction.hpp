@@ -22,19 +22,44 @@ class FiniteElementSpace;
 enum class ElementDofOrdering;
 
 /// Abstract base class that defines an interface for element restrictions.
-class ElementRestrictionOperator : public Operator
+class ElementRestriction : public Operator
 {
 public:
-   /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
-   /// of freedom @a y.
+   /** @brief Extract the degrees of freedom from @a x into @a y. */
+   void Mult(const Vector &x, Vector &y) const override = 0;
+
+   /** @brief Set the degrees of freedom in the element degrees of freedom
+       @a y to the values given in @a x. */
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTranspose(x, y);
+   }
+
+   /** @brief Add the degrees of freedom @a x to the element degrees of
+       freedom @a y. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override = 0;
+
+   /** @brief Add the degrees of freedom @a x to the element degrees of
+       freedom @a y ignoring the signs from DOF orientation. */
+   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   {
+      Mult(x, y);
+   }
+
+   /** @brief Add the degrees of freedom @a x to the element degrees of
+       freedom @a y ignoring the signs from DOF orientation. */
+   virtual void MultTransposeUnsigned(const Vector &x, Vector &y) const
+   {
+      MultTranspose(x, y);
+   }
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
-class ElementRestriction : public ElementRestrictionOperator
+class ConformingElementRestriction : public ElementRestriction
 {
 private:
    /** This number defines the maximum number of elements any dof can belong to
@@ -53,16 +78,18 @@ protected:
    Array<int> gather_map;
 
 public:
-   ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   ConformingElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
+
    void Mult(const Vector &x, Vector &y) const override;
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
 
-   /// Compute Mult without applying signs based on DOF orientations.
-   void MultUnsigned(const Vector &x, Vector &y) const;
-   /// Compute MultTranspose without applying signs based on DOF orientations.
-   void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+   void MultUnsigned(const Vector &x, Vector &y) const override;
+
+   void MultTransposeUnsigned(const Vector &x, Vector &y) const override;
 
    /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
    /// each entry of the L-vector is uniquely represented in `y`.
@@ -76,16 +103,13 @@ public:
    void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
 
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
-       given by this ElementRestriction. */
+       given by this ConformingElementRestriction. */
    int FillI(SparseMatrix &mat) const;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
-       pattern given by this ElementRestriction, and the values of ea_data. */
+       pattern given by this ConformingElementRestriction, and the values of
+       ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
-   /// @private Not part of the public interface (device kernel limitation).
-   ///
-   /// Performs either MultTranspose or AddMultTranspose depending on the
-   /// boolean template parameter @a ADD.
-   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
 
    /// @name Low-level access to the underlying element-dof mappings
    ///@{
@@ -100,37 +124,39 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
     corresponding to grid functions in L2 finite element spaces differ from
     E-vectors only in the ordering of the degrees of freedom. */
-class L2ElementRestriction : public ElementRestrictionOperator
+class L2ElementRestriction : public ElementRestriction
 {
+private:
    const int ne;
    const int vdim;
    const bool byvdim;
    const int ndof;
    const int ndofs;
+
 public:
    L2ElementRestriction(const FiniteElementSpace&);
+
    void Mult(const Vector &x, Vector &y) const override;
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
-   /// @private Not part of the public interface (device kernel limitation).
-   ///
-   /// Performs either MultTranspose or AddMultTranspose depending on the
-   /// boolean template parameter @a ADD.
-   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /** An enum type to specify if only e1 value is requested (SingleValued) or both
     e1 and e2 (DoubleValued). */
 enum class L2FaceValues : bool {SingleValued, DoubleValued};
 
-/** @brief Base class for operators that extracts Face degrees of freedom.
+/** @brief Abstract base class for operators that extracts Face degrees of freedom.
 
     In order to compute quantities on the faces of a mesh, it is often useful to
     extract the degrees of freedom on the faces of the elements. This class
@@ -168,11 +194,17 @@ public:
    */
    void Mult(const Vector &x, Vector &y) const override = 0;
 
-   /** @brief Extract the face degrees of freedom from @a x into @a y ignoring
-       the signs from DOF orientation. */
-   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   /** @brief Set the face degrees of freedom in the element degrees of freedom
+       @a y to the values given in @a x.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   void MultTranspose(const Vector &x, Vector &y) const override
    {
-      Mult(x, y);
+      y = 0.0;
+      AddMultTranspose(x, y);
    }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
@@ -183,8 +215,15 @@ public:
                         face degrees of freedom.
        @param[in]     a Scalar coefficient for addition.
    */
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const override = 0;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override = 0;
+
+   /** @brief Extract the face degrees of freedom from @a x into @a y ignoring
+       the signs from DOF orientation. */
+   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   {
+      Mult(x, y);
+   }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y ignoring the signs from DOF orientation. */
@@ -207,19 +246,6 @@ public:
    */
    virtual void AddMultTransposeInPlace(Vector &x, Vector &y) const
    {
-      AddMultTranspose(x, y);
-   }
-
-   /** @brief Set the face degrees of freedom in the element degrees of freedom
-       @a y to the values given in @a x.
-
-       @param[in]     x The face degrees of freedom on the face.
-       @param[in,out] y The L-vector of degrees of freedom to which we add the
-                        face degrees of freedom.
-   */
-   void MultTranspose(const Vector &x, Vector &y) const override
-   {
-      y = 0.0;
       AddMultTranspose(x, y);
    }
 };
@@ -257,6 +283,7 @@ protected:
                              const ElementDofOrdering f_ordering,
                              const FaceType type,
                              bool build);
+
 public:
    /** @brief Construct a ConformingFaceRestriction.
 
@@ -284,8 +311,6 @@ public:
 
        @sa Mult(). */
    void MultUnsigned(const Vector &x, Vector &y) const override;
-
-   using FaceRestriction::AddMultTransposeInPlace;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -428,8 +453,6 @@ public:
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
-
-   using FaceRestriction::AddMultTranspose;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -827,6 +850,7 @@ protected:
                        const FaceType type,
                        const L2FaceValues m,
                        bool build);
+
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
        L2FaceRestriction for nonconforming meshes.
