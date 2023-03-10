@@ -363,7 +363,8 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       conv << "Step,  Inner Step,    Sample Size,"
-           << " Compliance,    Mass Fraction, Norm of reduced grad" 
+           << " Compliance,    Mass Fraction, Norm of reduced grad,"
+           << " Stationarity Error,"
            << " Lambda " << endl;
    } 
 
@@ -441,15 +442,15 @@ int main(int argc, char *argv[])
    spde::Boundary bc;
 
    // RandomUniformConstantCoefficient rand_bc(-2.0, 2.0);
-   RandomNormalConstantCoefficient rand_bc(0.0, 0.5);
-   rand_bc.resample();
-   // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
-   // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
-   // bc.AddHomogeneousBoundaryCondition(3,spde::BoundaryType::kDirichlet);
+   // RandomNormalConstantCoefficient rand_bc(0.0, 0.5);
+   // rand_bc.resample();
+   // // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+   // // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+   // // bc.AddHomogeneousBoundaryCondition(3,spde::BoundaryType::kDirichlet);
 
-   bc.AddInhomogeneousDirichletBoundaryCondition(3,rand_bc.constant);
-   bc.AddHomogeneousBoundaryCondition(1,spde::BoundaryType::kDirichlet);
-   bc.AddHomogeneousBoundaryCondition(2,spde::BoundaryType::kDirichlet);
+   // bc.AddInhomogeneousDirichletBoundaryCondition(3,rand_bc.constant);
+   // bc.AddHomogeneousBoundaryCondition(1,spde::BoundaryType::kDirichlet);
+   // bc.AddHomogeneousBoundaryCondition(2,spde::BoundaryType::kDirichlet);
 
    if (Mpi::Root()) 
    {
@@ -514,6 +515,7 @@ int main(int argc, char *argv[])
    // 9. Define the gradient function
    ParGridFunction w(&control_fes);
    ParGridFunction avg_w(&control_fes);
+   ParGridFunction stationarity(&control_fes);
    ParGridFunction w_filter(&filter_fes);
 
    // 10. Define some tools for later
@@ -564,11 +566,12 @@ int main(int argc, char *argv[])
    // RandomConstantCoefficient eta_cf(0.2,0.2,1);
    Coefficient * K_cf = nullptr;
    Coefficient * rhs_cf = nullptr;
-   for (int k = 1; k < max_it; k++)
+   for (int k = 1; k <= max_it; k++)
    {
       // A. Form state equation
+      if (k > 1) { tol_rho *= (double (k-1))/(double (k)) ; }
       double ratio_avg = 0.0;
-      for (int l = 1; l < max_it; l++)
+      for (int l = 1; l <= max_it; l++)
       {
          step++;
          if (myid == 0)
@@ -610,9 +613,9 @@ int main(int argc, char *argv[])
             }
             else
             {
-               rand_bc.resample();
-               bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
-               bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+               // rand_bc.resample();
+               // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+               // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
                random_load_solver.GenerateRandomField(load_gf);
             }
             PoissonSolver->Solve();
@@ -637,7 +640,6 @@ int main(int argc, char *argv[])
             // step 6-update  ρ 
             w -= lambda;
             w += beta * (mf - mass_fraction)/domain_volume;
-
             avg_w += w;
             double w_norm = w.ComputeL2Error(zero);
             avg_w_norm += w_norm*w_norm;
@@ -651,6 +653,30 @@ int main(int argc, char *argv[])
          double norm_avg_w = pow(avg_w.ComputeL2Error(zero),2);
          double denom = batch_size == 1 ? batch_size : batch_size-1;
          double variance = (avg_w_norm - norm_avg_w)/denom;
+
+         double eta = 1e-6;
+         stationarity = 0.0;
+         stationarity += rho;
+         stationarity.Add(-eta, avg_w);
+         stationarity += eta * beta * (mf - mass_fraction)/domain_volume;
+         // project
+         for (int i = 0; i < stationarity.Size(); i++)
+         {
+            if (stationarity[i] > 1.0) 
+            {
+               stationarity[i] = 1.0;
+            }
+            else if (stationarity[i] < 0.0)
+            {
+               stationarity[i] = 0.0;
+            }
+            else
+            { // do nothing
+            }
+         }
+         stationarity -= rho;
+         stationarity /= eta;
+         double stationarity_norm = stationarity.ComputeL2Error(zero);
 
          rho.Add(-alpha, avg_w);
          // project
@@ -678,6 +704,7 @@ int main(int argc, char *argv[])
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
             mfem::out << "compliance = " << compliance << endl;
             mfem::out << "variance = " << variance << std::endl;
+            mfem::out << "stationarity = " << stationarity_norm << std::endl;
          }
          if (norm_rho < tol_rho)
          {
@@ -694,6 +721,7 @@ int main(int argc, char *argv[])
                  << avg_compliance <<  ",   " 
                  << mf << ",   "
                  << norm_rho << ",   "
+                 << stationarity_norm << ",   "
                  << lambda << endl;
          }
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
@@ -704,18 +732,18 @@ int main(int argc, char *argv[])
          // else
          // {
             // ratio_avg /= batch_size_min;
-            ratio_avg = ratio;
+            // ratio_avg = ratio;
             if (myid == 0)
             {
                mfem::out << "ratio_avg = " << ratio_avg << std::endl;
             }
-            if (ratio_avg > theta && step > 5)
+            if (ratio > theta)
             {
-               batch_size = max((int)(pow(ratio / theta,1) * batch_size),batch_size_min); 
+               batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }
-            else if (ratio_avg < 0.1 * theta && step > 5)
+            else if (ratio < 0.1 * theta)
             {
-               batch_size = max((int)(pow(ratio / theta,1) * batch_size),batch_size_min); 
+               batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }
          // }
 
