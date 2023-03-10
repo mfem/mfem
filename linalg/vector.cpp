@@ -49,9 +49,14 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
-Vector::Vector(Vector &&v)
-{
-   *this = std::move(v);
+Vector::Vector(Vector&& v) { Move(std::move(v)); }
+
+void Vector::Move(Vector &&v) {
+   data = std::move(v.data);
+   // Self-assignment-safe way to move v.size to size:
+   const auto size_tmp = v.size;
+   v.size = 0;
+   size = size_tmp;
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -148,11 +153,15 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(Vector &&v)
 {
-   data = std::move(v.data);
-   // Self-assignment-safe way to move v.size to size:
-   const auto size_tmp = v.size;
-   v.size = 0;
-   size = size_tmp;
+   // Move assignments are only safe if we own the underlying data.
+   // If we don't, we could be breaking ownership contracts. This could happen during
+   // third party library calls, e.g. Sundials N vector operations.
+   if (OwnsData()) {
+      Move(std::move(v));
+   } else {
+      // If we don't own the data, force use of the copy assignment operator instead.
+      this->operator=(const_cast<const mfem::Vector&>(v));
+   }
    return *this;
 }
 
