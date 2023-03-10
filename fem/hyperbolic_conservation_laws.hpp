@@ -483,7 +483,7 @@ void HyperbolicElementFormIntegrator::AssembleElementVector(
     // compute F(u,x) and point maximum characteristic speed
     const double mcs = ComputeFlux(state, Tr, flux);
     // update maximum characteristic speed
-    max_char_speed = mcs > max_char_speed ? mcs : max_char_speed;
+    max_char_speed =  max(mcs, max_char_speed);
     // integrate (F(u,x), grad v)
     AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
   }
@@ -547,7 +547,7 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
     rsolver->Eval(state1, state2, fluxN1, fluxN2, mcs, nor, fluxN);
 
     // Update the global max char speed
-    max_char_speed = mcs > max_char_speed ? mcs : max_char_speed;
+    max_char_speed = max(mcs,max_char_speed);
 
     // pre-multiply integration weight to flux
     fluxN *= ip.weight;
