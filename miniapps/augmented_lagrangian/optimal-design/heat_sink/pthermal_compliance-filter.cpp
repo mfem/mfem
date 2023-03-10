@@ -281,12 +281,16 @@ int main(int argc, char *argv[])
    double epsilon = 1.0;
    double mass_fraction = 0.4;
    int max_it = 1e2;
-   double tol_rho = 5e-2;
-   double tol_lambda = 1e-3;
+   double tol_rho = 1.0;
+   // double tol_rho = 5e-2;
+   double tol_lambda = 0.0; // Don't exit until budget used up
+   // double tol_lambda = 1e-3;
    double K_max = 1.0;
    double K_min = 1e-3;
    int batch_size_min = 2;
    double theta = 0.5;
+
+   int max_cumulative_samples = 1e5;
 
    double l1 = 0.1, l2 = 0.1, l3 = 1.0;
 
@@ -306,6 +310,8 @@ int main(int argc, char *argv[])
                   "epsilon phase field thickness");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
+   args.AddOption(&max_cumulative_samples, "-ms", "--max-samples",
+                  "Maximum number of cumulative samples.");
    args.AddOption(&l1, "-l1", "--l1",
                   "Correlation length x");
    args.AddOption(&l2, "-l2", "--l2",
@@ -338,7 +344,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
-                  "Enable or disable paraview export.");                  
+                  "Enable or disable paraview export.");               
 
    args.Parse();
    if (!args.Good())
@@ -355,6 +361,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    int batch_size = batch_size_min;
+   if (theta < 0.0) { theta = std::numeric_limits<double>::infinity(); }
 
    ostringstream csv_file_name;
    csv_file_name << "conv_order" << order << "_GD_alpha_" << alpha 
@@ -362,7 +369,7 @@ int main(int argc, char *argv[])
    ofstream conv(csv_file_name.str().c_str());
    if (myid == 0)
    {
-      conv << "Step,  Inner Step,    Sample Size,"
+      conv << "Step,  Inner Step,    Sample Size, Cum. Sample Size,"
            << " Compliance,    Mass Fraction, Norm of reduced grad,"
            << " Stationarity Error,"
            << " Lambda " << endl;
@@ -561,7 +568,8 @@ int main(int argc, char *argv[])
    }
    // 12. AL iterations
    int step = 0;
-   double lambda = 1.0;
+   int cumulative_samples = 0;
+   double lambda = 0.0;
    // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
    RandomUniformConstantCoefficient eta_cf(0.5,0.5,1);
    // RandomConstantCoefficient eta_cf(0.2,0.2,1);
@@ -575,10 +583,14 @@ int main(int argc, char *argv[])
       for (int l = 1; l <= max_it; l++)
       {
          step++;
+         cumulative_samples += batch_size;
+         if (cumulative_samples > max_cumulative_samples) { break; }
+
          if (myid == 0)
          {
             cout << "\nStep = " << l << endl;
-            cout << "batch_size = " << batch_size << endl;
+            cout << "Batch Size   = " << batch_size << endl;
+            cout << "Cum. Samples = " << cumulative_samples << endl;
          }
          // Step 2 -  Filter Solve
          // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)  
@@ -707,10 +719,7 @@ int main(int argc, char *argv[])
             mfem::out << "variance = " << variance << std::endl;
             mfem::out << "stationarity = " << stationarity_norm << std::endl;
          }
-         if (norm_rho < tol_rho)
-         {
-            break;
-         }
+         if (norm_rho < tol_rho) { break; }
 
          double ratio = sqrt(abs(variance)) / norm_rho ;
          if (myid == 0)
@@ -719,6 +728,7 @@ int main(int argc, char *argv[])
             conv << step << ",   "
                  << l << ",   " 
                  << batch_size << ",   " 
+                 << cumulative_samples << ",   " 
                  << avg_compliance <<  ",   " 
                  << mf << ",   "
                  << norm_rho << ",   "
@@ -810,10 +820,9 @@ int main(int argc, char *argv[])
          paraview_dc->Save();
       }
 
-      if (abs(lambda_inc) < tol_lambda)
-      {
-         break;
-      }
+      if (abs(lambda_inc) < tol_lambda) { break; }
+      if (cumulative_samples > max_cumulative_samples) { break; }
+
    }
 
    if (paraview)
