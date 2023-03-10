@@ -3224,7 +3224,7 @@ void NURBSExtension::LoadFE(int i, const FiniteElement *FE) const
 
 void NURBSExtension::LoadBE(int i, const FiniteElement *BE) const
 {
-   if (Dimension() == 1) return;
+   if (Dimension() == 1) { return; }
 
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(BE);
