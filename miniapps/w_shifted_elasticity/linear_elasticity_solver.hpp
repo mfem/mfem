@@ -131,8 +131,8 @@ double AvgElementSize(ParMesh &pmesh);
     /// Set exact displacement solution.
     void SetExactDisplacementSolution(mfem::VectorCoefficient& ff);
 
-    /// Returns the velocities.
-    mfem::ParGridFunction& GetVelocities()
+    /// Returns the displacements.
+    mfem::ParGridFunction& GetDisplacements()
     {
       return *fdisplacement;
     }
