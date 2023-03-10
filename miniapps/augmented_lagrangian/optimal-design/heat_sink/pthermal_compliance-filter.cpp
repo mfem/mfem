@@ -568,6 +568,7 @@ int main(int argc, char *argv[])
    }
    // 12. AL iterations
    int step = 0;
+   bool first_iteration = true;
    int cumulative_samples = 0;
    double lambda = 0.0;
    // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
@@ -748,14 +749,15 @@ int main(int argc, char *argv[])
             {
                mfem::out << "ratio_avg = " << ratio_avg << std::endl;
             }
-            if (ratio > theta)
+            if (ratio > theta and !first_iteration)
             {
                batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }
-            else if (ratio < 0.1 * theta)
+            else if (ratio < 0.1 * theta and !first_iteration)
             {
                batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }
+            first_iteration = false;
          // }
 
          if (visualization)
