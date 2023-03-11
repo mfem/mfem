@@ -494,6 +494,10 @@ void SparseMatrix::SortColumnIndices()
       cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
 
+      // The above call is (at least in some cases) asynchronous, so we need to
+      // wait for it to finish before we can free device temporaries.
+      MFEM_STREAM_SYNC;
+
       cusparseDestroyCsru2csrInfo( sortInfoA );
       cusparseDestroyMatDescr( matA_descr );
 
