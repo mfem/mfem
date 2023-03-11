@@ -470,7 +470,8 @@ void test_ceed_convection(const char* mesh_filename, int order,
 
    VectorFunctionCoefficient velocity_coeff(dim, velocity_function);
 
-   FiniteElementSpace fes(&mesh, &fec, dim);
+   FiniteElementSpace fes(&mesh, &fec, 1);
+   FiniteElementSpace vfes(&mesh, &fec, dim);
    BilinearForm conv_op(&fes);
 
    IntegrationRules rules(0, Quadrature1D::GaussLobatto);
@@ -483,7 +484,7 @@ void test_ceed_convection(const char* mesh_filename, int order,
    conv_op.SetAssemblyLevel(assembly);
    conv_op.Assemble();
 
-   GridFunction q(&fes), r(&fes), ex(&fes);
+   GridFunction q(&vfes), r(&vfes), ex(&vfes);
 
    VectorFunctionCoefficient quantity_coeff(dim, quantity);
    q.ProjectCoefficient(quantity_coeff);
@@ -492,9 +493,15 @@ void test_ceed_convection(const char* mesh_filename, int order,
    ex.ProjectCoefficient(convected_quantity_coeff);
 
    r = 0.0;
-   conv_op.Mult(q, r);
+   for (int i = 0; i < dim; i++)
+   {
+      GridFunction qi, ri;
+      qi.MakeRef(&fes, q, i * fes.GetVSize());
+      ri.MakeRef(&fes, r, i * fes.GetVSize());
+      conv_op.Mult(qi, ri);
+   }
 
-   LinearForm f(&fes);
+   LinearForm f(&vfes);
    VectorDomainLFIntegrator *vlf_integ = new VectorDomainLFIntegrator(
       convected_quantity_coeff);
    vlf_integ->SetIntRule(&ir);

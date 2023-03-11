@@ -26,42 +26,48 @@ namespace ceed
 class PADiffusionIntegrator : public PAIntegrator
 {
 public:
+   template <typename CoeffType>
    PADiffusionIntegrator(const mfem::FiniteElementSpace &fes,
                          const mfem::IntegrationRule &ir,
-                         mfem::Coefficient *Q);
+                         CoeffType *Q);
 };
 
 class MixedPADiffusionIntegrator : public MixedIntegrator<PAIntegrator>
 {
 public:
+   template <typename CoeffType>
    MixedPADiffusionIntegrator(const DiffusionIntegrator &integ,
                               const mfem::FiniteElementSpace &fes,
-                              mfem::Coefficient *Q);
+                              CoeffType *Q);
 
+   template <typename CoeffType>
    MixedPADiffusionIntegrator(const VectorDiffusionIntegrator &integ,
                               const mfem::FiniteElementSpace &fes,
-                              mfem::Coefficient *Q);
+                              CoeffType *Q);
 };
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
 class MFDiffusionIntegrator : public MFIntegrator
 {
 public:
+   template <typename CoeffType>
    MFDiffusionIntegrator(const mfem::FiniteElementSpace &fes,
                          const mfem::IntegrationRule &ir,
-                         mfem::Coefficient *Q);
+                         CoeffType *Q);
 };
 
 class MixedMFDiffusionIntegrator : public MixedIntegrator<MFIntegrator>
 {
 public:
+   template <typename CoeffType>
    MixedMFDiffusionIntegrator(const DiffusionIntegrator &integ,
                               const mfem::FiniteElementSpace &fes,
-                              mfem::Coefficient *Q);
+                              CoeffType *Q);
 
+   template <typename CoeffType>
    MixedMFDiffusionIntegrator(const VectorDiffusionIntegrator &integ,
                               const mfem::FiniteElementSpace &fes,
-                              mfem::Coefficient *Q);
+                              CoeffType *Q);
 };
 
 }

@@ -26,7 +26,8 @@ namespace ceed
 struct ConvectionOperatorInfo : public OperatorInfo
 {
    ConvectionContext ctx;
-   ConvectionOperatorInfo(int dim, double alpha)
+   ConvectionOperatorInfo(const mfem::FiniteElementSpace &fes,
+                          mfem::VectorCoefficient *VQ, double alpha)
    {
       header = "/integrators/convection/convection_qf.h";
       build_func_const = ":f_build_conv_const";
@@ -41,7 +42,24 @@ struct ConvectionOperatorInfo : public OperatorInfo
       apply_qf_mf_quad = &f_apply_conv_mf_quad;
       trial_op = EvalMode::Grad;
       test_op = EvalMode::Interp;
-      qdatasize = dim * (dim + 1) / 2;
+      qdatasize = fes.GetMesh()->Dimension();
+
+      MFEM_VERIFY(VQ && VQ->GetVDim() == fes.GetMesh()->SpaceDimension(),
+                  "Incorrect coefficient dimensions in ceed::ConvectionOperatorInfo!");
+      ctx.dim = fes.GetMesh()->Dimension();
+      ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      if (VectorConstantCoefficient *const_coeff =
+             dynamic_cast<VectorConstantCoefficient *>(VQ))
+      {
+         const int vdim = VQ->GetVDim();
+         MFEM_VERIFY(vdim <= LIBCEED_CONV_COEFF_COMP_MAX,
+                     "VectorCoefficient dimension exceeds context storage!");
+         const mfem::Vector &val = const_coeff->GetVec();
+         for (int i = 0; i < vdim; i++)
+         {
+            ctx.coeff[i] = val[i];
+         }
+      }
       ctx.alpha = alpha;
    }
 };
@@ -50,13 +68,13 @@ struct ConvectionOperatorInfo : public OperatorInfo
 PAConvectionIntegrator::PAConvectionIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   mfem::VectorCoefficient *Q,
+   mfem::VectorCoefficient *VQ,
    const double alpha)
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
-   Assemble(info, fes, irm, Q);
+   ConvectionOperatorInfo info(fes, VQ, alpha);
+   Assemble(info, fes, irm, VQ);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -65,12 +83,12 @@ PAConvectionIntegrator::PAConvectionIntegrator(
 MixedPAConvectionIntegrator::MixedPAConvectionIntegrator(
    const ConvectionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   mfem::VectorCoefficient *Q,
+   mfem::VectorCoefficient *VQ,
    const double alpha)
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
-   Assemble(integ, info, fes, Q);
+   ConvectionOperatorInfo info(fes, VQ, alpha);
+   Assemble(integ, info, fes, VQ);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -79,13 +97,13 @@ MixedPAConvectionIntegrator::MixedPAConvectionIntegrator(
 MFConvectionIntegrator::MFConvectionIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   mfem::VectorCoefficient *Q,
+   mfem::VectorCoefficient *VQ,
    const double alpha)
    : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
-   Assemble(info, fes, irm, Q);
+   ConvectionOperatorInfo info(fes, VQ, alpha);
+   Assemble(info, fes, irm, VQ);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -94,12 +112,12 @@ MFConvectionIntegrator::MFConvectionIntegrator(
 MixedMFConvectionIntegrator::MixedMFConvectionIntegrator(
    const ConvectionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   mfem::VectorCoefficient *Q,
+   mfem::VectorCoefficient *VQ,
    const double alpha)
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
-   Assemble(integ, info, fes, Q);
+   ConvectionOperatorInfo info(fes, VQ, alpha);
+   Assemble(integ, info, fes, VQ);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

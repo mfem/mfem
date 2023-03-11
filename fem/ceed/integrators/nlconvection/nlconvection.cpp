@@ -26,7 +26,8 @@ namespace ceed
 struct NLConvectionOperatorInfo : public OperatorInfo
 {
    NLConvectionContext ctx;
-   NLConvectionOperatorInfo(int dim)
+   NLConvectionOperatorInfo(const mfem::FiniteElementSpace &fes,
+                            mfem::Coefficient *Q)
    {
       header = "/integrators/nlconvection/nlconvection_qf.h";
       build_func_const = ":f_build_conv_const";
@@ -41,7 +42,21 @@ struct NLConvectionOperatorInfo : public OperatorInfo
       apply_qf_mf_quad = &f_apply_conv_mf_quad;
       trial_op = EvalMode::InterpAndGrad;
       test_op = EvalMode::Interp;
-      qdatasize = dim * dim;
+      qdatasize = fes.GetMesh()->Dimension() * fes.GetMesh()->SpaceDimension();
+
+      MFEM_VERIFY(fes.GetVDim() == fes.GetMesh()->SpaceDimension(),
+                  "Missing coefficient in ceed::ConvectionOperatorInfo!");
+      ctx.dim = fes.GetMesh()->Dimension();
+      ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      if (Q == nullptr)
+      {
+         ctx.coeff = 1.0;
+      }
+      else if (ConstantCoefficient *const_coeff =
+                  dynamic_cast<ConstantCoefficient *>(Q))
+      {
+         ctx.coeff = const_coeff->constant;
+      }
    }
 };
 #endif
@@ -53,7 +68,7 @@ PAVectorConvectionNLFIntegrator::PAVectorConvectionNLFIntegrator(
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
+   NLConvectionOperatorInfo info(fes, Q);
    Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -66,7 +81,7 @@ MixedPAVectorConvectionNLIntegrator::MixedPAVectorConvectionNLIntegrator(
    mfem::Coefficient *Q)
 {
 #ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
+   NLConvectionOperatorInfo info(fes, Q);
    Assemble(integ, info, fes, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -80,7 +95,7 @@ MFVectorConvectionNLFIntegrator::MFVectorConvectionNLFIntegrator(
    : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
+   NLConvectionOperatorInfo info(fes, Q);
    Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -93,7 +108,7 @@ MixedMFVectorConvectionNLIntegrator::MixedMFVectorConvectionNLIntegrator(
    mfem::Coefficient *Q)
 {
 #ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
+   NLConvectionOperatorInfo info(fes, Q);
    Assemble(integ, info, fes, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");

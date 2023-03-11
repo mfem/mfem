@@ -77,7 +77,7 @@ public:
       {
          ElementKey key(fes.GetElementType(i), fes.GetElementOrder(i));
          int &offset = *(offsets[key]);
-         int* indices_array = element_indices[key];
+         int *indices_array = element_indices[key];
          indices_array[offset] = i;
          offset++;
       }
@@ -89,7 +89,7 @@ public:
       sub_ops.reserve(element_indices.size());
       for (const auto& value : element_indices)
       {
-         const int* indices = value.second;
+         const int *indices = value.second;
          const int first_index = indices[0];
          const mfem::FiniteElement &el = *fes.GetFE(first_index);
          auto &T = *fes.GetMesh()->GetElementTransformation(first_index);

@@ -29,7 +29,7 @@ class PAVectorConvectionNLFIntegrator : public PAIntegrator
 public:
    PAVectorConvectionNLFIntegrator(const mfem::FiniteElementSpace &fes,
                                    const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *coeff);
+                                   mfem::Coefficient *Q);
 };
 
 class MixedPAVectorConvectionNLIntegrator : public MixedIntegrator<PAIntegrator>
@@ -48,7 +48,7 @@ class MFVectorConvectionNLFIntegrator : public MFIntegrator
 public:
    MFVectorConvectionNLFIntegrator(const mfem::FiniteElementSpace &fes,
                                    const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *coeff);
+                                   mfem::Coefficient *Q);
 };
 
 class MixedMFVectorConvectionNLIntegrator : public MixedIntegrator<MFIntegrator>

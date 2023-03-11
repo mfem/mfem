@@ -9,8 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_LIBCEED_NLCONV_QF_H
+#define MFEM_LIBCEED_NLCONV_QF_H
+
+#include "../qf_utils.h"
+
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
-struct NLConvectionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
+struct NLConvectionContext
+{
+   CeedInt dim, space_dim;
+   CeedScalar coeff;
+};
 
 /// libCEED Q-function for building quadrature data for a convection operator
 /// with a constant coefficient
@@ -18,15 +27,15 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
                                    CeedScalar *const *out)
 {
-   NLConvectionContext *bc = (NLConvectionContext*)ctx;
-   // in[0] is Jacobians with shape [dim, nc=dim, Q]
+   NLConvectionContext *bc = (NLConvectionContext *)ctx;
+   // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * adj(J).
+   // At every quadrature point, compute and store qw * c * adj(J)^T.
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
-   switch (bc->dim + 10 * bc->space_dim)
+   switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
@@ -34,56 +43,28 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
             qd[i] = coeff * qw[i] * J[i];
          }
          break;
+      case 21:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            MultAdjJt21(J + i, Q, qw[i] * coeff, Q, qd + i);
+         }
+         break;
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
-            //    1 3       1 3           -J21  J11
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J12 = J[i + Q * 2];
-            const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = qw[i] * coeff;
-            qd[i + Q * 0] =  w * J22;
-            qd[i + Q * 1] = -w * J21;
-            qd[i + Q * 2] = -w * J12;
-            qd[i + Q * 3] =  w * J11;
+            MultAdjJt22(J + i, Q, qw[i] * coeff, Q, qd + i);
+         }
+         break;
+      case 32:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            MultAdjJt32(J + i, Q, qw[i] * coeff, Q, qd + i);
          }
          break;
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 3 6
-            //    1 4 7       1 4 7
-            //    2 5 8       2 5 8
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J31 = J[i + Q * 2];
-            const CeedScalar J12 = J[i + Q * 3];
-            const CeedScalar J22 = J[i + Q * 4];
-            const CeedScalar J32 = J[i + Q * 5];
-            const CeedScalar J13 = J[i + Q * 6];
-            const CeedScalar J23 = J[i + Q * 7];
-            const CeedScalar J33 = J[i + Q * 8];
-            const CeedScalar A11 = J22 * J33 - J23 * J32;
-            const CeedScalar A12 = J13 * J32 - J12 * J33;
-            const CeedScalar A13 = J12 * J23 - J13 * J22;
-            const CeedScalar A21 = J23 * J31 - J21 * J33;
-            const CeedScalar A22 = J11 * J33 - J13 * J31;
-            const CeedScalar A23 = J13 * J21 - J11 * J23;
-            const CeedScalar A31 = J21 * J32 - J22 * J31;
-            const CeedScalar A32 = J12 * J31 - J11 * J32;
-            const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = qw[i] * coeff;
-            qd[i + Q * 0] = w * A11;
-            qd[i + Q * 1] = w * A21;
-            qd[i + Q * 2] = w * A31;
-            qd[i + Q * 3] = w * A12;
-            qd[i + Q * 4] = w * A22;
-            qd[i + Q * 5] = w * A32;
-            qd[i + Q * 6] = w * A13;
-            qd[i + Q * 7] = w * A23;
-            qd[i + Q * 8] = w * A33;
+            MultAdjJt33(J + i, Q, qw[i] * coeff, Q, qd + i);
          }
          break;
    }
@@ -97,13 +78,14 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
                                   CeedScalar *const *out)
 {
    NLConvectionContext *bc = (NLConvectionContext *)ctx;
-   // in[1] is Jacobians with shape [dim, nc=dim, Q]
+   // in[0] is coefficients, size (Q)
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * adj(J).
+   // At every quadrature point, compute and store qw * c * adj(J)^T.
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
-   switch (bc->dim + 10 * bc->space_dim)
+   switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
@@ -112,58 +94,28 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
             qd[i] = coeff * qw[i] * J[i];
          }
          break;
+      case 21:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            MultAdjJt21(J + i, Q, qw[i] * c[i], Q, qd + i);
+         }
+         break;
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
-            //    1 3       1 3           -J21  J11
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J12 = J[i + Q * 2];
-            const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar coeff = c[i];
-            const CeedScalar w = qw[i] * coeff;
-            qd[i + Q * 0] =  w * J22;
-            qd[i + Q * 1] = -w * J21;
-            qd[i + Q * 2] = -w * J12;
-            qd[i + Q * 3] =  w * J11;
+            MultAdjJt22(J + i, Q, qw[i] * c[i], Q, qd + i);
+         }
+         break;
+      case 32:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            MultAdjJt32(J + i, Q, qw[i] * c[i], Q, qd + i);
          }
          break;
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 3 6
-            //    1 4 7       1 4 7
-            //    2 5 8       2 5 8
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J31 = J[i + Q * 2];
-            const CeedScalar J12 = J[i + Q * 3];
-            const CeedScalar J22 = J[i + Q * 4];
-            const CeedScalar J32 = J[i + Q * 5];
-            const CeedScalar J13 = J[i + Q * 6];
-            const CeedScalar J23 = J[i + Q * 7];
-            const CeedScalar J33 = J[i + Q * 8];
-            const CeedScalar A11 = J22 * J33 - J23 * J32;
-            const CeedScalar A12 = J13 * J32 - J12 * J33;
-            const CeedScalar A13 = J12 * J23 - J13 * J22;
-            const CeedScalar A21 = J23 * J31 - J21 * J33;
-            const CeedScalar A22 = J11 * J33 - J13 * J31;
-            const CeedScalar A23 = J13 * J21 - J11 * J23;
-            const CeedScalar A31 = J21 * J32 - J22 * J31;
-            const CeedScalar A32 = J12 * J31 - J11 * J32;
-            const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar coeff = c[i];
-            const CeedScalar w = qw[i] * coeff;
-            qd[i + Q * 0] = w * A11;
-            qd[i + Q * 1] = w * A21;
-            qd[i + Q * 2] = w * A31;
-            qd[i + Q * 3] = w * A12;
-            qd[i + Q * 4] = w * A22;
-            qd[i + Q * 5] = w * A32;
-            qd[i + Q * 6] = w * A13;
-            qd[i + Q * 7] = w * A23;
-            qd[i + Q * 8] = w * A33;
+            MultAdjJt33(J + i, Q, qw[i] * c[i], Q, qd + i);
          }
          break;
    }
@@ -176,15 +128,34 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
                              CeedScalar *const *out)
 {
    NLConvectionContext *bc = (NLConvectionContext *)ctx;
-   // in[0], out[0] have shape [dim, nc=1, Q]
+   // in[0] has shape [ncomp=space_dim, Q]
+   // in[1] has shape [dim, ncomp=space_dim, Q]
+   // out[0] has shape [ncomp=space_dim, Q]
    const CeedScalar *u = in[0], *ug = in[1], *qd = in[2];
    CeedScalar *vg = out[0];
-   switch (10*bc->dim + bc->vdim)
+   switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
          {
             vg[i] = u[i] * ug[i] * qd[i];
+         }
+         break;
+      case 21:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd00 = qd[i + Q * 0];
+            const CeedScalar qd10 = qd[i + Q * 1];
+            const CeedScalar u0   = u[i + Q * 0];
+            const CeedScalar u1   = u[i + Q * 1];
+            const CeedScalar ug00 = ug[i + Q * 0];
+            const CeedScalar ug10 = ug[i + Q * 1];
+            const CeedScalar Dxu0 = ug00 * qd00;
+            const CeedScalar Dyu0 = ug00 * qd10;
+            const CeedScalar Dxu1 = ug10 * qd00;
+            const CeedScalar Dyu1 = ug10 * qd10;
+            vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0;
+            vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1;
          }
          break;
       case 22:
@@ -200,14 +171,45 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
             const CeedScalar ug10 = ug[i + Q * 1];
             const CeedScalar ug01 = ug[i + Q * 2];
             const CeedScalar ug11 = ug[i + Q * 3];
-            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd10;
-            const CeedScalar Dyu0 = ug00 * qd01 + ug01 * qd11;
-            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd10;
-            const CeedScalar Dyu1 = ug10 * qd01 + ug11 * qd11;
+            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd01;
+            const CeedScalar Dyu0 = ug00 * qd10 + ug01 * qd11;
+            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd01;
+            const CeedScalar Dyu1 = ug10 * qd10 + ug11 * qd11;
             vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0;
             vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1;
          }
          break;
+      case 32:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd00 = qd[i + Q * 0];
+            const CeedScalar qd10 = qd[i + Q * 1];
+            const CeedScalar qd20 = qd[i + Q * 2];
+            const CeedScalar qd01 = qd[i + Q * 3];
+            const CeedScalar qd11 = qd[i + Q * 4];
+            const CeedScalar qd21 = qd[i + Q * 5];
+            const CeedScalar u0   = u[i + Q * 0];
+            const CeedScalar u1   = u[i + Q * 1];
+            const CeedScalar u2   = u[i + Q * 2];
+            const CeedScalar ug00 = ug[i + Q * 0];
+            const CeedScalar ug10 = ug[i + Q * 1];
+            const CeedScalar ug20 = ug[i + Q * 2];
+            const CeedScalar ug01 = ug[i + Q * 3];
+            const CeedScalar ug11 = ug[i + Q * 4];
+            const CeedScalar ug21 = ug[i + Q * 5];
+            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd01;
+            const CeedScalar Dyu0 = ug00 * qd10 + ug01 * qd11;
+            const CeedScalar Dzu0 = ug00 * qd20 + ug01 * qd21;
+            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd01;
+            const CeedScalar Dyu1 = ug10 * qd10 + ug11 * qd11;
+            const CeedScalar Dzu1 = ug10 * qd20 + ug11 * qd21;
+            const CeedScalar Dxu2 = ug20 * qd00 + ug21 * qd01;
+            const CeedScalar Dyu2 = ug20 * qd10 + ug21 * qd11;
+            const CeedScalar Dzu2 = ug20 * qd20 + ug21 * qd21;
+            vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0 + u2 * Dzu0;
+            vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1 + u2 * Dzu1;
+            vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
+         }
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
@@ -232,15 +234,15 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
             const CeedScalar ug02 = ug[i + Q * 6];
             const CeedScalar ug12 = ug[i + Q * 7];
             const CeedScalar ug22 = ug[i + Q * 8];
-            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd10 + ug02 * qd20;
-            const CeedScalar Dyu0 = ug00 * qd01 + ug01 * qd11 + ug02 * qd21;
-            const CeedScalar Dzu0 = ug00 * qd02 + ug01 * qd12 + ug02 * qd22;
-            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd10 + ug12 * qd20;
-            const CeedScalar Dyu1 = ug10 * qd01 + ug11 * qd11 + ug12 * qd21;
-            const CeedScalar Dzu1 = ug10 * qd02 + ug11 * qd12 + ug12 * qd22;
-            const CeedScalar Dxu2 = ug20 * qd00 + ug21 * qd10 + ug22 * qd20;
-            const CeedScalar Dyu2 = ug20 * qd01 + ug21 * qd11 + ug22 * qd21;
-            const CeedScalar Dzu2 = ug20 * qd02 + ug21 * qd12 + ug22 * qd22;
+            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd01 + ug02 * qd02;
+            const CeedScalar Dyu0 = ug00 * qd10 + ug01 * qd11 + ug02 * qd12;
+            const CeedScalar Dzu0 = ug00 * qd20 + ug01 * qd21 + ug02 * qd22;
+            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd01 + ug12 * qd02;
+            const CeedScalar Dyu1 = ug10 * qd10 + ug11 * qd11 + ug12 * qd12;
+            const CeedScalar Dzu1 = ug10 * qd20 + ug11 * qd21 + ug12 * qd22;
+            const CeedScalar Dxu2 = ug20 * qd00 + ug21 * qd01 + ug22 * qd02;
+            const CeedScalar Dyu2 = ug20 * qd10 + ug21 * qd11 + ug22 * qd12;
+            const CeedScalar Dzu2 = ug20 * qd20 + ug21 * qd21 + ug22 * qd22;
             vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0 + u2 * Dzu0;
             vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1 + u2 * Dzu1;
             vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
@@ -255,16 +257,18 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in,
                                       CeedScalar *const *out)
 {
-   NLConvectionContext *bc = (NLConvectionContext*)ctx;
-   // in[0], out[0] have shape [dim, nc=1, Q]
-   // in[1] is Jacobians with shape [dim, nc=dim, Q]
-   // in[2] is quadrature weights, size (Q)
+   NLConvectionContext *bc = (NLConvectionContext *)ctx;
+   // in[0] has shape [ncomp=space_dim, Q]
+   // in[1] has shape [dim, ncomp=space_dim, Q]
+   // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[3] is quadrature weights, size (Q)
+   // out[0] has shape [ncomp=space_dim, Q]
    //
-   // At every quadrature point, compute qw * adj(J).
+   // At every quadrature point, compute qw * c * adj(J)^T.
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *ug = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
-   switch (10 * bc->dim + bc->vdim)
+   switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
@@ -273,68 +277,75 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             vg[i] = u[i] * ug[i] * qd;
          }
          break;
+      case 21:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            CeedScalar qd[2];
+            MultAdjJt21(J + i, Q, qw[i] * coeff, 1, qd);
+            const CeedScalar u0   = u[i + Q * 0];
+            const CeedScalar u1   = u[i + Q * 1];
+            const CeedScalar ug00 = ug[i + Q * 0];
+            const CeedScalar ug10 = ug[i + Q * 1];
+            const CeedScalar Dxu0 = ug00 * qd[0];
+            const CeedScalar Dyu0 = ug00 * qd[1];
+            const CeedScalar Dxu1 = ug10 * qd[0];
+            const CeedScalar Dyu1 = ug10 * qd[1];
+            vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0;
+            vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1;
+         }
+         break;
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
-            //    1 3       1 3           -J21  J11
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J12 = J[i + Q * 2];
-            const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = qw[i] * coeff;
-            const CeedScalar qd00 =  w * J22;
-            const CeedScalar qd10 = -w * J21;
-            const CeedScalar qd01 = -w * J12;
-            const CeedScalar qd11 =  w * J11;
+            CeedScalar qd[4];
+            MultAdjJt22(J + i, Q, qw[i] * coeff, 1, qd);
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
             const CeedScalar ug00 = ug[i + Q * 0];
             const CeedScalar ug10 = ug[i + Q * 1];
             const CeedScalar ug01 = ug[i + Q * 2];
             const CeedScalar ug11 = ug[i + Q * 3];
-            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd10;
-            const CeedScalar Dyu0 = ug00 * qd01 + ug01 * qd11;
-            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd10;
-            const CeedScalar Dyu1 = ug10 * qd01 + ug11 * qd11;
+            const CeedScalar Dxu0 = ug00 * qd[0] + ug01 * qd[2];
+            const CeedScalar Dyu0 = ug00 * qd[1] + ug01 * qd[3];
+            const CeedScalar Dxu1 = ug10 * qd[0] + ug11 * qd[2];
+            const CeedScalar Dyu1 = ug10 * qd[1] + ug11 * qd[3];
             vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0;
             vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1;
+         }
+         break;
+      case 32:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            CeedScalar qd[6];
+            MultAdjJt32(J + i, Q, qw[i] * coeff, 1, qd);
+            const CeedScalar u0   = u[i + Q * 0];
+            const CeedScalar u1   = u[i + Q * 1];
+            const CeedScalar u2   = u[i + Q * 2];
+            const CeedScalar ug00 = ug[i + Q * 0];
+            const CeedScalar ug10 = ug[i + Q * 1];
+            const CeedScalar ug20 = ug[i + Q * 2];
+            const CeedScalar ug01 = ug[i + Q * 3];
+            const CeedScalar ug11 = ug[i + Q * 4];
+            const CeedScalar ug21 = ug[i + Q * 5];
+            const CeedScalar Dxu0 = ug00 * qd[0] + ug01 * qd[3];
+            const CeedScalar Dyu0 = ug00 * qd[1] + ug01 * qd[4];
+            const CeedScalar Dzu0 = ug00 * qd[2] + ug01 * qd[5];
+            const CeedScalar Dxu1 = ug10 * qd[0] + ug11 * qd[3];
+            const CeedScalar Dyu1 = ug10 * qd[1] + ug11 * qd[4];
+            const CeedScalar Dzu1 = ug10 * qd[2] + ug11 * qd[5];
+            const CeedScalar Dxu2 = ug20 * qd[0] + ug21 * qd[3];
+            const CeedScalar Dyu2 = ug20 * qd[1] + ug21 * qd[4];
+            const CeedScalar Dzu2 = ug20 * qd[2] + ug21 * qd[5];
+            vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0 + u2 * Dzu0;
+            vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1 + u2 * Dzu1;
+            vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
          }
          break;
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 3 6
-            //    1 4 7       1 4 7
-            //    2 5 8       2 5 8
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J31 = J[i + Q * 2];
-            const CeedScalar J12 = J[i + Q * 3];
-            const CeedScalar J22 = J[i + Q * 4];
-            const CeedScalar J32 = J[i + Q * 5];
-            const CeedScalar J13 = J[i + Q * 6];
-            const CeedScalar J23 = J[i + Q * 7];
-            const CeedScalar J33 = J[i + Q * 8];
-            const CeedScalar A11 = J22 * J33 - J23 * J32;
-            const CeedScalar A12 = J13 * J32 - J12 * J33;
-            const CeedScalar A13 = J12 * J23 - J13 * J22;
-            const CeedScalar A21 = J23 * J31 - J21 * J33;
-            const CeedScalar A22 = J11 * J33 - J13 * J31;
-            const CeedScalar A23 = J13 * J21 - J11 * J23;
-            const CeedScalar A31 = J21 * J32 - J22 * J31;
-            const CeedScalar A32 = J12 * J31 - J11 * J32;
-            const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = qw[i] * coeff;
-            const CeedScalar qd00 = w * A11;
-            const CeedScalar qd10 = w * A21;
-            const CeedScalar qd20 = w * A31;
-            const CeedScalar qd01 = w * A12;
-            const CeedScalar qd11 = w * A22;
-            const CeedScalar qd21 = w * A32;
-            const CeedScalar qd02 = w * A13;
-            const CeedScalar qd12 = w * A23;
-            const CeedScalar qd22 = w * A33;
+            CeedScalar qd[9];
+            MultAdjJt33(J + i, Q, qw[i] * coeff, 1, qd);
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
             const CeedScalar u2   = u[i + Q * 2];
@@ -347,15 +358,15 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar ug02 = ug[i + Q * 6];
             const CeedScalar ug12 = ug[i + Q * 7];
             const CeedScalar ug22 = ug[i + Q * 8];
-            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd10 + ug02 * qd20;
-            const CeedScalar Dyu0 = ug00 * qd01 + ug01 * qd11 + ug02 * qd21;
-            const CeedScalar Dzu0 = ug00 * qd02 + ug01 * qd12 + ug02 * qd22;
-            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd10 + ug12 * qd20;
-            const CeedScalar Dyu1 = ug10 * qd01 + ug11 * qd11 + ug12 * qd21;
-            const CeedScalar Dzu1 = ug10 * qd02 + ug11 * qd12 + ug12 * qd22;
-            const CeedScalar Dxu2 = ug20 * qd00 + ug21 * qd10 + ug22 * qd20;
-            const CeedScalar Dyu2 = ug20 * qd01 + ug21 * qd11 + ug22 * qd21;
-            const CeedScalar Dzu2 = ug20 * qd02 + ug21 * qd12 + ug22 * qd22;
+            const CeedScalar Dxu0 = ug00 * qd[0] + ug01 * qd[3] + ug02 * qd[6];
+            const CeedScalar Dyu0 = ug00 * qd[1] + ug01 * qd[4] + ug02 * qd[7];
+            const CeedScalar Dzu0 = ug00 * qd[2] + ug01 * qd[5] + ug02 * qd[8];
+            const CeedScalar Dxu1 = ug10 * qd[0] + ug11 * qd[3] + ug12 * qd[6];
+            const CeedScalar Dyu1 = ug10 * qd[1] + ug11 * qd[4] + ug12 * qd[7];
+            const CeedScalar Dzu1 = ug10 * qd[2] + ug11 * qd[5] + ug12 * qd[8];
+            const CeedScalar Dxu2 = ug20 * qd[0] + ug21 * qd[3] + ug22 * qd[6];
+            const CeedScalar Dyu2 = ug20 * qd[1] + ug21 * qd[4] + ug22 * qd[7];
+            const CeedScalar Dzu2 = ug20 * qd[2] + ug21 * qd[5] + ug22 * qd[8];
             vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0 + u2 * Dzu0;
             vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1 + u2 * Dzu1;
             vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
@@ -369,15 +380,18 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
 {
-   NLConvectionContext *bc = (NLConvectionContext*)ctx;
-   // in[0], out[0] have shape [dim, nc=1, Q]
-   // in[1] is Jacobians with shape [dim, nc=dim, Q]
-   // in[2] is quadrature weights, size (Q)
+   NLConvectionContext *bc = (NLConvectionContext *)ctx;
+   // in[0] is coefficients, size (Q)
+   // in[1] has shape [ncomp=space_dim, Q]
+   // in[2] has shape [dim, ncomp=space_dim, Q]
+   // in[3] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[4] is quadrature weights, size (Q)
+   // out[0] has shape [ncomp=space_dim, Q]
    //
-   // At every quadrature point, compute qw * adj(J).
+   // At every quadrature point, compute qw * c * adj(J)^T.
    const CeedScalar *c = in[0], *u = in[1], *ug = in[2], *J = in[3], *qw = in[4];
    CeedScalar *vg = out[0];
-   switch (10 * bc->dim + bc->vdim)
+   switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          for (CeedInt i = 0; i < Q; i++)
@@ -386,68 +400,75 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             vg[i] = u[i] * ug[i] * qd;
          }
          break;
+      case 21:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            CeedScalar qd[2];
+            MultAdjJt21(J + i, Q, qw[i] * c[i], 1, qd);
+            const CeedScalar u0   = u[i + Q * 0];
+            const CeedScalar u1   = u[i + Q * 1];
+            const CeedScalar ug00 = ug[i + Q * 0];
+            const CeedScalar ug10 = ug[i + Q * 1];
+            const CeedScalar Dxu0 = ug00 * qd[0];
+            const CeedScalar Dyu0 = ug00 * qd[1];
+            const CeedScalar Dxu1 = ug10 * qd[0];
+            const CeedScalar Dyu1 = ug10 * qd[1];
+            vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0;
+            vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1;
+         }
+         break;
       case 22:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 2   qd: 0 2   adj(J):  J22 -J12
-            //    1 3       1 3           -J21  J11
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J12 = J[i + Q * 2];
-            const CeedScalar J22 = J[i + Q * 3];
-            const CeedScalar w = qw[i] * c[i];
-            const CeedScalar qd00 =  w * J22;
-            const CeedScalar qd10 = -w * J21;
-            const CeedScalar qd01 = -w * J12;
-            const CeedScalar qd11 =  w * J11;
+            CeedScalar qd[4];
+            MultAdjJt22(J + i, Q, qw[i] * c[i], 1, qd);
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
             const CeedScalar ug00 = ug[i + Q * 0];
             const CeedScalar ug10 = ug[i + Q * 1];
             const CeedScalar ug01 = ug[i + Q * 2];
             const CeedScalar ug11 = ug[i + Q * 3];
-            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd10;
-            const CeedScalar Dyu0 = ug00 * qd01 + ug01 * qd11;
-            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd10;
-            const CeedScalar Dyu1 = ug10 * qd01 + ug11 * qd11;
+            const CeedScalar Dxu0 = ug00 * qd[0] + ug01 * qd[2];
+            const CeedScalar Dyu0 = ug00 * qd[1] + ug01 * qd[3];
+            const CeedScalar Dxu1 = ug10 * qd[0] + ug11 * qd[2];
+            const CeedScalar Dyu1 = ug10 * qd[1] + ug11 * qd[3];
             vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0;
             vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1;
+         }
+         break;
+      case 32:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            CeedScalar qd[6];
+            MultAdjJt32(J + i, Q, qw[i] * c[i], 1, qd);
+            const CeedScalar u0   = u[i + Q * 0];
+            const CeedScalar u1   = u[i + Q * 1];
+            const CeedScalar u2   = u[i + Q * 2];
+            const CeedScalar ug00 = ug[i + Q * 0];
+            const CeedScalar ug10 = ug[i + Q * 1];
+            const CeedScalar ug20 = ug[i + Q * 2];
+            const CeedScalar ug01 = ug[i + Q * 3];
+            const CeedScalar ug11 = ug[i + Q * 4];
+            const CeedScalar ug21 = ug[i + Q * 5];
+            const CeedScalar Dxu0 = ug00 * qd[0] + ug01 * qd[3];
+            const CeedScalar Dyu0 = ug00 * qd[1] + ug01 * qd[4];
+            const CeedScalar Dzu0 = ug00 * qd[2] + ug01 * qd[5];
+            const CeedScalar Dxu1 = ug10 * qd[0] + ug11 * qd[3];
+            const CeedScalar Dyu1 = ug10 * qd[1] + ug11 * qd[4];
+            const CeedScalar Dzu1 = ug10 * qd[2] + ug11 * qd[5];
+            const CeedScalar Dxu2 = ug20 * qd[0] + ug21 * qd[3];
+            const CeedScalar Dyu2 = ug20 * qd[1] + ug21 * qd[4];
+            const CeedScalar Dzu2 = ug20 * qd[2] + ug21 * qd[5];
+            vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0 + u2 * Dzu0;
+            vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1 + u2 * Dzu1;
+            vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
          }
          break;
       case 33:
          for (CeedInt i = 0; i < Q; i++)
          {
-            // J: 0 3 6   qd: 0 3 6
-            //    1 4 7       1 4 7
-            //    2 5 8       2 5 8
-            const CeedScalar J11 = J[i + Q * 0];
-            const CeedScalar J21 = J[i + Q * 1];
-            const CeedScalar J31 = J[i + Q * 2];
-            const CeedScalar J12 = J[i + Q * 3];
-            const CeedScalar J22 = J[i + Q * 4];
-            const CeedScalar J32 = J[i + Q * 5];
-            const CeedScalar J13 = J[i + Q * 6];
-            const CeedScalar J23 = J[i + Q * 7];
-            const CeedScalar J33 = J[i + Q * 8];
-            const CeedScalar A11 = J22 * J33 - J23 * J32;
-            const CeedScalar A12 = J13 * J32 - J12 * J33;
-            const CeedScalar A13 = J12 * J23 - J13 * J22;
-            const CeedScalar A21 = J23 * J31 - J21 * J33;
-            const CeedScalar A22 = J11 * J33 - J13 * J31;
-            const CeedScalar A23 = J13 * J21 - J11 * J23;
-            const CeedScalar A31 = J21 * J32 - J22 * J31;
-            const CeedScalar A32 = J12 * J31 - J11 * J32;
-            const CeedScalar A33 = J11 * J22 - J12 * J21;
-            const CeedScalar w = qw[i] * c[i];
-            const CeedScalar qd00 = w * A11;
-            const CeedScalar qd10 = w * A21;
-            const CeedScalar qd20 = w * A31;
-            const CeedScalar qd01 = w * A12;
-            const CeedScalar qd11 = w * A22;
-            const CeedScalar qd21 = w * A32;
-            const CeedScalar qd02 = w * A13;
-            const CeedScalar qd12 = w * A23;
-            const CeedScalar qd22 = w * A33;
+            CeedScalar qd[9];
+            MultAdjJt33(J + i, Q, qw[i] * c[i], 1, qd);
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
             const CeedScalar u2   = u[i + Q * 2];
@@ -460,15 +481,15 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar ug02 = ug[i + Q * 6];
             const CeedScalar ug12 = ug[i + Q * 7];
             const CeedScalar ug22 = ug[i + Q * 8];
-            const CeedScalar Dxu0 = ug00 * qd00 + ug01 * qd10 + ug02 * qd20;
-            const CeedScalar Dyu0 = ug00 * qd01 + ug01 * qd11 + ug02 * qd21;
-            const CeedScalar Dzu0 = ug00 * qd02 + ug01 * qd12 + ug02 * qd22;
-            const CeedScalar Dxu1 = ug10 * qd00 + ug11 * qd10 + ug12 * qd20;
-            const CeedScalar Dyu1 = ug10 * qd01 + ug11 * qd11 + ug12 * qd21;
-            const CeedScalar Dzu1 = ug10 * qd02 + ug11 * qd12 + ug12 * qd22;
-            const CeedScalar Dxu2 = ug20 * qd00 + ug21 * qd10 + ug22 * qd20;
-            const CeedScalar Dyu2 = ug20 * qd01 + ug21 * qd11 + ug22 * qd21;
-            const CeedScalar Dzu2 = ug20 * qd02 + ug21 * qd12 + ug22 * qd22;
+            const CeedScalar Dxu0 = ug00 * qd[0] + ug01 * qd[3] + ug02 * qd[6];
+            const CeedScalar Dyu0 = ug00 * qd[1] + ug01 * qd[4] + ug02 * qd[7];
+            const CeedScalar Dzu0 = ug00 * qd[2] + ug01 * qd[5] + ug02 * qd[8];
+            const CeedScalar Dxu1 = ug10 * qd[0] + ug11 * qd[3] + ug12 * qd[6];
+            const CeedScalar Dyu1 = ug10 * qd[1] + ug11 * qd[4] + ug12 * qd[7];
+            const CeedScalar Dzu1 = ug10 * qd[2] + ug11 * qd[5] + ug12 * qd[8];
+            const CeedScalar Dxu2 = ug20 * qd[0] + ug21 * qd[3] + ug22 * qd[6];
+            const CeedScalar Dyu2 = ug20 * qd[1] + ug21 * qd[4] + ug22 * qd[7];
+            const CeedScalar Dzu2 = ug20 * qd[2] + ug21 * qd[5] + ug22 * qd[8];
             vg[i + Q * 0] = u0 * Dxu0 + u1 * Dyu0 + u2 * Dzu0;
             vg[i + Q * 1] = u0 * Dxu1 + u1 * Dyu1 + u2 * Dzu1;
             vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
@@ -477,3 +498,5 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
    }
    return 0;
 }
+
+#endif // MFEM_LIBCEED_NLCONV_QF_H
