@@ -69,6 +69,8 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   using VectorCoefficient::Eval;
 };
 
 void ReflectedCoefficient::Eval(Vector &V, ElementTransformation &T,
