@@ -38,31 +38,31 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = coeff * qw[i] * J[i];
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt21(J + i, Q, qw[i] * coeff, Q, qd + i);
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt22(J + i, Q, qw[i] * coeff, Q, qd + i);
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt32(J + i, Q, qw[i] * coeff, Q, qd + i);
          }
          break;
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt33(J + i, Q, qw[i] * coeff, Q, qd + i);
          }
@@ -88,32 +88,32 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff = c[i];
             qd[i] = coeff * qw[i] * J[i];
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt21(J + i, Q, qw[i] * c[i], Q, qd + i);
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt22(J + i, Q, qw[i] * c[i], Q, qd + i);
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt32(J + i, Q, qw[i] * c[i], Q, qd + i);
          }
          break;
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultAdjJt33(J + i, Q, qw[i] * c[i], Q, qd + i);
          }
@@ -136,13 +136,13 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             vg[i] = u[i] * ug[i] * qd[i];
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd00 = qd[i + Q * 0];
             const CeedScalar qd10 = qd[i + Q * 1];
@@ -159,7 +159,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd00 = qd[i + Q * 0];
             const CeedScalar qd10 = qd[i + Q * 1];
@@ -180,7 +180,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd00 = qd[i + Q * 0];
             const CeedScalar qd10 = qd[i + Q * 1];
@@ -211,7 +211,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
             vg[i + Q * 2] = u0 * Dxu2 + u1 * Dyu2 + u2 * Dzu2;
          }
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd00 = qd[i + Q * 0];
             const CeedScalar qd10 = qd[i + Q * 1];
@@ -271,14 +271,14 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * J[i];
             vg[i] = u[i] * ug[i] * qd;
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[2];
             MultAdjJt21(J + i, Q, qw[i] * coeff, 1, qd);
@@ -295,7 +295,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[4];
             MultAdjJt22(J + i, Q, qw[i] * coeff, 1, qd);
@@ -314,7 +314,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
             MultAdjJt32(J + i, Q, qw[i] * coeff, 1, qd);
@@ -342,7 +342,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          }
          break;
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[9];
             MultAdjJt33(J + i, Q, qw[i] * coeff, 1, qd);
@@ -394,14 +394,14 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * J[i];
             vg[i] = u[i] * ug[i] * qd;
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[2];
             MultAdjJt21(J + i, Q, qw[i] * c[i], 1, qd);
@@ -418,7 +418,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[4];
             MultAdjJt22(J + i, Q, qw[i] * c[i], 1, qd);
@@ -437,7 +437,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
             MultAdjJt32(J + i, Q, qw[i] * c[i], 1, qd);
@@ -465,7 +465,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          }
          break;
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[9];
             MultAdjJt33(J + i, Q, qw[i] * c[i], 1, qd);

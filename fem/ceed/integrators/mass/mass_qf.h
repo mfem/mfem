@@ -36,31 +36,31 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = coeff * J[i] * qw[i];
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = coeff * qw[i] * DetJ21(J + i, Q);
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = coeff * qw[i] * DetJ22(J + i, Q);
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = coeff * qw[i] * DetJ32(J + i, Q);
          }
          break;
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = coeff * qw[i] * DetJ33(J + i, Q);
          }
@@ -84,31 +84,31 @@ CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = c[i] * J[i] * qw[i];
          }
          break;
       case 21:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = c[i] * qw[i] * DetJ21(J + i, Q);
          }
          break;
       case 22:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = c[i] * qw[i] * DetJ22(J + i, Q);
          }
          break;
       case 32:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = c[i] * qw[i] * DetJ32(J + i, Q);
          }
          break;
       case 33:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = c[i] * qw[i] * DetJ33(J + i, Q);
          }
@@ -128,26 +128,26 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
    switch (bc->vdim)
    {
       case 1:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             v[i] = qd[i] * u[i];
          }
          break;
       case 2:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qdi = qd[i];
-            for (CeedInt d = 0; d < 2; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qdi * u[i + d * Q];
             }
          }
          break;
       case 3:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qdi = qd[i];
-            for (CeedInt d = 0; d < 3; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qdi * u[i + d * Q];
             }
@@ -168,75 +168,75 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
    switch (100 * bc->space_dim + 10 * bc->dim + bc->vdim)
    {
       case 111:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * J[i];
             v[i] = qd * u[i];
          }
          break;
       case 211:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ21(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 212:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ21(J + i, Q);
-            for (CeedInt d = 0; d < 2; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
          }
          break;
       case 221:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ22(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 222:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ22(J + i, Q);
-            for (CeedInt d = 0; d < 2; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
          }
          break;
       case 321:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ32(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 323:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ32(J + i, Q);
-            for (CeedInt d = 0; d < 3; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
          }
          break;
       case 331:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ33(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 333:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = coeff * qw[i] * DetJ33(J + i, Q);
-            for (CeedInt d = 0; d < 3; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
@@ -255,75 +255,75 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
    switch (100 * bc->space_dim + 10 * bc->dim + bc->vdim)
    {
       case 111:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * J[i] * qw[i];
             v[i] = qd * u[i];
          }
          break;
       case 211:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ21(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 212:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ21(J + i, Q);
-            for (CeedInt d = 0; d < 2; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
          }
          break;
       case 221:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ22(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 222:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ22(J + i, Q);
-            for (CeedInt d = 0; d < 2; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
          }
          break;
       case 321:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ32(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 323:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ32(J + i, Q);
-            for (CeedInt d = 0; d < 3; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
          }
          break;
       case 331:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ33(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 333:
-         for (CeedInt i = 0; i < Q; i++)
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar qd = c[i] * qw[i] * DetJ33(J + i, Q);
-            for (CeedInt d = 0; d < 3; d++)
+            CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
             }
