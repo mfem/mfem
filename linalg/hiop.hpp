@@ -12,15 +12,15 @@
 #ifndef MFEM_HIOP
 #define MFEM_HIOP
 
-#include "linalg.hpp"
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_HIOP
 #include "../general/globals.hpp"
+#include "solvers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "operator.hpp"
 #endif
-
-#ifdef MFEM_USE_HIOP
 
 #include "hiopInterface.hpp"
 #include "hiopNlpFormulation.hpp"
