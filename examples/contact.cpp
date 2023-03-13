@@ -244,6 +244,45 @@ int main(int argc, char *argv[])
    const int dim = mesh1.Dimension();
    MFEM_VERIFY(dim == mesh2.Dimension(), "");
 
+
+   //  Define a finite element space on the mesh. Here we use vector finite
+   //  elements, i.e. dim copies of a scalar finite element space. The vector
+   //  dimension is specified by the last argument of the FiniteElementSpace
+   //  constructor.
+   FiniteElementCollection *fec1;
+   FiniteElementSpace *fespace1;
+   fec1 = new H1_FECollection(1, dim);
+   fespace1 = new FiniteElementSpace(&mesh1, fec1, dim);
+   cout << "Number of finite element unknowns for mesh1: " << fespace1->GetTrueVSize()
+        << endl;
+
+   FiniteElementCollection *fec2 = new H1_FECollection(1, dim);
+   FiniteElementSpace *fespace2 = new FiniteElementSpace(&mesh2, fec2, dim);
+   cout << "Number of finite element unknowns for mesh2: " << fespace2->GetTrueVSize()
+        << endl;
+
+   // Determine the list of true (i.e. conforming) essential boundary dofs.
+   // In this example, the boundary conditions are defined by marking only
+   // boundary attribute 1 from the mesh as essential and converting it to a
+   // list of true dofs.
+   Array<int> ess_tdof_list1, ess_bdr1(mesh1.bdr_attributes.Max());
+   ess_bdr1 = 0;
+   ess_bdr1[0] = 1; 
+   // Not ready to be passed on yet
+   // fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   Array<int> ess_tdof_list2, ess_bdr2(mesh2.bdr_attributes.Max());
+   ess_bdr2 = 0; 
+   ess_bdr2[0] = 1; 
+
+   // Define the displacement vector x as a finite element grid function
+   // corresponding to fespace. Initialize x with initial guess of zero.
+   GridFunction x1(fespace1);
+   x1 = 0.0;
+
+   GridFunction x2(fespace2);
+   x2 = 0.0;
+
    attr.Sort();
    cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
    for (auto a : attr)
@@ -293,5 +332,23 @@ int main(int argc, char *argv[])
 
    FindPointsInMesh(mesh1, xyz);
 
+   // testing functions
+   /*
+   Vector x1(3);
+   Vector xi(2);
+   DenseMatrix coords2(4,3);
+   x1[0] = 0.138357116570237; x1[1] =0.781266036110795; x1[2] = 0.781266036110795;
+   xi[0] = -0.340604159745217; xi[1] = -0.340604159745216;
+   coords2(0,0) =0.028711699111254;  coords2(0,1) =  0.671052640577229; coords2(0,2) =  0.671052640577229;
+   coords2(1,0) =0.040247874087262; coords2(1,1) = 1.012958013114749; coords2(1,2) =   0.670855581724106;
+   coords2(2,0) = 0.041207251768282; coords2(2,1) = 1.012615442973163; coords2(2,2) =  1.012615442973163;
+   coords2(3,0) =0.040247874087262; coords2(3,1) = 0.670855581724106;  coords2(3,2) =  1.012958013114749;
+
+   double gap = 0.; Vector dg(15); dg = 0.0; 
+   DenseMatrix d2g;
+   NodeSegConPairs(x1, xi, coords2, gap, dg, d2g);
+   cout << gap <<endl;
+   //d2g.Print();
+   */
    return 0;
 }
