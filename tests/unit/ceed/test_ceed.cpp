@@ -493,6 +493,49 @@ void test_ceed_convection(const char *input, int order,
    REQUIRE(r.Norml2() < 1e-12);
 }
 
+void test_ceed_full_assembly(const char *input, int order,
+                             const AssemblyLevel assembly)
+{
+   Mesh mesh(input, 1, 1);
+   mesh.EnsureNodes();
+   int dim = mesh.Dimension();
+   H1_FECollection fec(order, dim);
+
+   DenseMatrix val(dim);
+   val = 0.0;
+   for (int i = 0; i < dim; i++)
+   {
+      val(i, i) = 1.0 + i;
+   }
+   MatrixConstantCoefficient diff_coeff(val);
+   ConstantCoefficient mass_coeff(1.0);
+
+   FiniteElementSpace fes(&mesh, &fec, 1);
+   BilinearForm k_test(&fes);
+   BilinearForm k_ref(&fes);
+
+   k_ref.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+   k_test.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+   k_ref.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
+   k_test.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
+   k_ref.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+   k_test.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+
+   k_ref.Assemble();
+   k_ref.Finalize();
+
+   k_test.SetAssemblyLevel(assembly);
+   k_test.Assemble();
+
+   SparseMatrix *mat_ref = &k_ref.SpMat();
+   SparseMatrix *mat_test = ceed::CeedOperatorFullAssemble(k_test);
+   SparseMatrix *mat_diff = Add(1.0, *mat_ref, -1.0, *mat_test);
+
+   REQUIRE(mat_diff->MaxNorm() < 1.e-12);
+   delete mat_diff;
+   delete mat_test;
+}
+
 TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
@@ -606,6 +649,21 @@ TEST_CASE("CEED non-linear convection", "[CEED], [NLConvection]")
                         "../../data/square-mixed.mesh",
                         "../../data/fichera-mixed.mesh");
    test_ceed_nloperator(mesh, order, coeff_type, pb, assembly);
+} // test case
+
+TEST_CASE("CEED full assembly", "[CEED]")
+{
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
+   int order = 1;
+   test_ceed_full_assembly(mesh, order, assembly);
 } // test case
 
 #endif

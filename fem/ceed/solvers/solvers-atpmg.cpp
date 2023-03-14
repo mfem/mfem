@@ -11,15 +11,13 @@
 
 #include "solvers-atpmg.hpp"
 
-#include "../interface/ceed.hpp"
+#include <math.h>
 #include "../interface/util.hpp"
-
 #ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
+#endif
 
-#include <math.h>
-// todo: should probably use Ceed memory wrappers instead of calloc/free?
-#include <stdlib.h>
+#ifdef MFEM_USE_CEED
 
 namespace mfem
 {
@@ -96,7 +94,7 @@ int CeedATPMGElemRestriction(int order,
    ierr = CeedElemRestrictionGetNumComponents(er_in, &numcomp); CeedChk(ierr);
    if (numcomp != 1)
    {
-      // todo: multi-component will require more thought
+      // TODO: multi-component will require more thought
       return CeedError(ceed, 1, "Algebraic element restriction not "
                        "implemented for multiple components.");
    }
@@ -538,7 +536,7 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin,
    CeedScalar * fine_nodal_points = new CeedScalar[P1d];
 
    // these things are in [-1, 1], not [0, 1], which matters
-   // (todo: how can we determine this or something related, algebraically?)
+   // (TODO: how can we determine this or something related, algebraically?)
    /* one way you might be able to tell is to just run this algorithm
       with coarse_P1d = 2 (i.e., linear) and look for symmetry in the coarse
       basis matrix? */

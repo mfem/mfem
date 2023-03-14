@@ -12,6 +12,7 @@
 #ifndef MFEM_CEED_ASSEMBLE_HPP
 #define MFEM_CEED_ASSEMBLE_HPP
 
+#include "../../../linalg/sparsemat.hpp"
 #include "../interface/ceed.hpp"
 
 #ifdef MFEM_USE_CEED

@@ -11,14 +11,17 @@
 
 #include "algebraic.hpp"
 
+#include "../../../general/forall.hpp"
 #include "../../bilinearform.hpp"
 #include "../../fespace.hpp"
 #include "../../pfespace.hpp"
-#include "../../../general/forall.hpp"
-#include "solvers-atpmg.hpp"
-#include "full-assembly.hpp"
 #include "../interface/restriction.hpp"
-#include "../interface/ceed.hpp"
+#include "../interface/util.hpp"
+#include "full-assembly.hpp"
+#include "solvers-atpmg.hpp"
+#ifdef MFEM_USE_CEED
+#include <ceed/backend.h>
+#endif
 
 namespace mfem
 {
@@ -101,7 +104,7 @@ int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
    int ierr = CeedOperatorGetActiveVectorLengths(oper, &in_len, &out_len);
    CeedChk(ierr);
    *size = (CeedInt)in_len;
-   MFEM_VERIFY(in_len == out_len, "not a square CeedOperator");
+   MFEM_VERIFY(in_len == out_len, "Not a square CeedOperator.");
    MFEM_VERIFY(in_len == *size, "size overflow");
    return 0;
 }
@@ -241,20 +244,18 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
    int ierr;
    CeedOperator op;
    ierr = CeedCompositeOperatorCreate(internal::ceed, &op); PCeedChk(ierr);
-
-   MFEM_VERIFY(form.GetBBFI()->Size() == 0,
-               "Not implemented for this integrator!");
-   MFEM_VERIFY(form.GetFBFI()->Size() == 0,
-               "Not implemented for this integrator!");
-   MFEM_VERIFY(form.GetBFBFI()->Size() == 0,
-               "Not implemented for this integrator!");
-
-   // Get the domain bilinear form integrators (DBFIs)
-   Array<BilinearFormIntegrator*> *bffis = form.GetDBFI();
-   for (int i = 0; i < bffis->Size(); ++i)
+   for (BilinearFormIntegrator *integ : *form.GetDBFI())
    {
-      AddToCompositeOperator((*bffis)[i], op);
+      AddToCompositeOperator(integ, op);
    }
+   for (BilinearFormIntegrator *integ : *form.GetBBFI())
+   {
+      AddToCompositeOperator(integ, op);
+   }
+   MFEM_VERIFY(form.GetFBFI()->Size() == 0, "AddInteriorFaceIntegrator is not "
+               "currently supported in CreateCeedCompositeOperatorFromBilinearForm");
+   MFEM_VERIFY(form.GetBFBFI()->Size() == 0, "AddBdrFaceIntegrator is not "
+               "currently supported in CreateCeedCompositeOperatorFromBilinearForm");
    return op;
 }
 
@@ -268,7 +269,8 @@ CeedOperator CoarsenCeedCompositeOperator(
    int ierr;
    bool isComposite;
    ierr = CeedOperatorIsComposite(op, &isComposite); PCeedChk(ierr);
-   MFEM_ASSERT(isComposite, "");
+   MFEM_ASSERT(isComposite,
+               "CoarsenCeedCompositeOperator requires a composite operator.");
 
    CeedOperator op_coarse;
    ierr = CeedCompositeOperatorCreate(internal::ceed,
@@ -490,7 +492,6 @@ AlgebraicInterpolation::~AlgebraicInterpolation()
 }
 
 /// a = a (pointwise*) b
-/// @todo: using MPI_FORALL in this Ceed-like function is ugly
 int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
 {
    int ierr;
@@ -520,7 +521,9 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
    ierr = CeedVectorGetArrayRead(b, mem, &b_data); CeedChk(ierr);
    MFEM_VERIFY(int(length) == length, "length overflow");
    mfem::forall(length, [=] MFEM_HOST_DEVICE (int i)
-   {a_data[i] *= b_data[i];});
+   {
+      a_data[i] *= b_data[i];
+   });
 
    ierr = CeedVectorRestoreArray(a, &a_data); CeedChk(ierr);
    ierr = CeedVectorRestoreArrayRead(b, &b_data); CeedChk(ierr);
@@ -825,7 +828,8 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
    if (P_mat) { return P_mat; }
 
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
-   MFEM_VERIFY(pmesh != NULL, "");
+   MFEM_VERIFY(pmesh != NULL,
+               "ParAlgebraicCoarseSpace requires a ParMesh mesh object.");
    Array<HYPRE_BigInt> dof_offsets, tdof_offsets, tdof_nb_offsets;
    Array<HYPRE_BigInt> *offsets[2] = {&dof_offsets, &tdof_offsets};
    int lsize = P->Height();
@@ -955,7 +959,7 @@ AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
                form.GetAssemblyLevel() == AssemblyLevel::NONE,
                "AlgebraicSolver requires partial assembly or fully matrix-free.");
    MFEM_VERIFY(UsesTensorBasis(*form.FESpace()),
-               "AlgebraicSolver requires tensor product basis functions.");
+               "AlgebraicSolver requires tensor-product basis functions.");
 #ifdef MFEM_USE_CEED
    fespaces = new AlgebraicSpaceHierarchy(*form.FESpace());
    multigrid = new AlgebraicMultigrid(*fespaces, form, ess_tdofs);
@@ -985,6 +989,42 @@ void AlgebraicSolver::SetOperator(const mfem::Operator& op)
    multigrid->SetOperator(op);
 #endif
 }
+
+#ifdef MFEM_USE_CEED
+SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form)
+{
+   Array<SparseMatrix *> mat_i;
+   for (BilinearFormIntegrator *integ : *form.GetDBFI())
+   {
+      if (!integ->SupportsCeed()) { continue; }
+      SparseMatrix *mat_integ;
+      int ierr = ceed::CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
+                                                &mat_integ);
+      PCeedChk(ierr);
+      mat_i.Append(mat_integ);
+   }
+   for (BilinearFormIntegrator *integ : *form.GetBBFI())
+   {
+      if (!integ->SupportsCeed()) { continue; }
+      SparseMatrix *mat_integ;
+      int ierr = ceed::CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
+                                                &mat_integ);
+      PCeedChk(ierr);
+      mat_i.Append(mat_integ);
+   }
+   MFEM_VERIFY(form.GetFBFI()->Size() == 0, "AddInteriorFaceIntegrator is not "
+               "currently supported in CeedOperatorFullAssemble");
+   MFEM_VERIFY(form.GetBFBFI()->Size() == 0, "AddBdrFaceIntegrator is not "
+               "currently supported in CeedOperatorFullAssemble");
+
+   SparseMatrix *mat = Add(mat_i);
+   for (SparseMatrix *mat_integ : mat_i)
+   {
+      delete mat_integ;
+   }
+   return mat;
+}
+#endif
 
 } // namespace ceed
 

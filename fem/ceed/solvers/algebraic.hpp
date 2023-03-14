@@ -12,9 +12,9 @@
 #ifndef MFEM_CEED_ALGEBRAIC_HPP
 #define MFEM_CEED_ALGEBRAIC_HPP
 
+#include "../../../linalg/sparsemat.hpp"
 #include "../../fespacehierarchy.hpp"
 #include "../../multigrid.hpp"
-#include "../interface/operator.hpp"
 #include "../interface/ceed.hpp"
 
 namespace mfem
@@ -191,7 +191,7 @@ private:
 #endif
 
 public:
-   /** @brief Constructs algebraic multigrid hierarchy and solver.
+   /** @brief Constructs algebraic multigrid hierarchy and solver
 
        This only works if the Ceed device backend is enabled.
 
@@ -203,6 +203,17 @@ public:
    void Mult(const Vector& x, Vector& y) const;
    void SetOperator(const mfem::Operator& op);
 };
+
+#ifdef MFEM_USE_CEED
+/** @brief Assemble the CeedOperators from a BilinearForm as an
+    mfem::SparseMatrix
+
+    In parallel, this assembles independently on each processor, that is, it
+    assembles at the L-vector level. The assembly procedure is always performed
+    on the host, but this works also for operators stored on device by copying
+    memory. */
+SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form);
+#endif
 
 } // namespace ceed
 
