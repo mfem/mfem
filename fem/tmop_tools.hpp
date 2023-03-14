@@ -68,6 +68,11 @@ public:
                                      Vector &new_field,
                                      int new_nodes_ordering = Ordering::byNODES);
 
+   const FindPointsGSLIB *GetFindPointsGSLIB() const
+   {
+      return finder;
+   }
+
    ~InterpolatorFP()
    {
       finder->FreeData();

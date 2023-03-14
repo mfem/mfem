@@ -38,6 +38,11 @@ namespace mfem
  *     coordinates inside the element that each point is located in. gslib also
  *     returns a code that indicates whether the point was found inside an
  *     element, on element border, or not found in the domain.
+ *     For points returned as found on `element border`, the point is either
+ *     on an element edge/face or near the domain boundary, and gslib also
+ *     returns a distance to the border. Points near (but outside) the domain
+ *     boundary must then be marked as not found using the distance returned
+ *     by gslib.
  *
  *  3. Interpolate - Interpolates any grid function at the points found using 2.
  *
@@ -70,6 +75,8 @@ protected:
    Array<int> split_element_map;
    Array<int> split_element_index;
    int        NE_split_total;
+   // Tolerance to ignore points just outside elements at the boundary.
+   double     bdr_tol;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -179,6 +186,14 @@ public:
    virtual void SetDefaultInterpolationValue(double interp_value_)
    {
       default_interp_value = interp_value_;
+   }
+
+   /// Set the tolerance for detecting points outside the 'curvilinear' boundary
+   /// that gslib may return as found on the boundary. Points found on boundary
+   /// with distance greater than @ bdr_tol are marked as not found.
+   virtual void SetDistanceToleranceForPointsFoundOnBoundary(double bdr_tol_)
+   {
+      bdr_tol = bdr_tol_;
    }
 
    /** Cleans up memory allocated internally by gslib.
