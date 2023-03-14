@@ -19,11 +19,11 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef _WIN32
+#if !defined(_WIN32) || !defined(_MSC_VER)
 typedef struct stat struct_stat;
 #else
 #define stat(dir, buf) _stat(dir, buf)
-#define S_ISDIR(mode) _S_IFDIR(mode)
+#define S_ISDIR(mode) (((mode) & _S_IFMT) == _S_IFDIR)
 typedef struct _stat struct_stat;
 #endif
 
