@@ -356,7 +356,7 @@ MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
  MFEM_INC_DIR MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR\
  MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG\
  MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP\
- MFEM_TEST_MK MFEM_JIT_PIPE
+ MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -499,6 +499,8 @@ JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 # Filter out objects that will require specific MAKEFILE definitions
 OPT_OBJECT_FILES = $(BLD)general/jit/jit.o
 STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJECT_FILES))
+# Temporary directory for intermediate JIT source files
+JIT_SOURCE_MKTMP := $(realpath $(shell mktemp -d))
 
 # Definitions to compile the preprocessor and embed the MFEM options
 MFEM_JIT_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
@@ -525,14 +527,11 @@ $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
-ifeq ($(MFEM_JIT_PIPE),YES)
-	$(BLD)./mjit $(<) | $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D)) -c -o $(@) -
-else # pipe, use temporary %_jit.cpp file
-	$(BLD)./mjit $(<) -o $(*)_jit.cpp
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*)_jit.cpp -o $(@)
-	rm $(*)_jit.cpp
-endif # pipe
-endif # jit
+	@mkdir -v -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
+	$(BLD)./mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*)_jit.cpp
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -c $(JIT_SOURCE_MKTMP)/$(*)_jit.cpp -o $(@)
+	rm $(JIT_SOURCE_MKTMP)/$(*)_jit.cpp
+endif # MFEM_USE_JIT
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -813,7 +812,6 @@ status info:
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
-	$(info MFEM_JIT_PIPE          = $(value MFEM_JIT_PIPE))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))
 	$(info MFEM_SHARED            = $(MFEM_SHARED))
 	$(info MFEM_BUILD_DIR         = $(MFEM_BUILD_DIR))

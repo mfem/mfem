@@ -21,6 +21,10 @@ CMakeFiles/
 # JIT library files
 libmjit*
 
+# Clangd files
+.qtc_clangd
+.clangd
+
 # Backup files
 *~
 

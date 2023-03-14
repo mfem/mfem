@@ -31,7 +31,7 @@ CONFIG_HPP = _config.hpp
 CONFIG_MK = config.mk
 
 .SUFFIXES:
-.PHONY: all get-hypre-version get_jit_version header config-mk
+.PHONY: all get-hypre-version header config-mk
 
 all: header config-mk
 
@@ -40,12 +40,6 @@ MPI = $(MFEM_USE_MPI:NO=)
 GHV_CXX ?= $(MFEM_CXX)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
-
-# Set MFEM_JIT_PIPE
-# get_jit_version.out can be one of: XLC, ROCM, CLANG, GNU & UNKNOWN
-JIT = $(MFEM_USE_JIT:NO=)
-JIT_USE_PIPE = CLANG GNU
-JCV = get_jit_version
 
 # Set MFEM_USE_SIMMETRIX
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
@@ -65,13 +59,6 @@ $(GHV).out: $(GHV)
 	./$(GHV) > $(GHV).out
 .INTERMEDIATE: $(GHV) $(GHV).out
 
-$(JCV): $(SRC)$(JCV).cpp
-	$(call mfem-info, Determining host CXX version ...)
-	$(MFEM_HOST_CXX) $(SRC)$(JCV).cpp -o $(JCV)
-$(JCV).out: $(JCV)
-	./$(JCV) > $(JCV).out
-.INTERMEDIATE: $(JCV) $(JCV).out
-
 $(GMV): $(SRC)$(GMV).cpp
 	$(call mfem-info, Determining MUMPS version ...)
 	$(GMV_CXX) ${GMV_FLAGS} $(SRC)$(GMV).cpp -o $(GMV)
@@ -84,13 +71,6 @@ get-hypre-version: $(GHV).out
 	$(if $(MFEM_HYPRE_VERSION),$(eval export MFEM_HYPRE_VERSION)\
 	$(info HYPRE version: $(MFEM_HYPRE_VERSION)),\
 	$(error Unable to determine HYPRE version))
-
-get-jit-version: $(JCV).out
-	$(eval MFEM_JIT_CXX:=$(shell cat $(JCV).out))
-	$(if $(MFEM_JIT_CXX),\
-        $(eval MFEM_JIT_PIPE:=$(if $(filter $(MFEM_JIT_CXX),$(JIT_USE_PIPE)),YES,NO))\
-        $(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE))$(eval export MFEM_JIT_PIPE),\
-        $(error Unable to determine JIT CXX version))
 
 check-smx:
 	$(call mfem-info, Checking for Simmetrix header [$(SMX_FILE)] ...)
@@ -121,7 +101,7 @@ header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
 
 # The target below uses the values of the shell variables listed in
 # the shell variables MFEM_DEFINES and MFEM_CONFIG_VARS
-config-mk: $(if $(JIT),get-jit-version,)
+config-mk:
 	$(call mfem-info, Writing $(CONFIG_MK) ...)
 	@set -- && \
 	for ref in $${MFEM_DEFINES} $${MFEM_CONFIG_VARS}; do \
