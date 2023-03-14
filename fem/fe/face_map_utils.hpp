@@ -44,6 +44,10 @@ void FillFaceMap(const int n_face_dofs_per_component,
                  const std::vector<int> &n_dofs_per_dim,
                  Array<int> &face_map);
 
+/// Return the face map for nodal tensor elements (H1, L2, and Bernstein basis).
+void GetNodalTensorFaceMap(const int dim, const int order, const int face_id,
+                           Array<int> &face_map);
+
 } // namespace mfem
 
 #endif

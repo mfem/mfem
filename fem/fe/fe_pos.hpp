@@ -70,12 +70,14 @@ public:
                                const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const
+                                 DofToQuad::Mode mode) const override
    {
       return (mode == DofToQuad::FULL) ?
              FiniteElement::GetDofToQuad(ir, mode) :
              GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
+
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 };
 
 
