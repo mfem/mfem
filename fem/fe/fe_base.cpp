@@ -2519,50 +2519,7 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
 void NodalTensorFiniteElement::GetFaceMap(const int face_id,
                                           Array<int> &face_map) const
 {
-   const int dof1d = order + 1;
-   int n_face_dofs = pow(dof1d, dim - 1);
-   std::vector<int> offsets, strides;
-   switch (dim)
-   {
-      case 1:
-         offsets = {(face_id == 0) ? 0 : dof1d - 1};
-         break;
-      case 2:
-         strides = {(face_id == 0 || face_id == 2) ? 1 : dof1d};
-         switch (face_id)
-         {
-            case 0: offsets = {0}; break; // y = 0
-            case 1: offsets = {dof1d - 1}; break; // x = 1
-            case 2: offsets = {(dof1d-1)*dof1d}; break; // y = 1
-            case 3: offsets = {0}; break; // x = 0
-         }
-         break;
-      case 3:
-      {
-         const auto f = GetFaceNormal3D(face_id);
-         const int face_normal = f.first, level = f.second;
-         if (face_normal == 0) // x-normal
-         {
-            offsets = {level ? dof1d-1 : 0};
-            strides = {dof1d, dof1d*dof1d};
-         }
-         else if (face_normal == 1) // y-normal
-         {
-            offsets = {level ? (dof1d-1)*dof1d : 0};
-            strides = {1, dof1d*dof1d};
-         }
-         else if (face_normal == 2) // z-normal
-         {
-            offsets = {level ? (dof1d-1)*dof1d*dof1d : 0};
-            strides = {1, dof1d};
-         }
-         break;
-      }
-   }
-
-   // same number of DOFs in each dimension, repeat dof1d (dim - 1) times
-   std::vector<int> n_dofs(dim - 1, dof1d);
-   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
+   GetNodalTensorFaceMap(dim, order, face_id, face_map);
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
