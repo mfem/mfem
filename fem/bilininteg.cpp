@@ -32,6 +32,11 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
    MFEM_ABORT("BilinearFormIntegrator::AssemblePA(fes, fes)\n"
               "   is not implemented for this class.");
 }
+
+void BilinearFormIntegrator::AssemblePABoundary(const FiniteElementSpace&)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssemblePABoundary(fes)\n"
+              "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&)
