@@ -576,8 +576,12 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
-   virtual void GetFaceMap(const int face_id,
-                           Array<int> &face_map) const;
+   /** @brief Return the mapping from lexicographic DOF ordering to DOFs on
+       local face @a face_id. */
+   /** Given the @a ith DOF (lexicographically order) on the face referenced by
+       @a face_id, face_map[i] gives the corresponding index of the DOF in the
+       element (also lexicographically ordered). */
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
