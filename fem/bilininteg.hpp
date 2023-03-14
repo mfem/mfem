@@ -61,6 +61,8 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
