@@ -22,6 +22,49 @@ namespace mfem
 namespace internal
 {
 
+MFEM_HOST_DEVICE inline
+void PAMassApply1D_Element(const int e,
+                           const int NE,
+                           const double *b_,
+                           const double *bt_,
+                           const double *d_,
+                           const double *x_,
+                           double *y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   const int D1D = d1d;
+   const int Q1D = q1d;
+   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   auto D = ConstDeviceMatrix(d_, Q1D, NE);
+   auto X = ConstDeviceMatrix(x_, D1D, NE);
+   auto Y = DeviceMatrix(y_, D1D, NE);
+
+   constexpr int max_Q1D = MAX_Q1D;
+   double XQ[max_Q1D];
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      XQ[qx] = 0.0;
+   }
+   for (int dx = 0; dx < D1D; ++dx)
+   {
+      const double s = X(dx,e);
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         XQ[qx] += B(qx,dx)*s;
+      }
+   }
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      const double q = XQ[qx]*D(qx,e);
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx,e) += Bt(dx,qx) * q;
+      }
+   }
+}
+
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void PAMassApply2D_Element(const int e,
