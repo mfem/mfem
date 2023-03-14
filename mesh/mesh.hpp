@@ -223,8 +223,13 @@ protected:
    Array<int> be_to_edge;  // for 2D
    Table *bel_to_edge;     // for 3D
    Array<int> be_to_face;
-   mutable Table *face_edge;
-   mutable Table *edge_vertex;
+
+   // Note that the following tables are owned by this class and should not be
+   // deleted by the caller. Of these three tables, only face_edge and
+   // edge_vertex are returned by access functions.
+   mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
+   mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -1083,10 +1088,8 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceGeometry(int i) const
-   {
-      return faces[i]->GetGeometryType();
-   }
+   /// Return the Geometry::Type associated with face @a i.
+   Geometry::Type GetFaceGeometry(int i) const;
 
    Geometry::Type GetElementGeometry(int i) const
    {
@@ -1098,8 +1101,8 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   // deprecated: "base geometry" no longer means anything
-   Geometry::Type GetFaceBaseGeometry(int i) const
+   /// Deprecated in favor of Mesh::GetFaceGeometry
+   MFEM_DEPRECATED Geometry::Type GetFaceBaseGeometry(int i) const
    { return GetFaceGeometry(i); }
 
    Geometry::Type GetElementBaseGeometry(int i) const
@@ -1184,6 +1187,10 @@ public:
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
+   /** @brief Returns the sorted, unique indices of elements sharing a face with
+       element @a elem, including @a elem. */
+   Array<int> FindFaceNeighbors(const int elem) const;
+
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *f, int *o) const;
 
@@ -1228,24 +1235,32 @@ public:
 
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
-   /** Builds the transformation defining the i-th element in the user-defined
-       variable. */
+   /// Builds the transformation defining the i-th element in @a ElTr.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /// Returns the transformation defining the i-th element
+   /// Returns a pointer to the transformation defining the i-th element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetElementTransformation(int i);
 
-   /** Return the transformation defining the i-th element assuming
-       the position of the vertices/nodes are given by 'nodes'. */
+   /// Builds the transformation defining the i-th element in @a ElTr
+   /// assuming position of the vertices/nodes are given by @a nodes.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, const Vector &nodes,
                                  IsoparametricTransformation *ElTr);
 
-   /// Returns the transformation defining the i-th boundary element
-   ElementTransformation * GetBdrElementTransformation(int i);
+   /// Returns a pointer to the transformation defining the i-th boundary
+   /// element. Note that the pointer is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   ElementTransformation *GetBdrElementTransformation(int i);
+
+   /// Builds the transformation defining the i-th boundary element in @a ElTr.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /** @brief Returns the transformation defining the given face element in a
-       user-defined variable. */
+   /// Builds the transformation defining the i-th face element in @a FTr.
+   /// @a FTr must be allocated in advance and will be owned by the caller.
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
 
    /** @brief A helper method that constructs a transformation from the
@@ -1257,14 +1272,18 @@ public:
                                    IsoparametricTransformation &Transf,
                                    int info);
 
-   /// Returns the transformation defining the given face element
+   /// Returns a pointer to the transformation defining the given face element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
-   /** Returns the transformation defining the given edge element.
-       The transformation is stored in a user-defined variable. */
+   /// Builds the transformation defining the i-th edge element in @a EdTr.
+   /// @a EdTr must be allocated in advance and will be owned by the caller.
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr);
 
-   /// Returns the transformation defining the given face element
+   /// Returns a pointer to the transformation defining the given edge element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
    /// Returns (a pointer to an object containing) the following data:
@@ -1297,16 +1316,22 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    virtual FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31);
 
+   /// See GetFaceElementTransformations().
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
       if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
       return GetFaceElementTransformations (FaceNo);
    }
 
+   /// Builds the transformation defining the given boundary face.
+   /// The returned pointer is owned by the caller.
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
    /// Return the local face index for the given boundary face.
@@ -1487,7 +1512,10 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
-   Geometry::Type GetFaceGeometryType(int Face) const;
+   /// Deprecated in favor of Mesh::GetFaceGeometry
+   MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
+   { return GetFaceGeometry(Face); }
+
    Element::Type  GetFaceElementType(int Face) const;
 
    Array<int> GetFaceToBdrElMap() const;
@@ -1575,6 +1603,10 @@ public:
    void SetNodes(const Vector &node_coord);
 
    /// Return a pointer to the internal node GridFunction (may be NULL).
+   /** If the mesh is straight-sided (low-order), it may not have a GridFunction
+       for the nodes, in which case this function returns NULL. To ensure that
+       the nodal GridFunction exists, call EnsureNodes().
+       @sa SetCurvature(). */
    GridFunction *GetNodes() { return Nodes; }
    const GridFunction *GetNodes() const { return Nodes; }
    /// Return the mesh nodes ownership flag.
@@ -1602,15 +1634,22 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
-   /** Make sure that the mesh has valid nodes, i.e. its geometry is described
-       by a vector finite element grid function (even if it is a low-order mesh
-       with straight edges). */
+   /** @brief Make sure that the mesh has valid nodes, i.e. its geometry is
+       described by a vector finite element grid function (even if it is a
+       low-order mesh with straight edges).
+
+       @sa GetNodes(). */
    void EnsureNodes();
 
-   /** Set the curvature of the mesh nodes using the given polynomial degree,
-       'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
-       default). */
+   /// Set the curvature of the mesh nodes using the given polynomial degree.
+   /** Creates a nodal GridFunction if one doesn't already exist.
+
+       @param[in]  order       Polynomial degree of the nodal FE space.
+       @param[in]  discont     Whether to use a discontinuous or continuous
+                               finite element space (continuous is default).
+       @param[in]  space_dim   The space dimension (optional).
+       @param[in]  ordering    The Ordering of the finite element space
+                               (Ordering::byVDIM is the default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
