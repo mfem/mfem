@@ -82,7 +82,7 @@ private:
    /// The block-diagonal preconditioner.
    std::unique_ptr<BlockDiagonalPreconditioner> D_prec;
 
-   Coefficient &L_coeff, &R_coeff;
+   Coefficient &L_coeff, &R_coeff, &B_coeff;
 
    const Mode mode;
    bool zero_l2_block = false;
@@ -132,6 +132,16 @@ public:
    /// HdivSaddlePointSolver(ParMesh&, ParFiniteElementSpace&,
    /// ParFiniteElementSpace&, Coefficient&, const Array<int>&) the zero-block
    /// HdivSaddlePointSolver constructor@endlink).
+   HdivSaddlePointSolver(ParMesh &mesh_,
+                         ParFiniteElementSpace &fes_rt_,
+                         ParFiniteElementSpace &fes_l2_,
+                         Coefficient &L_coeff_,
+                         Coefficient &R_coeff_,
+                         Coefficient &B_coeff_,
+                         const Array<int> &ess_rt_dofs_,
+                         Mode mode_);
+
+   /// Same as the main constructor, but with B_coeff set to zero.
    HdivSaddlePointSolver(ParMesh &mesh_,
                          ParFiniteElementSpace &fes_rt_,
                          ParFiniteElementSpace &fes_l2_,
