@@ -1118,6 +1118,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
                                     int elemId)
 {
    int type = apf_mesh->getType(ent);
+   MFEM_CONTRACT_VAR(type);
    MFEM_ASSERT(apf::isSimplex(type),
                "only implemented for simplex entity types");
    // get downward vertices of PUMI element

@@ -197,7 +197,7 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
 
       H1_FECollection fec(order, dim);
       ParFiniteElementSpace fespace(&pmesh, &fec);
-      HYPRE_Int size = fespace.GlobalTrueVSize();
+      HYPRE_BigInt size = fespace.GlobalTrueVSize();
       CAPTURE(mt, size);
 
       Array<int> ess_bdr;

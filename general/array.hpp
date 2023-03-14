@@ -370,6 +370,8 @@ public:
    Array2D() { M = N = 0; }
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
 
+   Array2D(const Array2D &) = default;
+
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
    int NumRows() const { return M; }
