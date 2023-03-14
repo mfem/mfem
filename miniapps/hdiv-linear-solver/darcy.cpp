@@ -53,6 +53,36 @@ using namespace mfem;
 
 ParMesh LoadParMesh(const char *mesh_file, int ser_ref = 0, int par_ref = 0);
 
+class RobinCoefficient : public Coefficient
+{
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      double xdata[3];
+      Vector xvec(xdata, 3);
+      T.Transform(ip, xvec);
+      const int dim = xvec.Size();
+
+      Vector n(dim);
+      CalcOrtho(T.Jacobian(), n);
+      n /= n.Norml2();
+
+      const double p_val = u(xvec);
+      const double x = pi*xvec[0];
+      const double y = pi*xvec[1];
+
+      if (dim == 2)
+      {
+         const double u_val = -pi*(n[0]*cos(x)*sin(y) + n[1]*sin(x)*cos(y));
+         return p_val - u_val;
+      }
+      else
+      {
+         MFEM_ABORT("Not implemented");
+      }
+      return 0.0;
+   }
+};
+
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -103,6 +133,8 @@ int main(int argc, char *argv[])
 
    // f is the RHS, u is the exact solution
    FunctionCoefficient f_coeff(f(alpha)), u_coeff(u);
+   // Coefficient to enforce Robin boundary condition
+   RobinCoefficient bc_coeff;
 
    // Assemble the right-hand side for the scalar (L2) unknown.
    ParLinearForm b_l2(&fes_l2);
@@ -113,7 +145,7 @@ int main(int argc, char *argv[])
    // Enforce Dirichlet boundary conditions on the scalar unknown by adding
    // the boundary term to the flux equation.
    ParLinearForm b_rt(&fes_rt);
-   b_rt.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(u_coeff));
+   b_rt.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(bc_coeff));
    b_rt.UseFastAssembly(true);
    b_rt.Assemble();
 
@@ -141,7 +173,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient alpha_coeff(alpha);
    const auto solver_mode = HdivSaddlePointSolver::Mode::DARCY;
    HdivSaddlePointSolver saddle_point_solver(
-      mesh, fes_rt, fes_l2, alpha_coeff, one, ess_rt_dofs, solver_mode);
+      mesh, fes_rt, fes_l2, alpha_coeff, one, one, ess_rt_dofs, solver_mode);
 
    const Array<int> &offsets = saddle_point_solver.GetOffsets();
    BlockVector X_block(offsets), B_block(offsets);
