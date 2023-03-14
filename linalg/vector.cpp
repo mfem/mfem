@@ -149,9 +149,10 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(Vector &&v)
 {
    data = std::move(v.data);
-   size = v.size;
-   v.data.Reset();
+   // Self-assignment-safe way to move v.size to size:
+   const auto size_tmp = v.size;
    v.size = 0;
+   size = size_tmp;
    return *this;
 }
 
@@ -593,7 +594,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   MFEM_ASSERT(dofs.Size() == elemvect.Size(),
+   MFEM_ASSERT(dofs.Size() <= elemvect.Size(),
                "Size mismatch: length of dofs is " << dofs.Size()
                << ", length of elemvect is " << elemvect.Size());
 
@@ -638,7 +639,7 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
+   MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
 
@@ -682,7 +683,7 @@ void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &elemvect)
 {
-   MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
+   MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
 

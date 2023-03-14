@@ -125,7 +125,7 @@ private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
-   static Device device_singleton;
+   static MFEM_EXPORT Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
    int dev = 0;   ///< Device ID of the configured device.
