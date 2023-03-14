@@ -743,9 +743,14 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
          else
          {
             Array<int> vert;
-            GetEdgeVertices(submesh_edge_id, vert);
+            parent_.GetEdgeVertices(ple, vert);
+            // Swap order of vertices if orientation in parent group is -1
+            int v0 = parent_to_submesh_vertex_ids_[vert[(1-o)/2]];
+            int v1 = parent_to_submesh_vertex_ids_[vert[(1+o)/2]];
 
-            shared_edges.Append(new Segment(vert[0], vert[1], 1));
+            // The orienation of the shared edge relative to the local edge
+            // will be determined by whether v0 < v1 or v1 < v0
+            shared_edges.Append(new Segment(v0, v1, 1));
             sedge_ledge.Append(submesh_edge_id);
          }
       }
