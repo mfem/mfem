@@ -18,9 +18,14 @@ Meshing improvements
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
 
+- Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
+  domain boundary.
+
 - Added support for pyramids in Gmsh meshes.
 
 - Fixed a bug in TMOP metric 301.
+
+- Added an option to auto-balance compound TMOP metrics.
 
 Discretization improvements
 ---------------------------
@@ -33,12 +38,19 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
+
 - The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
   formats using the corresponding DataCollection objects. See option 'D' in the
   main menu.
 
 Integrations, testing and documentation
 ---------------------------------------
+- Added support for shared Windows builds with MSVC through CMake.
+  Developers note: this enhancement is facilitated by the addition of the macro
+  MFEM_EXPORT, see config.hpp for more details on its usage.
+
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 
@@ -110,6 +122,9 @@ Discretization improvements
 
 - Added a class CoefficientVector for efficient access of variable coefficient
   values at quadrature points (in particular for GPU/device kernels).
+
+- Added support for GridFunction::GetGradients() and
+  GriFunction::GetVectorGradient() on face-neighbor elements.
 
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
