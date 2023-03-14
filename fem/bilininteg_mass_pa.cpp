@@ -119,6 +119,80 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
+void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
+{
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
+   // Assuming the same element type
+   fespace = &fes;
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   const FiniteElement &el = *fes.GetBE(0);
+   ElementTransformation *T0 = mesh->GetBdrElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
+
+   int map_type = el.GetMapType();
+   dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
+   ne = fes.GetMesh()->GetNBE();
+   nq = ir->GetNPoints();
+   face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
+                                             FaceType::Boundary, mt);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_data.SetSize(ne*nq, mt);
+
+   FaceQuadratureSpace qs(*mesh, *ir, FaceType::Boundary);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+
+   const int NE = ne;
+   const int Q1D = quad1D;
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   if (dim==1)
+   {
+      const auto W = Reshape(ir->GetWeights().Read(), Q1D);
+      const auto J = Reshape(face_geom->detJ.Read(), Q1D, NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1, 1) :
+                     Reshape(coeff.Read(), Q1D, NE);
+      auto v = Reshape(pa_data.Write(), Q1D, NE);
+      MFEM_FORALL_2D(e, NE, Q1D, 1, 1,
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const double detJ = J(qx,e);
+            const double coeff = const_c ? C(0,0) : C(qx,e);
+            v(qx,e) =  W(qx) * coeff * (by_val ? detJ : 1.0/detJ);
+         }
+      });
+   }
+   else if (dim==2)
+   {
+      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
+      const auto J = Reshape(face_geom->detJ.Read(), Q1D,Q1D,NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
+                     Reshape(coeff.Read(), Q1D,Q1D,NE);
+      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
+      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               const double detJ = J(qx,qy,e);
+               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
+            }
+         }
+      });
+   }
+   else
+   {
+      MFEM_ABORT("Not supported.");
+   }
+}
+
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal2D(const int NE,
                                      const Array<double> &b,
@@ -533,6 +607,30 @@ static void OccaPAMassApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
+static void PAMassApply1D(const int NE,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   MFEM_VERIFY(d1d <= MAX_D1D, "");
+   MFEM_VERIFY(q1d <= MAX_Q1D, "");
+
+   const auto B = b_.Read();
+   const auto Bt = bt_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+
+   MFEM_FORALL(e, NE,
+   {
+      internal::PAMassApply1D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
+   });
+}
+
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
                           const Array<double> &b_,
@@ -664,7 +762,11 @@ static void PAMassApply(const int dim,
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
 
-   if (dim == 2)
+   if (dim == 1)
+   {
+      return PAMassApply1D(NE,B,Bt,D,X,Y,D1D,Q1D);
+   }
+   else if (dim == 2)
    {
       switch (id)
       {

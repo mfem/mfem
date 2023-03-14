@@ -2185,8 +2185,9 @@ protected:
    // PA extension
    const FiniteElementSpace *fespace;
    Vector pa_data;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
+   const DofToQuad *maps;                 ///< Not owned
+   const GeometricFactors *geom;          ///< Not owned
+   const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
@@ -2212,6 +2213,8 @@ public:
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
