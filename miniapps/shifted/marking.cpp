@@ -11,6 +11,8 @@
 
 #include "marking.hpp"
 
+#include "integ_algoim.hpp"
+
 namespace mfem
 {
 
@@ -293,7 +295,74 @@ void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
     lfes.MarkerToList(tdof_mark, ess_tdof_list);
 }
 
+#ifdef MFEM_USE_ALGOIM
 
+
+CutIntegrationRules::CutIntegrationRules(int int_order,
+                                         ParGridFunction& lsf,
+                                         Array<int>& elm_markers)
+{
+
+     AlgoimIntegrationRule* air;
+     Vector vlsf;//vector for the level-set-function
+     //cut element
+     Array<int> vdofs;
+     FiniteElementSpace* fespace=lsf.FESpace();
+     ElementTransformation *Tr;
+
+     vir.SetSize(fespace->GetNE()); vir=nullptr;
+     sir.SetSize(fespace->GetNE()); sir=nullptr;
+
+     DenseMatrix bmat; //gradients of the shape functions in isoparametric space
+     DenseMatrix pmat; //gradients of the shape functions in physical space
+     Vector inormal; //normal to the level set in isoparametric space
+     Vector tnormal; //normal to the level set in physical space
+
+     for (int i=0; i<fespace->GetNE(); i++){
+     if(elm_markers[i]==ElementMarker::SBElementType::CUT){
+         const FiniteElement* le=fespace->GetFE(i);
+         fespace->GetElementDofs(i,vdofs);
+         Tr=fespace->GetElementTransformation(i);
+         lsf.GetSubVector(vdofs,vlsf);
+         air=new AlgoimIntegrationRule(int_order,*le,*Tr,vlsf);
+
+         vir[i]=new IntegrationRule(*(air->GetVolumeIntegrationRule()));
+         sir[i]=new IntegrationRule(*(air->GetSurfaceIntegrationRule()));
+
+         //adjust integration weights for the surface integration rule
+         bmat.SetSize(le->GetDof(),le->GetDim());
+         pmat.SetSize(le->GetDof(),le->GetDim());
+
+         inormal.SetSize(le->GetDim());
+         tnormal.SetSize(le->GetDim());
+         for (int j = 0; j < sir[i]->GetNPoints(); j++){
+              IntegrationPoint &ip = sir[i]->IntPoint(j);
+              Tr->SetIntPoint(&ip);
+              le->CalcDShape(ip,bmat);
+              Mult(bmat, Tr->AdjugateJacobian(), pmat);
+              //compute the normal to the LS in isoparametric space
+              bmat.MultTranspose(vlsf,inormal);
+              //compute the normal to the LS in physical space
+              pmat.MultTranspose(vlsf,tnormal);
+              ip.weight*=tnormal.Norml2()/inormal.Norml2();
+         }
+
+         delete air;
+     }}
+
+}
+
+CutIntegrationRules::~CutIntegrationRules()
+{
+    for(int i=0;i<vir.Size();i++)
+    {
+        delete vir[i];
+        delete sir[i];
+    }
+}
+
+
+#endif
 
 
 void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,

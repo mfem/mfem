@@ -91,10 +91,18 @@ public:
     ~CFElasticitySolver();
 
     /// Set level-set function and the element markers
-    void SetLSF(ParGridFunction& lsf_, Array<int>& el_markers_ )
+    void SetLSF(ParGridFunction& lsf_, Array<int>& el_markers_)
     {
         level_set_function=&lsf_;
         el_markers=&el_markers_;
+    }
+
+    //Sets the integration rules
+    void SetCutIntegrationRules(Array<IntegrationRule*>& vir,
+                                Array<IntegrationRule*>& sir)
+    {
+        vol_ir=&vir;
+        sur_ir=&sir;
     }
 
     /// Set the Newton Solver
@@ -114,6 +122,9 @@ public:
 
     /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
     void AddDispBC(int id, int dir, mfem::Coefficient& val);
+
+    /// Adds displacement BC.
+    void AddDispBC(int id,mfem::VectorCoefficient& val);
 
     /// Clear all displacement BC
     void DelDispBC();
@@ -212,6 +223,9 @@ private:
     std::map<int, mfem::Coefficient*> bccy;
     std::map<int, mfem::Coefficient*> bccz;
 
+    // holds BC in vector coefficient form
+    std::map<int, mfem::VectorCoefficient*> bccv;
+
 
     // holds the displacement contrained DOFs
     mfem::Array<int> ess_tdofv;
@@ -245,6 +259,9 @@ private:
 
     mfem::ParGridFunction* level_set_function;
     Array<int>*  el_markers;
+
+    mfem::Array<mfem::IntegrationRule*>* vol_ir; //elementwise volumetric integration rule
+    mfem::Array<mfem::IntegrationRule*>* sur_ir; //elementwise surface integration rule
 
 };
 

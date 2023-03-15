@@ -402,6 +402,79 @@ private:
 };
 
 
+void CompDisplH1Norm(VectorCoefficient& ut, ParGridFunction* uu,
+                       Array<int> marks, CutIntegrationRules& cut_int, double& L2err, double& H1err)
+{
+    ParMesh* mesh=uu->ParFESpace()->GetParMesh();
+    int order = uu->ParFESpace()->GetMaxElementOrder();
+    int dim= mesh->SpaceDimension();
+    H1_FECollection fec(order+3,dim);
+    ParFiniteElementSpace fes(mesh,&fec,dim);
+
+    ParGridFunction up(&fes);
+    up.ProjectCoefficient(ut);
+
+    //add the cuts
+    double cerr=0.0;
+    double derr=0.0;
+    double rerr=0.0;
+
+    {
+        ElementTransformation *trans;
+        Vector duu(dim);
+        Vector dtt(dim);
+        DenseMatrix dduu(dim);
+        DenseMatrix ddtt(dim);
+        double w;
+        const IntegrationRule* ir;
+        for(int i=0;i<fes.GetNE();i++)
+        {
+            const FiniteElement* el=fes.GetFE(i);
+            //get the element transformation
+            trans = fes.GetElementTransformation(i);
+
+            if(marks[i]==ElementMarker::SBElementType::INSIDE){
+                ir=&IntRules.Get(el->GetGeomType(), order+3);
+            }else
+            if(marks[i]==ElementMarker::SBElementType::CUT){
+                ir=cut_int.GetSurfIntegrationRule(i);
+            }else{
+                continue;
+            }
+
+            for(int j=0; j<ir->GetNPoints();j++){
+                const IntegrationPoint &ip = ir->IntPoint(j);
+                trans->SetIntPoint(&ip);
+                w=ip.weight * trans->Weight();
+
+                uu->GetVectorValue(*trans,ip,duu);
+                up.GetVectorValue(*trans,ip,dtt);
+
+                duu.Add(-1.0,dtt);
+                cerr=cerr+w*(duu*duu);
+
+                uu->GetVectorGradient(*trans,dduu);
+                up.GetVectorGradient(*trans,ddtt);
+
+                dduu.Add(-1.0,ddtt);
+                for(int pp=0;pp<dim;pp++){
+                for(int kk=0;kk<dim;kk++){
+                    derr=derr+w*dduu(kk,pp)*dduu(kk,pp);
+                }}
+            }
+        }
+
+    }
+
+    MPI_Reduce(&cerr,&rerr,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    cerr=sqrt(rerr); L2err=cerr;
+    rerr=0.0;
+    MPI_Reduce(&derr,&rerr,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    cerr=cerr+sqrt(rerr); H1err=cerr;
+
+}
+
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -411,10 +484,11 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
-   int solver_type = 0;
    int rs_levels = 2;
    int order = 2;
+   int cut_int_order = order;
    const char *device_config = "cpu";
+   double stiff_ratio=1e-6;
    bool visualization = true;
 
 
@@ -427,6 +501,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&cut_int_order, "-co", "--corder",
+                  "Cut integration order");
+   args.AddOption(&stiff_ratio,"-sr", "--stiff_ratio",
+                  "Stiffness ratio");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -453,12 +531,17 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
+   if(myrank==0){
+       std::cout<<"Num elements="<<mesh.GetNE()<<std::endl;
+   }
+
+
 
    // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   FilterSolver* filter=new FilterSolver(0.1,&pmesh,4);
+   FilterSolver* filter=new FilterSolver(0.1,&pmesh,2);
 
    ParFiniteElementSpace* dfes=filter->GetDesignFES();
    ParFiniteElementSpace* ffes=filter->GetFilterFES();
@@ -467,7 +550,7 @@ int main(int argc, char *argv[])
    ParGridFunction filgf(ffes); filgf=0.0;
 
    {// project the coefficient and filter
-       //GyroidCoeff gc(4.0*M_PI);
+       //GyroidCoeff gc(6.0*M_PI);
        CheseCoeff  gc(2.0*M_PI);
        desgf.ProjectCoefficient(gc);
        Vector tdes(dfes->GetTrueVSize()); tdes=0.0;
@@ -483,6 +566,10 @@ int main(int argc, char *argv[])
    Array<int> marks;
    elmark->MarkElements(marks);
 
+
+   //define the cut integration rules
+   CutIntegrationRules cut_int(2*cut_int_order, filgf, marks);
+
    for(int i=0;i<pmesh.GetNE();i++){
        pmesh.SetAttribute(i,marks[i]);
    }
@@ -494,11 +581,12 @@ int main(int argc, char *argv[])
 
 
 
-   CFElasticitySolver* elsolv=new CFElasticitySolver(&pmesh,1);
+
+   CFElasticitySolver* elsolv=new CFElasticitySolver(&pmesh,order);
    Vector vf(dim); vf=0.0; vf(1)=0.0;
-   VectorConstantCoefficient* ff=new VectorConstantCoefficient(vf);
+   //VectorConstantCoefficient* ff=new VectorConstantCoefficient(vf);
    LinIsoElasticityCoefficient* lec=new LinIsoElasticityCoefficient(1.0,0.3);
-   elsolv->SetLinearSolver(1e-12,1e-12,200);
+   elsolv->SetLinearSolver(1e-12,1e-12,400);
    elsolv->SetNewtonSolver(1e-10,1e-12,20,1);
    if(dim==2){
        ForceSol2D* fsol2d= new ForceSol2D(1.0,0.3,2.0*M_PI,2.0*M_PI);
@@ -519,7 +607,8 @@ int main(int argc, char *argv[])
    }else{ //3D
        elsolv->AddDispBC(2,dsol3d);
    }
-   elsolv->SetLSF(filgf,marks);
+   elsolv->SetLSF(filgf,marks, cut_int);
+   elsolv->SetStiffnessRatio(stiff_ratio);
    elsolv->FSolve();
    ParGridFunction& u=elsolv->GetDisplacements();
 
@@ -545,17 +634,20 @@ int main(int argc, char *argv[])
    }
 
 
-   Array<int> 	emarks(marks);
-   for(int i=0;i<marks.Size();i++){
-       if(marks[i]!=ElementMarker::SBElementType::INSIDE){
-           emarks[i]=0;
-       }else{
-           emarks[i]=1;
-       }
+   double L2err;
+   double H1err;
+   if(dim==2){
+       CompDisplH1Norm(dsol2d,&u,marks,cut_int,L2err,H1err);
+   }else{
+       CompDisplH1Norm(dsol3d,&u,marks,cut_int,L2err,H1err);
    }
-   VectorGridFunctionCoefficient vgfv(&u);
-   double err=ug.ComputeL2Error(vgfv,nullptr,&emarks);
-   std::cout<<"err="<<err<<std::endl;
+
+
+   if(myrank==0){
+       std::cout.setf( std::ios_base::scientific, std::ios_base::floatfield );
+       std::cout<<"L2 err = "<<L2err<<std::endl;
+       std::cout<<"H1 err = "<<H1err<<std::endl;
+   }
 
 
    // ParaView output.

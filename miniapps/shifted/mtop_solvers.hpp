@@ -3,6 +3,7 @@
 
 #include "mfem.hpp"
 #include "mtop_filters.hpp"
+#include "marking.hpp"
 
 namespace mfem {
 
@@ -862,6 +863,7 @@ public:
         elco=nullptr;
         forc=nullptr;
         surfl=nullptr;
+        cut_int=nullptr;
         stiffness_ratio=1e-6;
     }
 
@@ -870,6 +872,7 @@ public:
         elco=&coeff;
         forc=nullptr;
         surfl=nullptr;
+        cut_int=nullptr;
         stiffness_ratio=1e-6;
     }
 
@@ -879,7 +882,8 @@ public:
         elco=coeff;
         forc=vol_forc;
         surfl=nullptr;
-        stiffness_ratio=1e-3;
+        cut_int=nullptr;
+        stiffness_ratio=1e-6;
     }
 
     void SetElasticityCoefficient(mfem::BasicElasticityCoefficient& coeff)
@@ -903,10 +907,12 @@ public:
     }
 
     /// Set level-set function and the element markers
-    void SetLSF(ParGridFunction& lsf_, Array<int>& el_markers_ )
+    void SetLSF(ParGridFunction& lsf_, Array<int>& el_markers_,
+                CutIntegrationRules& irs)
     {
         lsf=&lsf_;
         marks=&el_markers_;
+        cut_int=&irs;
     }
 
     virtual
@@ -929,6 +935,7 @@ private:
     Array<int>* marks; //markings of the elements
     ParGridFunction* lsf; //level set function
     double stiffness_ratio; //ratio between the stiffness in the level set and outside
+    CutIntegrationRules* cut_int;
 };
 
 
@@ -941,10 +948,19 @@ public:
     ~CFElasticitySolver();
 
     /// Set level-set function and the element markers
-    void SetLSF(ParGridFunction& lsf_, Array<int>& el_markers_ )
+    void SetLSF(ParGridFunction& lsf_, Array<int>& el_markers_,
+                CutIntegrationRules& cint)
     {
         level_set_function=&lsf_;
         el_markers=&el_markers_;
+        cut_int=&cint;
+    }
+
+    /// Set the ration of the void stiffness to the full stiffness in the
+    /// cut elements
+    void SetStiffnessRatio(double sr=1e-6)
+    {
+        stiffness_ratio=sr;
     }
 
     /// Set the Newton Solver
@@ -1118,6 +1134,8 @@ private:
 
     mfem::ParGridFunction* level_set_function;
     Array<int>*  el_markers;
+    CutIntegrationRules* cut_int;
+    double stiffness_ratio;
 
 };
 

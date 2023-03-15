@@ -71,9 +71,6 @@ public:
     void ListEssentialTDofs(const Array<int> &elem_marker,
                             ParFiniteElementSpace &lfes,
                             Array<int> &ess_tdof_list) const;
-
-
-
 private:
     ParMesh* pmesh;
     FiniteElementCollection* elfec;
@@ -87,6 +84,45 @@ private:
 };
 
 
+#ifdef MFEM_USE_ALGOIM
+class CutIntegrationRules
+{
+public:
+    CutIntegrationRules(int int_order, ParGridFunction& lsf, Array<int>& elm_markers);
+    ~CutIntegrationRules();
+
+    ///Returns volumentric integration rulles for the cut elements.
+    ///The integration rule is different than a null pointer only
+    /// for cut elements.
+    const Array<IntegrationRule*>* GetVolIntegrationRule()
+    {
+        return &vir;
+    }
+
+    ///Returns the volumetric integration rule for element el.
+    const IntegrationRule* GetVolIntegrationRule(int el){
+        return vir[el];
+    }
+
+    ///Returns surface integration rulles for the cut elements.
+    ///The integration rule is different than a null pointer only
+    /// for cut elements.
+    const Array<IntegrationRule*>* GetSurfIntegrationRule()
+    {
+        return &sir;
+    }
+
+    ///Returns surface integration rule for element el
+    const IntegrationRule* GetSurfIntegrationRule(int el)
+    {
+        return sir[el];
+    }
+
+private:
+    Array<IntegrationRule*> vir;
+    Array<IntegrationRule*> sir;
+};
+#endif
 
 // Marking operations for elements, faces, dofs, etc, related to shifted
 // boundary and interface methods.

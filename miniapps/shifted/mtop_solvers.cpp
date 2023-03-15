@@ -1297,6 +1297,7 @@ CFElasticitySolver::CFElasticitySolver(ParMesh* mesh_, int vorder)
 
     level_set_function=nullptr;
     el_markers=nullptr;
+    stiffness_ratio=1e-6;
 }
 
 CFElasticitySolver::~CFElasticitySolver()
@@ -1564,7 +1565,8 @@ void CFElasticitySolver::FSolve()
             CFNLElasticityIntegrator* pck=new CFNLElasticityIntegrator(materials[i]);
             pck->SetVolumetricForce(*(vforces[i]));
             pck->SetSurfaceLoad(*(sforces[i]));
-            pck->SetLSF(*level_set_function,*el_markers);
+            pck->SetLSF(*level_set_function,*el_markers,*cut_int);
+            pck->SetStiffnessRatio(stiffness_ratio);
             nf->AddDomainIntegrator(pck);
         }
 
@@ -1661,15 +1663,15 @@ double CFNLElasticityIntegrator::GetElementEnergy(const FiniteElement &el,
         ir=&IntRules.Get(Tr.GetGeometryType(),order);
     }else
     {
-        //cut element
-        Array<int> vdofs;
-        const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
-        DofTransformation *doftrans=lsf->FESpace()->GetElementVDofs(Tr.ElementNo,vdofs);
-        Vector vlsf; //vector for the level-set-function
-        lsf->GetSubVector(vdofs,vlsf);
-        //construct algoim integration rule
-        air=new AlgoimIntegrationRule(order,*le,Tr,vlsf);
-        ir=air->GetVolumeIntegrationRule();
+        if(cut_int==nullptr){
+            mfem::mfem_error("NLElasticityIntegrator::GetElementEnergy::cut_int is equal to nullptr.");
+        }
+
+        ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+
+        if(ir==nullptr){
+            mfem::mfem_error("NLElasticityIntegrator::GetElementEnergy integration rule is equal to nullptr.");
+        }
     }
 
     double w;
@@ -1750,10 +1752,11 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
     double corr_factor=1.0;
 
     const IntegrationRule *ir = nullptr;
-    AlgoimIntegrationRule* air =nullptr;
+    //AlgoimIntegrationRule* air =nullptr;
     int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);
 
-    Vector vlsf;//vector for the level-set-function
+    //Vector vlsf;//vector for the level-set-function
+
     ir=&IntRules.Get(Tr.GetGeometryType(),order);
     if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::CUT)
     {
@@ -1813,6 +1816,7 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
     if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::CUT){
 
     //cut element
+    /*
     Array<int> vdofs;
     const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
     DofTransformation *doftrans=lsf->FESpace()->GetElementVDofs(Tr.ElementNo,vdofs);
@@ -1820,6 +1824,10 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
     //construct algoim integration rule
     air=new AlgoimIntegrationRule(order,*le,Tr,vlsf);
     ir=air->GetVolumeIntegrationRule();
+    */
+
+    ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+
 
     for(int i=0; i<ir->GetNPoints(); i++)
     {
@@ -1870,6 +1878,7 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
 
 
     if(surfl!=nullptr){
+        /*
         ir=air->GetSurfaceIntegrationRule();
         const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
         DenseMatrix bmat; //gradients of the shape functions in isoparametric space
@@ -1880,10 +1889,13 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
         pmat.SetSize(le->GetDof(),le->GetDim());
         inormal.SetSize(le->GetDim());
         tnormal.SetSize(le->GetDim());
+        */
+        ir=cut_int->GetSurfIntegrationRule(Tr.ElementNo);
         for (int j = 0; j < ir->GetNPoints(); j++)
         {
            const IntegrationPoint &ip = ir->IntPoint(j);
            Tr.SetIntPoint(&ip);
+           /*
            le->CalcDShape(ip,bmat);
            Mult(bmat, Tr.AdjugateJacobian(), pmat);
            //compute the normal to the LS in isoparametric space
@@ -1891,6 +1903,8 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
            //compute the normal to the LS in physical space
            pmat.MultTranspose(vlsf,tnormal);
            w = ip.weight * tnormal.Norml2() / inormal.Norml2();
+           */
+           w=ip.weight;
 
            surfl->Eval(ff,Tr,ip);
            sh.SetDataAndSize(bsu.GetData(),dof);
@@ -1901,7 +1915,7 @@ void  CFNLElasticityIntegrator::AssembleElementVector(const FiniteElement &el,
         }
     }}
 
-    delete air;
+    //delete air;
 }
 
 void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
@@ -1996,6 +2010,7 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
 
     //evaluate algoim integration rule
     //cut element
+    /*
     Vector vlsf;//vector for the level-set-function
     Array<int> vdofs;
     const FiniteElement* le=lsf->FESpace()->GetFE(Tr.ElementNo);
@@ -2003,6 +2018,8 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
     lsf->GetSubVector(vdofs,vlsf);
     AlgoimIntegrationRule* air=new AlgoimIntegrationRule(order,*le,Tr,vlsf);
     ir=air->GetVolumeIntegrationRule();
+    */
+    ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
 
     for(int i=0; i<ir->GetNPoints(); i++)
     {
@@ -2035,7 +2052,7 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
             elmat.AddMatrix(w*(1.0-stiffness_ratio),rh,ii*dof,jj*dof);
         }}
     }
-    delete air;
+    //delete air;
 
 }
 

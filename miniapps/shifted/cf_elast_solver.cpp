@@ -29,6 +29,10 @@ CFElasticitySolver::CFElasticitySolver(mfem::ParMesh* mesh_, int vorder)
 
     level_set_function=nullptr;
     el_markers=nullptr;
+
+
+    vol_ir=nullptr;
+    sur_ir=nullptr;
 }
 
 
@@ -52,6 +56,7 @@ CFElasticitySolver::~CFElasticitySolver()
     for(auto it=surf_loads.begin();it!=surf_loads.end();it++){
         delete it->second;
     }
+
 }
 
 void CFElasticitySolver::SetNewtonSolver(double rtol, double atol,int miter, int prt_level)
@@ -117,6 +122,12 @@ void CFElasticitySolver::AddDispBC(int id, int dir, Coefficient &val)
     {
         bccz.clear();
     }
+}
+
+
+void CFElasticitySolver::AddDispBC(int id, VectorCoefficient& val)
+{
+    bccv[id]=&val;
 }
 
 void CFElasticitySolver::SetVolForce(double fx, double fy, double fz)
@@ -218,6 +229,26 @@ void CFElasticitySolver::FSolve()
             }
             ess_tdofv.Append(ess_tdofz);
         }
+
+
+        mfem::Array<int> ess_tdof_list;
+        for(auto it=bccv.begin(); it!=bccv.end();it++)
+        {
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            fdisp.ProjectBdrCoefficient(*(it->second),ess_bdr);
+        }
+
+        {
+            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+            for(int ii=0;ii<ess_tdof_list.Size();ii++)
+            {
+                sol[ess_tdofz[ii]]=rhs[ess_tdofz[ii]];
+            }
+        }
+        ess_tdofv.Append(ess_tdof_list);
     }
 
     //allocate the nf
