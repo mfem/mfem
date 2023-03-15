@@ -325,20 +325,27 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
+      if (iSz > 0)
       {
-         integrators[i]->AssembleDiagonalPA(localY);
-      }
-      const ElementRestriction* H1elem_restrict =
-         dynamic_cast<const ElementRestriction*>(elem_restrict);
-      if (H1elem_restrict)
-      {
-         H1elem_restrict->MultTransposeUnsigned(localY, y);
+         localY = 0.0;
+         for (int i = 0; i < iSz; ++i)
+         {
+            integrators[i]->AssembleDiagonalPA(localY);
+         }
+         const ElementRestriction* H1elem_restrict =
+            dynamic_cast<const ElementRestriction*>(elem_restrict);
+         if (H1elem_restrict)
+         {
+            H1elem_restrict->MultTransposeUnsigned(localY, y);
+         }
+         else
+         {
+            elem_restrict->MultTranspose(localY, y);
+         }
       }
       else
       {
-         elem_restrict->MultTranspose(localY, y);
+         y = 0.0;
       }
    }
    else
@@ -349,6 +356,18 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalPA(y);
       }
+   }
+
+   Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
+   const int n_bdr_integs = bdr_integs.Size();
+   if (bdr_face_restrict_lex && n_bdr_integs > 0)
+   {
+      bdr_face_Y = 0.0;
+      for (int i = 0; i < n_bdr_integs; ++i)
+      {
+         bdr_integs[i]->AssembleDiagonalPA(bdr_face_Y);
+      }
+      bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_Y, y);
    }
 }
 
