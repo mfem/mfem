@@ -20,7 +20,7 @@ namespace mfem
 {
 
 /// Each face of a hexahedron is given by a level set x_i = l, where x_i is one
-/// of x, y, or z (corresponding to i = 0, i=1, i = 3), and l is either 0 or 1.
+/// of x, y, or z (corresponding to i = 0, i=1, i = 2), and l is either 0 or 1.
 /// Returns i and level.
 std::pair<int,int> GetFaceNormal3D(const int face_id);
 
