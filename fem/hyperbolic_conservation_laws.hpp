@@ -339,6 +339,13 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Compute element-wise inverse mass matrix
   void ComputeInvMass();
 
+  void Update() {
+    z.SetSize(vfes->GetNDofs() * num_equations);
+    width = z.Size();
+    height = width;
+    ComputeInvMass();
+  };
+
  public:
   /**
    * @brief Construct a new DGHyperbolicConservationLaws object
@@ -426,7 +433,7 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
  *
  * @param[in] orders element-wise order offset or target order.
  * @param[out] sol The solution to be updated
- * @param[in] pRefineType p-refinement type. Default PRefineType::set.
+ * @param[in] pRefineType p-refinement type. Default PRefineType::elevation.
  */
 void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
                                            GridFunction &sol,
@@ -456,8 +463,10 @@ void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
   T->Mult(sol, new_sol);
   delete T;
 
-  vfes->UpdatesFinished();
   sol = new_sol;
+  vfes->UpdatesFinished();
+  
+  Update();
 }
 
 
