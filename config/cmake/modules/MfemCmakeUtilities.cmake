@@ -900,7 +900,7 @@ function(mfem_export_mk_files)
   # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
   set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)" CACHE STRING "" FORCE)
   set(MFEM_PICFLAG "")
-  if (BUILD_SHARED_LIBS)
+  if (BUILD_SHARED_LIBS OR MFEM_USE_JIT)
     set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
   endif()
   set(MFEM_FLAGS "\$(MFEM_CPPFLAGS) \$(MFEM_CXXFLAGS) \$(MFEM_INCFLAGS)")

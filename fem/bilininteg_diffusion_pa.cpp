@@ -1450,6 +1450,7 @@ void SmemPADiffusionApply3D(const int NE,
                             int d1d = 0,
                             int q1d = 0)
 {
+   MFEM_VERIFY(!Device::GetGPUAwareMPI(),""); // use device singleton
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;

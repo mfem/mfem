@@ -37,7 +37,7 @@
 #include <sys/mman.h> // mmap
 #endif
 
-// MFEM_AR, MFEM_PICFLAG, MFEM_XLINKER, MFEM_XCOMPILER, MFEM_SO_EXT
+// MFEM_AR, MFEM_XLINKER, MFEM_XCOMPILER, MFEM_SO_EXT
 // MFEM_SO_PREFIX, MFEM_SO_POSTFIX and MFEM_INSTALL_BACKUP have to defined at
 // compile time.
 // They are set by default in defaults.mk and MjitCmakeUtilities.cmake.
@@ -51,12 +51,11 @@
 // the compilation stage.
 
 #if !(defined(MFEM_AR) && defined(MFEM_INSTALL_BACKUP) &&\
- defined(MFEM_SO_EXT) && defined(MFEM_SO_PREFIX) && defined(MFEM_SO_POSTFIX) &&\
- defined(MFEM_PICFLAG) && defined(MFEM_XLINKER) && defined(MFEM_XCOMPILER))
-#error MFEM_[SO_EXT, XCOMPILER, XLINKER, AR, INSTALL_BACKUP, SO_PREFIX, SO_POSTFIX, PICFLAGS] must be defined!
+ defined(MFEM_SO_EXT) && defined(MFEM_SO_PREFIX) && \
+ defined(MFEM_SO_POSTFIX) && defined(MFEM_XLINKER) && defined(MFEM_XCOMPILER))
+#error MFEM_[SO_EXT, XCOMPILER, XLINKER, AR, INSTALL_BACKUP, SO_PREFIX, SO_POSTFIX] must be defined!
 #define MFEM_AR
 #define MFEM_SO_EXT
-#define MFEM_PICFLAG
 #define MFEM_XLINKER
 #define MFEM_XCOMPILER
 #define MFEM_SO_PREFIX
@@ -393,7 +392,6 @@ public:
       Get().lib_so = create_full_path(so_ext);
    }
 
-   static std::string Xpic() { return "" MFEM_PICFLAG; }
    static std::string Xlinker() { return "" MFEM_XLINKER; }
    static std::string Xcompiler() { return "" MFEM_XCOMPILER; }
    static std::string Xprefix() { return "" MFEM_SO_PREFIX;  }
@@ -493,7 +491,7 @@ public:
                   MFEM_VERIFY(io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
                               io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
                               "[JIT] Could not find any MFEM header!");
-                  Command() << cxx << flags << Xpic() << (Verbose() ? "-v" : "")
+                  Command() << cxx << flags << (Verbose() ? "-v" : "")
 #ifdef MFEM_USE_CUDA
                             << "--device-c"
 #endif
@@ -512,9 +510,12 @@ public:
                }
                // Create temporary shared library: (ar + co) => so
                {
+                  std::string lib_mfem("-L");
+                  lib_mfem += MFEM_INSTALL_DIR, lib_mfem += "/lib -lmfem";
                   Command() << cxx << link << "-shared" << "-o" << so
                             << Xprefix() << Lib_ar() << Xpostfix()
-                            << Xlinker() + "-rpath,." << libs;
+                            << Xlinker() + "-rpath,." << libs
+                            << lib_mfem.c_str();
                   if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
                }
                // Install temporary shared library: so => Lib_so

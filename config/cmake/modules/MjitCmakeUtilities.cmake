@@ -124,7 +124,6 @@ function(mfem_mjit_configure)
     set_property(SOURCE general/jit/jit.cpp
                  PROPERTY COMPILE_DEFINITIONS
                  MFEM_SO_EXT="${MFEM_SO_EXT}"
-                 MFEM_PICFLAG="${MFEM_XCOMPILER}${CMAKE_SHARED_LIBRARY_CXX_FLAGS}"
                  MFEM_XCOMPILER="${MFEM_XCOMPILER}"
                  MFEM_XLINKER="${MFEM_XLINKER}"
                  MFEM_AR="ar"
