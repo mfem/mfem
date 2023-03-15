@@ -218,9 +218,11 @@ public:
    }
 };
 
-/// Operator that extracts Face degrees of freedom for H1 FiniteElementSpaces.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetFaceRestriction(). */
+/// @brief Operator that extracts face degrees of freedom for H1, ND, or RT
+/// FiniteElementSpaces.
+///
+/// Objects of this type are typically created and owned by FiniteElementSpace
+/// objects, see FiniteElementSpace::GetFaceRestriction().
 class H1_ND_RT_FaceRestriction : public FaceRestriction
 {
 protected:
