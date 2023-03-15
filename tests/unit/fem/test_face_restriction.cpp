@@ -84,6 +84,8 @@ TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
       //
       // This adjustment will ensure that the original vector is recovered after
       // multiplying by the transpose of the face restriction operator.
+      //
+      // Note that this assumes the mesh contains only hexahedral elements.
       const int n = order*(order+1);
       for (int f = 0; f < fes.GetNFbyType(ftype); ++f)
       {
