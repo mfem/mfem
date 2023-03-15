@@ -193,6 +193,31 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    }
 }
 
+static void PAMassAssembleDiagonal1D(const int NE,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int D1D,
+                                     const int Q1D)
+{
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto D = Reshape(d.Read(), Q1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx, e) = 0.0;
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            Y(dx, e) += B(qx, dx) * B(qx, dx) * D(qx, e);
+         }
+      }
+   });
+}
+
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal2D(const int NE,
                                      const Array<double> &b,
@@ -466,7 +491,11 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
                                    const Vector &D,
                                    Vector &Y)
 {
-   if (dim == 2)
+   if (dim == 1)
+   {
+      return PAMassAssembleDiagonal1D(NE,B,D,Y,D1D,Q1D);
+   }
+   else if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
