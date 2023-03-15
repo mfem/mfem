@@ -66,7 +66,7 @@ public:
 };
 
 
-extern StopWatch tic_toc;
+extern MFEM_EXPORT StopWatch tic_toc;
 
 /// Start the tic_toc timer
 extern void tic();
