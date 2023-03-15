@@ -771,8 +771,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
      pv_data_format(VTKFormat::BINARY),
      high_order_output(false),
      restart_mode(false),
-     bdr(false),
-     lscale(1.0)
+     bdr_output(false),
+     length_scale(1.0)
 {
    cycle = 0; // always include a valid cycle index in file names
 
@@ -927,7 +927,7 @@ void ParaViewDataCollection::Save()
    // Save the local part of the quadrature function fields.
    for (const auto &qfield : q_field_map)
    {
-      MFEM_VERIFY(!bdr,
+      MFEM_VERIFY(!bdr_output,
                   "QuadratureFunction output is not supported for "
                   "ParaViewDataCollection on domain boundary!");
       const std::string &field_name = qfield.first;
@@ -1070,7 +1070,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
    mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel(),
-                  bdr,lscale);
+                  bdr_output,length_scale);
 
    // dump out the grid functions as point data
    os << "<PointData >\n";
@@ -1078,7 +1078,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    // iterate over all grid functions
    for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
    {
-      MFEM_VERIFY(!bdr,
+      MFEM_VERIFY(!bdr_output,
                   "GridFunction output is not supported for "
                   "ParaViewDataCollection on domain boundary!");
       SaveGFieldVTU(os,ref,it);
@@ -1165,7 +1165,7 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
       << " format=\"" << GetDataFormatString() << "\" >" << '\n';
    {
       // scalar data
-      if (!bdr)
+      if (!bdr_output)
       {
          for (int i = 0; i < mesh->GetNE(); i++)
          {
@@ -1222,7 +1222,7 @@ void ParaViewDataCollection::SaveVCoeffFieldVTU(std::ostream &os, int ref_,
       << " format=\"" << GetDataFormatString() << "\" >" << '\n';
    {
       // vector data
-      if (!bdr)
+      if (!bdr_output)
       {
          for (int i = 0; i < mesh->GetNE(); i++)
          {
@@ -1302,14 +1302,14 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    compression = compression_;
 }
 
-void ParaViewDataCollection::SetBoundaryOutput(bool bdr_)
+void ParaViewDataCollection::SetBoundaryOutput(bool bdr_output_)
 {
-   bdr = bdr_;
+   bdr_output = bdr_output_;
 }
 
-void ParaViewDataCollection::SetLengthScale(double lscale_)
+void ParaViewDataCollection::SetLengthScale(double length_scale_)
 {
-   lscale = lscale_;
+   length_scale = length_scale_;
 }
 
 void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
