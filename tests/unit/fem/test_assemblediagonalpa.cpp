@@ -21,7 +21,7 @@ int dimension;
 
 double coeffFunction(const Vector& x)
 {
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) + 2.0;
    }
@@ -36,12 +36,12 @@ double coeffFunction(const Vector& x)
 void vectorCoeffFunction(const Vector & x, Vector & f)
 {
    f = 0.0;
-   if (dimension > 1)
+   if (x.Size() > 1)
    {
       f[0] = sin(M_PI * x[1]);
       f[1] = sin(2.5 * M_PI * x[0]);
    }
-   if (dimension == 3)
+   if (x.Size() == 3)
    {
       f[2] = sin(6.1 * M_PI * x[2]);
    }
@@ -50,14 +50,14 @@ void vectorCoeffFunction(const Vector & x, Vector & f)
 void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
 {
    f = 0.0;
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(1,0) = cos(1.3 * M_PI * x[1]);  // 2,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
       f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
    }
-   else if (dimension == 3)
+   else if (x.Size() == 3)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -74,13 +74,13 @@ void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
 void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 {
    f = 0.0;
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
       f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
    }
-   else if (dimension == 3)
+   else if (x.Size() == 3)
    {
       f(0,0) = sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -138,6 +138,42 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
          }
       }
    }
+}
+
+TEST_CASE("Mass Boundary Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   RT_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   FunctionCoefficient coeff(coeffFunction);
+
+   Vector diag_fa(fes.GetTrueVSize()), diag_pa(fes.GetTrueVSize());
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.SpMat().GetDiag(diag_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_pa.Assemble();
+   blf_pa.AssembleDiagonal(diag_pa);
+
+   diag_pa -= diag_fa;
+
+   REQUIRE(diag_pa.Normlinf() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
