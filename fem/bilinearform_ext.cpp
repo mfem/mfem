@@ -56,6 +56,9 @@ void MFBilinearFormExtension::Assemble()
    {
       integrators[i]->AssembleMF(*a->FESpace());
    }
+
+   MFEM_VERIFY(a->GetBBFI()->Size() == 0, "AddBoundaryIntegrator is not "
+               "currently supported in MFBilinearFormExtension");
 }
 
 void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
