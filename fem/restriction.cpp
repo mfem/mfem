@@ -679,6 +679,18 @@ void H1_ND_RT_FaceRestriction::Mult(const Vector& x, Vector& y) const
 void H1_ND_RT_FaceRestriction::AddMultTranspose(
    const Vector& x, Vector& y, const double a) const
 {
+   AddMultTranspose(x, y, true, a);
+}
+
+void H1_ND_RT_FaceRestriction::AddMultTransposeUnsigned(
+   const Vector& x, Vector& y, const double a) const
+{
+   AddMultTranspose(x, y, false, a);
+}
+
+void H1_ND_RT_FaceRestriction::AddMultTranspose(
+   const Vector& x, Vector& y, bool use_signs, const double a) const
+{
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
@@ -699,7 +711,7 @@ void H1_ND_RT_FaceRestriction::AddMultTranspose(
          for (int j = offset; j < next_offset; ++j)
          {
             const int s_idx_j = d_indices[j];
-            const int sgn = (s_idx_j >= 0) ? 1 : -1;
+            const int sgn = (s_idx_j >= 0 || !use_signs) ? 1 : -1;
             const int idx_j = (s_idx_j >= 0) ? s_idx_j : -1 - s_idx_j;
             dof_value += sgn*d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
          }
