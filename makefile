@@ -228,7 +228,6 @@ endif
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
    MFEM_CXX ?= $(HOST_CXX)
    MFEM_HOST_CXX ?= $(MFEM_CXX)
-   JIT_LANG  = $(if $(jit),-x c++)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
@@ -528,9 +527,10 @@ $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
 	@mkdir -v -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
-	$(BLD)./mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*)_jit.cpp
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -c $(JIT_SOURCE_MKTMP)/$(*)_jit.cpp -o $(@)
-	rm $(JIT_SOURCE_MKTMP)/$(*)_jit.cpp
+	@$(BLD)./mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*).cpp
+	@echo [JIT] $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*).cpp -o $(@)
+	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -c $(JIT_SOURCE_MKTMP)/$(*).cpp -o $(@)
+	@rm $(JIT_SOURCE_MKTMP)/$(*).cpp
 endif # MFEM_USE_JIT
 
 all: examples miniapps $(TEST_DIRS)
