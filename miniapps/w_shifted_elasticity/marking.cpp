@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
+void AttributeShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
 {
   MPI_Comm comm = pmesh.GetComm();
   int myid;
@@ -151,7 +151,7 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
    pmesh.SetAttributes();  
 }
 
-  Array<int>& ShiftedFaceMarker::GetEss_Vdofs(){
+  Array<int>& AttributeShiftedFaceMarker::GetEss_Vdofs(){
     return ess_inactive;
   }
 

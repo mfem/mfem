@@ -18,7 +18,7 @@ namespace mfem
 {
 // Marking operations for elements, faces, dofs, etc, related to shifted
 // boundary and interface methods.
-class ShiftedFaceMarker
+class AttributeShiftedFaceMarker
 {
 protected:
    ParMesh &pmesh;                    // Mesh whose elements have to be marked.
@@ -43,7 +43,7 @@ public:
    /// to discern between different level-sets.
    enum SBElementType {INSIDE = 1, OUTSIDE = 3, CUT = 2};
 
-  ShiftedFaceMarker(ParMesh &pm, ParFiniteElementSpace &pfes, ParFiniteElementSpace &mat_fes, bool include_cut_cell_)
+  AttributeShiftedFaceMarker(ParMesh &pm, ParFiniteElementSpace &pfes, ParFiniteElementSpace &mat_fes, bool include_cut_cell_)
       : pmesh(pm), pfes_sltn(&pfes),
         include_cut_cell(include_cut_cell_), initial_marking_done(false),
         level_set_index(0), mat_attr(&mat_fes)

@@ -213,7 +213,7 @@ double AvgElementSize(ParMesh &pmesh);
     ParGridFunction *alphaCut;
     //
 
-    ShiftedFaceMarker *marker;
+    AttributeShiftedFaceMarker *marker;
     bool useAnalyticalShape;
     VectorCoefficient *dist_vec;
     VectorCoefficient *normal_vec;

@@ -30,7 +30,7 @@ namespace mfem {
      // 5.d Create the level set grid function and the marking class
      level_set_gf =  new ParGridFunction(lsfes);
      level_set_gf->ExchangeFaceNbrData();
-     marker = new ShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
+     marker = new AttributeShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
 
      if (useAnalyticalShape){
        // 5.e if we are using an analytical surface to describe the geometry
@@ -115,7 +115,7 @@ namespace mfem {
    ess_elem = 1;
    //    Set the entry corresponding to the inactive attribute to 0 
    if (useEmbedded && (max_elem_attr >= 2)){
-     ess_elem[ShiftedFaceMarker::SBElementType::OUTSIDE-1] = 0;
+     ess_elem[AttributeShiftedFaceMarker::SBElementType::OUTSIDE-1] = 0;
    }
 
    switch (pmesh->GetElementBaseGeometry(0))
@@ -191,21 +191,21 @@ namespace mfem {
     fform->AddDomainIntegrator(new WeightedVectorForceIntegrator(*alphaCut, *volforce), ess_elem);     
     for(auto it=surf_loads.begin();it!=surf_loads.end();it++)
     {
-      fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(*alphaCut, *(it->second), marker),*(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(*alphaCut, *(it->second)),*(it->first));
     }
    
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
     {    
       // Nitsche
-      fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(*alphaCut, *shearMod, *bulkMod, *(it->second), marker),*(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(*alphaCut, *shearMod, *bulkMod, *(it->second)),*(it->first));
       // Normal Penalty
-      fform->AddBdrFaceIntegrator(new WeightedNormalDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, *(it->second), marker), *(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedNormalDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, *(it->second)), *(it->first));
       // Tangential Penalty
-      fform->AddBdrFaceIntegrator(new WeightedTangentialDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, *(it->second), marker), *(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedTangentialDisplacementBCPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, *(it->second)), *(it->first));
     }
     if (useEmbedded){
       // Nitsche
-      fform->AddInteriorFaceIntegrator(new WeightedShiftedStressNitscheBCForceIntegrator(pmesh, *alphaCut, *shifted_traction_BC, dist_vec, normal_vec, marker, 1));
+      fform->AddInteriorFaceIntegrator(new WeightedShiftedStressNitscheBCForceIntegrator(pmesh, *alphaCut, *shifted_traction_BC, dist_vec, normal_vec, 1));
     }
     fform->Assemble();    
     fform->ParallelAssemble();
@@ -215,21 +215,21 @@ namespace mfem {
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
     {
       // Nitsche
-      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceIntegrator(*alphaCut, *shearMod, *bulkMod, marker),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceIntegrator(*alphaCut, *shearMod, *bulkMod),*(it->first));
       // IP
-      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceTransposeIntegrator(*alphaCut, *shearMod, *bulkMod, marker),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceTransposeIntegrator(*alphaCut, *shearMod, *bulkMod),*(it->first));
       // Normal Penalty
-      mVarf->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod, marker),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *bulkMod),*(it->first));
       // Tangential Penalty
-      mVarf->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod, marker),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*alphaCut, penaltyParameter_bf, *shearMod),*(it->first));
     }
     if (useEmbedded){     
       // Nitsche
-      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, dist_vec, normal_vec, marker, nTerms, 1));
+      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, dist_vec, normal_vec, nTerms, 1));
       // IP
-      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, marker, 1));
+      mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, *alphaCut, *shearMod, *bulkMod, 1));
       // ghost penalty
-      mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, marker, numberStrainTerms));      
+      mVarf->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, numberStrainTerms));      
     }
   
     mVarf->Assemble();   
@@ -269,13 +269,13 @@ namespace mfem {
       for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
 	{
 	  // Normal Penalty
-	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *bulkMod, marker),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *bulkMod),*(it->first));
 	  // Tangential Penalty
-	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *shearMod, marker),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(*UnitVal, penaltyParameter_bf, *shearMod),*(it->first));
 	}
       if (useEmbedded){     
 	// ghost penalty
-	displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, marker, numberStrainTerms));
+	displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, numberStrainTerms));
       }
       displMass->Assemble();
       displMass->Finalize();
@@ -317,7 +317,7 @@ namespace mfem {
       elem_marker = 0;
       for (int e = 0; e < vfes->GetNE(); e++)
 	{
-	  if ( (pmesh->GetAttribute(e) == ShiftedFaceMarker::SBElementType::INSIDE) || (pmesh->GetAttribute(e) == ShiftedFaceMarker::SBElementType::CUT)) {
+	  if ( (pmesh->GetAttribute(e) == AttributeShiftedFaceMarker::SBElementType::INSIDE) || (pmesh->GetAttribute(e) == AttributeShiftedFaceMarker::SBElementType::CUT)) {
 	    elem_marker[e] = 1;
 	  }	 
 	}

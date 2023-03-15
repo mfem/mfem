@@ -44,10 +44,9 @@ namespace mfem
     ParGridFunction *alpha;
     Coefficient *mu;
     Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedStressBoundaryForceIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, ShiftedFaceMarker *analyticalSurface)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_), analyticalSurface(analyticalSurface) {}
+    WeightedStressBoundaryForceIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -60,10 +59,9 @@ namespace mfem
     ParGridFunction *alpha;
     Coefficient *mu;
     Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
 
   public:
-    WeightedStressBoundaryForceTransposeIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, ShiftedFaceMarker *analyticalSurface)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_), analyticalSurface(analyticalSurface) {}
+    WeightedStressBoundaryForceTransposeIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -77,10 +75,9 @@ namespace mfem
     ParGridFunction *alpha;
     double penaltyParameter;
     Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
 
   public:
-    WeightedNormalDisplacementPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &kappa_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), penaltyParameter(penParameter), kappa(&kappa_), analyticalSurface(analyticalSurface) { }
+    WeightedNormalDisplacementPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &kappa_) : alpha(&alphaF), penaltyParameter(penParameter), kappa(&kappa_) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -94,10 +91,9 @@ namespace mfem
     ParGridFunction *alpha;
     double penaltyParameter;
     Coefficient *mu;
-    ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedTangentialDisplacementPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &mu_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), penaltyParameter(penParameter), mu(&mu_), analyticalSurface(analyticalSurface) { }
+    WeightedTangentialDisplacementPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &mu_) : alpha(&alphaF), penaltyParameter(penParameter), mu(&mu_) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -112,10 +108,9 @@ namespace mfem
     Coefficient *mu;
     Coefficient *kappa;
     VectorCoefficient *uD;
-    ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedStressNitscheBCForceIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, VectorCoefficient &uD_, ShiftedFaceMarker *analyticalSurface)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_), uD(&uD_), analyticalSurface(analyticalSurface) {}
+    WeightedStressNitscheBCForceIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, VectorCoefficient &uD_)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_), uD(&uD_) {}
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					FaceElementTransformations &Tr,
 					Vector &elvect);
@@ -132,10 +127,9 @@ namespace mfem
     double penaltyParameter;
     Coefficient *kappa;
     VectorCoefficient *uD;
-    ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedNormalDisplacementBCPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &kappa_, VectorCoefficient &uD_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), penaltyParameter(penParameter), kappa(&kappa_), uD(&uD_), analyticalSurface(analyticalSurface) { }
+    WeightedNormalDisplacementBCPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &kappa_, VectorCoefficient &uD_) : alpha(&alphaF), penaltyParameter(penParameter), kappa(&kappa_), uD(&uD_) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					FaceElementTransformations &Tr,
 					Vector &elvect);
@@ -152,10 +146,9 @@ namespace mfem
     double penaltyParameter;
     Coefficient *mu;
     VectorCoefficient *uD;
-    ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedTangentialDisplacementBCPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &mu_, VectorCoefficient &uD_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), penaltyParameter(penParameter), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface) { }
+    WeightedTangentialDisplacementBCPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &mu_, VectorCoefficient &uD_) : alpha(&alphaF), penaltyParameter(penParameter), mu(&mu_), uD(&uD_) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					FaceElementTransformations &Tr,
 					Vector &elvect);
@@ -170,10 +163,9 @@ namespace mfem
   private:
     ParGridFunction *alpha;
     MatrixFunctionCoefficient *tN;
-    ShiftedFaceMarker *analyticalSurface;
     
   public:
-    WeightedTractionBCIntegrator(ParGridFunction &alphaF, MatrixFunctionCoefficient &tN_, ShiftedFaceMarker *analyticalSurface) : alpha(&alphaF), tN(&tN_), analyticalSurface(analyticalSurface) { }
+    WeightedTractionBCIntegrator(ParGridFunction &alphaF, MatrixFunctionCoefficient &tN_) : alpha(&alphaF), tN(&tN_) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					FaceElementTransformations &Tr,
 					Vector &elvect);

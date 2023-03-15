@@ -99,13 +99,11 @@ public:
     Coefficient *kappa;
     VectorCoefficient *vD;
     VectorCoefficient *vN;
-    ShiftedFaceMarker *analyticalSurface;
-    int par_shared_face_count;
     int nTerms;
     bool include_cut;
     
   public:
-    WeightedShiftedStressBoundaryForceIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, VectorCoefficient *dist_vec, VectorCoefficient *normal_vec, ShiftedFaceMarker *analyticalSurface, int nTerms, bool includeCut = 0)  : pmesh(pmesh), alpha(&alphaF), mu(&mu_), kappa(&kappa_), vD(dist_vec), vN(normal_vec), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), include_cut(includeCut) {}
+    WeightedShiftedStressBoundaryForceIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, VectorCoefficient *dist_vec, VectorCoefficient *normal_vec, int nTerms, bool includeCut = 0)  : pmesh(pmesh), alpha(&alphaF), mu(&mu_), kappa(&kappa_), vD(dist_vec), vN(normal_vec), nTerms(nTerms), include_cut(includeCut) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -120,11 +118,9 @@ public:
     ParGridFunction *alpha;
     Coefficient *mu;
     Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
-    int par_shared_face_count;
     bool include_cut;
   public:
-    WeightedShiftedStressBoundaryForceTransposeIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_, ShiftedFaceMarker *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), alpha(&alphaF), mu(&mu_), kappa(&kappa_), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) {}
+    WeightedShiftedStressBoundaryForceTransposeIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_,  bool includeCut = 0) : pmesh(pmesh), alpha(&alphaF), mu(&mu_), kappa(&kappa_), include_cut(includeCut) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -140,11 +136,9 @@ public:
     ShiftedMatrixFunctionCoefficient *uD;
     VectorCoefficient *vD;
     VectorCoefficient *vN;
-    ShiftedFaceMarker *analyticalSurface;
-    int par_shared_face_count;
     bool include_cut;
   public:
-    WeightedShiftedStressNitscheBCForceIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, ShiftedMatrixFunctionCoefficient &uD_, VectorCoefficient *dist_vec, VectorCoefficient *normal_vec, ShiftedFaceMarker *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), alpha(&alphaF), uD(&uD_), vD(dist_vec), vN(normal_vec), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) {}
+    WeightedShiftedStressNitscheBCForceIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, ShiftedMatrixFunctionCoefficient &uD_, VectorCoefficient *dist_vec, VectorCoefficient *normal_vec, bool includeCut = 0) : pmesh(pmesh), alpha(&alphaF), uD(&uD_), vD(dist_vec), vN(normal_vec), include_cut(includeCut) {}
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					const FiniteElement &el2,
 					FaceElementTransformations &Tr,
