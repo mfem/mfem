@@ -39,12 +39,12 @@ typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
 
 void AdvectionMesh(const int problem, const char **mesh_file);
 
-SpatialFunction AdvectionInitialCondition(const int problem);
+SpatialFunction AdvectionSolution(const int problem, double &t);
 SpatialFunction AdvectionVelocityVector(const int problem);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  int problem = 1;
+  int problem = 2;
 
   const char *mesh_file = "";
   int IntOrderOffset = 3;
@@ -143,11 +143,14 @@ int main(int argc, char *argv[]) {
   // 6. Define the initial conditions, save the corresponding mesh and grid
   //    functions to a file. This can be opened with GLVis with the -gc option.
   // Initialize the state.
-  VectorFunctionCoefficient u0(num_equations,
-                               AdvectionInitialCondition(problem));
+  double t = 0.0;
+  VectorFunctionCoefficient u0(num_equations, AdvectionSolution(problem, t));
   VectorFunctionCoefficient b(dim, AdvectionVelocityVector(problem));
   GridFunction sol(fes);
   sol.ProjectCoefficient(u0);
+
+  LpErrorEstimator estimator(2, u0, sol);
+  Array<int> orders(mesh->GetNE());
 
   // Output the initial solution.
   {
@@ -203,7 +206,6 @@ int main(int argc, char *argv[]) {
   tic_toc.Clear();
   tic_toc.Start();
 
-  double t = 0.0;
   advection.SetTime(t);
   ode_solver->Init(advection);
 
@@ -234,6 +236,23 @@ int main(int argc, char *argv[]) {
         sout << "solution\n" << *mesh << sol << flush;
       }
     }
+
+    Vector errors = estimator.GetLocalErrors();
+    const double max_val = errors.Max();
+    const double min_val = errors.Min();
+    const double upperbound = max_val * 0.7 + min_val * 0.3;
+    const double lowerbound = max_val * 0.3 + min_val * 0.7;
+    const double numElem = mesh->GetNE();
+    for (int i = 0; i < numElem; i++) {
+      const double localError = errors(i);
+      orders[i] = localError > upperbound   ? 1
+                  : localError < lowerbound ? -1
+                                            : 0;
+      if (fes->GetElementOrder(i) == 0 && orders[i] < 0) {
+        orders[i] = 0;
+      }
+    }
+    advection.pRefine(orders, sol);
   }
 
   tic_toc.Stop();
@@ -267,18 +286,26 @@ void AdvectionMesh(const int problem, const char **mesh_file) {
     case 1:
       *mesh_file = "../data/periodic-square-4x4.mesh";
       break;
+    case 2:
+      *mesh_file = "../data/periodic-square-4x4.mesh";
+      break;
     default:
       throw invalid_argument("Default mesh is undefined");
   }
 }
 
 // Initial condition
-SpatialFunction AdvectionInitialCondition(const int problem) {
+SpatialFunction AdvectionSolution(const int problem, double &t) {
   switch (problem) {
     case 1:
-      return [](const Vector &x, Vector &y) {
+      return [&](const Vector &x, Vector &y) {
         MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
         y(0) = __sinpi(x(0)) * __sinpi(x(1));
+      };
+    case 2:
+      return [&](const Vector &x, Vector &y) {
+        MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
+        y(0) = __sinpi(x(0) - t) * __sinpi(x(1) - t);
       };
     default:
       throw invalid_argument("Problem Undefined");
@@ -295,6 +322,11 @@ SpatialFunction AdvectionVelocityVector(const int problem) {
         const double d2 = d * d;
         y(0) = d2 * M_PI_2 * x(1);
         y(1) = -d2 * M_PI_2 * x(0);
+      };
+    case 2:
+      return [](const Vector &x, Vector &y) {
+        y(0) = M_PI;
+        y(1) = M_PI;
       };
     default:
       throw invalid_argument("Problem Undefined");
