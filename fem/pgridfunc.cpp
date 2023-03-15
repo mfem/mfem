@@ -58,9 +58,17 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       {
          if (partitioning[i] == MyRank)
          {
-            pfes->GetElementVDofs(element_counter, lvdofs);
-            glob_fes->GetElementVDofs(i, gvdofs);
+            const auto * const ltrans = pfes->GetElementVDofs(element_counter, lvdofs);
+            const auto * const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
+            if (gtrans)
+            {
+               gtrans->InvTransformPrimal(lnodes);
+            }
+            if (ltrans)
+            {
+               ltrans->TransformPrimal(lnodes);
+            }
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
@@ -270,13 +278,14 @@ const
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      const auto * const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
       const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
          Array<int> dofs_(&dofs[(vdim-1)*s], s);
          face_nbr_data.GetSubVector(dofs_, LocVec);
+
          DofVal.SetSize(s);
       }
       else
@@ -284,6 +293,11 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(LocVec);
+      }
+
       if (fe->GetMapType() == FiniteElement::VALUE)
       {
          fe->CalcShape(ip, DofVal);
@@ -298,7 +312,7 @@ const
    }
    else
    {
-      fes->GetElementDofs(i, dofs);
+      const auto * const doftrans = fes->GetElementDofs(i, dofs);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -313,6 +327,10 @@ const
          fe->CalcPhysShape(*Tr, DofVal);
       }
       GetSubVector(dofs, LocVec);
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(LocVec);
+      }
    }
 
    return (DofVal * LocVec);
@@ -325,8 +343,8 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
-                                                                  dofs);
+      const auto * const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                                 dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
       if (doftrans)
@@ -400,7 +418,7 @@ double ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+   const auto * const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -413,6 +431,11 @@ double ParGridFunction::GetValue(ElementTransformation &T,
       fe->CalcPhysShape(T, DofVal);
    }
    face_nbr_data.GetSubVector(dofs, LocVec);
+   if (doftrans)
+   {
+      doftrans->InvTransformPrimal(LocVec);
+   }
+
 
    return (DofVal * LocVec);
 }
@@ -1151,15 +1174,23 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      xfes->GetElementVDofs(i, xdofs);
+      const auto * const xtrans = xfes->GetElementVDofs(i, xdofs);
       x.GetSubVector(xdofs, el_x);
+      if (xtrans)
+      {
+         xtrans->InvTransformPrimal(el_x);
+      }
 
       ElementTransformation *Transf = xfes->GetElementTransformation(i);
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      flux_fes.GetElementVDofs(i, fdofs);
-      flux.AddElementVector(fdofs, el_f);
+      const auto * const ftrans = flux_fes.GetElementVDofs(i, fdofs);
+      if (ftrans)
+      {
+         ftrans->TransformPrimal(el_f);
+      }
+      flux.SetSubVector(fdofs, el_f);
    }
 
    // Assemble the linear system for L2 projection into the "smooth" space
