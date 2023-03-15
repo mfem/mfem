@@ -23,7 +23,7 @@ namespace mfem
 {
 
 
-  void UpdateAlpha(ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, ParGridFunction &func, const int &type)
+  void UpdateAlpha(ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, ParGridFunction &func)
   {
     IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
     auto pfes = alpha.ParFESpace();

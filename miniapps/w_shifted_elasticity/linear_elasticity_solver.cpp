@@ -95,7 +95,7 @@ namespace mfem {
      }
 
      // 5.i Populate the volume fractions using the level_set grid function
-     UpdateAlpha(*alphaCut, *vfes, *level_set_gf, geometricShape);
+     UpdateAlpha(*alphaCut, *vfes, *level_set_gf);
      alphaCut->ExchangeFaceNbrData();
 
      // 5.j Get the inactive dofs to remove them from the linear systerm

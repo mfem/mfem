@@ -23,7 +23,7 @@
 
 namespace mfem
 {  
-  void UpdateAlpha(ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, ParGridFunction &func, const int &type);
+  void UpdateAlpha(ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, ParGridFunction &func);
 
 } // namespace mfem
 
