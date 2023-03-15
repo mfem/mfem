@@ -18,106 +18,11 @@ namespace mfem {
     mfem::ParFiniteElementSpace* lsfes = new mfem::ParFiniteElementSpace(pmesh,lsvec);
     lsfes->ExchangeFaceNbrData();
 
-    // 5c. Define the FECollection and FESpace for the volume fractions, create it and setting it to 1
-    alpha_fec = new L2_FECollection(0, pmesh->Dimension());
-    alpha_fes = new ParFiniteElementSpace(pmesh, alpha_fec);
-    alpha_fes->ExchangeFaceNbrData();
-    alphaCut = new ParGridFunction(alpha_fes);
-    alphaCut->ExchangeFaceNbrData();  
-    *alphaCut = 1;
-    
-   if (useEmbedded){
-     // 5.d Create the level set grid function and the marking class
-     level_set_gf =  new ParGridFunction(lsfes);
-     level_set_gf->ExchangeFaceNbrData();
-     marker = new AttributeShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
+    // 5c. Create the shear and bulk moduli classes  
+    shearMod = new ShearModulus(pmesh);
+    bulkMod = new BulkModulus(pmesh);
 
-     if (useAnalyticalShape){
-       // 5.e if we are using an analytical surface to describe the geometry
-       //     Dist_Coefficient just returns +1 or -1 for inside or outside domain 
-       neumann_dist_coef = new Dist_Coefficient(geometricShape);
-       // 5.f project the neumann dist coef to the level set gf 
-       level_set_gf->ProjectCoefficient(*neumann_dist_coef);
-       // Exchange information for ghost elements i.e. elements that share a face
-       // with element on the current processor, but belong to another processor.
-       level_set_gf->ExchangeFaceNbrData();
-       // Setup the class to mark all elements based on whether they are located
-       // inside or outside the true domain, or intersected by the true boundary.
-       // In addition, we also mark the surrogate edges and the ghost penalty ones
-       marker->MarkElements(*level_set_gf);
-
-       // 5.g Create the distance and normal vectors 
-       dist_vec = new Dist_Vector_Coefficient(dim, geometricShape);
-       normal_vec = new Normal_Vector_Coefficient(dim, geometricShape);
-     }
-     else{
-       // 5.e if we are using a level set to describe the geometry
-       //     Dist_Level_Set_Coefficient just returns +1 or -1 for inside or outside domain     
-       neumann_dist_coef = new Dist_Level_Set_Coefficient(geometricShape);
-
-       // 5.f Define the FECollection and FESpace for the distance and normal vectors
-       //     Create and set them to 1 
-       mfem::FiniteElementCollection* d_vec = new H1_FECollection(vorder+2,dim);       
-       distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
-       normal_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
-       distance_vec_space->ExchangeFaceNbrData();
-       normal_vec_space->ExchangeFaceNbrData();   
-       distance = new ParGridFunction(distance_vec_space);
-       *distance = 0.0;
-       normal = new ParGridFunction(normal_vec_space);
-       *normal = 0.0;
-
-       // 5.g project the neumann dist coef to the level set gf and smooth it.
-       //    To smooth it, code is using DiffuseH1, but one can also use the PDEFilter
-       //    Just uncomment the filter lines and comment out the DiffuseH1
-       level_set_gf->ProjectCoefficient(*neumann_dist_coef);
-       // PDEFilter filter(*pmesh, 0.1);
-       //  filter.Filter(*neumann_dist_coef, *level_set_gf);
-       DiffuseH1(*level_set_gf, 1.0);
-       // Exchange information for ghost elements i.e. elements that share a face
-       // with element on the current processor, but belong to another processor.      
-       level_set_gf->ExchangeFaceNbrData();     
-       // Setup the class to mark all elements based on whether they are located
-       // inside or outside the true domain, or intersected by the true boundary.
-       marker->MarkElements(*level_set_gf);
-
-       // 5.h Create a grid function coefficient from the smoothed level-set
-       //     Use it to populate the distance and normal grid functions
-       //     Create the distance and normal vector grid function coefficients
-       GridFunctionCoefficient ls_filt_coeff(level_set_gf);       
-       NormalizationDistanceSolver dist_solver;
-       dist_solver.ComputeVectorDistance(ls_filt_coeff, *distance); 
-       dist_solver.ComputeVectorNormal(ls_filt_coeff, *distance, *normal);
-       distance->ExchangeFaceNbrData();
-       normal->ExchangeFaceNbrData();       
-       dist_vec = new VectorGridFunctionCoefficient(distance);
-       normal_vec = new VectorGridFunctionCoefficient(normal);
-     }
-
-     // 5.i Populate the volume fractions using the level_set grid function
-     UpdateAlpha(*alphaCut, *vfes, *level_set_gf);
-     alphaCut->ExchangeFaceNbrData();
-
-     // 5.j Get the inactive dofs to remove them from the linear systerm
-     Array<int> ess_tdofs;
-     Array<int> ess_inactive_dofs = marker->GetEss_Vdofs();
-     vfes->GetRestrictionMatrix()->BooleanMult(ess_inactive_dofs, ess_tdofs);
-     vfes->MarkerToList(ess_tdofs, ess_vdofs);
-       
-   }
-   // 5.k Create the shear and bulk moduli classes  
-   shearMod = new ShearModulus(pmesh);
-   bulkMod = new BulkModulus(pmesh);
-
-   // 5.l Create a vector of size equal to the highes number attribute and set it to 1     
-   const int max_elem_attr = pmesh->attributes.Max();
-   ess_elem.SetSize(max_elem_attr);
-   ess_elem = 1;
-   //    Set the entry corresponding to the inactive attribute to 0 
-   if (useEmbedded && (max_elem_attr >= 2)){
-     ess_elem[AttributeShiftedFaceMarker::SBElementType::OUTSIDE-1] = 0;
-   }
-
+    // 5d. Set C_I needed for the scaling of the Dirichlet penalty term
    switch (pmesh->GetElementBaseGeometry(0))
     {
     case Geometry::TRIANGLE:
@@ -132,6 +37,103 @@ namespace mfem {
     }
     default: MFEM_ABORT("Unknown zone type!");
     }
+
+    // 5e. Define the FECollection and FESpace for the volume fractions, create it and setting it to 1
+    alpha_fec = new L2_FECollection(0, pmesh->Dimension());
+    alpha_fes = new ParFiniteElementSpace(pmesh, alpha_fec);
+    alpha_fes->ExchangeFaceNbrData();
+    alphaCut = new ParGridFunction(alpha_fes);
+    alphaCut->ExchangeFaceNbrData();  
+    *alphaCut = 1;
+    
+   if (useEmbedded){
+     // 5f. Create the level set grid function and the marking class
+     level_set_gf =  new ParGridFunction(lsfes);
+     level_set_gf->ExchangeFaceNbrData();
+     marker = new AttributeShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
+
+     if (useAnalyticalShape){
+       // 5g. if we are using an analytical surface to describe the geometry
+       //     Dist_Coefficient just returns +1 or -1 for inside or outside domain 
+       neumann_dist_coef = new Dist_Coefficient(geometricShape);
+       // 5h. project the neumann dist coef to the level set gf 
+       level_set_gf->ProjectCoefficient(*neumann_dist_coef);
+       // Exchange information for ghost elements i.e. elements that share a face
+       // with element on the current processor, but belong to another processor.
+       level_set_gf->ExchangeFaceNbrData();
+       // Setup the class to mark all elements based on whether they are located
+       // inside or outside the true domain, or intersected by the true boundary.
+       // In addition, we also mark the surrogate edges and the ghost penalty ones
+       marker->MarkElements(*level_set_gf);
+
+       // 5i. Create the distance and normal vectors 
+       dist_vec = new Dist_Vector_Coefficient(dim, geometricShape);
+       normal_vec = new Normal_Vector_Coefficient(dim, geometricShape);
+     }
+     else{
+       // 5g. if we are using a level set to describe the geometry
+       //     Dist_Level_Set_Coefficient just returns +1 or -1 for inside or outside domain     
+       neumann_dist_coef = new Dist_Level_Set_Coefficient(geometricShape);
+
+       // 5h. Define the FECollection and FESpace for the distance and normal vectors
+       //     Create and set them to 1 
+       mfem::FiniteElementCollection* d_vec = new H1_FECollection(vorder+2,dim);       
+       distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
+       normal_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
+       distance_vec_space->ExchangeFaceNbrData();
+       normal_vec_space->ExchangeFaceNbrData();   
+       distance = new ParGridFunction(distance_vec_space);
+       *distance = 0.0;
+       normal = new ParGridFunction(normal_vec_space);
+       *normal = 0.0;
+
+       // 5i. project the neumann dist coef to the level set gf and smooth it.
+       //    To smooth it, code is using DiffuseH1, but one can also use the PDEFilter
+       //    Just uncomment the filter lines and comment out the DiffuseH1
+       level_set_gf->ProjectCoefficient(*neumann_dist_coef);
+       // PDEFilter filter(*pmesh, 0.1);
+       //  filter.Filter(*neumann_dist_coef, *level_set_gf);
+       DiffuseH1(*level_set_gf, 1.0);
+       // Exchange information for ghost elements i.e. elements that share a face
+       // with element on the current processor, but belong to another processor.      
+       level_set_gf->ExchangeFaceNbrData();     
+       // Setup the class to mark all elements based on whether they are located
+       // inside or outside the true domain, or intersected by the true boundary.
+       marker->MarkElements(*level_set_gf);
+
+       // 5j. Create a grid function coefficient from the smoothed level-set
+       //     Use it to populate the distance and normal grid functions
+       //     Create the distance and normal vector grid function coefficients
+       GridFunctionCoefficient ls_filt_coeff(level_set_gf);       
+       NormalizationDistanceSolver dist_solver;
+       dist_solver.ComputeVectorDistance(ls_filt_coeff, *distance); 
+       dist_solver.ComputeVectorNormal(ls_filt_coeff, *distance, *normal);
+       distance->ExchangeFaceNbrData();
+       normal->ExchangeFaceNbrData();       
+       dist_vec = new VectorGridFunctionCoefficient(distance);
+       normal_vec = new VectorGridFunctionCoefficient(normal);
+     }
+
+     // 5k. Populate the volume fractions using the level_set grid function
+     UpdateAlpha(*alphaCut, *vfes, *level_set_gf);
+     alphaCut->ExchangeFaceNbrData();
+
+     // 5l. Get the inactive dofs to remove them from the linear systerm
+     Array<int> ess_tdofs;
+     Array<int> ess_inactive_dofs = marker->GetEss_Vdofs();
+     vfes->GetRestrictionMatrix()->BooleanMult(ess_inactive_dofs, ess_tdofs);
+     vfes->MarkerToList(ess_tdofs, ess_vdofs);
+       
+   }
+
+   // 5m. Create a vector of size equal to the highest number attribute and set it to 1     
+   const int max_elem_attr = pmesh->attributes.Max();
+   ess_elem.SetSize(max_elem_attr);
+   ess_elem = 1;
+   //     Set the entry corresponding to the inactive attributes to 0 
+   if (useEmbedded && (max_elem_attr >= 2)){
+     ess_elem[AttributeShiftedFaceMarker::SBElementType::OUTSIDE-1] = 0;
+   }
   }
 
   LinearElasticitySolver::~LinearElasticitySolver()
