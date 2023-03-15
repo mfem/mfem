@@ -362,7 +362,7 @@ MFEM_CPPFLAGS  ?= $(CPPFLAGS)
 MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
-MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
+MFEM_PICFLAG   ?= $(if $(or $(shared),$(jit)),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -526,7 +526,7 @@ $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
-	@mkdir -v -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
+	@mkdir -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
 	@$(BLD)./mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*).cpp
 	@echo [JIT] $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*).cpp -o $(@)
 	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -c $(JIT_SOURCE_MKTMP)/$(*).cpp -o $(@)
