@@ -18,6 +18,9 @@ Meshing improvements
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
 
+- Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
+  domain boundary.
+
 - Added support for pyramids in Gmsh meshes.
 
 - Fixed a bug in TMOP metric 301.
@@ -44,6 +47,10 @@ New and updated examples and miniapps
 
 Integrations, testing and documentation
 ---------------------------------------
+- Added support for shared Windows builds with MSVC through CMake.
+  Developers note: this enhancement is facilitated by the addition of the macro
+  MFEM_EXPORT, see config.hpp for more details on its usage.
+
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 

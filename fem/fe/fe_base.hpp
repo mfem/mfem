@@ -1154,7 +1154,7 @@ public:
    ~Poly_1D();
 };
 
-extern Poly_1D poly1d;
+extern MFEM_EXPORT Poly_1D poly1d;
 
 /// An element defined as an ND tensor product of 1D elements on a segment,
 /// square, or cube
