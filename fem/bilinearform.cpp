@@ -438,7 +438,7 @@ void BilinearForm::Assemble(int skip_zeros)
             for (int k = 0; k < domain_integs.Size(); k++)
             {
                if (domain_integs_marker[k] == NULL ||
-                    (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+                   (*(domain_integs_marker[k]))[elem_attr-1] == 1)
                {
                   const FiniteElement &fe = *fes->GetFE(i);
                   eltrans = fes->GetElementTransformation(i);
@@ -1394,7 +1394,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          for (int k = 0; k < domain_integs.Size(); k++)
          {
             if (domain_integs_marker[k] == NULL ||
-                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
                domain_integs[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
                                                            *test_fes  -> GetFE(i),
@@ -1960,7 +1960,7 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          for (int k = 0; k < domain_integs.Size(); k++)
          {
             if (domain_integs_marker[k] == NULL ||
-                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
                domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
                                                         *test_fes->GetFE(i),
