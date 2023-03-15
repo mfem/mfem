@@ -634,7 +634,7 @@ H1_ND_RT_FaceRestriction::H1_ND_RT_FaceRestriction(
    }
    else
    {
-      // For certain types of elements dof_map_ is empty, in this case that
+      // For certain types of elements dof_map_ is empty. In this case, that
       // means the element is already ordered lexicographically, so the
       // permutation is the identity.
       dof_map.SetSize(elem_dofs);
