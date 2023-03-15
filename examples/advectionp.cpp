@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
 
     NumericalFlux *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws advection =
-      getParAdvectionEquation(fes, numericalFlux, b, IntOrderOffset);
+      getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset, true);
 
   // Visualize the density
   socketstream sout;

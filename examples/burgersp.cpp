@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
   //    flux divergence, and assemble the corresponding mass matrix.
   NumericalFlux *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws burgers =
-      getParBurgersEquation(fes, numericalFlux, IntOrderOffset);
+      getBurgersEquation(fes, numericalFlux, IntOrderOffset, true);
 
   // Visualize the density
   socketstream sout;

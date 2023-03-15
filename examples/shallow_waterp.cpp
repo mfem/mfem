@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
   //    flux divergence, and assemble the corresponding mass matrix.
   NumericalFlux *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws shallowWater =
-      getParShallowWaterEquation(vfes, numericalFlux, g, IntOrderOffset);
+      getShallowWaterEquation(vfes, numericalFlux, g, IntOrderOffset, true);
 
   // Visualize the density
   socketstream sout;
