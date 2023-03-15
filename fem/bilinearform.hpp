@@ -100,7 +100,7 @@ protected:
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
-   Array<Array<int>*>             domain_integs_marker;
+   Array<Array<int>*> domain_integs_marker; ///< Entries are not owned.
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_integs;
@@ -810,8 +810,8 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
-   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
-                               Array<int> &bdr_marker);
+   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
+                              Array<int> &bdr_marker);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
@@ -821,11 +821,11 @@ public:
    void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
-   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi);
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
-   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
-                                   Array<int> &bdr_marker);
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi,
+                                  Array<int> &bdr_marker);
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
@@ -1080,6 +1080,7 @@ public:
 
    /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &domain_integs; }
+   Array<Array<int>*> *GetDI_Marker() { return &domain_integs_marker; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */
