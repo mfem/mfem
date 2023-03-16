@@ -1133,8 +1133,7 @@ class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
 
 DGHyperbolicConservationLaws getAdvectionEquation(
     FiniteElementSpace *vfes, NumericalFlux *numericalFlux,
-    VectorCoefficient &b, const int IntOrderOffset,
-    const bool useParallel = false) {
+    VectorCoefficient &b, const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = 1;
 

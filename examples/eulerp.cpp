@@ -48,6 +48,9 @@
 // shared between the serial and parallel version of the example.
 #include "fem/hyperbolic_conservation_laws.hpp"
 
+using namespace std;
+using namespace mfem;
+
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
 typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
@@ -57,10 +60,6 @@ void EulerMesh(const int problem, const char **mesh_file);
 SpatialFunction EulerInitialCondition(const int problem,
                                       const double specific_heat_ratio,
                                       const double gas_constant);
-
-void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, DGHyperbolicConservationLaws &euler,
-                  GridFunction &sol, ODESolver *ode_solver);
 
 int main(int argc, char *argv[]) {
   Mpi::Init(argc, argv);
@@ -227,7 +226,7 @@ int main(int argc, char *argv[]) {
   NumericalFlux *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws euler =
       getEulerSystem(&vfes, numericalFlux, specific_heat_ratio, gas_constant,
-                     IntOrderOffset, true);
+                     IntOrderOffset);
 
   // Visualize the density
   socketstream sout;
@@ -355,20 +354,6 @@ int main(int argc, char *argv[]) {
   delete ode_solver;
 
   return 0;
-}
-
-void UpdateSystem(FiniteElementSpace &fes, FiniteElementSpace &dfes,
-                  FiniteElementSpace &vfes, DGHyperbolicConservationLaws &euler,
-                  GridFunction &sol, ODESolver *ode_solver) {
-  fes.Update();
-  dfes.Update();
-  vfes.Update();
-  sol.Update();
-  euler.Update();
-  ode_solver->Init(euler);
-  fes.UpdatesFinished();
-  dfes.UpdatesFinished();
-  vfes.UpdatesFinished();
 }
 
 void EulerMesh(const int problem, const char **mesh_file) {

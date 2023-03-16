@@ -48,6 +48,9 @@
 // shared between the serial and parallel version of the example.
 #include "fem/hyperbolic_conservation_laws.hpp"
 
+using namespace std;
+using namespace mfem;
+
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
 typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
@@ -212,9 +215,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
-    NumericalFlux *numericalFlux = new RusanovFlux();
+  NumericalFlux *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws advection =
-      getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset, true);
+      getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset);
 
   // Visualize the density
   socketstream sout;
