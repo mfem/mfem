@@ -45,7 +45,7 @@
 
 #include "mfem.hpp"
 
-// Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
+// Classes HyperbolicConservationLaws, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "fem/hyperbolic_conservation_laws.hpp"
 
@@ -224,7 +224,7 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  NumericalFlux *numericalFlux = new RusanovFlux();
+  RiemannSolver *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws shallowWater =
       getShallowWaterEquation(vfes, numericalFlux, g, IntOrderOffset);
 

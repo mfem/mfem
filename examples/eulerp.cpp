@@ -44,7 +44,7 @@
 
 #include "mfem.hpp"
 
-// Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
+// Classes HyperbolicConservationLaws, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "fem/hyperbolic_conservation_laws.hpp"
 
@@ -128,6 +128,12 @@ int main(int argc, char *argv[]) {
   const int dim = mesh.Dimension();
   const int num_equations = dim + 2;
 
+  if (problem == 5) {
+    mesh.Transform([](const Vector &x, Vector &y) {
+      y = x;
+      y *= 0.5;
+    });
+  }
   // perform uniform refine
   for (int lev = 0; lev < ser_ref_levels; lev++) {
     mesh.UniformRefinement();
@@ -223,10 +229,9 @@ int main(int argc, char *argv[]) {
 
   // 7. Set up the nonlinear form corresponding to the DG discretization of the
   //    flux divergence, and assemble the corresponding mass matrix.
-  NumericalFlux *numericalFlux = new RusanovFlux();
-  DGHyperbolicConservationLaws euler =
-      getEulerSystem(&vfes, numericalFlux, specific_heat_ratio, gas_constant,
-                     IntOrderOffset);
+  RiemannSolver *numericalFlux = new RusanovFlux();
+  DGHyperbolicConservationLaws euler = getEulerSystem(
+      &vfes, numericalFlux, specific_heat_ratio, gas_constant, IntOrderOffset);
 
   // Visualize the density
   socketstream sout;
@@ -243,10 +248,12 @@ int main(int argc, char *argv[]) {
         cout << "GLVis visualization disabled.\n";
       }
     } else {
-      ParGridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
+      ParGridFunction mom(&dfes, sol.GetData());
       sout << "parallel " << numProcs << " " << myRank << "\n";
       sout.precision(precision);
       sout << "solution\n" << pmesh << mom;
+      sout << "view 0 0\n";  // view from top
+      sout << "keys jlm\n";  // turn off perspective and light
       sout << "pause\n";
       sout << flush;
       if (Mpi::Root()) {
@@ -309,9 +316,10 @@ int main(int argc, char *argv[]) {
         cout << "time step: " << ti << ", time: " << t << endl;
       }
       if (visualization) {
-        ParGridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
+        ParGridFunction mom(&dfes, sol.GetData());
         sout << "parallel " << numProcs << " " << myRank << "\n";
         sout << "solution\n" << pmesh << mom << flush;
+        sout << "window_title 't = " << t << "'";
         MPI_Barrier(pmesh.GetComm());
       }
     }
@@ -369,6 +377,9 @@ void EulerMesh(const int problem, const char **mesh_file) {
       break;
     case 4:
       *mesh_file = "../data/periodic-segment.mesh";
+      break;
+    case 5:
+      *mesh_file = "../data/periodic-square-4x4.mesh";
       break;
     default:
       throw invalid_argument("Default mesh is undefined");
@@ -508,6 +519,24 @@ SpatialFunction EulerInitialCondition(const int problem,
         y(0) = density;
         y(1) = density * velocity_x;
         y(2) = energy;
+      };
+    case 5:
+      return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y) {
+        MFEM_ASSERT(x.Size() == 2, "");
+        const double L = 1.0;
+        const double density = abs(x(1)) < 0.25 ? 2 : 1;
+        const double velocity_x = abs(x(1)) < 0.25 ? -0.5 : 0.5;
+        const double velocity_y = abs(x(1)) < 0.25 ? 0.01 * __sinpi(x(0) / L)
+                                                   : 0.01 * __sinpi(x(0) / L);
+        const double pressure = abs(x(1)) < 0.25 ? 2.5 : 2.5;
+        const double energy =
+            pressure / (1.4 - 1.0) +
+            density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y);
+
+        y(0) = density;
+        y(1) = density * velocity_x;
+        y(2) = density * velocity_y;
+        y(3) = energy;
       };
     default:
       throw invalid_argument("Problem Undefined");

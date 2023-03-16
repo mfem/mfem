@@ -44,7 +44,7 @@
 
 #include "mfem.hpp"
 
-// Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
+// Classes HyperbolicConservationLaws, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "fem/hyperbolic_conservation_laws.hpp"
 
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  NumericalFlux *numericalFlux = new RusanovFlux();
+  RiemannSolver *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws burgers = getBurgersEquation(fes, numericalFlux, IntOrderOffset);
 
   // Visualize the density

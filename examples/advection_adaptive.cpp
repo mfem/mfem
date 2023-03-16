@@ -29,7 +29,7 @@
 
 #include "mfem.hpp"
 
-// Classes HyperbolicConservationLaws, NumericalFlux, and FaceIntegrator
+// Classes HyperbolicConservationLaws, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "fem/hyperbolic_conservation_laws.hpp"
 
@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  NumericalFlux *numericalFlux = new RusanovFlux();
+  RiemannSolver *numericalFlux = new RusanovFlux();
   DGHyperbolicConservationLaws advection =
       getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset);
 
@@ -342,13 +342,13 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < numElem; i++) {
           const double localError = errors(i);
           if (localError > upper_bound && fes->GetElementOrder(i) < 7) {
-            orders[i] = order + 1;
+            orders[i] = 1;
           } else if (localError < lower_bound && fes->GetElementOrder(i) > 0) {
-            orders[i] = order - 1;
+            orders[i] =  - 1;
           } else
-            orders[i] = order;
+            orders[i] = 0;
         }
-        advection.pRefine(orders, sol, PRefineType::set);
+        advection.pRefine(orders, sol, PRefineType::elevation);
         ode_solver->Init(advection);
         max_order = fes->GetMaxElementOrder();
 

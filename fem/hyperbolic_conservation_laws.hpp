@@ -2,7 +2,7 @@
 //
 // Description:  This is a refactored version of ex18.hpp to handle general
 //               class of hyperbolic conservation laws.
-//               Abstract NumericalFlux, HyperbolicElementFormIntegrator,
+//               Abstract RiemannSolver, HyperbolicElementFormIntegrator,
 //               HyperbolicFaceFormIntegrator, and DGHyperbolicConservationLaws
 //               are defined.
 //
@@ -29,7 +29,7 @@
 // Class structure: DGHyperbolicConservationLaws
 //                  |- HyperbolicElementFormIntegrator: (F(u,x), grad v)
 //                  |- HyperbolicFaceFormIntegrator: <hat(F)(u+,x;u-,x), [[v]])
-//                  |  |- NumericalFlux: hat(F)
+//                  |  |- RiemannSolver: hat(F)
 //                  |
 //                  |- (Par)NonlinearForm: Evaluate form integrators
 //
@@ -52,9 +52,9 @@ GridFunction ProlongToMaxOrderDG(const GridFunction &x);
  * on a face with states, fluxes and characteristic speed
  *
  */
-class NumericalFlux {
+class RiemannSolver {
  public:
-  NumericalFlux(){};
+  RiemannSolver(){};
   /**
    * @brief Evaluates numerical flux for given states and fluxes. Must be
    * overloaded in a derived class
@@ -200,7 +200,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
   // The maximum characterstic speed, updated during face vector assembly
   double max_char_speed;
   const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
-  NumericalFlux *rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
+  RiemannSolver *rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
   Vector shape1;  // shape function value at an integration point - first elem
   Vector shape2;  // shape function value at an integration point - second elem
   Vector state1;  // state value at an integration point - first elem
@@ -235,7 +235,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
    * @param[in] IntOrderOffset_ integration order offset, 2*p + IntOrderOffset
    * will be used
    */
-  HyperbolicFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  HyperbolicFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                                const int num_equations_,
                                const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
@@ -257,7 +257,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
    * @param[in] num_equations_ the number of equations
    * @param[in] ir integration rule
    */
-  HyperbolicFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  HyperbolicFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                                const int num_equations_,
                                const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
@@ -676,7 +676,7 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
  * where λ is the maximum characteristic velocity
  *
  */
-class RusanovFlux : public NumericalFlux {
+class RusanovFlux : public RiemannSolver {
  public:
   /**
    * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
@@ -709,7 +709,7 @@ class RusanovFlux : public NumericalFlux {
 };
 
 // Upwind Flux, Not Yet Implemented
-class UpwindFlux : public NumericalFlux {
+class UpwindFlux : public RiemannSolver {
  public:
   // Upwind Flux, Not Yet Implemented
   void Eval(const Vector &state1, const Vector &state2, const Vector &fluxN1,
@@ -885,7 +885,7 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param gas_constant_ gas constant
    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
    */
-  EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  EulerFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                           const double specific_heat_ratio_,
                           const double gas_constant_,
                           const int IntOrderOffset_ = 3)
@@ -903,7 +903,7 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param gas_constant_ gas constant
    * @param ir this integral rule will be used for the Gauss quadrature
    */
-  EulerFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  EulerFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                           const double specific_heat_ratio_,
                           const double gas_constant_, const IntegrationRule *ir)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 2, ir),
@@ -912,7 +912,7 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
 };
 
 DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
-                                            NumericalFlux *numericalFlux,
+                                            RiemannSolver *numericalFlux,
                                             const double specific_heat_ratio,
                                             const double gas_constant,
                                             const int IntOrderOffset) {
@@ -1001,7 +1001,7 @@ class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param dim spatial dimension
    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
    */
-  BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  BurgersFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                             const int IntOrderOffset_ = 3)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, IntOrderOffset_){};
 
@@ -1013,13 +1013,13 @@ class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param dim spatial dimension
    * @param ir this integral rule will be used for the Gauss quadrature
    */
-  BurgersFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  BurgersFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                             const IntegrationRule *ir)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir){};
 };
 
 DGHyperbolicConservationLaws getBurgersEquation(FiniteElementSpace *vfes,
-                                                NumericalFlux *numericalFlux,
+                                                RiemannSolver *numericalFlux,
                                                 const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = 1;
@@ -1123,7 +1123,7 @@ class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param b_ velocity coefficient, possibly depends on space
    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
    */
-  AdvectionFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  AdvectionFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                               VectorCoefficient &b_,
                               const int IntOrderOffset_ = 3)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, IntOrderOffset_),
@@ -1139,13 +1139,13 @@ class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param b_ velocity coefficient, possibly depends on space
    * @param ir this integral rule will be used for the Gauss quadrature
    */
-  AdvectionFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  AdvectionFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                               VectorCoefficient &b_, const IntegrationRule *ir)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim){};
 };
 
 DGHyperbolicConservationLaws getAdvectionEquation(FiniteElementSpace *vfes,
-                                                  NumericalFlux *numericalFlux,
+                                                  RiemannSolver *numericalFlux,
                                                   VectorCoefficient &b,
                                                   const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
@@ -1273,7 +1273,7 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param g_ gravity constant
    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
    */
-  ShallowWaterFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  ShallowWaterFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                                  const double g_, const int IntOrderOffset_ = 3)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_),
         g(g_){};
@@ -1287,7 +1287,7 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
    * @param g_ gravity constant
    * @param ir this integral rule will be used for the Gauss quadrature
    */
-  ShallowWaterFaceFormIntegrator(NumericalFlux *rsolver_, const int dim,
+  ShallowWaterFaceFormIntegrator(RiemannSolver *rsolver_, const int dim,
                                  const double g_, const IntegrationRule *ir)
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_){};
 };
@@ -1309,7 +1309,7 @@ GridFunction ProlongToMaxOrderDG(const GridFunction &x) {
 }
 
 DGHyperbolicConservationLaws getShallowWaterEquation(
-    FiniteElementSpace *vfes, NumericalFlux *numericalFlux, const double g,
+    FiniteElementSpace *vfes, RiemannSolver *numericalFlux, const double g,
     const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = dim + 1;
