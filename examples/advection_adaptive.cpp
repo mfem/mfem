@@ -48,10 +48,10 @@ int main(int argc, char *argv[]) {
 
   const char *mesh_file = "";
   int IntOrderOffset = 3;
-  int ref_levels = 4;
+  int ref_levels = 2;
   int order = 3;
   int ode_solver_type = 4;
-  double t_final = 1.0;
+  double t_final = 0.5;
   double dt = -0.01;
   double cfl = 0.3;
   bool visualization = true;
@@ -103,7 +103,9 @@ int main(int argc, char *argv[]) {
   for (int lev = 0; lev < ref_levels; lev++) {
     mesh->UniformRefinement();
   }
-  if (dim > 1) mesh->EnsureNCMesh();
+  if (dim > 1) {
+    mesh->EnsureNCMesh();
+  }
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -149,8 +151,8 @@ int main(int argc, char *argv[]) {
   GridFunction sol(fes);
   sol.ProjectCoefficient(u0);
 
-  LpErrorEstimator estimator(2, u0, sol);
-  Array<int> orders(mesh->GetNE());
+  Array<int> orders;
+  Vector errors;
 
   // Output the initial solution.
   {
@@ -172,12 +174,13 @@ int main(int argc, char *argv[]) {
       getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset);
 
   // Visualize the density
-  socketstream sout;
+  socketstream sout, sout_disp;
   if (visualization) {
     char vishost[] = "localhost";
     int visport = 19916;
 
     sout.open(vishost, visport);
+    sout_disp.open(vishost, visport);
     if (!sout) {
       cout << "Unable to connect to GLVis server at " << vishost << ':'
            << visport << endl;
@@ -230,37 +233,48 @@ int main(int argc, char *argv[]) {
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
       if (visualization) {
-        sout << "solution\n" << *mesh << sol << flush;
+        GridFunction high_sol = ProlongToMaxOrderDG(sol);
+        sout << "solution\n" << *mesh << high_sol;
+        // sout << "pause\n";
+        sout << flush;
+        high_sol.ProjectCoefficient(u0);
+        sout_disp << "solution\n" << *mesh << high_sol << flush;
       }
     }
-    // MFEM_VERIFY(advection.Height() == sol.Size(), "Size mismatch... debug
-    // needed");
+    // const double numElem = mesh->GetNE();
+    // errors.SetSize(numElem);
+    // sol.ComputeElementL2Errors(u0, errors);
+    // const double total_error = errors.Norml2();
+    // cout << "Error: " << total_error << endl;
+
+    // const double max_val = errors.Max();
+    // const double min_val = errors.Min();
+    // const double upperbound = max_val * 0.7;
+    // const double lowerbound = min_val * 1.2;
+    // orders.SetSize(numElem);
+    // for (int i = 0; i < numElem; i++) {
+    //   const double localError = errors(i);
+    //   if (localError > upperbound && fes->GetElementOrder(i) < 7)
+    //     orders[i] = order + 4;  // 1
+    //   else
+    //     orders[i] = order;  // 0
+    // }
+    // advection.pRefine(orders, sol, PRefineType::set);
+
+    // for (int i = 0; i < numElem; i++) {
+    //   orders[i] = -orders[i];
+    // }
+    // advection.pRefine(orders, sol, PRefineType::elevation);
+
     ode_solver->Init(advection);
     if (cfl > 0) {
       const int max_order = fes->GetMaxElementOrder();
-      cout << "Maximum order: " << max_order << endl;
-      dt = cfl * hmin / advection.getMaxCharSpeed() /
-           (2 * fes->GetMaxElementOrder() + 1);
+      dt = cfl * hmin / advection.getMaxCharSpeed() / (2 * max_order + 1);
     }
   }
 
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
-
-  Vector errors = estimator.GetLocalErrors();
-  const double max_val = errors.Max();
-  const double min_val = errors.Min();
-  const double upperbound = max_val * 0.7 + min_val * 0.3;
-  const double lowerbound = max_val * 0.3 + min_val * 0.7;
-  const double numElem = mesh->GetNE();
-  orders.SetSize(numElem);
-  for (int i = 0; i < numElem; i++) {
-    const double localError = errors(i);
-    orders[i] = localError > upperbound   ? order + 1
-                : localError < lowerbound ? order - 1
-                                          : order;
-  }
-  advection.pRefine(orders, sol, PRefineType::set, &sout);
   // sout << "solution\n" << *mesh << sol << flush;
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
@@ -273,7 +287,6 @@ int main(int argc, char *argv[]) {
     sol_ofs.precision(precision);
     sol_ofs << uk;
   }
-
   // 10. Compute the L2 solution error summed for all components.
   //   if (t_final == 2.0) {
   const double error = sol.ComputeLpError(2, u0);
@@ -303,12 +316,12 @@ void AdvectionMesh(const int problem, const char **mesh_file) {
 SpatialFunction AdvectionSolution(const int problem, double &t) {
   switch (problem) {
     case 1:
-      return [&](const Vector &x, Vector &y) {
+      return [&t](const Vector &x, Vector &y) {
         MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
         y(0) = __sinpi(x(0)) * __sinpi(x(1));
       };
     case 2:
-      return [&](const Vector &x, Vector &y) {
+      return [&t](const Vector &x, Vector &y) {
         MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
         y(0) = __sinpi(x(0) - t) * __sinpi(x(1) - t);
       };
@@ -330,8 +343,8 @@ SpatialFunction AdvectionVelocityVector(const int problem) {
       };
     case 2:
       return [](const Vector &x, Vector &y) {
-        y(0) = M_PI;
-        y(1) = M_PI;
+        y(0) = 1.0;
+        y(1) = 1.0;
       };
     default:
       throw invalid_argument("Problem Undefined");
