@@ -512,12 +512,14 @@ public:
                }
                // Create temporary shared library: (ar + co) => so
                {
-                  std::string lib_mfem("-L");
+                  std::string lib_mfem("-L"), lib_rpath("-rpath,");
                   lib_mfem += MFEM_INSTALL_DIR, lib_mfem += "/lib -lmfem";
-                  // -shared ? -rpath,. ?
+                  lib_rpath += Path();
+
+                  // -(-)shared ? -rpath,. ?
                   Command() << cxx << link << "-shared" << "-o" << so
                             << Xprefix() << Lib_ar() << Xpostfix()
-                            << Xlinker() + "-rpath,." << libs
+                            << Xlinker() + lib_rpath.c_str() << libs
 #ifdef __APPLE__
                             << lib_mfem.c_str()
 #endif

@@ -385,8 +385,7 @@ struct Parser
       ker.src << "\ntemplate<" << ker.Tparams << ">";
       ker.src << "\nvoid " << ker.name << "_%016lx"
               << "(" << ker.Sparams0 << "){";
-#warning no pp_line
-      //ker.src << pp_line();
+      ker.src << pp_line();
       block = 0; // Start counting the block statements
    }
 
@@ -401,18 +400,8 @@ struct Parser
     */
    void mfem_jit_postfix() // output all kernel source, with updated hash
    {
-      //std::cout << "\033[33m"<< "mfem_jit_postfix" <<"\033[m" << std::ends;
       ker.src << "}\nextern \"C\" void k%016lx"
               << "(" << ker.Sparams0 << "){"
-              << "\n\tmfem::out << \"[JIT] y_amp:\" << y_amp.Size() << std::endl; "
-              << "\n\tmfem::out << \"[JIT] y_ptr:\" << y_ptr->Size() << std::endl; "
-
-              << "\n\tmfem::out << \"[JIT] y_amp:\" << y_amp.GetData() << std::endl; "
-              << "\n\tmfem::out << \"[JIT] y_ptr:\" << y_ptr->GetData() << std::endl; "
-
-              << "\n\tmfem::out << \"[JIT] y_amp.ReadWrite():\" << y_amp.ReadWrite() << std::endl; "
-              << "\n\tmfem::out << \"[JIT] y_ptr>ReadWrite():\" << y_ptr->ReadWrite() << std::endl; "
-
               << "\n\t" << ker.name << "_%016lx<" << ker.Tformat << ">"
               << "("<< ker.Sargs_us << ");";
 
@@ -449,8 +438,7 @@ struct Parser
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
           << "\", cxx, flags, link, libs, source, kernels" << ", " << ker.Targs
-          <<  ").operator()(" << ker.Sargs << ");";
-#warning no pp_line
+          <<  ").Launch(" << ker.Sargs << ");";
       out << pp_line();
       ker.advance(/*postfix => wait*/);
    }

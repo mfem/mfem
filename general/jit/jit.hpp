@@ -115,7 +115,8 @@ struct Jit
          kernel((T) Jit::Lookup(hash, name, cxx, flags, link, libs, src, sym)) {}
 
       /// @brief Kernel launch operator.
-      template<typename... Args> void operator()(Args... as) { kernel(as...); }
+      template<typename... Args>
+      void Launch(Args&&... args) { kernel(std::forward<Args>(args)...); }
    };
 
    /** @brief Find a Kernel in the given @a map. If the kernel cannot be found,
@@ -134,21 +135,21 @@ struct Jit
    Kernel<T> Find(const size_t hash, const char *kernel_name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
                   const char *src, std::unordered_map<size_t, Kernel<T>> &map,
-                  Args ...args)
+                  Args... Targs) // Targs (templated args) are just integers
    {
-      auto kit = map.find(hash);
-      if (kit == map.end())
+      auto kernel_it = map.find(hash);
+      if (kernel_it == map.end())
       {
-         const int n = snprintf(nullptr, 0, src, hash, hash, hash, args...);
-         const int m = snprintf(nullptr, 0, kernel_name, args...);
+         const int n = snprintf(nullptr, 0, src, hash, hash, hash, Targs...);
+         const int m = snprintf(nullptr, 0, kernel_name, Targs...);
          std::string buf(n+1, '\0'), ker(m+1, '\0');
-         snprintf(&buf[0], n+1, src, hash, hash, hash, args...);
-         snprintf(&ker[0], m+1, kernel_name, args...); // ker_name<...>
+         snprintf(&buf[0], n+1, src, hash, hash, hash, Targs...);
+         snprintf(&ker[0], m+1, kernel_name, Targs...); // ker_name<...>
          map.emplace(hash, Kernel<T>(hash, &ker[0], cxx, flags, link, libs,
                                      &buf[0], ToString(hash).c_str()));
-         kit = map.find(hash);
+         kernel_it = map.find(hash);
       }
-      return kit->second;
+      return kernel_it->second;
    }
 };
 

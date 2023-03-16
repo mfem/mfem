@@ -476,8 +476,7 @@ static void PADiffusionDiagonal2D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 2D kernel
-//MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionDiagonal2D(const int NE,
                                       const bool symmetric,
                                       ConstDeviceMatrix &b,
@@ -1091,15 +1090,9 @@ static void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
-                                   const bool symmetric,/*
-                                   ConstDeviceMatrix &b,
-                                   ConstDeviceMatrix &g,
-                                   ConstDeviceCube &D,
-                                   ConstDeviceCube &x,
-                                   DeviceCube &Y,*/
+                                   const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
                                    const Vector &d_,
@@ -1110,8 +1103,6 @@ static void SmemPADiffusionApply2D(const int NE,
                                    int q1d = 0,
                                    int nbz = 0)
 {
-   MFEM_VERIFY(Device::IsEnabled(), "Using device singleton?!");
-
    MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1126,15 +1117,11 @@ static void SmemPADiffusionApply2D(const int NE,
    const auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), D1D, D1D, NE);
 
-   mfem::out << "y_amp.ReadWrite():" << y_amp.ReadWrite() << ", "
-             << "y_ptr->ReadWrite():" << y_ptr->ReadWrite()
-             << std::endl;
+   assert(y_amp.ReadWrite() == y_ptr->ReadWrite());
+
    auto Y = Reshape(y_amp.ReadWrite(), D1D, D1D, NE);
    auto Yptr = Reshape(y_ptr->ReadWrite(), D1D, D1D, NE);
-
-   mfem::out << "Y:" << Y << ", Yptr:" << Yptr << std::endl;
-   //assert((double*)Y == (double*)Yptr);
-   assert(y_amp.ReadWrite() == y_ptr->ReadWrite());
+   assert((double*)Y == (double*)Yptr);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -1722,13 +1709,9 @@ static void PADiffusionApply(const int dim,
 
    if (dim == 2)
    {
-      ConstDeviceCube D = Reshape(d.Read(), Q1D*Q1D, symm ? 3 : 4, NE);
-      ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
-      DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-
-      mfem::out << "y_std.ReadWrite():" << y.ReadWrite() << std::endl;
-      Vector &y_amp = y;
-      mfem::out << "y_amp.ReadWrite():" << y_amp.ReadWrite() << std::endl;
+      //ConstDeviceCube D = Reshape(d.Read(), Q1D*Q1D, symm ? 3 : 4, NE);
+      //ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
+      //DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
       switch (id)
       {
@@ -1749,16 +1732,7 @@ static void PADiffusionApply(const int dim,
                             (D1D < 6)  ? 8 :
                             (D1D < 8)  ? 4 :
                             (D1D < 10) ? 2 : 1;
-            /*return*/ SmemPADiffusionApply2D(NE,symm,b,g,d,x,y,&y,D1D,Q1D,NBZ);
-
-            /*_Z17k0036ffdc87219580ibRKN4mfem5ArrayIdEES3_RKNS_6VectorES6_RS4_PS4_iii
-            (NE,symm,b,g,d,x,y,&y,D1D,Q1D,NBZ);*/
-
-            mfem::out << "y_std.ReadWrite():" << y.ReadWrite() << std::endl;
-            Vector &y_amp2 = y;
-            mfem::out << "y_amp.ReadWrite():" << y_amp2.ReadWrite() << std::endl;
-            //return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
-            return;
+            return SmemPADiffusionApply2D(NE,symm,b,g,d,x,y,&y,D1D,Q1D,NBZ);
          }
 #endif
       }
