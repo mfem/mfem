@@ -45,6 +45,7 @@ enum PRefineType {
   elevation,  // order <- order + value
   set,        // order <- value
 };
+GridFunction ProlongToMaxOrderDG(const GridFunction &x);
 
 /**
  * @brief Abstract class for numerical flux for an hyperbolic conservation laws
@@ -282,7 +283,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
   const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                  const FiniteElement &test_fe) {
     int order;
-    order = trial_fe.GetOrder() + test_fe.GetOrder() + IntOrderOffset;
+    order = max(trial_fe.GetOrder(), test_fe.GetOrder()) * 2 + IntOrderOffset;
     return IntRules.Get(trial_fe.GetGeomType(), order);
   }
 
@@ -328,7 +329,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   // Face integration form. Should contain ComputeFluxDotN and Riemann Solver
   HyperbolicFaceFormIntegrator &faceFormIntegrator;
   // Base Nonlinear Form
-  NonlinearForm &nonlinearForm;
+  NonlinearForm *nonlinearForm;
   // element-wise inverse mass matrix
   std::vector<DenseMatrix> Me_inv;
   // global maximum characteristic speed. Updated by form integrators
@@ -340,10 +341,11 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   void ComputeInvMass();
 
   void Update() {
-    nonlinearForm.Update();
-    z.SetSize(nonlinearForm.Height());
-    width = z.Size();
-    height = width;
+    nonlinearForm->Update();
+    height = nonlinearForm->Height();
+    width = height;
+    z.SetSize(height);
+
     ComputeInvMass();
   };
 
@@ -359,7 +361,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
    * @param num_equations_ the number of equations
    */
   DGHyperbolicConservationLaws(
-      FiniteElementSpace *vfes_, NonlinearForm &nonlinForm_,
+      FiniteElementSpace *vfes_,
       HyperbolicElementFormIntegrator &elementFormIntegrator_,
       HyperbolicFaceFormIntegrator &faceFormIntegrator_,
       const int num_equations_);
@@ -372,7 +374,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   virtual void Mult(const Vector &x, Vector &y) const;
 
   void pRefine(const Array<int> orders, GridFunction &sol,
-               const PRefineType pRefineType = PRefineType::elevation, mfem::socketstream *sout=nullptr);
+               const PRefineType pRefineType = PRefineType::elevation);
   // get global maximum characteristic speed to be used in CFL condition
   // where max_char_speed is updated during Mult.
   inline double getMaxCharSpeed() { return max_char_speed; }
@@ -386,7 +388,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
 
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-    FiniteElementSpace *vfes_, NonlinearForm &nonlinearForm_,
+    FiniteElementSpace *vfes_,
     HyperbolicElementFormIntegrator &elementFormIntegrator_,
     HyperbolicFaceFormIntegrator &faceFormIntegrator_, const int num_equations_)
     : TimeDependentOperator(vfes_->GetNDofs() * num_equations_),
@@ -395,16 +397,25 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
       vfes(vfes_),
       elementFormIntegrator(elementFormIntegrator_),
       faceFormIntegrator(faceFormIntegrator_),
-      nonlinearForm(nonlinearForm_),
       Me_inv(0),
       z(vfes_->GetNDofs() * num_equations_) {
   // Standard local assembly and inversion for energy mass matrices.
   ComputeInvMass();
+#ifndef MFEM_USE_MPI
+  nonlinearForm = new NonlinearForm(vfes);
+#else
+  ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(vfes);
+  if (pvfes) {
+    nonlinearForm = new ParNonlinearForm(pvfes);
+  } else {
+    nonlinearForm = new NonlinearForm(vfes);
+  }
+#endif
   elementFormIntegrator.setMaxCharSpeed(max_char_speed);
   faceFormIntegrator.setMaxCharSpeed(max_char_speed);
 
-  nonlinearForm.AddDomainIntegrator(&elementFormIntegrator);
-  nonlinearForm.AddInteriorFaceIntegrator(&faceFormIntegrator);
+  nonlinearForm->AddDomainIntegrator(&elementFormIntegrator);
+  nonlinearForm->AddInteriorFaceIntegrator(&faceFormIntegrator);
 
   height = z.Size();
   width = z.Size();
@@ -438,19 +449,28 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
  */
 void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
                                            GridFunction &sol,
-                                           const PRefineType pRefineType, mfem::socketstream *sout) {
+                                           const PRefineType pRefineType) {
   Mesh *mesh = vfes->GetMesh();
   mesh->EnsureNCMesh();  // Variable order needs nonconforming mesh
   const int numElem = mesh->GetNE();
   MFEM_VERIFY(orders.Size() == numElem, "Incorrect size of array is provided.");
 
-  FiniteElementSpace old_vfes(*vfes);  // save old fes
+  // FiniteElementSpace old_vfes(*vfes);  // save old fes
+  DG_FECollection *fec = new DG_FECollection(0, mesh->Dimension());
+  FiniteElementSpace old_vfes(mesh, fec, vfes->GetVDim(), vfes->GetOrdering());
+  for (int i = 0; i < numElem; i++) {
+    old_vfes.SetElementOrder(i, vfes->GetElementOrder(i));
+  }
+  old_vfes.Update(false);
+
   switch (pRefineType) {
     case PRefineType::elevation:
       for (int i = 0; i < numElem; i++) {
-        const int order = vfes->GetElementOrder(i) + orders[i];
-        MFEM_VERIFY(order >= 0, "Order should be non-negative.");
-        vfes->SetElementOrder(i, vfes->GetElementOrder(i) + orders[i]);
+        if (orders[i] != 0) {
+          const int order = vfes->GetElementOrder(i) + orders[i];
+          MFEM_VERIFY(order >= 0, "Order should be non-negative.");
+          vfes->SetElementOrder(i, vfes->GetElementOrder(i) + orders[i]);
+        }
       }
       break;
     case PRefineType::set:
@@ -462,16 +482,12 @@ void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
     default:
       mfem_error("Undefined PRefineType.");
   }
-
   vfes->Update(false);  // p-refine transfer matrix is not provided.
 
   PRefinementTransferOperator T(old_vfes, *vfes);
   GridFunction new_sol(vfes);
   T.Mult(sol, new_sol);
-  // sol.Update();
   sol = new_sol;
-  *sout << "solution\n" << *mesh << sol << flush;
-
   Update();
 }
 
@@ -480,7 +496,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {
   elementFormIntegrator.setMaxCharSpeed(0.0);
   faceFormIntegrator.setMaxCharSpeed(0.0);
   // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
-  nonlinearForm.Mult(x, z);
+  nonlinearForm->Mult(x, z);
   max_char_speed = max(elementFormIntegrator.getMaxCharSpeed(),
                        faceFormIntegrator.getMaxCharSpeed());
 
@@ -866,35 +882,17 @@ DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
                                             NumericalFlux *numericalFlux,
                                             const double specific_heat_ratio,
                                             const double gas_constant,
-                                            const int IntOrderOffset,
-                                            const bool useParallel = false) {
+                                            const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = dim + 2;
 
-  // 7. Set up the nonlinear form corresponding to the DG discretization of the
-  //    flux divergence, and assemble the corresponding mass matrix.
   EulerElementFormIntegrator *elfi = new EulerElementFormIntegrator(
       dim, specific_heat_ratio, gas_constant, IntOrderOffset);
 
   EulerFaceFormIntegrator *fnfi = new EulerFaceFormIntegrator(
       numericalFlux, dim, specific_heat_ratio, gas_constant, IntOrderOffset);
-  NonlinearForm *nonlinearForm;
-  if (!useParallel) {
-    nonlinearForm = new NonlinearForm(vfes);
-  } else {
-#ifdef MFEM_USE_MPI
-    nonlinearForm =
-        new ParNonlinearForm(dynamic_cast<ParFiniteElementSpace *>(vfes));
-#else
-    mfem_error("Parallel MFEM is not installed.");
-#endif
-  }
 
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  return DGHyperbolicConservationLaws(vfes, *nonlinearForm, *elfi, *fnfi,
-                                      num_equations);
+  return DGHyperbolicConservationLaws(vfes, *elfi, *fnfi, num_equations);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -987,36 +985,19 @@ class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir){};
 };
 
-DGHyperbolicConservationLaws getBurgersEquation(
-    FiniteElementSpace *vfes, NumericalFlux *numericalFlux,
-    const int IntOrderOffset, const bool useParallel = false) {
+DGHyperbolicConservationLaws getBurgersEquation(FiniteElementSpace *vfes,
+                                                NumericalFlux *numericalFlux,
+                                                const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = 1;
 
-  // 7. Set up the nonlinear form corresponding to the DG discretization of the
-  //    flux divergence, and assemble the corresponding mass matrix.
   BurgersElementFormIntegrator *elfi =
       new BurgersElementFormIntegrator(dim, IntOrderOffset);
 
   BurgersFaceFormIntegrator *fnfi =
       new BurgersFaceFormIntegrator(numericalFlux, dim, IntOrderOffset);
-  NonlinearForm *nonlinearForm;
-  if (!useParallel) {
-    nonlinearForm = new NonlinearForm(vfes);
-  } else {
-#ifdef MFEM_USE_MPI
-    nonlinearForm =
-        new ParNonlinearForm(dynamic_cast<ParFiniteElementSpace *>(vfes));
-#else
-    mfem_error("Parallel MFEM is not installed.");
-#endif
-  }
 
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  return DGHyperbolicConservationLaws(vfes, *nonlinearForm, *elfi, *fnfi,
-                                      num_equations);
+  return DGHyperbolicConservationLaws(vfes, *elfi, *fnfi, num_equations);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1137,30 +1118,13 @@ DGHyperbolicConservationLaws getAdvectionEquation(
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = 1;
 
-  // 7. Set up the nonlinear form corresponding to the DG discretization of the
-  //    flux divergence, and assemble the corresponding mass matrix.
   AdvectionElementFormIntegrator *elfi =
       new AdvectionElementFormIntegrator(dim, b, IntOrderOffset);
 
   AdvectionFaceFormIntegrator *fnfi =
       new AdvectionFaceFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
-  NonlinearForm *nonlinearForm;
-  if (!useParallel) {
-    nonlinearForm = new NonlinearForm(vfes);
-  } else {
-#ifdef MFEM_USE_MPI
-    nonlinearForm =
-        new ParNonlinearForm(dynamic_cast<ParFiniteElementSpace *>(vfes));
-#else
-    mfem_error("Parallel MFEM is not installed.");
-#endif
-  }
 
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  return DGHyperbolicConservationLaws(vfes, *nonlinearForm, *elfi, *fnfi,
-                                      num_equations);
+  return DGHyperbolicConservationLaws(vfes, *elfi, *fnfi, num_equations);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1295,36 +1259,35 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
       : HyperbolicFaceFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_){};
 };
 
+// Experimental - required for visualizing functions on p-refined spaces.
+GridFunction ProlongToMaxOrderDG(const GridFunction &x) {
+  const FiniteElementSpace *fes = x.FESpace();
+  Mesh *mesh = fes->GetMesh();
+  const int max_order = fes->GetMaxElementOrder() + 1;
+  FiniteElementCollection *fec =
+      new DG_FECollection(max_order, mesh->Dimension());
+  FiniteElementSpace *new_fes =
+      new FiniteElementSpace(mesh, fec, fes->GetVDim(), fes->GetOrdering());
+  PRefinementTransferOperator T(*fes, *new_fes);
+  GridFunction u(new_fes);
+  T.Mult(x, u);
+  u.MakeOwner(fec);
+  return u;
+}
+
 DGHyperbolicConservationLaws getShallowWaterEquation(
     FiniteElementSpace *vfes, NumericalFlux *numericalFlux, const double g,
-    const int IntOrderOffset, const bool useParallel = false) {
+    const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = dim + 1;
 
-  // 7. Set up the nonlinear form corresponding to the DG discretization of the
-  //    flux divergence, and assemble the corresponding mass matrix.
   ShallowWaterElementFormIntegrator *elfi =
       new ShallowWaterElementFormIntegrator(dim, g, IntOrderOffset);
 
   ShallowWaterFaceFormIntegrator *fnfi =
       new ShallowWaterFaceFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
-  NonlinearForm *nonlinearForm;
-  if (!useParallel) {
-    nonlinearForm = new NonlinearForm(vfes);
-  } else {
-#ifdef MFEM_USE_MPI
-    nonlinearForm =
-        new ParNonlinearForm(dynamic_cast<ParFiniteElementSpace *>(vfes));
-#else
-    mfem_error("Parallel MFEM is not installed.");
-#endif
-  }
 
-  // 8. Define the time-dependent evolution operator describing the ODE
-  //    right-hand side, and perform time-integration (looping over the time
-  //    iterations, ti, with a time-step dt).
-  return DGHyperbolicConservationLaws(vfes, *nonlinearForm, *elfi, *fnfi,
-                                      num_equations);
+  return DGHyperbolicConservationLaws(vfes, *elfi, *fnfi, num_equations);
 }
 
 #endif
