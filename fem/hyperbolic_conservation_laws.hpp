@@ -373,8 +373,11 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
    */
   virtual void Mult(const Vector &x, Vector &y) const;
 
-  void pRefine(const Array<int> orders, GridFunction &sol,
+  void pRefine(const Array<int> &orders, GridFunction &sol,
                const PRefineType pRefineType = PRefineType::elevation);
+
+  void hRefine(Vector &errors, GridFunction &sol);
+  void hDerefine(Vector &errors, GridFunction &sol);
   // get global maximum characteristic speed to be used in CFL condition
   // where max_char_speed is updated during Mult.
   inline double getMaxCharSpeed() { return max_char_speed; }
@@ -447,7 +450,7 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
  * @param[out] sol The solution to be updated
  * @param[in] pRefineType p-refinement type. Default PRefineType::elevation.
  */
-void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
+void DGHyperbolicConservationLaws::pRefine(const Array<int> &orders,
                                            GridFunction &sol,
                                            const PRefineType pRefineType) {
   Mesh *mesh = vfes->GetMesh();
@@ -488,6 +491,23 @@ void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
   GridFunction new_sol(vfes);
   T.Mult(sol, new_sol);
   sol = new_sol;
+  Update();
+}
+
+void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol) {
+  Mesh *mesh = vfes->GetMesh();
+  mesh->RefineByError(errors, errors.Max() * 0.7, 1, 2);
+  vfes->Update();
+  sol.Update();
+  Update();
+}
+
+void DGHyperbolicConservationLaws::hDerefine(Vector &errors,
+                                             GridFunction &sol) {
+  Mesh *mesh = vfes->GetMesh();
+  mesh->DerefineByError(errors, errors.Min() * 5, 2);
+  vfes->Update();
+  sol.Update();
   Update();
 }
 

@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
   bool visualization = true;
   int vis_steps = 50;
 
-  int refinement_mode = 1; // 0: no-refine, 1: h-refine, 2: p-refine.
+  int refinement_mode = 1;  // 0: no-refine, 1: h-refine, 2: p-refine.
 
   int precision = 8;
   cout.precision(precision);
@@ -210,6 +210,7 @@ int main(int argc, char *argv[]) {
       hmin = min(mesh->GetElementSize(i, 1), hmin);
     }
   }
+  int max_order = fes->GetMaxElementOrder();
 
   // Start the timer.
   tic_toc.Clear();
@@ -239,42 +240,83 @@ int main(int argc, char *argv[]) {
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
       if (visualization) {
-        GridFunction high_sol = ProlongToMaxOrderDG(sol);
-        sout << "solution\n" << *mesh << high_sol;
+        if (refinement_mode == 2) {
+          GridFunction high_sol = ProlongToMaxOrderDG(sol);
+          sout << "solution\n" << *mesh << high_sol;
+          sout << flush;
+          high_sol.ProjectCoefficient(u0);
+          sout_disp << "solution\n" << *mesh << high_sol << flush;
+        } else {
+          sout << "solution\n" << *mesh << sol;
+          sout << flush;
+          sol.ProjectCoefficient(u0);
+          sout_disp << "solution\n" << *mesh << sol << flush;
+        }
+        sout << "window_title 't = " << t << "'";
         // sout << "pause\n";
-        sout << flush;
-        high_sol.ProjectCoefficient(u0);
-        sout_disp << "solution\n" << *mesh << high_sol << flush;
       }
     }
-    // const double numElem = mesh->GetNE();
-    // errors.SetSize(numElem);
-    // sol.ComputeElementL2Errors(u0, errors);
-    // const double total_error = errors.Norml2();
-    // cout << "Error: " << total_error << endl;
+    const double numElem = mesh->GetNE();
+    errors.SetSize(numElem);
+    sol.ComputeElementL2Errors(u0, errors);
+    const double total_error = errors.Norml2();
+    switch (refinement_mode) {
+      case 0:  // no-refine
+        break;
+      case 1:  // h-refine
+        Refinement hRefinementType;
+        switch (mesh->Dimension()) {
+          case 1:
+            hRefinementType = Refinement::X;
+            break;
+          case 2:
+            hRefinementType = Refinement::XY;
+            break;
+          case 3:
+            hRefinementType = Refinement::XYZ;
+            break;
+        }
+        advection.hRefine(errors, sol);
+        errors.SetSize(mesh->GetNE());
+        sol.ComputeElementL2Errors(u0, errors);
+        advection.hDerefine(errors, sol);
+        ode_solver->Init(advection);
+        hmin = 0.0;
+        if (cfl > 0) {
+          hmin = mesh->GetElementSize(0, 1);
+          for (int i = 1; i < mesh->GetNE(); i++) {
+            hmin = min(mesh->GetElementSize(i, 1), hmin);
+          }
+        }
 
-    // const double max_val = errors.Max();
-    // const double min_val = errors.Min();
-    // const double upperbound = max_val * 0.7;
-    // const double lowerbound = min_val * 1.2;
-    // orders.SetSize(numElem);
-    // for (int i = 0; i < numElem; i++) {
-    //   const double localError = errors(i);
-    //   if (localError > upperbound && fes->GetElementOrder(i) < 7)
-    //     orders[i] = order + 4;  // 1
-    //   else
-    //     orders[i] = order;  // 0
-    // }
-    // advection.pRefine(orders, sol, PRefineType::set);
+        // const double mean = errors.Sum() / errors.Size();
+        // const double std = 0.0;
+        // advection.hRefine();
 
-    // for (int i = 0; i < numElem; i++) {
-    //   orders[i] = -orders[i];
-    // }
-    // advection.pRefine(orders, sol, PRefineType::elevation);
+        break;
+      case 2:  // p-refine
+        orders.SetSize(numElem);
+        const double upperbound = errors.Max() * 0.7;
+        for (int i = 0; i < numElem; i++) {
+          const double localError = errors(i);
+          if (localError > upperbound && fes->GetElementOrder(i) < 7)
+            orders[i] = order + 4;  // 1
+          else
+            orders[i] = order;  // 0
+        }
+        advection.pRefine(orders, sol, PRefineType::set);
 
-    ode_solver->Init(advection);
+        for (int i = 0; i < numElem; i++) {
+          orders[i] = -orders[i];
+        }
+        advection.pRefine(orders, sol, PRefineType::elevation);
+        ode_solver->Init(advection);
+        max_order = fes->GetMaxElementOrder();
+
+        break;
+    }
+
     if (cfl > 0) {
-      const int max_order = fes->GetMaxElementOrder();
       dt = cfl * hmin / advection.getMaxCharSpeed() / (2 * max_order + 1);
     }
   }
