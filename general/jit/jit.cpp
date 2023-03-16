@@ -421,6 +421,7 @@ public:
    static void *DLopen(const char *path)
    {
       void *handle = ::dlopen(path, (Debug()?RTLD_NOW:RTLD_LAZY)|RTLD_LOCAL);
+      //void *handle = ::dlopen(path, RTLD_NOW | RTLD_LOCAL); // RTLD_GLOBAL
       return (DLerror(), handle);
    }
 
@@ -471,7 +472,7 @@ public:
             auto install = [](const char *in, const char *out)
             {
                Command() << "install" << Xbackup() << in << out;
-               MFEM_VERIFY(Call() == EXIT_SUCCESS,
+               MFEM_VERIFY(Call(Debug()?"install":nullptr) == EXIT_SUCCESS,
                            "[JIT] install error: " << in << " => " << out);
             };
             io::FileLock cc_lock(Jit::ToString(hash), "ck", false);
@@ -494,6 +495,7 @@ public:
                   Command() << cxx << flags << (Verbose() ? "-v" : "")
 #ifdef MFEM_USE_CUDA
                             << "--device-c"
+                            << "-Xcompiler=-rdynamic"
 #endif
                             << "-I" << MFEM_INSTALL_DIR "/include/mfem"
                             << "-I" << MFEM_SOURCE_DIR
@@ -505,17 +507,21 @@ public:
                io::FileLock ar_lock(Lib_ar(), "ak");
                {
                   Command() << ("" MFEM_AR) << "-r" << Lib_ar() << co; // v
-                  if (Call()) { return EXIT_FAILURE; }
-                  std::remove(co.c_str());
+                  if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
+                  if (!Debug()) { std::remove(co.c_str()); }
                }
                // Create temporary shared library: (ar + co) => so
                {
                   std::string lib_mfem("-L");
                   lib_mfem += MFEM_INSTALL_DIR, lib_mfem += "/lib -lmfem";
+                  // -shared ? -rpath,. ?
                   Command() << cxx << link << "-shared" << "-o" << so
                             << Xprefix() << Lib_ar() << Xpostfix()
                             << Xlinker() + "-rpath,." << libs
-                            << lib_mfem.c_str();
+#ifdef __APPLE__
+                            << lib_mfem.c_str()
+#endif
+                            ;
                   if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
                }
                // Install temporary shared library: so => Lib_so

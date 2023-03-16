@@ -60,20 +60,20 @@ const int MAX_Q1D = 14;
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                             \
-   ForallWrap<1>(Device::Backends(), true, N,            \
+   ForallWrap<1>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
 
 // MFEM_FORALL with a 2D CUDA block
 #define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
-   ForallWrap<2>(Device::Backends(), true, N,            \
+   ForallWrap<2>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,BZ)
 
 // MFEM_FORALL with a 3D CUDA block
 #define MFEM_FORALL_3D(i,N,X,Y,Z,...)                    \
-   ForallWrap<3>(Device::Backends(), true, N,            \
+   ForallWrap<3>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z)
@@ -81,7 +81,7 @@ const int MAX_Q1D = 14;
 // MFEM_FORALL with a 3D CUDA block and grid
 // With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
 #define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...)             \
-   ForallWrap<3>(Device::Backends(), true, N,            \
+   ForallWrap<3>(true,N,                                 \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
                  X,Y,Z,G)
@@ -90,7 +90,7 @@ const int MAX_Q1D = 14;
 // example the functions in vector.cpp, where we don't want to use the mfem
 // device for operations on small vectors.
 #define MFEM_FORALL_SWITCH(use_dev,i,N,...)              \
-   ForallWrap<1>(Device::Backends(), use_dev, N,         \
+   ForallWrap<1>(use_dev,N,                              \
                  [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
 
@@ -555,8 +555,8 @@ struct HipWrap<3>
 
 /// The forall kernel body wrapper
 template <const int DIM, typename DBODY, typename HBODY>
-inline void ForallWrap(const unsigned long backends, const bool use_dev,
-                       const int N, DBODY &&d_body, HBODY &&h_body,
+inline void ForallWrap(const bool use_dev, const int N,
+                       DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
@@ -569,7 +569,7 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // If Backend::RAJA_CUDA is allowed, use it
-   if (backends & Backend::RAJA_CUDA)
+   if (Device::Allows(Backend::RAJA_CUDA))
    {
       return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
@@ -577,7 +577,7 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
    // If Backend::RAJA_HIP is allowed, use it
-   if (backends & Backend::RAJA_HIP)
+   if (Device::Allows(Backend::RAJA_HIP))
    {
       return RajaHipWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
@@ -585,7 +585,7 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
 
 #ifdef MFEM_USE_CUDA
    // If Backend::CUDA is allowed, use it
-   if (backends & Backend::CUDA)
+   if (Device::Allows(Backend::CUDA))
    {
       return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
@@ -593,28 +593,28 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
 
 #ifdef MFEM_USE_HIP
    // If Backend::HIP is allowed, use it
-   if (backends & Backend::HIP)
+   if (Device::Allows(Backend::HIP))
    {
       return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
    // If Backend::DEBUG_DEVICE is allowed, use it
-   if (backends & Backend::DEBUG_DEVICE) { goto backend_cpu; }
+   if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // If Backend::RAJA_OMP is allowed, use it
-   if (backends & Backend::RAJA_OMP) { return RajaOmpWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_OPENMP
    // If Backend::OMP is allowed, use it
-   if (backends & Backend::OMP) { return OmpWrap(N, h_body); }
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_RAJA
    // If Backend::RAJA_CPU is allowed, use it
-   if (backends & Backend::RAJA_CPU) { return RajaSeqWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 #endif
 
 backend_cpu:

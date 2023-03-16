@@ -15,7 +15,7 @@
 
 #include "catch.hpp"
 
-#include "general/jit/jit.hpp"// for MFEM_JIT
+#include "general/jit/jit.hpp" // for MFEM_JIT
 
 using namespace mfem;
 
@@ -23,7 +23,7 @@ namespace mjit_tests
 {
 
 MFEM_JIT template <int T_A = 0>
-static void A(int *r, int a) { *r = a; }
+static void A(int *r, int a)/**/ { *r = a; }
 
 MFEM_JIT template <int T_B = 0>
 static void B(int *r, int b = 0) { *r = b; }
