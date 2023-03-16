@@ -1839,88 +1839,35 @@ void NURBSExtension::ConnectBoundaries()
    }
    if (master.Size() == 0 ) { return; }
 
-   // Connect
+   // Initialize d_to_d
    d_to_d.SetSize(NumOfDofs);
    for (int i = 0; i < NumOfDofs; i++) { d_to_d[i] = i; }
 
+   // Connect
    for (int i = 0; i < master.Size(); i++)
    {
+      int bnd0 = -1, bnd1 = -1;
+      for (int b = 0; b < GetNBP(); b++)
+      {
+         if (master[i] == patchTopo->GetBdrAttribute(b)) { bnd0 = b; }
+         if (slave[i]== patchTopo->GetBdrAttribute(b)) { bnd1  = b; }
+      }
+      MFEM_VERIFY(bnd0  != -1,"Bdr 0 not found");
+      MFEM_VERIFY(bnd1  != -1,"Bdr 1 not found");
+
       if (Dimension() == 1)
       {
-         ConnectBoundaries1D(master[i], slave[i]);
+         ConnectBoundaries1D(bnd0, bnd1);
       }
       else if (Dimension() == 2)
       {
-         ConnectBoundaries2D(master[i], slave[i]);
+         ConnectBoundaries2D(bnd0, bnd1);
       }
       else
       {
-         ConnectBoundaries3D(master[i], slave[i]);
+         ConnectBoundaries3D(bnd0, bnd1);
       }
    }
-
-   // Finalize
-   if (el_dof) { delete el_dof; }
-   if (bel_dof) { delete bel_dof; }
-   GenerateElementDofTable();
-   GenerateBdrElementDofTable();
-}
-
-void NURBSExtension::ConnectBoundaries1D(int bnd0, int bnd1)
-{
-   /*  int idx0 = -1, idx1 = -1;
-     for (int b = 0; b < GetNBP(); b++)
-     {
-        if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
-        if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
-     }*/
-
-   mfem_error("NURBSExtension::ConnectBoundaries1D not implemented");
-   /*   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
-      MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
-
-      NURBSPatchMap p2g0(this);
-      NURBSPatchMap p2g1(this);
-
-      int okv0[1],okv1[1];
-      const KnotVector *kv0[1],*kv1[1];
-
-      p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
-      p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
-
-      int nx = p2g0.nx();
-      int nks0 = kv0[0]->GetNKS();
-
-   #ifdef MFEM_DEBUG
-      bool compatible = true;
-      if (p2g0.nx() != p2g1.nx()) { compatible = false; }
-      if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
-      if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
-
-      if (!compatible)
-      {
-         mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
-         mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
-         mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
-         mfem_error("NURBS boundaries not compatible");
-      }
-   #endif
-
-      for (int i = 0; i < nks0; i++)
-      {
-         if (kv0[0]->isElement(i))
-         {
-            if (!kv1[0]->isElement(i)) { mfem_error("isElement does not match"); }
-            for (int ii = 0; ii <= kv0[0]->GetOrder(); ii++)
-            {
-               int ii0 = (okv0[0] >= 0) ? (i+ii) : (nx-i-ii);
-               int ii1 = (okv1[0] >= 0) ? (i+ii) : (nx-i-ii);
-
-               d_to_d[p2g0(ii0)] = d_to_d[p2g1(ii1)];
-            }
-
-         }
-      }*/
 
    // Clean d_to_d
    Array<int> tmp(d_to_d.Size()+1);
@@ -1942,27 +1889,38 @@ void NURBSExtension::ConnectBoundaries1D(int bnd0, int bnd1)
    {
       d_to_d[i] = tmp[d_to_d[i]];
    }
+
+   // Finalize
+   if (el_dof) { delete el_dof; }
+   if (bel_dof) { delete bel_dof; }
+   GenerateElementDofTable();
+   GenerateBdrElementDofTable();
 }
 
-void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
+void NURBSExtension::ConnectBoundaries1D(int bnd0, int bnd1)
 {
-   int idx0 = -1, idx1 = -1;
-   for (int b = 0; b < GetNBP(); b++)
-   {
-      if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
-      if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
-   }
-   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
-   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
-
    NURBSPatchMap p2g0(this);
    NURBSPatchMap p2g1(this);
 
    int okv0[1],okv1[1];
    const KnotVector *kv0[1],*kv1[1];
 
-   p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
-   p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
+   p2g0.SetBdrPatchDofMap(bnd0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(bnd1, kv1, okv1);
+
+   d_to_d[p2g0(0)] = d_to_d[p2g1(0)];
+}
+
+void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
+{
+   NURBSPatchMap p2g0(this);
+   NURBSPatchMap p2g1(this);
+
+   int okv0[1],okv1[1];
+   const KnotVector *kv0[1],*kv1[1];
+
+   p2g0.SetBdrPatchDofMap(bnd0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(bnd1, kv1, okv1);
 
    int nx = p2g0.nx();
    int nks0 = kv0[0]->GetNKS();
@@ -1997,48 +1955,18 @@ void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
 
       }
    }
-
-   // Clean d_to_d
-   Array<int> tmp(d_to_d.Size()+1);
-   tmp = 0;
-
-   for (int i = 0; i < d_to_d.Size(); i++)
-   {
-      tmp[d_to_d[i]] = 1;
-   }
-
-   int cnt = 0;
-   for (int i = 0; i < tmp.Size(); i++)
-   {
-      if (tmp[i] == 1) { tmp[i] = cnt++; }
-   }
-   NumOfDofs = cnt;
-
-   for (int i = 0; i < d_to_d.Size(); i++)
-   {
-      d_to_d[i] = tmp[d_to_d[i]];
-   }
 }
 
 void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
 {
-   int idx0 = -1, idx1 = -1;
-   for (int b = 0; b < GetNBP(); b++)
-   {
-      if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
-      if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
-   }
-   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
-   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
-
    NURBSPatchMap p2g0(this);
    NURBSPatchMap p2g1(this);
 
    int okv0[2],okv1[2];
    const KnotVector *kv0[2],*kv1[2];
 
-   p2g0.SetBdrPatchDofMap(idx0, kv0, okv0);
-   p2g1.SetBdrPatchDofMap(idx1, kv1, okv1);
+   p2g0.SetBdrPatchDofMap(bnd0, kv0, okv0);
+   p2g1.SetBdrPatchDofMap(bnd1, kv1, okv1);
 
    int nx = p2g0.nx();
    int ny = p2g0.ny();
@@ -2097,27 +2025,6 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
             }
          }
       }
-   }
-
-   // Clean d_to_d
-   Array<int> tmp(d_to_d.Size()+1);
-   tmp = 0;
-
-   for (int i = 0; i < d_to_d.Size(); i++)
-   {
-      tmp[d_to_d[i]] = 1;
-   }
-
-   int cnt = 0;
-   for (int i = 0; i < tmp.Size(); i++)
-   {
-      if (tmp[i] == 1) { tmp[i] = cnt++; }
-   }
-   NumOfDofs = cnt;
-
-   for (int i = 0; i < d_to_d.Size(); i++)
-   {
-      d_to_d[i] = tmp[d_to_d[i]];
    }
 }
 
