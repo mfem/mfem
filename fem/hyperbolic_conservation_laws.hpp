@@ -340,7 +340,8 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   void ComputeInvMass();
 
   void Update() {
-    z.SetSize(vfes->GetNDofs() * num_equations);
+    nonlinearForm.Update();
+    z.SetSize(nonlinearForm.Height());
     width = z.Size();
     height = width;
     ComputeInvMass();
@@ -371,7 +372,7 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   virtual void Mult(const Vector &x, Vector &y) const;
 
   void pRefine(const Array<int> orders, GridFunction &sol,
-               const PRefineType pRefineType = PRefineType::elevation);
+               const PRefineType pRefineType = PRefineType::elevation, mfem::socketstream *sout=nullptr);
   // get global maximum characteristic speed to be used in CFL condition
   // where max_char_speed is updated during Mult.
   inline double getMaxCharSpeed() { return max_char_speed; }
@@ -437,7 +438,7 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
  */
 void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
                                            GridFunction &sol,
-                                           const PRefineType pRefineType) {
+                                           const PRefineType pRefineType, mfem::socketstream *sout) {
   Mesh *mesh = vfes->GetMesh();
   mesh->EnsureNCMesh();  // Variable order needs nonconforming mesh
   const int numElem = mesh->GetNE();
@@ -447,32 +448,31 @@ void DGHyperbolicConservationLaws::pRefine(const Array<int> orders,
   switch (pRefineType) {
     case PRefineType::elevation:
       for (int i = 0; i < numElem; i++) {
+        const int order = vfes->GetElementOrder(i) + orders[i];
+        MFEM_VERIFY(order >= 0, "Order should be non-negative.");
         vfes->SetElementOrder(i, vfes->GetElementOrder(i) + orders[i]);
       }
       break;
     case PRefineType::set:
+      MFEM_VERIFY(orders.Min() >= 0, "Order should be non-negative.");
       for (int i = 0; i < numElem; i++) {
         vfes->SetElementOrder(i, orders[i]);
       }
+      break;
+    default:
+      mfem_error("Undefined PRefineType.");
   }
+
   vfes->Update(false);  // p-refine transfer matrix is not provided.
 
-  PRefinementTransferOperator *T =
-      new PRefinementTransferOperator(old_vfes, *vfes);
-  GridFunction new_sol(sol);
-  T->Mult(sol, new_sol);
-  delete T;
-
+  PRefinementTransferOperator T(old_vfes, *vfes);
+  GridFunction new_sol(vfes);
+  T.Mult(sol, new_sol);
+  // sol.Update();
   sol = new_sol;
-  vfes->UpdatesFinished();
-  
+  *sout << "solution\n" << *mesh << sol << flush;
+
   Update();
-}
-
-
-  width = nonlinearForm.Width();
-  height = nonlinearForm.Height();
-  z.SetSize(height);
 }
 
 void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const {

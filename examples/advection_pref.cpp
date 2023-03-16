@@ -224,9 +224,6 @@ int main(int argc, char *argv[]) {
     double dt_real = min(dt, t_final - t);
 
     ode_solver->Step(sol, t, dt_real);
-    if (cfl > 0) {
-      dt = cfl * hmin / advection.getMaxCharSpeed() / (2 * order + 1);
-    }
     ti++;
 
     done = (t >= t_final - 1e-8 * dt);
@@ -236,27 +233,35 @@ int main(int argc, char *argv[]) {
         sout << "solution\n" << *mesh << sol << flush;
       }
     }
-
-    Vector errors = estimator.GetLocalErrors();
-    const double max_val = errors.Max();
-    const double min_val = errors.Min();
-    const double upperbound = max_val * 0.7 + min_val * 0.3;
-    const double lowerbound = max_val * 0.3 + min_val * 0.7;
-    const double numElem = mesh->GetNE();
-    for (int i = 0; i < numElem; i++) {
-      const double localError = errors(i);
-      orders[i] = localError > upperbound   ? 1
-                  : localError < lowerbound ? -1
-                                            : 0;
-      if (fes->GetElementOrder(i) == 0 && orders[i] < 0) {
-        orders[i] = 0;
-      }
+    // MFEM_VERIFY(advection.Height() == sol.Size(), "Size mismatch... debug
+    // needed");
+    ode_solver->Init(advection);
+    if (cfl > 0) {
+      const int max_order = fes->GetMaxElementOrder();
+      cout << "Maximum order: " << max_order << endl;
+      dt = cfl * hmin / advection.getMaxCharSpeed() /
+           (2 * fes->GetMaxElementOrder() + 1);
     }
-    advection.pRefine(orders, sol);
   }
 
   tic_toc.Stop();
   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+
+  Vector errors = estimator.GetLocalErrors();
+  const double max_val = errors.Max();
+  const double min_val = errors.Min();
+  const double upperbound = max_val * 0.7 + min_val * 0.3;
+  const double lowerbound = max_val * 0.3 + min_val * 0.7;
+  const double numElem = mesh->GetNE();
+  orders.SetSize(numElem);
+  for (int i = 0; i < numElem; i++) {
+    const double localError = errors(i);
+    orders[i] = localError > upperbound   ? order + 1
+                : localError < lowerbound ? order - 1
+                                          : order;
+  }
+  advection.pRefine(orders, sol, PRefineType::set, &sout);
+  // sout << "solution\n" << *mesh << sol << flush;
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
   //    "glvis -m advection.mesh -g advection-1-final.gf".
