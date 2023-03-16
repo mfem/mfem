@@ -57,6 +57,8 @@ int main(int argc, char *argv[]) {
   bool visualization = true;
   int vis_steps = 50;
 
+  int refinement_mode = 1; // 0: no-refine, 1: h-refine, 2: p-refine.
+
   int precision = 8;
   cout.precision(precision);
 
@@ -81,6 +83,10 @@ int main(int argc, char *argv[]) {
                  "Enable or disable GLVis visualization.");
   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                  "Visualize every n-th timestep.");
+  args.AddOption(&refinement_mode, "-rm", "--refinement-mode",
+                 "Refinement mode. 0 - no-refine\n"
+                 "                 1 - h-refine\n"
+                 "                 2 - p-refine");
 
   args.Parse();
   if (!args.Good()) {
