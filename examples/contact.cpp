@@ -3,6 +3,7 @@
 // Compile with: make contact
 //
 // Sample runs:  ./contact -m1 block1.mesh -m2 block2.mesh -at "5 6 7 8"
+// Sample runs:  ./contact -m1 block1_d.mesh -m2 block2_d.mesh -at "5 6 7 8"
 
 #include "mfem.hpp"
 #include <fstream>
@@ -131,7 +132,11 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
 
    //FindPointsGSLIB finder(MPI_COMM_WORLD);
    FindPointsGSLIB finder;
-   finder.Setup(mesh);
+
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(0.5);
+
+   const double bb_t = 0.5;
+   finder.Setup(mesh, bb_t);
 
    finder.FindPoints(xyz);
 
@@ -243,7 +248,6 @@ int main(int argc, char *argv[])
 
    const int dim = mesh1.Dimension();
    MFEM_VERIFY(dim == mesh2.Dimension(), "");
-
 
    //  Define a finite element space on the mesh. Here we use vector finite
    //  elements, i.e. dim copies of a scalar finite element space. The vector
