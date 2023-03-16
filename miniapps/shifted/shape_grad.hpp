@@ -4,43 +4,6 @@
 
 #include "mfem.hpp"
 
-namespace mfem{
-
-class SegmentIntegrationRule
-{
-public:
-    SegmentIntegrationRule(int order, const FiniteElement &el,
-                         ElementTransformation& Tr, Vector& lsfun)
-    {
-        if(el.GetGeomType()!=Geometry::SEGMENT){
-            MFEM_ABORT("SegmentIntegrationRule expect FiniteElement with GeometryType==Geometry::SEGMENT.");
-        }
-
-        const int ndof=el.GetDof();
-        Vector sh(ndof);
-
-    }
-
-    const IntegrationRule* GetIntegrationRule()
-    {
-        return mr;
-    }
-
-    ~SegmentIntegrationRule()
-    {
-        delete lr;
-    }
-
-private:
-    const IntegrationRule* mr;
-    IntegrationRule* lr;
-};
-
-
-
-}
-
-
 #ifdef MFEM_USE_ALGOIM
 namespace mfem{
 

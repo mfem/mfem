@@ -766,6 +766,178 @@ private:
     YoungModulus* Ecoef;
 };
 
+#ifdef MFEM_USE_ALGOIM
+
+class VolObjCutIntegrator:public NonlinearFormIntegrator{
+public:
+    VolObjCutIntegrator()
+    {
+        coef=nullptr;
+    }
+
+    ~VolObjCutIntegrator()
+    {
+
+    }
+
+    void SetCoeff(Coefficient* coef_)
+    {
+        coef=coef_;
+    }
+
+    void SetCutIntegrationRules(Array<int>& el_markers_, CutIntegrationRules* cut_int_)
+    {
+        marks=&el_markers_;
+        cut_int=cut_int_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun)
+    {
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::OUTSIDE){
+            return 0.0;
+        }
+
+        const IntegrationRule *ir = nullptr;
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::INSIDE)
+        {
+            int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);//this might be too big
+            ir=&IntRules.Get(Tr.GetGeometryType(),order);
+        }
+        else
+        {
+            ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+        }
+
+        double w;
+        double energy=0.0;
+        double mass;
+        for(int i=0; i<ir->GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            w=Tr.Weight();
+            w = ip.weight * w;
+            mass=coef->Eval(Tr,ip);
+            energy=energy+w*mass;
+        }
+
+        return energy;
+
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndof = el.GetDof();
+
+        elvect.SetSize(ndof); elvect=0.0;
+
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::OUTSIDE){
+            return;
+        }
+
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::INSIDE){
+            return;
+        }
+
+        //cut element
+
+        const IntegrationRule *ir = nullptr;
+        ir=cut_int->GetSurfIntegrationRule(Tr.ElementNo);
+
+        double w;
+        double f;
+        Vector shf(ndof);
+
+        for (int j = 0; j < ir->GetNPoints(); j++)
+        {
+           const IntegrationPoint &ip = ir->IntPoint(j);
+           w=ip.weight;
+           f=coef->Eval(Tr,ip);
+           el.CalcPhysShape(Tr,shf);
+           elvect.Add(w * f , shf);
+        }
+    }
+
+    virtual
+    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, DenseMatrix &elmat)
+    {
+        int ndof = el.GetDof();
+        elmat.SetSize(ndof); elmat=0.0;
+        return;
+    }
+
+
+private:
+    Coefficient* coef;
+    CutIntegrationRules* cut_int;
+    Array<int>* marks;
+};
+
+class VolObjectiveCut
+{
+
+public:
+    VolObjectiveCut():volw(1)
+    {
+        volc=&volw;
+        nf=nullptr;
+
+    }
+
+    ~VolObjectiveCut()
+    {
+        delete nf;
+    }
+
+    void SetCutIntegrationRules(Array<int>& el_markers_, CutIntegrationRules* cut_int_)
+    {
+        marks=&el_markers_;
+        cut_int=cut_int_;
+    }
+
+
+    void SetWeight(Coefficient* coeff){
+        volc=coeff;
+    }
+
+    double Eval(ParGridFunction& lsf){
+        if(nf==nullptr){//allocate the nonlinear form
+            nf=new ParNonlinearForm(lsf.ParFESpace());
+            itgr=new VolObjCutIntegrator();
+            itgr->SetCoeff(volc);
+            itgr->SetCutIntegrationRules(*marks,cut_int);
+            nf->AddDomainIntegrator(itgr);
+        }
+
+        return nf->GetEnergy(lsf.GetTrueVector());
+
+    }
+
+    void Grad(ParGridFunction& lsf, Vector& grad){
+        grad.SetSize(lsf.GetTrueVector().Size());
+        nf->Mult(lsf.GetTrueVector(),grad);
+    }
+
+private:
+    ConstantCoefficient volw; //volume weight
+    Coefficient* volc; //points either to volw or to user supplied coefficient
+
+    CutIntegrationRules* cut_int;
+    Array<int>* marks;
+
+    ParNonlinearForm* nf;
+    VolObjCutIntegrator* itgr;
+
+
+};
+
+#endif
+
 
 
 class ComplianceObjective
