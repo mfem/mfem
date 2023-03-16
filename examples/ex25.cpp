@@ -469,7 +469,7 @@ int main(int argc, char *argv[])
 
       Operator *pc_r = nullptr;
       Operator *pc_i = nullptr;
-      int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
+      double s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
       if (pa)
       {
          // Jacobi Smoother
