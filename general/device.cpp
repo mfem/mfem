@@ -69,6 +69,7 @@ bool Device::mem_types_set = false;
 
 Device::Device()
 {
+   std::cout << "\033[36m[Device]" << "\033[m" << std::ends;
    if (getenv("MFEM_MEMORY") && !mem_host_env && !mem_device_env)
    {
       std::string mem_backend(getenv("MFEM_MEMORY"));
@@ -147,6 +148,7 @@ Device::Device()
 
 Device::~Device()
 {
+   std::cout << "\033[36m[~Device]\033[m" << std::ends;
    if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {

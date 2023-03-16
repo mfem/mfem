@@ -18,6 +18,9 @@
 
 #ifdef MFEM_USE_JIT
 
+#include <utility> // pair
+#include <vector>
+#include <string>
 #include <iomanip> // setfill
 #include <sstream>
 #include <iostream>
@@ -59,6 +62,11 @@ struct Jit
     *  root rank during Jit::Finalize().
     **/
    static void Configure(const char *name, const char *path, bool keep = true);
+
+   static void AddDefine(const char *def, const char *val = nullptr);
+   static void AddInclude(const char *inc);
+   static std::string Defines();
+   static std::string Includes();
 
    /// @brief Variadic hash combine function.
    template<typename T, typename... Args> static inline

@@ -369,18 +369,9 @@ struct Parser
       ker.advance(); // Prefix => Body
 
       ker.src << "\n\tconst char *source = R\"_(";
-#warning can this be avoided now with fPIC?
-      // defining 'MFEM_JIT_COMPILATION' to avoid:
-      //   - MFEM_GPU_CHECK in cuda.hpp
-      //   - HYPRE_config.h in mem_manager.hpp
-#warning fem general linalg headers
-      ker.src << "\n#define MFEM_JIT_COMPILATION"
-              << "\n#include \"general/forall.hpp\""
-              << "\n#include \"linalg/dinvariants.hpp\""
-              << "\n#include \"fem/kernels.hpp\""
-              << "\n#include \"linalg/kernels.hpp\""
-              << "\n#include \"fem/bilininteg_mass_pa.hpp\"";
-      ker.src << "\n#include \"general/jit/jit.hpp\""; // for Hash, Find
+      // can't do this here as libmfem does not live yet
+      //ker.src << mfem::Jit::Defines().c_str();
+      //ker.src << mfem::Jit::Includes().c_str();
       ker.src << "\nusing namespace mfem;";
       ker.src << "\ntemplate<" << ker.Tparams << ">";
       ker.src << "\nvoid " << ker.name << "_%016lx"

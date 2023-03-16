@@ -15,9 +15,6 @@
 #include "../config/config.hpp"
 #include <iomanip>
 #include <sstream>
-#ifdef MFEM_JIT_COMPILATION
-#include <iostream> // for std::cout
-#endif
 #ifdef MFEM_USE_HIP
 #include <hip/hip_runtime.h>
 #endif
@@ -87,7 +84,6 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
    "\n ... in file: " << __FILE__ << ':' << __LINE__ << '\n'
 
 // Common error message and abort macro
-#ifndef MFEM_JIT_COMPILATION
 #define _MFEM_MESSAGE(msg, warn)                                        \
    {                                                                    \
       std::ostringstream mfemMsgStream;                                 \
@@ -99,17 +95,6 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
       else                                                              \
          mfem::mfem_warning(mfemMsgStream.str().c_str());               \
    }
-#else
-#define _MFEM_MESSAGE(msg, warn)                                        \
-   {                                                                    \
-      static std::ostringstream mfemMsgStream;                          \
-      mfemMsgStream << std::setprecision(16);                           \
-      mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
-      mfemMsgStream << msg << MFEM_LOCATION;                            \
-      if (mfemMsgStream.str().c_str())                                  \
-         std::cout << mfemMsgStream.str().c_str() << std::endl;         \
-   }
-#endif
 
 // Outputs lots of useful information and aborts.
 // For all of these functions, "msg" is pushed to an ostream, so you can

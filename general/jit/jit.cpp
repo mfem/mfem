@@ -13,7 +13,6 @@
 
 #ifdef MFEM_USE_JIT
 #include "../communication.hpp"
-#include "../globals.hpp"
 #include "../error.hpp"
 #include "jit.hpp"
 
@@ -22,6 +21,7 @@
 #include <thread> // sleep_for
 #include <chrono> // (milli) seconds
 
+#include <cassert>
 #include <cstring> // strlen
 #include <cstdlib> // exit, system
 #include <dlfcn.h> // dlopen/dlsym, not available on Windows
@@ -209,6 +209,7 @@ static int Bcast(int value)
 
 class System // System singleton object
 {
+private:
    pid_t pid; // of the child process
    int *s_ack, rank; // shared status, must be able to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
@@ -216,6 +217,8 @@ class System // System singleton object
    std::string path {"."}; // default cache path
    std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit." MFEM_SO_EXT};
    bool keep_cache = true; // option to keep the lib_ar cache library
+   std::vector<std::pair<std::string,std::string>> defines;
+   std::vector<std::string> includes;
 
    struct Command // convenient system command builder & cast
    {
@@ -267,11 +270,31 @@ class System // System singleton object
       return EXIT_SUCCESS;
    }
 
-   static System singleton;
+   static MFEM_EXPORT System singleton;
+   System(System const&) = delete;
+   void operator=(System const&) = delete;
+public:
    static System& Get() { return singleton; }
+
+private:
+
+   System() // at each dlopen, local to the shared executable
+   {
+      std::cout << "\033[33m[System]" << "\033[m" << std::ends;
+
+      AddInclude("general/jit/jit.hpp"); // for Hash, Find
+      AddInclude("general/forall.hpp"); // default for all?
+
+      // these includes should be added closer to the jitted kernels
+      AddInclude("fem/kernels.hpp");
+      AddInclude("linalg/kernels.hpp");
+      AddInclude("linalg/dinvariants.hpp"); // for tmop
+      AddInclude("fem/bilininteg_mass_pa.hpp"); // for mass
+   }
 
    ~System() // warning: can't use mpi::Root here
    {
+      std::cout << "\033[33m[~System]\033[m" << std::ends;
       if (!Get().keep_cache && Rank()==0 && io::Exists(Lib_ar()))
       {
          std::remove(Lib_ar());
@@ -303,6 +326,7 @@ public:
    /// @brief Initialize JIT, used in the MPI communication singleton.
    static void Init(int *argc, char ***argv)
    {
+      std::cout << "\033[34m[System] Init" << "\033[m" << std::ends;
       MFEM_VERIFY(!mpi::IsInitialized(), "[JIT] MPI already initialized!");
       const int env_rank = mpi::EnvRank(); // first env rank is sought for
       if (env_rank >= 0)
@@ -368,6 +392,7 @@ public:
     **/
    static void Configure(const char *name, const char *path, bool keep)
    {
+      assert(false);
       Get().path = path;
       Get().keep_cache = keep;
       Get().rank = mpi::Rank();
@@ -390,6 +415,53 @@ public:
 
       const char *so_ext = "" MFEM_SO_EXT; // declared on the compile line
       Get().lib_so = create_full_path(so_ext);
+   }
+
+   /**
+    * @brief AddExtraDefine
+    * @param define
+    * @param value
+    */
+   static void AddDefine(const char *define, const char *value)
+   {
+      Get().defines.push_back(std::make_pair(define, value));
+   }
+   static void AddDefine(const char *define) { AddDefine(define, ""); }
+
+   /**
+    * @brief AddExtraInclude
+    * @param include
+    */
+   static void AddInclude(const char *include)
+   {
+      Get().includes.push_back(include);
+   }
+
+   static std::string Includes()
+   {
+      std::string includes;
+      for (auto inc: Get().includes)
+      {
+         includes += "-include \"";
+         includes += inc;
+         includes += "\" ";
+      }
+      return includes;
+   }
+
+   static std::string Defines()
+   {
+      std::string defines;
+      for (auto def: Get().defines)
+      {
+         defines += "-D";
+         defines += def.first;
+         if (def.second.empty()) { continue; }
+         defines += "=";
+         defines += def.second;
+         defines += " ";
+      }
+      return defines;
    }
 
    static std::string Xlinker() { return "" MFEM_XLINKER; }
@@ -421,7 +493,7 @@ public:
    static void *DLopen(const char *path)
    {
       void *handle = ::dlopen(path, (Debug()?RTLD_NOW:RTLD_LAZY)|RTLD_LOCAL);
-      //void *handle = ::dlopen(path, RTLD_NOW | RTLD_LOCAL); // RTLD_GLOBAL
+      //void *handle = ::dlopen(path, RTLD_NOW | RTLD_GLOBAL); // RTLD_GLOBAL
       return (DLerror(), handle);
    }
 
@@ -499,6 +571,8 @@ public:
 #endif
                             << "-I" << MFEM_INSTALL_DIR "/include/mfem"
                             << "-I" << MFEM_SOURCE_DIR
+                            << Defines().c_str()
+                            << Includes().c_str()
                             << "-c" << "-o" << co << cc;
                   if (Call(name)) { return EXIT_FAILURE; }
                   if (!Debug()) { std::remove(cc.c_str()); }
@@ -521,7 +595,7 @@ public:
                             << Xprefix() << Lib_ar() << Xpostfix()
                             << Xlinker() + lib_rpath.c_str() << libs
 #ifdef __APPLE__
-                            << lib_mfem.c_str()
+                            //<< lib_mfem.c_str()
 #endif
                             ;
                   if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
@@ -561,7 +635,7 @@ public:
       return kernel;
    }
 };
-System System::singleton {}; // Initialize the unique System context.
+System System::singleton; // Initialize the unique global System variable.
 
 } // namespace jit
 
@@ -569,20 +643,28 @@ System System::singleton {}; // Initialize the unique System context.
 
 using namespace internal::jit;
 
-void Jit::Init(int *argc, char ***argv) { System::Init(argc, argv); }
+void Jit::Init(int *argc, char ***argv) { System::Get().Init(argc, argv); }
 
 void Jit::Configure(const char *name, const char *path, bool keep)
 {
-   System::Configure(name, path, keep);
+   System::Get().Configure(name, path, keep);
 }
 
-void Jit::Finalize() { System::Finalize(); }
+void Jit::AddDefine(const char *d, const char *v) { System::Get().AddDefine(d, v); }
+
+void Jit::AddInclude(const char *inc) { System::Get().AddInclude(inc); }
+
+std::string Jit::Defines() { return System::Get().Defines(); }
+
+std::string Jit::Includes() { return System::Get().Includes(); }
+
+void Jit::Finalize() { System::Get().Finalize(); }
 
 void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
                   const char *source, const char *symbol)
 {
-   return System::Lookup(hash, name, cxx, flags, link, libs, source, symbol);
+   return System::Get().Lookup(hash, name, cxx, flags, link, libs, source, symbol);
 }
 
 } // namespace mfem

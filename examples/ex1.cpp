@@ -73,6 +73,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   mfem::out << "\033[32m[main]" << "\033[m" << std::ends;
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
