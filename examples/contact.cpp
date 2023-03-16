@@ -13,7 +13,8 @@
 using namespace std;
 using namespace mfem;
 
-Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref)
+Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
+                       int & refFace, int & refNormal)
 {
    ElementTransformation *trans = mesh.GetElementTransformation(elem);
    const int dim = mesh.Dimension();
@@ -59,8 +60,25 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref)
    }
 
    MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
+   refNormal = dimNormal;
 
    MFEM_VERIFY(dim == 3, "");
+
+   {
+      // Find the reference face
+      if (dimNormal == 0)
+      {
+         refFace = (normalSide == 1) ? 2 : 4;
+      }
+      else if (dimNormal == 1)
+      {
+         refFace = (normalSide == 1) ? 3 : 1;
+      }
+      else
+      {
+         refFace = (normalSide == 1) ? 5 : 0;
+      }
+   }
 
    std::vector<Vector> tang(2);
 
@@ -117,6 +135,47 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref)
    }
 
    return n;
+}
+
+// WARNING: global variable, just for this little example.
+std::array<std::array<int, 3>, 8> HEX_VERT =
+{
+   {  {0,0,0},
+      {1,0,0},
+      {1,1,0},
+      {0,1,0},
+      {0,0,1},
+      {1,0,1},
+      {1,1,1},
+      {0,1,1}
+   }
+};
+
+int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
+{
+   int ref[3];
+   ref[cdim] = c;
+   ref[cdim == 0 ? 1 : 0] = fa;
+   ref[cdim == 2 ? 1 : 2] = fb;
+
+   for (int i=0; i<3; ++i) { refCrd[i] = ref[i]; }
+
+   int refv = -1;
+
+   for (int i=0; i<8; ++i)
+   {
+      bool match = true;
+      for (int j=0; j<3; ++j)
+      {
+         if (ref[j] != HEX_VERT[i][j]) { match = false; }
+      }
+
+      if (match) { refv = i; }
+   }
+
+   MFEM_VERIFY(refv >= 0, "");
+
+   return refv;
 }
 
 // Coordinates in xyz are assumed to be ordered as [X, Y, Z]
@@ -206,7 +265,43 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
          }
       }
 
-      Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim));
+      int refFace, refNormal, refNormalSide;
+      Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim),
+                                      refFace, refNormal);
+
+      Vector faceRefCrd(dim-1);
+      {
+         int fd = 0;
+         for (int j=0; j<dim; ++j)
+         {
+            if (j == refNormal)
+            {
+               refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+            }
+            else
+            {
+               faceRefCrd[fd] = refcrd[(i*dim) + j];
+               fd++;
+            }
+         }
+
+         MFEM_VERIFY(fd == dim-1, "");
+      }
+
+      cout << "  face reference coordinates: (";
+      for (int j=0; j<dim-1; ++j)
+      {
+         cout << faceRefCrd[j];
+         if (j == dim-2)
+         {
+            cout << ")" << endl;
+         }
+         else
+         {
+            cout << ", ";
+         }
+      }
+
       cout << "  normal vector: ";
       normal.Print();
 
@@ -217,6 +312,43 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
       trans->Transform(ip, phys);
       cout << "  physical coordinates: ";
       phys.Print();
+
+      // Get the element face
+      Array<int> faces;
+      Array<int> ori;
+      mesh.GetElementFaces(elems[i], faces, ori);
+
+      const int face = faces[refFace];
+
+      Array<int> faceVert;
+      mesh.GetFaceVertices(face, faceVert);
+
+      cout << "  face " << face << " vertices:" << endl;
+      for (auto v : faceVert)
+      {
+         cout << "    " << v << endl;
+      }
+
+      Vector ref(dim);
+      for (int p=0; p<2; ++p)
+         for (int q=0; q<2; ++q)
+         {
+            const int refv = GetHexVertex(refNormal, refNormalSide, p, q, ref);
+            cout << "  face reference vertex (" << p << "," << q
+                 << ") is global vertex " << vert[refv] << endl;
+
+            {
+               // Sanity check
+               ip.Set(ref.GetData(), dim);
+               trans->Transform(ip, phys);
+               for (int j=0; j<dim; ++j)
+               {
+                  phys[j] -= mesh.GetVertex(vert[refv])[j];
+               }
+
+               MFEM_VERIFY(phys.Norml2() < 1.0e-12, "Sanity check failed");
+            }
+         }
    }
 }
 
@@ -257,13 +389,13 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace1;
    fec1 = new H1_FECollection(1, dim);
    fespace1 = new FiniteElementSpace(&mesh1, fec1, dim);
-   cout << "Number of finite element unknowns for mesh1: " << fespace1->GetTrueVSize()
-        << endl;
+   cout << "Number of finite element unknowns for mesh1: "
+        << fespace1->GetTrueVSize() << endl;
 
    FiniteElementCollection *fec2 = new H1_FECollection(1, dim);
    FiniteElementSpace *fespace2 = new FiniteElementSpace(&mesh2, fec2, dim);
-   cout << "Number of finite element unknowns for mesh2: " << fespace2->GetTrueVSize()
-        << endl;
+   cout << "Number of finite element unknowns for mesh2: "
+        << fespace2->GetTrueVSize() << endl;
 
    // Determine the list of true (i.e. conforming) essential boundary dofs.
    // In this example, the boundary conditions are defined by marking only
@@ -271,13 +403,13 @@ int main(int argc, char *argv[])
    // list of true dofs.
    Array<int> ess_tdof_list1, ess_bdr1(mesh1.bdr_attributes.Max());
    ess_bdr1 = 0;
-   ess_bdr1[0] = 1; 
+   ess_bdr1[0] = 1;
    // Not ready to be passed on yet
    // fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    Array<int> ess_tdof_list2, ess_bdr2(mesh2.bdr_attributes.Max());
-   ess_bdr2 = 0; 
-   ess_bdr2[0] = 1; 
+   ess_bdr2 = 0;
+   ess_bdr2[0] = 1;
 
    // Define the displacement vector x as a finite element grid function
    // corresponding to fespace. Initialize x with initial guess of zero.
@@ -348,7 +480,7 @@ int main(int argc, char *argv[])
    coords2(2,0) = 0.041207251768282; coords2(2,1) = 1.012615442973163; coords2(2,2) =  1.012615442973163;
    coords2(3,0) =0.040247874087262; coords2(3,1) = 0.670855581724106;  coords2(3,2) =  1.012958013114749;
 
-   double gap = 0.; Vector dg(15); dg = 0.0; 
+   double gap = 0.; Vector dg(15); dg = 0.0;
    DenseMatrix d2g;
    NodeSegConPairs(x1, xi, coords2, gap, dg, d2g);
    cout << gap <<endl;
