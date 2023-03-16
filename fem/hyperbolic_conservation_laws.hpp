@@ -503,7 +503,7 @@ void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol,
       pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
   const double upper_bound = exp(mean + z * pow(sigma / logErrors.Size(), 0.5));
   Mesh *mesh = vfes->GetMesh();
-  mesh->RefineByError(errors, upper_bound*1.5, 1, 2);
+  mesh->RefineByError(errors, upper_bound * 1.5, 1, 2);
   vfes->Update();
   sol.Update();
   Update();
@@ -518,12 +518,7 @@ void DGHyperbolicConservationLaws::hDerefine(Vector &errors, GridFunction &sol,
       pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
   const double lower_bound = exp(mean - z * pow(sigma / logErrors.Size(), 0.5));
   Mesh *mesh = vfes->GetMesh();
-  cout << "Distribution: (" << logErrors.Min() << ", " << mean << ", "
-       << logErrors.Max() << ")" << endl;
-  cout << "lower_bound: " << log(lower_bound) << endl;
-  cout << "numElem: " << mesh->GetNE() << " -> ";
   mesh->DerefineByError(errors, lower_bound, 2, 2);
-  cout << mesh->GetNE() << endl;
   vfes->Update();
   sol.Update();
   Update();
