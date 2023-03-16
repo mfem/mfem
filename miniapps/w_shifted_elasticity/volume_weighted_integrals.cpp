@@ -19,57 +19,6 @@
 
 namespace mfem
 {
-  void WeightedDiffusionIntegrator::AssembleElementMatrix(const FiniteElement &el,
-							   ElementTransformation &Trans,
-							   DenseMatrix &elmat)
-  {
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
-
-    const int dim = el.GetDim();
-    int dof = el.GetDof();
-
-    elmat.SetSize(dof);
-    elmat = 0.0;
-    
-    DenseMatrix dshape(dof,dim), dshape_ps(dof,dim), adjJ(dim);
-    dshape = 0.0;
-    dshape_ps = 0.0;
- 
-    adjJ = 0.0;
-    
-    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
-    //    std::cout << " begin " << " ppid " << myid << " elemNo " << Trans.ElementNo << std::endl;
-    for (int q = 0; q < ir->GetNPoints(); q++)
-      {
-	const IntegrationPoint &ip = ir->IntPoint(q);
-	// Set the integration point in the face and the neighboring elements
-	Trans.SetIntPoint(&ip);
-
-	CalcAdjugate(Trans.Jacobian(), adjJ);
-
-	el.CalcDShape(ip, dshape);
-
-	Mult(dshape, adjJ, dshape_ps);
-	double w = ip.weight/Trans.Weight();
-	double volumeFraction = alpha->GetValue(Trans, ip);
-	double val = w*volumeFraction;
-
-	AddMult_a_AAt(val, dshape_ps, elmat);
-      }
-    // std::cout << " end " << " ppid " << myid << " elemNo " << Trans.ElementNo << std::endl;
-  }
-
-  const IntegrationRule &WeightedDiffusionIntegrator::GetRule(
-						       const FiniteElement &trial_fe,
-						       const FiniteElement &test_fe,
-						       ElementTransformation &Trans)
-  {
-    int order = Trans.OrderGrad(&trial_fe) /*+ test_fe.GetOrder() + Trans.OrderJ()*/;
-    return IntRules.Get(trial_fe.GetGeomType(), 5*order);
-  }
 
   void WeightedStressForceIntegrator::AssembleElementMatrix(const FiniteElement &el,
 								  ElementTransformation &Trans,

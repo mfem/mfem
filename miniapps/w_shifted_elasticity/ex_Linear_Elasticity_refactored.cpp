@@ -21,6 +21,7 @@
 #include <iostream>
 #include <algorithm>
 #include "linear_elasticity_solver.hpp"
+#include "sbm_aux.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -130,8 +131,61 @@ int main(int argc, char *argv[])
    
    // 5. Create the Linear Elasticity solver
    mfem::LinearElasticitySolver* ssolv=new mfem::LinearElasticitySolver(pmesh, displacementOrder, useEmbedded, geometricShape, nTerms, numberStrainTerms, ghostPenaltyCoefficient, mumps_solver, useAnalyticalShape, visualization);
+
+   // 6. Create the level set grid function and the marking class
+   ParGridFunction * level_set_gf = NULL;
+   // 7. Define the FECollection and FESpace for the level-set      
+   mfem::FiniteElementCollection* lsvec = NULL;
+   mfem::ParFiniteElementSpace* lsfes = NULL;
    
-   // 6. Set material coefficients, boundary conditions, shifted boundary condition and exact solution
+   if (useEmbedded){
+     // 8a. Define the FECollection and FESpace for the level-set      
+     lsvec = new H1_FECollection(displacementOrder+2,dim);
+     lsfes = new mfem::ParFiniteElementSpace(pmesh,lsvec);
+     lsfes->ExchangeFaceNbrData();
+     // 8b. Create the level set grid function and the marking class
+     level_set_gf = new ParGridFunction(lsfes);
+     level_set_gf->ExchangeFaceNbrData();
+     
+     if (useAnalyticalShape){
+       // 8c. if we are using an analytical surface to describe the geometry
+       //     Dist_Coefficient just returns +1 or -1 for inside or outside domain 
+       Dist_Coefficient *neumann_dist_coef = new Dist_Coefficient(geometricShape);
+       // 8d. project the neumann dist coef to the level set gf 
+       level_set_gf->ProjectCoefficient(*neumann_dist_coef);
+       // Exchange information for ghost elements i.e. elements that share a face
+       // with element on the current processor, but belong to another processor.
+       level_set_gf->ExchangeFaceNbrData();     
+     }
+     else {
+       // 8c. if we are using a level set to describe the geometry
+       //     Dist_Level_Set_Coefficient just returns +1 or -1 for inside or outside domain     
+       Dist_Level_Set_Coefficient * neumann_dist_coef = new Dist_Level_Set_Coefficient(geometricShape);
+       
+       // 8d. project the neumann dist coef to the level set gf and smooth it.
+       //    To smooth it, code is using DiffuseH1, but one can also use the PDEFilter
+       //    Just uncomment the filter lines and comment out the DiffuseH1
+       level_set_gf->ProjectCoefficient(*neumann_dist_coef);
+       // PDEFilter filter(*pmesh, 0.1);
+       //  filter.Filter(*neumann_dist_coef, *level_set_gf);
+       DiffuseH1(*level_set_gf, 1.0);
+       // Exchange information for ghost elements i.e. elements that share a face
+       // with element on the current processor, but belong to another processor.      
+       level_set_gf->ExchangeFaceNbrData();            
+     }
+     // 9. Set the Level set grid function in the linear elasticity solver 
+     ssolv->SetLevelSetGridFunction(*level_set_gf);
+     // 10. Create the distance and normal grid functions in the linear elaticity solver
+     ssolv->CreateDistanceAndNormalGridFunctions();
+     // 11. Calculate volume fractions in the linear elasticity solver
+     ssolv->CalculateVolumeFractions();
+     // 12. Mark mlements
+     ssolv->MarkElements();
+   }
+   // 13. Extract the inactive dofs, create the ess_elem array and set the inactive entries to 0. 
+   ssolv->ExtractInactiveDofsAndElements();     
+   
+   // 14. Set material coefficients, boundary conditions, shifted boundary condition and exact solution
    ssolv->AddMaterial(shearModCoefficient,bulkModCoefficient);
  
    if ( problemType == 1){
@@ -154,7 +208,7 @@ int main(int argc, char *argv[])
      ssolv->AddShiftedNormalStressBC(traction_shifted3D);
      ssolv->SetExactDisplacementSolution(ucoeff3D);
    }
-   // 7. Set Newton solver parameters, solve, compute L2 error and visualize fields    
+   // 15. Set Newton solver parameters, solve, compute L2 error and visualize fields    
    ssolv->SetNewtonSolver(1.0e-14,0.0,100000,1);
    ssolv->FSolve();
    ssolv->ComputeL2Errors();

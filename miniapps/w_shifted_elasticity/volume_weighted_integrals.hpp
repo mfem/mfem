@@ -29,21 +29,6 @@ using namespace mfem;
 
 namespace mfem
 {
-  class WeightedDiffusionIntegrator : public BilinearFormIntegrator
-  {
-  private:
-    const ParMesh *pmesh;  
-    ParGridFunction *alpha;
-    
-  public:
-    WeightedDiffusionIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF) : pmesh(pmesh), alpha(&alphaF) {}
-    virtual void AssembleElementMatrix(const FiniteElement &el,
-					ElementTransformation &Trans,
-					DenseMatrix &elmat);
-    const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-				   const FiniteElement &test_fe,
-				   ElementTransformation &Trans);
-  };
 
   /// A(u, v) = (alpha sigma(u), epsilon(v) )
   class WeightedStressForceIntegrator : public BilinearFormIntegrator

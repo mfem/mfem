@@ -147,6 +147,18 @@ double AvgElementSize(ParMesh &pmesh);
     void GetDisplacementSol(ParGridFunction& sgf){
       sgf.SetSpace(vfes); sgf.SetFromTrueDofs(*fdisplacement);}
 
+    void SetLevelSetGridFunction(ParGridFunction& levelSet_gf){
+      level_set_gf = &levelSet_gf;
+    }
+
+    void CreateDistanceAndNormalGridFunctions();
+    
+    void CalculateVolumeFractions();
+
+    void MarkElements();
+
+    void ExtractInactiveDofsAndElements();
+ 
     void ComputeL2Errors();
 
     void VisualizeFields();
