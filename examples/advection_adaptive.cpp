@@ -59,6 +59,7 @@ int main(int argc, char *argv[]) {
   double cfl = 0.3;
   bool visualization = true;
   int vis_steps = 50;
+  double z_score = 1.645;  // Z-score for AMR
 
   int refinement_mode = 1;  // 0: no-refine, 1: h-refine, 2: p-refine.
 
@@ -105,6 +106,7 @@ int main(int argc, char *argv[]) {
 
   // 2. Read the mesh from the given mesh file.
   Mesh *mesh = new Mesh(mesh_file);
+  mesh->EnsureNCMesh();
   const int dim = mesh->Dimension();
   const int num_equations = 1;
 
@@ -112,9 +114,9 @@ int main(int argc, char *argv[]) {
   for (int lev = 0; lev < ref_levels; lev++) {
     mesh->UniformRefinement();
   }
-  if (dim > 1) {
-    mesh->EnsureNCMesh();
-  }
+
+  const int numElem0 = mesh->GetNE();
+  const int numElem_upper = numElem0 * 2;
 
   // 3. Define the ODE solver used for time integration. Several explicit
   //    Runge-Kutta methods are available.
@@ -279,10 +281,12 @@ int main(int argc, char *argv[]) {
             hRefinementType = Refinement::XYZ;
             break;
         }
-        advection.hRefine(errors, sol);
-        errors.SetSize(mesh->GetNE());
-        sol.ComputeElementL2Errors(u0, errors);
-        advection.hDerefine(errors, sol);
+        advection.hRefine(errors, sol, z_score);
+        while (mesh->GetNE() > numElem_upper) {
+          errors.SetSize(mesh->GetNE());
+          sol.ComputeElementL2Errors(u0, errors);
+          advection.hDerefine(errors, sol, z_score);
+        }
         ode_solver->Init(advection);
         hmin = 0.0;
         if (cfl > 0) {
@@ -292,27 +296,25 @@ int main(int argc, char *argv[]) {
           }
         }
 
-        // const double mean = errors.Sum() / errors.Size();
-        // const double std = 0.0;
-        // advection.hRefine();
-
         break;
       case 2:  // p-refine
         orders.SetSize(numElem);
-        const double upperbound = errors.Max() * 0.7;
+        Vector logErrors(errors);
+        for (auto &err : logErrors) err = log(err);
+        const double mean = logErrors.Sum() / logErrors.Size();
+        const double sigma = pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
+        const double upper_bound = exp(mean + z_score * pow(sigma / logErrors.Size(), 0.5));
+        const double lower_bound = exp(mean - z_score * pow(sigma / logErrors.Size(), 0.5));
         for (int i = 0; i < numElem; i++) {
           const double localError = errors(i);
-          if (localError > upperbound && fes->GetElementOrder(i) < 7)
-            orders[i] = order + 4;  // 1
-          else
+          if (localError > upper_bound && fes->GetElementOrder(i) < 7) {
+            orders[i] = order + 1;  // 1
+          } else if (localError < lower_bound && fes->GetElementOrder(i) > 0) {
+            orders[i] = order - 1;
+          } else
             orders[i] = order;  // 0
         }
         advection.pRefine(orders, sol, PRefineType::set);
-
-        for (int i = 0; i < numElem; i++) {
-          orders[i] = -orders[i];
-        }
-        advection.pRefine(orders, sol, PRefineType::elevation);
         ode_solver->Init(advection);
         max_order = fes->GetMaxElementOrder();
 
@@ -358,6 +360,9 @@ void AdvectionMesh(const int problem, const char **mesh_file) {
     case 2:
       *mesh_file = "../data/periodic-square-4x4.mesh";
       break;
+    case 3:
+      *mesh_file = "../data/periodic-segment.mesh";
+      break;
     default:
       throw invalid_argument("Default mesh is undefined");
   }
@@ -375,6 +380,11 @@ SpatialFunction AdvectionSolution(const int problem, double &t) {
       return [&t](const Vector &x, Vector &y) {
         MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
         y(0) = __sinpi(x(0) - t) * __sinpi(x(1) - t);
+      };
+    case 3:
+      return [&t](const Vector &x, Vector &y) {
+        MFEM_ASSERT(x.Size() == 1, "Dimension should be 2");
+        y(0) = __sinpi(x(0) - t);
       };
     default:
       throw invalid_argument("Problem Undefined");
@@ -397,6 +407,8 @@ SpatialFunction AdvectionVelocityVector(const int problem) {
         y(0) = 1.0;
         y(1) = 1.0;
       };
+    case 3:
+      return [](const Vector &x, Vector &y) { y(0) = 1.0; };
     default:
       throw invalid_argument("Problem Undefined");
   }

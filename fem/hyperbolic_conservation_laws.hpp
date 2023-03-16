@@ -376,8 +376,8 @@ class DGHyperbolicConservationLaws : public TimeDependentOperator {
   void pRefine(const Array<int> &orders, GridFunction &sol,
                const PRefineType pRefineType = PRefineType::elevation);
 
-  void hRefine(Vector &errors, GridFunction &sol);
-  void hDerefine(Vector &errors, GridFunction &sol);
+  void hRefine(Vector &errors, GridFunction &sol, const double z = 0.842);
+  void hDerefine(Vector &errors, GridFunction &sol, const double z = 0.842);
   // get global maximum characteristic speed to be used in CFL condition
   // where max_char_speed is updated during Mult.
   inline double getMaxCharSpeed() { return max_char_speed; }
@@ -494,18 +494,36 @@ void DGHyperbolicConservationLaws::pRefine(const Array<int> &orders,
   Update();
 }
 
-void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol) {
+void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol,
+                                           const double z) {
+  Vector logErrors(errors);
+  for (auto &err : logErrors) err = log(err);
+  const double mean = logErrors.Sum() / logErrors.Size();
+  const double sigma =
+      pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
+  const double upper_bound = exp(mean + z * pow(sigma / logErrors.Size(), 0.5));
   Mesh *mesh = vfes->GetMesh();
-  mesh->RefineByError(errors, errors.Max() * 0.7, 1, 2);
+  mesh->RefineByError(errors, upper_bound*1.5, 1, 2);
   vfes->Update();
   sol.Update();
   Update();
 }
 
-void DGHyperbolicConservationLaws::hDerefine(Vector &errors,
-                                             GridFunction &sol) {
+void DGHyperbolicConservationLaws::hDerefine(Vector &errors, GridFunction &sol,
+                                             const double z) {
+  Vector logErrors(errors);
+  for (auto &err : logErrors) err = log(err);
+  const double mean = logErrors.Sum() / logErrors.Size();
+  const double sigma =
+      pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
+  const double lower_bound = exp(mean - z * pow(sigma / logErrors.Size(), 0.5));
   Mesh *mesh = vfes->GetMesh();
-  mesh->DerefineByError(errors, errors.Min() * 5, 2);
+  cout << "Distribution: (" << logErrors.Min() << ", " << mean << ", "
+       << logErrors.Max() << ")" << endl;
+  cout << "lower_bound: " << log(lower_bound) << endl;
+  cout << "numElem: " << mesh->GetNE() << " -> ";
+  mesh->DerefineByError(errors, lower_bound, 2, 2);
+  cout << mesh->GetNE() << endl;
   vfes->Update();
   sol.Update();
   Update();
@@ -1131,9 +1149,10 @@ class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
       : HyperbolicFaceFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim){};
 };
 
-DGHyperbolicConservationLaws getAdvectionEquation(
-    FiniteElementSpace *vfes, NumericalFlux *numericalFlux,
-    VectorCoefficient &b, const int IntOrderOffset) {
+DGHyperbolicConservationLaws getAdvectionEquation(FiniteElementSpace *vfes,
+                                                  NumericalFlux *numericalFlux,
+                                                  VectorCoefficient &b,
+                                                  const int IntOrderOffset) {
   const int dim = vfes->GetMesh()->Dimension();
   const int num_equations = 1;
 
