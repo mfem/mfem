@@ -324,6 +324,8 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    CalcHessian(Trans.GetIntPoint(), hess);
 
    // Gradient in physical coords
+   // Something wrong with the Trans.Hessian() function when using triangles.
+   // Somehow the FElem in eltrans.cpp doesn't recognize the element type.
    if (Trans.Hessian().FNorm2() > 1e-10)
    {
       DenseMatrix grad(dof, dim);
@@ -843,6 +845,7 @@ void NodalFiniteElement::ProjectGrad(
          }
    }
 }
+
 
 void NodalFiniteElement::ProjectDiv(
    const FiniteElement &fe, ElementTransformation &Trans,

@@ -426,6 +426,15 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
+   void AssembleDomainIntegrators(int skip_zeros = 1);
+
+   /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   void AssembleBoundaryFaceIntegrators(int skip_zeros = 1);
+
+  /// Assembles the interior face intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   void AssembleInteriorFaceIntegrators(int skip_zeros = 1);
+
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
@@ -717,6 +726,13 @@ protected:
    /// Domain integrators.
    Array<BilinearFormIntegrator*> domain_integs;
 
+   /// Element attribute marker (should be of length mesh->attributes.Max() or
+   /// 0 if mesh->attributes is empty)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             domain_integs_marker;
+
    /// Boundary integrators.
    Array<BilinearFormIntegrator*> boundary_integs;
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
@@ -724,11 +740,20 @@ protected:
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> trace_face_integs;
 
+   /// Set of interior face Integrators to be applied.
+   Array<BilinearFormIntegrator*> interior_face_integs;
+
    /// Boundary trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> boundary_trace_face_integs;
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
+   /// Set of boundary face Integrators to be applied.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
+
+  int precompute_sparsity;
+   
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
 
@@ -781,7 +806,7 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /** Extract the associated matrix as SparseMatrix blocks. The number of
+  /** Extract the associated matrix as SparseMatrix blocks. The number of
        block rows and columns is given by the vector dimensions (vdim) of the
        test and trial spaces, respectively. */
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
@@ -798,6 +823,11 @@ public:
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+
+     /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &elem_marker);
 
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -820,7 +850,26 @@ public:
    void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
                                    Array<int> &bdr_marker);
 
-   /// Access all integrators added with AddDomainIntegrator().
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
+
+  /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+  void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+  /** @brief For scalar FE spaces, precompute the sparsity pattern of the matrix
+      (assuming dense element matrices) based on the types of integrators
+      present in the bilinear form. */
+  void UsePrecomputedSparsity(int ps = 1) { precompute_sparsity = ps; }
+
+  /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
 
    /// Access all integrators added with AddBoundaryIntegrator().

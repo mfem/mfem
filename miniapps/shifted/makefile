@@ -31,10 +31,16 @@ DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
+EX_STOKES_SHIFTED_SRC = ex_Stokes_shifted.cpp nitsche_solver.cpp shifted_solver.cpp p_divW.cpp AnalyticalSurface.cpp AnalyticalGeometricShape.cpp Circle.cpp
+EX_STOKES_SHIFTED_OBJ = $(EX_STOKES_SHIFTED_SRC:.cpp=.o)
+EX_STOKES_REFACTORED_SRC = ex_Stokes_refactored.cpp stokes_solver.cpp p_divW.cpp
+EX_STOKES_REFACTORED_OBJ = $(EX_STOKES_REFACTORED_SRC:.cpp=.o)
 ALGOIM_SRC = integ_algoim.cpp lsf_integral.cpp
 ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
+EX_STOKES_WSBM_SRC = ex_Stokes_WSBM.cpp nitsche_weighted_solver.cpp AnalyticalGeometricShape.cpp AnalyticalSurface.cpp Circle.cpp volume_integrals.cpp volume_fractions.cpp shifted_weighted_solver.cpp ghost_penalty.cpp
+EX_STOKES_WSBM_OBJ = $(EX_STOKES_WSBM_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate lsf_integral
+PAR_MINIAPPS = ex_Stokes_WSBM distance diffusion extrapolate lsf_integral ex_Stokes_shifted
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = 
@@ -75,6 +81,15 @@ diffusion: $(DIFFUSION_OBJ)
 extrapolate: $(EXTRAPOLATE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EXTRAPOLATE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+ex_Stokes_shifted: $(EX_STOKES_SHIFTED_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_SHIFTED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+ex_Stokes_refactored: $(EX_STOKES_REFACTORED_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_REFACTORED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+ex_Stokes_WSBM: $(EX_STOKES_WSBM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_WSBM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
@@ -99,9 +114,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate lsf_integral 
+	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_shifted ex_Stokes_refactored lsf_integral ex_Stokes_WSBM 
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f diffusion.mesh diffusion.gf
+	@rm -f  ex_Stokes_WSBM.mesh ex_Stokes_WSBM.gf diffusion.mesh diffusion.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf ex_Stokes_refactored.mesh ex_Stokes_refactored.gf
 	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF
