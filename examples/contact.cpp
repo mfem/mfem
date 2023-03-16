@@ -8,7 +8,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "nodepair.hpp"
+//#include "nodepair.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -522,8 +522,8 @@ int main(int argc, char *argv[])
    SparseMatrix M(nnd,ndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
 
-   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, s_conn, m_conn, 
-                    g, M, dM);
+   //Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, s_conn, m_conn, 
+   //                 g, M, dM);
    /*Vector eps(ndofs); 
    Vector sol(ndofs); sol = 0.; 
    for(int i=0;i<ndofs;i++) eps[i] = 1e-5 * i ;  
