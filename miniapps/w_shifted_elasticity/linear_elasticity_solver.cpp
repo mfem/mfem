@@ -44,6 +44,24 @@ namespace mfem {
     
    if (useEmbedded){
      marker = new AttributeShiftedFaceMarker(*pmesh, *vfes, *alpha_fes, 1);
+     if (useAnalyticalShape){
+       //  Create the distance and normal vectors 
+       dist_vec = new Dist_Vector_Coefficient(dim, geometricShape);
+       normal_vec = new Normal_Vector_Coefficient(dim, geometricShape);
+     }
+     else{
+       //  Define the FECollection and FESpace for the distance and normal vectors
+       //  Create and set them to 1 
+       mfem::FiniteElementCollection* d_vec = new H1_FECollection(displacementOrder+2,dim);       
+       distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
+       normal_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
+       distance_vec_space->ExchangeFaceNbrData();
+       normal_vec_space->ExchangeFaceNbrData();   
+       distance = new ParGridFunction(distance_vec_space);
+       *distance = 0.0;
+       normal = new ParGridFunction(normal_vec_space);
+       *normal = 0.0;
+     }
    }
  }
 
@@ -77,24 +95,7 @@ namespace mfem {
 
   void LinearElasticitySolver::CreateDistanceAndNormalGridFunctions(){
     int dim=pmesh->Dimension();
-    if (useAnalyticalShape){
-       //  Create the distance and normal vectors 
-       dist_vec = new Dist_Vector_Coefficient(dim, geometricShape);
-       normal_vec = new Normal_Vector_Coefficient(dim, geometricShape);
-     }
-     else{
-       //  Define the FECollection and FESpace for the distance and normal vectors
-       //  Create and set them to 1 
-       mfem::FiniteElementCollection* d_vec = new H1_FECollection(displacementOrder+2,dim);       
-       distance_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
-       normal_vec_space = new ParFiniteElementSpace(pmesh, d_vec, dim);
-       distance_vec_space->ExchangeFaceNbrData();
-       normal_vec_space->ExchangeFaceNbrData();   
-       distance = new ParGridFunction(distance_vec_space);
-       *distance = 0.0;
-       normal = new ParGridFunction(normal_vec_space);
-       *normal = 0.0;
-
+    if (!useAnalyticalShape){
        //  Create a grid function coefficient from the smoothed level-set
        //  Use it to populate the distance and normal grid functions
        //  Create the distance and normal vector grid function coefficients
