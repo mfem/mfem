@@ -185,13 +185,16 @@ int main(int argc, char *argv[]) {
       getAdvectionEquation(fes, numericalFlux, b, IntOrderOffset);
 
   // Visualize the density
-  socketstream sout, sout_disp;
+  socketstream sout, sout_exact, sout_order;
   if (visualization) {
     char vishost[] = "localhost";
     int visport = 19916;
 
     sout.open(vishost, visport);
-    sout_disp.open(vishost, visport);
+    sout_exact.open(vishost, visport);
+    if (refinement_mode == 2) {
+      sout_order.open(vishost, visport);
+    }
     if (!sout) {
       cout << "Unable to connect to GLVis server at " << vishost << ':'
            << visport << endl;
@@ -201,9 +204,27 @@ int main(int argc, char *argv[]) {
       sout.precision(precision);
       sout << "solution\n" << *mesh << sol;
       sout << "pause\n";
+      sout << "view 0 0\n";        // view from top
+      sout << "keys jlm\n";         // turn off perspective and light
       sout << flush;
+      
       cout << "GLVis visualization paused."
            << " Press space (in the GLVis window) to resume it.\n";
+      sout_exact << "solution\n" << *mesh << sol;
+      sout_exact << "view 0 0\n";   // view from top
+      sout_exact << "keys jl\n";    // turn off perspective and light
+      sout_exact << flush;
+      if (refinement_mode == 2){
+        GridFunction order_gf(sol);
+        order_gf = order;
+        sout_order << "solution\n" << *mesh << order_gf;
+        sout_order << "view 0 0\n";   // view from top
+        sout_order << "keys jl\n";    // turn off perspective and light
+        sout_order << flush;
+      }
+      
+      
+      
     }
   }
 
@@ -244,18 +265,28 @@ int main(int argc, char *argv[]) {
     done = (t >= t_final - 1e-8 * dt);
     if (done || ti % vis_steps == 0) {
       cout << "time step: " << ti << ", time: " << t << endl;
+      cout << "Number of unknowns: " << fes->GetVSize() << endl;
       if (visualization) {
         if (refinement_mode == 2) {
           GridFunction high_sol = ProlongToMaxOrderDG(sol);
+          DG_FECollection P0(0, mesh->Dimension());
+          FiniteElementSpace order_fes(mesh, &P0);
+          GridFunction orders_gf(&order_fes);
+          for (int i = 0; i < mesh->GetNE(); i++) {
+            orders_gf[i] = fes->GetElementOrder(i);
+          }
+          sout_order << "solution\n" << *mesh << orders_gf;
+          sout_order << flush;
+
           sout << "solution\n" << *mesh << high_sol;
           sout << flush;
           high_sol.ProjectCoefficient(u0);
-          sout_disp << "solution\n" << *mesh << high_sol << flush;
+          sout_exact << "solution\n" << *mesh << high_sol << flush;
         } else {
           sout << "solution\n" << *mesh << sol;
           sout << flush;
           sol.ProjectCoefficient(u0);
-          sout_disp << "solution\n" << *mesh << sol << flush;
+          sout_exact << "solution\n" << *mesh << sol << flush;
         }
         sout << "window_title 't = " << t << "'";
         // sout << "pause\n";
@@ -302,17 +333,20 @@ int main(int argc, char *argv[]) {
         Vector logErrors(errors);
         for (auto &err : logErrors) err = log(err);
         const double mean = logErrors.Sum() / logErrors.Size();
-        const double sigma = pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
-        const double upper_bound = exp(mean + z_score * pow(sigma / logErrors.Size(), 0.5));
-        const double lower_bound = exp(mean - z_score * pow(sigma / logErrors.Size(), 0.5));
+        const double sigma =
+            pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
+        const double upper_bound =
+            exp(mean + z_score * pow(sigma / logErrors.Size(), 0.5));
+        const double lower_bound =
+            exp(mean - z_score * pow(sigma / logErrors.Size(), 0.5));
         for (int i = 0; i < numElem; i++) {
           const double localError = errors(i);
           if (localError > upper_bound && fes->GetElementOrder(i) < 7) {
-            orders[i] = order + 1;  // 1
+            orders[i] = order + 1;
           } else if (localError < lower_bound && fes->GetElementOrder(i) > 0) {
             orders[i] = order - 1;
           } else
-            orders[i] = order;  // 0
+            orders[i] = order;
         }
         advection.pRefine(orders, sol, PRefineType::set);
         ode_solver->Init(advection);
