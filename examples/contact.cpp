@@ -8,7 +8,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-//#include "nodepair.hpp"
+#include "nodepair.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -180,7 +180,9 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
 
 // Coordinates in xyz are assumed to be ordered as [X, Y, Z]
 // where X is the list of x-coordinates for all points and so on.
-void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
+// conn: connectivity of the target surface elements
+// xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
+void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& xi)
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
@@ -288,6 +290,10 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
          MFEM_VERIFY(fd == dim-1, "");
       }
 
+      for (int j=0; j<dim-1; ++j)
+      {
+	xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
+      }
       cout << "  face reference coordinates: (";
       for (int j=0; j<dim-1; ++j)
       {
@@ -327,6 +333,11 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz)
       for (auto v : faceVert)
       {
          cout << "    " << v << endl;
+      }
+    
+      for (int p=0; p<4; p++)
+      {
+        conn[4*i+p] = faceVert[p];
       }
 
       Vector ref(dim);
@@ -397,6 +408,14 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns for mesh2: "
         << fespace2->GetTrueVSize() << endl;
 
+   // degrees of freedom of both meshes
+   int ndof_1 = fespace1->GetTrueVSize();
+   int ndof_2 = fespace2->GetTrueVSize();
+   int ndofs = ndof_1 + ndof_2;
+   // number of nodes for each mesh
+   int nnd_1 = mesh1.GetNV();
+   int nnd_2 = mesh2.GetNV();
+   int nnd = nnd_1 + nnd_2;
    // Determine the list of true (i.e. conforming) essential boundary dofs.
    // In this example, the boundary conditions are defined by marking only
    // boundary attribute 1 from the mesh as essential and converting it to a
@@ -428,7 +447,7 @@ int main(int argc, char *argv[])
 
    Array<int> bdryFaces2;  // TODO: remove this?
 
-   std::set<int> bdryVerts2;
+   std::set<int> bdryVerts2;  
    for (int b=0; b<mesh2.GetNBE(); ++b)
    {
       if (attr.FindSorted(mesh2.GetBdrAttribute(b)) >= 0)
@@ -444,6 +463,7 @@ int main(int argc, char *argv[])
    }
 
    int npoints = bdryVerts2.size();
+   Array<int> s_conn(npoints); // connectivity of the second/slave mesh 
    Vector xyz(dim * npoints);
    xyz = 0.0;
 
@@ -460,31 +480,59 @@ int main(int argc, char *argv[])
       {
          xyz[count + (i * npoints)] = mesh2.GetVertex(v)[i];
       }
-
+      
+      s_conn[count] = v + nnd_1; // dof1 is the master
       count++;
    }
 
    MFEM_VERIFY(count == npoints, "");
+   
 
-   FindPointsInMesh(mesh1, xyz);
+   // gap function
+   Vector g(npoints*dim);
+   g = -1.0;
+   // segment reference coordinates of the closest point
+   Vector m_xi(npoints*(dim-1));
+   m_xi = -1.0;
+   Vector xs(dim*npoints);
+   xs = 0.0;
+   for (int i=0; i<npoints; i++)
+   {
+       for (int j=0; j<dim; j++)
+       {
+         xs[i*dim+j] = xyz[i + (j*npoints)];
+       }
+   }
+   
+   Array<int> m_conn(npoints*4); // only works for linear elements that have 4 vertices!
+   DenseMatrix coordsm(npoints*4, dim);
+   
+   FindPointsInMesh(mesh1, xyz, m_conn, m_xi);
+   for (int i=0; i<npoints; i++)
+   {
+     for (int j=0; j<4; j++)
+     {
+	 for (int k=0; k<dim; k++)
+	 {
+           coordsm(i*4+j,k) = mesh1.GetVertex(m_conn[i*4+j])[k];     
+	 }
+     }
+   }
+   
+   SparseMatrix M(nnd,ndofs);
+   std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
 
-   // testing functions
-   /*
-   Vector x1(3);
-   Vector xi(2);
-   DenseMatrix coords2(4,3);
-   x1[0] = 0.138357116570237; x1[1] =0.781266036110795; x1[2] = 0.781266036110795;
-   xi[0] = -0.340604159745217; xi[1] = -0.340604159745216;
-   coords2(0,0) =0.028711699111254;  coords2(0,1) =  0.671052640577229; coords2(0,2) =  0.671052640577229;
-   coords2(1,0) =0.040247874087262; coords2(1,1) = 1.012958013114749; coords2(1,2) =   0.670855581724106;
-   coords2(2,0) = 0.041207251768282; coords2(2,1) = 1.012615442973163; coords2(2,2) =  1.012615442973163;
-   coords2(3,0) =0.040247874087262; coords2(3,1) = 0.670855581724106;  coords2(3,2) =  1.012958013114749;
-
-   double gap = 0.; Vector dg(15); dg = 0.0;
-   DenseMatrix d2g;
-   NodeSegConPairs(x1, xi, coords2, gap, dg, d2g);
-   cout << gap <<endl;
-   //d2g.Print();
+   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, s_conn, m_conn, 
+                    g, M, dM);
+   /*Vector eps(ndofs); 
+   Vector sol(ndofs); sol = 0.; 
+   for(int i=0;i<ndofs;i++) eps[i] = 1e-5 * i ;  
+   for(int i=0;i<9;i++) 
+   {
+     cout<<i<<endl;
+     dM[s_conn[i]].Mult(eps,sol);
+     sol.Print();
+   }
    */
    return 0;
 }
