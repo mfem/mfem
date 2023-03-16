@@ -376,10 +376,10 @@ public:
 };
 
 /// A global object with all integration rules (defined in intrules.cpp)
-extern IntegrationRules IntRules;
+extern MFEM_EXPORT IntegrationRules IntRules;
 
 /// A global object with all refined integration rules
-extern IntegrationRules RefinedIntRules;
+extern MFEM_EXPORT IntegrationRules RefinedIntRules;
 
 }
 
