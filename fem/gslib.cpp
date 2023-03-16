@@ -1272,16 +1272,13 @@ GSLIBCommunicator::GSLIBCommunicator(MPI_Comm comm_)
 void GSLIBCommunicator::SendInfo(Array<unsigned int> &gsl_proc,
                                  Array<unsigned int> &gsl_mfem_elem,
                                  Vector &sendinfoDoubles,
-                                 Vector &gsl_mfem_ref)
+                                 Vector &gsl_mfem_ref,
+                                 const int & dim)
 {
    int nptsend = gsl_proc.Size();
    int nptElem   = gsl_mfem_elem.Size();
    int nptRST    = gsl_mfem_ref.Size();
-   int dim = 0;
-   if(nptsend != 0)
-   {
-       dim = nptRST/nptsend;
-   }
+
    int nptD    = sendinfoDoubles.Size();
 
    MFEM_VERIFY(nptElem == nptsend,

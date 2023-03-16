@@ -286,7 +286,8 @@ public:
    void SendInfo(Array<unsigned int> &gsl_proc,
                  Array<unsigned int> &gsl_mfem_elem,
                  Vector &sendinfoDoubles, //npt*dim, ordering should be byNodes
-                 Vector &gsl_mfem_ref);
+                 Vector &gsl_mfem_ref,
+                 const int & dim);
 
    virtual const Array<unsigned int> &GetElem() const { return recv_gsl_mfem_elem; }
    virtual const Array<unsigned int> &GetProc() const { return recv_gsl_proc; }
