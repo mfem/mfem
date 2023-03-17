@@ -16,6 +16,7 @@
 #include "../error.hpp"
 #include "jit.hpp"
 
+#include <map>
 #include <string>
 #include <fstream>
 #include <thread> // sleep_for
@@ -219,6 +220,7 @@ private:
    bool keep_cache = true; // option to keep the lib_ar cache library
    std::vector<std::pair<std::string,std::string>> defines;
    std::vector<std::string> includes;
+   std::map<std::string, std::vector<std::string>> ker_includes;
 
    struct Command // convenient system command builder & cast
    {
@@ -282,6 +284,7 @@ private:
    {
       std::cout << "\033[33m[System]" << "\033[m" << std::ends;
 
+      //AddInclude("mfem.hpp");
       AddInclude("general/jit/jit.hpp"); // for Hash, Find
       AddInclude("general/forall.hpp"); // default for all?
 
@@ -437,6 +440,41 @@ public:
       Get().includes.push_back(include);
    }
 
+   /**
+    * @brief AddExtraInclude to a specific kernel
+    * @param include
+    */
+   static void AddKernelInclude(const char *ker, const char *include)
+   {
+      auto ker_it = Get().ker_includes.find(ker);
+      if (ker_it != Get().ker_includes.end())
+      {
+         assert(std::string(ker) == std::string(ker_it->first));
+         std::vector<std::string> &ker_includes = ker_it->second;
+         ker_includes.push_back(include);
+      }
+      else
+      {
+         Get().ker_includes.emplace(ker, std::vector<std::string> {include});
+      }
+   }
+
+   static std::string Includes(const char *kernel_name)
+   {
+      //assert(false);
+      // kernel_name: SmemPADiffusionApply2D<2,2,16> 
+      // ker: SmemPADiffusionApply2D
+      std::cout << "\033[33m[Includes] " << kernel_name << "\033[m" << std::ends;
+      std::string includes;
+      /*for (auto inc: Get().ker_includes.at(ker))
+      {
+         includes += "-include \"";
+         includes += inc;
+         includes += "\" ";
+      }*/
+      return includes;
+   }
+
    static std::string Includes()
    {
       std::string includes;
@@ -492,8 +530,12 @@ public:
 
    static void *DLopen(const char *path)
    {
+#ifndef __APPLE__
       void *handle = ::dlopen(path, (Debug()?RTLD_NOW:RTLD_LAZY)|RTLD_LOCAL);
-      //void *handle = ::dlopen(path, RTLD_NOW | RTLD_GLOBAL); // RTLD_GLOBAL
+#else
+      void *handle = ::dlopen(path, RTLD_NOW | RTLD_LOCAL | RTLD_FIRST);
+#endif
+      // RTLD_GLOBAL
       return (DLerror(), handle);
    }
 
@@ -573,6 +615,7 @@ public:
                             << "-I" << MFEM_SOURCE_DIR
                             << Defines().c_str()
                             << Includes().c_str()
+                            << Includes(name).c_str()
                             << "-c" << "-o" << co << cc;
                   if (Call(name)) { return EXIT_FAILURE; }
                   if (!Debug()) { std::remove(cc.c_str()); }
@@ -586,18 +629,33 @@ public:
                }
                // Create temporary shared library: (ar + co) => so
                {
-                  std::string lib_mfem("-L"), lib_rpath("-rpath,");
-                  lib_mfem += MFEM_INSTALL_DIR, lib_mfem += "/lib -lmfem";
-                  lib_rpath += Path();
-
-                  // -(-)shared ? -rpath,. ?
-                  Command() << cxx << link << "-shared" << "-o" << so
-                            << Xprefix() << Lib_ar() << Xpostfix()
-                            << Xlinker() + lib_rpath.c_str() << libs
 #ifdef __APPLE__
-                            //<< lib_mfem.c_str()
+                  MFEM_VERIFY(//io::Exists(MFEM_SOURCE_DIR "/libmfem.dylib") ||
+                     io::Exists(MFEM_INSTALL_DIR "/lib/libmfem.dylib"),
+                     "[JIT] Could not find any ibmfem.dylib!");
 #endif
-                            ;
+                  Command() << cxx << link << "-o" << so
+                            << "-shared"
+#ifdef __APPLE__
+                            //<< "-bundle"
+                            //<< "-dynamiclib"
+                            //<< "-fvisibility=hidden"
+                            //<< "-bind_at_load"
+                            << "-undefined dynamic_lookup"
+                            //<< "-Wl,-undefined,dynamic_lookup"
+                            //<< "-L.." // ok
+                            //<< "-Wl,-undefined,dynamic_lookup -L.."
+                            //<< MFEM_INSTALL_DIR "/lib/libmfem.4.5.1.dylib"
+                            //<< "-L" MFEM_INSTALL_DIR "/lib"
+                            //<< "-rpath " MFEM_INSTALL_DIR "/lib"
+                            //<< "-L" MFEM_INSTALL_DIR "/lib/"
+                            //<< Xlinker() + std::string("-rpath,") + MFEM_INSTALL_DIR + "/lib"
+                            //<< "-lmfem"
+#endif
+                            << Xprefix() << Lib_ar() << Xpostfix()
+                            << Xlinker() + std::string("-rpath,") + Path()
+                            << libs;
+
                   if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
                }
                // Install temporary shared library: so => Lib_so
@@ -652,11 +710,16 @@ void Jit::Configure(const char *name, const char *path, bool keep)
 
 void Jit::AddDefine(const char *d, const char *v) { System::Get().AddDefine(d, v); }
 
+void Jit::AddKernelInclude(const char *ker, const char *inc)
+{
+   System::Get().AddKernelInclude(ker, inc);
+}
 void Jit::AddInclude(const char *inc) { System::Get().AddInclude(inc); }
 
 std::string Jit::Defines() { return System::Get().Defines(); }
 
 std::string Jit::Includes() { return System::Get().Includes(); }
+std::string Jit::Includes(const char *ker) { return System::Get().Includes(ker); }
 
 void Jit::Finalize() { System::Get().Finalize(); }
 

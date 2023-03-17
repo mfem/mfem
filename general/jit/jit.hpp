@@ -15,6 +15,7 @@
 #include "../../config/config.hpp"
 
 #define MFEM_JIT // prefix to label JIT kernels and arguments
+#define MFEM_JIT_INCLUDE(...)
 
 #ifdef MFEM_USE_JIT
 
@@ -64,9 +65,11 @@ struct Jit
    static void Configure(const char *name, const char *path, bool keep = true);
 
    static void AddDefine(const char *def, const char *val = nullptr);
+   static void AddKernelInclude(const char *ker, const char *inc);
    static void AddInclude(const char *inc);
    static std::string Defines();
    static std::string Includes();
+   static std::string Includes(const char *ker);
 
    /// @brief Variadic hash combine function.
    template<typename T, typename... Args> static inline

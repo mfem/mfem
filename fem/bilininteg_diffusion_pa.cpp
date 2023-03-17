@@ -10,11 +10,13 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
-#include "../general/jit/jit.hpp" // for MFEM_JIT
+#include "../general/jit/jit.hpp" // for MFEM_JIT, MFEM_JIT_INCLUDE
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
+
+MFEM_JIT_INCLUDE("fem/kernels.hpp")
 
 using namespace std;
 
@@ -1712,6 +1714,10 @@ static void PADiffusionApply(const int dim,
       //ConstDeviceCube D = Reshape(d.Read(), Q1D*Q1D, symm ? 3 : 4, NE);
       //ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
       //DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+
+#ifdef MFEM_USE_JIT
+      //mfem::Jit::AddKernelInclude("SmemPADiffusionApply2D", "fem/kernels.hpp");
+#endif // MFEM_USE_JIT
 
       switch (id)
       {
