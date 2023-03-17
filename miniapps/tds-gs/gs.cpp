@@ -241,374 +241,223 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
            int N_control) {
   cout << "size: " << alpha_coeffs->size() << endl;
 
-   GridFunction dx(&fespace);
-   GridFunction res(&fespace);
-   LinearForm out_vec(&fespace);
-   dx = 0.0;
+  GridFunction dx(&fespace);
+  GridFunction res(&fespace);
+  LinearForm out_vec(&fespace);
+  dx = 0.0;
 
-   // // SparseSmoother smoother;
-   // Solver* preconditioner = new DSmoother(1);
-   // GMRESSolver linear_solver;
-   // linear_solver.SetKDim(kdim);
-   // linear_solver.SetMaxIter(max_iter);
-   // linear_solver.SetRelTol(tol);
-   // linear_solver.SetAbsTol(0.0);
-   // linear_solver.SetPreconditioner(*preconditioner);
-   // // linear_solver.SetPreconditioner(smoother);
+  int i_method = 1;
+  int do_control = 1;
+  if (do_control) {
+    // solve the optimization problem of determining currents to fit desired plasma shape
+    //
+    // + K  dx +      + By^T dp = - opt_res
+    //         + H du - F ^T dp = - reg_res
+    // + By dx - F du +         = - eq_res
 
-   // NewtonSolver newton_solver;
-   // newton_solver.SetSolver(linear_solver);
-   // newton_solver.SetOperator(op);
-   // newton_solver.SetRelTol(tol);
-   // newton_solver.SetAbsTol(0.0);
-   // newton_solver.SetMaxIter(20);
-   // newton_solver.SetPrintLevel(1); // print Newton iterations
+    // relevant matrices
+    SparseMatrix * K = op.GetK();
+    SparseMatrix * F = op.GetF();
+    SparseMatrix * H = op.GetH();
 
-   // Vector zero;
-   // newton_solver.Mult(zero, x);
+    // solution at previous iteration
+    Vector * uv = op.get_uv();
+    Vector * g = op.get_g();
+    GridFunction pv(&fespace);
+    pv = 0.0;
 
-   int i_method = 1;
-   int do_control = 1;
-   if (do_control) {
+    // placeholder for rhs
+    GridFunction eq_res(&fespace);
+    Vector reg_res(uv->Size());
+    GridFunction opt_res(&fespace);
 
-     SparseMatrix * K = op.GetK();
-     SparseMatrix * F = op.GetF();
-     SparseMatrix * H = op.GetH();
-     
-     Vector * uv = op.get_uv();
-     Vector * g = op.get_g();
-
-     double weight = 1;
-     double delta = 1; // scaling for u
-     double mu = 1; // scaling for By
-     
-     // (*uv) *= weight;
+    // define block structure of matrix
+    int n_off = 4;
+    Array<int> row_offsets(n_off);
+    Array<int> col_offsets(n_off);
+    row_offsets[0] = 0;
+    row_offsets[1] = pv.Size();
+    row_offsets[2] = row_offsets[1] + uv->Size();
+    row_offsets[3] = row_offsets[2] + pv.Size();
+    col_offsets[0] = 0;
+    col_offsets[1] = pv.Size();
+    col_offsets[2] = col_offsets[1] + uv->Size();
+    col_offsets[3] = col_offsets[2] + pv.Size();
     
-     GridFunction eq_res(&fespace);
-     Vector reg_res(uv->Size());
-     GridFunction opt_res(&fespace);
-     Vector other(uv->Size());
-     GridFunction other_y(&fespace);
-     
-     other = 0.0;
+    // newton iterations
+    double error_old;
+    double error;
+    LinearForm solver_error(&fespace);
+    for (int i = 0; i < max_newton_iter; ++i) {
+      // print out objective function and regularization
 
-     GridFunction pv(&fespace);
-     pv = 0.0;
+      if (false) {
+        double obj = 0;
+        for (int j = 0; j < alpha_coeffs->size(); ++j) {
+          double psi_val = 0;
+          Vector coeffs = (*alpha_coeffs)[j];
+          Array<int> inds = (*J_inds)[j];
+          for (int k = 0; k < coeffs.Size(); ++k) {
+            // cout << inds[k] << endl;
+            psi_val += x[inds[k]] * coeffs[k];
+          }
+          obj += (psi_val - 6.864813e-02) * (psi_val - 6.864813e-02);
+        }
+      }
 
-     int n_off = 3;
-     if (i_method == 1) {
-       n_off += 1;
-     }
-     Array<int> row_offsets(n_off);
-     Array<int> col_offsets(n_off);
-     if (i_method == 1) {
-       row_offsets[0] = 0;
-       row_offsets[1] = pv.Size();
-       row_offsets[2] = row_offsets[1] + uv->Size();
-       row_offsets[3] = row_offsets[2] + pv.Size();
-       col_offsets[0] = 0;
-       col_offsets[1] = pv.Size();
-       col_offsets[2] = col_offsets[1] + uv->Size();
-       col_offsets[3] = col_offsets[2] + pv.Size();
-     } else {
-       row_offsets[0] = 0;
-       row_offsets[1] = pv.Size();
-       row_offsets[2] = row_offsets[1] + pv.Size();
-       col_offsets[0] = 0;
-       col_offsets[1] = pv.Size();
-       col_offsets[2] = col_offsets[1] + pv.Size();
-     }
+      // opt_res = K y^n + B_y^T p^n - g
+      K->Mult(x, opt_res);
+      SparseMatrix *By = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
+      By->AddMultTranspose(pv, opt_res);
+      add(opt_res, -1.0, *g, opt_res);
 
-     double error_old;
-     double error;
-     LinearForm solver_error(&fespace);
-     for (int i = 0; i < max_newton_iter; ++i) {
+      // reg_res = H u^n - F^T p^n
+      H->Mult(*uv, reg_res);
+      F->AddMultTranspose(pv, reg_res, -1.0);
 
-       // if (i > 5) {
-       //   weight = 1e-2;
-       // }
-       // if (i > 7) {
-       //   weight = 1e-4;
-       // }
-       // if (i > 10) {
-       //   weight = 1e-6;
-       // }
+      // eq_res = B(y^n) - F u^n
+      op.Mult(x, eq_res);
 
+      // get max errors for residuals
+      error = GetMaxError(eq_res);
+      double max_opt_res = GetMaxError(opt_res);
+      double max_reg_res = GetMaxError(reg_res);
+
+      // objective + regularization
+      // x^T K x - g^T x + C + uv^T H uv
+      double true_obj = K->InnerProduct(x, x) - ((*g) * x) + N_control * (6.864813e-02) * (6.864813e-02);
+      double regularization = (H->InnerProduct(*uv, *uv));
+
+      // print
+      if (i == 0) {
+        printf("i: %3d, nonl_res: %.3e, ratio %9s, opt_res: %9s, reg_res: %9s, obj: %.3e, lst_sq: %.3e, reg: %.3e\n",
+               i, error, "", "", "", true_obj+regularization, true_obj, regularization);
+      } else {
+        printf("i: %3d, nonl_res: %.3e, ratio %.3e, opt_res: %.3e, reg_res: %.3e, obj: %.3e, lst_sq: %.3e, reg: %.3e\n",
+               i, error, error_old / error, max_opt_res, max_reg_res, true_obj+regularization,
+               true_obj, regularization);
+      }
+      error_old = error;
+
+      if (error < newton_tol) {
+        break;
+      }
+
+      // prepare block matrix
+      SparseMatrix *FT = Transpose(*F);
+      SparseMatrix *mF(F);
+      *mF *= -1.0;
+      SparseMatrix *mFT = Transpose(*mF);
+
+      SparseMatrix *ByT = Transpose(*By);
+
+      SparseMatrix *mFFT = Mult(*F, *mFT);
+
+      // create block matrix
+      // + K  dx +      + By^T dp = - opt_res
+      //         + H du - F ^T dp = - reg_res
+      // + By dx - F du +         = - eq_res
+      BlockMatrix *Mat;
+      Mat = new BlockMatrix(row_offsets, col_offsets);
+      Mat->SetBlock(0, 0, K);
+      Mat->SetBlock(0, 2, ByT);
+
+      Mat->SetBlock(1, 1, H);
+      Mat->SetBlock(1, 2, mFT);
+
+      Mat->SetBlock(2, 0, By);
+      Mat->SetBlock(2, 1, mF);
+
+      // create block rhs vector
+      BlockVector Vec(row_offsets);
+
+      Vec.GetBlock(0) = eq_res;
+      Vec.GetBlock(1) = reg_res;
+      Vec.GetBlock(2) = opt_res;
+
+      SparseMatrix * MAT = Mat->CreateMonolithic();
+
+      BlockVector dx(row_offsets);
+      dx = 0.0;
        
-       // print out objective function and regularization
+      // GSSmoother M(*MAT);
+      // int gmres_iter = max_krylov_iter;
+      // double gmres_tol = krylov_tol;
+      // int gmres_kdim = kdim;
+      // GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
 
-       SparseMatrix *By = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
-
-       // uv->Print();
-       // cout << By->MaxNorm() << endl;
-       // cout << K->MaxNorm() << endl;
-       // cout << F->MaxNorm() << endl;
-       // cout << H->MaxNorm() << endl;
-       // if (true) {
-       //   return;
-       // }
-       // B(y^n) - F u^n
-       op.Mult(x, eq_res);
-
-       // double obj = 0;
-       // for (int j = 0; j < alpha_coeffs->size(); ++j) {
-       //   double psi_val = 0;
-       //   Vector coeffs = (*alpha_coeffs)[j];
-       //   Array<int> inds = (*J_inds)[j];
-       //   for (int k = 0; k < coeffs.Size(); ++k) {
-       //     // cout << inds[k] << endl;
-       //     psi_val += x[inds[k]] * coeffs[k];
-       //   }
-       //   obj += (psi_val - 6.864813e-02) * (psi_val - 6.864813e-02);
-       // }
-       // x^T K x - g^T x
-       double true_obj = K->InnerProduct(x, x) - ((*g) * x) + N_control * (6.864813e-02) * (6.864813e-02);
-       double regularization = weight * (H->InnerProduct(*uv, *uv));
-       // printf("true obj: %.3e\n", true_obj);
-
-       error = GetMaxError(eq_res);
-       double max_opt_res = GetMaxError(opt_res);
-       double max_reg_res = GetMaxError(reg_res);
+      // DSmoother M(*MAT);
+      int minres_iter = max_krylov_iter;
+      double minres_tol = krylov_tol;
+      MINRES(*MAT, Vec, dx, 0, minres_iter, minres_tol, 0.0);
+      
+      // Vector err_vec(Vec.Size());
+      // MAT->Mult(dx, err_vec);
+      // err_vec -= Vec;
+      // cout << err_vec.Max() << endl;
+      // cout << err_vec.Min() << endl;
        
-       if (i == 0) {
-         // printf("i: %3d, nonl_res: %.3e, opt_res: %.3e, reg_res: %.3e, obj: %.3e, lst_sq: %.3e, reg: %.3e\n", i, error, max_opt_res, max_reg_res, true_obj+regularization, true_obj, regularization);
-         printf("i: %3d, nonl_res: %.3e, ratio %9s, opt_res: %9s, reg_res: %9s, obj: %.3e, lst_sq: %.3e, reg: %.3e\n", i, error, "", "", "", true_obj+regularization, true_obj, regularization);
-       } else {
-         printf("i: %3d, nonl_res: %.3e, ratio %.3e, opt_res: %.3e, reg_res: %.3e, obj: %.3e, lst_sq: %.3e, reg: %.3e\n", i, error, error_old / error, max_opt_res, max_reg_res, true_obj+regularization, true_obj, regularization);
-       }
-       error_old = error;
+      double alpha = 1.0;
+      add(dx, alpha-1.0, dx, dx);
 
-       if (error < newton_tol) {
-         break;
-       }
+      x -= dx.GetBlock(0);
+      *uv -= dx.GetBlock(1);
+      pv -= dx.GetBlock(2);
+      
 
-       // H u^n - F^T p^n
-       H->Mult(*uv, reg_res);
-       reg_res *= weight;
-       F->AddMultTranspose(pv, reg_res, -1.0);
-
-       // K y^n + B_y^T p^n - g
-       K->Mult(x, opt_res);
-       By->AddMultTranspose(pv, opt_res);
-       add(opt_res, -1.0, *g, opt_res);
-
-       SparseMatrix *FT = Transpose(*F);
-       // SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
-       SparseMatrix *mF(F);
-       *mF *= -1.0;
-
-       SparseMatrix *mFT = Transpose(*mF);
-
-       SparseMatrix *scale_H = Add(weight / delta, *H, 0.0, *H);
-       SparseMatrix *scale_mF = Add(mu / delta, *mF, 0.0, *mF);
-       SparseMatrix *scale_By = Add(mu, *By, 0.0, *By);
-       
-       SparseMatrix *ByT = Transpose(*By);
-
-       SparseMatrix *mFFT = Mult(*F, *mFT);
-       SparseMatrix *wmFFT = Add(1.0 / weight, *mFFT, 0.0, *mFFT);
-
-
-       BlockMatrix *Mat;
-       Mat = new BlockMatrix(row_offsets, col_offsets);
-       BlockVector Vec(row_offsets);
-       if (i_method == 1) {
-         // Mat->SetBlock(0, 0, By);
-         Mat->SetBlock(0, 0, scale_By);
-         Mat->SetBlock(0, 1, scale_mF);
-         // Mat->SetBlock(0, 1, mF);
-         
-         Mat->SetBlock(1, 1, scale_H);
-         // Mat->SetBlock(1, 1, H);
-         Mat->SetBlock(1, 2, mFT);
-         
-         Mat->SetBlock(2, 0, K);
-         Mat->SetBlock(2, 2, ByT);
-         
-         Vec.GetBlock(0) = eq_res;
-         Vec.GetBlock(1) = reg_res;
-         Vec.GetBlock(2) = opt_res;
-         Vec.GetBlock(0) *= mu;
-         
-       } else {
-         Mat->SetBlock(0, 0, By);
-         Mat->SetBlock(0, 1, wmFFT);
-         Mat->SetBlock(1, 0, K);
-         Mat->SetBlock(1, 1, ByT);
-
-         other_y = 0.0;
-         F->AddMult(reg_res, other_y, 1.0 / weight);
-         add(eq_res, 1.0, other_y, other_y);
-         
-         Vec.GetBlock(0) = other_y;
-         Vec.GetBlock(1) = opt_res;
-       }
-       SparseMatrix * MAT = Mat->CreateMonolithic();
-
-       // MAT->PrintMatlab();
-       // if (true) {
-       //   return;
-       // }
-       // option one
-       // By->AddMult(x, eq_res, -1.0);
-       // Vec.GetBlock(0) = 0.0;
-       // add(Vec.GetBlock(0), -1.0, eq_res, Vec.GetBlock(0));
-       // Vec.GetBlock(1) = 0.0;
-       // Vec.GetBlock(2) = *g;
-
-       BlockVector dx(row_offsets);
-       dx = 0.0;
-       
-       GSSmoother M(*MAT);
-       int gmres_iter = max_krylov_iter;
-       double gmres_tol = krylov_tol;
-       int gmres_kdim = kdim;
-       GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
-
-       Vector err_vec(Vec.Size());
-       MAT->Mult(dx, err_vec);
-       err_vec -= Vec;
-       // cout << err_vec.Max() << endl;
-       // cout << err_vec.Min() << endl;
-       
-       double alpha = 1;
-       add(dx, alpha-1.0, dx, dx);
-
-       if (i_method == 1) {
-         x -= dx.GetBlock(0);
-
-         // dx.GetBlock(1).Print();
-
-         dx.GetBlock(1) *= 1.0 / delta;
-         // dx.GetBlock(1).Print();
-         
-         *uv -= dx.GetBlock(1);
-         pv -= dx.GetBlock(2);
-       } else {
-         x -= dx.GetBlock(0);
-         pv -= dx.GetBlock(1);
-
-         other = 0.0;
-         FT->Mult(dx.GetBlock(1), other);
-         other -= reg_res;
-         other *= 1.0 / weight;
-         *uv += other;
-
-       }
-
-       
-       // x.Print();
-       // uv->Print();
-         
-       
-       // cout << x(15) << endl;
-       // cout << (*uv)(3) << endl;
-       // cout << pv(18) << endl;
-       // if (true) {
-       //   return;
-       // }
-
-       // dx = 0.0;
-
-       // GSSmoother M(*Mat);
-       // int gmres_iter = max_krylov_iter;
-       // double gmres_tol = krylov_tol;
-       // int gmres_kdim = kdim;
-       // GMRES(*Mat, dx, out_vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
-
-       // add(dx, ur_coeff-1.0, dx, dx);
-       // x -= dx;
-
-     }
-     // op.Mult(x, out_vec);
-     // error = GetMaxError(out_vec);
-     // printf("\n\n********************************\n");
-     // printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
-     // printf("********************************\n\n");
+    }
+    // op.Mult(x, out_vec);
+    // error = GetMaxError(out_vec);
+    // printf("\n\n********************************\n");
+    // printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
+    // printf("********************************\n\n");
 
 
 
      
-   } else {
-     double error_old;
-     double error;
-     LinearForm solver_error(&fespace);
-     for (int i = 0; i < max_newton_iter; ++i) {
+  } else {
+    // for given currents, solve the GS equations
+     
+    double error_old;
+    double error;
+    LinearForm solver_error(&fespace);
+    for (int i = 0; i < max_newton_iter; ++i) {
 
-       op.Mult(x, out_vec);
-       error = GetMaxError(out_vec);
+      op.Mult(x, out_vec);
+      error = GetMaxError(out_vec);
 
-       op.Mult(x, res);
-       // char buffer [50];
-       // sprintf(buffer, "res%d.gf", i);
-       // res.Save(buffer);
+      if (i == 0) {
+        printf("i: %3d, max residual: %.3e\n", i, error);
+      } else {
+        printf("i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
+      }
+      error_old = error;
 
-       if (i == 0) {
-         printf("i: %3d, max residual: %.3e\n", i, error);
-       } else {
-         printf("i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
-       }
-       error_old = error;
+      if (error < newton_tol) {
+        break;
+      }
 
-       if (error < newton_tol) {
-         break;
-       }
+      dx = 0.0;
+      SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
-       // set<int> plasma_inds;
-       // map<int, vector<int>> vertex_map;
-       // vertex_map = compute_vertex_map(mesh, attr_lim);
-       // int ind_min, ind_max;
-       // double min_val, max_val;
-       // int iprint = 0;
-       // compute_plasma_points(x, mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
-       // max_val = 1.0;
-       // min_val = 0.0;
-       // NonlinearGridCoefficient nlgcoeff1(&model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
-       // GridFunction nlgc_gf(&fespace);
-       // nlgc_gf.ProjectCoefficient(nlgcoeff1);
-       // nlgc_gf.Save("nlgc_.gf");
-       // NonlinearGridCoefficient nlgcoeff2(&model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
-       // GridFunction nlgc2_gf(&fespace);
-       // nlgc2_gf.ProjectCoefficient(nlgcoeff2);
-       // nlgc2_gf.Save("nlgc2_.gf");
+      GSSmoother M(*Mat);
+      // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
+      int gmres_iter = max_krylov_iter;
+      double gmres_tol = krylov_tol;
+      int gmres_kdim = kdim;
+      GMRES(*Mat, dx, out_vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+      printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
 
-       dx = 0.0;
-       SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
+      add(dx, ur_coeff-1.0, dx, dx);
+      x -= dx;
 
-       if (i == -1) {
-         // used for debugging jacobian matrix
-         SparseMatrix *Compare = test_grad(&op, x, &fespace);
-         // Mat->PrintMatlab();
-         // Compare->PrintMatlab();
-         SparseMatrix *Result;
-         Result = Add(1.0, *Mat, -1.0, *Compare);
-         PrintMatlab(Result, Mat, Compare);
-         // Result->PrintMatlab();
-       }
-
-       GSSmoother M(*Mat);
-       // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
-       int gmres_iter = max_krylov_iter;
-       double gmres_tol = krylov_tol;
-       int gmres_kdim = kdim;
-       GMRES(*Mat, dx, out_vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
-
-       // print solver error
-       // Mat->Mult(dx, solver_error);
-       // add(solver_error, -1.0, out_vec, solver_error);
-       // double max_solver_error = GetMaxError(solver_error);
-       // printf("max_solver_error: %.3e\n", max_solver_error);
-
-       add(dx, ur_coeff-1.0, dx, dx);
-       x -= dx;
-
-     }
-     op.Mult(x, out_vec);
-     error = GetMaxError(out_vec);
-     printf("\n\n********************************\n");
-     printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
-     printf("********************************\n\n");
-   }
+    }
+    op.Mult(x, out_vec);
+    error = GetMaxError(out_vec);
+    printf("\n\n********************************\n");
+    printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
+    printf("********************************\n\n");
+  }
   
 }
 
