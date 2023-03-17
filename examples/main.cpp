@@ -180,6 +180,11 @@ int main(int argc, char *argv[])
       trSolve_lddb[i] = ndofs; //??
    }
 
+   //
+   //Current error:
+   // hip error code: 'hipErrorInvalidValue':1 at /long_pathname_so_that_rpms_can_package_the_debug_info/data/driver/rocBLAS/library/src/rocblas_auxiliary.cpp:633
+   //
+
 
    //L(Ux) = b //lower solve
    magmablas_dtrsm_vbatched(MagmaLeft, MagmaLower, MagmaNoTrans,
@@ -202,7 +207,7 @@ int main(int argc, char *argv[])
                             NE, magma_queue);
 
 
-   //Compute error ?
+   //Compute error
    x_magma -= x_ref;
    double error = x_magma.Norml2();
    std::cout<<"error = "<<error<<std::endl;
