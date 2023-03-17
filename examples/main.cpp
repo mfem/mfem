@@ -70,30 +70,6 @@
 
 using namespace std;
 using namespace mfem;
-#if 0
-template <typename DestT, typename T>
-inline auto ReadWriteArrayOfArrays(
-                                   mfem::Array<DestT *> &dest,
-                                   T *src,
-                                   int size,
-                                   std::function<bool(int)> pred = [](int) { return true; })
-{
-  dest.SetSize(size, tempMemType());
-  dest.HostWrite();
-  for (int i = 0; i < size; ++i)
-    {
-      if (pred(i))
-        {
-          dest[i] = src[i].ReadWrite();
-        }
-      else
-        {
-          dest[i] = nullptr;
-        }
-    }
-  return dest.Read();
-}
-#endif
 
 int main(int argc, char *argv[])
 {
@@ -105,7 +81,6 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "hip";
    bool visualization = true;
-   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -147,18 +122,6 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
-   {
-     int ref_levels = 0;
-     //(int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
-         //for (int l = 0; l < ref_levels; l++)
-         //{
-         //mesh.UniformRefinement();
-         //}
-   }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -185,25 +148,6 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in the finite element fespace.
-   LinearForm b(&fespace);
-   ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -211,25 +155,23 @@ int main(int argc, char *argv[])
    GridFunction x(&fespace);
    x = 0.0;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator.
-
-   MassIntegrator mass_int;
-   Vector VecMassMats;
-   mass_int.AssembleEA(fespace, VecMassMats, false);
-
    Vector rhs(x.Size());
    rhs.Randomize();
 
    Vector x_ref = rhs;
    Vector x_magma = x_ref;
 
+   // 9. Set up the bilinear form a(.,.) on the finite element space
+   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //    domain integrator.
+
    const int NE = mesh.GetNE();
    const int ndofs = x_ref.Size() / NE;
 
-   std::cout<<"ndofs = "<<ndofs<<std::endl;
-   
+   MassIntegrator mass_int;
+   Vector VecMassMats(ndofs * ndofs * NE);
+   mass_int.AssembleEA(fespace, VecMassMats, false);
+
    //Batch solver...
    DenseTensor LUMassMats(ndofs, ndofs, NE);
    DenseTensor MassMats(ndofs, ndofs, NE);
@@ -257,7 +199,7 @@ int main(int argc, char *argv[])
        std::cout<<P.HostReadWrite()[indx]<<std::endl;
      }
    }
-   
+
 
    mfem::BatchLUSolve(LUMassMats, P, x_ref);
 
@@ -285,8 +227,8 @@ int main(int argc, char *argv[])
      magma_LUMassMats.HostWrite()[i] = &MassMats.ReadWrite()[i*ndofs*ndofs];
    }
 
-   Array<magma_int_t> ldda = num_of_cols;   
-   
+   Array<magma_int_t> ldda = num_of_cols;
+
    Array<magma_int_t *> dipiv_array(NE);
    Array<magma_int_t> info_array(NE);
 
@@ -295,41 +237,41 @@ int main(int argc, char *argv[])
    for(int i=0; i<NE; ++i)
    {
      dipiv_array.HostWrite()[i] = &P.ReadWrite()[i*ndofs];
-   }   
+   }
 
    magma_dgetrf_vbatched(num_of_rows.ReadWrite(), num_of_cols.ReadWrite(),
                          magma_LUMassMats.ReadWrite(), ldda.ReadWrite(),
                          dipiv_array.ReadWrite(), info_array.ReadWrite(),
                          NE, magma_queue);
 
-   
+
    {
      std::cout<<"ndofs = "<<ndofs<<std::endl;
      std::cout<<"magma mat "<<std::endl;
      int elem = 8;
 
      for(int r=0; r<ndofs; ++r) {
-       for(int c=0; c<ndofs; ++c) {        
+       for(int c=0; c<ndofs; ++c) {
          int idx = c + ndofs * r  + ndofs*ndofs*elem;
-         std::cout<<MassMats.HostReadWrite()[idx]<<" ";         
+         std::cout<<MassMats.HostReadWrite()[idx]<<" ";
        }
        std::cout<<" "<<std::endl;
      }
 
      std::cout<<" "<<std::endl;
-     
+
      std::cout<<"reference mat "<<std::endl;
      for(int r=0; r<ndofs; ++r) {
-       for(int c=0; c<ndofs; ++c) {        
+       for(int c=0; c<ndofs; ++c) {
          int idx = c + ndofs * r  + ndofs*ndofs*elem;
-         std::cout<<LUMassMats.HostReadWrite()[idx]<<" ";         
+         std::cout<<LUMassMats.HostReadWrite()[idx]<<" ";
        }
        std::cout<<" "<<std::endl;
      }
-     
+
    }
 
-    
+
    {
      std::cout<<"\n magma pivot array ... "<<std::endl;
      int elem = 1;
@@ -345,7 +287,7 @@ int main(int argc, char *argv[])
    Array<int> rhs_num_of_cols(NE);
    rhs_num_of_cols = 1;
 
-   //may need to perfom pivoting myself...? 
+   //may need to perfom pivoting myself...?
 
    //x_magma_ptrs to x_magma
    Array<double *> x_magma_ptrs(NE);
@@ -380,102 +322,18 @@ int main(int argc, char *argv[])
                             magma_LUMassMats.ReadWrite(), trSolve_ldda.ReadWrite(),
                             x_magma_ptrs.ReadWrite(), trSolve_lddb.ReadWrite(),
                             NE, magma_queue);
-#endif                            
+#endif
 
-   
-   //mfem::BatchLUSolve(MassMats, P, x_magma); 
-   
+
+   //mfem::BatchLUSolve(MassMats, P, x_magma);
+
    x_magma -= x_ref;
 
    double error = x_magma.Norml2();
 
    std::cout<<"error = "<<error<<std::endl;
 
-#if 0
-   BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa)
-   {
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
-      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-      // when Device::IsEnabled() returns true). This makes the results
-      // bit-for-bit deterministic at the cost of somewhat longer run time.
-      a.EnableSparseMatrixSorting(Device::IsEnabled());
-   }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
-   a.Assemble();
-
-   OperatorPtr A;
-   Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-   cout << "Size of linear system: " << A->Height() << endl;
-
-   // 11. Solve the linear system A X = B.
-   if (!pa)
-   {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
-#endif
-   }
-   else
-   {
-      if (UsesTensorBasis(fespace))
-      {
-         if (algebraic_ceed)
-         {
-            ceed::AlgebraicSolver M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-         }
-         else
-         {
-            OperatorJacobiSmoother M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-         }
-      }
-      else
-      {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
-      }
-   }
-
-   // 12. Recover the solution as a finite element grid function.
-   a.RecoverFEMSolution(X, b, x);
-
-   // 13. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
-
-   // 14. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
-   }
-
-#endif
    // 15. Free the used memory.
    if (delete_fec)
    {
