@@ -104,10 +104,6 @@ int main(int argc, char *argv[])
    }
    if (myrank == 0) { args.PrintOptions(cout); }
 
-   // Enable hardware devices such as GPUs, and programming models such as CUDA,
-   // OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   if (myrank == 0) { device.Print(); }
 
    // Refine the mesh.
    Mesh mesh(mesh_file, 1, 1);
@@ -149,7 +145,7 @@ int main(int argc, char *argv[])
    ParNonlinearForm* sf=new ParNonlinearForm(&pfes_s);
 
    ConstantCoefficient one(1.0);
-   DVolShapeIntegrator* itg=new DVolShapeIntegrator(one,el_marks);
+   VolShapeIntegrator* itg=new VolShapeIntegrator(one,el_marks);
    nf->AddDomainIntegrator(itg);
 
 

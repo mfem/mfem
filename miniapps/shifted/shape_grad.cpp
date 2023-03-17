@@ -178,7 +178,9 @@ void VolShapeIntegrator::AssembleElementVector(const FiniteElement &el,
         elvect.SetSize(ndof); elvect=0.0;
 
         DenseMatrix bmat(ndof,ndim); //gradients of the shape functions in isoparametric space
+        DenseMatrix pmat(ndof,ndim);
         Vector inormal(ndim); //normal to the level set in isoparametric space
+        Vector tnormal(ndim);
         Vector shf(ndof);
 
         int order;
@@ -199,10 +201,23 @@ void VolShapeIntegrator::AssembleElementVector(const FiniteElement &el,
            const IntegrationPoint &ip = ir->IntPoint(j);
            Tr.SetIntPoint(&ip);
            el.CalcDShape(ip,bmat);
+           Mult(bmat, Tr.AdjugateJacobian(), pmat);
+
+
            //compute the normal to the LS in isoparametric space
            bmat.MultTranspose(elfun,inormal);
-           if(ndim==2) { w = ip.weight * sqrt(Tr.Weight());} /// inormal.Norml2();
-           else { w= ip.weight * pow(Tr.Weight(), 2.0/3.0);}
+           pmat.MultTranspose(elfun,tnormal);
+           std::cout<<"tn="<<tnormal.Norml2()<<" in="<<inormal.Norml2()<<" ww"<< tnormal.Norml2()/inormal.Norml2()<<std::endl;
+           std::cout<<"sqrt(w)="<<sqrt(Tr.Weight())<<" w^2/3="<<pow(Tr.Weight(), 2.0/3.0)<<std::endl;
+
+           el.CalcPhysDShape(Tr,pmat);
+           pmat.MultTranspose(elfun,tnormal);
+           std::cout<<"tn="<<tnormal.Norml2()<<std::endl;
+
+           //w=ip.weight*(tnormal.Norml2())/inormal.Norml2();
+           //w=ip.weight/tnormal.Norml2();
+           if(ndim==2) { w = ip.weight * sqrt(Tr.Weight())/tnormal.Norml2();} /// inormal.Norml2();
+           else { w= ip.weight * pow(Tr.Weight(), 2.0/3.0)/tnormal.Norml2();}
            el.CalcPhysShape(Tr,shf);
            f = coeff->Eval(Tr,ip);
            elvect.Add(w * f , shf);
@@ -449,6 +464,13 @@ void SurfShapeIntegrator::AssembleElementVector(const FiniteElement &el,
        //compute the normal to the LS in isoparametric space
        bmat.MultTranspose(elfun,inormal);
        w = ip.weight * Tr.Weight() / inormal.Norml2();
+
+       el.CalcPhysDShape(Tr,bmat);
+       bmat.MultTranspose(elfun,inormal);
+       if(ndim==2) { w = ip.weight * sqrt(Tr.Weight())/inormal.Norml2();} /// inormal.Norml2();
+       else { w= ip.weight * pow(Tr.Weight(), 2.0/3.0)/inormal.Norml2();}
+
+
 
        el.CalcPhysShape(Tr,shf);
 
