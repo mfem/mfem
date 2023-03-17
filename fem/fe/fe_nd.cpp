@@ -314,7 +314,6 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
    Vector shape_cz(p + 1), shape_oz(p);
-   Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -322,9 +321,9 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
       Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
 #endif
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
+      basis1d.Eval(ip.z, shape_cz, dshape_cz);
       obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
@@ -332,9 +331,9 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
-      cbasis1d.Eval(ip.z, shape_cz);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.z, shape_cz);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
       obasis1d.Eval(ip.z, shape_oz);
@@ -408,9 +407,9 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
       obasis1d.ScaleIntegrated(false);
@@ -659,7 +658,6 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
-   Vector dshape_cx(p + 1), dshape_cy(p + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -667,16 +665,16 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
       Vector dshape_cx(p + 1), dshape_cy(p + 1);
 #endif
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
       obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
    }
@@ -726,8 +724,8 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector dshape_cx(p + 1), dshape_cy(p + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
       obasis1d.ScaleIntegrated(false);
