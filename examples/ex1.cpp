@@ -73,7 +73,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   mfem::out << "\033[32m[main]" << "\033[m" << std::ends;
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -201,6 +200,7 @@ int main(int argc, char *argv[])
       // bit-for-bit deterministic at the cost of somewhat longer run time.
       a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
+   a.AddDomainIntegrator(new MassIntegrator(one));
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,

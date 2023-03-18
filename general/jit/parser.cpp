@@ -15,6 +15,7 @@
 #include "jit.hpp" // Hash, ToString, Find
 
 #include <string>
+#include <vector>
 #include <cassert>
 #include <cstring> // std::strlen
 #include <fstream>
@@ -56,6 +57,8 @@ struct Parser
       string Sargs, Sparams, Sparams0; // Symbol call arguments
       string Tadds, Sargs_us;
       ostringstream src, dup;
+      vector<string> includes;
+      bool include_path_check;
       bool is_static, is_templated, eq, mv_to_targs;
 
       /*
@@ -77,10 +80,13 @@ struct Parser
          void params() { next(&fsm_t::prefix); } // Parameters
          void prefix() { next(&fsm_t::body); } // Kernel body
          void body() { next(&fsm_t::wait); } // Kernel body
+         void include() { next(&fsm_t::wait); } // Add include
          template<State S> bool is() { return state == S; }
       } fsm;
 
       void advance() { fsm.advance(); }
+      void include() { fsm.next(&fsm_t::include); }
+
       bool is_wait()    { return fsm.is<&fsm_t::wait>(); }
       bool is_jit()     { return fsm.is<&fsm_t::jit>(); }
       bool is_targs()   { return fsm.is<&fsm_t::targs>(); }
@@ -88,6 +94,7 @@ struct Parser
       bool is_params()  { return fsm.is<&fsm_t::params>(); }
       bool is_prefix()  { return fsm.is<&fsm_t::prefix>(); }
       bool is_body()    { return fsm.is<&fsm_t::body>(); }
+      bool is_include() { return fsm.is<&fsm_t::include>(); }
 
       bool filter(const char c) // returns false if c should not be out.put'ed
       {
@@ -164,6 +171,16 @@ struct Parser
       if (good() && is_quote()) { for (check(put()=='"'); !is_quote(); put()); }
    }
 
+   string get_string()
+   {
+      string str;
+      if (good() && is_quote())
+      {
+         for (check(put()=='"'); !is_quote(); str += put());
+      }
+      return str;
+   }
+
    bool is_comment()
    {
       if (!good()) { return false; }
@@ -225,6 +242,7 @@ struct Parser
 
    bool is_string(const char *str) { return peek_n(strlen(str)) == str; }
    bool is_template() { return is_string("template"); }
+   bool is_include() { return is_string("include"); }
    bool is_static() { return is_string("static"); }
    bool is_void() { return is_string("void"); }
 
@@ -233,11 +251,44 @@ struct Parser
    bool is_slash() { return is_char('/'); }
    bool is_star() { return is_char('*'); }
    bool is_coma() { return is_char(','); }
+   bool is_hash() { return is_char('#'); }
    bool is_quote() { return is_char('"'); }
    bool is_amp() { return is_char('&'); }
    bool is_eq() { return is_char('='); }
    bool is_lt() { return is_char('<'); }
    bool is_gt() { return is_char('>'); }
+
+   void mfem_jit_include()
+   {
+#warning include vs line count
+      //std::cout << "\033[33m[mfem_jit_include]\033[m" << std::ends;
+      check(ker.is_wait(), "mfem_jit_include not in jit state");
+      put(); // '#'
+      next();
+      if (is_include())
+      {
+         out << get_id(); // include
+         skip_space();
+         check(is_quote());
+         string inc = get_string();
+         //std::cout << "\033[33m[inc:" << inc << "]\033[m" << std::ends;
+         ker.includes.push_back(inc);
+         check(is_quote());
+         put(); // '"'
+         next();
+
+         if (!ker.include_path_check)
+         {
+            // MFEM_JIT_INC_PATH is set from (c)make command line
+            out << "#ifndef MFEM_JIT_INC_PATH\n";
+            out << "#error MFEM_JIT_INC_PATH should be defined!\n";
+            out << "#endif // MFEM_JIT_INC_PATH\n";
+            ker.include_path_check = true;
+         }
+      }
+      ker.include();
+      check(ker.is_include());
+   }
 
    /*
     * mfem_jit_prefix is the main parser part: it prepares the templated
@@ -247,11 +298,17 @@ struct Parser
     */
    void mfem_jit_kernel()
    {
-      (ker.advance(), check(ker.is_jit(), "wait => jit")); // FSM update
+      assert(ker.is_wait());
       next();
+
+      if (is_hash()) { return mfem_jit_include(); } // #include ?
+
+      (ker.advance(), check(ker.is_jit(), "wait => jit")); // FSM update
       ker.Targs.clear();
       ker.Tparams.clear();
+      ker.include_path_check = false;
       ker.is_templated = is_template();
+
       if (ker.is_templated)
       {
          ker.Tformat = "%d";
@@ -369,11 +426,10 @@ struct Parser
       ker.advance(); // Prefix => Body
 
       ker.src << "\n\tconst char *source = R\"_(";
-      // can't do this here as libmfem does not live yet
-      //ker.src << mfem::Jit::Defines().c_str();
-      //ker.src << mfem::Jit::Includes().c_str();
+      // mfem, forall & jit includes are added from command line from jit.cpp
       ker.src << "\nusing namespace mfem;";
-      ker.src << "\ntemplate<" << ker.Tparams << ">";
+      for (auto inc: ker.includes) { ker.src << "\n#include \"" + inc +"\""; }
+      ker.src << "\n\ntemplate<" << ker.Tparams << ">";
       ker.src << "\nvoid " << ker.name << "_%016lx"
               << "(" << ker.Sparams0 << "){";
       ker.src << pp_line();
@@ -396,16 +452,18 @@ struct Parser
               << "\n\t" << ker.name << "_%016lx<" << ker.Tformat << ">"
               << "("<< ker.Sargs_us << ");";
 
+      // these settings are global to MFEM
       const char *cxx = "" MFEM_CXX;
       const char *libs = "" MFEM_EXT_LIBS;
       const char *link = "" MFEM_LINK_FLAGS;
       const char *flags = "" MFEM_BUILD_FLAGS;
+      // this setting is local to the compiled file, set from (c)make
+      const char *incp = "MFEM_JIT_INC_PATH";
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
-         mfem::Jit::Hash(
-            hash<string> {}(ker.src.str()),
-            string(cxx), string(libs), string(flags),
-            string(MFEM_SOURCE_DIR), string(MFEM_INSTALL_DIR));
+         mfem::Jit::Hash(hash<string> {}(ker.src.str()),
+                         string(cxx), string(libs), string(flags),
+                         string(MFEM_SOURCE_DIR), string(MFEM_INSTALL_DIR));
 
       if (ker.is_templated) // dup code
       {
@@ -421,6 +479,7 @@ struct Parser
       out << "\nconst char *flags = \""<< flags << "\";";
       out << "\nconst char *link = \"" << link << "\";";
       out << "\nconst char *libs = \"" << libs << "\";";
+      out << "\nconst char *incp = \"\" " << incp << ";";
       out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul"
           << "," << ker.Targs << ");";
@@ -428,8 +487,8 @@ struct Parser
           <<"(" << ker.Sparams << ");";
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
-          << "\", cxx, flags, link, libs, source, kernels" << ", " << ker.Targs
-          <<  ").Launch(" << ker.Sargs << ");";
+          << "\", cxx, flags, link, libs, incp, source, kernels" << ", "
+          << ker.Targs <<  ").Launch(" << ker.Sargs << ");";
       out << pp_line();
       ker.advance(/*postfix => wait*/);
    }
@@ -450,7 +509,7 @@ struct Parser
 
       if (peek_n(4) == "MFEM")
       {
-         //std::cout << "\033[33m"<< "MFEM" <<"\033[m" << std::ends;
+         //std::cout << "\033[33m[MFEM]\033[m" << std::ends;
          const string id = get_id();
          auto is = [&](const string &id, const char *token)
          {
@@ -468,6 +527,12 @@ struct Parser
       } // MFEM_*
 
       if (ker.is_body() && is_end_of(block,'{','}')) { mfem_jit_postfix(); }
+      if (ker.is_include())
+      {
+         //std::cout << "\033[33m["<< peek_n(4) <<"]\033[m" << std::ends;
+         ker.advance(); check(ker.is_wait());
+         token(); // to handle imediate MFEM_JIT (Parse while does a put)
+      }
    }
 
    /*
@@ -476,6 +541,7 @@ struct Parser
     */
    int Parse()
    {
+      ker.includes.clear();
       try { while (good()) { put(); next(); token(); } }
       catch (error_t err)
       {

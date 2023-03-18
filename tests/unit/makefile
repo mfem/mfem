@@ -97,8 +97,6 @@ MJIT_OBJ = $(filter-out $(MJIT_MAIN_OBJ) $(PMJIT_MAIN_OBJ),\
                         $(MJIT_SOURCE_FILES:$(SRC)%.cpp=%.o))
 SEQ_UNIT_TESTS += $(if $(USE_MJIT),mjit_tests)
 PAR_UNIT_TESTS += $(if $(USE_MJIT),pmjit_tests)
-MJIT_FLAGS  = $(if $(or $(USE_CUDA),$(USE_HIP)),,-x c++)
-MJIT_FLAGS += $(MFEM_FLAGS)
 
 # Debug device tests
 DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
@@ -159,7 +157,7 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
 	$(MFEM_DIR)/mjit $(abspath $(<)) -o $(*)_jit.cpp
-	$(CCC) -c $(*)_jit.cpp $(MJIT_FLAGS) $(INCLUDES) -o $(@)
+	$(CCC) -c $(*)_jit.cpp $(MFEM_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"\"" -o $(@)
 	rm $(*)_jit.cpp
 
 # Template rule for devices

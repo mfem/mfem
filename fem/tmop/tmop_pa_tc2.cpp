@@ -14,6 +14,7 @@
 #include "../gridfunc.hpp"
 #include "../kernels.hpp"
 #include "../../general/forall.hpp"
+MFEM_JIT
 #include "../../linalg/kernels.hpp"
 
 using namespace mfem;

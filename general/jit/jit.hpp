@@ -14,8 +14,7 @@
 
 #include "../../config/config.hpp"
 
-#define MFEM_JIT // prefix to label JIT kernels and arguments
-#define MFEM_JIT_INCLUDE(...)
+#define MFEM_JIT // prefix to label JIT kernels, arguments and includes
 
 #ifdef MFEM_USE_JIT
 
@@ -102,7 +101,7 @@ struct Jit
     **/
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
-                       const char *source, const char *symbol);
+                       const char *incp, const char *source, const char *symbol);
 
    /// @brief Kernel structure to hold the kernel and its launcher.
    template<typename T> struct Kernel
@@ -121,9 +120,10 @@ struct Jit
       *  @param[in] src source of the kernel,
       *  @param[in] sym symbol of the kernel.
       **/
-      Kernel(const size_t hash, const char *name, const char *cxx, const char *flags,
-             const char *link, const char *libs, const char *src, const char *sym):
-         kernel((T) Jit::Lookup(hash, name, cxx, flags, link, libs, src, sym)) {}
+      Kernel(const size_t hash, const char *name, const char *cxx,
+             const char *flags, const char *link, const char *libs,
+             const char *incp, const char *src, const char *sym):
+         kernel((T) Jit::Lookup(hash, name, cxx, flags, link, libs, incp, src, sym)) {}
 
       /// @brief Kernel launch operator.
       template<typename... Args>
@@ -143,20 +143,20 @@ struct Jit
     *  @param[in] args runtime arguments of the JIT kernel.
     **/
    template <typename T, typename... Args> static inline
-   Kernel<T> Find(const size_t hash, const char *kernel_name, const char *cxx,
+   Kernel<T> Find(const size_t hash, const char *name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
-                  const char *src, std::unordered_map<size_t, Kernel<T>> &map,
-                  Args... Targs) // Targs (templated args) are just integers
+                  const char *incp, const char *src,
+                  std::unordered_map<size_t, Kernel<T>> &map, Args... Targs)
    {
       auto kernel_it = map.find(hash);
       if (kernel_it == map.end())
       {
          const int n = snprintf(nullptr, 0, src, hash, hash, hash, Targs...);
-         const int m = snprintf(nullptr, 0, kernel_name, Targs...);
+         const int m = snprintf(nullptr, 0, name, Targs...);
          std::string buf(n+1, '\0'), ker(m+1, '\0');
          snprintf(&buf[0], n+1, src, hash, hash, hash, Targs...);
-         snprintf(&ker[0], m+1, kernel_name, Targs...); // ker_name<...>
-         map.emplace(hash, Kernel<T>(hash, &ker[0], cxx, flags, link, libs,
+         snprintf(&ker[0], m+1, name, Targs...); // ker_name<...>
+         map.emplace(hash, Kernel<T>(hash, &ker[0], cxx, flags, link, libs, incp,
                                      &buf[0], ToString(hash).c_str()));
          kernel_it = map.find(hash);
       }

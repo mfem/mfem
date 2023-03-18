@@ -528,7 +528,7 @@ $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
 	@mkdir -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
 	@$(BLD)./mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*).cpp
 	@echo [JIT] $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*).cpp -o $(@)
-	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -c $(JIT_SOURCE_MKTMP)/$(*).cpp -o $(@)
+	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -DMFEM_JIT_INC_PATH="\"$(dir $(*))\"" -c $(JIT_SOURCE_MKTMP)/$(*).cpp -o $(@)
 	@rm $(JIT_SOURCE_MKTMP)/$(*).cpp
 endif # MFEM_USE_JIT
 

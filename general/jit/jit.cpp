@@ -280,24 +280,17 @@ public:
 
 private:
 
-   System() // at each dlopen, local to the shared executable
+   System()
    {
-      std::cout << "\033[33m[System]" << "\033[m" << std::ends;
-
-      //AddInclude("mfem.hpp");
+      //std::cout << "\033[33m[System]\033[m" << std::ends;
+      AddInclude("mfem.hpp");
+      AddInclude("general/forall.hpp");
       AddInclude("general/jit/jit.hpp"); // for Hash, Find
-      AddInclude("general/forall.hpp"); // default for all?
-
-      // these includes should be added closer to the jitted kernels
-      AddInclude("fem/kernels.hpp");
-      AddInclude("linalg/kernels.hpp");
-      AddInclude("linalg/dinvariants.hpp"); // for tmop
-      AddInclude("fem/bilininteg_mass_pa.hpp"); // for mass
    }
 
    ~System() // warning: can't use mpi::Root here
    {
-      std::cout << "\033[33m[~System]\033[m" << std::ends;
+      //std::cout << "\033[33m[~System]\033[m" << std::ends;
       if (!Get().keep_cache && Rank()==0 && io::Exists(Lib_ar()))
       {
          std::remove(Lib_ar());
@@ -395,7 +388,7 @@ public:
     **/
    static void Configure(const char *name, const char *path, bool keep)
    {
-      assert(false);
+      std::cout << "\033[34m[System] Configure" << "\033[m" << std::ends;
       Get().path = path;
       Get().keep_cache = keep;
       Get().rank = mpi::Rank();
@@ -457,22 +450,6 @@ public:
       {
          Get().ker_includes.emplace(ker, std::vector<std::string> {include});
       }
-   }
-
-   static std::string Includes(const char *kernel_name)
-   {
-      //assert(false);
-      // kernel_name: SmemPADiffusionApply2D<2,2,16> 
-      // ker: SmemPADiffusionApply2D
-      std::cout << "\033[33m[Includes] " << kernel_name << "\033[m" << std::ends;
-      std::string includes;
-      /*for (auto inc: Get().ker_includes.at(ker))
-      {
-         includes += "-include \"";
-         includes += inc;
-         includes += "\" ";
-      }*/
-      return includes;
    }
 
    static std::string Includes()
@@ -541,7 +518,7 @@ public:
 
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
-                       const char *source, const char *symbol)
+                       const char *incp, const char *source, const char *symbol)
    {
       DLerror(false); // flush dl errors
       mpi::Sync(); // make sure file testing is done at the same time
@@ -561,7 +538,7 @@ public:
          mpi::Sync(status);
          handle = DLopen(Lib_so());
          if (!handle) // happens when Lib_so is removed in the meantime
-         { return Lookup(hash, name, cxx, flags, link, libs, source, symbol); }
+         { return Lookup(hash, name, cxx, flags, link, libs, incp, source, symbol); }
          MFEM_VERIFY(handle, "[JIT] Error " << Lib_ar() << " => " << Lib_so());
       }
 
@@ -606,6 +583,7 @@ public:
                   MFEM_VERIFY(io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
                               io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
                               "[JIT] Could not find any MFEM header!");
+                  std::string mfem_include_dir(MFEM_SOURCE_DIR);
                   Command() << cxx << flags << (Verbose() ? "-v" : "")
 #ifdef MFEM_USE_CUDA
                             << "--device-c"
@@ -613,9 +591,10 @@ public:
 #endif
                             << "-I" << MFEM_INSTALL_DIR "/include/mfem"
                             << "-I" << MFEM_SOURCE_DIR
+                            << "-I" << (mfem_include_dir + "/" + incp)
                             << Defines().c_str()
                             << Includes().c_str()
-                            << Includes(name).c_str()
+                            //<< Includes(name).c_str()
                             << "-c" << "-o" << co << cc;
                   if (Call(name)) { return EXIT_FAILURE; }
                   if (!Debug()) { std::remove(cc.c_str()); }
@@ -629,33 +608,16 @@ public:
                }
                // Create temporary shared library: (ar + co) => so
                {
-#ifdef __APPLE__
-                  MFEM_VERIFY(//io::Exists(MFEM_SOURCE_DIR "/libmfem.dylib") ||
-                     io::Exists(MFEM_INSTALL_DIR "/lib/libmfem.dylib"),
-                     "[JIT] Could not find any ibmfem.dylib!");
-#endif
+                  // macos warns dynamic_lookup may not work with chained fixups
+                  // to avoid, use both MFEM_SOURCE/INSTALL_DIR directly
                   Command() << cxx << link << "-o" << so
                             << "-shared"
-#ifdef __APPLE__
-                            //<< "-bundle"
-                            //<< "-dynamiclib"
-                            //<< "-fvisibility=hidden"
-                            //<< "-bind_at_load"
-                            << "-undefined dynamic_lookup"
-                            //<< "-Wl,-undefined,dynamic_lookup"
-                            //<< "-L.." // ok
-                            //<< "-Wl,-undefined,dynamic_lookup -L.."
-                            //<< MFEM_INSTALL_DIR "/lib/libmfem.4.5.1.dylib"
-                            //<< "-L" MFEM_INSTALL_DIR "/lib"
-                            //<< "-rpath " MFEM_INSTALL_DIR "/lib"
-                            //<< "-L" MFEM_INSTALL_DIR "/lib/"
-                            //<< Xlinker() + std::string("-rpath,") + MFEM_INSTALL_DIR + "/lib"
-                            //<< "-lmfem"
-#endif
+                            //<< "-undefined dynamic_lookup"
+                            << "-L" MFEM_SOURCE_DIR
+                            << "-L" MFEM_INSTALL_DIR " -lmfem"
                             << Xprefix() << Lib_ar() << Xpostfix()
                             << Xlinker() + std::string("-rpath,") + Path()
                             << libs;
-
                   if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
                }
                // Install temporary shared library: so => Lib_so
@@ -719,15 +681,15 @@ void Jit::AddInclude(const char *inc) { System::Get().AddInclude(inc); }
 std::string Jit::Defines() { return System::Get().Defines(); }
 
 std::string Jit::Includes() { return System::Get().Includes(); }
-std::string Jit::Includes(const char *ker) { return System::Get().Includes(ker); }
 
 void Jit::Finalize() { System::Get().Finalize(); }
 
 void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
-                  const char *source, const char *symbol)
+                  const char *incp, const char *source, const char *symbol)
 {
-   return System::Get().Lookup(hash, name, cxx, flags, link, libs, source, symbol);
+   return System::Get().Lookup(hash, name, cxx, flags, link, libs, incp,
+                               source, symbol);
 }
 
 } // namespace mfem

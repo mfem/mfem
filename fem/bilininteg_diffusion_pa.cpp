@@ -10,13 +10,11 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
-#include "../general/jit/jit.hpp" // for MFEM_JIT, MFEM_JIT_INCLUDE
+#include "../general/jit/jit.hpp" // for MFEM_JIT
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
-
-MFEM_JIT_INCLUDE("fem/kernels.hpp")
 
 using namespace std;
 
@@ -1464,8 +1462,6 @@ void SmemPADiffusionApply3D(const int NE,
                             int d1d = 0,
                             int q1d = 0)
 {
-   // use device singleton
-   mfem::out << "Backends:" << Device::Backends() << std::endl;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;

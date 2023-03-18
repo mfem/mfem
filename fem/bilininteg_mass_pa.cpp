@@ -15,7 +15,11 @@
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
 #include "ceed/integrators/mass/mass.hpp"
+MFEM_JIT
 #include "bilininteg_mass_pa.hpp"
+
+MFEM_JIT
+#include "kernels.hpp"
 
 using namespace std;
 

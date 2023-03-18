@@ -479,8 +479,11 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 # JIT configuration
 JIT_OPT =
-JIT_LIB = $(XCOMPILER)-rdynamic -ldl
-# is rdynamic necessary ?
+JIT_LIB = -ldl
+ifdef MFEM_USE_JIT
+    STATIC = NO
+    SHARED = YES
+endif
 
 # CALIPER library configuration
 CALIPER_DIR = @MFEM_DIR@/../caliper
