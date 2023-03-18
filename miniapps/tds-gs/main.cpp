@@ -121,6 +121,8 @@ int main(int argc, char *argv[])
 
    double ur_coeff = 1.0;
 
+   int do_control = 1;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -154,6 +156,8 @@ int main(int argc, char *argv[])
 
    args.AddOption(&ur_coeff, "-ur", "--ur_coeff", "under relaxation coefficient");
 
+   args.AddOption(&do_control, "-dc", "--do_control", "solve the control problem");
+
    args.ParseCheck();
 
    if (do_test == 1) {
@@ -163,7 +167,7 @@ int main(int argc, char *argv[])
      gs(mesh_file, data_file, order, d_refine, alpha, beta, lambda, gamma, mu, r0, rho_gamma,
         max_krylov_iter, max_newton_iter, krylov_tol, newton_tol,
         c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
-        ur_coeff,
+        ur_coeff, do_control,
         do_manufactured_solution);
    }
    

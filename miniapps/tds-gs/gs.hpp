@@ -32,7 +32,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & krylov_tol, double & newton_tol,
           double & c1, double & c2, double & c3, double & c4, double & c5, double & c6, double & c7,
           double & c8, double & c9, double & c10, double & c11,
-          double & ur_coeff,
+          double & ur_coeff, int do_control,
           bool do_manufactured_solution);
 
 #endif

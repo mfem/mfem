@@ -238,16 +238,19 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
            int & max_newton_iter, int & max_krylov_iter,
            double & newton_tol, double & krylov_tol, double & ur_coeff,
            vector<Vector> *alpha_coeffs, vector<Array<int>> *J_inds,
-           int N_control) {
+           int N_control, int do_control) {
   cout << "size: " << alpha_coeffs->size() << endl;
 
+  // todos:
+  //  - weight, do control as input params
+  //  - compare no control with control, but zeroing out current and multiplier
+  //  - 
+  
   GridFunction dx(&fespace);
   GridFunction res(&fespace);
   LinearForm out_vec(&fespace);
   dx = 0.0;
 
-  int i_method = 1;
-  int do_control = 1;
   if (do_control) {
     // solve the optimization problem of determining currents to fit desired plasma shape
     //
@@ -266,6 +269,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
     GridFunction pv(&fespace);
     pv = 0.0;
 
+    GridFunction uv_prev(&fespace);
+    // uv_prev.Load("exact.gf");
+    
     // placeholder for rhs
     GridFunction eq_res(&fespace);
     Vector reg_res(uv->Size());
@@ -359,37 +365,38 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       // + By dx - F du +         = - eq_res
       BlockMatrix *Mat;
       Mat = new BlockMatrix(row_offsets, col_offsets);
-      Mat->SetBlock(0, 0, K);
-      Mat->SetBlock(0, 2, ByT);
+      Mat->SetBlock(2, 0, K);
+      Mat->SetBlock(2, 2, ByT);
 
       Mat->SetBlock(1, 1, H);
       Mat->SetBlock(1, 2, mFT);
 
-      Mat->SetBlock(2, 0, By);
-      Mat->SetBlock(2, 1, mF);
+      Mat->SetBlock(0, 0, By);
+      Mat->SetBlock(0, 1, mF);
 
       // create block rhs vector
       BlockVector Vec(row_offsets);
 
-      Vec.GetBlock(0) = eq_res;
-      Vec.GetBlock(1) = reg_res;
       Vec.GetBlock(2) = opt_res;
+      Vec.GetBlock(1) = reg_res;
+      Vec.GetBlock(0) = eq_res;
 
       SparseMatrix * MAT = Mat->CreateMonolithic();
 
       BlockVector dx(row_offsets);
       dx = 0.0;
        
-      // GSSmoother M(*MAT);
-      // int gmres_iter = max_krylov_iter;
-      // double gmres_tol = krylov_tol;
-      // int gmres_kdim = kdim;
-      // GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+      GSSmoother M(*MAT);
+      int gmres_iter = max_krylov_iter;
+      double gmres_tol = krylov_tol;
+      int gmres_kdim = kdim;
+      GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+      printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
 
       // DSmoother M(*MAT);
-      int minres_iter = max_krylov_iter;
-      double minres_tol = krylov_tol;
-      MINRES(*MAT, Vec, dx, 0, minres_iter, minres_tol, 0.0);
+      // int minres_iter = max_krylov_iter;
+      // double minres_tol = krylov_tol;
+      // MINRES(*MAT, Vec, dx, 1, minres_iter, minres_tol, 0.0);
       
       // Vector err_vec(Vec.Size());
       // MAT->Mult(dx, err_vec);
@@ -401,8 +408,8 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       add(dx, alpha-1.0, dx, dx);
 
       x -= dx.GetBlock(0);
-      *uv -= dx.GetBlock(1);
-      pv -= dx.GetBlock(2);
+      // *uv -= dx.GetBlock(1);
+      // pv -= dx.GetBlock(2);
       
 
     }
@@ -469,6 +476,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & c1, double & c2, double & c3, double & c4, double & c5, double & c6, double & c7,
           double & c8, double & c9, double & c10, double & c11,
           double & ur_coeff,
+          int do_control,
           bool do_manufactured_solution) {
 
   // todo, make the below options
@@ -567,7 +575,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
 
   SparseMatrix * H;
   H = new SparseMatrix(num_currents, num_currents);
-  double weight = 1.0;
+  double weight = 1e-5;
   for (int i = 0; i < num_currents; ++i) {
     H->Set(i, i, weight);
   }
@@ -636,7 +644,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
   // }
    
    Solve(fespace, op, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, ur_coeff,
-         alpha_coeffs, J_inds, N_control);
+         alpha_coeffs, J_inds, N_control, do_control);
    x.Save("final.gf");
    printf("Saved solution to final.gf\n");
    printf("Saved mesh to mesh.mesh\n");
