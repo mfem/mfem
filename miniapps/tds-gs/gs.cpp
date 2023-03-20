@@ -324,9 +324,6 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       // eq_res = B(y^n) - F u^n
       op.Mult(x, eq_res);
 
-      // cout << "eq_res" << "i" << i << endl;
-      // eq_res.Print();
-
       // get max errors for residuals
       error = GetMaxError(eq_res);
       double max_opt_res = GetMaxError(opt_res);
@@ -354,6 +351,8 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
       // prepare block matrix
       SparseMatrix *FT = Transpose(*F);
+
+      // *HERE*
       // SparseMatrix *mF(F);
       // *mF *= -1.0;
       SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
@@ -377,7 +376,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       Mat->SetBlock(1, 2, mFT);
 
       Mat->SetBlock(0, 0, By);
-      // Mat->SetBlock(0, 1, mF);
+      Mat->SetBlock(0, 1, mF);
 
       // create block rhs vector
       BlockVector Vec(row_offsets);
@@ -391,9 +390,6 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       BlockVector dx(row_offsets);
       dx = 0.0;
 
-      // cout << "By" << "i" << i << endl;
-      // By->PrintMatlab();
-       
       GSSmoother M(*MAT);
       int gmres_iter = max_krylov_iter;
       double gmres_tol = krylov_tol;
@@ -406,24 +402,11 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       // double minres_tol = krylov_tol;
       // MINRES(*MAT, Vec, dx, 1, minres_iter, minres_tol, 0.0);
       
-      // Vector err_vec(Vec.Size());
-      // MAT->Mult(dx, err_vec);
-      // err_vec -= Vec;
-      // cout << err_vec.Max() << endl;
-      // cout << err_vec.Min() << endl;
-       
-      // double alpha = 1.0;
-      // add(dx, alpha-1.0, dx, dx);
-
       x -= dx.GetBlock(0);
-      // *uv -= dx.GetBlock(1);
-      // pv -= dx.GetBlock(2);
+      *uv -= dx.GetBlock(1);
+      pv -= dx.GetBlock(2);
 
-      // cout << "x" << "i" << i << endl;
-      // x.Print();
-      // if (true) {
-      //   return;
-      // }      
+      x.Save("xtmp.gf");
 
     }
     // op.Mult(x, out_vec);
@@ -541,7 +524,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    double L_ = 0.35;
 
    // solver options
-   int kdim = 10000;
+   int kdim = 300;
 
    /* 
       -------------------------------------------------------------------------------------------

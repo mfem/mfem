@@ -24,9 +24,9 @@ data_file="separated_file.data"
 refinement_factor=2
 do_test=0
 do_manufactured_solution=0
-max_krylov_iter=1000
-max_newton_iter=10
-krylov_tol=1e-34 # check this...
+max_krylov_iter=10000
+max_newton_iter=30
+krylov_tol=1e-24 # check this...
 newton_tol=1e-12
 # center solenoids
 c6=4.552585e+06
@@ -45,7 +45,7 @@ c5=-2.848113e+03
 ur_coeff=1.0
 
 do_control=1
-weight=1.0
+weight=1e-18
 
 ./main.o \
     -m $mesh_file \
@@ -72,6 +72,10 @@ weight=1.0
     --c5 $c5 \
     --c6 $c6 \
     --c7 $c7 \
+    --c8 $c8 \
+    --c9 $c9 \
+    --c10 $c10 \
+    --c11 $c11 \
     --ur_coeff $ur_coeff \
     --do_control $do_control \
     --weight $weight
