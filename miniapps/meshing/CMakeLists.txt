@@ -37,7 +37,8 @@ add_mfem_miniapp(klein-bottle
 
 add_mfem_miniapp(mesh-explorer
   MAIN mesh-explorer.cpp
-  LIBRARIES mfem)
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(mobius-strip
   MAIN mobius-strip.cpp
@@ -59,6 +60,10 @@ add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
 
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(reflector
+  MAIN reflector.cpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(toroid

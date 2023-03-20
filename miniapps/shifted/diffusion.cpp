@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
       }
 
       HeatDistanceSolver dist_func(2.0 * dx * dx);
-      dist_func.print_level = 1;
+      dist_func.print_level.FirstAndLast().Summary();
       dist_func.smooth_steps = 1;
       dist_func.ComputeVectorDistance(ls_filt_coeff, distance);
       dist_vec = new VectorGridFunctionCoefficient(&distance);

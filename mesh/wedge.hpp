@@ -71,7 +71,7 @@ public:
    virtual ~Wedge() { }
 };
 
-extern class LinearWedgeFiniteElement WedgeFE;
+extern MFEM_EXPORT class LinearWedgeFiniteElement WedgeFE;
 
 }
 

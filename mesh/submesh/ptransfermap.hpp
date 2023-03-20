@@ -14,6 +14,7 @@
 
 #include "../../fem/pgridfunc.hpp"
 #include "transfer_category.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -52,8 +53,6 @@ public:
     */
    void Transfer(const ParGridFunction &src, ParGridFunction &dst) const;
 
-   ~ParTransferMap();
-
 private:
    /**
     * @brief Communicate from each local processor which index in map is set.
@@ -79,7 +78,7 @@ private:
    TransferCategory category_;
 
    /// Mapping of the ParGridFunction defined on the SubMesh to the
-   /// ParGridfunction of its parent ParMesh.
+   /// ParGridFunction of its parent ParMesh.
    Array<int> sub1_to_parent_map_;
 
    /// Mapping of the ParGridFunction defined on the second SubMesh to the
@@ -97,7 +96,7 @@ private:
    /// Pointer to the supplemental ParFiniteElementSpace on the common root
    /// parent ParMesh. This is only used if this ParTransferMap represents a
    /// ParSubMesh to ParSubMesh transfer.
-   const ParFiniteElementSpace *root_fes_ = nullptr;
+   std::unique_ptr<const ParFiniteElementSpace> root_fes_;
 
    const GroupCommunicator *root_gc_ = nullptr;
 
