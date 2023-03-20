@@ -33,6 +33,7 @@
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1 -fo 1 -nc 2
 //    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr -mpr -mo 2
+//    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr -mpr -mo 3
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
@@ -47,8 +48,6 @@
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
-#include <fstream>
-#include <iostream>
 
 using namespace mfem;
 using namespace std;
@@ -163,7 +162,7 @@ void VisualizeFESpacePolynomialOrder(FiniteElementSpace &fespace,
 
    socketstream vis1;
    common::VisualizeField(vis1, "localhost", 19916, order_gf, title,
-                          500, 0, 400, 400, "RjmAcp");
+                          400, 0, 400, 400, "RjmAcp");
 }
 
 double func_order;
@@ -474,6 +473,7 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
+   if (mesh_prefinement) { delete mesh_nodes_pref; }
    if (prefinement) { delete field_vals_pref; }
    delete fec;
 

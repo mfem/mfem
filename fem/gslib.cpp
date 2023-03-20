@@ -1151,31 +1151,31 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    SetupSplitMeshes();
    if (dim == 2)
    {
-       if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-       ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-       SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
+      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
+      ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
 
-       if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-       ir_split[1] = new IntegrationRule(pow(dof1D, dim));
-       SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
+      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
+      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
    }
    else if (dim == 3)
    {
-       if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
-       ir_split[0] = new IntegrationRule(pow(dof1D, dim));
-       SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
+      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
+      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
 
-       if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
-       ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
-       SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
+      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
+      ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
 
-       if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
-       ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
-       SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], meshOrder);
+      if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
+      ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], meshOrder);
 
-       if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
-       ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
-       SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
+      if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
+      ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
    }
 
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
