@@ -151,7 +151,6 @@ int main(int argc, char *argv[])
 
    // Exact volume and area
    double exact_volume = -10, exact_area = -10;
-   MFEM_CONTRACT_VAR(exact_area);
    if (ls_type == 1)
    {
       if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
@@ -173,6 +172,7 @@ int main(int argc, char *argv[])
          exact_area   = 1.194452300992437;
       }
    }
+   (void)(&exact_area); // suppress a warning
 
    ElementTransformation *trans;
    const IntegrationRule* ir=nullptr;
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
    // Integration with algoim
    double vol=0.0;
 
-#if defined(MFEM_USE_ALGOIM) && defined(MFEM_USE_BLITZ)
+#ifdef MFEM_USE_ALGOIM
    double area=0.0;
    DenseMatrix bmat; //gradients of the shape functions in isoparametric space
    DenseMatrix pmat; //gradients of the shape functions in physical space
