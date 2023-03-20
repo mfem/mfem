@@ -680,6 +680,10 @@ public:
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
    virtual void Update();
 
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
+
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
 
