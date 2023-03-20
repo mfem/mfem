@@ -14,6 +14,7 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/curlcurl/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+OBJ = CurlCurlIntegrator.o
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
@@ -25,7 +26,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-PAR_MINIAPPS = curlcurl
+PAR_MINIAPPS = curlcurl periodic2D
 MINIAPPS = $(PAR_MINIAPPS)
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -41,25 +42,20 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 # Remove built-in rule
 %: %.cpp
+%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
+%: $(SRC)%.cpp $(OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) 
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(OBJ) $(MFEM_LIBS)
+
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 all: $(MINIAPPS)
 
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
-
-# Rules to copy the *.mesh files - needed for running the sample runs when
-# building out-of-source:
-ifneq ($(SRC),)
-MESH_FILES = blade.mesh icf.mesh
-$(MESH_FILES): %: $(SRC)%
-	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
-endif
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -70,26 +66,6 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
-toroid-test-seq: toroid
-	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-wedge-o3-s0.mesh)
-twist-test-seq: twist
-	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-hex-o3-s2-p.mesh)
-mesh-optimizer-test-seq: mesh-optimizer
-	@$(call mfem-test,$<,, Meshing miniapp)
-pmesh-optimizer-test-par: pmesh-optimizer
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
-minimal-surface-test-seq: minimal-surface
-	@$(call mfem-test,$<,, Meshing miniapp)
-pminimal-surface-test-par: pminimal-surface
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
-
-# Testing: Specific execution options
-mesh-explorer-test-seq:
-	@true
-shaper-test-seq:
-	@true
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -98,15 +74,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle toroid twist
-	rm -f mesh-explorer shaper extruder trimmer
-	rm -f mesh-optimizer pmesh-optimizer polar-nc
-	rm -f minimal-surface pminimal-surface
-	rm -f curlcurl
+	rm -f *.o *~ 
+	rm -f curlcurl periodic2D
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
-	@rm -f partitioning.txt shaper.mesh extruder.mesh
-	@rm -f optimized* perturbed* polar-nc.mesh
+	@rm -f curlcurl mesh.* sol.*

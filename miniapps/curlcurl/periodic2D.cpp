@@ -1,5 +1,6 @@
 // 
-// Put it in mfem/example/meshing and compile with: make periodic2D
+// make periodic2D
+//      a simple code to create a periodic mesh in 2D
 //
 #include "mfem.hpp"
 #include <fstream>
@@ -28,7 +29,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Read the initial mesh
+   // Create an initial mesh
    Mesh mesh = Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL,
                                      0.0, Lx, Ly, true);
 
