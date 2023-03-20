@@ -57,6 +57,8 @@ public:
 protected:
    Mesh *mesh;
    Array<Mesh *> mesh_split;  // Meshes used to split simplices.
+   // IntegrationRules for simplex->Quad/Hex and to project to highest polynomial
+   // order in-case of p-refinement.
    Array<IntegrationRule *> ir_split; // IntegrationRules for simplex->Quad/Hex
    Array<FiniteElementSpace *>
    fes_rst_map; // FESpaces to map info Quad/Hex->Simplex
