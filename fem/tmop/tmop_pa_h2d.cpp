@@ -10,10 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "tmop_pa.hpp"
-#include "../../general/forall.hpp"
+#include "../../general/jit/jit.hpp"
 MFEM_JIT
-#include "../../linalg/kernels.hpp"
+#include "tmop_pa.hpp"
 
 namespace mfem
 {

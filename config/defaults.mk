@@ -480,7 +480,7 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 # JIT configuration
 JIT_OPT =
 JIT_LIB = -ldl
-ifdef MFEM_USE_JIT
+ifeq ($(MFEM_USE_JIT),YES)
     STATIC = NO
     SHARED = YES
 endif

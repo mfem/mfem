@@ -9,18 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/jit/jit.hpp" // for MFEM_JIT
-
 #include "../tmop.hpp"
+#include "../../general/jit/jit.hpp"
+MFEM_JIT
 #include "tmop_pa.hpp"
-#include "../linearform.hpp"
-#include "../../general/forall.hpp"
-
-MFEM_JIT
-#include "../../linalg/kernels.hpp"
-
-MFEM_JIT
-#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {

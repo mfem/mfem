@@ -282,7 +282,6 @@ private:
 
    System()
    {
-      //std::cout << "\033[33m[System]\033[m" << std::ends;
       AddInclude("mfem.hpp");
       AddInclude("general/forall.hpp");
       AddInclude("general/jit/jit.hpp"); // for Hash, Find
@@ -290,7 +289,6 @@ private:
 
    ~System() // warning: can't use mpi::Root here
    {
-      //std::cout << "\033[33m[~System]\033[m" << std::ends;
       if (!Get().keep_cache && Rank()==0 && io::Exists(Lib_ar()))
       {
          std::remove(Lib_ar());
@@ -322,7 +320,6 @@ public:
    /// @brief Initialize JIT, used in the MPI communication singleton.
    static void Init(int *argc, char ***argv)
    {
-      std::cout << "\033[34m[System] Init" << "\033[m" << std::ends;
       MFEM_VERIFY(!mpi::IsInitialized(), "[JIT] MPI already initialized!");
       const int env_rank = mpi::EnvRank(); // first env rank is sought for
       if (env_rank >= 0)
@@ -388,7 +385,6 @@ public:
     **/
    static void Configure(const char *name, const char *path, bool keep)
    {
-      std::cout << "\033[34m[System] Configure" << "\033[m" << std::ends;
       Get().path = path;
       Get().keep_cache = keep;
       Get().rank = mpi::Rank();
@@ -507,12 +503,8 @@ public:
 
    static void *DLopen(const char *path)
    {
-#ifndef __APPLE__
-      void *handle = ::dlopen(path, (Debug()?RTLD_NOW:RTLD_LAZY)|RTLD_LOCAL);
-#else
-      void *handle = ::dlopen(path, RTLD_NOW | RTLD_LOCAL | RTLD_FIRST);
-#endif
-      // RTLD_GLOBAL
+      const int mode = (Debug() ? RTLD_NOW : RTLD_LAZY) | RTLD_LOCAL;
+      void *handle = ::dlopen(path, mode);
       return (DLerror(), handle);
    }
 
@@ -583,18 +575,16 @@ public:
                   MFEM_VERIFY(io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
                               io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
                               "[JIT] Could not find any MFEM header!");
-                  std::string mfem_include_dir(MFEM_SOURCE_DIR);
+                  std::string mfem_inst_inc_dir(MFEM_INSTALL_DIR "/include/mfem");
                   Command() << cxx << flags << (Verbose() ? "-v" : "")
 #ifdef MFEM_USE_CUDA
                             << "--device-c"
-                            << "-Xcompiler=-rdynamic"
 #endif
-                            << "-I" << MFEM_INSTALL_DIR "/include/mfem"
-                            << "-I" << MFEM_SOURCE_DIR
-                            << "-I" << (mfem_include_dir + "/" + incp)
                             << Defines().c_str()
+                            << "-I" << MFEM_SOURCE_DIR
+                            << "-I" << mfem_inst_inc_dir
+                            << "-I" << mfem_inst_inc_dir + "/" + incp
                             << Includes().c_str()
-                            //<< Includes(name).c_str()
                             << "-c" << "-o" << co << cc;
                   if (Call(name)) { return EXIT_FAILURE; }
                   if (!Debug()) { std::remove(cc.c_str()); }

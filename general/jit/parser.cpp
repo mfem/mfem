@@ -260,8 +260,6 @@ struct Parser
 
    void mfem_jit_include()
    {
-#warning include vs line count
-      //std::cout << "\033[33m[mfem_jit_include]\033[m" << std::ends;
       check(ker.is_wait(), "mfem_jit_include not in jit state");
       put(); // '#'
       next();
@@ -271,7 +269,6 @@ struct Parser
          skip_space();
          check(is_quote());
          string inc = get_string();
-         //std::cout << "\033[33m[inc:" << inc << "]\033[m" << std::ends;
          ker.includes.push_back(inc);
          check(is_quote());
          put(); // '"'
@@ -509,7 +506,6 @@ struct Parser
 
       if (peek_n(4) == "MFEM")
       {
-         //std::cout << "\033[33m[MFEM]\033[m" << std::ends;
          const string id = get_id();
          auto is = [&](const string &id, const char *token)
          {
@@ -529,7 +525,6 @@ struct Parser
       if (ker.is_body() && is_end_of(block,'{','}')) { mfem_jit_postfix(); }
       if (ker.is_include())
       {
-         //std::cout << "\033[33m["<< peek_n(4) <<"]\033[m" << std::ends;
          ker.advance(); check(ker.is_wait());
          token(); // to handle imediate MFEM_JIT (Parse while does a put)
       }

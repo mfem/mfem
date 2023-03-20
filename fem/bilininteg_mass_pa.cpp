@@ -18,9 +18,6 @@
 MFEM_JIT
 #include "bilininteg_mass_pa.hpp"
 
-MFEM_JIT
-#include "kernels.hpp"
-
 using namespace std;
 
 namespace mfem

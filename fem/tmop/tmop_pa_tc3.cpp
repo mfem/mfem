@@ -10,10 +10,10 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "tmop_pa.hpp"
 #include "../gridfunc.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
+#include "../../general/jit/jit.hpp"
+MFEM_JIT
+#include "tmop_pa.hpp"
 
 using namespace mfem;
 

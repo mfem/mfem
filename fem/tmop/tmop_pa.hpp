@@ -13,10 +13,12 @@
 #define MFEM_TMOP_PA_HPP
 
 #include "../../config/config.hpp"
+#include "../../general/forall.hpp"
+
 #include "../../linalg/dtensor.hpp"
 
 #include "../kernels.hpp"
-
-#include "../../general/jit/jit.hpp" // for MFEM_JIT
+#include "../../linalg/kernels.hpp"
+#include "../../linalg/dinvariants.hpp"
 
 #endif // MFEM_TMOP_PA_HPP
