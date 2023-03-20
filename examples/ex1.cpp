@@ -200,6 +200,7 @@ int main(int argc, char *argv[])
       // bit-for-bit deterministic at the cost of somewhat longer run time.
       a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
+   a.AddDomainIntegrator(new MassIntegrator(one)); // to test MFEM_JIT includes
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,

@@ -64,6 +64,13 @@
 #define MFEM_INSTALL_BACKUP
 #endif
 
+// nvcc option to embed relocatable device code
+#ifndef MFEM_USE_CUDA
+#define MFEM_DEVICE_CODE
+#else
+#define MFEM_DEVICE_CODE "--relocatable-device-code=true"
+#endif
+
 namespace mfem
 {
 
@@ -218,9 +225,7 @@ private:
    std::string path {"."}; // default cache path
    std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit." MFEM_SO_EXT};
    bool keep_cache = true; // option to keep the lib_ar cache library
-   std::vector<std::pair<std::string,std::string>> defines;
    std::vector<std::string> includes;
-   std::map<std::string, std::vector<std::string>> ker_includes;
 
    struct Command // convenient system command builder & cast
    {
@@ -409,44 +414,7 @@ public:
       Get().lib_so = create_full_path(so_ext);
    }
 
-   /**
-    * @brief AddExtraDefine
-    * @param define
-    * @param value
-    */
-   static void AddDefine(const char *define, const char *value)
-   {
-      Get().defines.push_back(std::make_pair(define, value));
-   }
-   static void AddDefine(const char *define) { AddDefine(define, ""); }
-
-   /**
-    * @brief AddExtraInclude
-    * @param include
-    */
-   static void AddInclude(const char *include)
-   {
-      Get().includes.push_back(include);
-   }
-
-   /**
-    * @brief AddExtraInclude to a specific kernel
-    * @param include
-    */
-   static void AddKernelInclude(const char *ker, const char *include)
-   {
-      auto ker_it = Get().ker_includes.find(ker);
-      if (ker_it != Get().ker_includes.end())
-      {
-         assert(std::string(ker) == std::string(ker_it->first));
-         std::vector<std::string> &ker_includes = ker_it->second;
-         ker_includes.push_back(include);
-      }
-      else
-      {
-         Get().ker_includes.emplace(ker, std::vector<std::string> {include});
-      }
-   }
+   static void AddInclude(const char *inc) { Get().includes.push_back(inc); }
 
    static std::string Includes()
    {
@@ -460,26 +428,12 @@ public:
       return includes;
    }
 
-   static std::string Defines()
-   {
-      std::string defines;
-      for (auto def: Get().defines)
-      {
-         defines += "-D";
-         defines += def.first;
-         if (def.second.empty()) { continue; }
-         defines += "=";
-         defines += def.second;
-         defines += " ";
-      }
-      return defines;
-   }
-
    static std::string Xlinker() { return "" MFEM_XLINKER; }
    static std::string Xcompiler() { return "" MFEM_XCOMPILER; }
    static std::string Xprefix() { return "" MFEM_SO_PREFIX;  }
    static std::string Xpostfix() { return "" MFEM_SO_POSTFIX; }
    static std::string Xbackup() { return "" MFEM_INSTALL_BACKUP; }
+   static std::string XDeviceCode() { return "" MFEM_DEVICE_CODE; }
 
    static const char *Lib_ar() { return Get().lib_ar.c_str(); }
    static const char *Lib_so() { return Get().lib_so.c_str(); }
@@ -577,10 +531,7 @@ public:
                               "[JIT] Could not find any MFEM header!");
                   std::string mfem_inst_inc_dir(MFEM_INSTALL_DIR "/include/mfem");
                   Command() << cxx << flags << (Verbose() ? "-v" : "")
-#ifdef MFEM_USE_CUDA
-                            << "--device-c"
-#endif
-                            << Defines().c_str()
+                            << XDeviceCode()
                             << "-I" << MFEM_SOURCE_DIR
                             << "-I" << mfem_inst_inc_dir
                             << "-I" << mfem_inst_inc_dir + "/" + incp
@@ -659,18 +610,6 @@ void Jit::Configure(const char *name, const char *path, bool keep)
 {
    System::Get().Configure(name, path, keep);
 }
-
-void Jit::AddDefine(const char *d, const char *v) { System::Get().AddDefine(d, v); }
-
-void Jit::AddKernelInclude(const char *ker, const char *inc)
-{
-   System::Get().AddKernelInclude(ker, inc);
-}
-void Jit::AddInclude(const char *inc) { System::Get().AddInclude(inc); }
-
-std::string Jit::Defines() { return System::Get().Defines(); }
-
-std::string Jit::Includes() { return System::Get().Includes(); }
 
 void Jit::Finalize() { System::Get().Finalize(); }
 

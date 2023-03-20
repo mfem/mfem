@@ -1711,10 +1711,6 @@ static void PADiffusionApply(const int dim,
       //ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
       //DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
-#ifdef MFEM_USE_JIT
-      //mfem::Jit::AddKernelInclude("SmemPADiffusionApply2D", "fem/kernels.hpp");
-#endif // MFEM_USE_JIT
-
       switch (id)
       {
 #ifndef MFEM_USE_JIT

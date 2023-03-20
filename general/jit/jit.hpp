@@ -63,13 +63,6 @@ struct Jit
     **/
    static void Configure(const char *name, const char *path, bool keep = true);
 
-   static void AddDefine(const char *def, const char *val = nullptr);
-   static void AddKernelInclude(const char *ker, const char *inc);
-   static void AddInclude(const char *inc);
-   static std::string Defines();
-   static std::string Includes();
-   static std::string Includes(const char *ker);
-
    /// @brief Variadic hash combine function.
    template<typename T, typename... Args> static inline
    size_t Hash(const size_t &h, const T &arg, Args ...args) noexcept
@@ -96,6 +89,7 @@ struct Jit
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
+    *  @param[in] incp coresponding to the relative mfem include directory,
     *  @param[in] source of the kernel,
     *  @param[in] symbol of the kernel.
     **/
@@ -117,6 +111,7 @@ struct Jit
       *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
       *  @param[in] link coresponding to MFEM_LINK_FLAGS,
       *  @param[in] libs coresponding to MFEM_EXT_LIBS,
+      *  @param[in] incp coresponding to the relative mfem include directory,
       *  @param[in] src source of the kernel,
       *  @param[in] sym symbol of the kernel.
       **/
@@ -138,6 +133,7 @@ struct Jit
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
+    *  @param[in] incp coresponding to the relative mfem include directory,
     *  @param[in] src source of the kernel,
     *  @param[in] map local \c map of the current kernel,
     *  @param[in] args runtime arguments of the JIT kernel.
