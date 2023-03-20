@@ -271,7 +271,7 @@ ComplexDenseMatrix * Mult(const ComplexDenseMatrix &A,
    int h = A.Height()/2;
    int w = B.Width()/2;
 
-   MFEM_VERIFY(A.Width() == B.Height(), "Incompatible matrix dimenions");
+   MFEM_VERIFY(A.Width() == B.Height(), "Incompatible matrix dimensions");
 
    //only real case (imag is null)
    DenseMatrix * C_r = nullptr;
@@ -334,7 +334,7 @@ ComplexDenseMatrix * MultAtB(const ComplexDenseMatrix &A,
    int h = A.Width()/2;
    int w = B.Width()/2;
 
-   MFEM_VERIFY(A.Height() == B.Height(), "Incompatible matrix dimenions");
+   MFEM_VERIFY(A.Height() == B.Height(), "Incompatible matrix dimensions");
 
    //only real case (imag is null)
    DenseMatrix * C_r = nullptr;

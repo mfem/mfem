@@ -48,8 +48,6 @@ protected:
 
    void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
 
-   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
-
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
@@ -129,19 +127,21 @@ public:
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
-   /** Note that the returned Vector may be empty, if not previously allocated
-       or set. */
-   const Vector &GetTrueVector() const { return t_vec; }
+   const Vector &GetTrueVector() const
+   {
+      MFEM_VERIFY(t_vec.Size() > 0, "SetTrueVector() before GetTrueVector()");
+      return t_vec;
+   }
    /// Read and write access to the (optional) internal true-dof Vector.
-   /** Note that the returned Vector may be empty, if not previously allocated
-       or set. */
-   Vector &GetTrueVector() { return t_vec; }
+   /** Note that @a t_vec is set if it is not allocated or set already.*/
+   Vector &GetTrueVector()
+   { if (t_vec.Size() == 0) { SetTrueVector(); } return t_vec; }
 
    /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
-   void SetTrueVector() { GetTrueDofs(GetTrueVector()); }
+   void SetTrueVector() { GetTrueDofs(t_vec); }
 
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv);
@@ -327,16 +327,33 @@ public:
 
    void GetCurl(ElementTransformation &tr, Vector &curl) const;
 
+   /** @brief Gradient of a scalar function at a quadrature point.
+
+       @note It is assumed that the IntegrationPoint of interest has been
+       specified by ElementTransformation::SetIntPoint() before calling
+       GetGradient().
+
+       @note Can be used from a ParGridFunction when @a tr is an
+       ElementTransformation of a face-neighbor element and face-neighbor data
+       has been exchanged. */
    void GetGradient(ElementTransformation &tr, Vector &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(ElementTransformation &tr, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(const int elem, const IntegrationRule &ir,
                      DenseMatrix &grad) const
    { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
+   /** @brief Compute the vector gradient with respect to the physical element
+       variable. */
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
+
+   /** @brief Compute the vector gradient with respect to the reference element
+       variable. */
+   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
        where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
