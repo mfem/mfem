@@ -154,11 +154,13 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
+# Temporary directory for intermediate JIT source files
+JIT_SOURCE_MKTMP := $(realpath $(shell mktemp -d))
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
-	@mkdir -p $(@D)
-	$(MFEM_DIR)/mjit $(abspath $(<)) -o $(*)_jit.cpp
-	$(CCC) -c $(*)_jit.cpp $(MFEM_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"\"" -o $(@)
-	rm $(*)_jit.cpp
+	mkdir -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
+	$(MFEM_DIR)/mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*).cpp
+	$(CCC) -c $(JIT_SOURCE_MKTMP)/$(*).cpp $(MFEM_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"$(@D)\"" -o $(@)
+	rm $(JIT_SOURCE_MKTMP)/$(*).cpp
 
 # Template rule for devices
 # SEDOV Template rule for devices

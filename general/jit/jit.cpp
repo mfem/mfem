@@ -64,13 +64,6 @@
 #define MFEM_INSTALL_BACKUP
 #endif
 
-// nvcc option to embed relocatable device code
-#ifndef MFEM_USE_CUDA
-#define MFEM_DEVICE_CODE
-#else
-#define MFEM_DEVICE_CODE "--relocatable-device-code=true"
-#endif
-
 namespace mfem
 {
 
@@ -225,6 +218,7 @@ private:
    std::string path {"."}; // default cache path
    std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit." MFEM_SO_EXT};
    bool keep_cache = true; // option to keep the lib_ar cache library
+   bool std_system = true; // option to use only std::sytem calls and no fork
    std::vector<std::string> includes;
 
    struct Command // convenient system command builder & cast
@@ -267,8 +261,8 @@ private:
    {
       MFEM_VERIFY(mpi::Root(), "[JIT] Only MPI root should launch commands!");
       if (name) { MFEM_WARNING("[" << name << "] " << command); }
-      // In serial mode, just call std::system
-      if (!mpi::IsInitialized()) { return std::system(command); }
+      // In serial mode or with the std_system option set, just call std::system
+      if (!mpi::IsInitialized() || Get().std_system) { return std::system(command); }
       // Otherwise, write the command to the child process
       MFEM_VERIFY((1+std::strlen(command))<Size(), "[JIT] Command length error!");
       std::memcpy(Mem(), command, std::strlen(command) + 1);
@@ -288,7 +282,7 @@ private:
    System()
    {
       AddInclude("mfem.hpp");
-      AddInclude("general/forall.hpp");
+      AddInclude("general/forall.hpp"); // for mfem::forall
       AddInclude("general/jit/jit.hpp"); // for Hash, Find
    }
 
@@ -313,6 +307,7 @@ private:
    // thread that will laucnh the 'system' commands
    static void MmapInit()
    {
+      MFEM_VERIFY(!Get().std_system, "std::system should be used!");
       constexpr int prot = PROT_READ | PROT_WRITE;
       constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
       Get().size = (uintptr_t) sysconf(_SC_PAGE_SIZE);
@@ -326,18 +321,31 @@ public:
    static void Init(int *argc, char ***argv)
    {
       MFEM_VERIFY(!mpi::IsInitialized(), "[JIT] MPI already initialized!");
-      const int env_rank = mpi::EnvRank(); // first env rank is sought for
-      if (env_rank >= 0)
+      // if MFEM_USE_JIT_FORK is set, fork root process before mpi::Init
+#ifdef MFEM_USE_JIT_FORK
+      Get().std_system = false;
+#endif
+      if (Get().std_system) // each rank does the MPI init, nothing else
+      {
+         mpi::Init(argc, argv);
+         Get().pid = getpid(); // set ourself to be not null for finalize
+         return;
+      }
+      // first MPI rank is looked for in the environment (-1 if not found)
+      const int env_rank = mpi::EnvRank();
+      if (env_rank >= 0) // MPI rank is known from environment
       {
          if (env_rank == 0) { MmapInit(); } // if set, only root will use mmap
          if (env_rank > 0) // other ranks only MPI_Init
          {
             mpi::Init(argc, argv);
-            Get().pid = getpid(); // set ourself to be not null for finalize
+            Get().pid = getpid(); // set our pid for JIT finalize to be an no-op
             return;
          }
       }
-      else { MmapInit(); } // everyone gets ready
+      // cannot know root before MPI::Init: everyone gets ready
+      else { MmapInit(); }
+
       if ((Get().pid = ::fork()) != 0)
       {
          mpi::Init(argc, argv);
@@ -370,7 +378,8 @@ public:
    static void Finalize()
    {
       // child and env-ranked have nothing to do
-      if (Pid()==0 || Pid()==getpid()) { return; }
+      if (Pid() == 0 || Pid() == getpid()) { return; }
+      MFEM_VERIFY(!Get().std_system, "std::system should be used!");
       MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
       int status;
       Send(EXIT);
@@ -419,12 +428,7 @@ public:
    static std::string Includes()
    {
       std::string includes;
-      for (auto inc: Get().includes)
-      {
-         includes += "-include \"";
-         includes += inc;
-         includes += "\" ";
-      }
+      for (auto inc: Get().includes) { includes += "-include \"" + inc + "\" "; }
       return includes;
    }
 
@@ -433,7 +437,6 @@ public:
    static std::string Xprefix() { return "" MFEM_SO_PREFIX;  }
    static std::string Xpostfix() { return "" MFEM_SO_POSTFIX; }
    static std::string Xbackup() { return "" MFEM_INSTALL_BACKUP; }
-   static std::string XDeviceCode() { return "" MFEM_DEVICE_CODE; }
 
    static const char *Lib_ar() { return Get().lib_ar.c_str(); }
    static const char *Lib_so() { return Get().lib_so.c_str(); }
@@ -531,11 +534,14 @@ public:
                               "[JIT] Could not find any MFEM header!");
                   std::string mfem_inst_inc_dir(MFEM_INSTALL_DIR "/include/mfem");
                   Command() << cxx << flags << (Verbose() ? "-v" : "")
-                            << XDeviceCode()
                             << "-I" << MFEM_SOURCE_DIR
                             << "-I" << mfem_inst_inc_dir
                             << "-I" << mfem_inst_inc_dir + "/" + incp
                             << Includes().c_str()
+#ifdef MFEM_USE_CUDA
+                            // nvcc option to embed relocatable device code
+                            << "--relocatable-device-code=true"
+#endif
                             << "-c" << "-o" << co << cc;
                   if (Call(name)) { return EXIT_FAILURE; }
                   if (!Debug()) { std::remove(cc.c_str()); }
