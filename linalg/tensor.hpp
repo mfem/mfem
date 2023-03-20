@@ -1582,7 +1582,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
  * @note when inverting a tensor of dual numbers,
  * hardcode the analytic derivative of the
  * inverse of a square matrix, rather than
- * apply gauss elimination directly on the dual number types
+ * apply Gauss elimination directly on the dual number types
  *
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */

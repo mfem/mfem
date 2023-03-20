@@ -66,6 +66,7 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
     @param[in] coarse_er         CeedElemRestriction for coarse operator
                                  (see CeedATPMGElemRestriction)
     @param[out] coarse_basis_out CeedBasis for coarser operator
+    @param[out] basis_ctof_out   CeedBasis describing interpolation from coarse to fine
     @param[out] out              coarsened CeedOperator
 */
 int CeedATPMGOperator(CeedOperator oper, int order_reduction,
