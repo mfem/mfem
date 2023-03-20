@@ -498,8 +498,6 @@ JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 # Filter out objects that will require specific MAKEFILE definitions
 OPT_OBJECT_FILES = $(BLD)general/jit/jit.o
 STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJECT_FILES))
-# Temporary directory for intermediate JIT source files
-JIT_SOURCE_MKTMP := $(realpath $(shell mktemp -d))
 
 # Definitions to compile the preprocessor and embed the MFEM options
 MFEM_JIT_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
@@ -511,6 +509,7 @@ $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MFEM_JIT_DEFINES) $(<) -o $(@)
 
 # MFEM CXX/AR/install options embedded in the general/jit/jit object file 
+MFEM_BUILD_FLAGS += $(if $(or $(MFEM_USE_CUDA),$(MFEM_USE_HIP)),-x c++,)
 MFEM_JIT_OPTIONS  = -DMFEM_SO_EXT="\"$(SO_EXT)\""
 MFEM_JIT_OPTIONS += -DMFEM_XCOMPILER="\"$(XCOMPILER)\""
 MFEM_JIT_OPTIONS += -DMFEM_XLINKER="\"$(XLINKER)\""
@@ -525,11 +524,11 @@ $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
-	@mkdir -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
-	@$(BLD)./mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*).cpp
+	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
+	@$(BLD)./mjit $(<) -o $(MJIT_TMP)
 	@echo [JIT] $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*).cpp -o $(@)
-	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -DMFEM_JIT_INC_PATH="\"$(dir $(*))\"" -c $(JIT_SOURCE_MKTMP)/$(*).cpp -o $(@)
-	@rm $(JIT_SOURCE_MKTMP)/$(*).cpp
+	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -DMFEM_JIT_INC_PATH="\"$(dir $(*))\"" -c $(MJIT_TMP) -o $(@)
+	@rm $(MJIT_TMP)
 endif # MFEM_USE_JIT
 
 all: examples miniapps $(TEST_DIRS)

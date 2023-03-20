@@ -97,6 +97,8 @@ MJIT_OBJ = $(filter-out $(MJIT_MAIN_OBJ) $(PMJIT_MAIN_OBJ),\
                         $(MJIT_SOURCE_FILES:$(SRC)%.cpp=%.o))
 SEQ_UNIT_TESTS += $(if $(USE_MJIT),mjit_tests)
 PAR_UNIT_TESTS += $(if $(USE_MJIT),pmjit_tests)
+MJIT_FLAGS  = $(if $(or $(USE_CUDA),$(USE_HIP)),,-x c++)
+MJIT_FLAGS += $(MFEM_FLAGS)
 
 # Debug device tests
 DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
@@ -154,13 +156,14 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
-# Temporary directory for intermediate JIT source files
-JIT_SOURCE_MKTMP := $(realpath $(shell mktemp -d))
+src:;echo $(SRC)
+
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
-	mkdir -p $(JIT_SOURCE_MKTMP)/$(dir $(*))
-	$(MFEM_DIR)/mjit $(<) -o $(JIT_SOURCE_MKTMP)/$(*).cpp
-	$(CCC) -c $(JIT_SOURCE_MKTMP)/$(*).cpp $(MFEM_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"$(@D)\"" -o $(@)
-	rm $(JIT_SOURCE_MKTMP)/$(*).cpp
+	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
+	@$(MFEM_DIR)/mjit $(<) -o $(MJIT_TMP)
+	@echo [JIT] $(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
+	@$(CCC) -c $(MJIT_TMP) $(MJIT_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"$(@D)\"" -o $(@)
+	@rm $(MJIT_TMP)
 
 # Template rule for devices
 # SEDOV Template rule for devices
