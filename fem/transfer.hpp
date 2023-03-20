@@ -258,20 +258,20 @@ protected:
        refined mesh (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
-      // The restriction operator is represented as a SparseMatrix R. The
+   protected:
+      // The restriction operator is represented as an Operator R. The
       // prolongation operator is a dense matrix computed as the inverse of (R^T
       // M_L R), and hence, is not stored.
-      SparseMatrix R;
+      Operator* R;
       // Used to compute P = (RTxM_LH)^(-1) M_LH^T
-      SparseMatrix M_LH;
-      SparseMatrix* RTxM_LH;
+      Operator* M_LH;
+      Operator* RTxM_LH;
       CGSolver pcg;
-      DSmoother Ds;
 
-   public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_);
-      virtual ~L2ProjectionH1Space();
+   public:
+      virtual ~L2ProjectionH1Space() = default;
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -305,12 +305,43 @@ protected:
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
       virtual void SetRelTol(double p_rtol_);
       virtual void SetAbsTol(double p_atol_);
+   protected:
+      std::pair<SparseMatrix*, SparseMatrix*> ComputeSparseRAndM_LH();
    private:
       /// Computes sparsity pattern and initializes R matrix. Based on
       /// BilinearForm::AllocMat() except maps between HO elements and LOR
       /// elements.
-      void AllocR();
+      SparseMatrix* AllocR();
    };
+
+   class SerialL2ProjectionH1Space : public L2ProjectionH1Space
+   {
+   private:
+      SparseMatrix* R_sm;
+      SparseMatrix* M_LH_sm;
+      SparseMatrix* RTxM_LH_sm;
+      DSmoother Ds;
+   public:
+      SerialL2ProjectionH1Space(const FiniteElementSpace& pfes_ho_,
+                                const FiniteElementSpace& pfes_lor_);
+      virtual ~SerialL2ProjectionH1Space();
+   };
+
+
+#ifdef MFEM_USE_MPI
+   class ParL2ProjectionH1Space : public L2ProjectionH1Space
+   {
+   private:
+      HypreParMatrix* R_par;
+      HypreParMatrix* M_LH_par;
+      HypreParMatrix* RTxM_LH_par;
+      HypreBoomerAMG M;
+   public:
+      ParL2ProjectionH1Space(const ParFiniteElementSpace& pfes_ho_,
+                             const ParFiniteElementSpace& pfes_lor_);
+      virtual ~ParL2ProjectionH1Space();
+   };
+#endif
 
    /** Mass-conservative prolongation operator going in the opposite direction
        as L2Projection. This operator is a left inverse to the L2Projection. */
