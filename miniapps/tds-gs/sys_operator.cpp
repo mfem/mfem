@@ -62,6 +62,10 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
 
   GridFunction x(fespace);
   x = psi;
+
+  // cout << "x:" << endl;
+  // x.Print();
+
   int ind_ma, ind_x;
   double val_ma, val_x;
   int iprint = 0;
@@ -78,18 +82,26 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
 
+  // note: coil term no longer includes current contributions
+  // that is included in F matrix below...
   diff_operator->Mult(psi, y);
   add(y, -1.0, *coil_term, y);
   add(y, -1.0, plasma_term, y);
 
   // cout << F->ActualWidth() << endl;
   // cout << uv_currents->Size() << endl;
-
+  
   if (true) {
+    // TODO: change currents!
     double weight = 1.0;
     F->AddMult(*uv_currents, y, -1.0 / weight);
-    // uv_currents->Print();
+    cout << "uv_currents" << endl;
+    uv_currents->Print();
   }
+  // F->PrintMatlab();
+
+  // cout << "y:" << endl;
+  // y.Print();
 
   // deal with boundary conditions
   Vector u_b_exact, u_tmp, u_b;

@@ -25,4 +25,5 @@ double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
    // }
 
    return 1.0 / (ri * model->get_mu());
+   // return 1.0 / (ri);
 }

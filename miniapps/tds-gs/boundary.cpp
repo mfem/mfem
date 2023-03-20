@@ -18,6 +18,7 @@ double N_coefficient(const Vector &x, const double & rho_gamma, const double & m
     return 0.0;
   }
   return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr * mu);
+  // return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr);
 }
 
 double M_coefficient(const Vector &x, const Vector &y, const double & mu)
@@ -45,6 +46,8 @@ double M_coefficient(const Vector &x, const Vector &y, const double & mu)
   
   return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
     / (4.0 * M_PI * pow(xr * yr, 1.5) * mu);
+  // return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
+  //   / (4.0 * M_PI * pow(xr * yr, 1.5));
 }
 
 double BoundaryCoefficient::Eval(ElementTransformation & T,
@@ -65,6 +68,7 @@ double BoundaryCoefficient::Eval(ElementTransformation & T,
        return 0.0;
      }
      return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr * model->get_mu());
+     // return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr);
    } else {
 
      double yr(y(0));
@@ -78,6 +82,8 @@ double BoundaryCoefficient::Eval(ElementTransformation & T,
 
      return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
        / (4.0 * M_PI * pow(xr * yr, 1.5) * model->get_mu());
+     // return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
+     //   / (4.0 * M_PI * pow(xr * yr, 1.5));
    }
 }
 

@@ -26,7 +26,7 @@ do_test=0
 do_manufactured_solution=0
 max_krylov_iter=1000
 max_newton_iter=10
-krylov_tol=1e-24 # check this...
+krylov_tol=1e-34 # check this...
 newton_tol=1e-12
 # center solenoids
 c6=4.552585e+06
@@ -44,8 +44,8 @@ c5=-2.848113e+03
 
 ur_coeff=1.0
 
-do_control=0
-
+do_control=1
+weight=1.0
 
 ./main.o \
     -m $mesh_file \
@@ -73,6 +73,8 @@ do_control=0
     --c6 $c6 \
     --c7 $c7 \
     --ur_coeff $ur_coeff \
-    --do_control $do_control
+    --do_control $do_control \
+    --weight $weight
+
 
 

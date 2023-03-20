@@ -324,6 +324,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       // eq_res = B(y^n) - F u^n
       op.Mult(x, eq_res);
 
+      // cout << "eq_res" << "i" << i << endl;
+      // eq_res.Print();
+
       // get max errors for residuals
       error = GetMaxError(eq_res);
       double max_opt_res = GetMaxError(opt_res);
@@ -351,8 +354,10 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
       // prepare block matrix
       SparseMatrix *FT = Transpose(*F);
-      SparseMatrix *mF(F);
-      *mF *= -1.0;
+      // SparseMatrix *mF(F);
+      // *mF *= -1.0;
+      SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
+      
       SparseMatrix *mFT = Transpose(*mF);
 
       SparseMatrix *ByT = Transpose(*By);
@@ -372,7 +377,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       Mat->SetBlock(1, 2, mFT);
 
       Mat->SetBlock(0, 0, By);
-      Mat->SetBlock(0, 1, mF);
+      // Mat->SetBlock(0, 1, mF);
 
       // create block rhs vector
       BlockVector Vec(row_offsets);
@@ -385,6 +390,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
       BlockVector dx(row_offsets);
       dx = 0.0;
+
+      // cout << "By" << "i" << i << endl;
+      // By->PrintMatlab();
        
       GSSmoother M(*MAT);
       int gmres_iter = max_krylov_iter;
@@ -404,13 +412,18 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       // cout << err_vec.Max() << endl;
       // cout << err_vec.Min() << endl;
        
-      double alpha = 1.0;
-      add(dx, alpha-1.0, dx, dx);
+      // double alpha = 1.0;
+      // add(dx, alpha-1.0, dx, dx);
 
       x -= dx.GetBlock(0);
       // *uv -= dx.GetBlock(1);
       // pv -= dx.GetBlock(2);
-      
+
+      // cout << "x" << "i" << i << endl;
+      // x.Print();
+      // if (true) {
+      //   return;
+      // }      
 
     }
     // op.Mult(x, out_vec);
@@ -432,7 +445,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
       op.Mult(x, out_vec);
       error = GetMaxError(out_vec);
-
+      // cout << "eq_res" << "i" << i << endl;
+      // out_vec.Print();
+      
       if (i == 0) {
         printf("i: %3d, max residual: %.3e\n", i, error);
       } else {
@@ -447,6 +462,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       dx = 0.0;
       SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
+      // cout << "By" << "i" << i << endl;
+      // Mat->PrintMatlab();
+      
       GSSmoother M(*Mat);
       // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
       int gmres_iter = max_krylov_iter;
@@ -458,6 +476,13 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       add(dx, ur_coeff-1.0, dx, dx);
       x -= dx;
 
+      // cout << "x" << "i" << i << endl;
+      // x.Print();
+      // x.Print();
+      // if (true) {
+      //   return;
+      // }
+      
     }
     op.Mult(x, out_vec);
     error = GetMaxError(out_vec);
@@ -476,7 +501,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & c1, double & c2, double & c3, double & c4, double & c5, double & c6, double & c7,
           double & c8, double & c9, double & c10, double & c11,
           double & ur_coeff,
-          int do_control,
+          int do_control, double & weight,
           bool do_manufactured_solution) {
 
   // todo, make the below options
@@ -575,7 +600,6 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
 
   SparseMatrix * H;
   H = new SparseMatrix(num_currents, num_currents);
-  double weight = 1e-5;
   for (int i = 0; i < num_currents; ++i) {
     H->Set(i, i, weight);
   }
