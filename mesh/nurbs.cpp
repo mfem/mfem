@@ -392,7 +392,7 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
    int i = 0;
    for (int j = 0; j < kv.Size(); j++)
    {
-      if (abs(knot(i) - kv[j]) < std::numeric_limits<double>::epsilon())
+      if (abs(knot(i) - kv[j]) < 2 * std::numeric_limits<double>::epsilon())
       {
          i++;
       }
