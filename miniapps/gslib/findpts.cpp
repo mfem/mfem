@@ -52,7 +52,9 @@
 using namespace mfem;
 using namespace std;
 
-class PRefinementTransfer
+// Experimental - class used to update GridFunction post p-refinement.
+// Can change as support for p-refinement evolves.
+class PRefinementGFUpdate
 {
 private:
    FiniteElementSpace *src;
@@ -60,27 +62,31 @@ private:
 public:
    /// @brief Used to Update GridFunction post p-refinement.
    /// Initialize with FESpace prior to p-refinement.
-   PRefinementTransfer(const FiniteElementSpace& src_);
+   PRefinementGFUpdate(const FiniteElementSpace& src_);
 
    /// Destructor
-   ~PRefinementTransfer();
+   ~PRefinementGFUpdate();
 
    /// @brief Update GridFunction using PRefinementTransferOperator.
-   void UpdateGF(GridFunction &targf);
+   /// Do not use GridFunction->Update() prior to this method as it is
+   /// handled internally.
+   void GridFunctionUpdate(GridFunction &targf);
 };
 
-PRefinementTransfer::PRefinementTransfer(const FiniteElementSpace &src_)
+PRefinementGFUpdate::PRefinementGFUpdate(const FiniteElementSpace &src_)
 {
    src = new FiniteElementSpace(src_);
 }
 
-PRefinementTransfer::~PRefinementTransfer()
+PRefinementGFUpdate::~PRefinementGFUpdate()
 {
    delete src;
 }
 
-void PRefinementTransfer::UpdateGF(GridFunction &targf)
+void PRefinementGFUpdate::GridFunctionUpdate(GridFunction &targf)
 {
+   MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
+               "GridFunction should not be updated prior to UpdateGF.");
    Vector srcgf = targf;
    targf.Update();
    PRefinementTransferOperator preft =
@@ -274,7 +280,7 @@ int main (int argc, char *argv[])
    mesh.SetNodalGridFunction(&Nodes);
    cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
 
-   PRefinementTransfer preft_fespace = PRefinementTransfer(fespace);
+   PRefinementGFUpdate preft_fespace = PRefinementGFUpdate(fespace);
 
    if (mesh_prefinement)
    {
@@ -287,7 +293,7 @@ int main (int argc, char *argv[])
          }
       }
       fespace.Update(false);
-      preft_fespace.UpdateGF(Nodes);
+      preft_fespace.GridFunctionUpdate(Nodes);
    }
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
