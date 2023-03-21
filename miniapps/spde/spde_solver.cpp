@@ -18,9 +18,10 @@ namespace mfem {
 namespace spde {
 
 SPDESolver::SPDESolver(double nu, const Boundary &bc,
-                       ParFiniteElementSpace *fespace, double l1, double l2,
-                       double l3, double e1, double e2, double e3)
-    : k_(fespace),
+                       ParFiniteElementSpace *fespace, MPI_Comm comm, double l1,
+                       double l2, double l3, double e1, double e2, double e3)
+    : comm_(comm),
+      k_(fespace),
       m_(fespace),
       fespace_ptr_(fespace),
       bc_(bc),
@@ -196,7 +197,7 @@ void SPDESolver::GenerateRandomField(ParGridFunction &x, int seed) {
     seed = static_cast<int>(std::time(nullptr));
   }
   ParLinearForm b(fespace_ptr_);
-  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
+  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(comm_, seed);
   b.AddDomainIntegrator(WhiteNoise);
   b.Assemble();
   double normalization = ConstructNormalizationCoefficient(
