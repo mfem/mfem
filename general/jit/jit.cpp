@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,16 +16,12 @@
 #include "../error.hpp"
 #include "jit.hpp"
 
-#include <map>
-#include <string>
 #include <fstream>
 #include <thread> // sleep_for
 #include <chrono> // (milli) seconds
 
-#include <cassert>
 #include <cstring> // strlen
 #include <cstdlib> // exit, system
-#include <dlfcn.h> // dlopen/dlsym, not available on Windows
 #include <signal.h> // signals
 #include <unistd.h> // fork
 #include <sys/file.h> // flock
@@ -33,23 +29,28 @@
 #include <sys/stat.h>
 
 #if !(defined(__linux__) || defined(__APPLE__))
-#error mmap implementation as defined in POSIX.1-2001 is not supported!
+#error MFEM JIT implementation is not supported on this platform!
 #else
 #include <sys/mman.h> // mmap
+#include <dlfcn.h> // dlopen/dlsym, not available on Windows
 #endif
 
-// MFEM_AR, MFEM_XLINKER, MFEM_XCOMPILER, MFEM_SO_EXT
-// MFEM_SO_PREFIX, MFEM_SO_POSTFIX and MFEM_INSTALL_BACKUP have to defined at
-// compile time.
+// MFEM_AR, MFEM_XLINKER, MFEM_XCOMPILER, MFEM_SO_EXT, MFEM_SO_PREFIX,
+// MFEM_SO_POSTFIX and MFEM_INSTALL_BACKUP have to defined at compile time.
 // They are set by default in defaults.mk and MjitCmakeUtilities.cmake.
 
 // The 'MFEM_JIT_DEBUG' environement variable can be set to:
 //   - ouput dl errors,
-//   - force the dlopen to resolve all symbols 'NOW', instead of lazily,
 //   - keep intermediate sources files.
 
-// The 'MFEM_JIT_VERBOSE' environement variable adds a verbose (-v) flag during
-// the compilation stage.
+// The 'MFEM_JIT_FORK' environment variable can be set to fork before
+// MPI initialization and use this process to do the std::system calls.
+
+namespace mfem
+{
+
+namespace jit
+{
 
 #if !(defined(MFEM_AR) && defined(MFEM_INSTALL_BACKUP) &&\
  defined(MFEM_SO_EXT) && defined(MFEM_SO_PREFIX) && \
@@ -64,11 +65,11 @@
 #define MFEM_INSTALL_BACKUP
 #endif
 
-namespace mfem
-{
-
-namespace jit
-{
+static std::string Xlinker()   { return "" MFEM_XLINKER; }
+static std::string Xcompiler() { return "" MFEM_XCOMPILER; }
+static std::string Xprefix()   { return "" MFEM_SO_PREFIX;  }
+static std::string Xpostfix()  { return "" MFEM_SO_POSTFIX; }
+static std::string Xbackup()   { return "" MFEM_INSTALL_BACKUP; }
 
 namespace time
 {
@@ -129,19 +130,6 @@ public:
    void Wait() const
    {
       time::Sleep([&]() { return static_cast<bool>(std::fstream(f_name)); });
-   }
-};
-
-struct Command // convenient command builder & const char* type cast
-{
-   Command& operator<<(const char *c) { Jit::Command() << c << ' '; return *this; }
-   Command& operator<<(const std::string &s) { return *this << s.c_str(); }
-   operator const char *()
-   {
-      static thread_local std::string sl_cmd;
-      sl_cmd = Jit::Command().str();
-      (Jit::Command().clear(), Jit::Command().str("")); // real flush
-      return sl_cmd.c_str();
    }
 };
 
@@ -224,55 +212,13 @@ static int Bcast(int value)
 
 } // namespace mpi
 
-namespace sys
-{
-
-// Acknowledgement status values
-static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
-
-// Acknowledge functions (EQ and NE) with thread sleep
-template <typename OP> static
-void AckOP(int xx) { time::Sleep([&]() { return OP()(*Jit::Ack(), xx); }); }
-static void AckEQ(int xx = ACK) { AckOP<std::equal_to<int>>(xx); }
-static void AckNE(int xx = ACK) { AckOP<std::not_equal_to<int>>(xx); }
-
-// Read, Write, Acknowledge, Send & Wait using the shared memory 's_ack'
-static int Read() { return *Jit::Ack(); }
-static int Write(int xx) { return *Jit::Ack() = xx; }
-static void Acknowledge() { Write(ACK); }
-
-static void Send(int xx) { AckNE(Write(xx)); } // blocks until != xx
-static void Wait(bool EQ = true) { EQ ? AckEQ() : AckNE(); }
-
-// Call/Exit/Ack decode 's_ack'
-static bool IsCall() { return Read() == CALL; }
-static bool IsExit() { return Read() == EXIT; }
-static bool IsAck() { return Read() == ACK; }
-
-// Ask the parent to launch a system call using this command
-static int Call(const char *name = nullptr, const char *command = io::Command())
-{
-   MFEM_VERIFY(mpi::Root(), "[JIT] Only MPI root should launch commands!");
-   if (name) { MFEM_WARNING("[" << name << "] " << command); }
-   // In serial mode or with the std_system option set, just call std::system
-   if (!mpi::IsInitialized() || Jit::StdSystem()) { return std::system(command); }
-   // Otherwise, write the command to the child process
-   MFEM_VERIFY((1+std::strlen(command)) < Jit::Size(), "[JIT] length error!");
-   std::memcpy(Jit::Mem(), command, std::strlen(command) + 1);
-   Send(CALL); // call std::system through the child process
-   Wait(false); // wait for the acknowledgment after compilation
-   return EXIT_SUCCESS;
-}
-
-} // namespace mem
-
 namespace dl
 {
 
-static const char* Error(bool show = false) noexcept
+static const char* Error(bool warning = false) noexcept
 {
    const char *error = dlerror();
-   if ((show || Jit::Debug()) && error) { MFEM_WARNING("[JIT] " << error); }
+   if (warning && error) { MFEM_WARNING("[JIT] " << error); }
    MFEM_VERIFY(!::dlerror(), "[JIT] Should result in NULL being returned!");
    return error;
 }
@@ -285,8 +231,7 @@ static void* Sym(void *handle, const char *name) noexcept
 
 static void *Open(const char *path)
 {
-   const int mode = (Jit::Debug() ? RTLD_NOW : RTLD_LAZY) | RTLD_LOCAL;
-   void *handle = ::dlopen(path, mode);
+   void *handle = ::dlopen(path, RTLD_LAZY | RTLD_LOCAL);
    return (Error(), handle);
 }
 
@@ -294,49 +239,87 @@ static void *Open(const char *path)
 
 } // namespace jit
 
+struct Jit::System
+{
+   pid_t pid; // of the child process
+   int *s_ack, rank; // shared status, must be able to store one MPI rank
+   char *s_mem; // shared memory to store the command for the system call
+   uintptr_t size; // size of the s_mem shared memory
+
+   // Acknowledgement status values
+   static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
+
+   // Acknowledge functions (EQ and NE) with thread sleep
+   template <typename OP>
+   void AckOP(int xx) const { jit::time::Sleep([&]() { return OP()(*s_ack, xx); }); }
+   void AckEQ(int xx = ACK) const { AckOP<std::equal_to<int>>(xx); }
+   void AckNE(int xx = ACK) const { AckOP<std::not_equal_to<int>>(xx); }
+
+   // Read, Write, Acknowledge, Send & Wait using the shared memory 's_ack'
+   int Read() const { return *s_ack; }
+   int Write(int xx) const { return *s_ack = xx; }
+
+   void Acknowledge() const { Write(ACK); }
+   void Send(int xx) const { AckNE(Write(xx)); } // blocks until != xx
+   void Wait(bool EQ = true) const { EQ ? AckEQ() : AckNE(); }
+
+   // Call/Exit/Ack decode 's_ack'
+   bool IsCall() const { return Read() == CALL; }
+   bool IsExit() const { return Read() == EXIT; }
+   bool IsAck() const { return Read() == ACK; }
+
+   // Ask the parent to launch a system call using this command
+   int Run(const char *cmd)
+   {
+      MFEM_VERIFY((1 + std::strlen(cmd)) < size, "[JIT] length error!");
+      std::memcpy(s_mem, cmd, std::strlen(cmd) + 1);
+      Send(CALL); // call std::system through the child process
+      Wait(false); // wait for the acknowledgment after compilation
+      return EXIT_SUCCESS;
+   }
+};
+
+struct Jit::Command // convenient command builder & const char* type cast
+{
+   Command& operator<<(const char *c) { Get().command << c << ' '; return *this; }
+   Command& operator<<(const std::string &s) { return *this << s.c_str(); }
+   operator const char *()
+   {
+      static thread_local std::string sl_cmd;
+      sl_cmd = Get().command.str();
+      (Get().command.clear(), Get().command.str("")); // real flush
+      return sl_cmd.c_str();
+   }
+};
+
 using namespace jit;
 
-// Initialize the unique global Jit variable.
-Jit Jit::jit_singleton;
-
-Jit::Jit():
-   path("."),
-   lib_ar("libmjit.a"),
-   lib_so("./libmjit." MFEM_SO_EXT),
-   keep_cache(true),
-   std_system(true)
-{
-   Get().includes.push_back("mfem.hpp");
-   Get().includes.push_back("general/forall.hpp"); // for mfem::forall
-   Get().includes.push_back("general/jit/jit.hpp"); // for Hash, Find
-}
-
-Jit::~Jit() // warning: can't use mpi::Root here
-{
-   if (!Get().keep_cache && Rank()==0 && io::Exists(Lib_ar()))
-   {
-      std::remove(Lib_ar());
-   }
-}
-
-/// @brief Initialize JIT, used in the MPI communication singleton.
 void Jit::Init(int *argc, char ***argv)
 {
    MFEM_VERIFY(!mpi::IsInitialized(), "[JIT] MPI already initialized!");
 
-   // if MFEM_USE_JIT_FORK is set, fork root process before mpi::Init
-#ifdef MFEM_USE_JIT_FORK
-   Get().std_system = false;
-#endif
-
-   if (Get().std_system) // each rank does the MPI init, nothing else
+   if (Get().std_system) // each rank does the MPI init and update their rank
    {
       mpi::Init(argc, argv);
-      Get().pid = getpid(); // set ourself to be not null for finalize
+      Get().rank = mpi::Rank(); // used in destructor
       return;
    }
 
-   // first MPI rank is looked for in the environment (-1 if not found)
+   System &sys = *Get().sys;
+
+   // Initialisation of the shared memory between the MPI root and the
+   // thread that will launch the system commands
+   auto SysInit = [&]()
+   {
+      constexpr int prot = PROT_READ | PROT_WRITE;
+      constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
+      sys.size = (uintptr_t) sysconf(_SC_PAGE_SIZE);
+      sys.s_ack = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
+      sys.s_mem = (char*) ::mmap(nullptr, sys.size, prot, flags, -1, 0);
+      sys.Write(Get().sys->ACK); // initialize state
+   };
+
+   // MPI rank is looked for in the environment (-1 if not found)
    const int env_rank = mpi::EnvRank();
    if (env_rank >= 0) // MPI rank is known from environment
    {
@@ -344,88 +327,81 @@ void Jit::Init(int *argc, char ***argv)
       if (env_rank > 0) // other ranks only MPI_Init
       {
          mpi::Init(argc, argv);
-         Get().pid = getpid(); // set our pid for JIT finalize to be an no-op
+         sys.pid = getpid(); // set our pid for JIT finalize to be an no-op
          return;
       }
    }
-   // cannot know root before MPI::Init: everyone gets ready
-   else { SysInit(); }
+   else { SysInit(); } // cannot know root before MPI::Init: everyone gets ready
 
-   if ((Get().pid = ::fork()) != 0)
+   if ((sys.pid = ::fork()) != 0)
    {
       mpi::Init(argc, argv);
-      sys::Write(mpi::Rank()); // inform the child about our rank
-      sys::Wait(false); // wait for the child to acknowledge
+      sys.Write(Get().rank = mpi::Rank()); // inform the child about our rank
+      sys.Wait(false); // wait for the child to acknowledge
    }
    else
    {
-      MFEM_VERIFY(Pid()==0, "[JIT] Child pid error!");
-      MFEM_VERIFY(sys::IsAck(), "[JIT] Child initialize state error!");
-      sys::Wait(); // wait for parent's rank
-      const int rank = sys::Read(); // Save the rank
-      sys::Acknowledge();
+      MFEM_VERIFY(sys.pid == 0, "[JIT] Child pid error!");
+      MFEM_VERIFY(sys.IsAck(), "[JIT] Child initialize state error!");
+      sys.Wait(); // wait for parent's rank
+      const int rank = sys.Read(); // Save the rank
+      sys.Acknowledge();
       if (rank == 0) // only root is kept for system calls
       {
          while (true)
          {
-            sys::Wait(); // waiting for the root to wake us
-            if (sys::IsCall()) { if (std::system(Mem())) break; }
-            if (sys::IsExit()) { break; }
-            sys::Acknowledge();
+            sys.Wait(); // waiting for the root to wake us
+            if (sys.IsCall()) { if (std::system(sys.s_mem)) break; }
+            if (sys.IsExit()) { break; }
+            sys.Acknowledge();
          }
       }
       std::exit(EXIT_SUCCESS); // no children are coming back
    }
-   MFEM_VERIFY(Pid()!=0, "[JIT] Children shall not pass!");
+   MFEM_VERIFY(sys.pid != 0, "[JIT] Children shall not pass!");
 }
 
-/// @brief Finalize JIT, used in the MPI communication singleton.
 void Jit::Finalize()
 {
+   if (!mpi::IsInitialized() || Get().std_system) { return; } // nothing to do
+   System &sys = *Get().sys;
    // child and env-ranked have nothing to do
-   if (Pid() == 0 || Pid() == getpid()) { return; }
+   if (sys.pid == 0 || sys.pid == getpid()) { return; }
    MFEM_VERIFY(!Get().std_system, "std::system should be used!");
-   MFEM_VERIFY(sys::IsAck(), "[JIT] Finalize acknowledgment error!");
+   MFEM_VERIFY(sys.IsAck(), "[JIT] Finalize acknowledgment error!");
    int status;
-   sys::Send(sys::EXIT);
-   ::waitpid(Pid(), &status, WUNTRACED | WCONTINUED); // wait for child
+   sys.Send(sys.EXIT);
+   ::waitpid(sys.pid, &status, WUNTRACED | WCONTINUED); // wait for child
    MFEM_VERIFY(status == 0, "[JIT] Error with the compiler thread");
-   if (::munmap(Mem(), Size()) != 0 || // release shared memory
-       ::munmap(Ack(), sizeof(int)) != 0)
+   if (::munmap(sys.s_mem, sys.size) != 0 || // release shared memory
+       ::munmap(sys.s_ack, sizeof(int)) != 0)
    { MFEM_ABORT("[JIT] Finalize memory error!"); }
 }
 
-/** @brief Set the archive name to @a name and the path to @a path.
- *  If @a keep is set to false, the cache will be removed by the MPI root.
- *  @param[in] name basename of the JIT cache, set to \c mjit by default,
- *  @param[in] path path of the JIT cache, set to '.' dy default,
- *  @param[in] keep determines if the cache will be removed or not by the MPI
- *  root rank during Jit::Finalize().
- **/
 void Jit::Configure(const char *name, const char *path, bool keep)
 {
+   MFEM_VERIFY(mpi::IsInitialized(), "[JIT] Configure before MPI initialization!");
    Get().path = path;
    Get().keep_cache = keep;
    Get().rank = mpi::Rank();
 
-   auto create_full_path = [&](const char *ext)
+   auto CreateFullPath = [&](const char *ext)
    {
-      std::string lib = Path();
+      std::string lib = Get().path;
       lib += std::string("/") + std::string("lib") + name;
       lib += std::string(".") + ext;
       return lib;
    };
 
-   Get().lib_ar = create_full_path("a");
-   if (mpi::Root() && !io::Exists(Lib_ar())) // if Lib_ar does not exist
+   Get().lib_ar = CreateFullPath("a");
+   const char *lib_ar = Get().lib_ar.c_str();
+   if (mpi::Root() && !io::Exists(lib_ar)) // if lib_ar does not exist
    {
-      MFEM_VERIFY(std::ofstream(Lib_ar()), "[JIT] Error creating " << Lib_ar());
-      std::remove(Lib_ar()); // try to touch and remove
+      MFEM_VERIFY(std::ofstream(lib_ar), "[JIT] Error creating " << lib_ar);
+      std::remove(lib_ar); // try to touch and remove
    }
    mpi::Sync();
-
-   const char *so_ext = "" MFEM_SO_EXT; // declared on the compile line
-   Get().lib_so = create_full_path(so_ext);
+   Get().lib_so = CreateFullPath("" MFEM_SO_EXT);
 }
 
 void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
@@ -434,29 +410,31 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
 {
    dl::Error(false); // flush dl errors
    mpi::Sync(); // make sure file testing is done at the same time
-   void *handle = io::Exists(Lib_so()) ? dl::Open(Lib_so()) : nullptr;
-   if (!handle && io::Exists(Lib_ar())) // if .so not found, try archive
+   const char *lib_ar = Get().lib_ar.c_str();
+   const char *lib_so = Get().lib_so.c_str();
+   void *handle = io::Exists(lib_so) ? dl::Open(lib_so) : nullptr;
+   if (!handle && io::Exists(lib_ar)) // if .so not found, try archive
    {
       int status = EXIT_SUCCESS;
       if (mpi::Root())
       {
-         io::FileLock ar_lock(Lib_ar(), "ak");
-         io::FileLock so_lock(Lib_so(), "ok");
-         io::Command() << cxx << link << "-shared" << "-o" << Lib_so()
-                       << Xprefix() << Lib_ar() << Xpostfix()
-                       << Xlinker() + std::string("-rpath,") + Path() << libs;
-         status = sys::Call();
+         io::FileLock ar_lock(lib_ar, "ak");
+         io::FileLock so_lock(lib_so, "ok");
+         Command() << cxx << link << "-shared" << "-o" << lib_so
+                   << Xprefix() << lib_ar << Xpostfix()
+                   << Xlinker() + std::string("-rpath,") + Get().path << libs;
+         status = Run();
       }
       mpi::Sync(status);
-      handle = dl::Open(Lib_so());
+      handle = dl::Open(lib_so);
       if (!handle) // happens when Lib_so is removed in the meantime
       { return Lookup(hash, name, cxx, flags, link, libs, incp, source, symbol); }
-      MFEM_VERIFY(handle, "[JIT] Error " << Lib_ar() << " => " << Lib_so());
+      MFEM_VERIFY(handle, "[JIT] Error " << lib_ar << " => " << lib_so);
    }
 
    auto WorldCompile = [&]() // but only root does the compilation
    {
-      // each compilation process adds there id to the hash,
+      // each compilation process adds their id to the hash,
       // this is used to handle parallel compilations of the same source
       auto id = std::string("_") + std::to_string(mpi::Bcast(getpid()));
       auto so = Jit::ToString(hash, id.c_str());
@@ -474,8 +452,8 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
       {
          auto install = [](const char *in, const char *out)
          {
-            io::Command() << "install" << Xbackup() << in << out;
-            MFEM_VERIFY(sys::Call(Debug()?"install":nullptr) == EXIT_SUCCESS,
+            Command() << "install" << Xbackup() << in << out;
+            MFEM_VERIFY(Run() == EXIT_SUCCESS,
                         "[JIT] install error: " << in << " => " << out);
          };
          io::FileLock cc_lock(Jit::ToString(hash), "ck", false);
@@ -495,58 +473,60 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                MFEM_VERIFY(io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
                            io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
                            "[JIT] Could not find any MFEM header!");
-               std::string mfem_inst_inc_dir(MFEM_INSTALL_DIR "/include/mfem");
-               io::Command() << cxx << flags << (Verbose() ? "-v" : "")
-                             << "-I" << MFEM_SOURCE_DIR
-                             << "-I" << mfem_inst_inc_dir
-                             << "-I" << mfem_inst_inc_dir + "/" + incp
-                             << Includes().c_str()
+               std::string incs;
+               for (auto inc: Get().includes) { incs += "-include \"" + inc + "\" "; }
+               std::string mfem_install_include_dir(MFEM_INSTALL_DIR "/include/mfem");
+               Command() << cxx << flags
+                         << "-I" << MFEM_SOURCE_DIR
+                         << "-I" << mfem_install_include_dir
+                         << "-I" << mfem_install_include_dir + "/" + incp
+                         << incs.c_str()
 #ifdef MFEM_USE_CUDA
-                             // nvcc option to embed relocatable device code
-                             << "--relocatable-device-code=true"
+                         // nvcc option to embed relocatable device code
+                         << "--relocatable-device-code=true"
 #endif
-                             << "-c" << "-o" << co << cc;
-               if (sys::Call(name)) { return EXIT_FAILURE; }
-               if (!Debug()) { std::remove(cc.c_str()); }
+                         << "-c" << "-o" << co << cc;
+               if (Run(name)) { return EXIT_FAILURE; }
+               if (!Get().debug) { std::remove(cc.c_str()); }
             }
             // Update archive: ar += co
-            io::FileLock ar_lock(Lib_ar(), "ak");
+            io::FileLock ar_lock(lib_ar, "ak");
             {
-               io::Command() << ("" MFEM_AR) << "-r" << Lib_ar() << co; // v
-               if (sys::Call(Debug() ? name : nullptr)) { return EXIT_FAILURE; }
-               if (!Debug()) { std::remove(co.c_str()); }
+               Command() << ("" MFEM_AR) << "-r" << lib_ar << co;
+               if (Run()) { return EXIT_FAILURE; }
+               if (!Get().debug) { std::remove(co.c_str()); }
             }
             // Create temporary shared library: (ar + co) => so
             {
                // macos warns dynamic_lookup may not work with chained fixups
                // to avoid, use both MFEM_SOURCE/INSTALL_DIR directly
-               io::Command() << cxx << link << "-o" << so
-                             << "-shared"
-                             << "-L" MFEM_SOURCE_DIR
-                             << "-L" MFEM_INSTALL_DIR " -lmfem"
-                             << Xprefix() << Lib_ar() << Xpostfix()
-                             << Xlinker() + std::string("-rpath,") + Path()
-                             << libs;
-               if (sys::Call(Debug() ? name : nullptr)) { return EXIT_FAILURE; }
+               Command() << cxx << link << "-o" << so
+                         << "-shared"
+                         << "-L" MFEM_SOURCE_DIR
+                         << "-L" MFEM_INSTALL_DIR " -lmfem"
+                         << Xprefix() << lib_ar << Xpostfix()
+                         << Xlinker() + std::string("-rpath,") + Get().path
+                         << libs;
+               if (Run()) { return EXIT_FAILURE; }
             }
             // Install temporary shared library: so => Lib_so
-            io::FileLock so_lock(Lib_so(), "ok");
-            install(so, Lib_so());
+            io::FileLock so_lock(lib_so, "ok");
+            install(so, lib_so);
          }
          else // avoid duplicate compilation
          {
             cc_lock.Wait();
             // if removed, rerun the compilation
-            if (!io::Exists(Lib_so())) { return RootCompile(so); }
-            io::FileLock so_lock(Lib_so(), "ok");
-            install(Lib_so(), so);
+            if (!io::Exists(lib_so)) { return RootCompile(so); }
+            io::FileLock so_lock(lib_so, "ok");
+            install(lib_so, so);
          }
          return EXIT_SUCCESS;
       };
       const int status = mpi::Root() ? RootCompile(so.c_str()) : EXIT_SUCCESS;
       MFEM_VERIFY(status == EXIT_SUCCESS, "[JIT] RootCompile error!");
       mpi::Sync(status); // all ranks verify the status
-      std::string symbol_path(Path() + "/");
+      std::string symbol_path(Get().path + "/");
       handle = dl::Open((symbol_path + so).c_str()); // opens symbol
       mpi::Sync();
       MFEM_VERIFY(handle, "[JIT] Error creating handle!");
@@ -564,33 +544,40 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
    return kernel;
 }
 
-std::string Jit::Xlinker()   { return "" MFEM_XLINKER; }
-std::string Jit::Xcompiler() { return "" MFEM_XCOMPILER; }
-std::string Jit::Xprefix()   { return "" MFEM_SO_PREFIX;  }
-std::string Jit::Xpostfix()  { return "" MFEM_SO_POSTFIX; }
-std::string Jit::Xbackup()   { return "" MFEM_INSTALL_BACKUP; }
-
-bool Jit::Debug() { return !!std::getenv("MFEM_JIT_DEBUG"); }
-bool Jit::Verbose() { return !!std::getenv("MFEM_JIT_VERBOSE"); }
-
-std::string Jit::Includes()
+Jit::Jit():
+   debug(!!std::getenv("MFEM_JIT_DEBUG")),
+   std_system(!!std::getenv("MFEM_JIT_FORK")),
+   keep_cache(true),
+   path("."),
+   lib_ar("libmjit.a"),
+   lib_so("./libmjit." MFEM_SO_EXT),
+   rank(0),
+   sys(std_system ? nullptr : new System)
 {
-   std::string incs;
-   for (auto inc: Get().includes) { incs += "-include \"" + inc + "\" "; }
-   return incs;
+   includes.push_back("mfem.hpp");
+   includes.push_back("general/forall.hpp"); // for mfem::forall
+   includes.push_back("general/jit/jit.hpp"); // for Hash, Find
 }
 
-// Initialisation of the shared memory between the MPI root and the
-// thread that will laucnh the 'system' commands
-void Jit::SysInit()
+Jit::~Jit() // warning: can't use mpi::Root here
 {
-   MFEM_VERIFY(!Jit::StdSystem(), "std::system should be used!");
-   constexpr int prot = PROT_READ | PROT_WRITE;
-   constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
-   Jit::Get().size = (uintptr_t) sysconf(_SC_PAGE_SIZE);
-   Jit::Get().s_ack = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
-   Jit::Get().s_mem = (char*) ::mmap(nullptr, Jit::Get().size, prot, flags, -1, 0);
-   sys::Write(sys::ACK); // initialize state
+   const char *ar = Get().lib_ar.c_str();
+   if (!keep_cache && Get().rank == 0 && io::Exists(ar)) { std::remove(ar); }
+   delete sys;
+}
+
+Jit Jit::jit_singleton; // Initialize the unique global Jit variable.
+
+int Jit::Run(const char *header)
+{
+   const char *command = Command();
+   if (header) { MFEM_WARNING("[" << header << "] " << command); }
+   if (!header && Get().debug) { MFEM_WARNING("[JIT] " << command); }
+   // In serial mode or with the std_system option set, just call std::system
+   if (!mpi::IsInitialized() || Get().std_system) { return std::system(command); }
+   // Otherwise, write the command to the child process
+   MFEM_VERIFY(Get().sys, "[JIT] Thread system error!");
+   return Get().sys->Run(command);
 }
 
 } // namespace mfem

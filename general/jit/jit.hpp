@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,14 +14,14 @@
 
 #include "../../config/config.hpp"
 
-#define MFEM_JIT // prefix to label JIT kernels, arguments and includes
+#define MFEM_JIT // prefix to label JIT kernels, arguments or includes
 
 #ifdef MFEM_USE_JIT
 
 #include <vector>
 #include <string>
-#include <iomanip> // setfill
-#include <sstream>
+#include <iomanip> // setfill, setw
+#include <sstream> // ostringstream
 #include <iostream>
 #include <functional> // std::hash
 #include <unordered_map>
@@ -48,12 +48,6 @@ namespace mfem
 class Jit
 {
 public:
-   /**
-    * @brief constructor.
-    */
-   Jit();
-   static Jit& Get() { return jit_singleton; }
-
    /// @brief Initialize JIT, used in the MPI communication singleton.
    static void Init(int *argc, char ***argv);
 
@@ -80,11 +74,11 @@ public:
    { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
 
    /// @brief Creates a string from the hash and the optional extension.
-   static std::string ToString(const size_t hash, const char *extension = "")
+   static inline std::string ToString(const size_t hash, const char *ext = "")
    {
       std::stringstream ss {};
       ss  << 'k' << std::setfill('0') << std::setw(16)
-          << std::hex << (hash|0) << std::dec << extension;
+          << std::hex << (hash|0) << std::dec << ext;
       return ss.str();
    }
 
@@ -101,7 +95,7 @@ public:
     **/
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
-                       const char *incp, const char *source, const char *symbol);
+                       const char *dir, const char *src, const char *sym);
 
    /// @brief Kernel structure to hold the kernel and its launcher.
    template<typename T> struct Kernel
@@ -123,10 +117,10 @@ public:
       **/
       Kernel(const size_t hash, const char *name, const char *cxx,
              const char *flags, const char *link, const char *libs,
-             const char *incp, const char *src, const char *sym):
-         kernel((T) Jit::Lookup(hash, name, cxx, flags, link, libs, incp, src, sym)) {}
+             const char *dir, const char *src, const char *sym):
+         kernel((T) Jit::Lookup(hash,name,cxx,flags,link,libs,dir,src,sym)) {}
 
-      /// @brief Kernel launch operator.
+      /// @brief Kernel launch operator
       template<typename... Args>
       void Launch(Args&&... args) { kernel(std::forward<Args>(args)...); }
    };
@@ -166,49 +160,22 @@ public:
    }
 
 private:
-   /// Destructor
+   Jit();
    ~Jit();
-
-   /// Prevent direct construction of objects of this class
    Jit(Jit const&) = delete;
    void operator=(Jit const&) = delete;
    static MFEM_EXPORT Jit jit_singleton;
+   static Jit& Get() { return jit_singleton; }
 
-   pid_t pid; // of the child process
-   int *s_ack, rank; // shared status, must be able to store one MPI rank
-   char *s_mem; // shared memory to store the command for the system call
-   uintptr_t size; // of the s_mem shared memory
-   std::string path, lib_ar, lib_so; // default cache path
-   std::ostringstream commamd;
-   bool keep_cache; // option to keep the lib_ar cache library
-   bool std_system; // option to use only std::sytem calls and no fork
+   bool debug, std_system, keep_cache;
    std::vector<std::string> includes;
-
-   // Shortcut functions to access Jit's singleton internal variables
-public:
-   static int* Ack() { return Get().s_ack; }
-   static char* Mem() { return Get().s_mem; }
-   static uintptr_t Size() { return Get().size; }
-   static bool StdSystem() { return Get().std_system; }
-   static std::ostringstream& Command() { return Get().commamd; }
-   static bool Debug();
-   static bool Verbose();
-
-private:
-   static int Rank() { return Get().rank; }
-   static pid_t Pid() { return Get().pid; }
-   static std::string Path() { return Get().path; }
-   static const char *Lib_ar() { return Get().lib_ar.c_str(); }
-   static const char *Lib_so() { return Get().lib_so.c_str(); }
-
-   static std::string Xlinker();
-   static std::string Xcompiler();
-   static std::string Xprefix();
-   static std::string Xpostfix();
-   static std::string Xbackup();
-
-   static void SysInit();
-   static std::string Includes();
+   std::string path, lib_ar, lib_so;
+   int rank;
+   struct System;
+   System *sys;
+   struct Command;
+   std::ostringstream command;
+   static int Run(const char *header = nullptr);
 };
 
 } // namespace mfem
