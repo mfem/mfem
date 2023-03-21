@@ -44,8 +44,8 @@ class SPDESolver {
   /// @param bc Boundary conditions.
   /// @param fespace Finite element space.
   SPDESolver(double nu, const Boundary &bc, ParFiniteElementSpace *fespace,
-             double l1 = 0.1, double l2 = 0.1, double l3 = 0.1, double e1 = 0.0,
-             double e2 = 0.0, double e3 = 0.0);
+             MPI_Comm comm, double l1 = 0.1, double l2 = 0.1, double l3 = 0.1,
+             double e1 = 0.0, double e2 = 0.0, double e3 = 0.0);
 
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
@@ -99,6 +99,9 @@ class SPDESolver {
 
   // Compute the coefficients for the rational approximation of the solution.
   void ComputeRationalCoefficients(double exponent);
+
+  // MPI communicator.
+  MPI_Comm comm_ = MPI_COMM_WORLD;
 
   // Bilinear forms and corresponding matrices for the solver.
   ParBilinearForm k_;

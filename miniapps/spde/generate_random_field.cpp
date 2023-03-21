@@ -246,7 +246,8 @@ int main(int argc, char *argv[]) {
   }
 
   // III.3 Solve the SPDE problem
-  spde::SPDESolver solver(nu, bc, &fespace, l1, l2, l3, e1, e2, e3);
+  spde::SPDESolver solver(nu, bc, &fespace, MPI_COMM_WORLD, l1, l2, l3, e1, e2,
+                          e3);
   if (random_seed) {
     solver.GenerateRandomField(u);
   } else {
