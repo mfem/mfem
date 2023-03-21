@@ -499,35 +499,36 @@ JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 OPT_OBJECT_FILES = $(BLD)general/jit/jit.o
 STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJECT_FILES))
 
-# Definitions to compile the preprocessor and embed the MFEM options
-MFEM_JIT_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
-MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
-MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="\"$(strip $(MFEM_BUILD_FLAGS))\""
-MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
-$(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
- $(BLD)general/jit/jit.hpp
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MFEM_JIT_DEFINES) $(<) -o $(@)
+# MFEM's MJIT parser embedded definitions
+MJIT_PARSER_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
+MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
+MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(strip $(MFEM_BUILD_FLAGS))\""
+MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
+$(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile $(BLD)general/jit/jit.hpp
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
 
-# MFEM CXX/AR/install options embedded in the general/jit/jit object file 
-MFEM_BUILD_FLAGS += $(if $(MFEM_USE_CUDA:YES=),-x c++)
-MFEM_JIT_OPTIONS  = -DMFEM_SO_EXT="\"$(SO_EXT)\""
-MFEM_JIT_OPTIONS += -DMFEM_XCOMPILER="\"$(XCOMPILER)\""
-MFEM_JIT_OPTIONS += -DMFEM_XLINKER="\"$(XLINKER)\""
-MFEM_JIT_OPTIONS += -DMFEM_AR="\"$(AR)\""
-MFEM_JIT_OPTIONS += -DMFEM_INSTALL_BACKUP="\"$(INSTALL_BACKUP)\""
-MFEM_JIT_OPTIONS += -DMFEM_SO_PREFIX="\"$(SO_PREFIX)\""
-MFEM_JIT_OPTIONS += -DMFEM_SO_POSTFIX="\"$(SO_POSTFIX)\""
+# MFEM's MJIT runtime embedded definitions 
+MJIT_RUNTIME_DEFINES  = -DMFEM_AR="\"$(AR)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_SO_EXT="\"$(SO_EXT)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_XLINKER="\"$(XLINKER)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_XCOMPILER="\"$(XCOMPILER)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_SO_PREFIX="\"$(SO_PREFIX)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_SO_POSTFIX="\"$(SO_POSTFIX)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_INSTALL_BACKUP="\"$(INSTALL_BACKUP)\""
 $(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp makefile $(CONFIG_MK)
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MFEM_JIT_OPTIONS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_RUNTIME_DEFINES) -c $(<) -o $(@)
 
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
+MJIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+MJIT_BUILD_FLAGS += $(if $(MFEM_USE_CUDA:YES=),-x c++)
+MJIT_BUILD_FLAGS += -I$(@D) -DMFEM_JIT_INC_PATH="\"$(@D)\""
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
 	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
 	@$(BLD)./mjit $(<) -o $(MJIT_TMP)
-	@echo [JIT] $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*).cpp -o $(@)
-	@$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(*)) -DMFEM_JIT_INC_PATH="\"$(dir $(*))\"" -c $(MJIT_TMP) -o $(@)
+	@echo [JIT] $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(*).cpp -o $(@)
+	@$(MFEM_CXX) $(MJIT_BUILD_FLAGS) -c $(MJIT_TMP) -o $(@)
 	@rm $(MJIT_TMP)
 endif # MFEM_USE_JIT
 
