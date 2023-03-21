@@ -723,7 +723,6 @@ void H1_ND_RT_FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
 #endif
 
 #ifdef MFEM_DEBUG
-   // If fespace == H1
    const FiniteElement *fe0 = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tfe != NULL &&
