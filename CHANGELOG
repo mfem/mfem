@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.5.2, released on February XX, 2023
-============================================
+Version 4.5.2, released on March 23, 2023
+=========================================
 
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
