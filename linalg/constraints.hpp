@@ -235,6 +235,9 @@ public:
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
 
+   void SetPreconditioner(Solver& precond) override
+   { prec = &precond; }
+
 protected:
    /// Internal utility routine; assembles eliminated matrix explicitly
    void BuildExplicitOperator();
@@ -281,6 +284,33 @@ private:
    bool reorder;
 };
 
+/** EliminationSolver using GMRES and HypreBoomerAMG */
+class EliminationGMRESSolver : public EliminationSolver
+{
+public:
+   EliminationGMRESSolver(HypreParMatrix& A, SparseMatrix& B,
+                          Array<int>& constraint_rowstarts,
+                          int dimension_=0, bool reorder_=false) :
+      EliminationSolver(A, B, constraint_rowstarts),
+      dimension(dimension_), reorder(reorder_)
+   { }
+
+protected:
+   virtual Solver* BuildPreconditioner() const override
+   {
+      HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator);
+      h_prec->SetPrintLevel(0);
+      if (dimension > 0) { h_prec->SetSystemsOptions(dimension, reorder); }
+      return h_prec;
+   }
+
+   virtual IterativeSolver* BuildKrylov() const override
+   { return new GMRESSolver(GetComm()); }
+
+private:
+   int dimension;
+   bool reorder;
+};
 
 /** @brief Solve constrained system with penalty method; see ConstrainedSolver.
 
@@ -295,6 +325,9 @@ public:
    PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
                             double penalty_);
 
+   PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
+                            Vector& penalty_);
+
    ~PenaltyConstrainedSolver();
 
    void Mult(const Vector& x, Vector& y) const override;
@@ -302,15 +335,22 @@ public:
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
 
+   void SetPreconditioner(Solver& precond) override
+   { prec = &precond; }
+
 protected:
-   void Initialize(HypreParMatrix& A, HypreParMatrix& B);
+   /// Initialize the matrix A + B*D*B^T for the constrained linear system
+   /// A - original matrix (N x N square matrix)
+   /// B - constraint matrix (M x N rectangular matrix)
+   /// D - diagonal matrix of penalty values (M x M square matrix)
+   void Initialize(HypreParMatrix& A, HypreParMatrix& B, HypreParMatrix& D);
 
    /// Build preconditioner for penalized system
    virtual Solver* BuildPreconditioner() const = 0;
    /// Select krylov solver for penalized system
    virtual IterativeSolver* BuildKrylov() const = 0;
 
-   double penalty;
+   Vector penalty;
    Operator& constraintB;
    HypreParMatrix * penalized_mat;
    mutable IterativeSolver * krylov;
@@ -334,6 +374,12 @@ public:
       dimension_(dimension), reorder_(reorder)
    { }
 
+   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_,
+                    int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
 protected:
    virtual Solver* BuildPreconditioner() const override
    {
@@ -345,6 +391,45 @@ protected:
 
    virtual IterativeSolver* BuildKrylov() const override
    { return new CGSolver(GetComm()); }
+
+private:
+   int dimension_;
+   bool reorder_;
+};
+
+/** Uses GMRES and a HypreBoomerAMG preconditioner for the penalized system. */
+class PenaltyGMRESSolver : public PenaltyConstrainedSolver
+{
+public:
+   PenaltyGMRESSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+                      int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+                      int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_,
+                      int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+protected:
+   virtual Solver* BuildPreconditioner() const override
+   {
+      HypreBoomerAMG* h_prec = new HypreBoomerAMG(*penalized_mat);
+      h_prec->SetPrintLevel(0);
+      if (dimension_ > 0) { h_prec->SetSystemsOptions(dimension_, reorder_); }
+      return h_prec;
+   }
+
+   virtual IterativeSolver* BuildKrylov() const override
+   { return new GMRESSolver(GetComm()); }
 
 private:
    int dimension_;
@@ -409,8 +494,8 @@ class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {
 public:
    SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
-                               HypreParMatrix& hB_, int dimension=0,
-                               bool reorder=false);
+                               HypreParMatrix& hB_, Solver * prec = nullptr,
+                               int dimension=0, bool reorder=false);
    virtual ~SchurConstrainedHypreSolver();
 
 private:

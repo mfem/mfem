@@ -311,6 +311,93 @@ void test_ceed_operator(const char* input, int order,
    delete vcoeff;
 }
 
+void test_mixed_p_ceed_operator(const char* input, int order,
+                                const CeedCoeffType coeff_type, const Problem pb,
+                                const AssemblyLevel assembly)
+{
+   std::string section = "assembly: " + getString(assembly) + "\n" +
+                         "coeff_type: " + getString(coeff_type) + "\n" +
+                         "pb: " + getString(pb) + "\n" +
+                         "order: " + std::to_string(order) + "\n" +
+                         "mesh: " + input;
+   INFO(section);
+   Mesh mesh(input, 1, 1);
+   mesh.EnsureNodes();
+   mesh.EnsureNCMesh();
+   int dim = mesh.Dimension();
+   MFEM_VERIFY(dim == 2, "p-adaptivity only supported in serial 2D.");
+   H1_FECollection fec(order, dim);
+
+   // Coefficient Initialization
+   GridFunction *gf = nullptr;
+   FiniteElementSpace *coeff_fes = nullptr;
+   Coefficient *coeff = nullptr;
+   VectorCoefficient *vcoeff = nullptr;
+   InitCoeff(mesh, fec, dim, coeff_type, gf, coeff_fes, coeff, vcoeff);
+
+   // Build the BilinearForm
+   bool vecOp = pb == Problem::VectorMass || pb == Problem::VectorDiffusion;
+   const int vdim = vecOp ? dim : 1;
+   FiniteElementSpace fes(&mesh, &fec, vdim);
+   fes.SetElementOrder(0, order+1);
+   fes.SetElementOrder(fes.GetNE() - 1, order+1);
+   fes.Update(false);
+
+   BilinearForm k_test(&fes);
+   BilinearForm k_ref(&fes);
+   switch (pb)
+   {
+      case Problem::Mass:
+         k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+         break;
+      case Problem::Convection:
+         k_ref.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
+         k_test.AddDomainIntegrator(new ConvectionIntegrator(*vcoeff,-1));
+         break;
+      case Problem::Diffusion:
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         break;
+      case Problem::VectorMass:
+         k_ref.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorMassIntegrator(*coeff));
+         break;
+      case Problem::VectorDiffusion:
+         k_ref.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new VectorDiffusionIntegrator(*coeff));
+         break;
+      case Problem::MassDiffusion:
+         k_ref.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new MassIntegrator(*coeff));
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(*coeff));
+         break;
+   }
+
+   k_ref.Assemble();
+   k_ref.Finalize();
+
+   k_test.SetAssemblyLevel(assembly);
+   k_test.Assemble();
+
+   // Compare ceed with mfem.
+   GridFunction x(&fes), y_ref(&fes), y_test(&fes);
+
+   x.Randomize(1);
+
+   k_ref.Mult(x,y_ref);
+   k_test.Mult(x,y_test);
+
+   y_test -= y_ref;
+
+   REQUIRE(y_test.Norml2() < 1.e-12);
+   delete gf;
+   delete coeff_fes;
+   delete coeff;
+   delete vcoeff;
+}
+
 void test_ceed_nloperator(const char* mesh_filename, int order,
                           const CeedCoeffType coeff_type,
                           const NLProblem pb, const AssemblyLevel assembly)
@@ -427,14 +514,35 @@ TEST_CASE("CEED mass & diffusion", "[CEED]")
    auto pb = GENERATE(Problem::Mass,Problem::Diffusion,Problem::MassDiffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1);
-   auto mesh = GENERATE("../../data/inline-quad.mesh","../../data/inline-hex.mesh",
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
-                        "../../data/star-q2.mesh","../../data/fichera-q2.mesh",
-                        "../../data/amr-quad.mesh","../../data/fichera-amr.mesh");
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
-TEST_CASE("CEED convection", "[CEED],[Convection]")
+TEST_CASE("CEED p-adaptivity", "[CEED]")
+{
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
+   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,
+                              CeedCoeffType::Quad);
+   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,Problem::MassDiffusion,
+                      Problem::VectorMass,Problem::VectorDiffusion);
+   auto order = GENERATE(1);
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/periodic-square.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/square-mixed.mesh");
+   test_mixed_p_ceed_operator(mesh, order, coeff_type, pb, assembly);
+} // test case
+
+TEST_CASE("CEED convection low", "[CEED],[Convection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::VecConst,CeedCoeffType::VecGrid,
@@ -444,12 +552,25 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
                         "../../data/star-q2.mesh",
                         "../../data/fichera-q2.mesh",
                         "../../data/amr-quad.mesh",
-                        "../../data/fichera-amr.mesh");
+                        "../../data/fichera-amr.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
    Problem pb = Problem::Convection;
 
    // Test that the CEED and MFEM integrators give the same answer
    int low_order = 1;
    test_ceed_operator(mesh, low_order, coeff_type, pb, assembly);
+} // test case
+
+TEST_CASE("CEED convection high", "[CEED],[Convection]")
+{
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh");
 
    // Apply the CEED convection integrator applied to a vector quantity, check
    // that we get the exact answer (with sufficiently high polynomial degree)
@@ -468,7 +589,9 @@ TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
                         "../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
                         "../../data/star-q2.mesh",
-                        "../../data/fichera.mesh");
+                        "../../data/fichera.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
    test_ceed_nloperator(mesh, order, coeff_type, pb, assembly);
 } // test case
 

@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qspace.hpp"
 
 using namespace std;
 
@@ -24,18 +25,20 @@ namespace mfem
 
 // PA H(div) Mass Assemble 2D kernel
 void PAHdivSetup2D(const int Q1D,
+                   const int coeffDim,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
                    Vector &coeff_,
                    Vector &op)
 {
+   const bool symmetric = (coeffDim != 4);
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(coeff_.Read(), NQ, NE);
-   auto y = Reshape(op.Write(), NQ, 3, NE);
+   auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
+   auto y = Reshape(op.Write(), NQ, symmetric ? 3 : 4, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -45,28 +48,60 @@ void PAHdivSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * coeff(q, e) / ((J11*J22)-(J21*J12));
-         // (c/detJ) J^T J
-         y(q,0,e) = c_detJ * (J11*J11 + J21*J21); // 1,1
-         y(q,1,e) = c_detJ * (J11*J12 + J21*J22); // 1,2
-         y(q,2,e) = c_detJ * (J12*J12 + J22*J22); // 2,2
+         const double c_detJ = W[q] / ((J11*J22)-(J21*J12));
+
+         // (1/detJ) J^T C J
+         if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
+         {
+            const double C11 = C(0,q,e);
+            const double C12 = C(1,q,e);
+            const double C21 = symmetric ? C12 : C(2,q,e);
+            const double C22 = symmetric ? C(2,q,e) : C(3,q,e);
+            const double R11 = C11*J11 + C12*J21;
+            const double R21 = C21*J11 + C22*J21;
+            const double R12 = C11*J12 + C12*J22;
+            const double R22 = C21*J12 + C22*J22;
+
+            y(q,0,e) = c_detJ * (J11*R11 + J21*R21); // 1,1
+            y(q,1,e) = c_detJ * (J11*R12 + J21*R22); // 1,2
+
+            if (symmetric)
+            {
+               y(q,2,e) = c_detJ * (J12*R12 + J22*R22); // 2,2
+            }
+            else
+            {
+               y(q,2,e) = c_detJ * (J12*R11 + J22*R21); // 2,1
+               y(q,3,e) = c_detJ * (J12*R12 + J22*R22); // 2,2
+            }
+         }
+         else // Vector or scalar coefficient
+         {
+            const double C1 = C(0,q,e);
+            const double C2 = (coeffDim == 2 ? C(1,q,e) : C1);
+            y(q,0,e) = c_detJ * (J11*C1*J11 + J21*C2*J21); // 1,1
+            y(q,1,e) = c_detJ * (J11*C1*J12 + J21*C2*J22); // 1,2
+            y(q,2,e) = c_detJ * (J12*C1*J12 + J22*C2*J22); // 2,2
+         }
       }
    });
 }
 
 // PA H(div) Mass Assemble 3D kernel
 void PAHdivSetup3D(const int Q1D,
+                   const int coeffDim,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
                    Vector &coeff_,
                    Vector &op)
 {
+   const bool symmetric = (coeffDim != 9);
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(coeff_.Read(), NQ, NE);
-   auto y = Reshape(op.Write(), NQ, 6, NE);
+   auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
+   auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -84,14 +119,58 @@ void PAHdivSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * coeff(q, e) / detJ;
-         // (c/detJ) J^T J
-         y(q,0,e) = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
-         y(q,1,e) = c_detJ * (J12*J11 + J22*J21 + J32*J31); // 2,1
-         y(q,2,e) = c_detJ * (J13*J11 + J23*J21 + J33*J31); // 3,1
-         y(q,3,e) = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
-         y(q,4,e) = c_detJ * (J13*J12 + J23*J22 + J33*J32); // 3,2
-         y(q,5,e) = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
+         const double c_detJ = W[q] / detJ;
+
+         // (1/detJ) J^T C J
+         if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
+         {
+            double M[3][3];
+            M[0][0] = C(0, q, e);
+            M[0][1] = C(1, q, e);
+            M[0][2] = C(2, q, e);
+            M[1][0] = (!symmetric) ? C(3, q, e) : M[0][1];
+            M[1][1] = (!symmetric) ? C(4, q, e) : C(3, q, e);
+            M[1][2] = (!symmetric) ? C(5, q, e) : C(4, q, e);
+            M[2][0] = (!symmetric) ? C(6, q, e) : M[0][2];
+            M[2][1] = (!symmetric) ? C(7, q, e) : M[1][2];
+            M[2][2] = (!symmetric) ? C(8, q, e) : C(5, q, e);
+
+            int idx = 0;
+            for (int i=0; i<3; ++i)
+               for (int j = (symmetric ? i : 0); j<3; ++j)
+               {
+                  y(q,idx,e) = 0.0;
+                  for (int k=0; k<3; ++k)
+                  {
+                     double MJ_kj = 0.0;
+                     for (int l=0; l<3; ++l)
+                     {
+                        MJ_kj += M[k][l] * J(q,l,j,e);
+                     }
+
+                     y(q,idx,e) += J(q,k,i,e) * MJ_kj;
+                  }
+
+                  y(q,idx,e) *= c_detJ;
+                  idx++;
+               }
+         }
+         else  // Vector or scalar coefficient version
+         {
+            int idx = 0;
+            for (int i=0; i<3; ++i)
+               for (int j=i; j<3; ++j)
+               {
+                  y(q,idx,e) = 0.0;
+                  for (int k=0; k<3; ++k)
+                  {
+                     y(q,idx,e) += J(q,k,i,e) * C(coeffDim == 3 ? k : 0, q, e) * J(q,k,j,e);
+                  }
+
+                  y(q,idx,e) *= c_detJ;
+                  idx++;
+               }
+         }
       }
    });
 }
@@ -99,6 +178,7 @@ void PAHdivSetup3D(const int Q1D,
 void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
+                       const bool symmetric,
                        const Array<double> &Bo_,
                        const Array<double> &Bc_,
                        const Array<double> &Bot_,
@@ -115,7 +195,7 @@ void PAHdivMassApply2D(const int D1D,
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
@@ -178,11 +258,12 @@ void PAHdivMassApply2D(const int D1D,
          {
             const double O11 = op(qx,qy,0,e);
             const double O12 = op(qx,qy,1,e);
-            const double O22 = op(qx,qy,2,e);
+            const double O21 = symmetric ? O12 : op(qx,qy,2,e);
+            const double O22 = symmetric ? op(qx,qy,2,e) : op(qx,qy,3,e);
             const double massX = mass[qy][qx][0];
             const double massY = mass[qy][qx][1];
             mass[qy][qx][0] = (O11*massX)+(O12*massY);
-            mass[qy][qx][1] = (O12*massX)+(O22*massY);
+            mass[qy][qx][1] = (O21*massX)+(O22*massY);
          }
       }
 
@@ -225,9 +306,179 @@ void PAHdivMassApply2D(const int D1D,
    }); // end of element loop
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+void SmemPAHdivMassApply2D(const int NE,
+                           const bool symmetric,
+                           const Array<double> &Bo_,
+                           const Array<double> &Bc_,
+                           const Array<double> &Bot_,
+                           const Array<double> &Bct_,
+                           const Vector &op_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   MFEM_CONTRACT_VAR(Bot_);
+   MFEM_CONTRACT_VAR(Bct_);
+
+   static constexpr int VDIM = 2;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   const auto bc = Reshape(Bc_.Read(), Q1D, D1D);
+   const auto D = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
+   const auto x = Reshape(x_.Read(), D1D*(D1D-1), VDIM, NE);
+   auto y = y_.ReadWrite();
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      constexpr int MQ1 = T_Q1D ? T_Q1D : HDIV_MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : HDIV_MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      MFEM_SHARED double smo[MQ1*(MD1-1)];
+      DeviceMatrix Bo(smo, D1D-1, Q1D);
+
+      MFEM_SHARED double smc[MQ1*MD1];
+      DeviceMatrix Bc(smc, D1D, Q1D);
+
+      MFEM_SHARED double sm0[VDIM*MDQ*MDQ];
+      MFEM_SHARED double sm1[VDIM*MDQ*MDQ];
+      DeviceMatrix X(sm0, D1D*(D1D-1), VDIM);
+      DeviceCube QD(sm1, Q1D, D1D, VDIM);
+      DeviceCube QQ(sm0, Q1D, Q1D, VDIM);
+
+      // Load X, Bo and Bc into shared memory
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               if (qx < D1D && dy < (D1D-1)) { X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e); }
+               if (tidz == 0)
+               {
+                  if (dy < (D1D-1)) { Bo(dy,qx) = bo(qx,dy); }
+                  Bc(dy,qx) = bc(qx,dy);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply B operator
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceCube Xxy(X, nx, ny, VDIM);
+         DeviceMatrix Bx = (vd == 0) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double dq = 0.0;
+               for (int dx = 0; dx < nx; ++dx)
+               {
+                  dq += Xxy(dx,dy,vd) * Bx(dx,qx);
+               }
+               QD(qx,dy,vd) = dq;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceMatrix By = (vd == 1) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double qq = 0.0;
+               for (int dy = 0; dy < ny; ++dy)
+               {
+                  qq += QD(qx,dy,vd) * By(dy,qy);
+               }
+               QQ(qx,qy,vd) = qq;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply D operator
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const double Qx = QQ(qx,qy,0);
+               const double Qy = QQ(qx,qy,1);
+
+               const double D11 = D(qx,qy,0,e);
+               const double D12 = D(qx,qy,1,e);
+               const double D21 = symmetric ? D12 : D(qx,qy,2,e);
+               const double D22 = symmetric ? D(qx,qy,2,e) : D(qx,qy,3,e);
+
+               QQ(qx,qy,0) = D11*Qx + D12*Qy;
+               QQ(qx,qy,1) = D21*Qx + D22*Qy;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         DeviceMatrix Btx = (vd == 0) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               double qd = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  qd += QQ(qx,qy,vd) * Btx(dx,qx);
+               }
+               QD(dx,qy,vd) = qd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceMatrix Bty = (vd == 1) ? Bc : Bo;
+         DeviceTensor<4> Yxy(y, nx, ny, VDIM, NE);
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               double dd = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  dd += QD(dx,qy,vd) * Bty(dy,qy);
+               }
+               Yxy(dx,dy,vd,e) += dd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -238,7 +489,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -259,7 +510,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
-                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,2,e));
+                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
                }
             }
 
@@ -283,6 +534,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -294,7 +546,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -307,7 +559,8 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D : D1D - 1;
          const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-         const int opc = (c == 0) ? 0 : ((c == 1) ? 3 : 5);
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                         (symmetric ? 5 : 8));
 
          double mass[HDIV_MAX_Q1D];
 
@@ -350,6 +603,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
+                       const bool symmetric,
                        const Array<double> &Bo_,
                        const Array<double> &Bc_,
                        const Array<double> &Bot_,
@@ -366,7 +620,7 @@ void PAHdivMassApply3D(const int D1D,
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
@@ -461,15 +715,19 @@ void PAHdivMassApply3D(const int D1D,
                const double O11 = op(qx,qy,qz,0,e);
                const double O12 = op(qx,qy,qz,1,e);
                const double O13 = op(qx,qy,qz,2,e);
-               const double O22 = op(qx,qy,qz,3,e);
-               const double O23 = op(qx,qy,qz,4,e);
-               const double O33 = op(qx,qy,qz,5,e);
+               const double O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
+               const double O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
+               const double O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
+               const double O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
+               const double O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
+               const double O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
+
                const double massX = mass[qz][qy][qx][0];
                const double massY = mass[qz][qy][qx][1];
                const double massZ = mass[qz][qy][qx][2];
                mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
-               mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
-               mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+               mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
+               mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
             }
          }
       }
@@ -535,6 +793,337 @@ void PAHdivMassApply3D(const int D1D,
          }  // loop c
       }  // loop qz
    }); // end of element loop
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+void SmemPAHdivMassApply3D(const int NE,
+                           const bool symmetric,
+                           const Array<double> &Bo_,
+                           const Array<double> &Bc_,
+                           const Array<double> &Bot_,
+                           const Array<double> &Bct_,
+                           const Vector &op_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   MFEM_CONTRACT_VAR(Bot_);
+   MFEM_CONTRACT_VAR(Bct_);
+
+   static constexpr int VDIM = 3;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   const auto bc = Reshape(Bc_.Read(), Q1D, D1D);
+   const auto D = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto x = Reshape(x_.Read(), D1D*(D1D-1)*(D1D-1), VDIM, NE);
+   auto y = y_.ReadWrite();
+
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      constexpr int MQ1 = T_Q1D ? T_Q1D : HDIV_MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : HDIV_MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      MFEM_SHARED double smo[MQ1*(MD1-1)];
+      DeviceMatrix Bo(smo, D1D-1, Q1D);
+
+      MFEM_SHARED double smc[MQ1*MD1];
+      DeviceMatrix Bc(smc, D1D, Q1D);
+
+      MFEM_SHARED double sm0[VDIM*MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[VDIM*MDQ*MDQ*MDQ];
+      DeviceMatrix X(sm0, D1D*(D1D-1)*(D1D-1), VDIM);
+      DeviceTensor<4> QDD(sm1, Q1D, D1D, D1D, VDIM);
+      DeviceTensor<4> QQD(sm0, Q1D, Q1D, D1D, VDIM);
+      DeviceTensor<4> QQQ(sm1, Q1D, Q1D, Q1D, VDIM);
+      DeviceTensor<4> DQQ(sm0, D1D, Q1D, Q1D, VDIM);
+      DeviceTensor<4> DDQ(sm1, D1D, D1D, Q1D, VDIM);
+
+      // Load X into shared memory
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         MFEM_FOREACH_THREAD(dz,y,D1D-1)
+         {
+            MFEM_FOREACH_THREAD(dy,x,D1D-1)
+            {
+               MFEM_UNROLL(MD1)
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
+               }
+            }
+         }
+      }
+      // Load Bo and Bc into shared memory
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D-1)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bo(d,q) = bo(q,d);
+            }
+         }
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bc(d,q) = bc(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply B operator
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceTensor<4> Xxyz(X, nx, ny, nz, VDIM);
+         DeviceMatrix Bx = (vd == 0) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u[D1D];
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(MD1)
+               for (int dx = 0; dx < nx; ++dx)
+               {
+                  MFEM_UNROLL(MD1)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx);
+                  }
+               }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { QDD(qx,dy,dz,vd) = u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceMatrix By = (vd == 1) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u[D1D];
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(MD1)
+               for (int dy = 0; dy < ny; ++dy)
+               {
+                  MFEM_UNROLL(MD1)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy);
+                  }
+               }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { QQD(qx,qy,dz,vd) = u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceMatrix Bz = (vd == 2) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u[Q1D];
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz)
+               {
+                  MFEM_UNROLL(MQ1)
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     u[qz] += QQD(qx,qy,dz,vd) * Bz(dz,qz);
+                  }
+               }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { QQQ(qx,qy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply D operator
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  const double Qx = QQQ(qx,qy,qz,0);
+                  const double Qy = QQQ(qx,qy,qz,1);
+                  const double Qz = QQQ(qx,qy,qz,2);
+
+                  const double D11 = D(qx,qy,qz,0,e);
+                  const double D12 = D(qx,qy,qz,1,e);
+                  const double D13 = D(qx,qy,qz,2,e);
+                  const double D21 = symmetric ? D12 : D(qx,qy,qz,3,e);
+                  const double D22 = symmetric ? D(qx,qy,qz,3,e) : D(qx,qy,qz,4,e);
+                  const double D23 = symmetric ? D(qx,qy,qz,4,e) : D(qx,qy,qz,5,e);
+                  const double D31 = symmetric ? D13 : D(qx,qy,qz,6,e);
+                  const double D32 = symmetric ? D23 : D(qx,qy,qz,7,e);
+                  const double D33 = symmetric ? D(qx,qy,qz,5,e) : D(qx,qy,qz,8,e);
+
+                  QQQ(qx,qy,qz,0) = D11*Qx + D12*Qy + D13*Qz;
+                  QQQ(qx,qy,qz,1) = D21*Qx + D22*Qy + D23*Qz;
+                  QQQ(qx,qy,qz,2) = D31*Qx + D32*Qy + D33*Qz;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         DeviceMatrix Btx = (vd == 0) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               double u[Q1D];
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(MQ1)
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  MFEM_UNROLL(MQ1)
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     u[qz] += QQQ(qx,qy,qz,vd) * Btx(dx,qx);
+                  }
+               }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { DQQ(dx,qy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceMatrix Bty = (vd == 1) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               double u[Q1D];
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(MQ1)
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  MFEM_UNROLL(MQ1)
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     u[qz] += DQQ(dx,qy,qz,vd) * Bty(dy,qy);
+                  }
+               }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { DDQ(dx,dy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceTensor<5> Yxyz(y, nx, ny, nz, VDIM, NE);
+         DeviceMatrix Btz = (vd == 2) ? Bc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               double u[D1D];
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  MFEM_UNROLL(MD1)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz);
+                  }
+               }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+void PAHdivMassApply(const int dim,
+                     const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const bool symmetric,
+                     const Array<double> &Bo,
+                     const Array<double> &Bc,
+                     const Array<double> &Bot,
+                     const Array<double> &Bct,
+                     const Vector &op,
+                     const Vector &x,
+                     Vector &y)
+{
+   const int id = (D1D << 4) | Q1D;
+
+   if (dim == 2)
+   {
+      switch (id)
+      {
+         case 0x22: return SmemPAHdivMassApply2D<2,2>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x33: return SmemPAHdivMassApply2D<3,3>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x44: return SmemPAHdivMassApply2D<4,4>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x55: return SmemPAHdivMassApply2D<5,5>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         default: // fallback
+            return PAHdivMassApply2D(D1D,Q1D,NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch (id)
+      {
+         case 0x23: return SmemPAHdivMassApply3D<2,3>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x34: return SmemPAHdivMassApply3D<3,4>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x45: return SmemPAHdivMassApply3D<4,5>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x56: return SmemPAHdivMassApply3D<5,6>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x67: return SmemPAHdivMassApply3D<6,7>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         case 0x78: return SmemPAHdivMassApply3D<7,8>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+         default: // fallback
+            return PAHdivMassApply3D(D1D,Q1D,NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
+      }
+   }
 }
 
 // PA H(div) div-div assemble 2D kernel
@@ -626,7 +1215,7 @@ static void PADivDivApply2D(const int D1D,
    {
       double div[MAX_Q1D][MAX_Q1D];
 
-      // div[qy][qx] will be computed as du_x/dx + duy_/dy
+      // div[qy][qx] will be computed as du_x/dx + du_y/dy
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -925,19 +1514,8 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   if (Q)
-   {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {
@@ -1195,18 +1773,14 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   if (Q)
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
+
+   if (test_el->GetMapType() == FiniteElement::INTEGRAL)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      const GeometricFactors *geom =
+         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+      coeff /= geom->detJ;
    }
 
    if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
@@ -1223,7 +1797,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
@@ -1386,7 +1960,7 @@ static void PAHdivL2Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,

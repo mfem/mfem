@@ -32,6 +32,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <string>
 
 using namespace std;
 using namespace mfem;
@@ -249,6 +250,13 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
    coeffs.SetSize(psize);
    coeffs = scale;
 
+   // Note: C p(z)/q(z) = Σ_i c_i / (z - p_i) results in an system of equations
+   // where the N unknowns are the coefficients c_i. After multiplying the
+   // system with q(z), the coefficients c_i can be computed analytically by
+   // choosing N values for z. Choosing z_j = = p_j diagonalizes the system and
+   // one can obtain an analytic form for the c_i coefficients. The result is
+   // implemented in the code block below.
+
    for (int i=0; i<psize; i++)
    {
       double tmp_numer=1.0;
@@ -305,9 +313,12 @@ void ComputePartialFractionApproximation(double & alpha,
    if (print_warning)
    {
       mfem::out
-            << "\nMFEM is compiled without LAPACK.\nUsing precomputed values for PartialFractionApproximation. \n"
-            << "Only alpha = 0.33, 0.5, and 0.99 are available.\nThe default is alpha = 0.5."
-            << std::endl;
+            << "\n" << string(80, '=')
+            << "\nMFEM is compiled without LAPACK."
+            << "\nUsing precomputed values for PartialFractionApproximation."
+            << "\nOnly alpha = 0.33, 0.5, and 0.99 are available."
+            << "\nThe default is alpha = 0.5.\n" << string(80, '=') << "\n"
+            << endl;
    }
    const double eps = std::numeric_limits<double>::epsilon();
 
@@ -351,7 +362,7 @@ void ComputePartialFractionApproximation(double & alpha,
 
    if (print_warning)
    {
-      mfem::out << "Using precomputed values for alpha = "
+      mfem::out << "=> Using precomputed values for alpha = "
                 << alpha << "\n" << std::endl;
    }
 

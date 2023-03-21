@@ -273,14 +273,14 @@ void NavierSolver::Setup(double dt)
       SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetOperator(*SpInvPC);
+      SpInvOrthoPC->SetSolver(*SpInvPC);
    }
    else
    {
       SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
       SpInvPC->SetPrintLevel(0);
       SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetOperator(*SpInvPC);
+      SpInvOrthoPC->SetSolver(*SpInvPC);
    }
    SpInv = new CGSolver(vfes->GetComm());
    SpInv->iterative_mode = true;

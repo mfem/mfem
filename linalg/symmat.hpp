@@ -69,6 +69,9 @@ public:
    /// Change the size of the DenseSymmetricMatrix to s x s.
    void SetSize(int s);
 
+   /// Return the number of stored nonzeros in the matrix.
+   int GetStoredSize() const { return Height()*(Height()+1)/2; }
+
    /// Returns the matrix data array.
    inline double *Data() const
    { return const_cast<double*>((const double*)data);}
@@ -99,7 +102,7 @@ public:
 
    DenseSymmetricMatrix &operator*=(double c);
 
-   long MemoryUsage() const { return data.Capacity() * sizeof(double); }
+   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(double); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const double *Read(bool on_dev = true) const

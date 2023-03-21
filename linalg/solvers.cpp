@@ -528,7 +528,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // Optimized preconditioned SLI with fixed number of iterations and given
    // initial guess
-   if (!rel_tol && iterative_mode && prec)
+   if (rel_tol == 0.0 && iterative_mode && prec)
    {
       for (i = 0; i < max_iter; i++)
       {
@@ -544,7 +544,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // Optimized preconditioned SLI with fixed number of iterations and zero
    // initial guess
-   if (!rel_tol && !iterative_mode && prec)
+   if (rel_tol == 0.0 && !iterative_mode && prec)
    {
       prec->Mult(b, x);     // x = B b (initial guess 0)
       for (i = 1; i < max_iter; i++)
@@ -583,6 +583,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    {
       nom0 = nom = sqrt(Dot(r, r));
    }
+   initial_norm = nom0;
 
    if (print_options.iterations | print_options.first_and_last)
    {
@@ -735,6 +736,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       d = r;
    }
    nom0 = nom = Dot(d, r);
+   if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -752,6 +754,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       converged = false;
       final_iter = 0;
+      initial_norm = nom;
       final_norm = nom;
       return;
    }
@@ -817,7 +820,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       if (print_options.iterations)
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << betanom << '\n';
+                   << betanom << std::endl;
       }
 
       Monitor(i, betanom, r, x);
@@ -861,7 +864,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       nom = betanom;
    }
-   if (print_options.first_and_last)
+   if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
                 << betanom << '\n';
@@ -1015,7 +1018,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          r = b;
       }
    }
-   double beta = Norm(r);  // beta = ||r||
+   double beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1175,7 +1178,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       x = 0.;
       r = b;
    }
-   double beta = Norm(r);  // beta = ||r||
+   double beta = initial_norm = Norm(r);  // beta = ||r||
    // We need to preallocate this to report the correct result in the case of
    // no convergence.
    double resid;
@@ -1391,7 +1394,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    }
    rtilde = r;
 
-   resid = Norm(r);
+   resid = initial_norm = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -1597,6 +1600,13 @@ void MINRESSolver::SetOperator(const Operator &op)
    {
       u1.SetSize(width);
    }
+
+   v0.UseDevice(true);
+   v1.UseDevice(true);
+   w0.UseDevice(true);
+   w1.UseDevice(true);
+   q.UseDevice(true);
+   u1.UseDevice(true);
 }
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
@@ -1605,6 +1615,9 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    // "Iterative Krylov Methods for Large Linear Systems",
    // by Henk A. van der Vorst, 2003.
    // Extended to support an SPD preconditioner.
+
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    int it;
    double beta, eta, gamma0, gamma1, sigma0, sigma1;
@@ -1628,7 +1641,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    {
       prec->Mult(v1, u1);
    }
-   eta = beta = sqrt(Dot(*z, v1));
+   eta = beta = initial_norm = sqrt(Dot(*z, v1));
    MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
@@ -1823,7 +1836,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       r -= b;
    }
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "Newton iteration " << setw(2) << 0
@@ -1903,7 +1916,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
-   if (print_options.summary || (!converged && print_options.warnings))
+   if (!converged && (print_options.summary || print_options.warnings))
    {
       mfem::out << "Newton: No convergence!\n";
    }
@@ -2021,7 +2034,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    c = r;           // initial descent direction
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "LBFGS iteration " << setw(2) << 0
@@ -2394,7 +2407,7 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
    }
 
    // Solve QP with fixed Lagrange multiplier
-   r = solve(l,xt,x,nclip);
+   r = initial_norm = solve(l,xt,x,nclip);
    print_iteration(nclip, r, l);
 
 
@@ -3024,7 +3037,7 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       }
       LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
       // x_i = D_ii^{-1} x_i
-      A_ii_inv.Solve(block_size, 1, xi);
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
 }
 
@@ -3187,7 +3200,8 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3198,8 +3212,9 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {
@@ -3220,7 +3235,8 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3232,8 +3248,9 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {
@@ -3397,6 +3414,93 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
    S0Tz = 0.0;
    S0->MultTranspose(z, S0Tz);
    y += S0Tz;
+}
+
+OrthoSolver::OrthoSolver()
+   : Solver(0, false), global_size(-1)
+#ifdef MFEM_USE_MPI
+   , parallel(false)
+#endif
+{ }
+
+#ifdef MFEM_USE_MPI
+OrthoSolver::OrthoSolver(MPI_Comm mycomm_)
+   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true) { }
+#endif
+
+void OrthoSolver::SetSolver(Solver &s)
+{
+   solver = &s;
+   height = s.Height();
+   width = s.Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void OrthoSolver::SetOperator(const Operator &op)
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   solver->SetOperator(op);
+   height = solver->Height();
+   width = solver->Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void OrthoSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   MFEM_VERIFY(height == solver->Height(),
+               "solver was modified externally! call SetSolver() again!");
+   MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
+   MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
+
+   // Orthogonalize input
+   Orthogonalize(b, b_ortho);
+
+   // Propagate iterative_mode to the solver:
+   solver->iterative_mode = iterative_mode;
+
+   // Apply the Solver
+   solver->Mult(b_ortho, x);
+
+   // Orthogonalize output
+   Orthogonalize(x, x);
+}
+
+void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
+{
+   if (global_size == -1)
+   {
+      global_size = height;
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, HYPRE_MPI_BIG_INT,
+                       MPI_SUM, mycomm);
+      }
+#endif
+   }
+
+   // TODO: GPU/device implementation
+
+   double global_sum = v.Sum();
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+   }
+#endif
+
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   v.HostRead();
+   v_ortho.HostWrite();
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
 }
 
 #ifdef MFEM_USE_MPI

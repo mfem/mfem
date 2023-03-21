@@ -13,9 +13,6 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
-bool launch_all_non_regression_tests = false;
-std::string mfem_data_dir;
-
 int main(int argc, char *argv[])
 {
    mfem::Device device("cuda");

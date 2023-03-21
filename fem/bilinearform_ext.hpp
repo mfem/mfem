@@ -125,6 +125,15 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    void Assemble();
+   void RAP(OperatorHandle &A);
+   /** @note Always does `DIAG_ONE` policy to be consistent with
+       `Operator::FormConstrainedSystemOperator`. */
+   void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 
@@ -198,10 +207,6 @@ public:
                                             const Array<int> &test_tdof_list,
                                             Vector &x, Vector &b,
                                             OperatorHandle &A, Vector &X, Vector &B) = 0;
-
-   virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double c=1.0) const = 0;
 
    virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
 
@@ -278,7 +283,7 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   void AddMult(const Vector &x, Vector &y, const double c) const;
+   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
 
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
 

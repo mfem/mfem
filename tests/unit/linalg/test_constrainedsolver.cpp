@@ -177,7 +177,7 @@ TEST_CASE("SerialConstrainedSolver", "[ConstrainedSolver]")
 TEST_CASE("ConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 {
 #ifdef HYPRE_USING_GPU
-   std::cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
              << "is NOT supported with the GPU version of hypre.\n\n";
    return;
 #endif
@@ -382,7 +382,7 @@ void ParallelTestProblem::Penalty(double pen, Vector& serr, Vector& lerr)
 TEST_CASE("ParallelConstrainedSolver", "[Parallel], [ConstrainedSolver]")
 {
 #ifdef HYPRE_USING_GPU
-   std::cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
              << "is NOT supported with the GPU version of hypre.\n\n";
    return;
 #endif
@@ -672,7 +672,7 @@ void ParallelTestProblemTwo::Penalty(double pen, Vector& serr, Vector& lerr)
 TEST_CASE("ParallelConstrainedSolverTwo", "[Parallel], [ConstrainedSolver]")
 {
 #ifdef HYPRE_USING_GPU
-   std::cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
              << "is NOT supported with the GPU version of hypre.\n\n";
    return;
 #endif
@@ -812,7 +812,7 @@ void ZerosTestProblem::Elimination(Vector& serr, Vector& lerr, bool twoblocks)
 TEST_CASE("ZerosTestCase", "[Parallel], [ConstrainedSolver]")
 {
 #ifdef HYPRE_USING_GPU
-   std::cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
              << "is NOT supported with the GPU version of hypre.\n\n";
    return;
 #endif

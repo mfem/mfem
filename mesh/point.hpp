@@ -63,7 +63,7 @@ public:
 };
 
 class PointFiniteElement;
-extern PointFiniteElement PointFE;
+extern MFEM_EXPORT PointFiniteElement PointFE;
 
 }
 

@@ -48,6 +48,22 @@ endif
 
 all: $(MINIAPPS)
 
+# For out-of-source builds, link the data files from the source tree:
+ifneq ($(SRC),)
+DATA_FILES = triple-pt-1.mesh triple-pt-2.mesh triple-pt-1.gf triple-pt-2.gf
+$(DATA_FILES): %: $(SRC)%
+	ln -sf $(<) .
+field-diff field-interp: | $(DATA_FILES)
+.PHONY: copy-data
+copy-data: | $(DATA_FILES)
+# For out-of-source builds, the test and sample runs for 'field-interp' need
+# data from the meshing miniapps directory:
+field-interp: | meshing-data
+.PHONY: meshing-data
+meshing-data:
+	$(MAKE) -C ../meshing copy-data
+endif
+
 ifeq ($(MFEM_USE_GSLIB),NO)
 $(MINIAPPS):
 	$(error MFEM is not configured with GSLIB)

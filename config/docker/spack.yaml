@@ -1,0 +1,11 @@
+spack:
+  specs: [mfem@master+examples+miniapps]
+  view: 
+    mfem:
+      root: /opt/mfem-view 
+      link_type: copy
+  concretization: together
+  develop:
+    mfem:
+      path: /code
+      spec: mfem@master+examples+miniapps

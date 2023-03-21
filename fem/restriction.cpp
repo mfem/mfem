@@ -147,7 +147,8 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+template <bool ADD>
+void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -156,7 +157,7 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -170,9 +171,24 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
             dof_value += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
                           -d_x(idx_j % nd, c, idx_j / nd));
          }
-         d_y(t?c:i,t?i:c) = dof_value;
+         if (ADD) { d_y(t?c:i,t?i:c) += dof_value; }
+         else { d_y(t?c:i,t?i:c) = dof_value; }
       }
    });
+}
+
+void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   constexpr bool ADD = false;
+   TAddMultTranspose<ADD>(x, y);
+}
+
+void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                          const double a) const
+{
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
+   constexpr bool ADD = true;
+   TAddMultTranspose<ADD>(x, y);
 }
 
 void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
@@ -506,13 +522,14 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
    });
 }
 
-void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+template <bool ADD>
+void L2ElementRestriction::TAddMultTranspose(const Vector &x, Vector &y) const
 {
    const int nd = ndof;
    const int vd = vdim;
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), nd, vd, ne);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int idx = i;
@@ -520,9 +537,24 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
       const int e = idx / nd;
       for (int c = 0; c < vd; ++c)
       {
-         d_y(t?c:idx,t?idx:c) = d_x(dof, c, e);
+         if (ADD) { d_y(t?c:idx,t?idx:c) += d_x(dof, c, e); }
+         else { d_y(t?c:idx,t?idx:c) = d_x(dof, c, e); }
       }
    });
+}
+
+void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool ADD = false;
+   TAddMultTranspose<ADD>(x, y);
+}
+
+void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                            const double a) const
+{
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
+   constexpr bool ADD = true;
+   TAddMultTranspose<ADD>(x, y);
 }
 
 void L2ElementRestriction::FillI(SparseMatrix &mat) const
@@ -732,8 +764,10 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                         const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -1077,7 +1111,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      face_dofs(nf > 0 ?
-               fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+               fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
                : 0),
      elem_dofs(fes.GetFE(0)->GetDof()),
      nfdofs(nf*face_dofs),
@@ -1238,8 +1272,10 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
    });
 }
 
-void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                         const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (m == L2FaceValues::DoubleValued)
    {
@@ -1392,7 +1428,7 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
       for (int f = 0; f < fes.GetNF(); ++f)
       {
          const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
+            fes.GetTraceElement(f, fes.GetMesh()->GetFaceGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
@@ -1752,7 +1788,7 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
 {
    // Assumes all trace elements are the same.
    const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
    const int face_dofs = trace_fe->GetDof();
    const int nc_size = interp_map.size();
    MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");
@@ -1772,6 +1808,31 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
       delete val.second.second;
    }
    interp_map.clear();
+}
+
+void InterpolationManager::InitializeNCInterpConfig()
+{
+   // Count nonconforming faces
+   int num_nc_faces = 0;
+   for (int i = 0; i < interp_config.Size(); i++)
+   {
+      if ( interp_config[i].is_non_conforming )
+      {
+         num_nc_faces++;
+      }
+   }
+   // Set nc_interp_config
+   nc_interp_config.SetSize(num_nc_faces);
+   int nc_index = 0;
+   for (int i = 0; i < interp_config.Size(); i++)
+   {
+      auto & config = interp_config[i];
+      if ( config.is_non_conforming )
+      {
+         nc_interp_config[nc_index] = NCInterpConfig(i, config);
+         nc_index++;
+      }
+   }
 }
 
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
@@ -1802,63 +1863,52 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
 void NCL2FaceRestriction::DoubleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
+   DoubleValuedConformingMult(x, y);
+   DoubleValuedNonconformingInterpolation(y);
+}
+
+void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
+   Vector& y) const
+{
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
-   const bool t = byvdim;
-   auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices2.Read();
-   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto d_y = Reshape(y.ReadWrite(), nface_dofs, vd, 2, nf);
+   auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
+   const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
+   auto interp_config_ptr = nc_interp_config.Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolations.GetInterpolators().Read(),
                            nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
    {
       MFEM_SHARED double dof_values[max_nd];
-      const InterpConfig conf = interp_config_ptr[face];
-      const int master_side = conf.master_side;
-      const int interp_index = conf.index;
-      for (int side = 0; side < 2; side++)
+      const NCInterpConfig conf = interp_config_ptr[nc_face];
+      if ( conf.is_non_conforming )
       {
-         if ( !conf.is_non_conforming || side!=master_side )
+         const int master_side = conf.master_side;
+         const int interp_index = conf.index;
+         const int face = conf.face_index;
+         for (int c = 0; c < vd; ++c)
          {
-            // No interpolation needed
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
-               const int i = face*nface_dofs + dof;
-               const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-               for (int c = 0; c < vd; ++c)
-               {
-                  d_y(dof, c, side, face) = d_x(t?c:idx, t?idx:c);
-               }
+               dof_values[dof] = d_y(dof, c, master_side, face);
             }
-         }
-         else // Interpolation from coarse to fine
-         {
-            for (int c = 0; c < vd; ++c)
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
             {
-               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
+               double res = 0.0;
+               for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
-                  const int i = face*nface_dofs + dof;
-                  const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-                  dof_values[dof] = d_x(t?c:idx, t?idx:c);
+                  res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
                }
-               MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
-               {
-                  double res = 0.0;
-                  for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
-                  {
-                     res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
-                  }
-                  d_y(dof_out, c, side, face) = res;
-               }
-               MFEM_SYNC_THREAD;
+               d_y(dof_out, c, master_side, face) = res;
             }
+            MFEM_SYNC_THREAD;
          }
       }
    });
@@ -1892,23 +1942,34 @@ void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
+   SingleValuedNonconformingTransposeInterpolationInPlace(x_interp);
+}
+
+
+void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolationInPlace(
+   Vector& x) const
+{
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
    // Interpolation
    auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
-   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
+   const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
+   auto interp_config_ptr = nc_interp_config.Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
    {
       MFEM_SHARED double dof_values[max_nd];
-      const InterpConfig conf = interp_config_ptr[face];
+      const NCInterpConfig conf = interp_config_ptr[nc_face];
       const int master_side = conf.master_side;
       const int interp_index = conf.index;
+      const int face = conf.face_index;
       if ( conf.is_non_conforming && master_side==0 )
       {
          // Interpolation from fine to coarse
@@ -1945,23 +2006,33 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
+   DoubleValuedNonconformingTransposeInterpolationInPlace(x_interp);
+}
+
+void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolationInPlace(
+   Vector& x) const
+{
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
    // Interpolation
-   auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, 2, nf);
-   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto d_x = Reshape(x.ReadWrite(), nface_dofs, vd, 2, nf);
+   auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
+   const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
+   auto interp_config_ptr = nc_interp_config.Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
    {
       MFEM_SHARED double dof_values[max_nd];
-      const InterpConfig conf = interp_config_ptr[face];
+      const NCInterpConfig conf = interp_config_ptr[nc_face];
       const int master_side = conf.master_side;
       const int interp_index = conf.index;
+      const int face = conf.face_index;
       if ( conf.is_non_conforming )
       {
          // Interpolation from fine to coarse
@@ -1987,8 +2058,10 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
    });
 }
 
-void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                           const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
@@ -2001,6 +2074,35 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       {
          SingleValuedNonconformingTransposeInterpolation(x);
          SingleValuedConformingAddMultTranspose(x_interp, y);
+      }
+   }
+   else
+   {
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedConformingAddMultTranspose(x, y);
+      }
+   }
+}
+
+void NCL2FaceRestriction::AddMultTransposeInPlace(Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   if (type==FaceType::Interior)
+   {
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedNonconformingTransposeInterpolationInPlace(x);
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedNonconformingTransposeInterpolationInPlace(x);
+         SingleValuedConformingAddMultTranspose(x, y);
       }
    }
    else
@@ -2116,6 +2218,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
 
    // Transform the interpolation matrix map into a contiguous memory structure.
    interpolations.LinearizeInterpolatorMapIntoVector();
+   interpolations.InitializeNCInterpConfig();
 }
 
 void NCL2FaceRestriction::ComputeGatherIndices(

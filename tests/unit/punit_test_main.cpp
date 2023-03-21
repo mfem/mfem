@@ -14,9 +14,6 @@
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
-bool launch_all_non_regression_tests = false;
-std::string mfem_data_dir;
-
 #ifndef MFEM_USE_MPI
 #error "This test should be disabled without MFEM_USE_MPI!"
 #endif

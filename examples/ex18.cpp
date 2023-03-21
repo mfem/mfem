@@ -43,7 +43,7 @@
 #include <sstream>
 #include <iostream>
 
-// Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
+// Classes FE_Evolution, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "fem/auxiliary.hpp"
 

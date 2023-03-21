@@ -59,10 +59,10 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    total_err_goal = 0.0;
    total_fraction = 0.5;
    local_err_goal = 0.0;
-   max_elements = std::numeric_limits<long>::max();
+   max_elements = std::numeric_limits<long long>::max();
 
    threshold = 0.0;
-   num_marked_elements = 0L;
+   num_marked_elements = 0LL;
    current_sequence = -1;
 
    non_conforming = -1;
@@ -84,11 +84,11 @@ double ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
 int ThresholdRefiner::ApplyImpl(Mesh &mesh)
 {
    threshold = 0.0;
-   num_marked_elements = 0;
+   num_marked_elements = 0LL;
    marked_elements.SetSize(0);
    current_sequence = mesh.GetSequence();
 
-   const long num_elements = mesh.GetGlobalNE();
+   const long long num_elements = mesh.GetGlobalNE();
    if (num_elements >= max_elements) { return STOP; }
 
    const int NE = mesh.GetNE();
@@ -131,7 +131,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    }
 
    num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-   if (num_marked_elements == 0) { return STOP; }
+   if (num_marked_elements == 0LL) { return STOP; }
 
    mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
    return CONTINUE + REFINED;
@@ -141,7 +141,7 @@ void ThresholdRefiner::Reset()
 {
    estimator.Reset();
    current_sequence = -1;
-   num_marked_elements = 0;
+   num_marked_elements = 0LL;
    // marked_elements.SetSize(0); // not necessary
 }
 

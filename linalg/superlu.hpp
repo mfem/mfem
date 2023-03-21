@@ -124,6 +124,7 @@ public:
    void SetNumLookAheads    ( int           num_lookaheads );
    void SetLookAheadElimTree( bool                   etree );
    void SetSymmetricPattern ( bool                     sym );
+   void SetParSymbFact      ( bool                     par );
 
 private:
    void Init();
