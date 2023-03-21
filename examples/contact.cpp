@@ -8,7 +8,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-//#include "nodepair.hpp"
+#include "nodepair.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -58,7 +58,7 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
          }
       }
    }
-
+   // closest point on the boundary
    MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
    refNormal = dimNormal;
 
@@ -356,7 +356,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
                {
                   phys[j] -= mesh.GetVertex(vert[refv])[j];
                }
-
+               cout << phys.Norml2()<<endl;
                MFEM_VERIFY(phys.Norml2() < 1.0e-12, "Sanity check failed");
             }
          }
@@ -399,12 +399,12 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec1;
    FiniteElementSpace *fespace1;
    fec1 = new H1_FECollection(1, dim);
-   fespace1 = new FiniteElementSpace(&mesh1, fec1, dim);
+   fespace1 = new FiniteElementSpace(&mesh1, fec1, dim, Ordering::byVDIM);
    cout << "Number of finite element unknowns for mesh1: "
         << fespace1->GetTrueVSize() << endl;
 
    FiniteElementCollection *fec2 = new H1_FECollection(1, dim);
-   FiniteElementSpace *fespace2 = new FiniteElementSpace(&mesh2, fec2, dim);
+   FiniteElementSpace *fespace2 = new FiniteElementSpace(&mesh2, fec2, dim, Ordering::byVDIM);
    cout << "Number of finite element unknowns for mesh2: "
         << fespace2->GetTrueVSize() << endl;
 
@@ -422,21 +422,88 @@ int main(int argc, char *argv[])
    // list of true dofs.
    Array<int> ess_tdof_list1, ess_bdr1(mesh1.bdr_attributes.Max());
    ess_bdr1 = 0;
-   ess_bdr1[0] = 1;
+   //ess_bdr1[0] = 1;
    // Not ready to be passed on yet
    // fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    Array<int> ess_tdof_list2, ess_bdr2(mesh2.bdr_attributes.Max());
    ess_bdr2 = 0;
-   ess_bdr2[0] = 1;
+   //ess_bdr2[0] = 1;
 
    // Define the displacement vector x as a finite element grid function
-   // corresponding to fespace. Initialize x with initial guess of zero.
+   // corresponding to fespace. GridFunction is a derived class of Vector.
    GridFunction x1(fespace1);
    x1 = 0.0;
 
    GridFunction x2(fespace2);
    x2 = 0.0;
+
+   // Generate elastic internal energy for both meshes
+   LinearForm *b1 = new LinearForm(fespace1);
+   b1->Assemble();
+
+   LinearForm *b2 = new LinearForm(fespace2);
+   b2->Assemble();
+
+   // Set up the bilinear form a(.,.) on the finite element space
+   //  corresponding to the linear elasticity integrator with piece-wise
+   //  constants coefficient lambda and mu.
+   Vector lambda1(mesh1.attributes.Max());
+   lambda1 = 57.6923076923;
+   PWConstCoefficient lambda1_func(lambda1);
+   Vector mu1(mesh1.attributes.Max());
+   mu1 = 38.4615384615;
+   PWConstCoefficient mu1_func(mu1);
+
+   BilinearForm *a1 = new BilinearForm(fespace1);
+   a1->AddDomainIntegrator(new ElasticityIntegrator(lambda1_func,mu1_func));
+
+   Vector lambda2(mesh2.attributes.Max());
+   lambda2 = 57.6923076923;
+   PWConstCoefficient lambda2_func(lambda2);
+   Vector mu2(mesh2.attributes.Max());
+   mu2 = 38.4615384615;
+   PWConstCoefficient mu2_func(mu2);
+
+   BilinearForm *a2 = new BilinearForm(fespace2);
+   a2->AddDomainIntegrator(new ElasticityIntegrator(lambda2_func,mu2_func));
+
+   a1->Assemble();
+   SparseMatrix A1;
+   Vector B1, X1;
+   a1->FormLinearSystem(ess_tdof_list1, x1, *b1, A1, X1, B1);
+   
+   a2->Assemble();
+   SparseMatrix A2;
+   Vector B2, X2;
+   a2->FormLinearSystem(ess_tdof_list2, x2, *b2, A2, X2, B2);
+ 
+   // Combine elasticity operator for two meshes into one. 
+   SparseMatrix K(ndofs,ndofs);
+   for (int i=0; i<A1.Height(); i++)
+   {
+       Array<int> col_tmp;  
+       Vector v_tmp;
+       col_tmp = 0;
+       v_tmp = 0.0;
+       A1.GetRow(i, col_tmp, v_tmp);
+       K.SetRow(i, col_tmp, v_tmp); 
+   }
+   for (int i=0; i<A2.Height(); i++)
+   {
+      Array<int> col_tmp;  
+      Vector v_tmp;
+      col_tmp = 0;
+      v_tmp = 0.0;
+      A2.GetRow(i, col_tmp, v_tmp);
+      for (int j=0; j<col_tmp.Size(); j++)
+      {
+         col_tmp[j] += ndof_1;
+      }
+      K.SetRow(i+ndof_1, col_tmp, v_tmp);  // mesh1 top left corner 
+   }
+
+   // Construct node to segment contact constraint. 
 
    attr.Sort();
    cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
@@ -465,10 +532,11 @@ int main(int argc, char *argv[])
    int npoints = bdryVerts2.size();
    Array<int> s_conn(npoints); // connectivity of the second/slave mesh 
    Vector xyz(dim * npoints);
-   xyz = 0.0;
+   xyz = 0.0;  
 
    cout << "Boundary vertices for contact surface vertices in mesh 2" << endl;
 
+   // construct the nodal coordinates on mesh2 to be projected, including displacement
    int count = 0;
    for (auto v : bdryVerts2)
    {
@@ -478,7 +546,7 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<dim; ++i)
       {
-         xyz[count + (i * npoints)] = mesh2.GetVertex(v)[i];
+         xyz[count + (i * npoints)] = mesh2.GetVertex(v)[i] + x2[v*dim+i]; 
       }
       
       s_conn[count] = v + nnd_1; // dof1 is the master
@@ -486,7 +554,6 @@ int main(int argc, char *argv[])
    }
 
    MFEM_VERIFY(count == npoints, "");
-   
 
    // gap function
    Vector g(npoints*dim);
@@ -506,7 +573,15 @@ int main(int argc, char *argv[])
    
    Array<int> m_conn(npoints*4); // only works for linear elements that have 4 vertices!
    DenseMatrix coordsm(npoints*4, dim);
-   
+ 
+   // adding displacement to mesh1
+   // use a separate mesh?
+   x1 = -1e-4; 
+   mesh1.SetNodalFESpace(fespace1);
+   GridFunction *nodes1 = mesh1.GetNodes();
+   *nodes1 += x1;
+   nodes1->Print();
+ 
    FindPointsInMesh(mesh1, xyz, m_conn, m_xi);
    for (int i=0; i<npoints; i++)
    {
@@ -521,9 +596,9 @@ int main(int argc, char *argv[])
    
    SparseMatrix M(nnd,ndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
-
-   //Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, s_conn, m_conn, 
-   //                 g, M, dM);
+   
+   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, s_conn, m_conn, 
+                    g, M, dM);
    /*Vector eps(ndofs); 
    Vector sol(ndofs); sol = 0.; 
    for(int i=0;i<ndofs;i++) eps[i] = 1e-5 * i ;  
