@@ -266,12 +266,15 @@ protected:
       // Used to compute P = (RTxM_LH)^(-1) M_LH^T
       Operator* M_LH;
       Operator* RTxM_LH;
+      SparseMatrix* R_sm;
+      SparseMatrix* M_LH_sm;
+      SparseMatrix* RTxM_LH_sm;
       CGSolver pcg;
 
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_);
    public:
-      virtual ~L2ProjectionH1Space() = default;
+      virtual ~L2ProjectionH1Space();
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -317,9 +320,6 @@ protected:
    class SerialL2ProjectionH1Space : public L2ProjectionH1Space
    {
    private:
-      SparseMatrix* R_sm;
-      SparseMatrix* M_LH_sm;
-      SparseMatrix* RTxM_LH_sm;
       DSmoother Ds;
    public:
       SerialL2ProjectionH1Space(const FiniteElementSpace& pfes_ho_,

@@ -555,6 +555,13 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    SetAbsTol(1e-13);
 }
 
+L2ProjectionGridTransfer::L2ProjectionH1Space::~L2ProjectionH1Space()
+{
+   delete R_sm;
+   delete M_LH_sm;
+   delete RTxM_LH_sm;
+}
+
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
    const Vector& x, Vector& y) const
 {
@@ -923,10 +930,6 @@ L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
       pfes_lor_.GetDofOffsets(), pfes_ho_.GetDofOffsets(), M_LH_sm);
    HypreParMatrix RTxM_LH_local = HypreParMatrix(pfes_ho_.GetComm(),
       pfes_ho_.GlobalVSize(), pfes_ho_.GetDofOffsets(), RTxM_LH_sm);
-   
-   delete R_sm;
-   delete M_LH_sm;
-   delete RTxM_LH_sm;
 
    R_par = mfem::RAP(pfes_lor_.Dof_TrueDof_Matrix(), &R_local,
       pfes_ho_.Dof_TrueDof_Matrix());
@@ -939,8 +942,8 @@ L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
    RTxM_LH = RTxM_LH_par;
 
    M = HypreBoomerAMG(*RTxM_LH_par);
+   pcg.SetOperator(*RTxM_LH_par);
    pcg.SetPreconditioner(M);
-   pcg.SetOperator(*RTxM_LH);
 }
 
 L2ProjectionGridTransfer::ParL2ProjectionH1Space::~ParL2ProjectionH1Space()
