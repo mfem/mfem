@@ -2883,9 +2883,9 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
 
-   const FiniteElementSpace *fes = surf_fit_gf->FESpace();
 #ifdef MFEM_USE_MPI
-   auto pfes = dynamic_cast<const ParFiniteElementSpace *>(fes);
+   auto pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(surf_fit_gf->FESpace());
    bool parallel = (pfes) ? true : false;
 #endif
 
