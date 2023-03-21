@@ -33,6 +33,10 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
    if (nf==0) { return; }
    x_interp.UseDevice(true);
 
+   // Check that the space is H1 (not currently implemented for ND or RT spaces)
+   const bool is_h1 = dynamic_cast<const H1_FECollection*>(fes.FEColl());
+   MFEM_VERIFY(is_h1, "ParNCH1FaceRestriction is only implemented for H1 spaces.")
+
    CheckFESpace(f_ordering);
 
    ComputeScatterIndicesAndOffsets(f_ordering, type);
