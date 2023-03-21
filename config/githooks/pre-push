@@ -35,7 +35,7 @@ cd $(git rev-parse --show-toplevel)
 # copyright check
 copyright=true
 if [[ "${option}" == "--copyright" || "${option}" == "" ]]; then
-  if git grep -l "^\(#\|//\).*\(\-2022\|\ 2010,\)" > matches.txt; then
+  if git grep -n "^\(#\|//\).*Copyright.*2010-20\(2[^3]\|[^2].\)" > matches.txt; then
     echo "Please update the following files to Copyright (c) 2010-2023:"
     cat matches.txt
     copyright=false
