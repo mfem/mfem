@@ -58,8 +58,8 @@ struct Parser
       string Tadds, Sargs_us;
       ostringstream src, dup;
       vector<string> includes;
-      bool include_path_check;
-      bool is_static, is_templated, eq, mv_to_targs;
+      bool has_checked_include_path;
+      bool is_static, is_templated, is_eq, mv_to_targs;
 
       /*
        * The fsm_t struct is a minimal finite state machine mostly to
@@ -102,7 +102,7 @@ struct Parser
          if (is_params())
          {
             Sparams0 += c;
-            if (!eq) { Sparams += c; }
+            if (!is_eq) { Sparams += c; }
             if (mv_to_targs) { Tparams += c; }
          }
          if (is_body()) { src << c; dup << c; return false; }
@@ -274,13 +274,13 @@ struct Parser
          put(); // '"'
          next();
 
-         if (!ker.include_path_check)
+         if (!ker.has_checked_include_path)
          {
             // MFEM_JIT_INC_PATH is set from (c)make command line
             out << "#ifndef MFEM_JIT_INC_PATH\n";
             out << "#error MFEM_JIT_INC_PATH should be defined!\n";
             out << "#endif // MFEM_JIT_INC_PATH\n";
-            ker.include_path_check = true;
+            ker.has_checked_include_path = true;
          }
       }
       ker.include();
@@ -288,9 +288,9 @@ struct Parser
    }
 
    /*
-    * mfem_jit_prefix is the main parser part: it prepares the templated
+    * mfem_jit_kernel is the main parser part: it prepares the templated
     * format and argument strings, verifies the signature, parses and prepares
-    * the argumentsand set the pre-processor line to the current source file
+    * the arguments and sets the pre-processor line to the current source file
     * and line location.
     */
    void mfem_jit_kernel()
@@ -303,7 +303,7 @@ struct Parser
       (ker.advance(), check(ker.is_jit(), "wait => jit")); // FSM update
       ker.Targs.clear();
       ker.Tparams.clear();
-      ker.include_path_check = false;
+      ker.has_checked_include_path = false;
       ker.is_templated = is_template();
 
       if (ker.is_templated)
@@ -352,7 +352,7 @@ struct Parser
       ker.advance(); // Symbol => Params
       string id {};
       int lt = 0;
-      ker.eq = false;
+      ker.is_eq = false;
       ker.mv_to_targs = false;
       ker.Sargs.clear();
       ker.Sargs_us.clear();
@@ -376,7 +376,7 @@ struct Parser
          if (is_comment())
          {
             skip_comments();
-            if (!id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
+            if (!id.empty() && id.back() != '.' && !ker.is_eq) { id += '.'; }
          }
          check(good());
          if (in.peek() == ')') { break; } // to handle only comments
@@ -385,23 +385,23 @@ struct Parser
                "while parsing the arguments.");
          if (is_lt()) { lt++; }
          if (is_gt()) { lt--; }
-         if (is_space() && !id.empty() && id.back() != '.' && !ker.eq)
+         if (is_space() && !id.empty() && id.back() != '.' && !ker.is_eq)
          {
             if (last(id) == "MFEM_JIT") { ker.mv_to_targs = true; id = head(id); }
             id += '.';
          }
          if (is_eq())
          {
-            ker.eq = true;
+            ker.is_eq = true;
             if (id.back() == '.') { most(id); }
             if (ker.Targs.find(last(id)) == string::npos)
             { check(false, string("Could not find T_")+to_upper(last(id))); }
          }
-         if (is_id() && !ker.eq) { id += in.peek(); }
+         if (is_id() && !ker.is_eq) { id += in.peek(); }
          if (is_coma() && lt == 0)
          {
             if (id.back() == '.') { most(id); }
-            add_id(), id.clear(), ker.eq = false, ker.mv_to_targs = false;
+            add_id(), id.clear(), ker.is_eq = false, ker.mv_to_targs = false;
          }
          put();
       }

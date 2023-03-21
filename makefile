@@ -509,7 +509,7 @@ $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MFEM_JIT_DEFINES) $(<) -o $(@)
 
 # MFEM CXX/AR/install options embedded in the general/jit/jit object file 
-MFEM_BUILD_FLAGS += $(if $(or $(MFEM_USE_CUDA),$(MFEM_USE_HIP)),-x c++,)
+MFEM_BUILD_FLAGS += $(if $(MFEM_USE_CUDA:YES=),-x c++)
 MFEM_JIT_OPTIONS  = -DMFEM_SO_EXT="\"$(SO_EXT)\""
 MFEM_JIT_OPTIONS += -DMFEM_XCOMPILER="\"$(XCOMPILER)\""
 MFEM_JIT_OPTIONS += -DMFEM_XLINKER="\"$(XLINKER)\""

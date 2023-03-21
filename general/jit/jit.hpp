@@ -18,7 +18,6 @@
 
 #ifdef MFEM_USE_JIT
 
-#include <utility> // pair
 #include <vector>
 #include <string>
 #include <iomanip> // setfill
@@ -46,8 +45,15 @@ namespace mfem
  *    - Jit::Find() which finds a kernel in a given @a map, if the kernel cannot
  *      be found, it will do the compilation and insert it into the map.
  */
-struct Jit
+class Jit
 {
+public:
+   /**
+    * @brief constructor.
+    */
+   Jit();
+   static Jit& Get() { return jit_singleton; }
+
    /// @brief Initialize JIT, used in the MPI communication singleton.
    static void Init(int *argc, char ***argv);
 
@@ -100,7 +106,7 @@ struct Jit
    /// @brief Kernel structure to hold the kernel and its launcher.
    template<typename T> struct Kernel
    {
-      /// kernel placeholder.
+      /// kernel placeholder
       T kernel;
       /** @brief Kernel constructor which Jit::Lookup() the kernel, hashed from
       *  the given input parameters and provides the Jit::Kernel::operator()()
@@ -158,6 +164,51 @@ struct Jit
       }
       return kernel_it->second;
    }
+
+private:
+   /// Destructor
+   ~Jit();
+
+   /// Prevent direct construction of objects of this class
+   Jit(Jit const&) = delete;
+   void operator=(Jit const&) = delete;
+   static MFEM_EXPORT Jit jit_singleton;
+
+   pid_t pid; // of the child process
+   int *s_ack, rank; // shared status, must be able to store one MPI rank
+   char *s_mem; // shared memory to store the command for the system call
+   uintptr_t size; // of the s_mem shared memory
+   std::string path, lib_ar, lib_so; // default cache path
+   std::ostringstream commamd;
+   bool keep_cache; // option to keep the lib_ar cache library
+   bool std_system; // option to use only std::sytem calls and no fork
+   std::vector<std::string> includes;
+
+   // Shortcut functions to access Jit's singleton internal variables
+public:
+   static int* Ack() { return Get().s_ack; }
+   static char* Mem() { return Get().s_mem; }
+   static uintptr_t Size() { return Get().size; }
+   static bool StdSystem() { return Get().std_system; }
+   static std::ostringstream& Command() { return Get().commamd; }
+   static bool Debug();
+   static bool Verbose();
+
+private:
+   static int Rank() { return Get().rank; }
+   static pid_t Pid() { return Get().pid; }
+   static std::string Path() { return Get().path; }
+   static const char *Lib_ar() { return Get().lib_ar.c_str(); }
+   static const char *Lib_so() { return Get().lib_so.c_str(); }
+
+   static std::string Xlinker();
+   static std::string Xcompiler();
+   static std::string Xprefix();
+   static std::string Xpostfix();
+   static std::string Xbackup();
+
+   static void SysInit();
+   static std::string Includes();
 };
 
 } // namespace mfem
