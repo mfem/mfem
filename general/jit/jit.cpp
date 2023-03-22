@@ -53,7 +53,7 @@ namespace mfem
 namespace jit
 {
 
-#if !(defined(MFEM_AR) && defined(MFEM_SO_EXT) && defined(MFEM_XLINKER ) && \
+#if !(defined(MFEM_AR) && defined(MFEM_SO_EXT) && defined(MFEM_XLINKER) && \
       defined(MFEM_SO_PREFIX) && defined(MFEM_SO_POSTFIX) && defined(MFEM_INSTALL_BACKUP))
 #define MFEM_AR ""
 #define MFEM_SO_EXT ""

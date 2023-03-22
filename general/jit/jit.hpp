@@ -77,8 +77,8 @@ public:
    static inline std::string ToString(const size_t hash, const char *ext = "")
    {
       std::stringstream ss {};
-      ss  << 'k' << std::setfill('0') << std::setw(16)
-          << std::hex << (hash|0) << std::dec << ext;
+      ss << 'k' << std::setfill('0') << std::setw(16)
+         << std::hex << (hash|0) << std::dec << ext;
       return ss.str();
    }
 

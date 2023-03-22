@@ -483,9 +483,9 @@ struct Parser
       out << "\ntypedef void (*kernel_t)"
           <<"(" << ker.Sparams << ");";
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
-          << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
+          << "\nJit::Find(hash, \"" << ker.name << "<" << ker.Tformat << ">"
           << "\", cxx, flags, link, libs, incp, source, kernels" << ", "
-          << ker.Targs <<  ").Launch(" << ker.Sargs << ");";
+          << ker.Targs << ").Launch(" << ker.Sargs << ");";
       out << pp_line();
       ker.advance(/*postfix => wait*/);
    }
