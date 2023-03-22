@@ -89,9 +89,9 @@ public:
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
-    *  @param[in] incp coresponding to the relative mfem include directory,
-    *  @param[in] source of the kernel,
-    *  @param[in] symbol of the kernel.
+    *  @param[in] dir coresponding to the relative mfem include directory,
+    *  @param[in] src source of the kernel,
+    *  @param[in] sym symbol of the kernel.
     **/
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
@@ -100,7 +100,8 @@ public:
    /// @brief Kernel structure to hold the kernel and its launcher.
    template<typename T> struct Kernel
    {
-      T kernel; /// kernel placeholder
+      /// kernel placeholder
+      T kernel;
 
       /** @brief Kernel constructor which Jit::Lookup() the kernel, hashed from
       *  the given input parameters and provides the Jit::Kernel::operator()()
@@ -111,7 +112,7 @@ public:
       *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
       *  @param[in] link coresponding to MFEM_LINK_FLAGS,
       *  @param[in] libs coresponding to MFEM_EXT_LIBS,
-      *  @param[in] incp coresponding to the relative mfem include directory,
+      *  @param[in] dir coresponding to the relative mfem include directory,
       *  @param[in] src source of the kernel,
       *  @param[in] sym symbol of the kernel.
       **/
@@ -128,15 +129,15 @@ public:
    /** @brief Find a Kernel in the given @a map. If the kernel cannot be found,
     *  it will be inserted into the map.
     *  @param[in] hash of the kernel,
-    *  @param[in] kernel_name name of the kernel with the templated inputs,
+    *  @param[in] name of the kernel with the templated inputs,
     *  @param[in] cxx MFEM's CXX compiler,
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
-    *  @param[in] incp coresponding to the relative mfem include directory,
+    *  @param[in] dir coresponding to the relative mfem include directory,
     *  @param[in] src source of the kernel,
     *  @param[in] map local \c map of the current kernel,
-    *  @param[in] args runtime arguments of the JIT kernel.
+    *  @param[in] Targs template runtime arguments of the JIT kernel.
     **/
    template <typename T, typename... Args> static inline
    Kernel<T> Find(const size_t hash, const char *name, const char *cxx,
