@@ -58,7 +58,6 @@ struct Parser
       string Tadds, Sargs_us;
       ostringstream src, dup;
       vector<string> includes;
-      bool has_checked_include_path;
       bool is_static, is_templated, is_eq, mv_to_targs;
 
       /*
@@ -273,15 +272,6 @@ struct Parser
          check(is_quote());
          put(); // '"'
          next();
-
-         if (!ker.has_checked_include_path)
-         {
-            // MFEM_JIT_INC_PATH is set from (c)make command line
-            out << "#ifndef MFEM_JIT_INC_PATH\n";
-            out << "#error MFEM_JIT_INC_PATH should be defined!\n";
-            out << "#endif // MFEM_JIT_INC_PATH\n";
-            ker.has_checked_include_path = true;
-         }
       }
       ker.include();
       check(ker.is_include());
@@ -303,7 +293,6 @@ struct Parser
       (ker.advance(), check(ker.is_jit(), "wait => jit")); // FSM update
       ker.Targs.clear();
       ker.Tparams.clear();
-      ker.has_checked_include_path = false;
       ker.is_templated = is_template();
 
       if (ker.is_templated)
@@ -454,8 +443,6 @@ struct Parser
       const char *libs = "" MFEM_EXT_LIBS;
       const char *link = "" MFEM_LINK_FLAGS;
       const char *flags = "" MFEM_BUILD_FLAGS;
-      // this setting is local to the compiled file, set from (c)make
-      const char *incp = "MFEM_JIT_INC_PATH";
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(hash<string> {}(ker.src.str()),
@@ -476,7 +463,9 @@ struct Parser
       out << "\nconst char *flags = \""<< flags << "\";";
       out << "\nconst char *link = \"" << link << "\";";
       out << "\nconst char *libs = \"" << libs << "\";";
-      out << "\nconst char *incp = \"\" " << incp << ";";
+      // if needed, (c)make sets this directory for each file
+      out << "\n#ifndef MFEM_JIT_INC_PATH\n#define MFEM_JIT_INC_PATH\n#endif";
+      out << "\nconst char *dir = \"\" MFEM_JIT_INC_PATH;";
       out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul"
           << "," << ker.Targs << ");";
@@ -484,7 +473,7 @@ struct Parser
           <<"(" << ker.Sparams << ");";
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name << "<" << ker.Tformat << ">"
-          << "\", cxx, flags, link, libs, incp, source, kernels" << ", "
+          << "\", cxx, flags, link, libs, dir, source, kernels" << ", "
           << ker.Targs << ").Launch(" << ker.Sargs << ");";
       out << pp_line();
       ker.advance(/*postfix => wait*/);

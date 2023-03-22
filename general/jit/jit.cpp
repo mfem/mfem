@@ -376,9 +376,6 @@ void Jit::Finalize()
 
 void Jit::Configure(const char *name, const char *path, bool keep)
 {
-#ifdef MFEM_USE_MPI
-   MFEM_VERIFY(mpi::IsInitialized(), "[JIT] Configure before MPI initialization!");
-#endif
    Get().path = path;
    Get().keep_cache = keep;
    Get().rank = mpi::Rank();
@@ -512,9 +509,9 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
          else // avoid duplicate compilation
          {
             cc_lock.Wait();
+            io::FileLock so_lock(lib_so, "ok");
             // if removed, re-run the compilation
             if (!io::Exists(lib_so)) { return RootCompile(so); }
-            io::FileLock so_lock(lib_so, "ok");
             install(lib_so, so);
          }
          return EXIT_SUCCESS;

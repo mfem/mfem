@@ -906,7 +906,7 @@ function(mfem_export_mk_files)
   set(MFEM_FLAGS "\$(MFEM_CPPFLAGS) \$(MFEM_CXXFLAGS) \$(MFEM_INCFLAGS)")
   # TPL link flags: set below
   set(MFEM_EXT_LIBS "")
-  if (BUILD_SHARED_LIBS)
+  if (BUILD_SHARED_LIBS OR MFEM_USE_JIT)
     set(MFEM_LIBS "${shared_link_flag}\$(MFEM_LIB_DIR) -L\$(MFEM_LIB_DIR)")
     set(MFEM_LIBS "${MFEM_LIBS} -lmfem \$(MFEM_EXT_LIBS)")
     if (APPLE)

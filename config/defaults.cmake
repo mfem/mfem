@@ -19,11 +19,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # MFEM options. Set to mimic the default "defaults.mk" file.
-if (MFEM_USE_JIT) # JIT now requires shared compilation
-    option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" ON)
-else()
-    option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
-endif(MFEM_USE_JIT)
+option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)

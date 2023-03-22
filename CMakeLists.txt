@@ -188,6 +188,11 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
+if (MFEM_USE_JIT)
+    message(STATUS "MFEM: MFEM_USE_JIT depends on BUILD_SHARED_LIBS")
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Set when MFEM_USE_JIT is set" FORCE)
+endif()
+
 # Shared build on Windows
 if (WIN32 AND BUILD_SHARED_LIBS)
   # CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS works only with MSVC?
