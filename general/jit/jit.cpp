@@ -414,7 +414,6 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
       if (mpi::Root())
       {
          io::FileLock ar_lock(lib_ar, "ak");
-         io::FileLock so_lock(lib_so, "ok");
          Command() << cxx << link << "-shared" << "-o" << lib_so
                    << MFEM_SO_PREFIX << lib_ar << MFEM_SO_POSTFIX
                    << MFEM_XLINKER + std::string("-rpath,") + Get().path << libs;
@@ -433,16 +432,7 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
       // this is used to handle parallel compilations of the same source
       const auto id = std::string("_") + std::to_string(mpi::Bcast(getpid()));
       const auto so = Jit::ToString(hash, id.c_str());
-      /*
-      * source lock::ck: [w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w]
-      *             cc:  |----|Close  Delete
-      *       cc => co:       |------|         Delete
-      *       lock::ak:               [x-x-x-x-x-x-x-x-x-x]
-      *       ar += co:                  |----|
-      *  (ar+co) => so:                       |---|             Delete
-      *       lock::ok:                           |x-x-x|
-      *   so => Lib_so:                             |--|
-      */
+
       std::function<int(const char *)> RootCompile = [&](const char *so)
       {
          auto install = [](const char *in, const char *out)
@@ -484,15 +474,13 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                if (Run(name)) { return EXIT_FAILURE; }
                if (!Get().debug) { std::remove(cc.c_str()); }
             }
-            // Update archive: ar += co
+            // Update archive: ar += co, (ar + co) => so, so => lib_so
             io::FileLock ar_lock(lib_ar, "ak");
             {
                Command() << ("" MFEM_AR) << "-r" << lib_ar << co;
                if (Run()) { return EXIT_FAILURE; }
                if (!Get().debug) { std::remove(co.c_str()); }
-            }
-            // Create temporary shared library: (ar + co) => so
-            {
+               // Create temporary shared library:
                Command() << cxx << link << "-o" << so
                          << "-shared"
                          << "-L" MFEM_SOURCE_DIR
@@ -501,18 +489,16 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                          << MFEM_XLINKER + std::string("-rpath,") + Get().path
                          << libs;
                if (Run()) { return EXIT_FAILURE; }
+               // Install temporary shared library: so => lib_so
+               install(so, lib_so);
             }
-            // Install temporary shared library: so => Lib_so
-            io::FileLock so_lock(lib_so, "ok");
-            install(so, lib_so);
          }
          else // avoid duplicate compilation
          {
             cc_lock.Wait();
-            io::FileLock so_lock(lib_so, "ok");
-            // if removed, re-run the compilation
-            if (!io::Exists(lib_so)) { return RootCompile(so); }
-            install(lib_so, so);
+            io::FileLock ar_lock(lib_ar, "ak");
+            MFEM_VERIFY(io::Exists(lib_so), "[JIT] lib_so not found!");
+            install(lib_so, so); // but still install temporary shared library
          }
          return EXIT_SUCCESS;
       };
