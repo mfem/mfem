@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-<a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
-<a href="https://github.com/mfem/mfem/actions?query=workflow%3Arepo-check+branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/repo-check.yml/badge.svg?branch=master"></a>
-<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuild-analysis+branch%3Amaster"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=master"></a>
-<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuilds-and-tests+branch%3Amaster"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
+<a href="https://github.com/mfem/mfem/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Arepo-check+branch%3Amain"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/repo-check.yml/badge.svg?branch=main"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuild-analysis+branch%3Amain"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=main"></a>
+<a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuilds-and-tests+branch%3Amain"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=main"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="https://docs.mfem.org/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
 </p>
@@ -27,7 +27,7 @@ in the MFEM community, you agree to abide by its rules.
 If you plan on contributing to MFEM, consider reviewing the
 [issue tracker](https://github.com/mfem/mfem/issues) first to check if a thread
 already exists for your desired feature or the bug you ran into. Use a pull
-request (PR) toward the `mfem:master` branch to propose your contribution. If
+request (PR) toward the `mfem:main` branch to propose your contribution. If
 you are planning significant code changes or have questions, you may want to
 open an [issue](https://github.com/mfem/mfem/issues) before issuing a PR. In
 addition to technical contributions, we are also interested in your results and
@@ -47,7 +47,7 @@ back to them before issuing pull requests:
   - [Pull Requests](#pull-requests)
   - [MFEM PR Rules](#mfem-pr-rules)
   - [Pull Request Checklist](#pull-request-checklist)
-  - [Master/Next Workflow](#masternext-workflow)
+  - [Main/Next Workflow](#mainnext-workflow)
   - [Releases](#releases)
   - [Release Checklist](#release-checklist)
 - [LLNL Workflow](#llnl-workflow)
@@ -66,12 +66,12 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 ## Quick Summary
 
 - We encourage you to [join the MFEM organization](#mfem-organization) and create
-  development branches off `mfem:master`.
+  development branches off `mfem:main`.
 - Please follow the [developer guidelines](#developer-guidelines), in particular
   with regards to documentation and code styling.
 - Please do not commit large/binary files to the central repository (use a fork
   instead).
-- Pull requests should be issued toward `mfem:master`. Make sure
+- Pull requests should be issued toward `mfem:main`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist) and
   follow the [MFEM PR Rules](#mfem-pr-rules).
 - When your contribution is fully working and ready to be reviewed, add
@@ -81,8 +81,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 - The reviewers have 3 weeks to evaluate the PR and work with the author to
   fix issues and implement improvements.
 - During review there should be no force pushes/rewriting history in the branch.
-- After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
-- After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
+- After approval, MFEM developers merge the PR manually in the [mfem:next branch](#mainnext-workflow).
+- After a week of testing in `mfem:next`, the original PR is merged in `mfem:main`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
   work on different PRs toward a release.
 - Don't hesitate to [contact us](#contact-information) if you have any questions.
@@ -279,7 +279,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   author, is willing to work on it and be its champion.
 
 - The author creates a branch for the new feature (with suffix `-dev`), off
-  the `master` branch, or another existing feature branch, for example:
+  the `main` branch, or another existing feature branch, for example:
 
   ```
   # Clone assuming you have setup your ssh keys on GitHub:
@@ -288,8 +288,8 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   # Alternatively, clone using the "https" protocol:
   git clone https://github.com/mfem/mfem.git
 
-  # Create a new feature branch starting from "master":
-  git checkout master
+  # Create a new feature branch starting from "main":
+  git checkout main
   git pull
   git checkout -b feature-dev
 
@@ -360,7 +360,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 ### Pull Requests
 
 - When your branch is ready for other developers to review / comment on
-  the code, create a pull request towards `mfem:master`.
+  the code, create a pull request towards `mfem:main`.
 
 - Pull request typically have titles like:
 
@@ -396,7 +396,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   assigned, the PR is considered under review. To help with the review process
   there should be no force pushes/rewriting history in the branch.
 
-- After approval, the PR is [tested](#masternext-workflow) for a week with
+- After approval, the PR is [tested](#mainnext-workflow) for a week with
   other approved PRs in the `mfem:next` branch.
 
 - Consider manually running the tests in `tests/scripts` before merging in
@@ -432,7 +432,7 @@ The Pull Request (PR) approval process in MFEM is similar to the approval of pap
 
 3. A PR can be (manually) merged in the *next* branch only if 2 of the assigned reviewers have approved it and it has passed internal testing. This merge can be performed by any of the assigned reviewers or by any of the editors.
 
-4. A PR can be merged in the *master* branch only if it has been tested successfully for a week in *next* and an editor has (optionally) taken a final look. This merge can be performed only by one of the editors.
+4. A PR can be merged in the *main* branch only if it has been tested successfully for a week in *next* and an editor has (optionally) taken a final look. This merge can be performed only by one of the editors.
 
 #### Responsibilities of Editors
 
@@ -455,7 +455,7 @@ The current list of MFEM editors is:
 
 5. To remind the reviewers about timely completion of their review.
 
-6. To take a final look and complete the PR merge in *master*. The final look step is optional and shouldn't take more than 3 days.
+6. To take a final look and complete the PR merge in *main*. The final look step is optional and shouldn't take more than 3 days.
 
 7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign much shorter review window.
 
@@ -477,7 +477,7 @@ Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their a
 
 5. To test the PR thoroughly before merging in *next*. The PR author is also encouraged to perform testing and inform the reviewers about the results.
 
-6. To monitor the PR impact on the testing in the *next* branch and alert the editors that the PR is ready for merging in *master*.
+6. To monitor the PR impact on the testing in the *next* branch and alert the editors that the PR is ready for merging in *main*.
 
 7. The review of bugfixes should be expedited proportional to their importance. The review window can be much less than three weeks in such cases.
 
@@ -565,11 +565,11 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] Update internal tests to include the new features.
 
 
-### Master/Next Workflow
+### Main/Next Workflow
 
-MFEM uses a `master`/`next`-branch workflow as described below:
+MFEM uses a `main`/`next`-branch workflow as described below:
 
-- The `master` branch should always be of release quality and changes should not
+- The `main` branch should always be of release quality and changes should not
   be merged until they have been fully tested. This branch is protected, and
   changes can only be made through pull requests.
 
@@ -596,20 +596,20 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 - After a week of testing in `next` (excluding bugfixes), both on GitHub, as
   well as [internally](#tests-at-llnl) at LLNL, the original PR is merged into
-  `master` (provided there are no issues).
+  `main` (provided there are no issues).
 
 - After the merge, the feature branch is deleted (unless it is a long-term
   project with periodic PRs).
 
 - The `next` branch is used just for integrated testing of all PRs approved for
-  merging into `master` to verify that each works individually and that all of
+  merging into `main` to verify that each works individually and that all of
   them work as a group. This branch can be discarded at any time, though we
   typically do that only at the end of a [release cycle](#releases).
 
 
 ### Releases
 
-- Releases are just tags in the `master` branch, e.g. https://github.com/mfem/mfem/releases/tag/v3.3.2,
+- Releases are just tags in the `main` branch, e.g. https://github.com/mfem/mfem/releases/tag/v3.3.2,
   and have a version that ends in an even "patch" number, e.g. `v3.2.2` or
   `v3.4` (by convention `v3.4` is the same as `v3.4.0`.)  Between releases, the
   version ends in an odd "patch" number, e.g. `v3.3.3`.
@@ -662,19 +662,19 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 ### Mirroring on Bitbucket
 
-- The GitHub `master` and `next` branches are mirrored to the LLNL institutional
-  Bitbucket repository as `gh-master` and `gh-next`.
+- The GitHub `main` and `next` branches are mirrored to the LLNL institutional
+  Bitbucket repository as `gh-main` and `gh-next`.
 
-- `gh-master` is merged into LLNL's internal `master` through pull requests; write
-  permissions to `master` are restricted to ensure this is the only way in which it
+- `gh-main` is merged into LLNL's internal `main` through pull requests; write
+  permissions to `main` are restricted to ensure this is the only way in which it
   gets updated.
 
 - We never push directly from LLNL to GitHub.
 
 - Versions of the code on LLNL's internal server, from most to least stable:
   - MFEM official release on mfem.org -- Most stable, tested in many apps.
-  - `mfem:master` -- Recent development version, guaranteed to work.
-  - `mfem:gh-master` -- Stable development version, passed testing, you can use
+  - `mfem:main` -- Recent development version, guaranteed to work.
+  - `mfem:gh-main` -- Stable development version, passed testing, you can use
      it to build your code between releases.
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
@@ -704,14 +704,14 @@ directory.
 
 
 ### Linux and Mac smoke tests
-We use GitHub Actions to drive the default tests on the `master` and `next`
+We use GitHub Actions to drive the default tests on the `main` and `next`
 branches. See the `.github/workflows` files and the logs at
 [https://github.com/mfem/mfem/actions](https://github.com/mfem/mfem/actions).
 
 Testing using GitHub Actions should be kept lightweight, as there is a time
 constraint on jobs. Two virtual machines are configured - Mac (OS X) and Linux.
 
-- Tests on the `master` branch are triggered whenever a PR is issued on this branch.
+- Tests on the `main` branch are triggered whenever a PR is issued on this branch.
 - Tests on the `next` branch are currently scheduled to run each night.
 
 
@@ -727,7 +727,7 @@ and debug build is performed with a simple run of `ex1` to verify the executable
 
 ### Tests at LLNL
 
-- We mirror the `master` and `next` branches internally (to `gh-master` and
+- We mirror the `main` and `next` branches internally (to `gh-main` and
   `gh-next`) and run longer nightly tests via cron. On the weekends, a more
   extensive test is run which extracts and executes all the different sample
   runs from each example.
