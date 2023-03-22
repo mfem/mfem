@@ -794,7 +794,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            double &tol, double &atol, int printit);
 
 #ifdef MFEM_USE_HIOP
-   class HiopOptimizationProblem;
+class HiopOptimizationProblem;
 #endif
 
 /** Defines operators and constraints for the following optimization problem:
