@@ -832,7 +832,7 @@ protected:
    /// method to check if the argument Vector x has been changed after the last
    /// call to CalcObjective() or CalcObjectiveGrad().
    /// The result is on by default, and gets set by the OptimizationSolver.
-   bool NewX() const;
+   bool NewX() const { return new_x; }
 
 public:
    const int input_size;
