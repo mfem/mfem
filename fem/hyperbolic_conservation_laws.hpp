@@ -43,7 +43,7 @@ using namespace mfem;
 
 enum PRefineType {
   elevation,  // order <- order + value
-  set,        // order <- value
+  setDegree,        // order <- value
 };
 GridFunction ProlongToMaxOrderDG(const GridFunction &x);
 
@@ -74,6 +74,7 @@ class RiemannSolver {
   virtual void Eval(const Vector &state1, const Vector &state2,
                     const Vector &fluxN1, const Vector &fluxN2,
                     const double maxE, const Vector &nor, Vector &flux) = 0;
+  virtual ~RiemannSolver() = default;
 };
 
 /**
@@ -444,7 +445,7 @@ void DGHyperbolicConservationLaws::ComputeInvMass() {
  *
  * For each 0 ≤ i ≤ the number of elements,
  * If pRefineType == PRefineType::elevation, order(i) += orders(i).
- * If pRefineType == PRefineType::set, order(i) = orders(i).
+ * If pRefineType == PRefineType::setDegree, order(i) = orders(i).
  *
  * @param[in] orders element-wise order offset or target order.
  * @param[out] sol The solution to be updated
@@ -476,7 +477,7 @@ void DGHyperbolicConservationLaws::pRefine(const Array<int> &orders,
         }
       }
       break;
-    case PRefineType::set:
+    case PRefineType::setDegree:
       MFEM_VERIFY(orders.Min() >= 0, "Order should be non-negative.");
       for (int i = 0; i < numElem; i++) {
         vfes->SetElementOrder(i, orders[i]);
@@ -564,7 +565,7 @@ void HyperbolicElementFormIntegrator::AssembleElementVector(
   // resize shape and gradient shape storage
   shape.SetSize(dof);
   dshape.SetSize(dof, el.GetDim());
-  // set-up output vector
+  // setDegree-up output vector
   elvect.SetSize(dof * num_equations);
   elvect = 0.0;
 
@@ -625,7 +626,7 @@ void HyperbolicFaceFormIntegrator::AssembleFaceVector(
   for (int i = 0; i < ir->GetNPoints(); i++) {
     const IntegrationPoint &ip = ir->IntPoint(i);
 
-    Tr.SetAllIntPoints(&ip);  // set face and element int. points
+    Tr.SetAllIntPoints(&ip);  // setDegree face and element int. points
 
     // Calculate basis functions on both elements at the face
     el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
