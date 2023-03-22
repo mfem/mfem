@@ -936,7 +936,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound");
+   MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound: " << fnbr.Size() << " " << bound);
 
    // remove duplicate face neighbor elements and sort them by rank & index
    // (note that the send table is sorted the same way and the order is also the
@@ -1119,12 +1119,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
-               // TODO: does this handle triangle faces correctly?
-
                // ghost slave in 3D needs flipping orientation
                DenseMatrix* pm2 = new DenseMatrix(*pm);
-               std::swap((*pm2)(0,1), (*pm2)(0,3));
-               std::swap((*pm2)(1,1), (*pm2)(1,3));
+               std::swap((*pm2)(0,1), (*pm2)(0, pm->Width()-1));
+               std::swap((*pm2)(1,1), (*pm2)(1, pm->Width()-1));
                aux_pm_store.Append(pm2);
 
                fi.Elem2Inf ^= 1;
