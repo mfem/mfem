@@ -477,7 +477,7 @@ OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
-# JIT configuration
+# JIT configuration, requires MFEM_SHARED compilation
 JIT_OPT =
 JIT_LIB = -ldl
 ifeq ($(MFEM_USE_JIT),YES)

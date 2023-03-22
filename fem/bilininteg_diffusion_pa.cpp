@@ -1093,12 +1093,11 @@ static void PADiffusionApply2D(const int NE,
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
-                                   const Array<double> &b_,
-                                   const Array<double> &g_,
-                                   const Vector &d_,
-                                   const Vector &x_,
-                                   Vector &y_amp,
-                                   Vector *y_ptr,
+                                   ConstDeviceMatrix &b,
+                                   ConstDeviceMatrix &g,
+                                   ConstDeviceCube &D,
+                                   ConstDeviceCube &x,
+                                   DeviceCube &Y,
                                    int d1d = 0,
                                    int q1d = 0,
                                    int nbz = 0)
@@ -1111,17 +1110,6 @@ static void SmemPADiffusionApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D, NE);
-
-   assert(y_amp.ReadWrite() == y_ptr->ReadWrite());
-
-   auto Y = Reshape(y_amp.ReadWrite(), D1D, D1D, NE);
-   auto Yptr = Reshape(y_ptr->ReadWrite(), D1D, D1D, NE);
-   assert((double*)Y == (double*)Yptr);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -1707,9 +1695,9 @@ static void PADiffusionApply(const int dim,
 
    if (dim == 2)
    {
-      //ConstDeviceCube D = Reshape(d.Read(), Q1D*Q1D, symm ? 3 : 4, NE);
-      //ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
-      //DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+      ConstDeviceCube D = Reshape(d.Read(), Q1D*Q1D, symm ? 3 : 4, NE);
+      ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
+      DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
       switch (id)
       {
@@ -1730,7 +1718,7 @@ static void PADiffusionApply(const int dim,
                             (D1D < 6)  ? 8 :
                             (D1D < 8)  ? 4 :
                             (D1D < 10) ? 2 : 1;
-            return SmemPADiffusionApply2D(NE,symm,b,g,d,x,y,&y,D1D,Q1D,NBZ);
+            return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
          }
 #endif
       }

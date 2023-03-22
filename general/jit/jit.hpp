@@ -20,10 +20,10 @@
 
 #include <vector>
 #include <string>
-#include <iomanip> // setfill, setw
-#include <sstream> // ostringstream
+#include <iomanip>
+#include <sstream>
 #include <iostream>
-#include <functional> // std::hash
+#include <functional>
 #include <unordered_map>
 
 namespace mfem
@@ -100,8 +100,8 @@ public:
    /// @brief Kernel structure to hold the kernel and its launcher.
    template<typename T> struct Kernel
    {
-      /// kernel placeholder
-      T kernel;
+      T kernel; /// kernel placeholder
+
       /** @brief Kernel constructor which Jit::Lookup() the kernel, hashed from
       *  the given input parameters and provides the Jit::Kernel::operator()()
       *  launcher.
@@ -118,7 +118,7 @@ public:
       Kernel(const size_t hash, const char *name, const char *cxx,
              const char *flags, const char *link, const char *libs,
              const char *dir, const char *src, const char *sym):
-         kernel((T) Jit::Lookup(hash,name,cxx,flags,link,libs,dir,src,sym)) {}
+         kernel((T) Jit::Lookup(hash, name, cxx, flags, link, libs, dir, src, sym)) {}
 
       /// @brief Kernel launch operator
       template<typename... Args>
@@ -141,7 +141,7 @@ public:
    template <typename T, typename... Args> static inline
    Kernel<T> Find(const size_t hash, const char *name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
-                  const char *incp, const char *src,
+                  const char *dir, const char *src,
                   std::unordered_map<size_t, Kernel<T>> &map, Args... Targs)
    {
       auto kernel_it = map.find(hash);
@@ -150,9 +150,9 @@ public:
          const int n = snprintf(nullptr, 0, src, hash, hash, hash, Targs...);
          const int m = snprintf(nullptr, 0, name, Targs...);
          std::string buf(n+1, '\0'), ker(m+1, '\0');
-         snprintf(&buf[0], n+1, src, hash, hash, hash, Targs...);
-         snprintf(&ker[0], m+1, name, Targs...); // ker_name<...>
-         map.emplace(hash, Kernel<T>(hash, &ker[0], cxx, flags, link, libs, incp,
+         snprintf(&buf[0], n+1, src, hash, hash, hash, Targs...); // update src
+         snprintf(&ker[0], m+1, name, Targs...); // update kernel name
+         map.emplace(hash, Kernel<T>(hash, &ker[0], cxx, flags, link, libs, dir,
                                      &buf[0], ToString(hash).c_str()));
          kernel_it = map.find(hash);
       }
@@ -162,8 +162,10 @@ public:
 private:
    Jit();
    ~Jit();
+
    Jit(Jit const&) = delete;
    void operator=(Jit const&) = delete;
+
    static MFEM_EXPORT Jit jit_singleton;
    static Jit& Get() { return jit_singleton; }
 
@@ -171,9 +173,11 @@ private:
    std::vector<std::string> includes;
    std::string path, lib_ar, lib_so;
    int rank;
-   struct System;
+
+   struct System;  // forked std::system implementation
+   struct Command; // custom std::system command builder implementation
+
    System *sys;
-   struct Command;
    std::ostringstream command;
    static int Run(const char *header = nullptr);
 };

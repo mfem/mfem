@@ -162,7 +162,7 @@ $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
 	@$(MFEM_DIR)/mjit $(<) -o $(MJIT_TMP)
 	@echo [JIT] $(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
-	@$(CCC) -c $(MJIT_TMP) $(MJIT_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"$(@D)\"" -o $(@)
+	@$(CCC) $(MJIT_FLAGS) $(INCLUDES) -DMFEM_JIT_INC_PATH="\"$(@D)\"" -c $(MJIT_TMP) -o $(@)
 	@rm $(MJIT_TMP)
 
 # Template rule for devices

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -34,7 +34,9 @@ function(set_mjit_sources_dependencies TARGET SOURCES)
         string(REPLACE "/" "_" source_d ${source_d})
         add_custom_target(${source_d} DEPENDS ${jit})
         add_dependencies(${TARGET} ${source_d})
-        set_source_files_properties(${jit} PROPERTIES COMPILE_OPTIONS -I${dir})
+        set_source_files_properties(${jit} PROPERTIES
+                               COMPILE_OPTIONS -I${dir}
+                               COMPILE_DEFINITIONS MFEM_JIT_INC_PATH=\"${source_path}\")
         if (MFEM_USE_CUDA)
            set_source_files_properties(${jit} PROPERTIES LANGUAGE CUDA)
        endif(MFEM_USE_CUDA)
@@ -48,6 +50,7 @@ endfunction(set_mjit_sources_dependencies)
 function(mfem_mjit_configure)
     add_executable(mjit general/jit/parser.cpp)
     #message(info "[JIT] MFEM_BUILD_FLAGS: ${MFEM_BUILD_FLAGS}")
+    #message(info "[JIT] CMAKE_SHARED_LIBRARY_CXX_FLAGS: ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
 
     set(MFEM_TPLFLAGS "")
     foreach (dir ${TPL_INCLUDE_DIRS})
@@ -88,7 +91,6 @@ function(mfem_mjit_configure)
        endif(MFEM_USE_MPI)
        set(MFEM_BUILD_FLAGS "-x cu ${MFEM_LINK_FLAGS}")
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
-       set(MFEM_XCOMPILER "-Xcompiler=")
        set(MFEM_XLINKER "-Xlinker=")
    endif(MFEM_USE_CUDA)
 
@@ -103,7 +105,7 @@ function(mfem_mjit_configure)
            "MFEM_CXX=\"${MFEM_CXX}\""
            "MFEM_EXT_LIBS=\"${MFEM_EXT_LIBS}\""
            "MFEM_LINK_FLAGS=\"${MFEM_LINK_FLAGS}\""
-           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS} ${MFEM_TPLFLAGS}\"")
+           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS} ${MFEM_TPLFLAGS} ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}\"")
 
     target_compile_definitions(mjit PRIVATE
            "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
@@ -123,13 +125,12 @@ function(mfem_mjit_configure)
 
     set_property(SOURCE general/jit/jit.cpp
                  PROPERTY COMPILE_DEFINITIONS
-                 MFEM_SO_EXT="${MFEM_SO_EXT}"
-                 MFEM_XCOMPILER="${MFEM_XCOMPILER}"
-                 MFEM_XLINKER="${MFEM_XLINKER}"
                  MFEM_AR="ar"
-                 MFEM_INSTALL_BACKUP="${MFEM_INSTALL_BACKUP}"
+                 MFEM_SO_EXT="${MFEM_SO_EXT}"
+                 MFEM_XLINKER="${MFEM_XLINKER}"
                  MFEM_SO_PREFIX="${MFEM_SO_PREFIX}"
-                 MFEM_SO_POSTFIX="${MFEM_SO_POSTFIX}")
+                 MFEM_SO_POSTFIX="${MFEM_SO_POSTFIX}"
+                 MFEM_INSTALL_BACKUP="${MFEM_INSTALL_BACKUP}")
 
 endfunction(mfem_mjit_configure)
 
