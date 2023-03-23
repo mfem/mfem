@@ -94,7 +94,7 @@ class FaceQuadratureInterpolator;
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
     mesh, mainly managing the set of degrees of freedom.
 
-    @details The term "degrees of freedom", or "dof" for short, can mean
+    @details The term "degree of freedom", or "dof" for short, can mean
     different things in different contexts. In MFEM we use "dof" to refer to
     four closely related types of data; @ref edof "edofs", @ref ldof "ldofs",
     @ref tdof "tdofs", and @ref vdof "vdofs".
@@ -126,7 +126,7 @@ class FaceQuadratureInterpolator;
     computing environments but it is designed with parallel processing in mind
     and this terminology reflects that design focus.
     @par
-    When running in parallel the set of local dofs contain all of the degrees
+    When running in parallel the set of local dofs contains all of the degrees
     of freedom associated with locally owned elements. When running in serial
     all elements are locally owned so all element dofs are represented in the
     set of local dofs.
@@ -163,9 +163,9 @@ class FaceQuadratureInterpolator;
     determines the size of the linear systems which typically need to be solved
     in FEM simulations.
     @par
-    Often the true dof and the local dof are identical, however, there are
+    Often the true dofs and the local dofs are identical, however, there are
     important cases where they differ significantly. The first such case is
-    related to non-conforming meshes. On non-condforming meshes it is common
+    related to non-conforming meshes. On non-conforming meshes it is common
     for degrees of freedom associated with "hanging" nodes, edges, or faces to
     be constrained by degrees of freedom associated with another mesh entity.
     In such cases the "hanging" degrees of freedom should not be considered
@@ -794,7 +794,7 @@ public:
    /// The returned indices are offsets into an @ref ldof vector. See also
    /// GetElementVDofs().
    ///
-   /// @note In many case the returned DofTransformation object will be NULL.
+   /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
    /// guidance on its role in performing @ref edof to @ref ldof transformations
    /// on local vectors and matrices.
@@ -806,7 +806,7 @@ public:
    /// The returned indices are offsets into an @ref ldof vector. See also
    /// GetBdrElementVDofs().
    ///
-   /// @note In many case the returned DofTransformation object will be NULL.
+   /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
    /// guidance on its role in performing @ref edof to @ref ldof transformations
    /// on local vectors and matrices.
@@ -989,6 +989,11 @@ public:
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
    /// not necessarily equal to 1. See also GetElementDofs().
    ///
+   /// @note In many cases the returned DofTransformation object will be NULL.
+   /// In other cases see the documentation of the DofTransformation class for
+   /// guidance on its role in performing @ref edof to @ref ldof transformations
+   /// on local vectors and matrices.
+   ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
@@ -996,6 +1001,11 @@ public:
    /// element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
    /// not necessarily equal to 1. See also GetBdrElementDofs().
+   ///
+   /// @note In many cases the returned DofTransformation object will be NULL.
+   /// In other cases see the documentation of the DofTransformation class for
+   /// guidance on its role in performing @ref edof to @ref ldof transformations
+   /// on local vectors and matrices.
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
