@@ -3184,8 +3184,6 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
          loc_sum += std::abs((*surf_fit_gf)(i));
       }
    }
-   err_avg = loc_sum / loc_cnt;
-   err_max = loc_max;
 
 #ifdef MFEM_USE_MPI
    if (targetC->Parallel() == false) { return; }
@@ -3195,6 +3193,9 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
    MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, comm);
    MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, comm);
    err_avg = err_avg / glob_cnt;
+#else
+   err_avg = loc_sum / loc_cnt;
+   err_max = loc_max;
 #endif
 }
 
