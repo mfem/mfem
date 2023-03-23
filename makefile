@@ -503,7 +503,7 @@ STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJEC
 MJIT_PARSER_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
 MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
 MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
-MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(subst ",\\\\\\\",$(strip $(MFEM_BUILD_FLAGS)))\"" #"
+MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(subst $\",\\\x22,$(strip $(MFEM_BUILD_FLAGS)))\""
 $(BLD)mjit: $(SRC)general/jit/parser.cpp $(CONFIG_MK) $(SRC)makefile $(SRC)general/jit/jit.hpp
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
 
