@@ -75,6 +75,7 @@ function(mfem_mjit_configure)
       endif(MPI_CXX_LINK_FLAGS)
     endif(MFEM_USE_MPI)
 
+    set(MFEM_XCOMPILER "")
     set(MFEM_XLINKER "-Wl,")
 
     if (MFEM_USE_CUDA)
@@ -91,6 +92,7 @@ function(mfem_mjit_configure)
        endif(MFEM_USE_MPI)
        set(MFEM_BUILD_FLAGS "-x cu ${MFEM_LINK_FLAGS}")
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
+       set(MFEM_XCOMPILER "-Xcompiler=")
        set(MFEM_XLINKER "-Xlinker=")
    endif(MFEM_USE_CUDA)
 
@@ -101,11 +103,12 @@ function(mfem_mjit_configure)
       set(MFEM_BUILD_FLAGS "-x hip ${MFEM_LINK_FLAGS}")
    endif(MFEM_USE_HIP)
 
+   set(MFEM_PICFLAG "${MFEM_XCOMPILER}${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
    target_compile_definitions(mjit PRIVATE
            "MFEM_CXX=\"${MFEM_CXX}\""
            "MFEM_EXT_LIBS=\"${MFEM_EXT_LIBS}\""
            "MFEM_LINK_FLAGS=\"${MFEM_LINK_FLAGS}\""
-           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS} ${MFEM_TPLFLAGS} ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}\"")
+           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS} ${MFEM_TPLFLAGS} ${MFEM_PICFLAG}\"")
 
     target_compile_definitions(mjit PRIVATE
            "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")

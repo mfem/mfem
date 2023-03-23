@@ -455,14 +455,14 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
             // Compilation: cc => co
             const auto co = Jit::ToString(hash, ".co"); // output object
             {
-               MFEM_VERIFY(io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
-                           io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
-                           "[JIT] Could not find any MFEM header!");
+               MFEM_VERIFY(//io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
+                  io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
+                  "[JIT] Could not find any MFEM header!");
                std::string incs;
                for (auto inc: Get().includes) { incs += "-include \"" + inc + "\" "; }
                std::string mfem_install_include_dir(MFEM_INSTALL_DIR "/include/mfem");
                Command() << cxx << flags
-                         << "-I" << MFEM_SOURCE_DIR
+                         //<< "-I" << MFEM_SOURCE_DIR
                          << "-I" << mfem_install_include_dir
                          << "-I" << mfem_install_include_dir + "/" + dir
                          << incs.c_str()
