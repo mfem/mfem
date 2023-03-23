@@ -24,6 +24,9 @@ const char *ODESolver::ODETypes  = "ODE solver: \n\t"
                                    "        Implicit GA      : 40 -- 50  - Generalized-alpha,\n\t"
                                    "        Implicit AB      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
+
+/// Return a ODESolver pointer based on an type
+/// Caller gets ownership of the object and is responsible for its deletion
 ODESolver* ODESolver::Select(int ode_solver_type)
 {
    ODESolver*  ode_solver = NULL;
