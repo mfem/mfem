@@ -590,7 +590,7 @@ public:
        generated.
 
        @note @a filename is not cached by the Mesh object and can be
-       safely destroyed following this function call.
+       safely deleted following this function call.
    */
    static Mesh LoadFromFile(const char *filename,
                             int generate_edges = 0, int refine = 1,
@@ -1063,7 +1063,7 @@ public:
    /// being updated and should not be used!
    ///
    /// @note The pointer returned by this function can be used to
-   /// alter vertex locations but the pointer itself must not be
+   /// alter vertex locations but the pointer itself should not be
    /// changed by the caller.
    double *GetVertex(int i) { return vertices[i](); }
 
@@ -1268,7 +1268,7 @@ public:
    /// @brief Return FiniteElement for reference element of the specified type
    ///
    /// @note The returned object is a pointer to a global object and
-   /// must not be deleted by the caller.
+   /// should not be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
    /** Builds the transformation defining the i-th element in the user-defined
@@ -1585,12 +1585,12 @@ public:
 
    const Table &ElementToEdgeTable() const;
 
-   ///  The returned Table must be destroyed by the caller
+   ///  The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
 
    /** Return the "face"-element Table. Here "face" refers to face (3D),
        edge (2D), or vertex (1D).
-       The returned Table must be destroyed by the caller. */
+       The returned Table should be deleted by the caller. */
    Table *GetFaceToElementTable() const;
 
    /** This method modifies a tetrahedral mesh so that Nedelec spaces of order
@@ -1603,9 +1603,9 @@ public:
        @note Refinement does not work after a call to this method! */
    MFEM_DEPRECATED virtual void ReorientTetMesh();
 
-   /// @note The returned array must be deleted by the caller.
+   /// @note The returned array should be deleted by the caller.
    int *CartesianPartitioning(int nxyz[]);
-   /// @note The returned array must be deleted by the caller.
+   /// @note The returned array should be deleted by the caller.
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning_);
 

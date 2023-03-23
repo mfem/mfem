@@ -469,7 +469,7 @@ public:
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
-   /// @note The returned Table must be destroyed by the caller
+   /// @note The returned Table should be deleted by the caller
    Table *GetFaceToAllElementTable() const;
 
    /// Returns (a pointer to an object containing) the following data:
