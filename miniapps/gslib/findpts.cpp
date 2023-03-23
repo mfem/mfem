@@ -40,7 +40,7 @@
 //    findpts -m ../../data/amr-quad.mesh -o 2
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
-//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr -mpr
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 //    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
@@ -67,6 +67,10 @@ public:
    /// Destructor
    ~PRefinementGFUpdate();
 
+   /// Update source FiniteElementSpace used to construct the
+   /// PRefinementTransfer operator.
+   void SetSourceFESpace(const FiniteElementSpace& src_);
+
    /// @brief Update GridFunction using PRefinementTransferOperator.
    /// Do not use GridFunction->Update() prior to this method as it is
    /// handled internally.
@@ -81,6 +85,12 @@ PRefinementGFUpdate::PRefinementGFUpdate(const FiniteElementSpace &src_)
 PRefinementGFUpdate::~PRefinementGFUpdate()
 {
    delete src;
+}
+
+void PRefinementGFUpdate::SetSourceFESpace(const FiniteElementSpace &src_)
+{
+   if (src) { delete src; }
+   src = new FiniteElementSpace(src_);
 }
 
 void PRefinementGFUpdate::GridFunctionUpdate(GridFunction &targf)
