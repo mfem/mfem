@@ -158,9 +158,9 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 
 src:;echo $(SRC)
 
-$(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
+$(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_BUILD_DIR)/mjit
 	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
-	@$(MFEM_DIR)/mjit $(<) -o $(MJIT_TMP)
+	@$(MFEM_BUILD_DIR)/mjit $(<) -o $(MJIT_TMP)
 	@echo [JIT] $(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 	@$(CCC) $(MJIT_FLAGS) $(INCLUDES) -c $(MJIT_TMP) -o $(@)
 	@rm $(MJIT_TMP)

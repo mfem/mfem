@@ -32,6 +32,10 @@ using namespace std;
 #define MFEM_BUILD_FLAGS
 #endif
 
+#ifndef MFEM_SHARED_BUILD
+#error Building with JIT must enable shared library build of MFEM
+#endif
+
 namespace mfem
 {
 

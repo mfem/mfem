@@ -503,8 +503,8 @@ STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJEC
 MJIT_PARSER_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
 MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
 MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
-MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(strip $(MFEM_BUILD_FLAGS))\""
-$(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile $(BLD)general/jit/jit.hpp
+MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(subst ",\\\\\\\",$(strip $(MFEM_BUILD_FLAGS)))\"" #"
+$(BLD)mjit: $(SRC)general/jit/parser.cpp $(CONFIG_MK) $(SRC)makefile $(SRC)general/jit/jit.hpp
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
 
 # MFEM's MJIT runtime embedded definitions 
@@ -514,21 +514,20 @@ MJIT_RUNTIME_DEFINES += -DMFEM_XLINKER="\"$(XLINKER)\""
 MJIT_RUNTIME_DEFINES += -DMFEM_SO_PREFIX="\"$(SO_PREFIX)\""
 MJIT_RUNTIME_DEFINES += -DMFEM_SO_POSTFIX="\"$(SO_POSTFIX)\""
 MJIT_RUNTIME_DEFINES += -DMFEM_INSTALL_BACKUP="\"$(INSTALL_BACKUP)\""
-$(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp makefile $(CONFIG_MK)
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_RUNTIME_DEFINES) -c $(<) -o $(@)
+$(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp $(SRC)makefile $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MJIT_RUNTIME_DEFINES) -c $(<) -o $(@)
 
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 MJIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 MJIT_BUILD_FLAGS += $(if $(MFEM_USE_CUDA:YES=),-x c++)
-MJIT_BUILD_FLAGS += -I$(@D) -DMFEM_JIT_INC_PATH="\"$(@D)\""
-$(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
-	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
-	@$(BLD)./mjit $(<) -o $(MJIT_TMP)
-	@echo [JIT] $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(*).cpp -o $(@)
-	@$(MFEM_CXX) $(MJIT_BUILD_FLAGS) -c $(MJIT_TMP) -o $(@)
-	@rm $(MJIT_TMP)
+MJIT_BUILD_FLAGS += -I$(SRC)$(@D) -DMFEM_JIT_INC_PATH="\"$(@D)\""
+$(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit $(SRC)makefile
+	$(eval MJIT_TMP=$(realpath $(shell mktemp)))
+	$(BLD)./mjit $(<) -o $(MJIT_TMP)
+	$(MFEM_CXX) $(MJIT_BUILD_FLAGS) -c $(MJIT_TMP) -o $(@)
+	rm $(MJIT_TMP)
 endif # MFEM_USE_JIT
 
 all: examples miniapps $(TEST_DIRS)
