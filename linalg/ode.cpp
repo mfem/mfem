@@ -471,7 +471,7 @@ void LMSSolver::CheckTimestep(double dt)
 void LMSSolver::GetStateVector(int i, Vector &state)
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " AdamsBashforthSolver::GetStateVector \n" <<
+                " LMSSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
 
    state = k[idx[i]];
