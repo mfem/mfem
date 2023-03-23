@@ -639,7 +639,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
             gsl_mesh_pt_index++;
          }
       }
-      else // Quad/Hex and constant polyomial order
+      else // Quad/Hex and constant polynomial order
       {
          const int dof_cnt_split = fe->GetDof();
 
