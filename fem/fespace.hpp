@@ -102,8 +102,9 @@ class FaceQuadratureInterpolator;
     @anchor edof @par Element DoF:
     %Element dofs, sometimes referred to as @b edofs, are the expansion
     coefficients used to build the linear combination of basis functions which
-    approximate a field within one element of the computational mesh. The order
-    of the element dofs is determined by the basis function and element types.
+    approximate a field within one element of the computational mesh. The
+    arrangement of the element dofs is determined by the basis function and
+    element types.
     @par
     %Element dofs are usually accessed one element at a time but they can be
     concatenated together into a global vector when minimizing access time is
@@ -149,11 +150,13 @@ class FaceQuadratureInterpolator;
     The second important caveat only pertains to high order Nedelec basis
     functions when shared triangular faces are present in the mesh. In this
     very particular case the relative orientation of the face with respect to
-    its two nieghboring elements can lead to different definitions of the
+    its two neighboring elements can lead to different definitions of the
     degrees of freedom associated with the interior of the face which cannot
     be handled by simply flipping the signs of the corresponding values. The
     DofTransformation class is designed to manage the necessary @b edof to
-    @b ldof transformations in this case. See DofTransformation for more
+    @b ldof transformations in this case. In the majority of cases the
+    DofTransformation is unnecessary and a NULL pointer will be returned in
+    place of a pointer to this object. See DofTransformation for more
     information.
 
     @anchor tdof @par True DoF:
@@ -797,7 +800,9 @@ public:
    /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
    /// guidance on its role in performing @ref edof to @ref ldof transformations
-   /// on local vectors and matrices.
+   /// on local vectors and matrices. At present the DofTransformation is only
+   /// needed for Nedelec basis functions of order 2 and above on 3D elements
+   /// with triangular faces.
    ///
    /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
@@ -809,7 +814,9 @@ public:
    /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
    /// guidance on its role in performing @ref edof to @ref ldof transformations
-   /// on local vectors and matrices.
+   /// on local vectors and matrices. At present the DofTransformation is only
+   /// needed for Nedelec basis functions of order 2 and above on 3D elements
+   /// with triangular faces.
    ///
    /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetBdrElementDofs(int bel,
@@ -992,7 +999,9 @@ public:
    /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
    /// guidance on its role in performing @ref edof to @ref ldof transformations
-   /// on local vectors and matrices.
+   /// on local vectors and matrices. At present the DofTransformation is only
+   /// needed for Nedelec basis functions of order 2 and above on 3D elements
+   /// with triangular faces.
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
@@ -1005,7 +1014,9 @@ public:
    /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
    /// guidance on its role in performing @ref edof to @ref ldof transformations
-   /// on local vectors and matrices.
+   /// on local vectors and matrices. At present the DofTransformation is only
+   /// needed for Nedelec basis functions of order 2 and above on 3D elements
+   /// with triangular faces.
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
