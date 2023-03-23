@@ -36,14 +36,10 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. See InitialCondition in ex18.hpp.
+Mesh *AdvectionMesh(const int problem);
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
-void AdvectionMesh(const int problem, const char **mesh_file);
-
-SpatialFunction AdvectionSolution(const int problem, double &t);
-SpatialFunction AdvectionVelocityVector(const int problem);
+VectorFunctionCoefficient AdvectionSolution(const int problem, double &t);
+VectorFunctionCoefficient AdvectionVelocityVector(const int problem);
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
@@ -99,13 +95,15 @@ int main(int argc, char *argv[]) {
   }
   // When the user does not provide mesh file,
   // use the default mesh file for the problem.
-  if ((mesh_file == NULL) || (mesh_file[0] == '\0')) {  // if NULL or empty
-    AdvectionMesh(problem, &mesh_file);  // get default mesh file name
-  }
   args.PrintOptions(cout);
 
   // 2. Read the mesh from the given mesh file.
-  Mesh *mesh = new Mesh(mesh_file);
+  Mesh *mesh;
+  if ((mesh_file == NULL) || (mesh_file[0] == '\0')) {  // if NULL or empty
+    mesh = AdvectionMesh(problem);
+  } else {
+    mesh = new Mesh(mesh_file);
+  }
   mesh->EnsureNCMesh();
   const int dim = mesh->Dimension();
   const int num_equations = 1;
@@ -157,8 +155,8 @@ int main(int argc, char *argv[]) {
   //    functions to a file. This can be opened with GLVis with the -gc option.
   // Initialize the state.
   double t = 0.0;
-  VectorFunctionCoefficient u0(num_equations, AdvectionSolution(problem, t));
-  VectorFunctionCoefficient b(dim, AdvectionVelocityVector(problem));
+  VectorFunctionCoefficient u0 = AdvectionSolution(problem, t);
+  VectorFunctionCoefficient b = AdvectionVelocityVector(problem);
   GridFunction sol(fes);
   sol.ProjectCoefficient(u0);
 
@@ -386,63 +384,58 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-void AdvectionMesh(const int problem, const char **mesh_file) {
+Mesh *AdvectionMesh(const int problem) {
   switch (problem) {
     case 1:
-      *mesh_file = "../data/periodic-square-4x4.mesh";
-      break;
+      return new Mesh("../data/periodic-square-4x4.mesh");
     case 2:
-      *mesh_file = "../data/periodic-square-4x4.mesh";
-      break;
+      return new Mesh("../data/periodic-square-4x4.mesh");
     case 3:
-      *mesh_file = "../data/periodic-segment.mesh";
-      break;
+      return new Mesh("../data/periodic-segment.mesh");
     default:
       throw invalid_argument("Default mesh is undefined");
   }
 }
 
 // Initial condition
-SpatialFunction AdvectionSolution(const int problem, double &t) {
+VectorFunctionCoefficient AdvectionSolution(const int problem, double &t) {
   switch (problem) {
     case 1:
-      return [&t](const Vector &x, Vector &y) {
-        MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
+      return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) {
         y(0) = __sinpi(x(0)) * __sinpi(x(1));
-      };
+      });
     case 2:
-      return [&t](const Vector &x, Vector &y) {
-        MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
+      return VectorFunctionCoefficient(1, [&t](const Vector &x, Vector &y) {
         y(0) = __sinpi(x(0) - t) * __sinpi(x(1) - t);
-      };
+      });
     case 3:
-      return [&t](const Vector &x, Vector &y) {
-        MFEM_ASSERT(x.Size() == 1, "Dimension should be 2");
-        y(0) = __sinpi(x(0) - t);
-      };
+      return VectorFunctionCoefficient(1, [&t](const Vector &x, Vector &y) {
+        y(0) = __sinpi(2 * (x(0) - t));
+      });
     default:
       throw invalid_argument("Problem Undefined");
   }
 }
 
 // Initial condition
-SpatialFunction AdvectionVelocityVector(const int problem) {
+VectorFunctionCoefficient AdvectionVelocityVector(const int problem) {
   switch (problem) {
     case 1:
-      return [](const Vector &x, Vector &y) {
+      return VectorFunctionCoefficient(2, [](const Vector &x, Vector &y) {
         const double d = max((x(0) + 1.) * (1. - x(0)), 0.) *
                          max((x(1) + 1.) * (1. - x(1)), 0.);
         const double d2 = d * d;
         y(0) = d2 * M_PI_2 * x(1);
         y(1) = -d2 * M_PI_2 * x(0);
-      };
+      });
     case 2:
-      return [](const Vector &x, Vector &y) {
+      return VectorFunctionCoefficient(2, [](const Vector &x, Vector &y) {
         y(0) = 1.0;
         y(1) = 1.0;
-      };
+      });
     case 3:
-      return [](const Vector &x, Vector &y) { y(0) = 1.0; };
+      return VectorFunctionCoefficient(
+          1, [](const Vector &x, Vector &y) { y(0) = 1.0; });
     default:
       throw invalid_argument("Problem Undefined");
   }

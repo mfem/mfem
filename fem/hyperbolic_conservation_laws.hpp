@@ -510,6 +510,16 @@ void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol,
   Update();
 }
 
+/**
+ * @brief Perform h-derefinement with given error and z-score
+ * 
+ * Threshold is set to log(err[i]) < mean(log(err)) - z*std(log(err))
+ * and error is aggregate by using max(neighbors).
+ * 
+ * @param errors element-wise error
+ * @param sol solution (updated by using interpolation)
+ * @param z z-score for the threshold
+ */
 void DGHyperbolicConservationLaws::hDerefine(Vector &errors, GridFunction &sol,
                                              const double z) {
   Vector logErrors(errors);
@@ -519,7 +529,7 @@ void DGHyperbolicConservationLaws::hDerefine(Vector &errors, GridFunction &sol,
       pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
   const double lower_bound = exp(mean - z * pow(sigma / logErrors.Size(), 0.5));
   Mesh *mesh = vfes->GetMesh();
-  mesh->DerefineByError(errors, lower_bound, 2, 2);
+  mesh->DerefineByError(errors, lower_bound, 2, 0);
   vfes->Update();
   sol.Update();
   Update();
