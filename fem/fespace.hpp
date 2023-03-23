@@ -911,7 +911,7 @@ public:
    ///
    /// The @a ndofs parameter can be used to indicate the total number of Dofs
    /// associated with each component of @b vdim. If @a ndofs is -1 (the
-   /// default value), then the number of Dofs is <determined by the
+   /// default value), then the number of Dofs is determined by the
    /// FiniteElementSpace::GetNDofs().
    ///
    /// @note This method does not resize the @a dofs array. It takes the range
