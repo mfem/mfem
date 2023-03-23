@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "general/communication.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
 

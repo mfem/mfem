@@ -239,7 +239,6 @@ protected:
    int ss, smax;
    std::vector<Vector> k;
    Array<int> idx;
-
    ODESolver* RKsolver;
    double dt_;
 
