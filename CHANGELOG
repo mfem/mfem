@@ -17,24 +17,28 @@ Version 4.5.2, released on March 23, 2023
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 
+- Added a fast normalization-based distance solver, see the Distance miniapp
+  in the miniapps/shifted/ directory.
+
+- Added a new meshing miniapp, Reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
+
 - Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
   domain boundary.
 
-- Added a fast normalization-based distance solver, see the Distance miniapp
-  in the miniapps/shifted/ directory.
+- Added an option to auto-balance compound TMOP metrics.
+
+- Fixed a bug in TMOP metric 301.
 
 - When using discontinuous (L2) spaces, use local (element-wise) L2 projection
   as the coarsening operator for non-conforming AMR meshes.
 
-- Added support for GridFunction::GetGradients() and
-  GriFunction::GetVectorGradient() on face-neighbor elements.
-
-- Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
-  hexahedral mesh about a plane.
+- Added support for GridFunction::GetGradients() and GetVectorGradient() on
+  face-neighbor elements.
 
 - Added support for pyramids in Gmsh meshes.
 
-- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
+- The Mesh Explorer miniapp can now save mesh files in the VisIt or ParaView
   formats using the corresponding DataCollection. See option 'D' in the menu.
 
 - VisItDataCollection now correctly handles data collection names containing
@@ -43,10 +47,6 @@ Version 4.5.2, released on March 23, 2023
 - Added support for shared Windows builds with MSVC through CMake.
   Developers note: this enhancement is facilitated by the addition of the macro
   MFEM_EXPORT, see config.hpp for more details on its usage.
-
-- Added an option to auto-balance compound TMOP metrics.
-
-- Fixed a bug in TMOP metric 301.
 
 - The following integrations have updated minimum version requirements:
   * RAJA >= 2022.10.3
