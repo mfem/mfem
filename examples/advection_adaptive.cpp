@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
   int vis_steps = 50;
   double z_score = 1.645;  // Z-score for AMR
 
-  int refinement_mode = 1;  // 0: no-refine, 1: h-refine, 2: p-refine.
+  int refinement_mode = 2;  // 0: no-refine, 1: h-refine, 2: p-refine.
 
   int precision = 8;
   cout.precision(precision);
@@ -202,27 +202,24 @@ int main(int argc, char *argv[]) {
       sout.precision(precision);
       sout << "solution\n" << *mesh << sol;
       sout << "pause\n";
-      sout << "view 0 0\n";        // view from top
-      sout << "keys jlm\n";         // turn off perspective and light
+      sout << "view 0 0\n";  // view from top
+      sout << "keys jlm\n";  // turn off perspective and light
       sout << flush;
-      
+
       cout << "GLVis visualization paused."
            << " Press space (in the GLVis window) to resume it.\n";
       sout_exact << "solution\n" << *mesh << sol;
-      sout_exact << "view 0 0\n";   // view from top
-      sout_exact << "keys jl\n";    // turn off perspective and light
+      sout_exact << "view 0 0\n";  // view from top
+      sout_exact << "keys jl\n";   // turn off perspective and light
       sout_exact << flush;
-      if (refinement_mode == 2){
+      if (refinement_mode == 2) {
         GridFunction order_gf(sol);
         order_gf = order;
         sout_order << "solution\n" << *mesh << order_gf;
-        sout_order << "view 0 0\n";   // view from top
-        sout_order << "keys jl\n";    // turn off perspective and light
+        sout_order << "view 0 0\n";  // view from top
+        sout_order << "keys jl\n";   // turn off perspective and light
         sout_order << flush;
       }
-      
-      
-      
     }
   }
 
@@ -294,6 +291,7 @@ int main(int argc, char *argv[]) {
     errors.SetSize(numElem);
     sol.ComputeElementL2Errors(u0, errors);
     const double total_error = errors.Norml2();
+    double z;
     switch (refinement_mode) {
       case 0:  // no-refine
         break;
@@ -311,10 +309,12 @@ int main(int argc, char *argv[]) {
             break;
         }
         advection.hRefine(errors, sol, z_score);
+        z = z_score;
         while (mesh->GetNE() > numElem_upper) {
           errors.SetSize(mesh->GetNE());
           sol.ComputeElementL2Errors(u0, errors);
-          advection.hDerefine(errors, sol, z_score);
+          advection.hDerefine(errors, sol, z);
+          z /= 1.2;
         }
         ode_solver->Init(advection);
         hmin = 0.0;
@@ -340,13 +340,13 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < numElem; i++) {
           const double localError = errors(i);
           if (localError > upper_bound && fes->GetElementOrder(i) < 7) {
-            orders[i] = 1;
+            orders[i] = order + 1;
           } else if (localError < lower_bound && fes->GetElementOrder(i) > 0) {
-            orders[i] =  - 1;
+            orders[i] = order - 1;
           } else
-            orders[i] = 0;
+            orders[i] = order;
         }
-        advection.pRefine(orders, sol, PRefineType::elevation);
+        advection.pRefine(orders, sol, PRefineType::setDegree);
         ode_solver->Init(advection);
         max_order = fes->GetMaxElementOrder();
 
