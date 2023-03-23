@@ -480,7 +480,7 @@ void LMSSolver::GetStateVector(int i, Vector &state)
 const Vector &LMSSolver::GetStateVector(int i)
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " AdamsBashforthSolver::GetStateVector \n" <<
+                " LMSSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
 
    return k[idx[i]];
