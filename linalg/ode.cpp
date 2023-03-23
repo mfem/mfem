@@ -489,7 +489,7 @@ const Vector &LMSSolver::GetStateVector(int i)
 void LMSSolver::SetStateVector(int i, Vector &state)
 {
    MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " AdamsBashforthSolver::SetStateVector \n" <<
+                " LMSSolver::SetStateVector \n" <<
                 " - Tried to set non-existent state "<<i);
    k[idx[i]] = state;
 }
