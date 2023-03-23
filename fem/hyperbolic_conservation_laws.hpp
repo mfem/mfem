@@ -43,7 +43,7 @@ using namespace mfem;
 
 enum PRefineType {
   elevation,  // order <- order + value
-  setDegree,        // order <- value
+  setDegree,  // order <- value
 };
 GridFunction ProlongToMaxOrderDG(const GridFunction &x);
 
@@ -92,7 +92,7 @@ class HyperbolicElementFormIntegrator : public NonlinearFormIntegrator {
   DenseMatrix flux;          // flux value at an integration point
   DenseMatrix dshape;  // derivative of shape function at an integration point
 
- protected:
+ public:
   /**
    * @brief Compute flux F(u, x) for given state u and physical point x
    *
@@ -107,7 +107,6 @@ class HyperbolicElementFormIntegrator : public NonlinearFormIntegrator {
   virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                              DenseMatrix &flux) = 0;
 
- public:
   /**
    * @brief Construct a new Hyperbolic Element Form Integrator object
    *
@@ -211,7 +210,7 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
   Vector nor;     // normal vector (usually not a unit vector)
   Vector fluxN;   // hat(F)(u,x)
 
- protected:
+ public:
   /**
    * @brief Abstract method to compute normal flux. Must be overloaded in the
    * derived class
@@ -226,7 +225,6 @@ class HyperbolicFaceFormIntegrator : public NonlinearFormIntegrator {
   virtual double ComputeFluxDotN(const Vector &state, const Vector &nor,
                                  ElementTransformation &Tr, Vector &fluxN) = 0;
 
- public:
   /**
    * @brief Construct a new Hyperbolic Face Form Integrator object
    *
@@ -512,10 +510,10 @@ void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol,
 
 /**
  * @brief Perform h-derefinement with given error and z-score
- * 
+ *
  * Threshold is set to log(err[i]) < mean(log(err)) - z*std(log(err))
  * and error is aggregate by using max(neighbors).
- * 
+ *
  * @param errors element-wise error
  * @param sol solution (updated by using interpolation)
  * @param z z-score for the threshold
@@ -751,6 +749,7 @@ class EulerElementFormIntegrator : public HyperbolicElementFormIntegrator {
    * @param flux F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
    * @return double maximum characteristic speed, |u| + √(γp/ρ)
    */
+ public:
   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                      DenseMatrix &flux) {
     const int dim = state.Size() - 2;
@@ -795,7 +794,6 @@ class EulerElementFormIntegrator : public HyperbolicElementFormIntegrator {
     return speed + sound;
   }
 
- public:
   /**
    * @brief Construct a new Euler Element Form Integrator object with given
    * integral order offset
@@ -837,6 +835,7 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
   const double specific_heat_ratio;  // specific heat ratio, γ
   const double gas_constant;         // gas constant
 
+ public:
   /**
    * @brief Compute normal flux, F(ρ, ρu, E)n
    *
@@ -885,7 +884,6 @@ class EulerFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
     return speed + sound;
   }
 
- public:
   /**
    * @brief Construct a new Euler Face Form Integrator object with given
    * integral order offset
@@ -947,7 +945,7 @@ DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
  * @brief Burgers element intgration (F(u), grad v)
  */
 class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
- private:
+ public:
   /**
    * @brief Compute F(u)
    *
@@ -962,7 +960,6 @@ class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
     return abs(state(0));
   }
 
- public:
   /**
    * @brief Construct a new Burgers Element Form Integrator object with given
    * integral order offset
@@ -987,7 +984,7 @@ class BurgersElementFormIntegrator : public HyperbolicElementFormIntegrator {
  * @brief Burgers face intgration <hat(F)(u), [[v]]>
  */
 class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
- private:
+ public:
   /**
    * @brief Compute normal flux, F(u)n
    *
@@ -1003,7 +1000,6 @@ class BurgersFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
     return abs(state(0));
   }
 
- public:
   /**
    * @brief Construct a new Burgers Face Form Integrator object with given
    * integral order offset
@@ -1054,6 +1050,7 @@ class AdvectionElementFormIntegrator : public HyperbolicElementFormIntegrator {
   VectorCoefficient &b;  // velocity coefficient
   Vector bval;           // velocity value storage
 
+ public:
   /**
    * @brief Compute F(u)
    *
@@ -1074,7 +1071,6 @@ class AdvectionElementFormIntegrator : public HyperbolicElementFormIntegrator {
     return bval.Norml2();
   }
 
- public:
   /**
    * @brief Construct a new Advection Element Form Integrator object with given
    * integral order offset
@@ -1106,6 +1102,7 @@ class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
  private:
   VectorCoefficient &b;  // velocity coefficient
   Vector bval;           // velocity value storage
+ public:
   /**
    * @brief Compute normal flux, F(u)n
    *
@@ -1124,7 +1121,6 @@ class AdvectionFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
     return bval.Norml2();
   }
 
- public:
   /**
    * @brief Construct a new Advection Face Form Integrator object with given
    * integral order offset
@@ -1181,6 +1177,7 @@ class ShallowWaterElementFormIntegrator
  private:
   const double g;  // gravity constant
 
+ public:
   /**
    * @brief Compute F(h, hu)
    *
@@ -1213,7 +1210,6 @@ class ShallowWaterElementFormIntegrator
     return vel + sound;
   }
 
- public:
   /**
    * @brief Construct a new Shallow Water Element Form Integrator object with
    * given integral order offset
@@ -1243,6 +1239,7 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
  private:
   const double g;
 
+ public:
   /**
    * @brief Compute normal flux, F(h, hu)
    *
@@ -1274,7 +1271,6 @@ class ShallowWaterFaceFormIntegrator : public HyperbolicFaceFormIntegrator {
     return vel + sound;
   }
 
- public:
   /**
    * @brief Construct a new shallow water Face Form Integrator object with given
    * integral order offset
