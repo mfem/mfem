@@ -1467,6 +1467,7 @@ void Mesh::InitTables()
 {
    el_to_edge =
       el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
+   face_to_elem = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -1489,6 +1490,9 @@ void Mesh::DestroyTables()
 
    delete face_edge;
    delete edge_vertex;
+
+   delete face_to_elem;
+   face_to_elem = NULL;
 }
 
 void Mesh::DestroyPointers()
@@ -1550,6 +1554,7 @@ void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
+   delete face_to_elem;    face_to_elem = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
    nbInteriorFaces = -1;
@@ -3632,6 +3637,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Do NOT copy the face-to-edge Table, face_edge
    face_edge = NULL;
+   face_to_elem = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
    edge_vertex = (mesh.edge_vertex) ? new Table(*mesh.edge_vertex) : NULL;
@@ -6175,6 +6181,34 @@ void Mesh::GetElementFaces(int i, Array<int> &el_faces, Array<int> &ori) const
    }
 }
 
+Array<int> Mesh::FindFaceNeighbors(const int elem) const
+{
+   if (face_to_elem == NULL)
+   {
+      face_to_elem = GetFaceToElementTable();
+   }
+
+   Array<int> elem_faces;
+   Array<int> ori;
+   GetElementFaces(elem, elem_faces, ori);
+
+   Array<int> nghb;
+   for (auto f : elem_faces)
+   {
+      Array<int> row;
+      face_to_elem->GetRow(f, row);
+      for (auto r : row)
+      {
+         nghb.Append(r);
+      }
+   }
+
+   nghb.Sort();
+   nghb.Unique();
+
+   return nghb;
+}
+
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 {
    const int *bv, *fv;
@@ -8608,6 +8642,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                new Pyramid(oedge+e[7], oedge+e[6], oedge+e[5],
                            oedge+e[4], oface+qf0, attr);
 
+#ifndef MFEM_USE_MEMALLOC
             new_elements[j++] =
                new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
                                oface+qf0, attr);
@@ -8623,6 +8658,24 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             new_elements[j++] =
                new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
                                oface+qf0, attr);
+#else
+            Tetrahedron *tet;
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[0], oedge+e[4], oedge+e[5],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[1], oedge+e[5], oedge+e[6],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[2], oedge+e[6], oedge+e[7],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
+                      oface+qf0, attr);
+#endif
          }
          break;
 
@@ -9152,8 +9205,9 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 double Mesh::AggregateError(const Array<double> &elem_error,
                             const int *fine, int nfine, int op)
 {
-   double error = 0.0;
-   for (int i = 0; i < nfine; i++)
+   double error = elem_error[fine[0]];
+
+   for (int i = 1; i < nfine; i++)
    {
       MFEM_VERIFY(fine[i] < elem_error.Size(), "");
 
@@ -9317,6 +9371,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(bel_to_edge, other.bel_to_edge);
    mfem::Swap(be_to_face, other.be_to_face);
    mfem::Swap(face_edge, other.face_edge);
+   mfem::Swap(face_to_elem, other.face_to_elem);
    mfem::Swap(edge_vertex, other.edge_vertex);
 
    mfem::Swap(attributes, other.attributes);
@@ -10480,7 +10535,7 @@ void Mesh::PrintVTU(std::string fname,
                     bool bdr)
 {
    int ref = (high_order_output && Nodes)
-             ? Nodes->FESpace()->GetElementOrder(0) : 1;
+             ? Nodes->FESpace()->GetMaxElementOrder() : 1;
 
    fname = fname + ".vtu";
    std::fstream os(fname.c_str(),std::ios::out);

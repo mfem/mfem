@@ -503,34 +503,42 @@ public:
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
    ///
-   /// @note The returned object should NOT be deleted by the caller.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31) override;
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D)
-       using the shared face index @a sf. @a fill2 specify if the information
-       for elem2 of the face should be computed or not.
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+   /// Get the FaceElementTransformations for the given shared face (edge 2D)
+   /// using the shared face index @a sf. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
    ///
-   /// @note The returned object should NOT be deleted by the caller.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D)
-       using the face index @a FaceNo. @a fill2 specify if the information
-       for elem2 of the face should be computed or not.
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+   /// Get the FaceElementTransformations for the given shared face (edge 2D)
+   /// using the face index @a FaceNo. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
    ///
-   /// @note The returned object should NOT be deleted by the caller.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
-   /// @note The returned object should NOT be deleted by the caller.
-   ElementTransformation *
-   GetFaceNbrElementTransformation(int i)
+   /// Returns a pointer to the transformation defining the i-th face neighbor.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
+   ElementTransformation *GetFaceNbrElementTransformation(int i)
    {
       GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
 
