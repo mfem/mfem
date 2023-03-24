@@ -314,21 +314,21 @@ protected:
       virtual void LumpedMassInverse(Vector& ML_inv) const = 0;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
       /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
-      virtual void GetHOTDofsByVDim(int vdim, const Vector& x, 
+      virtual void GetHOTDofsByVDim(int vdim, const Vector& x,
                                     Vector& x_vdim_true) const = 0;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
       /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
-      virtual void GetLORTDofsByVDim(int vdim, const Vector& x, 
+      virtual void GetLORTDofsByVDim(int vdim, const Vector& x,
                                      Vector& x_vdim_true) const = 0;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse 
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse
       /// (higher-order) mesh.
-      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
+      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
                                         Vector& y) const = 0;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined 
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined
       /// (low-order) mesh.
-      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
+      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
                                          Vector& y) const = 0;
    private:
       /// Computes sparsity pattern and initializes R matrix. Based on
@@ -356,26 +356,26 @@ protected:
       virtual void LumpedMassInverse(Vector& ML_inv) const;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
       /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
-      virtual void GetHOTDofsByVDim(int vdim, const Vector& x, 
+      virtual void GetHOTDofsByVDim(int vdim, const Vector& x,
                                     Vector& x_vdim_true) const;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
       /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
-      virtual void GetLORTDofsByVDim(int vdim, const Vector& x, 
+      virtual void GetLORTDofsByVDim(int vdim, const Vector& x,
                                      Vector& x_vdim_true) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse 
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse
       /// (higher-order) mesh.
-      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
+      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
                                         Vector& y) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined 
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined
       /// (low-order) mesh.
-      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
+      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
                                          Vector& y) const;
-      void GetDofsByVDim(const FiniteElementSpace& fes, 
-                          int vdim, const Vector& x, Vector& x_vdim) const;
-      void SetFromDofsByVDim(const FiniteElementSpace& fes, 
-                              int vdim, const Vector& y_vdim, Vector& y) const;
+      void GetDofsByVDim(const FiniteElementSpace& fes,
+                         int vdim, const Vector& x, Vector& x_vdim) const;
+      void SetFromDofsByVDim(const FiniteElementSpace& fes,
+                             int vdim, const Vector& y_vdim, Vector& y) const;
    };
 
 
@@ -404,26 +404,26 @@ protected:
       virtual void LumpedMassInverse(Vector& ML_inv) const;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
       /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
-      virtual void GetHOTDofsByVDim(int vdim, const Vector& x, 
+      virtual void GetHOTDofsByVDim(int vdim, const Vector& x,
                                     Vector& x_vdim_true) const;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
       /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
-      virtual void GetLORTDofsByVDim(int vdim, const Vector& x, 
+      virtual void GetLORTDofsByVDim(int vdim, const Vector& x,
                                      Vector& x_vdim_true) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse 
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse
       /// (higher-order) mesh.
-      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
+      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
                                         Vector& y) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined 
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined
       /// (low-order) mesh.
-      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
+      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
                                          Vector& y) const;
-      void GetTDofsByVDim(const ParFiniteElementSpace& pfes, 
+      void GetTDofsByVDim(const ParFiniteElementSpace& pfes,
                           const ParFiniteElementSpace& pfes_scalar,
                           int vdim, const Vector& x, Vector& x_vdim_true) const;
-      void SetFromTDofsByVDim(const ParFiniteElementSpace& pfes, 
+      void SetFromTDofsByVDim(const ParFiniteElementSpace& pfes,
                               const ParFiniteElementSpace& pfes_scalar,
                               int vdim, const Vector& y_vdim_true, Vector& y) const;
    };

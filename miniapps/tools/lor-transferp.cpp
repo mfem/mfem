@@ -229,13 +229,15 @@ int main(int argc, char *argv[])
       M_rho.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_true, M_rho);
       P.MultTranspose(M_rho, M_rho_lor);
       Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
-      M_rho_lor.ParFESpace()->GetRestrictionOperator()->Mult(M_rho_lor, M_rho_lor_true);
+      M_rho_lor.ParFESpace()->GetRestrictionOperator()->Mult(M_rho_lor,
+                                                             M_rho_lor_true);
       double local_ho_mass = M_rho_true.Sum();
       double local_lor_mass = M_rho_lor_true.Sum();
       double ho_mass;
       double lor_mass;
       MPI_Allreduce(&local_ho_mass, &ho_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM,
+                    MPI_COMM_WORLD);
       if (Mpi::Root())
       {
          cout << "HO -> LOR dual field: " << fabs(ho_mass - lor_mass) << endl << endl;
@@ -285,7 +287,8 @@ int main(int argc, char *argv[])
       rho_lor.GetTrueDofs(rho_lor_true);
       Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
       M_lor_tdof->Mult(rho_lor_true, M_rho_lor_true);
-      M_rho_lor.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_lor_true, M_rho_lor);
+      M_rho_lor.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_lor_true,
+                                                            M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
       Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
       M_rho.ParFESpace()->GetRestrictionOperator()->Mult(M_rho, M_rho_true);
@@ -294,7 +297,8 @@ int main(int argc, char *argv[])
       double ho_mass;
       double lor_mass;
       MPI_Allreduce(&local_ho_mass, &ho_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM,
+                    MPI_COMM_WORLD);
       if (Mpi::Root())
       {
          cout << "LOR -> HO dual field: " << fabs(ho_mass - lor_mass) << '\n';
@@ -339,7 +343,8 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
    int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
-   sol_sockL2 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+   sol_sockL2 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+              "\n";
    sol_sockL2.precision(8);
    sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("density")
               << "window_geometry " << x << " " << y << " " << w << " " << h
@@ -360,7 +365,7 @@ double compute_mass(ParFiniteElementSpace *L2, double massL2,
 
    Vector rhoone(L2->GetTrueVSize());
    rhoone = 1.0;
-   
+
    Vector Mdiag(L2->GetTrueVSize());
    pML2->Mult(rhoone, Mdiag);
    delete pML2;
@@ -373,8 +378,8 @@ double compute_mass(ParFiniteElementSpace *L2, double massL2,
       cout << space << " " << prefix << " mass   = " << newmass;
       if (massL2 >= 0)
       {
-          cout.precision(4);
-          cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+         cout.precision(4);
+         cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
       }
       cout << endl;
    }
