@@ -253,9 +253,9 @@ protected:
       virtual void SetAbsTol(double p_atol_) {}
    };
 
-   /** Class for projection operator between a H1 high-order finite element
-       space on a coarse mesh, and a H1 low-order finite element space on a
-       refined mesh (LOR). */
+   /** Abstract class for projection operator between a H1 high-order finite
+       element space on a coarse mesh, and a H1 low-order finite element space
+       on a refined mesh (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
    protected:
@@ -306,23 +306,40 @@ protected:
       virtual void SetRelTol(double p_rtol_);
       virtual void SetAbsTol(double p_atol_);
    protected:
+      /// Sets default shared options for the CGSolver
+      void InitializeCGSolver();
+      /// Computes on-rank R and M_LH matrices
       std::pair<SparseMatrix*, SparseMatrix*> ComputeSparseRAndM_LH();
+      /// Abstract method to return the inverse of an on-rank lumped mass matrix
       virtual void LumpedMassInverse(Vector& ML_inv) const = 0;
+      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
+      /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
       virtual void GetHOTDofsByVDim(int vdim, const Vector& x, 
                                     Vector& x_vdim_true) const = 0;
+      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
+      /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
       virtual void GetLORTDofsByVDim(int vdim, const Vector& x, 
                                      Vector& x_vdim_true) const = 0;
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse 
+      /// (higher-order) mesh.
       virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                         Vector& y) const = 0;
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined 
+      /// (low-order) mesh.
       virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                          Vector& y) const = 0;
    private:
       /// Computes sparsity pattern and initializes R matrix. Based on
-      /// BilinearForm::AllocMat() except maps between HO elements and LOR
-      /// elements.
+      /// BilinearForm::AllocMat() except maps between coarse HO elements and
+      /// refined LOR elements.
       SparseMatrix* AllocR();
    };
 
+   /** Implements class for projection operator between a H1 high-order finite
+       element space on a coarse mesh, and a H1 low-order finite element space
+       on a refined mesh (LOR) in serial. */
    class SerialL2ProjectionH1Space : public L2ProjectionH1Space
    {
    private:
@@ -337,12 +354,22 @@ protected:
    private:
       /// Computes inverse of a lumped mass matrix (stored as a vector)
       virtual void LumpedMassInverse(Vector& ML_inv) const;
+      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
+      /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
       virtual void GetHOTDofsByVDim(int vdim, const Vector& x, 
                                     Vector& x_vdim_true) const;
+      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
+      /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
       virtual void GetLORTDofsByVDim(int vdim, const Vector& x, 
                                      Vector& x_vdim_true) const;
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse 
+      /// (higher-order) mesh.
       virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                         Vector& y) const;
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined 
+      /// (low-order) mesh.
       virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                          Vector& y) const;
       void GetDofsByVDim(const FiniteElementSpace& fes, 
@@ -353,6 +380,10 @@ protected:
 
 
 #ifdef MFEM_USE_MPI
+
+   /** Implements class for projection operator between a H1 high-order finite
+       element space on a coarse mesh, and a H1 low-order finite element space
+       on a refined mesh (LOR) in parallel. */
    class ParL2ProjectionH1Space : public L2ProjectionH1Space
    {
    private:
@@ -371,12 +402,22 @@ protected:
    private:
       /// Computes inverse of a lumped mass matrix (stored as a vector)
       virtual void LumpedMassInverse(Vector& ML_inv) const;
+      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
+      /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
       virtual void GetHOTDofsByVDim(int vdim, const Vector& x, 
                                     Vector& x_vdim_true) const;
+      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
+      /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
       virtual void GetLORTDofsByVDim(int vdim, const Vector& x, 
                                      Vector& x_vdim_true) const;
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse 
+      /// (higher-order) mesh.
       virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                         Vector& y) const;
+      /// Sets the true dof values on a chosen <tt>vdim</tt> from 
+      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined 
+      /// (low-order) mesh.
       virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                          Vector& y) const;
       void GetTDofsByVDim(const ParFiniteElementSpace& pfes, 

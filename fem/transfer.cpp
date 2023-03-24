@@ -621,6 +621,16 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(double p_atol_)
    pcg.SetAbsTol(sqrt(p_atol_));
 }
 
+void L2ProjectionGridTransfer::L2ProjectionH1Space::InitializeCGSolver()
+{
+   // Basic PCG solver setup
+   pcg.SetPrintLevel(0);
+   pcg.SetMaxIter(1000);
+   // initial values for relative and absolute tolerance
+   SetRelTol(1e-25);
+   SetAbsTol(1e-25);
+}
+
 std::pair<SparseMatrix*, SparseMatrix*> 
    L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
 {
@@ -853,12 +863,7 @@ L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SerialL2ProjectionH1Space(
    M_LH = M_LH_sm;
    RTxM_LH = RTxM_LH_sm;
 
-   // Basic PCG solver setup
-   pcg.SetPrintLevel(0);
-   pcg.SetMaxIter(1000);
-   // initial values for relative and absolute tolerance
-   SetRelTol(1e-20);
-   SetAbsTol(1e-20);
+   InitializeCGSolver();
    Ds = DSmoother(*RTxM_LH_sm);
    pcg.SetPreconditioner(Ds);
    pcg.SetOperator(*RTxM_LH);
@@ -971,13 +976,8 @@ L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
    M_LH = M_LH_par;
    RTxM_LH = RTxM_LH_par;
 
-   // Basic PCG solver setup
    pcg = CGSolver(MPI_COMM_WORLD);
-   pcg.SetPrintLevel(0);
-   pcg.SetMaxIter(1000);
-   // initial values for relative and absolute tolerance
-   SetRelTol(1e-25);
-   SetAbsTol(1e-25);
+   InitializeCGSolver();
    M = new HypreBoomerAMG(*RTxM_LH_par);
    M->SetPrintLevel(0);
    pcg.SetPreconditioner(*M);
