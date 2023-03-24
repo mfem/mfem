@@ -767,9 +767,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::GetDofsByVDim(
    int vdim, const Vector& x, Vector& x_vdim) const
 {
    MFEM_ASSERT(x.Size() == fes.GetVSize(),
-      "Size of x Vector must match the number of vector DOFs.");
+               "Size of x Vector must match the number of vector DOFs.");
    MFEM_ASSERT(x_vdim.Size() == fes.GetNDofs(),
-      "Size of x_vdim Vector must match the number of DOFs.");
+               "Size of x_vdim Vector must match the number of DOFs.");
    Array<int> vdim_dofs(fes.GetNDofs());
    fes.GetVDofs(vdim, vdim_dofs);
    x.GetSubVector(vdim_dofs, x_vdim);
@@ -780,9 +780,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromDofsByVDim(
    int vdim, const Vector& y_vdim, Vector& y) const
 {
    MFEM_ASSERT(y_vdim.Size() == fes.GetNDofs(),
-      "Size of y_vdim Vector must match the number of DOFs.");
+               "Size of y_vdim Vector must match the number of DOFs.");
    MFEM_ASSERT(y.Size() == fes.GetVSize(),
-      "Size of y Vector must match the number of vector DOFs.");
+               "Size of y Vector must match the number of vector DOFs.");
    Array<int> vdim_dofs(fes.GetNDofs());
    fes.GetVDofs(vdim, vdim_dofs);
    y.SetSubVector(vdim_dofs, y_vdim);
