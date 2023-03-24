@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//       --------------------------------------------------------------
-//       LOR Transfer Miniapp:  Map functions between HO and LOR spaces
-//       --------------------------------------------------------------
+//   -----------------------------------------------------------------------
+//   Parallel LOR Transfer Miniapp:  Map functions between HO and LOR spaces
+//   -----------------------------------------------------------------------
 //
 // This miniapp visualizes the maps between a high-order (HO) finite element
 // space, typically using high-order functions on a high-order mesh, and a
@@ -29,17 +29,17 @@
 // particular finite element spaces. For example they satisfy PR=I, plus mass
 // conservation in both directions for L2 fields.
 //
-// Compile with: make lor-transfer
+// Compile with: make lor-transferp
 //
-// Sample runs:  lor-transfer
-//               lor-transfer -h1
-//               lor-transfer -t
-//               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
-//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
-//               lor-transfer -lref 4 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 3 -p 2
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 3
+// Sample runs:  lor-transferp
+//               lor-transferp -h1
+//               lor-transferp -t
+//               lor-transferp -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transferp -m ../../data/star-mixed.mesh -lref 3 -p 2
+//               lor-transferp -lref 4 -o 4 -lo 0 -p 1
+//               lor-transferp -lref 5 -o 4 -lo 0 -p 1
+//               lor-transferp -lref 5 -o 4 -lo 3 -p 2
+//               lor-transferp -lref 5 -o 4 -lo 0 -p 3
 
 #include "mfem.hpp"
 #include <fstream>
@@ -102,14 +102,16 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (Mpi::Root())
+      {
+         args.PrintUsage(cout);
+      }
       return 1;
    }
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
-   
 
    // Read the mesh from the given mesh file.
    Mesh serial_mesh(mesh_file, 1, 1);
@@ -200,10 +202,15 @@ int main(int argc, char *argv[])
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
       rho_prev -= rho;
+      Vector rho_prev_true(fespace.GetTrueVSize());
+      rho_prev.GetTrueDofs(rho_prev_true);
+      double l_inf_local = rho_prev_true.Normlinf();
+      double l_inf;
+      MPI_Allreduce(&l_inf_local, &l_inf, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
       if (Mpi::Root())
       {
          cout.precision(12);
-         cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+         cout << "|HO - P(R(HO))|_∞   = " << l_inf << endl;
       }
    }
 
@@ -259,10 +266,15 @@ int main(int argc, char *argv[])
       if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
       rho_lor_prev -= rho_lor;
+      Vector rho_lor_prev_true(fespace_lor.GetTrueVSize());
+      rho_lor_prev.GetTrueDofs(rho_lor_prev_true);
+      double l_inf_local = rho_lor_prev_true.Normlinf();
+      double l_inf;
+      MPI_Allreduce(&l_inf_local, &l_inf, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
       if (Mpi::Root())
       {
          cout.precision(12);
-         cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+         cout << "|LOR - R(P(LOR))|_∞ = " << l_inf << endl;
       }
    }
 
@@ -324,6 +336,7 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
    int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
+   sol_sockL2 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
    sol_sockL2.precision(8);
    sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("density")
               << "window_geometry " << x << " " << y << " " << w << " " << h
