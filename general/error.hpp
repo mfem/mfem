@@ -142,7 +142,7 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 
 #endif
 
-/// Generate a warning message - always generated, regardless of MFEM_DEBUG.
+// Generate a warning message - always generated, regardless of MFEM_DEBUG.
 #define MFEM_WARNING(msg) _MFEM_MESSAGE("MFEM Warning: " << msg, 1)
 
 // Macro that checks (in MFEM_DEBUG mode) that i is in the range [imin,imax).
