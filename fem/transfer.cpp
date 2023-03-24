@@ -551,6 +551,66 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 L2ProjectionGridTransfer::L2ProjectionH1Space::~L2ProjectionH1Space()
 {}
 
+void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
+   const Vector& x, Vector& y) const
+{
+   Vector X_dim(R->Width());
+   Vector Y_dim(R->Height());
+   for (int d = 0; d < fes_ho.GetVDim(); ++d)
+   {
+      GetHOTDofsByVDim(d, x, X_dim);
+      R->Mult(X_dim, Y_dim);
+      SetLORFromTDofsByVDim(d, Y_dim, y);
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
+   const Vector& x, Vector& y) const
+{
+   Vector X_dim(R->Height());
+   Vector Y_dim(R->Width());
+   for (int d = 0; d < fes_ho.GetVDim(); ++d)
+   {
+      GetLORTDofsByVDim(d, x, X_dim);
+      R->MultTranspose(X_dim, Y_dim);
+      SetHOFromTDofsByVDim(d, Y_dim, y);
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
+   const Vector& x, Vector& y) const
+{
+   Vector X_dim(M_LH->Height());
+   Vector Y_dim(pcg.Height());
+   Vector Xbar(pcg.Width());
+   for (int d = 0; d < fes_ho.GetVDim(); ++d)
+   {
+      GetLORTDofsByVDim(d, x, X_dim);
+      // Compute y = P x = (R^T M_LH)^(-1) M_LH^T x = (R^T M_LH)^(-1) xbar
+      M_LH->MultTranspose(X_dim, Xbar);
+      Y_dim = 0.0;
+      pcg.Mult(Xbar, Y_dim);
+      SetHOFromTDofsByVDim(d, Y_dim, y);
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
+   const Vector& x, Vector& y) const
+{
+   Vector X_dim(pcg.Width());
+   Vector Y_dim(M_LH->Height());
+   Vector Xbar(pcg.Height());
+   for (int d = 0; d < fes_ho.GetVDim(); ++d)
+   {
+      GetHOTDofsByVDim(d, x, X_dim);
+      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) x = M_LH xbar
+      Xbar = 0.0;
+      pcg.Mult(X_dim, Xbar);
+      M_LH->Mult(Xbar, Y_dim);
+      SetLORFromTDofsByVDim(d, Y_dim, y);
+   }
+}
+
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(double p_rtol_)
 {
    pcg.SetRelTol(sqrt(p_rtol_));
@@ -783,8 +843,8 @@ SparseMatrix* L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
 }
 
 L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SerialL2ProjectionH1Space(
-   const FiniteElementSpace& pfes_ho_, const FiniteElementSpace& pfes_lor_)
-: L2ProjectionH1Space(pfes_ho_, pfes_lor_)
+   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_)
+: L2ProjectionH1Space(fes_ho_, fes_lor_)
 {
    std::tie(R_sm, M_LH_sm) = ComputeSparseRAndM_LH();
    RTxM_LH_sm = TransposeMult(*R_sm, *M_LH_sm);
@@ -819,96 +879,54 @@ void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::LumpedMassInverse(Vect
    }
 }
 
-void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::Mult(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::GetHOTDofsByVDim(
+   int vdim, const Vector& x, Vector& x_vdim_true) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_ho);
-   Vector y_dim(ndof_lor);
-
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_ho.GetVDofs(d, dofs_ho);
-      fes_lor.GetVDofs(d, dofs_lor);
-      x.GetSubVector(dofs_ho, x_dim);
-      R->Mult(x_dim, y_dim);
-      y.SetSubVector(dofs_lor, y_dim);
-   }
+   GetDofsByVDim(fes_ho, vdim, x, x_vdim_true);
 }
 
-void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::MultTranspose(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::GetLORTDofsByVDim(
+   int vdim, const Vector& x, Vector& x_vdim_true) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_lor);
-   Vector y_dim(ndof_ho);
-
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_ho.GetVDofs(d, dofs_ho);
-      fes_lor.GetVDofs(d, dofs_lor);
-      x.GetSubVector(dofs_lor, x_dim);
-      R->MultTranspose(x_dim, y_dim);
-      y.SetSubVector(dofs_ho, y_dim);
-   }
+   GetDofsByVDim(fes_lor, vdim, x, x_vdim_true);
 }
 
-void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::Prolongate(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::GetDofsByVDim(
+   const FiniteElementSpace& fes,
+   int vdim, const Vector& x, Vector& x_vdim) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_lor);
-   Vector y_dim(ndof_ho);
-   Vector xbar(ndof_ho);
-
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_lor.GetVDofs(d, dofs_lor);
-      x.GetSubVector(dofs_lor, x_dim);
-      // Compute y = P x = (R^T M_LH)^(-1) M_LH^T x = (R^T M_LH)^(-1) xbar
-      M_LH->MultTranspose(x_dim, xbar);
-      y_dim = 0.0;
-      pcg.Mult(xbar, y_dim);
-      fes_ho.GetVDofs(d, dofs_ho);
-      y.SetSubVector(dofs_ho, y_dim);
-   }
+   MFEM_ASSERT(x.Size() == fes.GetVSize(),
+      "Size of x Vector must match the number of vector DOFs.");
+   MFEM_ASSERT(x_vdim.Size() == fes.GetNDofs(),
+      "Size of x_vdim Vector must match the number of DOFs.");
+   Array<int> vdim_dofs(fes.GetNDofs());
+   fes.GetVDofs(vdim, vdim_dofs);
+   x.GetSubVector(vdim_dofs, x_vdim);
 }
 
-void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::ProlongateTranspose(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SetHOFromTDofsByVDim(
+   int vdim, const Vector& y_vdim_true, Vector& y) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_ho);
-   Vector y_dim(ndof_lor);
-   Vector xbar(ndof_ho);
+   SetFromDofsByVDim(fes_ho, vdim, y_vdim_true, y);
+}
 
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_ho.GetVDofs(d, dofs_ho);
-      x.GetSubVector(dofs_ho, x_dim);
-      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) x = M_LH xbar
-      xbar = 0.0;
-      pcg.Mult(x_dim, xbar);
-      M_LH->Mult(xbar, y_dim);
-      fes_lor.GetVDofs(d, dofs_lor);
-      y.SetSubVector(dofs_lor, y_dim);
-   }
+void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SetLORFromTDofsByVDim(
+   int vdim, const Vector& y_vdim_true, Vector& y) const
+{
+   SetFromDofsByVDim(fes_lor, vdim, y_vdim_true, y);
+}
+
+void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SetFromDofsByVDim(
+   const FiniteElementSpace& fes,
+   int vdim, const Vector& y_vdim, Vector& y) const
+{
+   MFEM_ASSERT(y_vdim.Size() == fes.GetNDofs(),
+      "Size of y_vdim Vector must match the number of DOFs.");
+   MFEM_ASSERT(y.Size() == fes.GetVSize(),
+      "Size of y Vector must match the number of vector DOFs.");
+   Array<int> vdim_dofs(fes.GetNDofs());
+   fes.GetVDofs(vdim, vdim_dofs);
+   y.SetSubVector(vdim_dofs, y_vdim);
 }
 
 #ifdef MFEM_USE_MPI
@@ -917,25 +935,35 @@ L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho_, const ParFiniteElementSpace& pfes_lor_)
 : L2ProjectionH1Space(pfes_ho_, pfes_lor_), 
   pfes_ho(pfes_ho_), 
-  pfes_lor(pfes_lor_),
-  pfes_ho_scalar(pfes_ho.GetParMesh(), pfes_ho.FEColl(), 1),
-  pfes_lor_scalar(pfes_lor.GetParMesh(), pfes_lor.FEColl(), 1)
+  pfes_lor(pfes_lor_)
 {
+   if (pfes_ho.GetVDim() != 1)
+   {
+      pfes_ho_scalar = new ParFiniteElementSpace(pfes_ho.GetParMesh(), 
+                                                 pfes_ho.FEColl(), 1);
+      pfes_lor_scalar = new ParFiniteElementSpace(pfes_lor.GetParMesh(), 
+                                                  pfes_lor.FEColl(), 1);
+   }
+   else // vdim == 1
+   {
+      pfes_ho_scalar = &pfes_ho;
+      pfes_lor_scalar = &pfes_lor;
+   }
    SparseMatrix* R_sm;
    SparseMatrix* M_LH_sm;
    std::tie(R_sm, M_LH_sm) = ComputeSparseRAndM_LH();
 
-   HypreParMatrix R_local = HypreParMatrix(pfes_ho_scalar.GetComm(),
-      pfes_lor_scalar.GlobalVSize(), pfes_ho_scalar.GlobalVSize(),
-      pfes_lor_scalar.GetDofOffsets(), pfes_ho_scalar.GetDofOffsets(), R_sm);
-   HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho_scalar.GetComm(),
-      pfes_lor_scalar.GlobalVSize(), pfes_ho_scalar.GlobalVSize(),
-      pfes_lor_scalar.GetDofOffsets(), pfes_ho_scalar.GetDofOffsets(), M_LH_sm);
+   HypreParMatrix R_local = HypreParMatrix(pfes_ho_scalar->GetComm(),
+      pfes_lor_scalar->GlobalVSize(), pfes_ho_scalar->GlobalVSize(),
+      pfes_lor_scalar->GetDofOffsets(), pfes_ho_scalar->GetDofOffsets(), R_sm);
+   HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho_scalar->GetComm(),
+      pfes_lor_scalar->GlobalVSize(), pfes_ho_scalar->GlobalVSize(),
+      pfes_lor_scalar->GetDofOffsets(), pfes_ho_scalar->GetDofOffsets(), M_LH_sm);
 
-   R_par = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(), &R_local,
-      pfes_ho_scalar.Dof_TrueDof_Matrix());
-   M_LH_par = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(), &M_LH_local,
-      pfes_ho_scalar.Dof_TrueDof_Matrix());
+   R_par = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(), &R_local,
+      pfes_ho_scalar->Dof_TrueDof_Matrix());
+   M_LH_par = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(), &M_LH_local,
+      pfes_ho_scalar->Dof_TrueDof_Matrix());
    HypreParMatrix* R_T = R_par->Transpose();
    RTxM_LH_par = ParMult(R_T, M_LH_par, true);
 
@@ -948,27 +976,35 @@ L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
    pcg.SetPrintLevel(0);
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   SetRelTol(1e-20);
-   SetAbsTol(1e-20);
-   M = HypreBoomerAMG(*RTxM_LH_par);
+   SetRelTol(1e-25);
+   SetAbsTol(1e-25);
+   M = new HypreBoomerAMG(*RTxM_LH_par);
+   M->SetPrintLevel(0);
+   pcg.SetPreconditioner(*M);
    pcg.SetOperator(*RTxM_LH_par);
-   // pcg.SetPreconditioner(M);
 
    delete R_sm;
    delete M_LH_sm;
+   delete R_T;
 }
 
 L2ProjectionGridTransfer::ParL2ProjectionH1Space::~ParL2ProjectionH1Space()
 {
+   if (pfes_ho.GetVDim() != 1)
+   {
+      delete pfes_ho_scalar;
+      delete pfes_lor_scalar;
+   }
    delete R_par;
    delete M_LH_par;
    delete RTxM_LH_par;
+   delete M;
 }
 
 void L2ProjectionGridTransfer::ParL2ProjectionH1Space::LumpedMassInverse(Vector& ML_inv) const
 {
-   Vector ML_inv_true(pfes_lor_scalar.GetTrueVSize());
-   const Operator& P = *pfes_lor_scalar.GetProlongationMatrix();
+   Vector ML_inv_true(pfes_lor_scalar->GetTrueVSize());
+   const Operator& P = *pfes_lor_scalar->GetProlongationMatrix();
    P.MultTranspose(ML_inv, ML_inv_true);
    for (int i = 0; i < ML_inv_true.Size(); ++i)
    {
@@ -977,128 +1013,62 @@ void L2ProjectionGridTransfer::ParL2ProjectionH1Space::LumpedMassInverse(Vector&
    P.Mult(ML_inv_true, ML_inv);
 }
 
-void L2ProjectionGridTransfer::ParL2ProjectionH1Space::Mult(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::ParL2ProjectionH1Space::GetHOTDofsByVDim(
+   int vdim, const Vector& x, Vector& x_vdim_true) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_ho);
-   Vector y_dim(ndof_lor);
-   const int ntdof_ho = pfes_ho_scalar.GetTrueVSize();
-   const int ntdof_lor = pfes_lor_scalar.GetTrueVSize();
-   Vector X_dim(ntdof_ho);
-   Vector Y_dim(ntdof_lor);
-   const Operator* fes_R = pfes_ho_scalar.GetRestrictionOperator();
-   const Operator* fes_P = pfes_lor_scalar.GetProlongationMatrix();
-
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_ho.GetVDofs(d, dofs_ho);
-      fes_lor.GetVDofs(d, dofs_lor);
-      x.GetSubVector(dofs_ho, x_dim);
-      fes_R->Mult(x_dim, X_dim);
-      R->Mult(X_dim, Y_dim);
-      fes_P->Mult(Y_dim, y_dim);
-      y.SetSubVector(dofs_lor, y_dim);
-   }
+   GetTDofsByVDim(pfes_ho, *pfes_ho_scalar, vdim, x, x_vdim_true);
 }
 
-void L2ProjectionGridTransfer::ParL2ProjectionH1Space::MultTranspose(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::ParL2ProjectionH1Space::GetLORTDofsByVDim(
+   int vdim, const Vector& x, Vector& x_vdim_true) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_lor);
-   Vector y_dim(ndof_ho);
-   const int ntdof_ho = pfes_ho_scalar.GetTrueVSize();
-   const int ntdof_lor = pfes_lor_scalar.GetTrueVSize();
-   Vector X_dim(ntdof_lor);
-   Vector Y_dim(ntdof_ho);
-   const Operator* fes_R = pfes_lor_scalar.GetRestrictionOperator();
-   const Operator* fes_P = pfes_ho_scalar.GetProlongationMatrix();
-
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_ho.GetVDofs(d, dofs_ho);
-      fes_lor.GetVDofs(d, dofs_lor);
-      x.GetSubVector(dofs_lor, x_dim);
-      fes_R->Mult(x_dim, X_dim);
-      R->MultTranspose(X_dim, Y_dim);
-      fes_P->Mult(Y_dim, y_dim);
-      y.SetSubVector(dofs_ho, y_dim);
-   }
+   GetTDofsByVDim(pfes_lor, *pfes_lor_scalar, vdim, x, x_vdim_true);
 }
 
-void L2ProjectionGridTransfer::ParL2ProjectionH1Space::Prolongate(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::ParL2ProjectionH1Space::GetTDofsByVDim(
+   const ParFiniteElementSpace& pfes, const ParFiniteElementSpace& pfes_scalar,
+   int vdim, const Vector& x, Vector& x_vdim_true) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_lor);
-   Vector y_dim(ndof_ho);
-   const int ntdof_ho = pfes_ho_scalar.GetTrueVSize();
-   const int ntdof_lor = pfes_lor_scalar.GetTrueVSize();
-   Vector X_dim(ntdof_lor);
-   Vector Y_dim(ntdof_ho);
-   Vector Xbar(ntdof_ho);
-   const Operator* fes_R = pfes_lor_scalar.GetRestrictionOperator();
-   const Operator* fes_P = pfes_ho_scalar.GetProlongationMatrix();
-
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_lor.GetVDofs(d, dofs_lor);
-      x.GetSubVector(dofs_lor, x_dim);
-      fes_R->Mult(x_dim, X_dim);
-      // Compute y = P x = (R^T M_LH)^(-1) M_LH^T x = (R^T M_LH)^(-1) xbar
-      M_LH->MultTranspose(X_dim, Xbar);
-      Y_dim = 0.0;
-      pcg.Mult(Xbar, Y_dim);
-      fes_P->Mult(Y_dim, y_dim);
-      fes_ho.GetVDofs(d, dofs_ho);
-      y.SetSubVector(dofs_ho, y_dim);
-   }
+   MFEM_ASSERT(x.Size() == pfes.GetVSize(),
+      "Size of x Vector must match the number of vector DOFs.");
+   MFEM_ASSERT(x_vdim_true.Size() == pfes_scalar.GetTrueVSize(),
+      "Size of x_vdim_true Vector must match the number of scalar true DOFs.");
+   // transfer to vector of vdim dofs
+   Array<int> vdim_dofs(pfes.GetNDofs());
+   pfes.GetVDofs(vdim, vdim_dofs);
+   Vector x_vdim(pfes.GetNDofs());
+   x.GetSubVector(vdim_dofs, x_vdim);
+   // transfer to vector of true dofs on the vdim
+   pfes_scalar.GetRestrictionOperator()->Mult(x_vdim, x_vdim_true);
 }
 
-void L2ProjectionGridTransfer::ParL2ProjectionH1Space::ProlongateTranspose(
-   const Vector& x, Vector& y) const
+void L2ProjectionGridTransfer::ParL2ProjectionH1Space::SetHOFromTDofsByVDim(
+   int vdim, const Vector& y_vdim_true, Vector& y) const
 {
-   int vdim = fes_ho.GetVDim();
-   const int ndof_ho = fes_ho.GetNDofs();
-   const int ndof_lor = fes_lor.GetNDofs();
-   Array<int> dofs_ho(ndof_ho);
-   Array<int> dofs_lor(ndof_lor);
-   Vector x_dim(ndof_ho);
-   Vector y_dim(ndof_lor);
-   const int ntdof_ho = pfes_ho_scalar.GetTrueVSize();
-   const int ntdof_lor = pfes_lor_scalar.GetTrueVSize();
-   Vector X_dim(ntdof_ho);
-   Vector Y_dim(ntdof_lor);
-   const Operator* fes_R = pfes_ho_scalar.GetRestrictionOperator();
-   const Operator* fes_P = pfes_lor_scalar.GetProlongationMatrix();
-   Vector Xbar(ntdof_ho);
+   SetFromTDofsByVDim(pfes_ho, *pfes_ho_scalar, vdim, y_vdim_true, y);
+}
 
-   for (int d = 0; d < vdim; ++d)
-   {
-      fes_ho.GetVDofs(d, dofs_ho);
-      x.GetSubVector(dofs_ho, x_dim);
-      fes_R->Mult(x_dim, X_dim);
-      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) x = M_LH xbar
-      Xbar = 0.0;
-      pcg.Mult(X_dim, Xbar);
-      M_LH->Mult(Xbar, Y_dim);
-      fes_P->Mult(Y_dim, y_dim);
-      fes_lor.GetVDofs(d, dofs_lor);
-      y.SetSubVector(dofs_lor, y_dim);
-   }
+void L2ProjectionGridTransfer::ParL2ProjectionH1Space::SetLORFromTDofsByVDim(
+   int vdim, const Vector& y_vdim_true, Vector& y) const
+{
+   SetFromTDofsByVDim(pfes_lor, *pfes_lor_scalar, vdim, y_vdim_true, y);
+}
+
+void L2ProjectionGridTransfer::ParL2ProjectionH1Space::SetFromTDofsByVDim(
+   const ParFiniteElementSpace& pfes, const ParFiniteElementSpace& pfes_scalar,
+   int vdim, const Vector& y_vdim_true, Vector& y) const
+{
+   MFEM_ASSERT(y_vdim_true.Size() == pfes_scalar.GetTrueVSize(),
+      "Size of y_vdim_true Vector must match the number of scalar true DOFs.");
+   MFEM_ASSERT(y.Size() == pfes.GetVSize(),
+      "Size of y Vector must match the number of vector DOFs.");
+   // prologate to vector of dofs on the vdim
+   Vector y_vdim(pfes.GetNDofs());
+   pfes_scalar.GetProlongationMatrix()->Mult(y_vdim_true, y_vdim);
+   // transfer to global vector
+   Array<int> vdim_dofs(pfes.GetNDofs());
+   pfes.GetVDofs(vdim, vdim_dofs);
+   y.SetSubVector(vdim_dofs, y_vdim);
 }
 
 #endif

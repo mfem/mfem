@@ -301,10 +301,13 @@ int main(int argc, char *argv[])
       }
    }
 
+   Mpi::Finalize();
+
    delete fec;
    delete fec_lor;
    delete M_ho_tdof;
    delete M_lor_tdof;
+   delete gt;
 
    return 0;
 }
@@ -360,6 +363,7 @@ double compute_mass(ParFiniteElementSpace *L2, double massL2,
    
    Vector Mdiag(L2->GetTrueVSize());
    pML2->Mult(rhoone, Mdiag);
+   delete pML2;
    HypreParVector* rho = dc.GetParField("density")->GetTrueDofs();
    double newmass = InnerProduct(MPI_COMM_WORLD, *rho, Mdiag);
    delete rho;
