@@ -362,7 +362,7 @@ MFEM_CPPFLAGS  ?= $(CPPFLAGS)
 MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
-MFEM_PICFLAG   ?= $(if $(or $(shared),$(jit)),$(XCOMPILER)$(PICFLAG))
+MFEM_PICFLAG   ?= $(if $(or $(shared),$(jit)),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -503,7 +503,9 @@ STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJEC
 MJIT_PARSER_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
 MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
 MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
-MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(subst $\",\\\x22,$(strip $(MFEM_BUILD_FLAGS)))\""
+# Out of source compilation uses MFEM_CONFIG_FILE with double quotes
+# which have to be escaped differently through nvcc
+MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(subst $\",$(if $(MFEM_USE_CUDA:NO=),\\\x5c)\\\x22,$(strip $(MFEM_BUILD_FLAGS)))\""
 $(BLD)mjit: $(SRC)general/jit/parser.cpp $(CONFIG_MK) $(SRC)makefile $(SRC)general/jit/jit.hpp
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
 
