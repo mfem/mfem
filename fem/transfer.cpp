@@ -763,6 +763,32 @@ std::pair<SparseMatrix*, SparseMatrix*>
    return r_and_mlh;
 }
 
+void L2ProjectionGridTransfer::L2ProjectionH1Space::GetDofsByVDim(
+   const FiniteElementSpace& fes,
+   int vdim, const Vector& x, Vector& x_vdim) const
+{
+   MFEM_ASSERT(x.Size() == fes.GetVSize(),
+      "Size of x Vector must match the number of vector DOFs.");
+   MFEM_ASSERT(x_vdim.Size() == fes.GetNDofs(),
+      "Size of x_vdim Vector must match the number of DOFs.");
+   Array<int> vdim_dofs(fes.GetNDofs());
+   fes.GetVDofs(vdim, vdim_dofs);
+   x.GetSubVector(vdim_dofs, x_vdim);
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromDofsByVDim(
+   const FiniteElementSpace& fes,
+   int vdim, const Vector& y_vdim, Vector& y) const
+{
+   MFEM_ASSERT(y_vdim.Size() == fes.GetNDofs(),
+      "Size of y_vdim Vector must match the number of DOFs.");
+   MFEM_ASSERT(y.Size() == fes.GetVSize(),
+      "Size of y Vector must match the number of vector DOFs.");
+   Array<int> vdim_dofs(fes.GetNDofs());
+   fes.GetVDofs(vdim, vdim_dofs);
+   y.SetSubVector(vdim_dofs, y_vdim);
+}
+
 SparseMatrix* L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
 {
    const Table& elem_dof_ho = fes_ho.GetElementToDofTable();
@@ -896,19 +922,6 @@ void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::GetLORTDofsByVDim(
    GetDofsByVDim(fes_lor, vdim, x, x_vdim_true);
 }
 
-void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::GetDofsByVDim(
-   const FiniteElementSpace& fes,
-   int vdim, const Vector& x, Vector& x_vdim) const
-{
-   MFEM_ASSERT(x.Size() == fes.GetVSize(),
-      "Size of x Vector must match the number of vector DOFs.");
-   MFEM_ASSERT(x_vdim.Size() == fes.GetNDofs(),
-      "Size of x_vdim Vector must match the number of DOFs.");
-   Array<int> vdim_dofs(fes.GetNDofs());
-   fes.GetVDofs(vdim, vdim_dofs);
-   x.GetSubVector(vdim_dofs, x_vdim);
-}
-
 void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SetHOFromTDofsByVDim(
    int vdim, const Vector& y_vdim_true, Vector& y) const
 {
@@ -919,19 +932,6 @@ void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SetLORFromTDofsByVDim(
    int vdim, const Vector& y_vdim_true, Vector& y) const
 {
    SetFromDofsByVDim(fes_lor, vdim, y_vdim_true, y);
-}
-
-void L2ProjectionGridTransfer::SerialL2ProjectionH1Space::SetFromDofsByVDim(
-   const FiniteElementSpace& fes,
-   int vdim, const Vector& y_vdim, Vector& y) const
-{
-   MFEM_ASSERT(y_vdim.Size() == fes.GetNDofs(),
-      "Size of y_vdim Vector must match the number of DOFs.");
-   MFEM_ASSERT(y.Size() == fes.GetVSize(),
-      "Size of y Vector must match the number of vector DOFs.");
-   Array<int> vdim_dofs(fes.GetNDofs());
-   fes.GetVDofs(vdim, vdim_dofs);
-   y.SetSubVector(vdim_dofs, y_vdim);
 }
 
 #ifdef MFEM_USE_MPI
@@ -1029,15 +1029,11 @@ void L2ProjectionGridTransfer::ParL2ProjectionH1Space::GetTDofsByVDim(
    const ParFiniteElementSpace& pfes, const ParFiniteElementSpace& pfes_scalar,
    int vdim, const Vector& x, Vector& x_vdim_true) const
 {
-   MFEM_ASSERT(x.Size() == pfes.GetVSize(),
-      "Size of x Vector must match the number of vector DOFs.");
    MFEM_ASSERT(x_vdim_true.Size() == pfes_scalar.GetTrueVSize(),
       "Size of x_vdim_true Vector must match the number of scalar true DOFs.");
    // transfer to vector of vdim dofs
-   Array<int> vdim_dofs(pfes.GetNDofs());
-   pfes.GetVDofs(vdim, vdim_dofs);
    Vector x_vdim(pfes.GetNDofs());
-   x.GetSubVector(vdim_dofs, x_vdim);
+   GetDofsByVDim(pfes, vdim, x, x_vdim);
    // transfer to vector of true dofs on the vdim
    pfes_scalar.GetRestrictionOperator()->Mult(x_vdim, x_vdim_true);
 }
@@ -1060,15 +1056,11 @@ void L2ProjectionGridTransfer::ParL2ProjectionH1Space::SetFromTDofsByVDim(
 {
    MFEM_ASSERT(y_vdim_true.Size() == pfes_scalar.GetTrueVSize(),
       "Size of y_vdim_true Vector must match the number of scalar true DOFs.");
-   MFEM_ASSERT(y.Size() == pfes.GetVSize(),
-      "Size of y Vector must match the number of vector DOFs.");
    // prologate to vector of dofs on the vdim
    Vector y_vdim(pfes.GetNDofs());
    pfes_scalar.GetProlongationMatrix()->Mult(y_vdim_true, y_vdim);
    // transfer to global vector
-   Array<int> vdim_dofs(pfes.GetNDofs());
-   pfes.GetVDofs(vdim, vdim_dofs);
-   y.SetSubVector(vdim_dofs, y_vdim);
+   SetFromDofsByVDim(pfes, vdim, y_vdim, y);
 }
 
 #endif
