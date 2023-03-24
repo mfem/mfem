@@ -140,7 +140,7 @@ class FaceQuadratureInterpolator;
     elements. MFEM typically chooses the orientation of the first such shared
     degree of freedom that it encounters as the default orientation for the
     corresponding local dof. When this local dof is referenced by a neighboring
-    element which happens to  require the opposite orientation the local dof
+    element which happens to require the opposite orientation the local dof
     index will be returned (by calls to functions such as
     FiniteElementSpace::GetElementDofs) as a negative integer. In such cases
     the actual offset into the vector of local dofs is @b -index-1 and the
