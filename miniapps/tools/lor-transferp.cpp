@@ -131,7 +131,10 @@ int main(int argc, char *argv[])
       if (lorder == 0)
       {
          lorder = 1;
-         cerr << "Switching the H1 LOR space order from 0 to 1\n";
+         if (Mpi::Root())
+         {
+            cerr << "Switching the H1 LOR space order from 0 to 1\n";
+         }
       }
       fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
