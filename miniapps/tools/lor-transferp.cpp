@@ -105,7 +105,11 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   if (Mpi::Root())
+   {
+      args.PrintOptions(cout);
+   }
+   
 
    // Read the mesh from the given mesh file.
    Mesh serial_mesh(mesh_file, 1, 1);
@@ -153,11 +157,13 @@ int main(int argc, char *argv[])
    M_ho.AddDomainIntegrator(new MassIntegrator);
    M_ho.Assemble();
    M_ho.Finalize();
+   HypreParMatrix* M_ho_tdof = M_ho.ParallelAssemble();
 
    ParBilinearForm M_lor(&fespace_lor);
    M_lor.AddDomainIntegrator(new MassIntegrator);
    M_lor.Assemble();
    M_lor.Finalize();
+   HypreParMatrix* M_lor_tdof = M_lor.ParallelAssemble();
 
    // HO projections
    direction = "HO -> LOR @ HO";
@@ -194,8 +200,11 @@ int main(int argc, char *argv[])
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
       rho_prev -= rho;
-      cout.precision(12);
-      cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+      if (Mpi::Root())
+      {
+         cout.precision(12);
+         cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+      }
    }
 
    // HO* to LOR* dual fields
@@ -206,10 +215,24 @@ int main(int argc, char *argv[])
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
       const Operator &P = gt->BackwardOperator();
-      M_ho.Mult(rho, M_rho);
+      Vector rho_true(rho.ParFESpace()->GetTrueVSize());
+      rho.GetTrueDofs(rho_true);
+      Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
+      M_ho_tdof->Mult(rho_true, M_rho_true);
+      M_rho.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_true, M_rho);
       P.MultTranspose(M_rho, M_rho_lor);
-      cout << "HO -> LOR dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
-           << endl << endl;
+      Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
+      M_rho_lor.ParFESpace()->GetRestrictionOperator()->Mult(M_rho_lor, M_rho_lor_true);
+      double local_ho_mass = M_rho_true.Sum();
+      double local_lor_mass = M_rho_lor_true.Sum();
+      double ho_mass;
+      double lor_mass;
+      MPI_Allreduce(&local_ho_mass, &ho_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      if (Mpi::Root())
+      {
+         cout << "HO -> LOR dual field: " << fabs(ho_mass - lor_mass) << endl << endl;
+      }
    }
 
    // LOR projections
@@ -236,21 +259,40 @@ int main(int argc, char *argv[])
       if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
       rho_lor_prev -= rho_lor;
-      cout.precision(12);
-      cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+      if (Mpi::Root())
+      {
+         cout.precision(12);
+         cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+      }
    }
 
    // LOR* to HO* dual fields
    if (!use_pointwise_transfer)
    {
-      M_lor.Mult(rho_lor, M_rho_lor);
+      Vector rho_lor_true(rho_lor.ParFESpace()->GetTrueVSize());
+      rho_lor.GetTrueDofs(rho_lor_true);
+      Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
+      M_lor_tdof->Mult(rho_lor_true, M_rho_lor_true);
+      M_rho_lor.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_lor_true, M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
-      cout << "LOR -> HO dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
-           << '\n';
+      Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
+      M_rho.ParFESpace()->GetRestrictionOperator()->Mult(M_rho, M_rho_true);
+      double local_ho_mass = M_rho_true.Sum();
+      double local_lor_mass = M_rho_lor_true.Sum();
+      double ho_mass;
+      double lor_mass;
+      MPI_Allreduce(&local_ho_mass, &ho_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      if (Mpi::Root())
+      {
+         cout << "LOR -> HO dual field: " << fabs(ho_mass - lor_mass) << '\n';
+      }
    }
 
    delete fec;
    delete fec_lor;
+   delete M_ho_tdof;
+   delete M_lor_tdof;
 
    return 0;
 }
@@ -300,19 +342,24 @@ double compute_mass(ParFiniteElementSpace *L2, double massL2,
    ML2.Finalize();
    HypreParMatrix* pML2 = ML2.ParallelAssemble();
 
-   ParGridFunction rhoone(L2);
+   Vector rhoone(L2->GetTrueVSize());
    rhoone = 1.0;
    
-   ParGridFunction Mdiag(L2);
+   Vector Mdiag(L2->GetTrueVSize());
    pML2->Mult(rhoone, Mdiag);
-   double newmass = mfem::InnerProduct(*dc.GetParField("density"), Mdiag);
-   cout.precision(18);
-   cout << space << " " << prefix << " mass   = " << newmass;
-   if (massL2 >= 0)
+   HypreParVector* rho = dc.GetParField("density")->GetTrueDofs();
+   double newmass = InnerProduct(MPI_COMM_WORLD, *rho, Mdiag);
+   delete rho;
+   if (Mpi::Root())
    {
-      cout.precision(4);
-      cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+      cout.precision(18);
+      cout << space << " " << prefix << " mass   = " << newmass;
+      if (massL2 >= 0)
+      {
+          cout.precision(4);
+          cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+      }
+      cout << endl;
    }
-   cout << endl;
    return newmass;
 }
