@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4094,6 +4094,14 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
    ComputeFDh(x,*fes);
    if (discr_tc)
    {
+#ifdef MFEM_USE_GSLIB
+      const AdaptivityEvaluator *ae = discr_tc->GetAdaptivityEvaluator();
+      if (dynamic_cast<const InterpolatorFP *>(ae))
+      {
+         MFEM_ABORT("Using GSLIB-based interpolation with finite differences"
+                    "requires careful consideration. Contact TMOP team.");
+      }
+#endif
       discr_tc->UpdateTargetSpecification(x, false, fes->GetOrdering());
       discr_tc->UpdateGradientTargetSpecification(x, dx, false, fes->GetOrdering());
       discr_tc->UpdateHessianTargetSpecification(x, dx, false, fes->GetOrdering());
@@ -4108,6 +4116,14 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
    ComputeFDh(x,*pfes);
    if (discr_tc)
    {
+#ifdef MFEM_USE_GSLIB
+      const AdaptivityEvaluator *ae = discr_tc->GetAdaptivityEvaluator();
+      if (dynamic_cast<const InterpolatorFP *>(ae))
+      {
+         MFEM_ABORT("Using GSLIB-based interpolation with finite differences"
+                    "requires careful consideration. Contact TMOP team.");
+      }
+#endif
       discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
       discr_tc->UpdateGradientTargetSpecification(x, dx, false, pfes->GetOrdering());
       discr_tc->UpdateHessianTargetSpecification(x, dx, false, pfes->GetOrdering());
