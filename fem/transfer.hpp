@@ -310,6 +310,10 @@ protected:
       void InitializeCGSolver();
       /// Computes on-rank R and M_LH matrices
       std::pair<SparseMatrix*, SparseMatrix*> ComputeSparseRAndM_LH();
+      void GetDofsByVDim(const FiniteElementSpace& fes, 
+                          int vdim, const Vector& x, Vector& x_vdim) const;
+      void SetFromDofsByVDim(const FiniteElementSpace& fes, 
+                              int vdim, const Vector& y_vdim, Vector& y) const;
       /// Abstract method to return the inverse of an on-rank lumped mass matrix
       virtual void LumpedMassInverse(Vector& ML_inv) const = 0;
       /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
@@ -372,10 +376,6 @@ protected:
       /// (low-order) mesh.
       virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true, 
                                          Vector& y) const;
-      void GetDofsByVDim(const FiniteElementSpace& fes, 
-                          int vdim, const Vector& x, Vector& x_vdim) const;
-      void SetFromDofsByVDim(const FiniteElementSpace& fes, 
-                              int vdim, const Vector& y_vdim, Vector& y) const;
    };
 
 
