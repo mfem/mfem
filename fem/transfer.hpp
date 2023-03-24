@@ -266,15 +266,36 @@ protected:
       // Used to compute P = (RTxM_LH)^(-1) M_LH^T
       Operator* M_LH;
       Operator* RTxM_LH;
-      SparseMatrix* R_sm;
-      SparseMatrix* M_LH_sm;
-      SparseMatrix* RTxM_LH_sm;
       CGSolver pcg;
 
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_);
    public:
       virtual ~L2ProjectionH1Space();
+      virtual void SetRelTol(double p_rtol_);
+      virtual void SetAbsTol(double p_atol_);
+   protected:
+      std::pair<SparseMatrix*, SparseMatrix*> ComputeSparseRAndM_LH();
+      virtual void LumpedMassInverse(Vector& ML_inv) const = 0;
+   private:
+      /// Computes sparsity pattern and initializes R matrix. Based on
+      /// BilinearForm::AllocMat() except maps between HO elements and LOR
+      /// elements.
+      SparseMatrix* AllocR();
+   };
+
+   class SerialL2ProjectionH1Space : public L2ProjectionH1Space
+   {
+   private:
+      SparseMatrix* R_sm;
+      SparseMatrix* M_LH_sm;
+      SparseMatrix* RTxM_LH_sm;
+      DSmoother Ds;
+      virtual void LumpedMassInverse(Vector& ML_inv) const;
+   public:
+      SerialL2ProjectionH1Space(const FiniteElementSpace& pfes_ho_,
+                                const FiniteElementSpace& pfes_lor_);
+      virtual ~SerialL2ProjectionH1Space();
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -306,25 +327,6 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetRelTol(double p_rtol_);
-      virtual void SetAbsTol(double p_atol_);
-   protected:
-      std::pair<SparseMatrix*, SparseMatrix*> ComputeSparseRAndM_LH();
-   private:
-      /// Computes sparsity pattern and initializes R matrix. Based on
-      /// BilinearForm::AllocMat() except maps between HO elements and LOR
-      /// elements.
-      SparseMatrix* AllocR();
-   };
-
-   class SerialL2ProjectionH1Space : public L2ProjectionH1Space
-   {
-   private:
-      DSmoother Ds;
-   public:
-      SerialL2ProjectionH1Space(const FiniteElementSpace& pfes_ho_,
-                                const FiniteElementSpace& pfes_lor_);
-      virtual ~SerialL2ProjectionH1Space();
    };
 
 
@@ -332,14 +334,50 @@ protected:
    class ParL2ProjectionH1Space : public L2ProjectionH1Space
    {
    private:
+      const ParFiniteElementSpace& pfes_ho;
+      const ParFiniteElementSpace& pfes_lor;
+      ParFiniteElementSpace pfes_ho_scalar;
+      ParFiniteElementSpace pfes_lor_scalar;
       HypreParMatrix* R_par;
       HypreParMatrix* M_LH_par;
       HypreParMatrix* RTxM_LH_par;
       HypreBoomerAMG M;
+      virtual void LumpedMassInverse(Vector& ML_inv) const;
    public:
       ParL2ProjectionH1Space(const ParFiniteElementSpace& pfes_ho_,
                              const ParFiniteElementSpace& pfes_lor_);
       virtual ~ParL2ProjectionH1Space();
+      /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
+      /// with a higher order H1 finite element space, to <tt>y</tt>, primal
+      /// field coefficients defined on a refined mesh with a low order H1
+      /// finite element space. Refined mesh should be a uniform refinement of
+      /// the coarse mesh. Coefficients are computed through minimization of L2
+      /// error between the fields.
+      virtual void Mult(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
+      /// with a low order H1 finite element space, to <tt>y</tt>, dual field
+      /// coefficients defined on a coarse mesh with a higher order H1 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed through minimization of L2
+      /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
+      /// come from ProlongateTranspose, then mass is conserved.
+      virtual void MultTranspose(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
+      /// with a low order H1 finite element space, to <tt>y</tt>, primal field
+      /// coefficients defined on a coarse mesh with a higher order H1 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed from the mass conservative
+      /// left-inverse prolongation operation. This functionality is also
+      /// provided as an Operator by L2Prolongation.
+      virtual void Prolongate(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
+      /// a higher order H1 finite element space, to <tt>y</tt>, dual field
+      /// coefficients defined on a refined mesh with a low order H1 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed from the transpose of the mass
+      /// conservative left-inverse prolongation operation. This functionality
+      /// is also provided as an Operator by L2Prolongation.
+      virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
    };
 #endif
 
