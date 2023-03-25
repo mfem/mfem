@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -378,12 +378,24 @@ public:
    virtual ~DataCollection();
 
    /// Errors returned by Error()
-   enum { NO_ERROR = 0, READ_ERROR = 1, WRITE_ERROR = 2 };
+   enum
+   {
+      // Workaround for use with headers that define NO_ERROR as a macro,
+      // e.g. winerror.h (which is included by Windows.h):
+#ifndef NO_ERROR
+      NO_ERROR = 0,
+#endif
+      // Use the following identifier if NO_ERROR is defined as a macro,
+      // e.g. winerror.h (which is included by Windows.h):
+      No_Error    = 0,
+      READ_ERROR  = 1,
+      WRITE_ERROR = 2
+   };
 
    /// Get the current error state
    int Error() const { return error; }
    /// Reset the error state
-   void ResetError(int err_state = NO_ERROR) { error = err_state; }
+   void ResetError(int err_state = No_Error) { error = err_state; }
 
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
