@@ -71,6 +71,7 @@ public:
    void UniformRefinement(Vector &newknots) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
+   /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
    void Flip();
@@ -135,6 +136,7 @@ public:
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
    int GetNKV() const { return kv.Size(); }
+   /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
@@ -150,7 +152,9 @@ public:
    void SwapDirections(int dir1, int dir2);
    void Rotate3D(double normal[], double angle);
    int MakeUniformDegree(int degree = -1);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
                                 int times);
 };
@@ -220,6 +224,7 @@ protected:
    Array<NURBSPatch *> patches;
 
    inline int         KnotInd(int edge) const;
+   /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
    inline const KnotVector *KnotVec(int edge) const;
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
@@ -373,7 +378,9 @@ public:
 
    bool HavePatches() const { return (patches.Size() != 0); }
 
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetElementDofTable() { return el_dof; }
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetBdrElementDofTable() { return bel_dof; }
 
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
