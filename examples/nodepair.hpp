@@ -127,6 +127,96 @@ void ComputeNormal(const DenseMatrix& dphidxi, const DenseMatrix& coords, Vector
     normal /=  nnorm;
 }
 
+void SlaveToMaster(const DenseMatrix& m_coords, const Vector& s_x, Vector& xi)
+{                               
+    bool converged = false;
+    bool pt_on_elem = false;
+    int dim = 3;
+    xi.SetSize(dim-1);
+    xi = 0.0;
+    double r = 1e10;
+    int max_iter = 15;
+    double off_el_xi = 1e-2;
+    double proj_newton_tol = 1e-13;
+    double proj_max_gap = 0.5;
+    Vector gap_v(dim); 
+    // warm start from linear solution
+    
+    for (int it=0; it<max_iter; it++)
+    {
+      cout<<it<<endl;
+      Vector m_N(4);
+      m_N = 0.;
+      DenseMatrix m_dN(2,4);
+      m_dN = 0.;
+      DenseMatrix m_dN2(3,4);
+      m_dN2 = 0.;
+      BasisEvalDerivs(xi, m_N, m_dN, m_dN2);
+    
+      Vector x_c(dim);
+      m_coords.MultTranspose(m_N, x_c);
+      
+      gap_v = s_x; 
+      gap_v -= x_c;
+
+      DenseMatrix m_dx(2,3);
+      m_dx = 0.;
+      Mult(m_dN, m_coords, m_dx);
+     
+      Vector r(dim-1);
+      r = 0.0;
+      m_dx.Mult(gap_v, r); 
+      
+      if (r.Normlinf() < proj_newton_tol)
+      {
+        converged = true;
+        break;
+      }
+      
+      DenseMatrix drdxi(dim-1,dim-1);
+      drdxi = 0.;
+      MultABt(m_dx, m_dx, drdxi); // m_dx * m_dx.T
+      drdxi *= -1.0;
+      
+      DenseMatrix m_dx2(3,3); m_dx2 = 0.0;  
+      Mult(m_dN2,m_coords, m_dx2);
+      
+      //m_d2x = m_dN(:,:,2) * m_elem_coords(1:4,:);  //m_dN(:,:,2) is 3*4
+      for(int d=0; d<3; d++)
+      {
+        DenseMatrix Mtemp(2,2); Mtemp = 0.0;
+        Mtemp(0,0) = m_dx2(0,d); Mtemp(0,1) = m_dx2(1,d);
+        Mtemp(1,0) = m_dx2(1,d); Mtemp(1,1) = m_dx2(2,d);
+
+        drdxi.Add(gap_v[d], Mtemp);
+      }
+      
+      //cond_num = rcond(drdxi);  condition number?
+      //drdxi.TestInversion();
+      DenseMatrixInverse drdxi_inv(drdxi);
+      Vector xi_tmp(dim-1);
+
+      drdxi_inv.Mult(r ,xi_tmp);
+      xi -= xi_tmp;       
+    }
+    if (!converged)
+    {
+      xi = 0.0;
+    }
+    off_el_xi += 1 ; // tolerance of offset of xi outside [-1,1]
+  
+    cout<<gap_v.Norml2()<<" " <<xi.Normlinf()<<endl; 
+    if (gap_v.Norml2() < proj_max_gap && xi.Normlinf() <= off_el_xi)
+    {
+      pt_on_elem = true;
+    }
+
+    MFEM_VERIFY(pt_on_elem == true, "xi went out of bounds");
+    MFEM_VERIFY(converged == true, "projection didn't converge");
+}
+
+
+
   // m_coords is expected to be 4 * 3  
 void  ComputeGapJacobian(const Vector x_s, const Vector xi, const DenseMatrix m_coords, 
 		         double& gap, Vector& normal, Vector& dgdxm, Vector& dgdxs)
@@ -144,7 +234,6 @@ void  ComputeGapJacobian(const Vector x_s, const Vector xi, const DenseMatrix m_
     gap_v -= x_c;
 
     DenseMatrix m_dx(2,3);
-
     Mult(m_dN, m_coords, m_dx);
 
     double nnorm = 0;
