@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -93,7 +93,7 @@ report_baseline:
           git pull && \
           git add ${rundir} && \
           git commit -m "${msg}" && \
-          git push origin master
+          ${CI_PROJECT_DIR}/.gitlab/scripts/git_try_to_push
         else
           for file in ${rundir}/*; do
             echo "------------------------------"

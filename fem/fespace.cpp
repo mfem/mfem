@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2056,10 +2056,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R = (elem_geoms.Size() != 1)
-                     ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-                     : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                                        localR[elem_geoms[0]].SizeI());
+   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<int> mark(R->Height());
    mark = 0;
@@ -2069,6 +2066,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
    int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
@@ -2091,10 +2089,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
 
-            if (!mark[m])
+            if (is_dg || !mark[m])
             {
                lR.GetRow(i, row);
                R->SetRow(r, old_vdofs, row);
+
                mark[m] = 1;
                num_marked++;
             }
@@ -2102,8 +2101,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   MFEM_VERIFY(num_marked == R->Height(),
-               "internal error: not all rows of R were set.");
+   if (!is_dg)
+   {
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
 
    R->Finalize(); // no-op if fixed width
    return R;
