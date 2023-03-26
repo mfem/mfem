@@ -24,7 +24,7 @@ double circle_level_set(const Vector &x)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      return r-0.25; // circle of radius 0.1
+      return r-0.25;
    }
    else
    {
@@ -47,46 +47,28 @@ double in_circle(const Vector &x, const Vector &x_center, double radius)
    {
       return 0.0;
    }
-   else
-   {
-      return -1.0;
-   }
-   return 0.0;
+
+   return -1.0;
 }
 
 double in_trapezium(const Vector &x, double a, double b, double l)
 {
    double phi_t = x(1) + (a-b)*x(0)/l - a;
-   if (phi_t <= 0.0)
-   {
-      return 1.0;
-   }
-   return -1.0;
+   return (phi_t <= 0.0) ? 1.0 : -1.0;
 }
 
 double in_parabola(const Vector &x, double h, double k, double t)
 {
    double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
    double phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
-   if (phi_p1 <= 0.0 && phi_p2 >= 0.0)
-   {
-      return 1.0;
-   }
-   return -1.0;
+   return (phi_p1 <= 0.0 && phi_p2 >= 0.0) ? 1.0 : -1.0;
 }
 
 double in_rectangle(const Vector &x, double xc, double yc, double w, double h)
 {
    double dx = fabs(x(0) - xc);
    double dy = fabs(x(1) - yc);
-   if (dx <= w/2 && dy <= h/2)
-   {
-      return 1.0;
-   }
-   else
-   {
-      return -1.0;
-   }
+   return (dx <= w/2 && dy <= h/2) ? 1.0 : -1.0;
 }
 
 // Fischer-Tropsch like geometry
@@ -124,14 +106,7 @@ double in_cube(const Vector &x, double xc, double yc, double zc, double lx,
    double dx = fabs(x(0) - xc);
    double dy = fabs(x(1) - yc);
    double dz = fabs(x(2) - zc);
-   if (dx <= lx/2 && dy <= ly/2 && dz <= lz/2)
-   {
-      return 1.0;
-   }
-   else
-   {
-      return -1.0;
-   }
+   return (dx <= lx/2 && dy <= ly/2 && dz <= lz/2) ? 1.0 : -1.0;
 }
 
 double in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
@@ -151,11 +126,8 @@ double in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
    {
       return 0.0;
    }
-   else
-   {
-      return -1.0;
-   }
-   return 0.0;
+
+   return -1.0;
 }
 
 double r_intersect(double r1, double r2)
