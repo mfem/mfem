@@ -482,13 +482,13 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
-void ParGridFunction::CountZones(Array<int> &zones_per_vdof) const
+void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
 {
-   GridFunction::CountZones(zones_per_vdof);
+   GridFunction::CountElementsPerVDof(elem_per_vdof);
    // Count the zones globally.
    GroupCommunicator &gcomm = this->ParFESpace()->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(zones_per_vdof);
+   gcomm.Reduce<int>(elem_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(elem_per_vdof);
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,

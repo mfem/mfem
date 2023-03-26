@@ -2756,7 +2756,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
 {
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
-   surf_fit_gf->CountZones(surf_fit_dof_count);
+   surf_fit_gf->CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -2775,7 +2775,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 {
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
-   s0.CountZones(surf_fit_dof_count);
+   s0.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -2847,7 +2847,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
    (*s0_bg_hess.FESpace()->GetMesh()->GetNodes(), s0_bg_hess);
 
    // Count number of zones that share each of the DOFs
-   s0.CountZones(surf_fit_dof_count);
+   s0.CountElementsPerVDof(surf_fit_dof_count);
    // Store DOF indices that are marked for fitting. Used to reduce work for
    // transferring information between source/background and current mesh.
    surf_fit_marker_dof_index.SetSize(0);
