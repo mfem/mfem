@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include <list>
+#include <cmath>
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
