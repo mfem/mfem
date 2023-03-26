@@ -148,7 +148,6 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-
 - Added a new elasticity miniapp, Hooke, that showcases a low-level approach of
   using MFEM to solve a nonlinear elasticity problem based on the fundamental
   finite element operator decomposition. The miniapp also integrates with
