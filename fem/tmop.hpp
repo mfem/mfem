@@ -1784,7 +1784,7 @@ protected:
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int new_x_ordering = Ordering::byNODES);
+                                      int x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {
@@ -1958,35 +1958,35 @@ public:
                              AdaptivityEvaluator &ae);
 
    /** @brief Fitting of certain DOFs in the current mesh to the zero level set
-       of a function defined on another (finer) mesh
+       of a function defined on another (finer) source mesh.
 
-       Having a level set function s0_bg(x0_bg) on a source/background mesh,
+       Having a level set function s_bg(x_bg) on a source/background mesh,
        a set of marked nodes (or DOFs) in the current mesh, we move the marked
-       nodes to the zero level set of s0_bg. This functionality is used for
+       nodes to the zero level set of s_bg. This functionality is used for
        surface fitting and tangential relaxation.
 
-       @param[in] s0_bg      The level set function on the background mesh.
-       @param[in] s0         The level set function (automatically) interpolated on
-                             the initial mesh.
-       @param[in] smarker    Indicates which DOFs in the current mesh will be aligned.
-       @param[in] coeff      Coefficient c for the above integral.
-       @param[in] ae         AdaptivityEvaluator to compute s(x) from s0(x0).
-       @param[in] s0_bg_grad Gridfunction for computing gradient of s0_bg.
-       @param[in] s0_grad    Gridfunction for interpolating gradient of s0_bg from x0_bg to x0.
-       @param[in] age        AdaptivityEvaluator for interpolating gradient.
-       @param[in] s0_bg_hess Gridfunction for computing second derivatives of s0_bg.
-       @param[in] s0_hess    Gridfunction for interpolating second derivatives of s0_bg from x0_bg to x0.
-       @param[in] ahe        AdaptivityEvaluator for interpolating second derivatives.
+       @param[in] s_bg       The level set function on the background mesh.
+       @param[in] s0         The level set function (automatically) interpolated
+                             on the initial mesh.
+       @param[in] smarker    Marker for aligned DOFs in the current mesh.
+       @param[in] coeff      Coefficient c for the fitting penalty term.
+       @param[in] ae         Interpolates s(x) from s_bg(x_bg).
+       @param[in] s_bg_grad  Gradient of s_bg on the background mesh.
+       @param[in] s0_grad    Gradient of s0 on the initial mesh.
+       @param[in] age        Interpolates s_grad(x) from s_bg_grad(x_bg).
+       @param[in] s_bg_hess  Hessian of s(x) on the background mesh.
+       @param[in] s0_hess    Hessian of s0 on the initial mesh.
+       @param[in] ahe        Interpolates s_hess(x) from s_bg_hess(x_bg).
        See the tmop-fitting miniapp for detail on usage. */
-   void EnableSurfaceFittingFromSource(const ParGridFunction &s0_bg,
+   void EnableSurfaceFittingFromSource(const ParGridFunction &s_bg,
                                        ParGridFunction &s0,
                                        const Array<bool> &smarker,
                                        Coefficient &coeff,
                                        AdaptivityEvaluator &ae,
-                                       const ParGridFunction &s0_bg_grad,
+                                       const ParGridFunction &s_bg_grad,
                                        ParGridFunction &s0_grad,
                                        AdaptivityEvaluator &age,
-                                       const ParGridFunction &s0_bg_hess,
+                                       const ParGridFunction &s_bg_hess,
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
 #endif
