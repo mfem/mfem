@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,7 +77,6 @@ constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
-static socketstream glvis;
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
 constexpr int  visport = 19916;
@@ -118,8 +117,10 @@ protected:
    Opt &opt;
    Mesh *mesh;
    Array<int> bc;
+   socketstream glvis;
    H1_FECollection *fec;
    FiniteElementSpace *fes;
+
 public:
    // Reading from mesh file
    Surface(Opt &opt, const char *file): Mesh(file, true), opt(opt) { }
@@ -157,7 +158,7 @@ public:
       // Initialize GLVis server if 'visualization' is set
       if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
       // Send to GLVis the first mesh
-      if (opt.vis) { Visualize(opt, mesh, GLVIZ_W, GLVIZ_H); }
+      if (opt.vis) { Visualize(glvis, opt, mesh, GLVIZ_W, GLVIZ_H); }
       // Create and launch the surface solver
       if (opt.by_vdim)
       {
@@ -170,7 +171,7 @@ public:
       if (opt.vis && opt.snapshot)
       {
          opt.keys = "Sq";
-         Visualize(opt, mesh, mesh->GetNodes());
+         Visualize(glvis, opt, mesh, mesh->GetNodes());
       }
       return 0;
    }
@@ -243,7 +244,8 @@ public:
    }
 
    // Initialize visualization of some given mesh
-   static void Visualize(Opt &opt, const Mesh *mesh,
+   static void Visualize(socketstream &glvis,
+                         Opt &opt, const Mesh *mesh,
                          const int w, const int h,
                          const GridFunction *sol = nullptr)
    {
@@ -259,7 +261,8 @@ public:
    }
 
    // Visualize some solution on the given mesh
-   static void Visualize(const Opt &opt, const Mesh *mesh,
+   static void Visualize(socketstream &glvis,
+                         const Opt &opt, const Mesh *mesh,
                          const GridFunction *sol = nullptr)
    {
       const GridFunction &solution = sol ? *sol : *mesh->GetNodes();
@@ -324,7 +327,7 @@ public:
          for (int i=0; i < opt.niters; ++i)
          {
             if (opt.amr) { Amr(); }
-            if (opt.vis) { Surface::Visualize(opt, S.mesh); }
+            if (opt.vis) { Surface::Visualize(S.glvis, opt, S.mesh); }
             if (!opt.id) { mfem::out << "Iteration " << i << ": "; }
             S.mesh->NodesUpdated();
             a.Update();
@@ -1237,8 +1240,9 @@ static int Problem1(Opt &opt)
    GridFunction uold(&fes), u(&fes), b(&fes);
    FunctionCoefficient u0_fc(u0);
    u.ProjectCoefficient(u0_fc);
+   socketstream glvis;
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
-   if (opt.vis) { Surface::Visualize(opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
+   if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
    CGSolver cg;
    cg.SetRelTol(EPS);
    cg.SetAbsTol(EPS*EPS);
@@ -1270,7 +1274,7 @@ static int Problem1(Opt &opt)
          mfem::out << "Iteration " << i << ", norm: " << norm
                    << ", area: " << area << std::endl;
       }
-      if (opt.vis) { Surface::Visualize(opt, &mesh, &u); }
+      if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, &u); }
       if (opt.print) { Surface::Print(opt, &mesh, &u); }
       if (norm < NRM) { break; }
    }

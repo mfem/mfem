@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,8 +47,6 @@ protected:
    Vector t_vec;
 
    void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
-
-   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
@@ -329,16 +327,33 @@ public:
 
    void GetCurl(ElementTransformation &tr, Vector &curl) const;
 
+   /** @brief Gradient of a scalar function at a quadrature point.
+
+       @note It is assumed that the IntegrationPoint of interest has been
+       specified by ElementTransformation::SetIntPoint() before calling
+       GetGradient().
+
+       @note Can be used from a ParGridFunction when @a tr is an
+       ElementTransformation of a face-neighbor element and face-neighbor data
+       has been exchanged. */
    void GetGradient(ElementTransformation &tr, Vector &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(ElementTransformation &tr, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
 
+   /// Extension of GetGradient(...) for a collection of IntegrationPoints.
    void GetGradients(const int elem, const IntegrationRule &ir,
                      DenseMatrix &grad) const
    { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
+   /** @brief Compute the vector gradient with respect to the physical element
+       variable. */
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
+
+   /** @brief Compute the vector gradient with respect to the reference element
+       variable. */
+   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
        where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
