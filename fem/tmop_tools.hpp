@@ -129,8 +129,7 @@ protected:
    int solver_type;
    bool parallel;
 
-   // Minimum detJ.
-   // Line search step is rejected if min(detJ) <= min_detJ_threshold
+   // Line search step is rejected if min(detJ) <= min_detJ_threshold.
    double min_detJ_threshold = 0.0;
 
    // Surface fitting variables.
