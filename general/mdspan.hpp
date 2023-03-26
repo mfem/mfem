@@ -15,6 +15,7 @@
 #include <list>
 #include <array>
 #include <vector>
+#include <utility>
 
 #include "device.hpp"
 #include "backends.hpp"
@@ -24,7 +25,7 @@ namespace mfem
 
 using md_size_t = int; // could be configured from MFEM config
 
-namespace internal // experimental helper functions for mfem::MDSpan
+namespace internal // experimental helper functions for mfem::MDLayout
 {
 
 // md_sequence represents a compile-time sequence of integers
@@ -54,7 +55,7 @@ struct MDOffset<N, N, T, Ts...>
    T offset(const md_size_t Sd[N], const T nd) { return nd * Sd[N-1]; }
 };
 
-/// @brief The MDTensor class holds a pointer and strides for each dimension
+/// @brief The MDTensor class holds the pointer and strides for each dimension
 template<md_size_t N, typename T = double>
 class MDTensor
 {
@@ -93,16 +94,16 @@ public:
    }
 };
 
-/// \brief The MDLayout class is by default an column-major (Fortran) ordering
+/// \brief The MDLayout class, defaulted to a column-major (left) ordering
 template<md_size_t N, bool left = true> struct MDLayout
 {
-   /// Create a layout through the internal::md_sequence
+   /// Create a layout with the internal::md_sequence
    template <md_size_t... args>
    static constexpr auto Make(internal::md_sequence<md_size_t, args...>)
    -> std::array<md_size_t, sizeof...(args)>
    { return {(static_cast<md_size_t>(args))...}; }
 
-   /// Array holding the permutation set for the layout
+   /// Array holding the layout permutation
    using perm_type = std::array<md_size_t, N>;
    perm_type perm = Make(internal::make_sequence<md_size_t, N, left> {});
 
@@ -147,9 +148,10 @@ template<md_size_t N> using MDLayoutRight = MDLayout<N, false>;
 /// \brief The MDSpan base class is a generic non-owning mfem_type's view
 /// that reinterprets it as a multidimensional type.
 /// It is suited for mfem::Array, mfem::Vector and mfem::GridFunction which all
-/// require mfem_type::data and mfem_type::size to exist;
+/// require mfem_type::data and mfem_type::size to exist.
 ///
-/// Possible typical use cases are used in tests/unit/general/test_mdspan.cpp.
+/// Possible use cases with Array, Vector and GridFunction are demonstrated in
+/// the tests/unit/general/test_mdspan.cpp file.
 template<typename mfem_type, typename T, md_size_t N, class layout_type = MDLayoutLeft<N>>
 class MDSpan : public mfem_type
 {
@@ -158,7 +160,7 @@ protected:
              Sd[N]; // strides, once the layout has been set
    layout_type layout; // stored layout, useful for reshapes
 
-   /// Setup sets the dimensions (Nd) and strides (Sd) during the contruction.
+   /// Set the dimensions (Nd) and strides (Sd) during contruction.
    /// When all the arguments have been processed, SetSize is called on the
    /// mfem_type with Device::GetMemoryType() as memory type and SetLayout is
    /// called using the layout.
@@ -223,11 +225,11 @@ public:
       SetLayout(layout);
    }
 
-   /// Access mfem_type entries using operator()
+   /// Access mfem_type data entries using operator()
    template <typename... Ts> inline
    T& operator()(Ts... args) { return mfem_type::data[Offset(args...)]; }
 
-   /// Const access mfem_type entries using operator()
+   /// Const access mfem_type data entries using operator()
    template <typename... Ts> inline const T& operator()(Ts... args) const
    {
       return mfem_type::data[Offset(args...)];
@@ -241,7 +243,7 @@ public:
    }
 
    /// Shortcut for mfem::Read(mfem_type::data, mfem_type::size, on_dev)
-   /// and return a MDTensor with the MDSpan's strides and layout
+   /// and return an MDTensor with the MDSpan's pointer and strides
    const MDTensor<N,const double> MDRead(bool on_dev = true) const
    {
       double *ptr = mfem::Read(mfem_type::data, mfem_type::size, on_dev);
@@ -249,7 +251,7 @@ public:
    }
 
    /// Shortcut for mfem::Read(mfem_type::data, mfem_type::size, false)
-   /// and return a MDTensor with the MDSpan's strides and layout
+   /// and return an MDTensor with the MDSpan's pointer and strides
    const MDTensor<N,const double> MDHostRead() const
    {
       const double *ptr = mfem::Read(mfem_type::data, mfem_type::size, false);
@@ -257,7 +259,7 @@ public:
    }
 
    /// Shortcut for mfem::Write(mfem_type::data, mfem_type::size, on_dev)
-   /// and return a MDTensor with the MDSpan's strides and layout
+   /// and return an MDTensor with the MDSpan's pointer and strides
    MDTensor<N> MDWrite(bool on_dev = true)
    {
       double *ptr = mfem::Write(mfem_type::data, mfem_type::size, on_dev);
@@ -265,7 +267,7 @@ public:
    }
 
    /// Shortcut for mfem::Write(mfem_type::data, mfem_type::size, false)
-   /// and return a MDTensor with the MDSpan's strides and layout
+   /// and return an MDTensor with the MDSpan's pointer and strides
    MDTensor<N> MDHostWrite()
    {
       double *ptr = mfem::Write(mfem_type::data, mfem_type::size, false);
@@ -273,7 +275,7 @@ public:
    }
 
    /// Shortcut for mfem::ReadWrite(mfem_type::data, mfem_type::size, on_dev)
-   /// and return a MDTensor with the MDSpan's strides and layout
+   /// and return an MDTensor with the MDSpan's pointer and strides
    MDTensor<N> MDReadWrite(bool on_dev = true)
    {
       double *ptr = mfem::ReadWrite(mfem_type::data, mfem_type::size, on_dev);
@@ -281,21 +283,21 @@ public:
    }
 
    /// Shortcut for mfem::ReadWrite(mfem_type::data, mfem_type::size, false)
-   /// and return a MDTensor with the MDSpan's strides and layout
+   /// and return an MDTensor with the MDSpan's pointer and strides
    MDTensor<N> MDHostReadWrite()
    {
       double *ptr = mfem::ReadWrite(mfem_type::data, mfem_type::size, false);
       return MDTensor<N>(ptr, Sd);
    }
 
-   /// The MDReshape function allowes to reshape the MDSpan multi-dimentional
-   /// view into a new multi-dimentional one, by std::array blocks.
-   /// For example, if this has three dimensions {N1, N2, N3}, it could do:
+   /// The MDReshape function allows to reshape the multi-dimentional view
+   /// into a new multi-dimentional one, by the use of std::array blocks.
+   /// For example, if 'this' has three dimensions {N1, N2, N3}, it could handle
    /// this->MDReshape<4>(ptr, N1, std::array<int,2> {2, N2/2}, N3);
-   ///
-   /// Parameter R could be omitted with c++14 standard's deduced return types
 
-   // first entry point with given data pointer and rest of arguments
+   // Parameter R could be omitted with c++14 standard's deduced return types
+
+   // first method with given data pointer and rest of arguments
    template <int R, int m = 0, md_size_t M = 0, typename... Ts>
    inline auto MDReshape(double *ptr, Ts&&... args) -> MDTensor<R>
    {
@@ -305,7 +307,7 @@ public:
       return MDReshape<R,m,M>(std::forward<Ts>(args)...);
    }
 
-   // variadic case, where a new block of reshape is given
+   // variadic method, where a new block of reshape is given in argument
    template <int R, int m = 0, md_size_t M = 0, size_t P, typename... Ts>
    inline auto MDReshape(std::array<int,P> list, Ts&&... args) -> MDTensor<R>
    {
@@ -321,7 +323,7 @@ public:
       return MDReshape<R,m+1,M+P>(std::forward<Ts>(args)...);
    }
 
-   // variadic case, where a new dimension of reshape is given
+   // variadic method, where a new dimension of reshape is given
    template <int R, int m = 0, md_size_t M = 0, typename... Ts>
    inline auto MDReshape(md_size_t dim, Ts&&... args) -> MDTensor<R>
    {
@@ -332,7 +334,7 @@ public:
       return MDReshape<R,m+1,M+1>(std::forward<Ts>(args)...);
    }
 
-   // terminal case which returns the right MDTensor
+   // terminal case which returns the resulting MDTensor
    template <int R, int m = 0, md_size_t M = 0>
    inline MDTensor<R> MDReshape()
    {
@@ -370,7 +372,8 @@ private:
    std::array<sub_layout_type,N> rLt; // layout
 };
 
-namespace internal // implementation could be simplified with c++14 standard
+// md_sequence, md_extend and make_md_sequence implementation
+namespace internal
 {
 
 template <typename T, md_size_t N, md_size_t mod, bool left> struct md_extend;
@@ -408,7 +411,7 @@ template <typename T, md_size_t N, bool L> struct make_md_sequence
 template <typename T, bool L>
 struct make_md_sequence<T,0,L> { using type = md_sequence<T>; };
 
-} //namespace internal
+} // namespace internal
 
 } // namespace mfem
 

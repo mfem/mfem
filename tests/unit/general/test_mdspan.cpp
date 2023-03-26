@@ -10,18 +10,18 @@
 // CONTRIBUTING.md for details.
 
 #include <list>
+
+#include "mfem.hpp"
 #include "unit_tests.hpp"
-#include "fem/gridfunc.hpp"
-#include "general/array.hpp"
+
 #include "general/mdspan.hpp"
 #include "general/forall.hpp"
-#include "linalg/dtensor.hpp"
 
 using namespace mfem;
 
 // A possible MDArray class
-template<typename T, md_size_t N, typename L = MDLayoutLeft<N>>
-using MDArray = MDSpan<mfem::Array<T>,T,N,L>;
+template<typename T, md_size_t N, typename Layout = MDLayoutLeft<N>>
+using MDArray = MDSpan<mfem::Array<T>, T, N, Layout>;
 
 TEST_CASE("MDArray", "[MDSpan], [MDArray]")
 {
@@ -50,19 +50,27 @@ TEST_CASE("MDArray", "[MDSpan], [MDArray]")
 }
 
 // A possible MDVector class
-template<md_size_t N, typename L = MDLayoutLeft<N>>
-struct MDVector : public MDSpan<mfem::Vector,double,N,L>
+template<md_size_t N, typename Layout = MDLayoutLeft<N>>
+struct MDVector : public MDSpan<mfem::Vector, double, N, Layout>
 {
-   using base_t = MDSpan<mfem::Vector,double,N,L>;
+   using base_t = MDSpan<mfem::Vector,double, N, Layout>;
 
    MDVector(): base_t() { }
 
    template <typename... Ts>
-   MDVector(md_size_t n, Ts... as): MDVector(as...) { base_t::Setup(n, as...); }
+   MDVector(md_size_t n, Ts... args): MDVector(args...) { base_t::Setup(n, args...); }
 };
 
 TEST_CASE("MDVector", "[MDSpan], [MDVector]")
 {
+   SECTION("SetSize")
+   {
+      constexpr int NA = 11, NB = 22, NC = 33;
+      MDVector<3> abc;
+      abc.SetSize(NA, NB, NC);
+      REQUIRE(abc.Size() == NA*NB*NC);
+   }
+
    SECTION("SetLayout")
    {
       constexpr int NA = 11, NB = 22, NC = 33;
@@ -102,10 +110,10 @@ TEST_CASE("MDVector", "[MDSpan], [MDVector]")
 }
 
 // A possible MDGridFunction class
-template<md_size_t N, class L = MDLayoutLeft<N>>
-class MDGridFunction : public MDSpan<mfem::GridFunction,double,N,L>
+template<md_size_t N, class Layout = MDLayoutLeft<N>>
+class MDGridFunction : public MDSpan<mfem::GridFunction,double, N, Layout>
 {
-   using base_type = MDSpan<mfem::GridFunction,double,N,L>;
+   using base_type = MDSpan<mfem::GridFunction,double, N, Layout>;
    using base_type::Nd;
    using base_type::Sd;
 
@@ -174,7 +182,7 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan], [MDGridFunction]")
    FiniteElementSpace fes(&mesh, &fec);
    const int ND = fes.GetNDofs();
 
-   SECTION("E>G>D>A, left")
+   SECTION("EGDA, left")
    {
       MDGridFunction<4> gsa(NE, NG, &fes, NA);
       const int gsa_0123 = gsa.Offset(0, 1, 2, 3);
@@ -187,9 +195,9 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan], [MDGridFunction]")
 
    }
 
-   SECTION("E>G>D>A, right")
+   SECTION("EGDA, right")
    {
-      MDGridFunction<4,MDLayoutRight<4>> gsa(NE, NG, &fes, NA);
+      MDGridFunction<4, MDLayoutRight<4>> gsa(NE, NG, &fes, NA);
       const int gsa_0123 = gsa.Offset(0,1,2,3);
       REQUIRE(gsa_0123 == 0*(NG*ND*NA) + 1*(ND*NA) + 2*(NA) + 3);
       mfem::Array<int> vdofs(ND);
@@ -215,15 +223,16 @@ TEST_CASE("MDGridFunction reshapes", "[MDSpan], [MDGridFunction]")
 
    SECTION("MDReshapes")
    {
+      constexpr int p = 2;
       constexpr int dim = 3;
       constexpr int nx = 5, ny = 3, nz = 2;
       Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::HEXAHEDRON);
 
-      H1_FECollection fec_mesh(1, dim);
+      H1_FECollection fec_mesh(p, dim);
       FiniteElementSpace fes_mesh(&mesh, &fec_mesh, dim);
       mesh.SetNodalFESpace(&fes_mesh);
 
-      L2_FECollection fec(1, dim, BasisType::GaussLobatto);
+      L2_FECollection fec(p, dim);
       FiniteElementSpace fes(&mesh, &fec);
 
       const std::list<MDLayout<3>> layouts =
@@ -245,7 +254,7 @@ TEST_CASE("MDGridFunction reshapes", "[MDSpan], [MDGridFunction]")
          const FiniteElement *mfe = mfes->GetFE(0);
          const int nd = mfe->GetDof(), vdim = mfes->GetVDim();
          Vector nodes_e(vdim*nd*ne); nodes_e.UseDevice(true);
-         constexpr int D1D = 2;
+         constexpr int D1D = p + 1;
          REQUIRE(fes.GetVSize() == D1D*D1D*D1D*ne);
          nodes_e.Read();
          REQUIRE(nodes);
@@ -269,20 +278,20 @@ TEST_CASE("MDGridFunction reshapes", "[MDSpan], [MDGridFunction]")
          MDGridFunction<3> rY3(&fes, numGroups, numAngles);
          rY3.SetLayout(MDLayout<3>(layout));
          auto drY3 = rY3.MDReshape<6>(rY3.Write(),
-                                      std::array<int,4> {D1D,D1D,D1D,ne},
+                                      std::array<int,4> {D1D, D1D, D1D, ne},
                                       ng, na);
 
          MDGridFunction<3> rY4(&fes, numGroups, numAngles);
          rY4.SetLayout(MDLayout<3>(layout));
          auto drY4 = rY4.MDReshape<7>(rY4.Write(),
-                                      std::array<int,4> {D1D,D1D,D1D,ne},
+                                      std::array<int,4> {D1D, D1D, D1D, ne},
                                       std::array<int,2> {1, ng},
                                       na);
 
          MDGridFunction<3> rY5(&fes, numGroups, numAngles);
          rY5.SetLayout(MDLayout<3>(layout));
          auto drY5 = rY5.MDReshape<7>(rY5.Write(),
-                                      std::array<int,4> {D1D,D1D,D1D,ne},
+                                      std::array<int,4> {D1D, D1D, D1D, ne},
                                       std::array<int,2> {2, ng/2},
                                       na);
 
