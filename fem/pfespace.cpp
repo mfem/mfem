@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3025,6 +3025,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<char> mark(diag->Height());
    mark = 0;
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
+
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -3053,7 +3055,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   diag->SetRow(r, old_vdofs, row);
@@ -3105,7 +3107,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   MFEM_ASSERT(ldof[geom] == row.Size(), "");
@@ -3122,6 +3124,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          }
       }
    }
+
    messages.clear();
    offd->Finalize(0);
    offd->SetWidth(col_map.size());

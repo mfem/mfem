@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,6 +13,7 @@
 # Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
 # Version 3.8 or newer is required for direct CUDA support.
 cmake_minimum_required(VERSION 3.8)
+message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -24,8 +25,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
-message(STATUS "(optional) USER_CONFIG = ${USER_CONFIG}")
-include("${USER_CONFIG}" OPTIONAL)
+include("${USER_CONFIG}" OPTIONAL RESULT_VARIABLE USER_CONFIG_LOADED)
+if (USER_CONFIG_LOADED)
+  set(USER_CONFIG_LOADED "LOADED")
+endif()
+message(STATUS "Loading USER_CONFIG = ${USER_CONFIG} (${USER_CONFIG_LOADED})")
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/defaults.cmake")
 
 # Allow overwriting of the compiler by setting CXX/MPICXX on the command line or
@@ -53,7 +57,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.5.1)
+set(${PROJECT_NAME}_VERSION 4.5.3)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -134,8 +138,7 @@ if (MFEM_USE_CUDA)
       set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CMAKE_CUDA_FLAGS "${CUDA_FLAGS}" CACHE STRING
-       "CUDA flags set for MFEM" FORCE)
+   set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS})
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
    set(CUBLAS_FOUND TRUE)
@@ -182,6 +185,23 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
+endif()
+
+# Shared build on Windows
+if (WIN32 AND BUILD_SHARED_LIBS)
+  # CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS works only with MSVC?
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON CACHE BOOL
+      "Automatically export symbols for shared Windows DLL build")
+  # Place all .dll and .exe files in the same sub-directory, 'bin/<config>', of
+  # the build directory, so that the .exe files can find the .dll files at
+  # runtime:
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+  # Note: CMake tests are run from the build-tree sub-directory where the test
+  # is defined, e.g. <build-dir>/tests/unit, so hard coded paths to meshes still
+  # work fine.
+  # Not strictly necessary:
+  # set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+  # set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 endif()
 
 # AMD HIP
@@ -520,6 +540,7 @@ list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 
+message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
@@ -575,7 +596,19 @@ target_include_directories(mfem
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    # The INSTALL_INTERFACE is handled below
     ${TPL_INCLUDE_DIRS})
+if (MFEM_USE_MPI)
+  if (MPI_CXX_COMPILE_FLAGS)
+    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+      "${MPI_CXX_COMPILE_FLAGS}")
+    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
+  endif()
+  if (MPI_CXX_LINK_FLAGS)
+    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
+  endif()
+endif()
+
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -587,6 +620,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
+set(MFEM_SHARED_BUILD ${BUILD_SHARED_LIBS})
 configure_file(
   "${PROJECT_SOURCE_DIR}/config/cmake/config.hpp.in"
   "${PROJECT_BINARY_DIR}/config/_config.hpp")
@@ -698,13 +732,15 @@ add_subdirectory(doc)
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
+set(INSTALL_BIN_DIR bin
+  CACHE PATH "Relative path for installing the binaries.")
 set(INSTALL_LIB_DIR lib
   CACHE PATH "Relative path for installing the library.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
-target_include_directories(mfem
+target_include_directories(mfem BEFORE
   PUBLIC
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
@@ -716,7 +752,9 @@ set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME Development)
 # Install the library
 install(TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME_UC}Targets
-  DESTINATION ${INSTALL_LIB_DIR})
+  RUNTIME DESTINATION ${INSTALL_BIN_DIR}
+  LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+  ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
 foreach(Header mfem.hpp mfem-performance.hpp)
@@ -754,10 +792,8 @@ endif()
 
 # Install the configuration header files
 install(FILES ${PROJECT_BINARY_DIR}/config/_config.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config
-  RENAME config.hpp)
-
-install(FILES ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
+  ${PROJECT_SOURCE_DIR}/config/config.hpp
+  ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config)
 
 # Package the whole thing up nicely
