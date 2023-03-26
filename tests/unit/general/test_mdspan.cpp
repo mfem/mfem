@@ -9,11 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <list>
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
-#endif
 #include <cmath>
+#endif
+
+#include <list>
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
