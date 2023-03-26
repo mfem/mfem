@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,7 +37,7 @@ FindPointsGSLIB::FindPointsGSLIB()
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
-     avgtype(AvgType::ARITHMETIC)
+     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
    ir_split.SetSize(4);
@@ -84,7 +84,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
-     avgtype(AvgType::ARITHMETIC)
+     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
    ir_split.SetSize(4);
@@ -223,10 +223,12 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
    {
-      if (gsl_code[i] == 2)
+      if (gsl_code[i] == 2 ||
+          (gsl_code[i] == 1 && gsl_dist(i) > bdr_tol))
       {
          gsl_elem[i] = 0;
          for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+         gsl_code[i] = 2;
       }
    }
 
@@ -571,7 +573,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    const int pts_el = std::pow(dof_1D, dim);
    const int pts_cnt = NE_split_total * pts_el;
    node_vals.SetSize(vdim * pts_cnt);
-   node_vals *= 0;
+   node_vals = 0.0;
 
    int gsl_mesh_pt_index = 0;
 
@@ -1153,7 +1155,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    distfint.SetSize(pts_cnt);
    if (!gfmax)
    {
-      distfint = 0.;
+      distfint = 0.0;
    }
    else
    {
@@ -1248,10 +1250,12 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
    {
-      if (gsl_code[i] == 2)
+      if (gsl_code[i] == 2 ||
+          (gsl_code[i] == 1 && gsl_dist(i) > bdr_tol))
       {
          gsl_elem[i] = 0;
          for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+         gsl_code[i] = 2;
       }
    }
 
