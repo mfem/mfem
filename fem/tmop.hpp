@@ -124,6 +124,8 @@ public:
                                const TargetConstructor &tc,
                                Vector &weights) const;
 
+   void GetWeights(Array<double> &weights) const { weights = wt_arr; }
+
    /// Changes the weights of the metrics in the combination.
    void SetWeights(const Vector &weights)
    {
@@ -561,7 +563,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// 2D barrier compound Shape+Size (VS) metric (balanced).
+/// 2D compound barrier Shape+Size (VS) metric (balanced).
 class TMOP_Metric_090 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -582,7 +584,7 @@ public:
    virtual ~TMOP_Metric_090() { delete sh_metric; delete sz_metric; }
 };
 
-/// 2D barrier compound Shape+Size (VS) metric (balanced).
+/// 2D compound barrier Shape+Size (VS) metric (balanced).
 class TMOP_Metric_094 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -898,7 +900,7 @@ public:
    virtual int Id() const { return 323; }
 };
 
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
+/// 3D compound barrier Shape+Size (VS) metric (polyconvex, balanced).
 class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -906,18 +908,20 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_328(double gamma)
+   TMOP_Metric_328()
       : sh_metric(new TMOP_Metric_301), sz_metric(new TMOP_Metric_316)
    {
-      // (1-gamma) mu_301 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma);
-      AddQualityMetric(sz_metric, gamma);
+      // lambda mu_301 + mu_316.
+      // 3/8 <= lambda <= 9/8 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 0.75);
+      AddQualityMetric(sz_metric, 1.0);
    }
 
+   virtual int Id() const { return 328; }
    virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
 };
 
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
+/// 3D compound barrier Shape+Size (VS) metric (polyconvex).
 class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -977,6 +981,27 @@ public:
    double GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D compound barrier Shape+Size (VS) metric (polyconvex, balanced).
+class TMOP_Metric_338 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_338()
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_318)
+   {
+      // mu_302 + lambda mu_318.
+      // 4/9 <= lambda <= 3 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 1.0);
+      AddQualityMetric(sz_metric, 0.5 * (4.0/9.0 + 3.0));
+   }
+
+   virtual int Id() const { return 338; }
+   virtual ~TMOP_Metric_338() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
