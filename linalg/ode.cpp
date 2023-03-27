@@ -1099,7 +1099,7 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-const stdd:string SecondOrderODESolver::Types  = "ODE solver: \n\t"
+std::string SecondOrderODESolver::Types  = "ODE solver: \n\t"
                                               "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
                                               "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
                                               "  13 - CentralDifference, 14 - FoxGoodwin";
@@ -1160,19 +1160,17 @@ void SecondOrderODESolver::MidPointStep(Vector &x, Vector &dxdt, double &t, doub
    t += dt;
 }
 
-
-
 void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
+   d2xdt2.SetSize(f->Width());
+   d2xdt2 = 0.0;
 }
 
 void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
 {
    SecondOrderODESolver::Init(f_);
-   d2xdt2.SetSize(f->Width());
-   d2xdt2 = 0.0;
    first = true;
 }
 
@@ -1239,8 +1237,6 @@ void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &f_)
    xa.SetSize(f->Width());
    va.SetSize(f->Width());
    aa.SetSize(f->Width());
-   d2xdt2.SetSize(f->Width());
-   d2xdt2 = 0.0;
    nstate = 0;
 }
 
@@ -1313,7 +1309,7 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    if (nstate == 0)
    {
       MidPointStep(x, dxdt, t, dt);
-      first = false;
+      nstate = 1;
       return;
    }
 
