@@ -615,7 +615,7 @@ public:
 
    static Mesh MakeHexTo24or12TetMesh(
       int nx, int ny, int nz,
-      double sx = 1.0, double sy = 1.0, double sz = 1.0, int type = 1);
+      double sx = 1.0, double sy = 1.0, double sz = 1.0, int type = 2);
 
    static Mesh MakeQuadTo4TriMesh(int nx = 1, int ny = 1, double sx = 1.0,
                                   double sy = 1.0);
@@ -717,7 +717,7 @@ public:
 
    Element *NewElement(int geom);
 
-   int AddVertexAtMidPoint(Array<int> list);
+   int AddVertexAtMidPoint(Array<int> list, int dim = 3);
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
    int AddVertex(const Vector &coords);

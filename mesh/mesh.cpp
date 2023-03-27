@@ -1821,7 +1821,7 @@ void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
       { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
    };
    Array<int> plist(vi, 4);
-   int elem_center_index = AddVertexAtMidPoint(plist) - 1;
+   int elem_center_index = AddVertexAtMidPoint(plist, 2) - 1;
 
    int ti[3];
    for (int i = 0; i < num_faces; i++)
@@ -1849,7 +1849,7 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
    };
    int ti[4];
    Array<int> plist(vi, 8);
-   int elem_center_index = AddVertexAtMidPoint(plist) - 1;
+   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
    Array<int> flist(&ti[0], 4);
 
    static const int tet_face[4][2] =
@@ -1870,7 +1870,7 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
       auto it = hex_face_to_center.find(t);
       if (it == hex_face_to_center.end())
       {
-         face_center_index = AddVertexAtMidPoint(flist) - 1;
+         face_center_index = AddVertexAtMidPoint(flist, 3) - 1;
          hex_face_to_center.insert((std::pair<std::tuple<int, int, int, int>,int>
                                     (t, face_center_index)));
       }
@@ -1903,7 +1903,7 @@ void Mesh::AddHexAs12TetsWithPoints(int *vi, int attr)
    };
    int ti[4];
    Array<int> plist(vi, 8);
-   int elem_center_index = AddVertexAtMidPoint(plist) - 1;
+   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
    Array<int> flist(&ti[0], 4);
 
    static const int tet_face[2][3] =
@@ -3461,18 +3461,19 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
 }
 
 
-int Mesh::AddVertexAtMidPoint(Array<int> plist)
+int Mesh::AddVertexAtMidPoint(Array<int> plist, int dim)
 {
-   double vi[3];
+   double vi[dim];
+   for (int j = 0; j < dim; j++) { vi[j] = 0.0; }
    for (int i = 0; i < plist.Size(); i++)
    {
       double *vp = vertices[plist[i]]();
-      for (int j = 0; j < 3; j++)
+      for (int j = 0; j < dim; j++)
       {
          vi[j] += vp[j];
       }
    }
-   for (int j = 0; j < 3; j++)
+   for (int j = 0; j < dim; j++)
    {
       vi[j] *= 1.0/plist.Size();
    }
