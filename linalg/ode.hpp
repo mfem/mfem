@@ -725,9 +725,15 @@ class NewmarkSolver : public SecondOrderODESolver
 private:
    double beta, gamma;
    bool first;
+   bool no_mult;
 
 public:
-   NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5) { beta = beta_; gamma = gamma_; };
+   NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5, bool no_mult_ = false)
+   {
+      beta = beta_;
+      gamma = gamma_;
+      no_mult = no_mult_;
+   };
 
    void PrintProperties(std::ostream &out = mfem::out);
 
@@ -766,10 +772,12 @@ protected:
    Vector xa,va,aa;
    double alpha_f, alpha_m, beta, gamma;
    int nstate;
+   bool no_mult;
 
 public:
-   GeneralizedAlpha2Solver(double rho_inf = 1.0)
+   GeneralizedAlpha2Solver(double rho_inf = 1.0, bool no_mult_ = false)
    {
+      no_mult = no_mult_;
       rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
       rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
 

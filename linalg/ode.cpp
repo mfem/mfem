@@ -1215,9 +1215,16 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    // In the first pass compute d2xdt2 directly from operator.
    if (first)
    {
-      MidPointStep(x, dxdt, t, dt);
       first = false;
-      return;
+      if (no_mult)
+      {
+         MidPointStep(x, dxdt, t, dt);
+         return;
+      }
+      else
+      {
+         f->Mult(x, dxdt, d2xdt2);
+      }
    }
    f->SetTime(t + dt);
 
@@ -1310,9 +1317,16 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    // In the first pass compute d2xdt2 directly from operator.
    if (nstate == 0)
    {
-      MidPointStep(x, dxdt, t, dt);
       nstate = 1;
-      return;
+      if (no_mult)
+      {
+         MidPointStep(x, dxdt, t, dt);
+         return;
+      }
+      else
+      {
+         f->Mult(x, dxdt, d2xdt2);
+      }
    }
 
    // Predict alpha levels
