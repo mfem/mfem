@@ -410,7 +410,10 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5|J^t J|^2 / det(J)^2 - 1.
+   // W = 0.5 |J^t J|^2 / det(J)^2 - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 I1b^2 - 2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -445,9 +448,10 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
-   //   = 0.5( det(J) - 1 )^2 / det(J)
-   //   = 0.5( det(J) + 1/det(J) ) - 1.
+   // W = 0.5 (det(J) + 1 / det(J)) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I2b + 1/I2b) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -555,6 +559,48 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier compound Shape+Size (VS) metric (balanced).
+class TMOP_Metric_090 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_090()
+      : sh_metric(new TMOP_Metric_050), sz_metric(new TMOP_Metric_077)
+   {
+      // mu_50 + lambda mu_77.
+      // 1 <= lambda <= 4 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 1.0);
+      AddQualityMetric(sz_metric, 2.5);
+   }
+
+   virtual int Id() const { return 90; }
+   virtual ~TMOP_Metric_090() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D barrier compound Shape+Size (VS) metric (balanced).
+class TMOP_Metric_094 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_094()
+      : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_056)
+   {
+      // mu_2 + lambda mu_56.
+      // 1 <= lambda <= 2 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 1.0);
+      AddQualityMetric(sz_metric, 1.5);
+   }
+
+   virtual int Id() const { return 94; }
+   virtual ~TMOP_Metric_094() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).

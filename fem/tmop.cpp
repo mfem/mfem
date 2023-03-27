@@ -536,12 +536,23 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(c4, A.GetData());
 }
 
+double TMOP_Metric_050::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_50 = 0.5 |J^t J|^2 / det(J)^2 - 1.
+   DenseMatrix JtJ(2);
+   MultAAt(Jpt, JtJ);
+   JtJ.Transpose();
+   double det = Jpt.Det();
+
+   return 0.5 * JtJ.FNorm2()/(det*det) - 1.0;
+}
+
 double TMOP_Metric_050::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_50 = 0.5*|J^t J|^2/det(J)^2 - 1
    //       = 0.5*(l1^4 + l2^4)/(l1*l2)^2 - 1
    //       = 0.5*((l1/l2)^2 + (l2/l1)^2) - 1 = 0.5*(l1/l2 - l2/l1)^2
-   //       = 0.5*(l1/l2 + l2/l1)^2 - 2 = 0.5*I1b^2 - 2
+   //       = 0.5*(l1/l2 + l2/l1)^2 - 2 = 0.5*I1b^2 - 2.
    ie.SetJacobian(Jpt.GetData());
    const double I1b = ie.Get_I1b();
    return 0.5*I1b*I1b - 2.0;
@@ -597,9 +608,16 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
 }
 
+double TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_56 = 0.5 (det(J) + 1 / det(J)) - 1.
+   const double d = Jpt.Det();
+   return 0.5 * (d + 1.0 / d) - 1.0;
+}
+
 double TMOP_Metric_056::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_56 = 0.5*(I2b + 1/I2b) - 1
+   // mu_56 = 0.5*(I2b + 1/I2b) - 1.
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
    return 0.5*(I2b + 1.0/I2b) - 1.0;
