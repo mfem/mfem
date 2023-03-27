@@ -114,8 +114,6 @@ set(UNIT_TESTS_SRCS
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
   # ceed/test_ceed_main.cpp
-  # mjit/test_par_main.cpp
-  # mjit/test_seq_main.cpp
 )
 
 #-----------------------------------------------------------
@@ -162,7 +160,7 @@ if (MFEM_USE_CUDA)
    add_dependencies(cunit_tests copy_data)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
    add_test(NAME cunit_tests COMMAND cunit_tests)
-   set_property(TEST cunit_tests PROPERTY RESOURCE_LOCK gpu)
+   #set_property(TEST cunit_tests PROPERTY RESOURCE_LOCK gpu)
 endif()
 
 #-----------------------------------------------------------
@@ -202,7 +200,7 @@ function(add_serial_miniapp_test name test_uvm)
        target_link_libraries(${name}_tests_cuda mfem)
        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
        add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
-       set_property(TEST ${name}_tests_cuda PROPERTY RESOURCE_LOCK gpu)
+       #set_property(TEST ${name}_tests_cuda PROPERTY RESOURCE_LOCK gpu)
 
        if (test_uvm)
            mfem_add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
@@ -212,7 +210,7 @@ function(add_serial_miniapp_test name test_uvm)
            add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                ${name}_tests_cuda_uvm)
            add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
-           set_property(TEST ${name}_tests_cuda_uvm PROPERTY RESOURCE_LOCK gpu)
+           #set_property(TEST ${name}_tests_cuda_uvm PROPERTY RESOURCE_LOCK gpu)
        endif()
     endif(MFEM_USE_CUDA)
 endfunction(add_serial_miniapp_test)
@@ -249,10 +247,10 @@ if (MFEM_USE_CEED)
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
       add_test(NAME ceed_tests_cuda_gen
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/gen)
-     set_tests_properties(ceed_tests_cuda_ref
-                          ceed_tests_cuda_shared
-                          ceed_tests_cuda_gen
-                          PROPERTIES RESOURCE_LOCK gpu)
+     #set_tests_properties(ceed_tests_cuda_ref
+     #                     ceed_tests_cuda_shared
+     #                     ceed_tests_cuda_gen
+     #                     PROPERTIES RESOURCE_LOCK gpu)
    endif()
 endif()
 
@@ -304,7 +302,7 @@ if (MFEM_USE_MPI)
                   COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
                   ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pcunit_tests>
                   ${MPIEXEC_POSTFLAGS})
-         set_property(TEST pcunit_tests_np=${np} PROPERTY RESOURCE_LOCK gpu)
+         #set_property(TEST pcunit_tests_np=${np} PROPERTY RESOURCE_LOCK gpu)
       endforeach()
    endif()
    # Define 'pmjit_tests' executable

@@ -25,7 +25,7 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_JIT))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
       return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
@@ -41,7 +41,7 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_JIT))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
       return static_cast<int>(first);

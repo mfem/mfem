@@ -59,15 +59,15 @@ if (!chdir $mfem_dir) {
 }
 
 # Maximum number of acceptable commits in the branch
-my $branch_max_commits = 600;
+my $branch_max_commits = 200;
 # Maximum number of acceptable files changed in any commit in the branch
-my $commit_max_files_changed = 100;
+my $commit_max_files_changed = 50;
 # Maximum acceptable size (in K) of any git blob in the branch
 my $max_blob_kb = 200;
 # Maximum acceptable size (in K) of any commit in the branch
 my $max_commit_kb = 400;
 # Maximum acceptable size (in K) of the sum of the commit sizes in the branch
-my $max_branch_kb = 2000;
+my $max_branch_kb = 1000;
 
 my $status = 0; # Return code
 
@@ -149,7 +149,7 @@ foreach my $sha (@commits) {
         # File was added
         $blob_size += int(`git cat-file -s $dst`); }
       elsif ($mode eq "DD") { }
-      elsif ($mode eq "MM" || $mode eq "MR" || $mode eq "RM") {
+      elsif ($mode eq "MM" || $mode eq "MR") {
         # File was modified, use the gzip'ed diff as a proxy of the required git
         # storage
         my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);

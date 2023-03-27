@@ -56,7 +56,7 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
-	rm -rf *.dSYM *.TVD.*breakpoints libmjit.*
+	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f refined.mesh sol.gf

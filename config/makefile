@@ -35,18 +35,13 @@ CONFIG_MK = config.mk
 
 all: header config-mk
 
-# Set MFEM_HYPRE_VERSION
 MPI = $(MFEM_USE_MPI:NO=)
 GHV_CXX ?= $(MFEM_CXX)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
-
-# Set MFEM_USE_SIMMETRIX
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
 SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
 SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
-
-# Set MFEM_MUMPS_VERSION
 MUMPS = $(MFEM_USE_MUMPS:NO=)
 GMV_CXX ?= $(MFEM_CXX)
 GMV = get_mumps_version
