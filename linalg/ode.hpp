@@ -114,8 +114,12 @@ public:
       mfem_error("ODESolver has no state vectors");
    }
 
-   static const char *ODETypes;
+   static std::string ExplicitTypes;
+   static std::string ImplicitTypes;
+   static std::string Types;
    static ODESolver *Select(const int ode_solver_type);
+   static ODESolver *SelectExplicit(const int ode_solver_type);
+   static ODESolver *SelectImplicit(const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };

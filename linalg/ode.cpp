@@ -13,22 +13,41 @@
 #include "operator.hpp"
 #include "ode.hpp"
 
+
+
 namespace mfem
 {
 
+std::string ODESolver::ExplicitTypes = "\n\tExplicit solver: \n\t"
+                                       "        RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
+                                       "        AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5\n";
 
-const char *ODESolver::ODETypes  = "ODE solver: \n\t"
-                                   "        Explicit RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
-                                   "        Explicit AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5,\n\t"
-                                   "        Implicit (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
-                                   "        Implicit (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
-                                   "        Implicit GA      : 40 -- 50  - Generalized-alpha,\n\t"
-                                   "        Implicit AB      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
+std::string ODESolver::ImplicitTypes  = "\n\tImplicit solver: \n\t"
+                                        "        (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
+                                        "        (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
+                                        "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
+                                        "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
+std::string ODESolver::Types = ODESolver::ExplicitTypes +
+                               ODESolver::ImplicitTypes;
 
 /// Return a ODESolver pointer based on an type
 /// Caller gets ownership of the object and is responsible for its deletion
 ODESolver* ODESolver::Select(int ode_solver_type)
+{
+   if (ode_solver_type< 20)
+   {
+      return SelectExplicit(ode_solver_type);
+   }
+   else
+   {
+      return SelectImplicit(ode_solver_type);
+   }
+}
+
+/// Return a ODESolver pointer based on an type
+/// Caller gets ownership of the object and is responsible for its deletion
+ODESolver* ODESolver::SelectExplicit(int ode_solver_type)
 {
    ODESolver*  ode_solver = NULL;
    switch (ode_solver_type)
@@ -46,6 +65,20 @@ ODESolver* ODESolver::Select(int ode_solver_type)
       case 14: ode_solver = new AB4Solver; break;
       case 15: ode_solver = new AB5Solver; break;
 
+      default:
+         mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
+         mfem_error("Unknown ODE solver type");
+   }
+   return ode_solver;
+}
+
+/// Return a ODESolver pointer based on an type
+/// Caller gets ownership of the object and is responsible for its deletion
+ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
+{
+   ODESolver*  ode_solver = NULL;
+   switch (ode_solver_type)
+   {
       // Implicit L-stable methods
       case 21: ode_solver = new BackwardEulerSolver; break;
       case 22: ode_solver = new SDIRK23Solver(2); break;
