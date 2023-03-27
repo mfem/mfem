@@ -1149,7 +1149,7 @@ void TMOP_Metric_318::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    const double i3 = ie.Get_I3();
-   ie.Assemble_TProd(weight/(i3 * i3 * i3) , ie.Get_dI3(), A.GetData());
+   ie.Assemble_TProd(weight/(i3 * i3 * i3), ie.Get_dI3(), A.GetData());
    ie.Assemble_ddI3(weight*(0.5 - 0.5 / (i3 * i3)), A.GetData());
 }
 
