@@ -229,7 +229,7 @@ public:
 class RK8Solver : public ExplicitRKSolver
 {
 private:
-   static const double a[66], b[12], c[11];
+   static MFEM_EXPORT const double a[66], b[12], c[11];
 
 public:
    RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
