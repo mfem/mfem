@@ -2973,6 +2973,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
             MFEM_ASSERT(eid.Size() < 2, "non-unique edge prism");
 
             // create a slave face record with a degenerate point matrix
+            std::cout << __LINE__ << "adding degenerate slave : " << -1 - enode.edge_index << '\n';
             face_list.slaves.Append(
                Slave(-1 - enode.edge_index,
                      eid[0].element, eid[0].local, Geometry::SQUARE));
@@ -3020,6 +3021,7 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
          // in this case we need to add an edge-face constraint, because the
          // master edge is really a (face-)slave itself
 
+         std::cout << __LINE__ << " adding degenerate slave : " << -1 - eid.index << '\n';
          face_list.slaves.Append(
             Slave(-1 - eid.index, eid.element, eid.local, Geometry::TRIANGLE));
 
@@ -3140,7 +3142,7 @@ void NCMesh::BuildFaceList()
          if (processed_faces[face]) { continue; }
          processed_faces[face] = 1;
 
-         int fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
+         const auto fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
 
          Face &fa = faces[face];
          if (fa.elem[0] >= 0 && fa.elem[1] >= 0)

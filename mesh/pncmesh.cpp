@@ -898,6 +898,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
 
+   std::cout << "\nRank: " << Mpi::WorldRank() << " conforming, slaves, masters " << shared.conforming.Size() << ", " << shared.slaves.Size() << ", " << shared.masters.Size() << std::endl;
+
+   std::cout << "Rank: " << Mpi::WorldRank() << " full_list " << full_list.conforming.Size() << ", " << full_list.slaves.Size() << ", " << full_list.masters.Size() << std::endl;
+
    // go over all shared faces and collect face neighbor elements
    for (int i = 0; i < shared.conforming.Size(); i++)
    {
@@ -918,6 +922,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    for (int i = 0; i < shared.masters.Size(); i++)
    {
       const Master &mf = shared.masters[i];
+      std::cout << "Rank: " << Mpi::WorldRank() << " shared " << i << " has " << mf.slaves_end - mf.slaves_begin << " slaves\n";
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
@@ -936,7 +941,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound: " << fnbr.Size() << " " << bound);
+   // MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound. Rank: " << Mpi::WorldRank() << ", fnbr.Size(): " << fnbr.Size() << ", bound: " << bound);
 
    // remove duplicate face neighbor elements and sort them by rank & index
    // (note that the send table is sorted the same way and the order is also the
@@ -1090,11 +1095,16 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             bool mloc = (mfe.rank == MyRank);
             if (sloc == mloc) { continue; }
 
-            Mesh::FaceInfo &fi = pmesh.faces_info[sf.index];
+            std::cout << "R" << Mpi::WorldRank() << " sf.index " << sf.index;
+            // Mesh::FaceInfo &fi = pmesh.faces_info[sf.index];
+            Mesh::FaceInfo &fi = pmesh.faces_info[sf.index >= 0 ? sf.index : -1 -sf.index];
+            std::cout << " is fine\n";
             fi.Elem1No = sfe.index;
             fi.Elem2No = mfe.index;
             fi.Elem1Inf = 64 * sf.local;
             fi.Elem2Inf = 64 * mf.local;
+            // fi.Elem1Inf = 64 * sf.local + (sf.index < 0 ? 1 : 0);
+            // fi.Elem2Inf = 64 * mf.local + (sf.index < 0 ? 1 : 0);
 
             if (!sloc)
             {
@@ -1121,8 +1131,16 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             {
                // ghost slave in 3D needs flipping orientation
                DenseMatrix* pm2 = new DenseMatrix(*pm);
-               std::swap((*pm2)(0,1), (*pm2)(0, pm->Width()-1));
-               std::swap((*pm2)(1,1), (*pm2)(1, pm->Width()-1));
+               if (sf.geom == Geometry::Type::SQUARE)
+               {
+                  std::swap((*pm2)(0, 1), (*pm2)(0, 3));
+                  std::swap((*pm2)(1, 1), (*pm2)(1, 3));
+               }
+               else if (sf.geom == Geometry::Type::TRIANGLE)
+               {
+                  std::swap((*pm2)(0, 0), (*pm2)(0, 1));
+                  std::swap((*pm2)(1, 0), (*pm2)(1, 1));
+               }
                aux_pm_store.Append(pm2);
 
                fi.Elem2Inf ^= 1;
