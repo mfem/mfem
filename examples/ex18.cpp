@@ -85,8 +85,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+                  ODESolver::ExplicitTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -116,18 +115,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
-   }
+   ODESolver *ode_solver = ODESolver::SelectExplicit(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
