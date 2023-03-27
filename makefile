@@ -501,13 +501,15 @@ STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJEC
 
 # MFEM's MJIT parser embedded definitions
 MJIT_PARSER_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
-MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
-MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
-# Out of source compilation uses MFEM_CONFIG_FILE with double quotes
-# which have to be escaped differently through nvcc
-MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(subst $\",$(if $(MFEM_USE_CUDA:NO=),\\\x5c)\\\x22,$(strip $(MFEM_BUILD_FLAGS)))\""
+MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(MFEM_EXT_LIBS)\""
+MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(MFEM_LINK_FLAGS)\""
+# We don't need out of source compilation's MFEM_CONFIG_FILE which can lead to
+# unhandled double quotes with nvcc compiler. Once installed, JIT compilation
+# will use $(MFEM_INSTALL_DIR)/config/_config.hpp.
+MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(MFEM_PICFLAG) $(MFEM_CPPFLAGS) \
+$(MFEM_CXXFLAGS) $(MFEM_TPLFLAGS)\""
 $(BLD)mjit: $(SRC)general/jit/parser.cpp $(CONFIG_MK) $(SRC)makefile $(SRC)general/jit/jit.hpp
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
 
 # MFEM's MJIT runtime embedded definitions 
 MJIT_RUNTIME_DEFINES  = -DMFEM_AR="\"$(AR)\""
@@ -522,14 +524,15 @@ $(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp $(SRC)makefile $(CONFIG_
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-MJIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+MJIT_BUILD_FLAGS  = $(MFEM_BUILD_FLAGS)
 MJIT_BUILD_FLAGS += $(if $(MFEM_USE_CUDA:YES=),-x c++)
 MJIT_BUILD_FLAGS += -I$(SRC)$(@D) -DMFEM_JIT_INC_PATH="\"$(@D)\""
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit $(SRC)makefile
-	$(eval MJIT_TMP=$(realpath $(shell mktemp)))
-	$(BLD)./mjit $(<) -o $(MJIT_TMP)
-	$(MFEM_CXX) $(MJIT_BUILD_FLAGS) -c $(MJIT_TMP) -o $(@)
-	rm $(MJIT_TMP)
+	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
+	@$(BLD)./mjit $(<) -o $(MJIT_TMP)
+	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(*).jit -o $(@)
+	@$(MFEM_CXX) $(MJIT_BUILD_FLAGS) -c $(MJIT_TMP) -o $(@)
+	@rm $(MJIT_TMP)
 endif # MFEM_USE_JIT
 
 all: examples miniapps $(TEST_DIRS)
