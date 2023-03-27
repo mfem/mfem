@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -114,12 +114,8 @@ public:
       mfem_error("ODESolver has no state vectors");
    }
 
-   static std::string ExplicitTypes;
-   static std::string ImplicitTypes;
-   static std::string Types;
+   static const char *ODETypes;
    static ODESolver *Select(const int ode_solver_type);
-   static ODESolver *SelectExplicit(const int ode_solver_type);
-   static ODESolver *SelectImplicit(const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };
@@ -217,7 +213,7 @@ public:
 class RK6Solver : public ExplicitRKSolver
 {
 private:
-   static MFEM_EXPORT const double a[28], b[8], c[7];
+   static const double a[28], b[8], c[7];
 
 public:
    RK6Solver() : ExplicitRKSolver(8, a, b, c) { }
@@ -229,7 +225,7 @@ public:
 class RK8Solver : public ExplicitRKSolver
 {
 private:
-   static MFEM_EXPORT const double a[66], b[12], c[11];
+   static const double a[66], b[12], c[11];
 
 public:
    RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
@@ -237,12 +233,88 @@ public:
 
 
 /** An Linear Multi Step base class. */
-class LMSSolver : public ODESolver
+class LMSData
+{
+protected:
+   std::vector<Vector> k;
+   Array<int> idx;
+   double dt_;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
+
+public:
+   int ss, smax;
+   LMSData();
+   void SetStageSize(int s_);
+   void SetVectorSize(int s_);
+   void CheckTimestep(double dt);
+   void ShiftStages();
+   int  GetMaxStateSize() { return smax; };
+   int  GetStateSize() { return ss; };
+   const Vector &GetStateVector(int i);
+   void GetStateVector(int i, Vector &state);
+   void SetStateVector(int i, Vector &state);
+   void SetStateVector(Vector &state);
+
+   inline Vector & operator[] (int i) { return k[idx[i]]; }
+   inline const Vector & operator[] (int i) const { return k[idx[i]]; }
+};
+
+
+/** An explicit Adams-Bashforth method. */
+class AdamsBashforthSolver : public ODESolver
+{
+private:
+   const double *a;
+   ODESolver* RKsolver;
+
+public:
+   LMSData data;
+   AdamsBashforthSolver(int s_, const double *a_);
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, double &t, double &dt) override;
+
+   ~AdamsBashforthSolver()
+   {
+      if (RKsolver) { delete RKsolver; }
+   }
+};
+
+class AdamsMoultonSolver : public ODESolver
+{
+private:
+   const double *a;
+   ODESolver* RKsolver;
+
+public:
+   LMSData data;
+   AdamsMoultonSolver(int s_, const double *a_);
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, double &t, double &dt) override;
+
+   ~AdamsMoultonSolver()
+   {
+      if (RKsolver) { delete RKsolver; }
+   }
+};
+
+
+
+/** An Linear Multi Step base class. */
+/*class LMSSolver : public ODESolver
 {
 protected:
    int ss, smax;
    std::vector<Vector> k;
    Array<int> idx;
+
    ODESolver* RKsolver;
    double dt_;
 
@@ -274,27 +346,27 @@ public:
    {
       if (RKsolver) { delete RKsolver; }
    }
-};
+};*/
 
 
 /** An explicit Adams-Bashforth method. */
-class AdamsBashforthSolver : public LMSSolver
+/*class AdamsBashforthSolver2 : public LMSSolver
 {
 private:
    const double *a;
 
 public:
-   AdamsBashforthSolver(int s_, const double *a_);
+   AdamsBashforthSolver2(int s_, const double *a_);
 
    void Step(Vector &x, double &t, double &dt) override;
 };
-
+*/
 
 /** A 1-stage, 1st order AB method.  */
 class AB1Solver : public AdamsBashforthSolver
 {
 private:
-   static MFEM_EXPORT const double a[1];
+   static const double a[1];
 
 public:
    AB1Solver() : AdamsBashforthSolver(1, a) { }
@@ -304,7 +376,7 @@ public:
 class AB2Solver : public AdamsBashforthSolver
 {
 private:
-   static MFEM_EXPORT const double a[2];
+   static const double a[2];
 
 public:
    AB2Solver() : AdamsBashforthSolver(2, a) { }
@@ -314,7 +386,7 @@ public:
 class AB3Solver : public AdamsBashforthSolver
 {
 private:
-   static MFEM_EXPORT const double a[3];
+   static const double a[3];
 
 public:
    AB3Solver() : AdamsBashforthSolver(3, a) { }
@@ -324,7 +396,7 @@ public:
 class AB4Solver : public AdamsBashforthSolver
 {
 private:
-   static MFEM_EXPORT const double a[4];
+   static const double a[4];
 
 public:
    AB4Solver() : AdamsBashforthSolver(4, a) { }
@@ -334,7 +406,7 @@ public:
 class AB5Solver : public AdamsBashforthSolver
 {
 private:
-   static MFEM_EXPORT const double a[5];
+   static const double a[5];
 
 public:
    AB5Solver() : AdamsBashforthSolver(5, a) { }
@@ -342,22 +414,22 @@ public:
 
 
 /** An implicit Adams-Moulton method. */
-class AdamsMoultonSolver : public LMSSolver
+/*class AdamsMoultonSolver2: public LMSSolver
 {
 private:
    const double *a;
 
 public:
-   AdamsMoultonSolver(int s_, const double *a_);
+   AdamsMoultonSolver2(int s_, const double *a_);
 
    void Step(Vector &x, double &t, double &dt) override;
-};
+};*/
 
 /** A 1-stage, 2nd order AM method. */
 class AM1Solver : public AdamsMoultonSolver
 {
 private:
-   static MFEM_EXPORT const double a[2];
+   static const double a[2];
 
 public:
    AM1Solver() : AdamsMoultonSolver(1, a) { }
@@ -367,7 +439,7 @@ public:
 class AM2Solver : public AdamsMoultonSolver
 {
 private:
-   static MFEM_EXPORT const double a[3];
+   static const double a[3];
 
 public:
    AM2Solver() : AdamsMoultonSolver(2, a) { }
@@ -377,7 +449,7 @@ public:
 class AM3Solver : public AdamsMoultonSolver
 {
 private:
-   static MFEM_EXPORT const double a[4];
+   static const double a[4];
 
 public:
    AM3Solver() : AdamsMoultonSolver(3, a) { }
@@ -387,7 +459,7 @@ public:
 class AM4Solver : public AdamsMoultonSolver
 {
 private:
-   static MFEM_EXPORT const double a[5];
+   static const double a[5];
 
 public:
    AM4Solver() : AdamsMoultonSolver(4, a) { }
@@ -667,8 +739,7 @@ public:
          sequence, then the ODE solver must be re-initialized by calling Init()
          between the two Step() calls. */
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt) = 0;
-   void BackWardEulerStep(Vector &x, Vector &dxdt, double &t, double &dt);
-   void MidPointStep(Vector &x, Vector &dxdt, double &t, double &dt);
+
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x    Approximate solution.
        @param[in,out] dxdt Approximate rate.
@@ -710,7 +781,7 @@ public:
       mfem_error("ODESolver has no state vectors");
    }
 
-   static std::string Types;
+   static const char *ODETypes;
    static SecondOrderODESolver *Select(const int ode_solver_type);
 
    virtual ~SecondOrderODESolver() { }

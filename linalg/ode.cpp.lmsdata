@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,45 +9,22 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/communication.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
-
-
 
 namespace mfem
 {
 
-std::string ODESolver::ExplicitTypes = "\n\tExplicit solver: \n\t"
-                                       "        RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
-                                       "        AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5\n";
 
-std::string ODESolver::ImplicitTypes  = "\n\tImplicit solver: \n\t"
-                                        "        (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
-                                        "        (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
-                                        "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
-                                        "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
+const char *ODESolver::ODETypes  = "ODE solver: \n\t"
+                                   "        Explicit RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
+                                   "        Explicit AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5,\n\t"
+                                   "        Implicit (L-Stab): 21 - Backward Euler, 22 - SDIRK23(2), 23 - SDIRK33,\n\t"
+                                   "        Implicit (A-Stab): 32 - Implicit Midpoint, 33 - SDIRK23, 34 - SDIRK34,\n\t"
+                                   "        Implicit GA      : 40 -- 50  - Generalized-alpha,\n\t"
+                                   "        Implicit AB      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
-std::string ODESolver::Types = ODESolver::ExplicitTypes +
-                               ODESolver::ImplicitTypes;
-
-/// Return a ODESolver pointer based on an type
-/// Caller gets ownership of the object and is responsible for its deletion
 ODESolver* ODESolver::Select(int ode_solver_type)
-{
-   if (ode_solver_type< 20)
-   {
-      return SelectExplicit(ode_solver_type);
-   }
-   else
-   {
-      return SelectImplicit(ode_solver_type);
-   }
-}
-
-/// Return a ODESolver pointer based on an type
-/// Caller gets ownership of the object and is responsible for its deletion
-ODESolver* ODESolver::SelectExplicit(int ode_solver_type)
 {
    ODESolver*  ode_solver = NULL;
    switch (ode_solver_type)
@@ -65,20 +42,6 @@ ODESolver* ODESolver::SelectExplicit(int ode_solver_type)
       case 14: ode_solver = new AB4Solver; break;
       case 15: ode_solver = new AB5Solver; break;
 
-      default:
-         mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
-         mfem_error("Unknown ODE solver type");
-   }
-   return ode_solver;
-}
-
-/// Return a ODESolver pointer based on an type
-/// Caller gets ownership of the object and is responsible for its deletion
-ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
-{
-   ODESolver*  ode_solver = NULL;
-   switch (ode_solver_type)
-   {
       // Implicit L-stable methods
       case 21: ode_solver = new BackwardEulerSolver; break;
       case 22: ode_solver = new SDIRK23Solver(2); break;
@@ -445,8 +408,212 @@ const double RK8Solver::c[] =
    1.,
 };
 
+//---FIXME
 
-LMSSolver::LMSSolver()
+LMSData::LMSData()
+{
+   dt_ = -1;
+   smax = -1;
+   ss = 0;
+}
+
+void LMSData::SetStageSize(int s_)
+{
+   smax = std::min(s_,5);
+   k.resize(smax);
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = smax - i - 1;
+   }
+}
+
+void LMSData::SetVectorSize(int s_)
+{
+   if (smax<0) return;
+   ss = 0;
+   dt_ = -1;
+   if (k[0].Size() == s_ ) return;
+
+   for (int i = 0; i < smax; i++)
+   {
+      k[i].SetSize(s_);
+   }
+}
+
+void LMSData::ShiftStages()
+{
+   for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
+}
+
+void LMSData::CheckTimestep(double dt)
+{
+   if (dt_ < 0.0)
+   {
+      dt_ = dt;
+      return;
+   }
+   else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   {
+      if (print())
+      {
+         mfem::out << "WARNING:" << dt_<<"  "<<dt<<std::endl;
+         mfem::out << " - Time stepchanged - LMSData" << std::endl;
+         mfem::out << " - Purging time stepping history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+      ss = 0;
+      dt_ = dt;
+   }
+}
+
+void LMSData::GetStateVector(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " LMSData::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   state = k[idx[i]];
+}
+
+const Vector &LMSData::GetStateVector(int i)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " LMSData::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   return k[idx[i]];
+}
+
+void LMSData::SetStateVector(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < smax ),
+                " LMSData::SetStateVector \n" <<
+                " - Tried to set non-existent state "<<i);
+   k[idx[i]] = state;
+}
+
+void LMSData::SetStateVector(Vector &state)
+{
+   k[idx[0]] = state;
+   ShiftStages();
+   ss++;
+   ss = std::max(ss,smax);
+}
+
+AdamsBashforthSolver::AdamsBashforthSolver(int stages, const double *a_)
+{
+   a = a_;
+   data.SetStageSize(stages);
+
+   int order = stages;
+   if (order <= 2)
+   {
+      RKsolver = new RK2Solver();
+   }
+   else if (order == 3)
+   {
+      RKsolver = new RK3SSPSolver();
+   }
+   else if (order == 4)
+   {
+      RKsolver = new RK4Solver();
+   }
+   else
+   {
+      RKsolver = new RK6Solver();
+   }
+}
+
+void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   RKsolver->Init(f_);
+   data.SetVectorSize(f->Width());
+}
+
+void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
+{
+   data.CheckTimestep(dt);
+
+   if (data.ss >= data.smax-1)
+   {
+      f->SetTime(t);
+      f->Mult(x, data[0]);
+      for (int i = 0; i < data.smax; i++)
+      {
+         x.Add(a[i]*dt, data[i]);
+      }
+      t += dt;
+   }
+   else
+   {
+      f->Mult(x,data[0]);
+      RKsolver->Step(x,t,dt);
+      data.ss++;
+   }
+
+   data.ShiftStages();
+}
+
+
+AdamsMoultonSolver::AdamsMoultonSolver(int stages, const double *a_)
+{
+   a = a_;
+   data.SetStageSize(stages);
+
+   int order = stages+1;
+   if (order <= 3)
+   {
+      RKsolver = new SDIRK23Solver();
+   }
+   else
+   {
+      RKsolver = new SDIRK34Solver();
+   }
+}
+
+void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   RKsolver->Init(f_);
+   data.SetVectorSize(f->Width());
+}
+
+void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
+{
+   data.CheckTimestep(dt);
+
+   if (data.ss == 0)  //if ((data.ss == 0)&&(data.smax>1))
+   {
+      f->Mult(x,data[0]);
+      data.ss++;
+   }
+
+   if (data.ss >= data.smax)
+   {
+      f->SetTime(t);
+      for (int i = 0; i < data.smax; i++)
+      {
+         x.Add(a[i+1]*dt, data[i]);
+      }
+      data.ShiftStages();
+      f->ImplicitSolve(a[0]*dt, x, data[0]);
+      x.Add(a[0]*dt, data[0]);
+      t += dt;
+   }
+   else
+   {
+      data.ShiftStages();
+      RKsolver->Step(x,t,dt);
+      f->Mult(x,data[0]);
+      data.ss++;
+   }
+}
+
+//---FIXME
+
+/*LMSSolver::LMSSolver()
 {
    dt_ = -1.0;
    smax = -1;
@@ -498,7 +665,7 @@ void LMSSolver::CheckTimestep(double dt)
       if (print())
       {
          mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Time step changed - LMSSolver" << std::endl;
          mfem::out << " - Purging time stepping history" << std::endl;
          mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
       }
@@ -539,7 +706,7 @@ void LMSSolver::SetStateVector(Vector &state)
    ss = std::max(ss,smax);
 }
 
-AdamsBashforthSolver::AdamsBashforthSolver(int stages, const double *a_)
+AdamsBashforthSolver2::AdamsBashforthSolver2(int stages, const double *a_)
 {
    a = a_;
    SetStageSize(stages);
@@ -563,7 +730,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int stages, const double *a_)
    }
 }
 
-void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
+void AdamsBashforthSolver2::Step(Vector &x, double &t, double &dt)
 {
    CheckTimestep(dt);
 
@@ -585,7 +752,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    }
 
    ShiftStages();
-}
+}*/
 
 const double AB1Solver::a[] =
 {1.0};
@@ -598,7 +765,7 @@ const double AB4Solver::a[] =
 const double AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
-AdamsMoultonSolver::AdamsMoultonSolver(int stages, const double *a_)
+/*AdamsMoultonSolver2::AdamsMoultonSolver2(int stages, const double *a_)
 {
    a = a_;
    SetStageSize(stages);
@@ -614,7 +781,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int stages, const double *a_)
    }
 }
 
-void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
+void AdamsMoultonSolver2::Step(Vector &x, double &t, double &dt)
 {
    CheckTimestep(dt);
    if ((ss == 0)&&(smax>1))
@@ -642,7 +809,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       f->Mult(x,k[idx[0]]);
       ss++;
    }
-}
+}*/
 
 const double AM1Solver::a[] =
 {0.5, 0.5};
@@ -1099,7 +1266,7 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-const stdd:string SecondOrderODESolver::Types  = "ODE solver: \n\t"
+const char *SecondOrderODESolver::ODETypes  = "ODE solver: \n\t"
                                               "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
                                               "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
                                               "  13 - CentralDifference, 14 - FoxGoodwin";
@@ -1133,33 +1300,6 @@ SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
    }
    return ode_solver;
 }
-
-
-void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, double &t, double &dt)
-{
-   x.Add(dt, dxdt);
-
-   f->SetTime(t + dt);
-   f->ImplicitSolve(0.5*dt*dt, dt, x, dxdt, d2xdt2);
-
-   x   .Add(0.5*dt*dt, d2xdt2);
-   dxdt.Add(dt,    d2xdt2);
-   t += dt;
-}
-
-void SecondOrderODESolver::MidPointStep(Vector &x, Vector &dxdt, double &t, double &dt)
-{
-   x.Add(0.5*dt, dxdt);
-
-   f->SetTime(t + dt);
-   f->ImplicitSolve(0.25*dt*dt, 0.5*dt, x, dxdt, d2xdt2);
-
-   x.Add(0.5*dt, dxdt);
-   x.Add(0.5*dt*dt, d2xdt2);
-   dxdt.Add(dt, d2xdt2);
-   t += dt;
-}
-
 
 
 void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
@@ -1215,9 +1355,8 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    // In the first pass compute d2xdt2 directly from operator.
    if (first)
    {
-      MidPointStep(x, dxdt, t, dt);
+      f->Mult(x, dxdt, d2xdt2);
       first = false;
-      return;
    }
    f->SetTime(t + dt);
 
@@ -1312,9 +1451,8 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    // In the first pass compute d2xdt2 directly from operator.
    if (nstate == 0)
    {
-      MidPointStep(x, dxdt, t, dt);
-      first = false;
-      return;
+      f->Mult(x, dxdt, d2xdt2);
+      nstate = 1;
    }
 
    // Predict alpha levels
