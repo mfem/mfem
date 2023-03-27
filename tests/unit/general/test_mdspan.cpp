@@ -248,7 +248,7 @@ TEST_CASE("MDGridFunction reshapes", "[MDSpan], [MDGridFunction]")
          constexpr int numGroups = 4, numAngles = 7;
 
          MDGridFunction<3> psi(&fes, numGroups, numAngles);
-         psi.SetLayout(MDLayout<3>(layout));
+         psi.SetLayout(layout);
 
          const GridFunction *nodes = mesh.GetNodes();
          const FiniteElementSpace *mfes = mesh.GetNodalFESpace();
