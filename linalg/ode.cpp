@@ -1100,9 +1100,9 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
 }
 
 std::string SecondOrderODESolver::Types  = "ODE solver: \n\t"
-                                              "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
-                                              "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
-                                              "  13 - CentralDifference, 14 - FoxGoodwin";
+                                           "  [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
+                                           "  11 - Average Acceleration, 12 - Linear Acceleration\n\t"
+                                           "  13 - CentralDifference, 14 - FoxGoodwin";
 
 SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
 {
@@ -1135,7 +1135,8 @@ SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
 }
 
 
-void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, double &t, double &dt)
+void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, double &t,
+                                     double &dt)
 {
    x.Add(dt, dxdt);
 
@@ -1147,7 +1148,8 @@ void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, double &t, double 
    t += dt;
 }
 
-void SecondOrderODESolver::MidPointStep(Vector &x, Vector &dxdt, double &t, double &dt)
+void SecondOrderODESolver::MidPointStep(Vector &x, Vector &dxdt, double &t,
+                                        double &dt)
 {
    x.Add(0.5*dt, dxdt);
 
