@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -57,7 +57,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.5.1)
+set(${PROJECT_NAME}_VERSION 4.5.3)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -596,7 +596,19 @@ target_include_directories(mfem
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    # The INSTALL_INTERFACE is handled below
     ${TPL_INCLUDE_DIRS})
+if (MFEM_USE_MPI)
+  if (MPI_CXX_COMPILE_FLAGS)
+    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+      "${MPI_CXX_COMPILE_FLAGS}")
+    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
+  endif()
+  if (MPI_CXX_LINK_FLAGS)
+    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
+  endif()
+endif()
+
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -728,7 +740,7 @@ set(INSTALL_LIB_DIR lib
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
-target_include_directories(mfem
+target_include_directories(mfem BEFORE
   PUBLIC
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
