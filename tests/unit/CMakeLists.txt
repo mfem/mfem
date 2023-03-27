@@ -352,8 +352,8 @@ endfunction(add_mpi_executable_test)
 function(add_parallel_miniapp_test name HYPRE_MM)
     string(TOUPPER ${name} NAME)
 
-    function(add_mpi_unit_test dev NP)
-        #set(test_name p${name}_tests_${dev})
+    function(add_mpi_unit_test DEV NP)
+        set(test_name p${name}_tests_${DEV})
         add_test(NAME ${test_name}_np=${NP}
             COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
