@@ -161,7 +161,9 @@ set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
 
 # Load MFEM/MJIT CMake utilities.
 include(MfemCmakeUtilities)
-include(MjitCmakeUtilities)
+if (MFEM_USE_JIT)
+	include(MjitCmakeUtilities)
+endif()
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)

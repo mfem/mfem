@@ -343,9 +343,9 @@ function(add_mpi_executable_test name dev)
     target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_DEVICE="${DEV}")
     target_link_libraries(p${name}_tests_${dev} mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_${dev})
-    if (${dev} MATCHES "cuda")
-        set_property(TARGET p${name}_tests_${dev} PROPERTY RESOURCE_LOCK gpu)
-    endif()
+    #if (${dev} MATCHES "cuda")
+    #    set_property(TARGET p${name}_tests_${dev} PROPERTY RESOURCE_LOCK gpu)
+    #endif()
 endfunction(add_mpi_executable_test)
 
 # Function to add one test from the tests/unit/miniapp directory.
@@ -353,14 +353,14 @@ function(add_parallel_miniapp_test name HYPRE_MM)
     string(TOUPPER ${name} NAME)
 
     function(add_mpi_unit_test dev NP)
-        set(test_name p${name}_tests_${dev})
+        #set(test_name p${name}_tests_${dev})
         add_test(NAME ${test_name}_np=${NP}
             COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
             ${MPIEXEC_POSTFLAGS})
-        if (${dev} MATCHES "cuda")
-            set_property(TEST ${test_name}_np=${NP} PROPERTY RESOURCE_LOCK gpu)
-        endif()
+        #if (${dev} MATCHES "cuda")
+        #    set_property(TEST ${test_name}_np=${NP} PROPERTY RESOURCE_LOCK gpu)
+        #endif()
     endfunction()
 
     set(PAR_${NAME}_TESTS_SRCS punit_test_main.cpp miniapps/test_${name}.cpp)
