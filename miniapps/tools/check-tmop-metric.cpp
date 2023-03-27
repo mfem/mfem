@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
       case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
+      case 318: metric = new TMOP_Metric_318; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 322: metric = new TMOP_Metric_322; break;
       case 323: metric = new TMOP_Metric_323; break;

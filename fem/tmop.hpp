@@ -505,7 +505,10 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5(det(J) - 1 / det(J))^2.
+   // W = 0.5 (det(J) - 1 / det(J))^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I2 + 1 / I2) - 1.0.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -730,7 +733,7 @@ public:
    virtual int Id() const { return 313; }
 };
 
-/// 3D non-barrier metric without a type.
+/// 3D Size (V) metric.
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
@@ -748,7 +751,7 @@ public:
    virtual int Id() const { return 315; }
 };
 
-/// 3D barrier metric without a type.
+/// 3D Size (V) metric.
 class TMOP_Metric_316 : public TMOP_QualityMetric
 {
 protected:
@@ -759,6 +762,25 @@ public:
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 (I3b + 1/I3b) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
+/// 3D Size (V) metric.
+class TMOP_Metric_318 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I3 + 1/I3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;

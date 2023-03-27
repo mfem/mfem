@@ -667,17 +667,24 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight*(2*ie.Get_I1b() - 2.0), A.GetData());
 }
 
+double TMOP_Metric_077::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_77 = 0.5 (det(J)^2 + 1 / det(J)^2) - 1.
+   const double d = Jpt.Det();
+   return 0.5 * (d*d + 1.0/(d*d)) - 1.0;
+}
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
+   // mu_77 = 0.5 (I2 + 1 / I2) - 1.0.
    ie.SetJacobian(Jpt.GetData());
-   const double I2b = ie.Get_I2b();
-   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+   const double I2 = ie.Get_I2();
+   return  0.5*(I2 + 1.0/I2) - 1.0;
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // Using I2b^2 = I2.
-   // dmu77_dJ = 1/2 (1 - 1/I2^2) dI2_dJ.
+   // mu_77 = 0.5 (I2 + 1 / I2) - 1.0.
+   // P = 1/2 (1 - 1/I2^2) dI2_dJ.
    ie.SetJacobian(Jpt.GetData());
    const double I2 = ie.Get_I2();
    P.Set(0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2());
@@ -1089,6 +1096,43 @@ void TMOP_Metric_316::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(weight/(ie.Get_I3()*ie.Get_I3b()),
                      ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(weight*(0.5 - 0.5/ie.Get_I3()), A.GetData());
+}
+
+double TMOP_Metric_318::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_318 = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
+   double d = Jpt.Det();
+   return 0.5 * (d*d + 1.0 / (d*d)) - 1.0;
+}
+
+double TMOP_Metric_318::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_318 = mu_77_3D = 0.5*(I3 + 1/I3) - 1.
+   ie.SetJacobian(Jpt.GetData());
+   const double I3 = ie.Get_I3();
+   return 0.5*(I3 + 1.0/I3) - 1.0;
+}
+
+void TMOP_Metric_318::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   // mu_318 = mu_77_3D = 0.5*(I3 + 1/I3) - 1.
+   // P = 0.5*(1 - 1/I3^2)*dI3 = (0.5 - 0.5/I3^2)*dI3.
+   ie.SetJacobian(Jpt.GetData());
+   P.Set(0.5 - 0.5/(ie.Get_I3()*ie.Get_I3()), ie.Get_dI3());
+}
+
+void TMOP_Metric_318::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   // P = (0.5 - 0.5/I3^2)*dI3.
+   // dP =  (1/I3^3)*(dI3 x dI3) +(0.5 - 0.5/I3^2)*ddI3
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   const double i3 = ie.Get_I3();
+   ie.Assemble_TProd(weight/(i3 * i3 * i3) , ie.Get_dI3(), A.GetData());
+   ie.Assemble_ddI3(weight*(0.5 - 0.5 / (i3 * i3)), A.GetData());
 }
 
 double TMOP_Metric_321::EvalWMatrixForm(const DenseMatrix &Jpt) const
