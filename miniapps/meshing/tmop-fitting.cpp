@@ -35,7 +35,7 @@
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 tmop-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
 //  Fitting to Fischer-Tropsch reactor like domain
-//  * mpirun -np 6 tmop-fitting -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 7 -dist
+//  * mpirun -np 6 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist -mod-bndr-attr
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"

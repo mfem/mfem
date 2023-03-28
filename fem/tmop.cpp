@@ -3567,22 +3567,21 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 {
    const int el_id = Tpr.ElementNo;
    // Check if the element has any DOFs marked for surface fitting.
-   Array<int> dofs;
-   surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
+   Array<int> sdofs, dofs;
+   surf_fit_gf->FESpace()->GetElementDofs(el_id, sdofs);
    int count = 0;
-   for (int s = 0; s < dofs.Size(); s++)
+   for (int s = 0; s < sdofs.Size(); s++)
    {
-      count += ((*surf_fit_marker)[dofs[s]]) ? 1 : 0;
+      count += ((*surf_fit_marker)[sdofs[s]]) ? 1 : 0;
    }
    if (count == 0) { return; }
 
    const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
 
-   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
-             dof_s = el_s.GetDof();
+   const int dof_s = el_s.GetDof(), dim = el_x.GetDim();
 
    Vector sigma_e;
-   surf_fit_gf->GetSubVector(dofs, sigma_e);
+   surf_fit_gf->GetSubVector(sdofs, sigma_e);
 
    // Project the gradient of sigma in the same space.
    // The FE coefficients of the gradient go in surf_fit_grad_e.
@@ -3600,40 +3599,21 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       grad_phys.Mult(sigma_e, grad_ptr);
    }
 
-   Vector shape_x(dof_x), shape_s(dof_s);
    const IntegrationRule &ir = el_s.GetNodes();
-   Vector surf_fit_grad_s(dim);
-   surf_fit_grad_s = 0.0;
-
-   DenseMatrix matAdd(mat);
-   matAdd = 0.0;
-
    for (int s = 0; s < dof_s; s++)
    {
-      if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
+      if ((*surf_fit_marker)[sdofs[s]] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
-      el_x.CalcShape(ip, shape_x);
-      el_s.CalcShape(ip, shape_s);
-
-      // Note that this gradient is already in physical space.
-      surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
-      surf_fit_grad_s *= 2.0 * surf_fit_normal *
-                         surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s);
-      AddMultVWt(shape_x, surf_fit_grad_s, matAdd);
-   }
-
-   surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-   for (int i = 0; i < matAdd.Height(); i++)
-   {
-      for (int d = 0; d < matAdd.Width(); d++)
+      const double w = 2.0 * surf_fit_normal *
+                       surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s) *
+                       1.0/surf_fit_dof_count[sdofs[s]];
+      for (int d = 0; d < dim; d++)
       {
-         matAdd(i, d) /= surf_fit_dof_count[dofs[i]];
+         mat(s, d) += w * surf_fit_grad_e(s, d);
       }
    }
-
-   mat += matAdd;
 }
 
 void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
@@ -3642,22 +3622,22 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 {
    const int el_id = Tpr.ElementNo;
    // Check if the element has any DOFs marked for surface fitting.
-   Array<int> dofs;
-   surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
+   Array<int> dofs, sdofs;
+   surf_fit_gf->FESpace()->GetElementDofs(el_id, sdofs);
+   int ndofs = sdofs.Size();
    int count = 0;
-   for (int s = 0; s < dofs.Size(); s++)
+   for (int s = 0; s < ndofs; s++)
    {
-      count += ((*surf_fit_marker)[dofs[s]]) ? 1 : 0;
+      count += ((*surf_fit_marker)[sdofs[s]]) ? 1 : 0;
    }
    if (count == 0) { return; }
 
    const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
 
-   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
-             dof_s = el_s.GetDof();
+   const int dof_s = el_s.GetDof(), dim = el_x.GetDim();
 
    Vector sigma_e;
-   surf_fit_gf->GetSubVector(dofs, sigma_e);
+   surf_fit_gf->GetSubVector(sdofs, sigma_e);
 
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
@@ -3688,46 +3668,34 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    }
 
    const IntegrationRule &ir = el_s.GetNodes();
-   Vector shape_x(dof_x), shape_s(dof_s);
 
    Vector surf_fit_grad_s(dim);
    DenseMatrix surf_fit_hess_s(dim, dim);
 
-   Array<int> cdofs;
-   surf_fit_gf->FESpace()->GetElementDofs(el_id, cdofs);
-
    for (int s = 0; s < dof_s; s++)
    {
-      if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
+      if ((*surf_fit_marker)[sdofs[s]] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
-      el_x.CalcShape(ip, shape_x);
-      el_s.CalcShape(ip, shape_s);
 
-      // These are the sums over k at the dof s (looking at the notes).
-      surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
       Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
-      surf_fit_hess_e.MultTranspose(shape_s, gg_ptr);
+      surf_fit_hess_e.GetRow(s, gg_ptr);
 
       // Loops over the local matrix.
       const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
-      for (int i = 0; i < dof_x * dim; i++)
+      for (int idim = 0; idim < dim; idim++)
       {
-         const int idof = i % dof_x, idim = i / dof_x;
-         for (int j = 0; j <= i; j++)
+         for (int jdim = 0; jdim <= idim; jdim++)
          {
-            const int jdof = j % dof_x, jdim = j / dof_x;
-            double entry =
-               w * ( 2.0 * surf_fit_grad_s(idim) * shape_x(idof) *
-                     /* */ surf_fit_grad_s(jdim) * shape_x(jdof) +
-                     2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim) *
-                     /* */ shape_x(idof) * shape_x(jdof));
-            const int dofcount = std::min(surf_fit_dof_count[cdofs[idof]],
-                                          surf_fit_dof_count[cdofs[jdof]]);
-            entry *= 1.0/dofcount;
-            mat(i, j) += entry;
-            if (i != j) { mat(j, i) += entry; }
+            double entry = w * ( 2.0 * surf_fit_grad_e(s, idim) *
+                                 /* */ surf_fit_grad_e(s, jdim) +
+                                 2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim));
+            entry *= 1.0/surf_fit_dof_count[sdofs[s]];
+            int idx = s + idim*ndofs;
+            int jdx = s + jdim*ndofs;
+            mat(idx, jdx) += entry;
+            if (idx != jdx) { mat(jdx, idx) += entry; }
          }
       }
    }
