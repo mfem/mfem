@@ -160,7 +160,6 @@ if (MFEM_USE_CUDA)
    add_dependencies(cunit_tests copy_data)
    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} cunit_tests)
    add_test(NAME cunit_tests COMMAND cunit_tests)
-   #set_property(TEST cunit_tests PROPERTY RESOURCE_LOCK gpu)
 endif()
 
 #-----------------------------------------------------------
@@ -200,7 +199,6 @@ function(add_serial_miniapp_test name test_uvm)
        target_link_libraries(${name}_tests_cuda mfem)
        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cuda)
        add_test(NAME ${name}_tests_cuda COMMAND ${name}_tests_cuda)
-       #set_property(TEST ${name}_tests_cuda PROPERTY RESOURCE_LOCK gpu)
 
        if (test_uvm)
            mfem_add_executable(${name}_tests_cuda_uvm ${${NAME}_TESTS_SRCS})
@@ -210,7 +208,6 @@ function(add_serial_miniapp_test name test_uvm)
            add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                ${name}_tests_cuda_uvm)
            add_test(NAME ${name}_tests_cuda_uvm COMMAND ${name}_tests_cuda_uvm)
-           #set_property(TEST ${name}_tests_cuda_uvm PROPERTY RESOURCE_LOCK gpu)
        endif()
     endif(MFEM_USE_CUDA)
 endfunction(add_serial_miniapp_test)
@@ -247,10 +244,6 @@ if (MFEM_USE_CEED)
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
       add_test(NAME ceed_tests_cuda_gen
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/gen)
-     #set_tests_properties(ceed_tests_cuda_ref
-     #                     ceed_tests_cuda_shared
-     #                     ceed_tests_cuda_gen
-     #                     PROPERTIES RESOURCE_LOCK gpu)
    endif()
 endif()
 
@@ -302,7 +295,6 @@ if (MFEM_USE_MPI)
                   COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
                   ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pcunit_tests>
                   ${MPIEXEC_POSTFLAGS})
-         #set_property(TEST pcunit_tests_np=${np} PROPERTY RESOURCE_LOCK gpu)
       endforeach()
    endif()
    # Define 'pmjit_tests' executable
@@ -343,9 +335,6 @@ function(add_mpi_executable_test name dev)
     target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_DEVICE="${DEV}")
     target_link_libraries(p${name}_tests_${dev} mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_${dev})
-    #if (${dev} MATCHES "cuda")
-    #    set_property(TARGET p${name}_tests_${dev} PROPERTY RESOURCE_LOCK gpu)
-    #endif()
 endfunction(add_mpi_executable_test)
 
 # Function to add one test from the tests/unit/miniapp directory.
@@ -358,9 +347,6 @@ function(add_parallel_miniapp_test name HYPRE_MM)
             COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
             ${MPIEXEC_POSTFLAGS})
-        #if (${dev} MATCHES "cuda")
-        #    set_property(TEST ${test_name}_np=${NP} PROPERTY RESOURCE_LOCK gpu)
-        #endif()
     endfunction()
 
     set(PAR_${NAME}_TESTS_SRCS punit_test_main.cpp miniapps/test_${name}.cpp)

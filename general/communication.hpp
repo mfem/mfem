@@ -22,6 +22,9 @@
 #include "globals.hpp"
 #include <mpi.h>
 
+#ifdef MFEM_USE_JIT
+#include "jit/jit.hpp"
+#endif
 
 namespace mfem
 {
