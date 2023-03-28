@@ -79,6 +79,7 @@
 
 using namespace mfem;
 using namespace std;
+using namespace common;
 
 int main(int argc, char *argv[])
 {
