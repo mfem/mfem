@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,21 +27,21 @@
 // (3) "The target-matrix optimization paradigm for high-order meshes" by
 //     Dobrev, Knupp, Kolev, Mittal, Tomov.
 
-// Compile with: make tmop-fitting
+// Compile with: make pmesh-fitting
 // Sample runs:
 //  Interface fitting:
-//    mpirun -np 4 tmop-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
-//    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
+//    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
+//    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error
-//    mpirun -np 4 tmop-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
+//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
 //  Fitting to Fischer-Tropsch reactor like domain
-//  * mpirun -np 6 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist -mod-bndr-attr
+//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist -mod-bndr-attr
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
-#include "tmop-fitting.hpp"
+#include "pmesh-fitting.hpp"
 
 using namespace mfem;
 using namespace std;
