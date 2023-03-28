@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -292,13 +292,14 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 {
-   // If the argument vector owns its data, then the calling vector will as well
-   WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
-   // Either way the argument vector will no longer own its data
+   Vector::operator=(std::move(y));
+   // Self-assignment-safe way to move for 'own_ParVector' and 'x':
+   const auto own_tmp = y.own_ParVector;
    y.own_ParVector = 0;
+   own_ParVector = own_tmp;
+   const auto x_tmp = y.x;
    y.x = nullptr;
-   y.data.Reset();
-   y.size = 0;
+   x = x_tmp;
    return *this;
 }
 

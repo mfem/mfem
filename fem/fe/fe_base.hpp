@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -127,7 +127,6 @@ public:
    }
 };
 
-
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
     FiniteElement at a the quadrature points of a given IntegrationRule. */
@@ -157,8 +156,7 @@ public:
           dimensions using 1D number of quadrature points and degrees of
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
-          are used to describe the "closed" and "open" 1D basis functions
-          (TODO). */
+          are used to describe the "closed" and "open" 1D basis functions. */
       TENSOR
    };
 
@@ -176,7 +174,7 @@ public:
    /// Basis functions evaluated at quadrature points.
    /** The storage layout is column-major with dimensions:
        - #nqpt x #ndof, for scalar elements, or
-       - #nqpt x dim x #ndof, for vector elements, (TODO)
+       - #nqpt x dim x #ndof, for vector elements,
 
        where
 
@@ -187,15 +185,15 @@ public:
    /// Transpose of #B.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt, for scalar elements, or
-       - #ndof x #nqpt x dim, for vector elements (TODO). */
+       - #ndof x #nqpt x dim, for vector elements. */
    Array<double> Bt;
 
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
    /** The storage layout is column-major with dimensions:
        - #nqpt x dim x #ndof, for scalar elements, or
-       - #nqpt x #ndof, for H(div) vector elements (TODO), or
-       - #nqpt x cdim x #ndof, for H(curl) vector elements (TODO),
+       - #nqpt x #ndof, for H(div) vector elements, or
+       - #nqpt x cdim x #ndof, for H(curl) vector elements,
 
        where
 
@@ -208,11 +206,10 @@ public:
    /// Transpose of #G.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt x dim, for scalar elements, or
-       - #ndof x #nqpt, for H(div) vector elements (TODO), or
-       - #ndof x #nqpt x cdim, for H(curl) vector elements (TODO). */
+       - #ndof x #nqpt, for H(div) vector elements, or
+       - #ndof x #nqpt x cdim, for H(curl) vector elements. */
    Array<double> Gt;
 };
-
 
 /// Describes the function space on each element
 class FunctionSpace
@@ -247,7 +244,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x VDim
+   mutable DenseMatrix vshape; // Dof x Dim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -349,7 +346,6 @@ public:
        functions are mapped to physical space, one of {VALUE, INTEGRAL
        H_DIV, H_CURL}. */
    int GetMapType() const { return map_type; }
-
 
    /** @brief Returns the FiniteElement::DerivType of the element describing the
        spatial derivative method implemented, one of {NONE, GRAD,
@@ -457,8 +453,8 @@ public:
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
        The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &Hessian) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
 
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -579,6 +575,7 @@ public:
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
+
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
@@ -625,26 +622,17 @@ public:
    }
 };
 
-
 /** @brief Class for finite elements with basis functions
     that return scalar values. */
 class ScalarFiniteElement : public FiniteElement
 {
 protected:
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector c_shape;
-#endif
-
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
       MFEM_VERIFY(fe.GetRangeType() == SCALAR,
                   "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
-
-   const DofToQuad &GetTensorDofToQuad(const class TensorBasisElement &tb,
-                                       const IntegrationRule &ir,
-                                       DofToQuad::Mode mode) const;
 
 public:
    /** @brief Construct ScalarFiniteElement with given
@@ -656,13 +644,8 @@ public:
     */
    ScalarFiniteElement(int D, Geometry::Type G, int Do, int O,
                        int F = FunctionSpace::Pk)
-#ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
    { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
-#else
-      : FiniteElement(D, G, Do, O, F), c_shape(dof)
-   { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
-#endif
 
    /** @brief Set the FiniteElement::MapType of the element to either VALUE or
        INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
@@ -673,7 +656,6 @@ public:
       map_type = M;
       deriv_type = (M == VALUE) ? GRAD : NONE;
    }
-
 
    /** @brief Get the matrix @a I that defines nodal interpolation
        @a between this element and the refined element @a fine_fe. */
@@ -695,14 +677,10 @@ public:
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
        generally different. */
-   void ScalarLocalRestriction(ElementTransformation &Trans,
-                               DenseMatrix &R,
-                               const ScalarFiniteElement &coarse_fe) const;
-
-   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                         DofToQuad::Mode mode) const;
+   void ScalarLocalL2Restriction(ElementTransformation &Trans,
+                                 DenseMatrix &R,
+                                 const ScalarFiniteElement &coarse_fe) const;
 };
-
 
 /// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
@@ -725,38 +703,38 @@ public:
                       int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { NodalLocalInterpolation(Trans, I, *this); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const;
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override;
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { CheckScalarFE(fe).NodalLocalInterpolation(Trans, I, *this); }
 
-   virtual void Project (Coefficient &coeff,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
+   void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const override;
 
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 
-   virtual void ProjectDiv(const FiniteElement &fe,
-                           ElementTransformation &Trans,
-                           DenseMatrix &div) const;
+   void ProjectDiv(const FiniteElement &fe,
+                   ElementTransformation &Trans,
+                   DenseMatrix &div) const override;
 
    /** @brief Get an Array<int> that maps lexicographically ordered indices to
        the indices of the respective nodes/dofs/basis functions.
@@ -790,12 +768,12 @@ class VectorFiniteElement : public FiniteElement
    // Hide the scalar functions CalcShape and CalcDShape.
 private:
    /// Overrides the scalar CalcShape function to print an error.
-   virtual void CalcShape(const IntegrationPoint &ip,
-                          Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip,
+                  Vector &shape) const override;
 
    /// Overrides the scalar CalcDShape function to print an error.
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
 protected:
    bool is_nodal;
@@ -954,10 +932,9 @@ protected:
    }
 
 public:
-   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
-                        int F = FunctionSpace::Pk);
+   VectorFiniteElement(int D, Geometry::Type G, int Do, int O, int M,
+                       int F = FunctionSpace::Pk);
 };
-
 
 /// @brief Class for computing 1D special polynomials and their associated basis
 /// functions
@@ -1177,8 +1154,7 @@ public:
    ~Poly_1D();
 };
 
-extern Poly_1D poly1d;
-
+extern MFEM_EXPORT Poly_1D poly1d;
 
 /// An element defined as an ND tensor product of 1D elements on a segment,
 /// square, or cube
@@ -1203,7 +1179,7 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   const Poly_1D::Basis& GetBasis1D() const { return basis1d; }
+   const Poly_1D::Basis &GetBasis1D() const { return basis1d; }
 
    /** @brief Get an Array<int> that maps lexicographically ordered indices to
        the indices of the respective nodes/dofs/basis functions. If the dofs are
@@ -1235,6 +1211,11 @@ public:
          default: MFEM_ABORT("invalid dimension: " << dim); return -1;
       }
    }
+
+   static const DofToQuad &GetTensorDofToQuad(
+      const FiniteElement &fe, const IntegrationRule &ir,
+      DofToQuad::Mode mode, const Poly_1D::Basis &basis, bool closed,
+      Array<DofToQuad*> &dof2quad_array);
 };
 
 class NodalTensorFiniteElement : public NodalFiniteElement,
@@ -1245,18 +1226,18 @@ public:
                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const
+                                 DofToQuad::Mode mode) const override
    {
       return (mode == DofToQuad::FULL) ?
-             ScalarFiniteElement::GetDofToQuad(ir, mode) :
-             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+             FiniteElement::GetDofToQuad(ir, mode) :
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
 
-   virtual void SetMapType(const int map_type_);
+   void SetMapType(const int map_type_) override;
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    {
       if (basis1d.IsIntegratedType())
       {
@@ -1276,7 +1257,7 @@ private:
    mutable Array<DofToQuad*> dof2quad_array_open;
 
 protected:
-   Poly_1D::Basis &cbasis1d, &obasis1d;
+   Poly_1D::Basis &obasis1d;
 
 public:
    VectorTensorFiniteElement(const int dims, const int d, const int p,
@@ -1289,16 +1270,22 @@ public:
                              const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const;
+                                 DofToQuad::Mode mode) const override
+   {
+      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      return GetTensorDofToQuad(*this, ir, mode, basis1d, true,
+                                dof2quad_array);
+   }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
-                                     DofToQuad::Mode mode) const;
+                                     DofToQuad::Mode mode) const
+   {
+      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
+                                dof2quad_array_open);
+   }
 
-   const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
-                                       DofToQuad::Mode mode,
-                                       const bool closed) const;
-
-   ~VectorTensorFiniteElement();
+   virtual ~VectorTensorFiniteElement();
 };
 
 void InvertLinearTrans(ElementTransformation &trans,

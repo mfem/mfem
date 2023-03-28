@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < x_loc.Size(); i++)
    {
       double rate_sum = 0.0;
-      double dx = 0.1;
+      dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
          double err_k = 0.0;
@@ -221,6 +221,8 @@ int main(int argc, char *argv[])
          if (k > 0)
          {
             double r = log2(err_old / err_k);
+            // Error is zero (2nd derivative is exact) -> put rate 2 (optimal).
+            if (err_k < 1e-14) { r = 2.0; }
             rate_sum += r;
             if (verbose)
             {
