@@ -15,6 +15,7 @@
 #include "mesh-optimizer.hpp"
 using namespace std;
 using namespace mfem;
+using namespace common;
 
 // Used for exact surface alignment
 double circle_level_set(const Vector &x)

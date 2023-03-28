@@ -280,21 +280,11 @@ int main (int argc, char *argv[])
    switch (metric_id)
    {
       // T-metrics
-      case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
-      case 55: metric = new TMOP_Metric_055; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
-      case 301: metric = new TMOP_Metric_301; break;
-      case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
-      case 315: metric = new TMOP_Metric_315; break;
-      case 316: metric = new TMOP_Metric_316; break;
-      case 321: metric = new TMOP_Metric_321; break;
       case 328: metric = new TMOP_Metric_328(0.5); break;
-      case 332: metric = new TMOP_Metric_332(0.5); break;
-      case 333: metric = new TMOP_Metric_333(0.5); break;
-      case 334: metric = new TMOP_Metric_334(0.5); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
