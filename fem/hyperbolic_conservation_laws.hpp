@@ -1063,11 +1063,6 @@ class AdvectionElementFormIntegrator : public HyperbolicElementFormIntegrator {
                      DenseMatrix &flux) {
     b.Eval(bval, Tr, Tr.GetIntPoint());
     MultVWt(state, bval, flux);
-    // for (int j = 0; j < dim; j++) {
-    //   for (int i = 0; i < num_equations; i++) {
-    //     flux(i, j) = bval(j) * state(i);
-    //   }
-    // }
     return bval.Norml2();
   }
 
