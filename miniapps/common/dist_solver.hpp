@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace common
+{
+
 double AvgElementSize(ParMesh &pmesh);
 
 class DistanceSolver
@@ -304,6 +307,8 @@ private:
 
    ScreenedPoisson* sint;
 };
+
+} // namespace common
 
 } // namespace mfem
 

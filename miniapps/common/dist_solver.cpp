@@ -16,6 +16,9 @@
 namespace mfem
 {
 
+namespace common
+{
+
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
    // Setup the Laplacian operator.
@@ -813,6 +816,8 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
    ffield.ProjectCoefficient(gfc);
 }
 
-}
+} // namespace common
+
+} // namespace mfem
 
 #endif
