@@ -41,7 +41,7 @@
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
-#include "pmesh-fitting.hpp"
+#include "mesh-fitting.hpp"
 
 using namespace mfem;
 using namespace std;
