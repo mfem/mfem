@@ -458,7 +458,7 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                MFEM_VERIFY(io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
                            "[JIT] Could not find any MFEM header!");
                std::string incs;
-               for (auto inc: Get().includes) { incs += "-include \"" + inc + "\" "; }
+               for (auto &inc: Get().includes) { incs += "-include \"" + inc + "\" "; }
                std::string mfem_install_include_dir(MFEM_INSTALL_DIR "/include/mfem");
                Command() << cxx << flags
                          << "-I" << mfem_install_include_dir

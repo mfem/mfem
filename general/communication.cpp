@@ -29,35 +29,10 @@
 #include <iostream>
 #include <map>
 
-#ifdef MFEM_USE_JIT
-#include "jit/jit.hpp"
-#endif
-
 using namespace std;
 
 namespace mfem
 {
-
-void Mpi::Init_(int *argc, char ***argv)
-{
-   MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
-#ifndef MFEM_USE_JIT
-   MPI_Init(argc, argv);
-#else
-   Jit::Init(argc, argv);
-#endif
-   // The "mpi" object below needs to be created after MPI_Init()
-   // for some MPI implementations
-   static Mpi mpi;
-}
-
-Mpi::~Mpi()
-{
-#ifdef MFEM_USE_JIT
-   Jit::Finalize();
-#endif
-   Finalize();
-}
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),

@@ -73,9 +73,26 @@ public:
    static bool Root() { return WorldRank() == 0; }
 private:
    /// Initialize MPI
-   static void Init_(int *argc, char ***argv);
+   static void Init_(int *argc, char ***argv)
+   {
+      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
+#ifndef MFEM_USE_JIT
+      MPI_Init(argc, argv);
+#else
+      Jit::Init(argc, argv);
+#endif
+      // The "mpi" object below needs to be created after MPI_Init() for some
+      // MPI implementations
+      static Mpi mpi;
+   }
    /// Finalize MPI
-   ~Mpi();
+   ~Mpi()
+   {
+#ifdef MFEM_USE_JIT
+      Jit::Finalize();
+#endif
+      Finalize();
+   }
    /// Prevent direct construction of objects of this class
    Mpi() { }
 };
