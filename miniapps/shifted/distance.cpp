@@ -95,6 +95,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace common;
 
 double sine_ls(const Vector &x)
 {
