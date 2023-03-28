@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,8 +91,10 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
    });
 }
 
-void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                              const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    NonconformingTransposeInterpolation(x);
    H1FaceRestriction::AddMultTranspose(x_interp, y);
@@ -774,8 +776,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                              const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (type==FaceType::Interior)
    {

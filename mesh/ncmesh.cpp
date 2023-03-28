@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3706,19 +3706,27 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
 
 static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
 {
-   if (!na || !nb) { return false; }
-   int a_last = a[na-1], b_last = b[nb-1];
-   if (*b < *a) { goto l2; }  // woo-hoo! I always wanted to use a goto! :)
-l1:
-   if (a_last < *b) { return false; }
-   while (*a < *b) { a++; }
-   if (*a == *b) { return true; }
-l2:
-   if (b_last < *a) { return false; }
-   while (*b < *a) { b++; }
-   if (*a == *b) { return true; }
-   goto l1;
+   // pointers to "end" sentinel, not last entry. Not for dereferencing.
+   const int * const a_end = a + na;
+   const int * const b_end = b + nb;
+   while (a != a_end && b != b_end)
+   {
+      if (*a < *b)
+      {
+         ++a;
+      }
+      else if (*b < *a)
+      {
+         ++b;
+      }
+      else
+      {
+         return true; // neither *a < *b nor *b < *a thus a == b
+      }
+   }
+   return false; // no common element found
 }
+
 
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
                            const Array<int> *search_set)
@@ -4478,6 +4486,19 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          else if (child == 3)
          {
             pm = PointMatrix(mid12, mid20, mid01);
+         }
+      }
+      else if (geom == Geometry::SEGMENT)
+      {
+         Point mid01(pm(0), pm(1));
+
+         if (child == 0)
+         {
+            pm = PointMatrix(pm(0), mid01);
+         }
+         else if (child == 1)
+         {
+            pm = PointMatrix(mid01, pm(1));
          }
       }
    }

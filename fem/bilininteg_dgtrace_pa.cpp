@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,7 +145,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el =
-      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
    FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
