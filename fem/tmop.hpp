@@ -1997,7 +1997,7 @@ public:
        @param[in] s_bg_hess  Hessian of s(x) on the background mesh.
        @param[in] s0_hess    Hessian of s0 on the initial mesh.
        @param[in] ahe        Interpolates s_hess(x) from s_bg_hess(x_bg).
-       See the tmop-fitting miniapp for detail on usage. */
+       See the pmesh-fitting miniapp for details on usage. */
    void EnableSurfaceFittingFromSource(const ParGridFunction &s_bg,
                                        ParGridFunction &s0,
                                        const Array<bool> &smarker,

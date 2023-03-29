@@ -459,6 +459,7 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    field.SetFromTrueDofs(fieldtrue);
 
    delete S;
+   delete A;
    delete Lap;
 }
 #endif
