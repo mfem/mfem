@@ -18,6 +18,28 @@
 // srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 5 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4 -paraview
 // srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 5 -o 2 -bs 5 -theta 2.0 -mi 100 -mf 0.4 -paraview
 
+
+// Runs for the paper
+// Determnistic design
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 1 -mi 100 -mf 0.5 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -save-to-file -prob 0
+
+// Stochastic design
+// Adaptive sampling 
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 5 -mi 100 -mf 0.5 -theta 2.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+// Constant number of samples
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 10 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 100 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 1000 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 10000 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+
+
+
+// Restore from saved design and evaluate compliance on random loads
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 100 -mi 1 -mf 0.5 -theta 2.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -restore -prob 1 -m output_design/mesh. -g output_design/rho.
+
+
+
+
 //         min J(K) = <g,u>
 //                            
 //                        Γ_2           Γ_1            Γ_2
@@ -54,6 +76,23 @@
 #include "../../../spde/spde_solver.hpp"
 
 bool random_seed = true;
+
+ParGridFunction * LoadParMeshAndParGridFunction(const char * mesh_filename, const char * gf_filename)
+{
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+
+   string fname(MakeParFilename(mesh_filename, myid));
+   ifstream ifs(fname);
+   MFEM_VERIFY(ifs.good(), "Mesh file " << fname << " not found.");
+   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
+
+   string fsname(MakeParFilename(gf_filename, myid));
+   ifstream ifss(fsname);
+   MFEM_VERIFY(ifss.good(), "GridFunction file " << fsname << " not found.");
+   return new ParGridFunction(pmesh,ifss);
+}
+
 
 class RandomUniformConstantCoefficient : public ConstantCoefficient
 {
@@ -266,6 +305,13 @@ using namespace mfem;
  *  w ∈ L^2 (order p - 1)
  */
 
+enum prob_type
+{
+   deterministic,    
+   stochastic     
+};
+prob_type prob;
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -289,14 +335,19 @@ int main(int argc, char *argv[])
    double K_min = 1e-3;
    int batch_size_min = 2;
    double theta = 0.5;
-
    int max_cumulative_samples = 1e5;
-
    double l1 = 0.1, l2 = 0.1, l3 = 1.0;
-
-
    bool use_simp = true;
    bool paraview = false;
+   int iprob = 0;
+
+   // save design to a file
+   bool save_to_file = false;
+   // restore precomputed design from file
+   bool restore_from_file = false;
+   const char *saved_meshfile = "output_design/mesh.";
+   const char *saved_solfile = "output_design/rho.";
+
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
@@ -318,7 +369,6 @@ int main(int argc, char *argv[])
                   "Correlation length y");             
    args.AddOption(&l3, "-l3", "--l3",
                   "Correlation length z");                        
-
    args.AddOption(&tol_rho, "-tr", "--tol_rho",
                   "Exit tolerance for ρ ");     
    args.AddOption(&tol_lambda, "-tl", "--tol_lambda",
@@ -329,13 +379,14 @@ int main(int argc, char *argv[])
                   "Maximum of diffusion diffusion coefficient.");
    args.AddOption(&K_min, "-Kmin", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
+   args.AddOption(&iprob, "-prob", "--problem", "Problem type"
+                  " 0: deterministic, 1: stochastic ");
    args.AddOption(&batch_size_min, "-bs", "--batch-size",
                   "batch size for stochastic gradient descent.");     
    args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
                   "Sampling ratio theta");       
    args.AddOption(&use_simp, "-simp", "--simp", "-no-simp",
-                  "--no-simp",
-                  "Use SIMP.");                    
+                  "--no-simp", "Use SIMP.");                    
    args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
                   "--no-random-seed",
                   "Enable or disable random seed.");                                                     
@@ -344,8 +395,17 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
-                  "Enable or disable paraview export.");               
-
+                  "Enable or disable paraview export.");       
+   args.AddOption(&save_to_file, "-save-to-file", "--save-to-file", "-no-save",
+                  "--no-save",
+                  "Enable or disable saving design to a file.");                       
+   args.AddOption(&restore_from_file, "-restore", "--restore", "-no-restore",
+                  "--no-restore",
+                  "Enable or disable restore from file.");                         
+   args.AddOption(&saved_meshfile, "-m", "--mesh",
+                  "Load precomputed design mesh.");
+   args.AddOption(&saved_solfile, "-g", "--gf",
+                  "Load precomputed design GridFunction.");                  
    args.Parse();
    if (!args.Good())
    {
@@ -360,6 +420,14 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   MFEM_VERIFY((iprob == 0 || iprob == 1), "Wrong choice of problem kind");
+   prob = (prob_type)iprob;
+
+   ParGridFunction * rho_saved = (restore_from_file) 
+                               ? LoadParMeshAndParGridFunction(saved_meshfile,saved_solfile)
+                               : nullptr;
+
    int batch_size = batch_size_min;
    if (theta < 0.0) { theta = std::numeric_limits<double>::infinity(); }
 
@@ -444,7 +512,6 @@ int main(int argc, char *argv[])
       cout << "Number of control unknowns: " << control_size << endl;
    }
 
-
    // Setup SPDE for random load generation
    spde::Boundary bc;
 
@@ -469,7 +536,8 @@ int main(int argc, char *argv[])
    spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
 
    ParGridFunction load_gf(&state_fes);
-   random_load_solver.SetupRandomFieldGenerator(myid+1);
+   // random_load_solver.SetupRandomFieldGenerator(myid+1);
+   random_load_solver.SetupRandomFieldGenerator(1);
    random_load_solver.GenerateRandomField(load_gf);
 
    GridFunctionCoefficient load_cf(&load_gf);
@@ -481,8 +549,15 @@ int main(int argc, char *argv[])
    ParGridFunction rho_filter(&filter_fes);
    u = 0.0;
    rho_filter = 0.0;
-   rho = 0.5;
-   rho_old = 0.5;
+   if (rho_saved)
+   {
+      rho = *rho_saved;
+   }
+   else
+   {
+      rho = 0.5;
+   }
+   rho_old = rho;
    // 8. Set up the linear form b(.) for the state and adjoint equations.
    int maxat = pmesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
@@ -501,7 +576,6 @@ int main(int argc, char *argv[])
    
    PoissonSolver->SetRHSCoefficient(&load_cf);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
-
 
    ConstantCoefficient eps2_cf(epsilon*epsilon);
    DiffusionSolver * FilterSolver = new DiffusionSolver();
@@ -576,6 +650,10 @@ int main(int argc, char *argv[])
    // RandomConstantCoefficient eta_cf(0.2,0.2,1);
    Coefficient * K_cf = nullptr;
    Coefficient * rhs_cf = nullptr;
+   if (rho_saved)
+   {
+      max_it = 1;
+   }
    for (int k = 1; k <= max_it; k++)
    {
       // A. Form state equation
@@ -630,7 +708,14 @@ int main(int argc, char *argv[])
                // rand_bc.resample();
                // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
                // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
-               random_load_solver.GenerateRandomField(load_gf);
+               if (prob == prob_type::stochastic)
+               {
+                  random_load_solver.GenerateRandomField(load_gf);
+               }
+               else
+               {
+                  load_gf = 1.0;
+               }
             }
             PoissonSolver->Solve();
             u = *PoissonSolver->GetFEMSolution();
@@ -663,6 +748,11 @@ int main(int argc, char *argv[])
          avg_w_norm /= (double)batch_size;  
          avg_w /= (double)batch_size;
          avg_compliance /= (double)batch_size;  
+
+         if (myid == 0)
+         {
+            mfem::out << "avg_compliance = " << avg_compliance << endl;
+         }
 
          double norm_avg_w = pow(avg_w.ComputeL2Error(zero),2);
          double denom = batch_size == 1 ? batch_size : batch_size-1;
@@ -749,7 +839,7 @@ int main(int argc, char *argv[])
             {
                mfem::out << "ratio_avg = " << ratio_avg << std::endl;
             }
-            if (ratio > theta and !first_iteration)
+            if (ratio > theta && !first_iteration)
             {
                batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }
@@ -802,10 +892,8 @@ int main(int argc, char *argv[])
          mfem::out << "lambda = " << lambda << endl;
       }
 
-
       if (visualization)
       {
-
          sout_u << "parallel " << num_procs << " " << myid << "\n";
          sout_u << "solution\n" << pmesh << u
                << "window_title 'State u'" << flush;
@@ -826,6 +914,22 @@ int main(int argc, char *argv[])
       if (cumulative_samples > max_cumulative_samples) { break; }
 
    }
+
+   // save the design in a file
+   if (save_to_file)
+   {   
+      ofstream ofs(MakeParFilename("output_design/mesh.", myid));
+      ofs.precision(8);
+      pmesh.ParPrint(ofs);
+
+      ostringstream sol_name;
+      sol_name << "output_design/rho." << setfill('0') << setw(6) << myid;
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      rho.Save(sol_ofs);
+   }
+
+
 
    if (paraview)
    {
