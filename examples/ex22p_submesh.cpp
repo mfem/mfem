@@ -50,7 +50,56 @@
 //               We recommend viewing examples 1, 3 and 4 before viewing this
 //               example.
 //
-// mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '4 7 13 23' -o 2
+// The boundary surfaces labeled 7, 8, 11, and 12 are chosen because
+// they are made up of triangular faces of tetrahedra and prisms as
+// well as quadrilateral faces of prisms and hexahedra.
+//
+// Scalar case works in serial and parallel
+// mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 0 -o 2
+// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 0 -o 2
+//
+// Vector H(Div) works in serial. In parallel the convergence depends
+// on the number of processors (1 and 4 seem fine but 8 is much
+// slower).  Note that the "Full BC" output suggests that the port BC
+// is not imposing the correct vector quantities on surfaces 11 and 12
+// where the vector appears larger than expected. The normal component
+// of the vector BC is correct. On the other hand the tangential
+// components are non-zero and this would appear to be
+// incorrect. However, this is not necessarily incorrect. The
+// tangential components would also have contributions from the
+// non-boundary faces of the elements which make up the boundary
+// surface. These interior face DoFs are assume to be zero in the
+// "Full BC" output. However, the final solution vector will most
+// likely contain nonzero values for these DoFs which would alter the
+// tangential components of the final solution. Constraint equations
+// might be added to force these tangential values to be be zero but
+// this does not seem to be necessary when the field is sufficiently
+// resolved.
+//
+// Order 1
+// np its
+//  1 771
+//  2 615
+//  3 >1000
+//  4 493
+//  5 >1000
+//  6 195
+//
+// Order 2
+// np its
+//  1 343
+//  2 524
+//  3 >1000
+//  4 245
+//  5 >1000
+//
+// mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 2 -em 1 -f 0.5 -o 2
+// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 2 -em 1 -f 0.5 -o 2
+//
+// Vector H(Curl) works in serial fails in parallel
+// mpirun -np 2 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 1
+//
+//
 //  mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 3 -rp 0 -pbc '21 22 24' -o 2 -em 5 -p 0 -f .25
 // mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7' -o 2 -em 2 -p 2 -f .7
 //
@@ -195,39 +244,6 @@ int main(int argc, char *argv[])
    ParSubMesh *pmesh_port =
       new ParSubMesh(ParSubMesh::CreateFromBoundary(*pmesh, port_bc_attr));
 
-   for (int i=0; i<num_procs; i++)
-   {
-      if (myid == i)
-      {
-         cout << myid << ": num verts " << pmesh_port->GetNV() << endl;
-         cout << myid << ": num edges " << pmesh_port->GetNEdges() << endl;
-         cout << myid << ": num elems " << pmesh_port->GetNE() << endl;
-         cout << myid << ": num bdr edges " << pmesh_port->GetNBE() << endl;
-      }
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
-   // pmesh_port->PrintInfo(cout);
-   pmesh_port->PrintSharedEntities("port");
-
-   // pmesh_port->FinalizeTopology(true);
-   // pmesh_port->ExchangeFaceNbrData();
-   // pmesh_port->GenerateBoundaryElements();
-   // pmesh_port->SetAttributes();
-   // pmesh_port->FinalizeParTopo();
-
-   for (int i=0; i<num_procs; i++)
-   {
-      if (myid == i)
-      {
-         cout << myid << ": num verts " << pmesh_port->GetNV() << endl;
-         cout << myid << ": num edges " << pmesh_port->GetNEdges() << endl;
-         cout << myid << ": num elems " << pmesh_port->GetNE() << endl;
-         cout << myid << ": num bdr edges " << pmesh_port->GetNBE() << endl;
-      }
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
-   // exit(0);
-
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements of
    //    the specified order.
@@ -266,7 +282,7 @@ int main(int argc, char *argv[])
       case 1:  fec_port = new ND_FECollection(order, dim-1);      break;
       case 2:  fec_port = new L2_FECollection(order - 1, dim-1,
                                                  BasisType::GaussLegendre,
-                                                 FiniteElement::INTEGRAL);  break;
+                                                 FiniteElement::INTEGRAL); break;
       default: break; // This should be unreachable
    }
    ParFiniteElementSpace *fespace_port =
@@ -274,7 +290,8 @@ int main(int argc, char *argv[])
    HYPRE_BigInt size_port = fespace_port->GlobalTrueVSize();
    if (myid == 0)
    {
-      cout << "Number of finite element port BC unknowns: " << size_port << endl;
+      cout << "Number of finite element port BC unknowns: " << size_port
+           << endl;
    }
 
    ParGridFunction port_bc(fespace_port);
@@ -303,7 +320,8 @@ int main(int argc, char *argv[])
       port_sock << "parallel " << num_procs << " " << myid << "\n";
       port_sock.precision(8);
       port_sock << "solution\n" << *pmesh_port << port_bc
-                << "window_title ': Port BC'" << flush;
+                << "window_title ': Port BC'"
+                << "window_geometry 0 0 400 350" << flush;
    }
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
@@ -329,7 +347,7 @@ int main(int argc, char *argv[])
    ParComplexGridFunction u(fespace);
    u = 0.0;
    pmesh_port->Transfer(port_bc, u.real());
-
+   /*
    {
       ParGridFunction full_bc(fespace);
       ParTransferMap port_to_full(port_bc, full_bc);
@@ -348,7 +366,7 @@ int main(int argc, char *argv[])
                    << "window_title ': Full BC'" << flush;
       }
    }
-
+   */
    ConstantCoefficient zeroCoef(0.0);
    ConstantCoefficient oneCoef(1.0);
 
@@ -510,7 +528,7 @@ int main(int argc, char *argv[])
       FGMRESSolver fgmres(MPI_COMM_WORLD);
       fgmres.SetPreconditioner(BDP);
       fgmres.SetOperator(*A.Ptr());
-      fgmres.SetRelTol(1e-12);
+      fgmres.SetRelTol(1e-6);
       fgmres.SetMaxIter(1000);
       fgmres.SetPrintLevel(1);
       fgmres.Mult(B, U);
@@ -567,7 +585,8 @@ int main(int argc, char *argv[])
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
       sol_sock_r << "solution\n" << *pmesh << u.real()
-                 << "window_title 'Solution: Real Part'" << flush;
+                 << "window_title 'Solution: Real Part'"
+                 << "window_geometry 400 0 400 350" << flush;
 
       MPI_Barrier(MPI_COMM_WORLD);
 
@@ -575,7 +594,8 @@ int main(int argc, char *argv[])
       sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_i.precision(8);
       sol_sock_i << "solution\n" << *pmesh << u.imag()
-                 << "window_title 'Solution: Imaginary Part'" << flush;
+                 << "window_title 'Solution: Imaginary Part'"
+                 << "window_geometry 800 0 400 350" << flush;
    }
    if (visualization)
    {
@@ -588,6 +608,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << u_t
                << "window_title 'Harmonic Solution (t = 0.0 T)'"
+               << "window_geometry 0 432 600 450"
                << "pause\n" << flush;
       if (myid == 0)
          cout << "GLVis visualization paused."
@@ -604,7 +625,8 @@ int main(int argc, char *argv[])
              sin(-2.0 * M_PI * t), u.imag(), u_t);
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock << "solution\n" << *pmesh << u_t
-                  << "window_title '" << oss.str() << "'" << flush;
+                  << "window_title '" << oss.str() << "'"
+                  << "window_geometry 0 432 600 450" << flush;
          i++;
       }
    }
@@ -621,6 +643,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+/**
+   Solves the eigenvalue problem -Div(Grad x) = lambda x with
+   homogeneous Dirichlet boundary conditions on the boundary of the
+   domain. Returns mode number "mode" (counting from zero) in the
+   ParGridFunction "x".
+*/
 void ScalarWaveGuide(int mode, ParGridFunction &x)
 {
    int nev = std::max(mode + 2, 5);
@@ -635,7 +663,6 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
    }
-   cout << "bdr_attr max: " << pmesh.bdr_attributes.Max() << endl;
 
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator);
@@ -666,14 +693,7 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
    lobpcg.SetPrintLevel(1);
    lobpcg.SetMassMatrix(*M);
    lobpcg.SetOperator(*A);
-
-   // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
-   //    parallel grid function to represent each of the eigenmodes returned by
-   //    the solver.
-   // Array<double> eigenvalues;
    lobpcg.Solve();
-   // lobpcg.GetEigenvalues(eigenvalues);
-   // ParGridFunction x(fespace);
 
    x = lobpcg.GetEigenvector(mode);
 
@@ -681,6 +701,12 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
    delete M;
 }
 
+/**
+   Solves the eigenvalue problem -Curl(Curl x) = lambda x with
+   homogeneous Dirichlet boundary conditions, on the tangential
+   component of x, on the boundary of the domain. Returns mode number
+   "mode" (counting from zero) in the ParGridFunction "x".
+*/
 void VectorWaveGuide(int mode, ParGridFunction &x)
 {
    int nev = std::max(mode + 2, 5);
@@ -723,14 +749,7 @@ void VectorWaveGuide(int mode, ParGridFunction &x)
    ame.SetPrintLevel(1);
    ame.SetMassMatrix(*M);
    ame.SetOperator(*A);
-
-   // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
-   //    parallel grid function to represent each of the eigenmodes returned by
-   //    the solver.
-   // Array<double> eigenvalues;
    ame.Solve();
-   // ame.GetEigenvalues(eigenvalues);
-   // ParGridFunction x(fespace);
 
    x = ame.GetEigenvector(mode);
 
@@ -738,6 +757,15 @@ void VectorWaveGuide(int mode, ParGridFunction &x)
    delete M;
 }
 
+/**
+   Solves the eigenvalue problem -Div(Grad x) = lambda x with
+   homogeneous Neumann boundary conditions on the boundary of the
+   domain. Returns mode number "mode" (counting from zero) in the
+   ParGridFunction "x_l2". Note that mode 0 is a constant field so
+   higher mode numbers are often more interesting. The eigenmode is
+   solved using continuous H1 basis of the appropriate order and then
+   projected onto the L2 basis and returned.
+*/
 void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
 {
    int nev = std::max(mode + 2, 5);
@@ -788,7 +816,6 @@ void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
    lobpcg.SetPrintLevel(1);
    lobpcg.SetMassMatrix(*M);
    lobpcg.SetOperator(*A);
-
    lobpcg.Solve();
 
    x = lobpcg.GetEigenvector(mode);
