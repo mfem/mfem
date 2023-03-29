@@ -87,7 +87,7 @@ mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
-pmesh-fitting-test-par: pmesh-optimizer
+pmesh-fitting-test-par: pmesh-fitting
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel mesh fitting miniapp)
 minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
