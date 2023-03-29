@@ -32,15 +32,11 @@
 //  Interface fitting:
 //    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
 //    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
-//  Surface fitting with weight adaptation and termination based on fitting error
+//  Surface fitting with weight adaptation and termination based on fitting error:
 //    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
-//  Fitting to Fischer-Tropsch reactor like domain
+//  Fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
 //  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist -mod-bndr-attr
 
-#include "mfem.hpp"
-#include "../common/mfem-common.hpp"
-#include <iostream>
-#include <fstream>
 #include "mesh-fitting.hpp"
 
 using namespace mfem;
@@ -155,9 +151,11 @@ int main (int argc, char *argv[])
                   "--no-adaptive-marking",
                   "Enable or disable adaptive marking surface fitting.");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
-                  "-no-sbgmesh","--no-surf-bg-mesh", "Use background mesh for surface fitting.");
+                  "-no-sbgmesh","--no-surf-bg-mesh",
+                  "Use background mesh for surface fitting.");
    args.AddOption(&comp_dist, "-dist", "--comp-dist",
-                  "-no-dist","--no-comp-dist", "Compute distance from 0 level set or not.");
+                  "-no-dist","--no-comp-dist",
+                  "Compute distance from 0 level set or not.");
    args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
                   "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
    args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
@@ -417,8 +415,8 @@ int main (int argc, char *argv[])
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
       if (surf_bg_mesh)
       {
-         OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
-                                               *surf_fit_bg_gf0);
+         OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
+                                               amr_iters, *surf_fit_bg_gf0);
          pmesh_surf_fit_bg->Rebalance();
          surf_fit_bg_fes->Update();
          surf_fit_bg_gf0->Update();
@@ -503,12 +501,13 @@ int main (int argc, char *argv[])
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
-      surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+      surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat,
+                                             GridFunction::ARITHMETIC);
       surf_fit_mat_gf.SetTrueVector();
       surf_fit_mat_gf.SetFromTrueVector();
 
       // Set DOFs for fitting
-      // Strategy 1: Automatically choose face between elements of different attribute.
+      // Strategy 1: Choose face between elements of different attributes.
       if (marking_type == 0)
       {
          mat.ExchangeFaceNbrData();
@@ -523,7 +522,7 @@ int main (int argc, char *argv[])
          Array<int> dofs;
          for (int i = 0; i < pmesh->GetNumFaces(); i++)
          {
-            FaceElementTransformations *tr = pmesh->GetInteriorFaceTransformations(i);
+            auto tr = pmesh->GetInteriorFaceTransformations(i);
             if (tr != NULL)
             {
                int mat1 = mat(tr->Elem1No);
@@ -537,7 +536,7 @@ int main (int argc, char *argv[])
          }
          for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
          {
-            FaceElementTransformations *tr = pmesh->GetSharedFaceTransformations(i);
+            auto tr = pmesh->GetSharedFaceTransformations(i);
             if (tr != NULL)
             {
                int faceno = pmesh->GetSharedFace(i);
@@ -881,6 +880,7 @@ int main (int argc, char *argv[])
    delete metric;
    delete pfespace;
    delete fec;
+   delete pmesh_surf_fit_bg;
    delete pmesh;
 
    return 0;
