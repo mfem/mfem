@@ -660,7 +660,7 @@ void ComputeGapHessian(const Vector x_s, const Vector xi, const DenseMatrix m_co
     }
     
     DenseMatrix dg2dxsxm(3,12); dg2dxsxm = 0.0;
-    DenseMatrix dg2dxsxm_tmp(3,12); dg2dxsxm_tmp = 0.0;
+    DenseMatrix dg2dxsxm_tmp(3,3); dg2dxsxm_tmp = 0.0;
     MultAtB(dgvdxs, dndxm, dg2dxsxm);
 
     MultAtB(dndxs, dndxs_tmp, dg2dxsxm_tmp);
