@@ -472,6 +472,8 @@ int main (int argc, char *argv[])
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 90: metric = new TMOP_Metric_090; break;
+      case 94: metric = new TMOP_Metric_094; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(min_detJ); break;
@@ -486,9 +488,10 @@ int main (int argc, char *argv[])
       case 321: metric = new TMOP_Metric_321; break;
       case 322: metric = new TMOP_Metric_322; break;
       case 323: metric = new TMOP_Metric_323; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 328: metric = new TMOP_Metric_328; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(min_detJ); break;
