@@ -25,7 +25,8 @@
 
 // Stochastic design
 // Adaptive sampling 
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 5 -mi 100 -mf 0.5 -theta 2.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 5 -mi 100 -mf 0.5 -theta 2.5 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
+
 // Constant number of samples
 // mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 10 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
 // mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 100 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
@@ -536,8 +537,8 @@ int main(int argc, char *argv[])
    spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
 
    ParGridFunction load_gf(&state_fes);
-   // random_load_solver.SetupRandomFieldGenerator(myid+1);
-   random_load_solver.SetupRandomFieldGenerator(1);
+   random_load_solver.SetupRandomFieldGenerator(myid+1);
+   // random_load_solver.SetupRandomFieldGenerator(1);
    random_load_solver.GenerateRandomField(load_gf);
 
    GridFunctionCoefficient load_cf(&load_gf);
@@ -742,17 +743,13 @@ int main(int argc, char *argv[])
             avg_w += w;
             double w_norm = w.ComputeL2Error(zero);
             avg_w_norm += w_norm*w_norm;
-            avg_compliance += (*(PoissonSolver->GetLinearForm()))(u);
+            avg_compliance += (*(PoissonSolver->GetParLinearForm()))(u);
          } // end of loop through batch samples
 
          avg_w_norm /= (double)batch_size;  
          avg_w /= (double)batch_size;
-         avg_compliance /= (double)batch_size;  
 
-         if (myid == 0)
-         {
-            mfem::out << "avg_compliance = " << avg_compliance << endl;
-         }
+         avg_compliance /= (double)batch_size;  
 
          double norm_avg_w = pow(avg_w.ComputeL2Error(zero),2);
          double denom = batch_size == 1 ? batch_size : batch_size-1;
@@ -802,11 +799,11 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient tmp(&rho_old);
          double norm_rho = rho.ComputeL2Error(tmp)/alpha;
          rho_old = rho;
-         double compliance = (*(PoissonSolver->GetLinearForm()))(u);
+         
          if (myid == 0)
          {
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
-            mfem::out << "compliance = " << compliance << endl;
+            mfem::out << "avg_compliance = " << avg_compliance << endl;
             mfem::out << "variance = " << variance << std::endl;
             mfem::out << "stationarity = " << stationarity_norm << std::endl;
          }
@@ -843,7 +840,7 @@ int main(int argc, char *argv[])
             {
                batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }
-            else if (ratio < 0.1 * theta and !first_iteration)
+            else if (ratio < 0.1 * theta && !first_iteration)
             {
                batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
             }

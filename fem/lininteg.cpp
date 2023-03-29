@@ -1002,7 +1002,6 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 }
 
 
-
 void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
 (const FiniteElement &el,
  ElementTransformation &Tr,

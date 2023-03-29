@@ -190,7 +190,8 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
 void SPDESolver::SetupRandomFieldGenerator(int seed) {
   delete b;
   delete integ;
-  integ = new WhiteGaussianNoiseDomainLFIntegrator(fespace_ptr_->GetComm(), seed);
+  // integ = new WhiteGaussianNoiseDomainLFIntegrator(fespace_ptr_->GetComm(), seed);
+  integ = new WhiteGaussianNoiseDomainLFIntegrator(seed);
   b = new ParLinearForm(fespace_ptr_);
   b->AddDomainIntegrator(integ);
 };
