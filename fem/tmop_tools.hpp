@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -134,8 +134,7 @@ protected:
    int solver_type;
    bool parallel;
 
-   // Minimum detJ.
-   // Line search step is rejected if min(detJ) <= min_detJ_threshold
+   // Line search step is rejected if min(detJ) <= min_detJ_threshold.
    double min_detJ_threshold = 0.0;
 
    // Surface fitting variables.

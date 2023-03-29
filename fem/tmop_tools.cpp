@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -454,6 +454,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // reference to detect deteriorations.
       MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
                   " intermediate mesh is invalid. Contact TMOP Developers.");
+      MFEM_VERIFY(min_detJ_threshold == 0.0,
+                  "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
@@ -489,7 +491,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
       if (untangling == false && min_detT_out <= min_detJ_threshold)
       {
-         // No untangling, and detJ got negative -- no good.
+         // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Neg det(J) found.\n";

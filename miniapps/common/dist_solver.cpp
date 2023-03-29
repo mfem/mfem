@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,9 @@
 #ifdef MFEM_USE_MPI
 
 namespace mfem
+{
+
+namespace common
 {
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
@@ -813,6 +816,8 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
    ffield.ProjectCoefficient(gfc);
 }
 
-}
+} // namespace common
+
+} // namespace mfem
 
 #endif

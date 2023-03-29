@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2016,10 +2016,10 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 }
 
 
-void GridFunction::CountZones(Array<int> &zones_per_vdof) const
+void GridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
 {
-   zones_per_vdof.SetSize(fes->GetVSize());
-   zones_per_vdof = 0;
+   elem_per_vdof.SetSize(fes->GetVSize());
+   elem_per_vdof = 0;
    Array<int> vdofs;
 
    for (int i = 0; i < fes->GetNE(); i++)
@@ -2028,7 +2028,7 @@ void GridFunction::CountZones(Array<int> &zones_per_vdof) const
       // Accumulate values in all dofs, count the zones.
       for (int j = 0; j < vdofs.Size(); j++)
       {
-         zones_per_vdof[vdofs[j]]++;
+         elem_per_vdof[vdofs[j]]++;
       }
    }
 }
