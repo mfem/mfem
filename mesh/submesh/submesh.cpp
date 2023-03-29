@@ -61,6 +61,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
                                                     parent_element_ids_);
 
       Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      int max_bdr_attr = parent.bdr_attributes.Max();
 
       for (int i = 0; i < NumOfBdrElements; i++)
       {
@@ -75,7 +76,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
             // This case happens when a domain is extracted, but the root parent
             // mesh didn't have a boundary element on the surface that defined
             // it's boundary. It still creates a valid mesh, so we allow it.
-            GetBdrElement(i)->SetAttribute(GENERATED_ATTRIBUTE);
+            GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
          }
       }
    }
