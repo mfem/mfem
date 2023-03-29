@@ -58,7 +58,7 @@ int main (int argc, char *argv[])
    int mesh_poly_deg     = 1;
    int rs_levels         = 1;
    int rp_levels         = 0;
-   int metric_id         = 1;
+   int metric_id         = 2;
    int target_id         = 1;
    double surface_fit_const = 100.0;
    int quad_type         = 1;
