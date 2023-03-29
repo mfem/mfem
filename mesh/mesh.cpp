@@ -5619,7 +5619,19 @@ int Mesh::GetTriOrientation(const int *base, const int *test)
    for (int j = 0; j < 3; j++)
       if (test[aor[j]] != base[j])
       {
-         mfem_error("Mesh::GetTriOrientation(...)");
+         mfem::err << "Mesh::GetTriOrientation(...)" << endl;
+         mfem::err << " base = [";
+         for (int k = 0; k < 3; k++)
+         {
+            mfem::err << " " << base[k];
+         }
+         mfem::err << " ]\n test = [";
+         for (int k = 0; k < 3; k++)
+         {
+            mfem::err << " " << test[k];
+         }
+         mfem::err << " ]" << endl;
+         mfem_error();
       }
 #endif
 
