@@ -17,8 +17,7 @@ using namespace mfem;
 namespace qf_coeff
 {
 
-TEST_CASE("Quadrature Function Coefficients",
-          "[Quadrature Function Coefficients]")
+TEST_CASE("Quadrature Function Coefficients", "[Coefficient]")
 {
    int order_h1 = 2, n = 4, dim = 3;
    double tol = 1e-14;
