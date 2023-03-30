@@ -1541,14 +1541,17 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
 {
    QuadF.HostRead();
 
+   const int el_idx = QuadF.GetSpace()->GetEntityIndex(T);
+   const int ip_idx = QuadF.GetSpace()->GetPermutedIndex(el_idx, ip.index);
+
    if (index == 0 && vdim == QuadF.GetVDim())
    {
-      QuadF.GetValues(T.ElementNo, ip.index, V);
+      QuadF.GetValues(el_idx, ip_idx, V);
    }
    else
    {
       Vector temp;
-      QuadF.GetValues(T.ElementNo, ip.index, temp);
+      QuadF.GetValues(el_idx, ip_idx, temp);
       V.SetSize(vdim);
       for (int i = 0; i < vdim; i++)
       {
@@ -1575,7 +1578,9 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
 {
    QuadF.HostRead();
    Vector temp(1);
-   QuadF.GetValues(T.ElementNo, ip.index, temp);
+   const int el_idx = QuadF.GetSpace()->GetEntityIndex(T);
+   const int ip_idx = QuadF.GetSpace()->GetPermutedIndex(el_idx, ip.index);
+   QuadF.GetValues(el_idx, ip_idx, temp);
    return temp[0];
 }
 
