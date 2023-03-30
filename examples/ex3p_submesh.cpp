@@ -51,12 +51,6 @@
 using namespace std;
 using namespace mfem;
 
-// Exact solution, E, and r.h.s., f. See below for implementation.
-void E_exact(const Vector &, Vector &);
-void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
-int dim;
-
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -72,7 +66,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 1;
    int par_ref_levels = 1;
    int order = 1;
-   double sigma_const = 1e-6;
+   double delta_const = 1e-6;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -94,9 +88,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&cond_attr, "-ca", "--cond-attr",
                   "Attributes of conductor");
-   args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
-                  " solution.");
-   args.AddOption(&sigma_const, "-s", "--sigma", "Conductivity");
+   args.AddOption(&delta_const, "-d", "--delta", "Magnetic Conductivity");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -125,7 +117,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   kappa = freq * M_PI;
 
    if (submesh_elems.Size() == 0 &&
        strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
@@ -147,8 +138,7 @@ int main(int argc, char *argv[])
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();
-   // int sdim = mesh->SpaceDimension();
+   int dim = mesh->Dimension();
 
    int submesh_attr = -1;
    if (submesh_elems.Size() > 0)
@@ -169,9 +159,7 @@ int main(int argc, char *argv[])
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 1,000 elements.
+   //    this example we do 'ref_levels' of uniform refinement.
    {
       int ref_levels = ser_ref_levels;
       for (int l = 0; l < ref_levels; l++)
@@ -183,40 +171,28 @@ int main(int argc, char *argv[])
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         pmesh.UniformRefinement();
       }
    }
 
-   cout << myid << ": Number of element in full domain:  " << pmesh->GetNE() << endl;
-   cout << myid << ": Number of vertices in full domain: " << pmesh->GetNV() << endl;
-   
    // 6b. Extract a submesh covering a portion of the domain
-   ParSubMesh *pmesh_cond =
-      new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, cond_attr));
+   ParSubMesh pmesh_cond(ParSubMesh::CreateFromDomain(pmesh, cond_attr));
 
-   cout << myid << ": Number of element in conductor:  " << pmesh_cond->GetNE() << endl;
-   cout << myid << ": Number of vertices in conductor: " << pmesh_cond->GetNV() << endl;
-   
    RT_FECollection fec_cond(order - 1, dim);
-   ParFiniteElementSpace fes_cond(pmesh_cond, &fec_cond);
+   ParFiniteElementSpace fes_cond(&pmesh_cond, &fec_cond);
    ParGridFunction j_cond(&fes_cond);
 
    {
-      /*
-      Vector zVec(3); zVec = 0.0; zVec[2] = 1.0;
-      VectorConstantCoefficient zVecCoef(zVec);
-      j_cond.ProjectCoefficient(zVecCoef);
-      */
       H1_FECollection fec_h1(order, dim);
-      ParFiniteElementSpace fes_h1(pmesh_cond, &fec_h1);
+      ParFiniteElementSpace fes_h1(&pmesh_cond, &fec_h1);
 
       ConstantCoefficient sigmaCoef(1.0);
-      Array<int> ess_bdr_phi(pmesh_cond->bdr_attributes.Max());
+      Array<int> ess_bdr_phi(pmesh_cond.bdr_attributes.Max());
       Array<int> ess_bdr_tdof_phi;
       ess_bdr_phi = 0;
       ess_bdr_phi[1] = 1;
@@ -235,10 +211,10 @@ int main(int argc, char *argv[])
       ParGridFunction phi_h1(&fes_h1);
       phi_h1 = 0.0;
 
-      Array<int> bdr0(pmesh_cond->bdr_attributes.Max()); bdr0 = 0; bdr0[1] = 1;
+      Array<int> bdr0(pmesh_cond.bdr_attributes.Max()); bdr0 = 0; bdr0[1] = 1;
       phi_h1.ProjectBdrCoefficient(zero, bdr0);
 
-      Array<int> bdr1(pmesh_cond->bdr_attributes.Max()); bdr1 = 0; bdr1[22] = 1;
+      Array<int> bdr1(pmesh_cond.bdr_attributes.Max()); bdr1 = 0; bdr1[22] = 1;
       phi_h1.ProjectBdrCoefficient(one, bdr1);
 
       {
@@ -294,7 +270,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh_cond->Print(mesh_ofs);
+      pmesh_cond.Print(mesh_ofs);
 
       ofstream cond_ofs(cond_name.str().c_str());
       cond_ofs.precision(8);
@@ -307,7 +283,7 @@ int main(int argc, char *argv[])
       socketstream port_sock(vishost, visport);
       port_sock << "parallel " << num_procs << " " << myid << "\n";
       port_sock.precision(8);
-      port_sock << "solution\n" << *pmesh_cond << j_cond
+      port_sock << "solution\n" << pmesh_cond << j_cond
                 << "window_title 'Conductor J'"
                 << "window_geometry 0 0 400 350" << flush;
    }
@@ -317,9 +293,9 @@ int main(int argc, char *argv[])
    H1_FECollection fec_h1(order, dim);
    ND_FECollection fec_nd(order, dim);
    RT_FECollection fec_rt(order - 1, dim);
-   ParFiniteElementSpace fespace_h1(pmesh, &fec_h1);
-   ParFiniteElementSpace fespace_nd(pmesh, &fec_nd);
-   ParFiniteElementSpace fespace_rt(pmesh, &fec_rt);
+   ParFiniteElementSpace fespace_h1(&pmesh, &fec_h1);
+   ParFiniteElementSpace fespace_nd(&pmesh, &fec_nd);
+   ParFiniteElementSpace fespace_rt(&pmesh, &fec_rt);
    HYPRE_BigInt size = fespace_nd.GlobalTrueVSize();
    if (myid == 0)
    {
@@ -328,7 +304,7 @@ int main(int argc, char *argv[])
 
    ParGridFunction j_full(&fespace_rt);
    j_full = 0.0;
-   pmesh_cond->Transfer(j_cond, j_full);
+   pmesh_cond.Transfer(j_cond, j_full);
 
    if (visualization)
    {
@@ -337,7 +313,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << j_full
+      sol_sock << "solution\n" << pmesh << j_full
                << "window_title 'J Full'"
                << "window_geometry 200 0 400 350" << flush;
    }
@@ -348,9 +324,9 @@ int main(int argc, char *argv[])
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
-   if (pmesh->bdr_attributes.Size())
+   if (pmesh.bdr_attributes.Size())
    {
-      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
       {
          ess_bdr[ 8] = 0;
@@ -363,73 +339,8 @@ int main(int argc, char *argv[])
          ess_bdr[14] = 0;
          ess_bdr[15] = 0;
       }
-      /*
-      ess_bdr = 0;
-      {
-      ess_bdr[ 8] = 1;
-      ess_bdr[ 9] = 1;
-      ess_bdr[10] = 1;
-      ess_bdr[11] = 1;
 
-      ess_bdr[12] = 1;
-      ess_bdr[13] = 1;
-      ess_bdr[14] = 1;
-      ess_bdr[15] = 1;
-           }
-           */
-      /*
-      ess_bdr = 0;
-      ess_bdr[0] = 1;
-      ess_bdr[1] = 1;
-      ess_bdr[2] = 1;
-      // ess_bdr[3] = 1;
-      ess_bdr[20] = 1;
-      ess_bdr[21] = 1;
-      ess_bdr[22] = 1;
-      ess_bdr[23] = 1;
-      */
-      // ess_bdr[7] = 1;
-      // ess_bdr[19] = 1;
       fespace_nd.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-   if (false)
-   {
-      Array<int> ess_bdr8(pmesh->bdr_attributes.Max());
-      ess_bdr8 = 0; ess_bdr8[7] = 1;
-      ess_bdr8[9] = 1; ess_bdr8[10] = 1;
-
-      Array<int> ess_bdr8_tdofs;
-      fespace_nd.GetEssentialTrueDofs(ess_bdr8, ess_bdr8_tdofs);
-
-      Array<int> ess_bdr19(pmesh->bdr_attributes.Max());
-      ess_bdr19 = 0; // ess_bdr19[18] = 1;
-      ess_bdr19[12] = 1; ess_bdr19[15] = 1;
-
-      Array<int> ess_bdr19_tdofs;
-      fespace_nd.GetEssentialTrueDofs(ess_bdr19, ess_bdr19_tdofs);
-
-      std::set<int> tdofs8;
-      std::set<int> tdofs19;
-
-      for (int i=0; i<ess_bdr8_tdofs.Size(); i++)
-      {
-         tdofs8.insert(ess_bdr8_tdofs[i]);
-      }
-      for (int i=0; i<ess_bdr19_tdofs.Size(); i++)
-      {
-         tdofs19.insert(ess_bdr19_tdofs[i]);
-      }
-
-      std::set<int> edge_8_19;
-      std::set_intersection(tdofs8.begin(), tdofs8.end(),
-                            tdofs19.begin(), tdofs19.end(),
-                            std::inserter(edge_8_19, edge_8_19.begin()));
-
-      for (std::set<int>::iterator it=edge_8_19.begin();
-           it!=edge_8_19.end(); it++)
-      {
-         ess_tdof_list.Append(*it);
-      }
    }
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
@@ -441,89 +352,25 @@ int main(int argc, char *argv[])
    ParLinearForm *b = new ParLinearForm(&fespace_nd);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
-   /*
-   ParGridFunction dpsi_nd(&fespace_nd);
 
-   {
-     // Divergence cleaning
-     ParDiscreteLinearOperator grad(&fespace_h1, &fespace_nd);
-     grad.AddDomainInterpolator(new GradientInterpolator);
-     grad.Assemble();
-     grad.Finalize();
-
-     ParLinearForm rho_h1(&fespace_h1);
-     grad.MultTranspose(*b, rho_h1);
-
-     ParBilinearForm a_h1(&fespace_h1);
-     a_h1.AddDomainIntegrator(new DiffusionIntegrator);
-     a_h1.Assemble();
-
-     ParGridFunction psi_h1(&fespace_h1);
-     psi_h1 = 0.0;
-
-     {
-     Array<int> ess_bdr_psi(pmesh->bdr_attributes.Max());
-     Array<int> ess_bdr_tdof_psi;
-     ess_bdr_psi = 0;
-     ess_bdr_psi[1] = 1;
-     ess_bdr_psi[22] = 1;
-     fespace_h1.GetEssentialTrueDofs(ess_bdr_psi, ess_bdr_tdof_psi);
-
-       OperatorPtr A;
-       Vector B, X;
-       a_h1.FormLinearSystem(ess_bdr_tdof_psi, psi_h1, rho_h1, A, X, B);
-
-       HypreBoomerAMG prec;
-       CGSolver cg(MPI_COMM_WORLD);
-       cg.SetRelTol(1e-12);
-       cg.SetMaxIter(2000);
-       cg.SetPrintLevel(1);
-       cg.SetPreconditioner(prec);
-       cg.SetOperator(*A);
-       cg.Mult(B, X);
-       a_h1.RecoverFEMSolution(X, rho_h1, psi_h1);
-
-       grad.Mult(psi_h1, dpsi_nd);
-     }
-
-     ParMixedBilinearForm d_h1(&fespace_h1, &fespace_nd);
-     d_h1.AddDomainIntegrator(new MixedVectorGradientIntegrator);
-     d_h1.Assemble();
-
-     d_h1.AddMult(psi_h1, *b, -1.0);
-   }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << dpsi_nd
-          << "window_title 'Div Clean'"
-          << "window_geometry 400 400 400 350" << flush;
-   }
-   */
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x by projecting the exact
    //     solution. Note that only values from the boundary edges will be used
    //     when eliminating the non-homogeneous boundary condition to modify the
    //     r.h.s. vector b.
    ParGridFunction x(&fespace_nd);
-   // VectorFunctionCoefficient E(sdim, E_exact);
-   // x.ProjectCoefficient(E);
    x = 0.0;
 
-   // 11. Set up the parallel bilinear form corresponding to the EM diffusion
-   //     operator curl muinv curl + sigma I, by adding the curl-curl and the
-   //     mass domain integrators.
-   Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(sigma_const);
+   // 11. Set up the parallel bilinear form corresponding to the EM
+   //     diffusion operator curl muinv curl + delta I, by adding the
+   //     curl-curl and the mass domain integrators. For standard
+   //     magnetostatics equations choose delta << 1.
+   ConstantCoefficient muinv(1.0);
+   ConstantCoefficient delta(delta_const);
    ParBilinearForm *a = new ParBilinearForm(&fespace_nd);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
+   a->AddDomainIntegrator(new CurlCurlIntegrator(muinv));
+   a->AddDomainIntegrator(new VectorFEMassIntegrator(delta));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -540,9 +387,10 @@ int main(int argc, char *argv[])
    if (pa)
    {
 #ifdef MFEM_USE_AMGX
-      MatrixFreeAMS ams(*a, *A, fespace_nd, muinv, sigma, NULL, ess_bdr, useAmgX);
+      MatrixFreeAMS ams(*a, *A, fespace_nd, &muinv, &delta, NULL, ess_bdr,
+                        useAmgX);
 #else
-      MatrixFreeAMS ams(*a, *A, fespace_nd, muinv, sigma, NULL, ess_bdr);
+      MatrixFreeAMS ams(*a, *A, fespace_nd, &muinv, &delta, NULL, ess_bdr);
 #endif
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
@@ -563,7 +411,6 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace *prec_fespace =
          (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : &fespace_nd);
       HypreAMS ams(*A.As<HypreParMatrix>(), prec_fespace);
-      // ams.SetSingularProblem();
       HyprePCG pcg(*A.As<HypreParMatrix>());
       pcg.SetTol(1e-12);
       pcg.SetMaxIter(500);
@@ -576,18 +423,7 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 15. Compute and print the L^2 norm of the error.
-   /*
-   {
-      double error = x.ComputeL2Error(E);
-      if (myid == 0)
-      {
-         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
-      }
-   }
-   */
-
-   // 16. Save the refined mesh and the solution in parallel. This output can
+   // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -596,14 +432,14 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh.Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -611,11 +447,12 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x
+      sol_sock << "solution\n" << pmesh << x
                << "window_title 'Vector Potential'"
                << "window_geometry 400 0 400 350" << flush;
    }
 
+   // 17. Compute the magnetic flux as the curl of the solution
    ParDiscreteLinearOperator curl(&fespace_nd, &fespace_rt);
    curl.AddDomainInterpolator(new CurlInterpolator);
    curl.Assemble();
@@ -624,6 +461,18 @@ int main(int argc, char *argv[])
    ParGridFunction dx(&fespace_rt);
    curl.Mult(x, dx);
 
+   // 18. Save the curl of the solution in parallel. This output can
+   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g dsol".
+   {
+      ostringstream dsol_name;
+      dsol_name << "dsol." << setfill('0') << setw(6) << myid;
+
+      ofstream dsol_ofs(dsol_name.str().c_str());
+      dsol_ofs.precision(8);
+      dx.Save(dsol_ofs);
+   }
+
+   // 19. Send the curl of the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -631,52 +480,14 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << dx
+      sol_sock << "solution\n" << pmesh << dx
                << "window_title 'Magnetic Flux'"
                << "window_geometry 800 0 400 350" << flush;
    }
 
-   // 18. Free the used memory.
+   // 20. Free the used memory.
    delete a;
-   delete sigma;
-   delete muinv;
    delete b;
-   // delete fespace;
-   // delete fec;
-   delete pmesh;
 
    return 0;
-}
-
-
-void E_exact(const Vector &x, Vector &E)
-{
-   if (dim == 3)
-   {
-      E(0) = sin(kappa * x(1));
-      E(1) = sin(kappa * x(2));
-      E(2) = sin(kappa * x(0));
-   }
-   else
-   {
-      E(0) = sin(kappa * x(1));
-      E(1) = sin(kappa * x(0));
-      if (x.Size() == 3) { E(2) = 0.0; }
-   }
-}
-
-void f_exact(const Vector &x, Vector &f)
-{
-   if (dim == 3)
-   {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
-      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
-   }
-   else
-   {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
-      if (x.Size() == 3) { f(2) = 0.0; }
-   }
 }
