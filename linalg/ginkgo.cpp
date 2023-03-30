@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -187,8 +187,13 @@ const
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
+#if MFEM_GINKGO_VERSION < 10500
    convergence_logger = gko::log::Convergence<>::create(
                            executor, gko::log::Logger::criterion_check_completed_mask);
+#else
+   convergence_logger = gko::log::Convergence<>::create(
+                           gko::log::Logger::criterion_check_completed_mask);
+#endif
    residual_logger = std::make_shared<ResidualLogger<>>(executor,
                                                         gko::lend(system_oper),b);
 
@@ -309,13 +314,13 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    if (!needs_wrapped_vecs)
    {
       gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                          gko::Array<double>::view(executor,
-                                                   x.Size(), const_cast<double *>(
-                                                      x.Read(on_device))), 1);
+                          gko_array<double>::view(executor,
+                                                  x.Size(), const_cast<double *>(
+                                                     x.Read(on_device))), 1);
       gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                          gko::Array<double>::view(executor,
-                                                   y.Size(),
-                                                   y.ReadWrite(on_device)), 1);
+                          gko_array<double>::view(executor,
+                                                  y.Size(),
+                                                  y.ReadWrite(on_device)), 1);
    }
    else // We have at least one wrapped MFEM operator; need wrapped vectors
    {
@@ -445,14 +450,14 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       const int nnz =  op_mat->GetMemoryData().Capacity();
       system_oper = mtx::create(
                        executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                       gko::Array<double>::view(executor,
-                                                nnz,
-                                                op_mat->ReadWriteData(on_device)),
-                       gko::Array<int>::view(executor,
-                                             nnz,
-                                             op_mat->ReadWriteJ(on_device)),
-                       gko::Array<int>::view(executor, op_mat->Height() + 1,
-                                             op_mat->ReadWriteI(on_device)));
+                       gko_array<double>::view(executor,
+                                               nnz,
+                                               op_mat->ReadWriteData(on_device)),
+                       gko_array<int>::view(executor,
+                                            nnz,
+                                            op_mat->ReadWriteJ(on_device)),
+                       gko_array<int>::view(executor, op_mat->Height() + 1,
+                                            op_mat->ReadWriteI(on_device)));
 
    }
    else
@@ -866,13 +871,13 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
       on_device = true;
    }
    auto gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                            gko::Array<double>::view(executor,
-                                                     x.Size(), const_cast<double *>(
-                                                        x.Read(on_device))), 1);
+                            gko_array<double>::view(executor,
+                                                    x.Size(), const_cast<double *>(
+                                                       x.Read(on_device))), 1);
    auto gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                            gko::Array<double>::view(executor,
-                                                     y.Size(),
-                                                     y.ReadWrite(on_device)), 1);
+                            gko_array<double>::view(executor,
+                                                    y.Size(),
+                                                    y.ReadWrite(on_device)), 1);
    generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
 }
 
@@ -901,14 +906,14 @@ void GinkgoPreconditioner::SetOperator(const Operator &op)
    const int nnz =  op_mat->GetMemoryData().Capacity();
    auto gko_matrix = mtx::create(
                         executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                        gko::Array<double>::view(executor,
-                                                 nnz,
-                                                 op_mat->ReadWriteData(on_device)),
-                        gko::Array<int>::view(executor,
-                                              nnz,
-                                              op_mat->ReadWriteJ(on_device)),
-                        gko::Array<int>::view(executor, op_mat->Height() + 1,
-                                              op_mat->ReadWriteI(on_device)));
+                        gko_array<double>::view(executor,
+                                                nnz,
+                                                op_mat->ReadWriteData(on_device)),
+                        gko_array<int>::view(executor,
+                                             nnz,
+                                             op_mat->ReadWriteJ(on_device)),
+                        gko_array<int>::view(executor, op_mat->Height() + 1,
+                                             op_mat->ReadWriteI(on_device)));
 
    generated_precond = precond_gen->generate(gko::give(gko_matrix));
    has_generated_precond = true;
