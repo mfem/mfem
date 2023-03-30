@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1564,6 +1564,11 @@ public:
    {
       if (adapt_eval) { delete adapt_eval; }
       adapt_eval = ae;
+   }
+
+   const AdaptivityEvaluator *GetAdaptivityEvaluator() const
+   {
+      return adapt_eval;
    }
 
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }

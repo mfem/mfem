@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -58,7 +58,7 @@ HIP_CXX = hipcc
 # example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
-HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_FLAGS = --offload-arch=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
 
