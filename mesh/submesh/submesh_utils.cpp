@@ -163,30 +163,15 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                parentfes.GetBdrElementVDofs(parent_element_ids[i], parent_vdofs);
             if (doftrans)
             {
-               const Array<int> &Fo = doftrans->GetFaceOrientations();
-               int size = parent_vdofs.Size();
+               // const Array<int> &Fo = doftrans->GetFaceOrientations();
+               // int size = parent_vdofs.Size();
                Vector v01(parent_vdofs.Size());
                for (int j=0; j<v01.Size(); j++) { v01(j) = j % 2; }
                doftrans->TransformPrimal(v01);
-               std::cout << i << " Par Transformed vec: "; v01.Print(std::cout);
+
                Vector v10(parent_vdofs.Size());
                for (int j=0; j<v10.Size(); j++) { v10(j) = 1 - (j % 2); }
                doftrans->TransformPrimal(v10);
-               std::cout << i << " Par Transformed vec: "; v10.Print(std::cout);
-               if (Fo.Size() > 0)
-               {
-                  std::cout << i << " " << Fo[0]
-                            << " {{" << v10(size-2) << "," << v01(size-2)
-                            << "},{" << v10(size-1) << "," << v01(size-1) << "}}"
-                            << std::endl;
-               }
-               else
-               {
-                  std::cout << i << " " << "N/A"
-                            << " {{" << v10(size-2) << "," << v01(size-2)
-                            << "},{" << v10(size-1) << "," << v01(size-1) << "}}"
-                            << std::endl;
-               }
             }
          }
       }
@@ -202,10 +187,9 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
          Vector v(sub_vdofs.Size());
          for (int j=0; j<v.Size(); j++) { v(j) = j % 2; }
          doftrans->TransformPrimal(v);
-         std::cout << i << " Sub Transformed vec: "; v.Print(std::cout);
+
          for (int j=0; j<v.Size(); j++) { v(j) = 1 - (j % 2); }
          doftrans->TransformPrimal(v);
-         std::cout << i << " Sub Transformed vec: "; v.Print(std::cout);
       }
       MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
       for (int j = 0; j < parent_vdofs.Size(); j++)
