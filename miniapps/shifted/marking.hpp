@@ -22,7 +22,7 @@ class ElementMarker{
 public:
     enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
 
-    enum SBFaceType {UNDEFINED = 0, SURROGATE = 1};
+    enum SBFaceType {UNDEFINED = 0, SURROGATE = 1, GHOSTP = 2};
 
     ///Defines element marker class with options to include the cut elements
     /// (include_cut=true) or to mark the cut elements as SBElementType::CUT.
@@ -66,6 +66,12 @@ public:
     /// mesh using  the @a SBFaceType
     void MarkFaces(Array<int> &face_marker);
 
+    /// Returns the marking of all faces in the
+    /// mesh using  the @a SBFaceType.
+    /// The marks of all cut and faces between
+    /// cut and inside elements are set to GHOSTP
+    void MarkGhostPenaltyFaces(Array<int> &face_marker);
+
     /// Lists all inactive dofs, i.e.,
     ///  all dofs in the outside region.
     void ListEssentialTDofs(const Array<int> &elem_marker,
@@ -104,6 +110,10 @@ public:
         return vir[el];
     }
 
+    ElementMarker::SBElementType GetElementMarker(int el){
+        return ElementMarker::SBElementType(markers[el]);
+    }
+
     ///Returns surface integration rulles for the cut elements.
     ///The integration rule is different than a null pointer only
     /// for cut elements.
@@ -121,6 +131,7 @@ public:
 private:
     Array<IntegrationRule*> vir;
     Array<IntegrationRule*> sir;
+    Array<int>& markers;
 };
 #endif
 

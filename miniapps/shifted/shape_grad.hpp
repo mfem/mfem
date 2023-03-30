@@ -76,6 +76,52 @@ private:
     int lorder;
 };
 
+class VolObjectiveCutA
+{
+public:
+    VolObjectiveCutA():volw(1.0)
+    {
+        volc=&volw;
+    }
+
+    void SetWeight(Coefficient* coeff){
+        volc=coeff;
+    }
+
+    void SetCutIntegrationRules(Array<int>& el_markers_)
+    {
+        marks=&el_markers_;
+    }
+
+
+    double Eval(ParGridFunction& lsf){
+        VolShapeIntegrator* itg=new VolShapeIntegrator(*volc,*marks);
+        ParNonlinearForm* nf=new ParNonlinearForm(lsf.ParFESpace());
+        nf->AddDomainIntegrator(itg);
+        double vol=nf->GetEnergy(lsf.GetTrueVector());
+        delete nf;
+        return vol;
+    }
+
+    void Grad(ParGridFunction& lsf, Vector& grad){
+        VolShapeIntegrator* itg=new VolShapeIntegrator(*volc,*marks);
+        ParNonlinearForm* nf=new ParNonlinearForm(lsf.ParFESpace());
+        nf->AddDomainIntegrator(itg);
+        grad.SetSize(lsf.GetTrueVector().Size());
+        nf->Mult(lsf.GetTrueVector(),grad);
+        delete nf;
+    }
+
+
+private:
+    ConstantCoefficient volw; //volume weight
+    Coefficient* volc; //points either to volw or to user supplied coefficient
+
+    Array<int>* marks;
+
+};
+
+
 
 /// Surface shape integrator
 class SurfShapeIntegrator: public NonlinearFormIntegrator

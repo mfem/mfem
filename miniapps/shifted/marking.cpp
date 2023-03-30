@@ -194,6 +194,47 @@ void ElementMarker::MarkElements(Array<int> &elem_marker)
     }
 }
 
+void ElementMarker::MarkGhostPenaltyFaces(Array<int> &face_marker)
+{
+    face_marker.SetSize(pmesh->GetNumFaces());
+    face_marker=SBFaceType::UNDEFINED;
+    IntegrationPoint ip; ip.Init(0);
+
+    for(int f=0;f<pmesh->GetNumFaces();f++){
+        auto *ft = pmesh->GetFaceElementTransformations(f, 3);
+        if (ft->Elem2No < 0) { continue; } //do not mark boundary faces
+        const int attr1 = elgf.GetValue(*ft->Elem1,ip);
+        const int attr2 = elgf.GetValue(*ft->Elem2,ip);
+        if((attr1==SBElementType::CUT)&&(attr2!=SBElementType::OUTSIDE))
+        {
+            face_marker[f]=SBFaceType::GHOSTP;
+        }else
+        if((attr1!=SBElementType::OUTSIDE)&&(attr2==SBElementType::CUT))
+        {
+            face_marker[f]=SBFaceType::GHOSTP;
+        }
+    }
+
+    elgf.ExchangeFaceNbrData();
+
+    for (int f = 0; f < pmesh->GetNSharedFaces(); f++)
+    {
+        auto *ftr = pmesh->GetSharedFaceTransformations(f, true);
+        const int attr1 = elgf.GetValue(*ftr->Elem1, ip);
+        const int attr2 = elgf.GetValue(*ftr->Elem2, ip);
+        int faceno = pmesh->GetSharedFace(f);
+        if((attr1==SBElementType::CUT)&&(attr2!=SBElementType::OUTSIDE))
+        {
+            face_marker[faceno]=SBFaceType::GHOSTP;
+        }else
+        if((attr1!=SBElementType::OUTSIDE)&&(attr2==SBElementType::CUT))
+        {
+            face_marker[faceno]=SBFaceType::GHOSTP;
+        }
+    }
+}
+
+
 void ElementMarker::MarkFaces(Array<int> &face_marker)
 {
     face_marker.SetSize(pmesh->GetNumFaces());
@@ -300,7 +341,7 @@ void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
 
 CutIntegrationRules::CutIntegrationRules(int int_order,
                                          ParGridFunction& lsf,
-                                         Array<int>& elm_markers)
+                                         Array<int>& elm_markers):markers(elm_markers)
 {
 
      AlgoimIntegrationRule* air;
@@ -313,11 +354,6 @@ CutIntegrationRules::CutIntegrationRules(int int_order,
      vir.SetSize(fespace->GetNE()); vir=nullptr;
      sir.SetSize(fespace->GetNE()); sir=nullptr;
 
-     DenseMatrix bmat; //gradients of the shape functions in isoparametric space
-     DenseMatrix pmat; //gradients of the shape functions in physical space
-     Vector inormal; //normal to the level set in isoparametric space
-     Vector tnormal; //normal to the level set in physical space
-
      for (int i=0; i<fespace->GetNE(); i++){
      if(elm_markers[i]==ElementMarker::SBElementType::CUT){
          const FiniteElement* le=fespace->GetFE(i);
@@ -329,22 +365,14 @@ CutIntegrationRules::CutIntegrationRules(int int_order,
          vir[i]=new IntegrationRule(*(air->GetVolumeIntegrationRule()));
          sir[i]=new IntegrationRule(*(air->GetSurfaceIntegrationRule()));
 
-         //adjust integration weights for the surface integration rule
-         bmat.SetSize(le->GetDof(),le->GetDim());
-         pmat.SetSize(le->GetDof(),le->GetDim());
-
-         inormal.SetSize(le->GetDim());
-         tnormal.SetSize(le->GetDim());
          for (int j = 0; j < sir[i]->GetNPoints(); j++){
               IntegrationPoint &ip = sir[i]->IntPoint(j);
               Tr->SetIntPoint(&ip);
-              le->CalcDShape(ip,bmat);
-              Mult(bmat, Tr->AdjugateJacobian(), pmat);
-              //compute the normal to the LS in isoparametric space
-              bmat.MultTranspose(vlsf,inormal);
-              //compute the normal to the LS in physical space
-              pmat.MultTranspose(vlsf,tnormal);
-              ip.weight*=tnormal.Norml2()/inormal.Norml2();
+              if(le->GetDim()==2){
+                  ip.weight=ip.weight*sqrt(Tr->Weight());
+              }else{
+                  ip.weight=ip.weight*pow(Tr->Weight(), 2.0/3.0);
+              }
          }
 
          delete air;

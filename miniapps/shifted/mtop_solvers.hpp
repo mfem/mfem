@@ -2,12 +2,16 @@
 #define MTOP_SOLVERS_HPP
 
 #include "mfem.hpp"
+#include "../../linalg/dual.hpp"
 #include "mtop_filters.hpp"
 #include "marking.hpp"
 
 namespace mfem {
 
 namespace elast {
+
+
+
 
 template<class TFloat, class TMat>
 void IsotropicStiffnessTensor3D(TFloat E, TFloat nu, TMat& CC)
@@ -84,6 +88,152 @@ void EvalLinStrain2D(TMat& gradu, TMat& strain)
         }
     }
 }
+
+template<class TFloat,class TVec>
+void EvalStressIsoMat2D(TFloat EE, TFloat nnu, TVec& strain, TVec& ss)
+{
+    TFloat mu=EE/(2.0*(1.0+nnu));
+    TFloat ll=nnu*EE/((1.0+nnu)*(1.0-2.0*nnu));
+
+    for(int j=0;j<2;j++){
+    for(int i=0;i<2;i++){
+        ss(i,j)=2.0*mu*strain(i,j);
+    }}
+
+    ss(0,0)=ss(0,0)+ll*(strain(0,0)+strain(1,1));
+    ss(1,1)=ss(1,1)+ll*(strain(0,0)+strain(1,1));
+}
+
+template<class TFloat,class TMat>
+void EvalStressIsoMat3D(TFloat EE, TFloat nnu, TMat& strain, TMat& ss)
+{
+
+    TFloat mu=EE/(2.0*(1.0+nnu));
+    TFloat ll=nnu*EE/((1.0+nnu)*(1.0-2.0*nnu));
+
+    for(int j=0;j<3;j++){
+    for(int i=0;i<3;i++){
+        ss(i,j)=2.0*mu*strain(i,j);
+    }}
+
+    ss(0,0)=ss(0,0)+ll*(strain(0,0)+strain(1,1)+strain(2,2));
+    ss(1,1)=ss(1,1)+ll*(strain(0,0)+strain(1,1)+strain(2,2));
+    ss(2,2)=ss(2,2)+ll*(strain(0,0)+strain(1,1)+strain(2,2));
+}
+
+template<class TFloat,class TMat>
+TFloat vonMisesStress3D(TMat stress)
+{
+    TFloat vms=0.0;
+    vms=vms+(stress(0,0)-stress(1,1))*(stress(0,0)-stress(1,1));
+    vms=vms+(stress(1,1)-stress(2,2))*(stress(1,1)-stress(2,2));
+    vms=vms+(stress(2,2)-stress(0,0))*(stress(2,2)-stress(0,0));
+    vms=vms+(stress(0,1)*stress(0,1)+stress(1,0)*stress(1,0))*3.0;
+    vms=vms+(stress(0,2)*stress(0,2)+stress(2,0)*stress(2,0))*3.0;
+    vms=vms+(stress(1,2)*stress(1,2)+stress(2,1)*stress(2,1))*3.0;
+    return sqrt(vms/2.0);
+}
+
+template<class TFloat,class TMat>
+TFloat vonMisesStress2D(TMat stress)
+{
+    TFloat vms=0.0;
+    vms=vms+(stress(0,0)-stress(1,1))*(stress(0,0)-stress(1,1));
+    vms=vms+(stress(1,1)-stress(2,2))*(stress(1,1)-stress(2,2));
+    vms=vms+(stress(0,1)*stress(0,1)+stress(1,0)*stress(1,0))*3.0;
+    return sqrt(vms/2.0);
+}
+
+/// Evaluates von Mises stress to the power of 2*a for given
+/// displacement gradients gradu, Poison ratio nnu, and
+/// elstic modulus EE
+template<class TFloat>
+TFloat vonMisesStress3D(TFloat* gradu, TFloat nnu,TFloat EE, TFloat aa)
+{
+    TFloat strain[9];
+    for(int i=0;i<3;i++){
+    for(int j=0;j<3;j++){
+        strain[i*3+j]=0.5*(gradu[i*3+j]+gradu[i+3*j]);
+    }}
+
+    //compute the stress tensor
+    TFloat ss[9];
+    TFloat mu=(EE/(2.0*(1.0+nnu)));
+    TFloat ll=(nnu*EE/((1.0+nnu)*(1.0-2.0*nnu)));
+
+    for(int j=0;j<3;j++){
+    for(int i=0;i<3;i++){
+        ss[i*3+j]=2.0*mu*strain[i*3+j];
+    }}
+
+    ss[0*3+0]=ss[0*3+0]+ll*(strain[0*3+0]+strain[1*3+1]+strain[2+3+2]);
+    ss[1*3+1]=ss[1*3+1]+ll*(strain[0*3+0]+strain[1*3+1]+strain[2*3+2]);
+    ss[2*3+2]=ss[2*3+2]+ll*(strain[0*3+0]+strain[1*3+1]+strain[2*3+2]);
+
+
+    TFloat vms;
+    vms=(ss[0*3+0]-ss[1*3+1])*(ss[0*3+0]-ss[1*3+1]);
+    vms=vms+(ss[1*3+1]-ss[2*3+2])*(ss[1*3+1]-ss[2*3+2]);
+    vms=vms+(ss[2*3+2]-ss[0*3+0])*(ss[2*3+2]-ss[0*3+0]);
+    vms=vms+(ss[0*3+1]*ss[0*3+1]+ss[1*3+0]*ss[1*3+0])*3.0;
+    vms=vms+(ss[0*3+2]*ss[0*3+2]+ss[2*3+0]*ss[2*3+0])*3.0;
+    vms=vms+(ss[1*3+2]*ss[1*3+2]+ss[2*3+1]*ss[2*3+1])*3.0;
+    vms=vms/2.0;
+
+    TFloat rez=vms;
+    for(int i=1;i<aa;i++){
+        rez=rez*vms;
+    }
+
+    return rez;
+}
+
+
+/// Evaluates von Mises stress to the power of 2*a for given
+/// displacement gradients gradu, Poison ratio nnu, and
+/// elstic modulus EE
+template<class TFloat>
+TFloat vonMisesStress2D(TFloat* gradu, TFloat nnu,TFloat EE, TFloat aa)
+{
+
+    TFloat strain[4];
+    for(int i=0;i<2;i++){
+    for(int j=0;j<2;j++){
+        strain[i*2+j]=0.5*(gradu[i*2+j]+gradu[i+2*j]);
+    }}
+
+    //compute the stress tensor
+    TFloat ss[4];
+    TFloat mu=TFloat(EE/(2.0*(1.0+nnu)));
+    TFloat ll=TFloat(nnu*EE/((1.0+nnu)*(1.0-2.0*nnu)));
+
+    for(int j=0;j<2;j++){
+    for(int i=0;i<2;i++){
+        ss[i*2+j]=2.0*mu*strain[i*2+j];
+    }}
+
+    ss[0*2+0]=ss[0*2+0]+ll*(strain[0*2+0]+strain[1*2+1]);
+    ss[1*2+1]=ss[1*2+1]+ll*(strain[0*2+0]+strain[1*2+1]);
+
+
+    TFloat vms;
+    vms=(ss[0*2+0]-ss[1*2+1])*(ss[0*2+0]-ss[1*2+1]);
+    vms=vms+(ss[1*2+1])*(ss[1*2+1]);
+    vms=vms+(ss[0*2+0])*(ss[0*2+0]);
+    vms=vms+(ss[0*2+1]*ss[0*2+1]+ss[1*2+0]*ss[1*2+0])*3.0;
+    vms=vms/2.0;
+    //return pow(vms,aa);
+
+    TFloat rez=vms;
+    for(int i=1;i<aa;i++){
+        rez=rez*vms;
+    }
+
+    return rez;
+}
+
+
+
 
 }
 
@@ -768,6 +918,302 @@ private:
 
 #ifdef MFEM_USE_ALGOIM
 
+class ComplObjCutIntegrator:public NonlinearFormIntegrator
+{
+public:
+    ComplObjCutIntegrator()
+    {
+        //The class does not own any the following objects
+        disp=nullptr;
+        volforce=nullptr;
+        nu=0.2;
+        Ecoef=nullptr;
+
+        marks=nullptr;
+        cut_int=nullptr;
+    }
+
+    ~ComplObjCutIntegrator()
+    {
+
+    }
+
+    void SetDisp(ParGridFunction* disp_)
+    {
+        disp=disp_;
+    }
+
+    void SetE(Coefficient* E_)
+    {
+        Ecoef=E_;
+    }
+
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+    void SetVolForce(VectorCoefficient* force_)
+    {
+        volforce=force_;
+    }
+
+    void SetCutIntegrationRules(Array<int>& el_markers_, CutIntegrationRules* cut_int_)
+    {
+        marks=&el_markers_;
+        cut_int=cut_int_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun)
+    {
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::OUTSIDE){
+            return 0.0;
+        }
+
+        if(disp==nullptr){return 0.0;}
+        const int dim=el.GetDim();
+
+        DenseMatrix grads; grads.SetSize(dim);
+        DenseMatrix strains; strains.SetSize(dim);
+        DenseMatrix CC;
+        if(dim==3){CC.SetSize(6);}
+        else{CC.SetSize(3);}
+        Vector engstrain;
+        Vector engstress;
+        if(dim==3){engstrain.SetSize(6);}
+        else{engstrain.SetSize(3);}
+        engstress.SetSize(engstrain.Size());
+
+
+        const IntegrationRule *ir = nullptr;
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::INSIDE)
+        {
+            int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);//this might be too big
+            ir=&IntRules.Get(Tr.GetGeometryType(),order);
+        }
+        else
+        {
+            ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+        }
+
+        double w;
+        double energy=0.0;
+        for(int i=0; i<ir->GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            w=Tr.Weight();
+            w = ip.weight * w;
+
+            disp->GetVectorGradient(Tr,grads);
+            double E=Ecoef->Eval(Tr,ip);
+            if(dim==2)
+            {
+                elast::EvalLinStrain2D(grads,strains);
+                elast::Convert2DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor2D(E,nu,CC);
+            }else{//dim==3
+                elast::EvalLinStrain3D(grads,strains);
+                elast::Convert3DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor3D(E,nu,CC);
+            }
+
+            CC.Mult(engstrain,engstress);
+            energy=energy+w*(engstrain*engstress);
+        }
+        return energy;
+
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndim = Tr.GetSpaceDim();
+        int ndof = el.GetDof();
+
+        elvect.SetSize(ndof); elvect=0.0;
+        if(disp==nullptr){return;}
+
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::OUTSIDE){
+            return;
+        }
+
+        if((*marks)[Tr.ElementNo]==ElementMarker::SBElementType::INSIDE){
+            return;
+        }
+
+        Vector u(ndim);
+        Vector f(ndim);
+        DenseMatrix grads; grads.SetSize(ndim);
+        DenseMatrix strains; strains.SetSize(ndim);
+        DenseMatrix CC;
+        if(ndim==3){CC.SetSize(6);}
+        else{CC.SetSize(3);}
+        Vector engstrain;
+        Vector engstress;
+        if(ndim==3){engstrain.SetSize(6);}
+        else{engstrain.SetSize(3);}
+        engstress.SetSize(engstrain.Size());
+
+        //cut element
+
+        const IntegrationRule *ir = nullptr;
+        ir=cut_int->GetSurfIntegrationRule(Tr.ElementNo);
+
+        Vector shf(ndof);
+        DenseMatrix bmat(ndof,ndim);
+        Vector tnormal(ndim);
+
+        double w;
+        for (int j = 0; j < ir->GetNPoints(); j++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            Tr.SetIntPoint(&ip);
+            w=ip.weight;
+
+            double E=Ecoef->Eval(Tr,ip);
+            disp->GetVectorValue(Tr,ip,u);
+            disp->GetVectorGradient(Tr,grads);
+            if(ndim==2)
+            {
+                elast::EvalLinStrain2D(grads,strains);
+                elast::Convert2DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor2D(E,nu,CC);
+            }else{//dim==3
+                elast::EvalLinStrain3D(grads,strains);
+                elast::Convert3DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor3D(E,nu,CC);
+            }
+
+            CC.Mult(engstrain,engstress);
+            double cpl=engstrain*engstress; //compute the compliance
+
+            volforce->Eval(f,Tr,ip);
+            cpl=2.0*(f*u)-cpl;
+
+            el.CalcPhysShape(Tr,shf);
+            el.CalcPhysDShape(Tr,bmat);
+            bmat.MultTranspose(elfun,tnormal);
+
+            elvect.Add(w*cpl/tnormal.Norml2(), shf);
+        }
+    }
+
+private:
+    CutIntegrationRules* cut_int;
+    Array<int>* marks;
+
+    ParGridFunction* disp;
+    mfem::VectorCoefficient* volforce;
+    double nu;
+    Coefficient* Ecoef;
+
+};
+
+class ComplianceObjectiveCut
+{
+public:
+    ComplianceObjectiveCut()
+    {
+        nf=nullptr;
+        itgr=nullptr;
+        Ecoef=nullptr;
+        volforce=nullptr;
+        locE.constant=1.0;
+    }
+
+    ~ComplianceObjectiveCut()
+    {
+        delete nf;
+    }
+
+    void SetE(Coefficient* E_){
+        Ecoef=E_;
+        if(itgr!=nullptr){
+            itgr->SetE(Ecoef);
+        }
+    }
+
+    void SetE(double E_)
+    {
+        locE.constant=E_;
+        SetE(&locE);
+    }
+
+    void SetVolForce(VectorCoefficient* force_)
+    {
+        volforce=force_;
+        if(itgr!=nullptr){
+            itgr->SetVolForce(volforce);
+        }
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+        if(itgr!=nullptr){
+            itgr->SetPoissonRatio(nu);
+        }
+    }
+
+    void SetCutIntegrationRules(Array<int>& el_markers_, CutIntegrationRules* cut_int_)
+    {
+        marks=&el_markers_;
+        cut_int=cut_int_;
+        if(itgr!=nullptr){
+            itgr->SetCutIntegrationRules(*marks,cut_int);
+        }
+    }
+
+
+    double Eval(ParGridFunction& disp, ParGridFunction& lsf)
+    {
+        if(nf==nullptr){//allocate the nonlinear form
+            nf=new ParNonlinearForm(lsf.ParFESpace());
+            itgr=new ComplObjCutIntegrator();
+            itgr->SetE(Ecoef);
+            itgr->SetPoissonRatio(nu);
+            itgr->SetCutIntegrationRules(*marks,cut_int);
+            itgr->SetVolForce(volforce);
+            nf->AddDomainIntegrator(itgr);
+        }
+        itgr->SetDisp(&disp);
+        return nf->GetEnergy(lsf.GetTrueVector());
+    }
+
+    void Grad(ParGridFunction& disp, ParGridFunction& lsf, Vector& grad){
+        if(nf==nullptr){//allocate the nonlinear form
+            nf=new ParNonlinearForm(lsf.ParFESpace());
+            itgr=new ComplObjCutIntegrator();
+            itgr->SetE(Ecoef);
+            itgr->SetPoissonRatio(nu);
+            itgr->SetCutIntegrationRules(*marks,cut_int);
+            itgr->SetVolForce(volforce);
+            nf->AddDomainIntegrator(itgr);
+        }
+        itgr->SetDisp(&disp);
+        grad.SetSize(lsf.GetTrueVector().Size());
+        nf->Mult(lsf.GetTrueVector(),grad);
+    }
+
+private:
+    ParNonlinearForm* nf;
+    ComplObjCutIntegrator* itgr;
+    Coefficient* Ecoef;
+    double nu;
+    VectorCoefficient* volforce;
+
+    ConstantCoefficient locE;
+
+    CutIntegrationRules* cut_int;
+    Array<int>* marks;
+};
+
+
 class VolObjCutIntegrator:public NonlinearFormIntegrator{
 public:
     VolObjCutIntegrator()
@@ -831,6 +1277,7 @@ public:
     void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
                                const Vector &elfun, Vector &elvect)
     {
+        int ndim = Tr.GetSpaceDim();
         int ndof = el.GetDof();
 
         elvect.SetSize(ndof); elvect=0.0;
@@ -852,13 +1299,19 @@ public:
         double f;
         Vector shf(ndof);
 
+        DenseMatrix bmat(ndof,ndim);
+        Vector tnormal(ndim);
+
         for (int j = 0; j < ir->GetNPoints(); j++)
         {
            const IntegrationPoint &ip = ir->IntPoint(j);
+           Tr.SetIntPoint(&ip);
            w=ip.weight;
            f=coef->Eval(Tr,ip);
            el.CalcPhysShape(Tr,shf);
-           elvect.Add(w * f , shf);
+           el.CalcPhysDShape(Tr,bmat);
+           bmat.MultTranspose(elfun,tnormal);
+           elvect.Add(w*f/tnormal.Norml2(), shf);
         }
     }
 
@@ -886,6 +1339,7 @@ public:
     {
         volc=&volw;
         nf=nullptr;
+        itgr=nullptr;
 
     }
 
@@ -898,11 +1352,17 @@ public:
     {
         marks=&el_markers_;
         cut_int=cut_int_;
+        if(itgr!=nullptr){
+            itgr->SetCutIntegrationRules(*marks,cut_int);
+        }
     }
 
 
     void SetWeight(Coefficient* coeff){
         volc=coeff;
+        if(itgr!=nullptr){
+            itgr->SetCoeff(volc);
+        }
     }
 
     double Eval(ParGridFunction& lsf){
@@ -919,6 +1379,15 @@ public:
     }
 
     void Grad(ParGridFunction& lsf, Vector& grad){
+
+        if(nf==nullptr){//allocate the nonlinear form
+            nf=new ParNonlinearForm(lsf.ParFESpace());
+            itgr=new VolObjCutIntegrator();
+            itgr->SetCoeff(volc);
+            itgr->SetCutIntegrationRules(*marks,cut_int);
+            nf->AddDomainIntegrator(itgr);
+        }
+
         grad.SetSize(lsf.GetTrueVector().Size());
         nf->Mult(lsf.GetTrueVector(),grad);
     }
@@ -935,6 +1404,898 @@ private:
 
 
 };
+
+/// int(kappa(x)\left(u-u_target\right)^a d\Omega
+class DisplObjCutIntegrator:public NonlinearFormIntegrator
+{
+public:
+    DisplObjCutIntegrator():one(1.0)
+    {
+        kappa=&one;
+        a=2.0;
+
+        displ=nullptr;
+        adjgf=nullptr;
+
+        cut_int=nullptr;
+        target_disp=nullptr;
+    }
+
+    virtual
+    ~DisplObjCutIntegrator()
+    {
+    }
+
+    void SetTargetDispl(VectorCoefficient* tgu){
+        target_disp=tgu;
+    }
+
+    void SetWeight(Coefficient* w)
+    {
+        kappa=w;
+    }
+
+    void SetPower(double a_)
+    {
+        a=a_;
+    }
+
+    void SetCutIntegrationRules(CutIntegrationRules* cut_int_)
+    {
+        cut_int=cut_int_;
+    }
+
+    void SetDisplacements(GridFunction& gf){
+        displ=&gf;
+    }
+
+    void SetAdjoint(GridFunction& gf){
+        adjgf=&gf;
+    }
+
+
+    void SetVolForce(VectorCoefficient* f_)
+    {
+        force=f_;
+    }
+
+
+    void SetE(Coefficient* E_)
+    {
+        Ecoef=E_;
+    }
+
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun)
+    {
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::OUTSIDE){
+            return 0.0;
+        }
+
+        const IntegrationRule *ir = nullptr;
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::INSIDE)
+        {
+            int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);//this might be too big
+            ir=&IntRules.Get(Tr.GetGeometryType(),order);
+        }
+        else
+        {
+            ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+        }
+
+        int ndim = Tr.GetSpaceDim();
+
+        double w;
+        double energy=0.0;
+        double kap;
+        Vector u(ndim);
+        Vector utg(ndim); utg=0.0;
+        double nr;
+        for(int i=0; i<ir->GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            w=Tr.Weight();
+            w = ip.weight * w;
+
+            kap=kappa->Eval(Tr,ip);
+
+            if(target_disp!=nullptr){
+                target_disp->Eval(utg,Tr,ip);
+            }
+
+            displ->GetVectorValue(Tr,ip,u);
+            u.Add(-1.0,utg); nr=u.Norml2();
+
+            energy=energy+w*pow(nr,a)*kap;
+        }
+        return energy;
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndim = Tr.GetSpaceDim();
+        int ndof = el.GetDof();
+
+        elvect.SetSize(ndof); elvect=0.0;
+        if(cut_int->GetElementMarker(Tr.ElementNo)!=ElementMarker::SBElementType::CUT){
+            return;
+        }
+        //cut element
+        const IntegrationRule *ir = nullptr;
+        ir=cut_int->GetSurfIntegrationRule(Tr.ElementNo);
+
+        Vector u(ndim);
+        Vector p(ndim);
+        Vector f(ndim);
+        DenseMatrix gradu; gradu.SetSize(ndim);
+        DenseMatrix grada; grada.SetSize(ndim);
+        DenseMatrix strains; strains.SetSize(ndim);
+        DenseMatrix CC;
+        if(ndim==3){CC.SetSize(6);}
+        else{CC.SetSize(3);}
+        Vector engstrain;
+        Vector engstress;
+        if(ndim==3){engstrain.SetSize(6);}
+        else{engstrain.SetSize(3);}
+        engstress.SetSize(engstrain.Size());
+
+        Vector utg(ndim); utg=0.0;
+
+        Vector shf(ndof);
+        DenseMatrix bmat(ndof,ndim);
+        Vector tnormal(ndim);
+
+        double w;
+        double kap;
+        for (int j = 0; j < ir->GetNPoints(); j++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            Tr.SetIntPoint(&ip);
+            w=ip.weight;
+
+            double E=Ecoef->Eval(Tr,ip);
+            displ->GetVectorValue(Tr,ip,u);
+            adjgf->GetVectorValue(Tr,ip,p);
+
+
+            /*
+            std::cout<<"u=";
+            u.Print(std::cout);
+            std::cout<<"p=";
+            p.Print(std::cout);
+            */
+
+            displ->GetVectorGradient(Tr,gradu);
+            adjgf->GetVectorGradient(Tr,grada);
+
+            if(ndim==2)
+            {
+                elast::EvalLinStrain2D(gradu,strains);
+                elast::Convert2DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor2D(E,nu,CC);
+                CC.Mult(engstrain,engstress);
+                elast::EvalLinStrain2D(grada,strains);
+                elast::Convert2DVoigtStrain(strains,engstrain);
+            }else{//dim==3
+                elast::EvalLinStrain3D(gradu,strains);
+                elast::Convert3DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor3D(E,nu,CC);
+                CC.Mult(engstrain,engstress);
+                elast::EvalLinStrain2D(grada,strains);
+                elast::Convert3DVoigtStrain(strains,engstrain);
+            }
+
+            force->Eval(f,Tr,ip);
+
+            kap=kappa->Eval(Tr,ip);
+
+            if(target_disp!=nullptr){
+                target_disp->Eval(utg,Tr,ip);
+            }
+
+
+            u.Add(-1.0,utg);
+            double nr=u.Norml2();
+            double cpl=pow(nr,a)*kap;
+            cpl=cpl+(engstrain*engstress)-(p*f);
+
+
+            //double cpl=(f*u)-(f*p)+(engstrain*engstress);
+
+            el.CalcPhysShape(Tr,shf);
+            el.CalcPhysDShape(Tr,bmat);
+            bmat.MultTranspose(elfun,tnormal);
+
+            elvect.Add(w*cpl/tnormal.Norml2(), shf);
+        }
+    }
+
+    virtual
+    void AssembleAdjointRHS(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndim = Tr.GetSpaceDim();
+        int ndof = el.GetDof();
+
+        elvect.SetSize(ndof*ndim); elvect=0.0;
+
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::OUTSIDE){
+            return;
+        }
+
+        const IntegrationRule *ir = nullptr;
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::INSIDE)
+        {
+            int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);//this might be too big
+            ir=&IntRules.Get(Tr.GetGeometryType(),order);
+        }
+        else
+        {
+            ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+        }
+
+        Vector u(ndim);
+        DenseMatrix gradu; gradu.SetSize(ndim);
+        Vector utg(ndim); utg=0.0;
+
+        Vector shf(ndof);
+
+        double w;
+        double kap;
+        for (int j = 0; j < ir->GetNPoints(); j++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            Tr.SetIntPoint(&ip);
+            w=Tr.Weight();
+            w = ip.weight * w;
+
+            kap=kappa->Eval(Tr,ip);
+
+            if(target_disp!=nullptr){
+                target_disp->Eval(utg,Tr,ip);
+            }
+
+            el.CalcPhysShape(Tr,shf);
+
+            //evaluate u
+            u=0.0;
+            for(int d=0;d<ndim;d++){
+            for(int k=0;k<ndof;k++){
+                u[d]=u[d]+shf[k]*elfun[d*ndof+k];
+            }}
+
+            u.Add(-1.0,utg);
+            double nr=u.Norml2();
+            double cpl=-a*kap*pow(nr,a)/(nr*nr);
+            u*=cpl;
+
+            //force->Eval(u,Tr,ip); u*=-1.0;
+
+            for(int k=0;k<ndof;k++){
+            for(int d=0;d<ndim;d++){
+                elvect(d*ndof+k)=elvect(d*ndof+k)+w*u[d]*shf[k];
+            }}
+        }
+    }
+
+private:
+
+    GridFunction* displ; //displacements
+    GridFunction* adjgf; //adjoint
+
+    VectorCoefficient* force;
+
+    Coefficient* Ecoef;
+    double nu;
+
+    double a;
+
+    VectorCoefficient* target_disp;
+    Coefficient* kappa;
+
+    ConstantCoefficient one;
+
+    CutIntegrationRules* cut_int;
+};
+
+template<class Integrator>
+class RHSAdjointIntegrator:public NonlinearFormIntegrator
+{
+public:
+    RHSAdjointIntegrator(Integrator* itgr_):itgr(itgr_)
+    {
+
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        itgr->AssembleAdjointRHS(el, Tr, elfun, elvect);
+    }
+
+
+private:
+    Integrator* itgr;
+};
+
+
+class CFElasticitySolver;
+
+class DisplObjectiveCut
+{
+public:
+    DisplObjectiveCut()
+    {
+        nfo=nullptr;
+        itgr=nullptr;
+        trg_displ=nullptr;
+        solver=nullptr;
+        int_wght=nullptr;
+
+    }
+
+
+    ~DisplObjectiveCut()
+    {
+        delete nfo;
+    }
+
+    void SetVolForce(VectorCoefficient* force_)
+    {
+        volforce=force_;
+        if(itgr!=nullptr){
+            itgr->SetVolForce(volforce);
+        }
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+        if(itgr!=nullptr){
+            itgr->SetPoissonRatio(nu);
+        }
+    }
+
+    void SetE(Coefficient* E_){
+        Ecoef=E_;
+        if(itgr!=nullptr){
+            itgr->SetE(Ecoef);
+        }
+    }
+
+    void SetE(double E_)
+    {
+        locE.constant=E_;
+        SetE(&locE);
+    }
+
+    void SetPower(double a_)
+    {
+        a=a_;
+        if(itgr!=nullptr){
+            itgr->SetPower(a);
+        }
+    }
+
+    void SetTargetDisplacement(VectorCoefficient* tgu){
+        trg_displ=tgu;
+        if(itgr!=nullptr){
+            itgr->SetTargetDispl(trg_displ);
+        }
+    }
+
+
+    void SetIntegrationWeight(Coefficient* ww_){
+        int_wght=ww_;
+        if(itgr!=nullptr){
+            itgr->SetWeight(int_wght);
+        }
+
+    }
+
+
+    void SetSolver(CFElasticitySolver* solver_)
+    {
+        if(solver!=nullptr)
+        {
+            delete nfo;
+            nfo=nullptr;
+            itgr=nullptr;
+        }
+        solver=solver_;
+    }
+
+    void SetCutIntegrationRules(CutIntegrationRules* cut_int_)
+    {
+        cut_int=cut_int_;
+        if(itgr!=nullptr){
+            itgr->SetCutIntegrationRules(cut_int);
+        }
+    }
+
+    double Eval(ParGridFunction& lsf);
+
+    void Grad(ParGridFunction& lsf, Vector& grad);
+
+
+private:
+    CFElasticitySolver* solver;
+
+    DisplObjCutIntegrator* itgr;
+
+
+    ParNonlinearForm* nfo;
+
+    Coefficient* Ecoef;
+    ConstantCoefficient locE;
+    double nu;
+    VectorCoefficient* volforce;
+    VectorCoefficient* trg_displ; //target displacement
+    double a; //power in the objective
+    Coefficient* int_wght;
+
+
+    CutIntegrationRules* cut_int;
+
+    Vector adj_rhs;
+
+
+};
+
+
+
+
+
+class StressObjCutIntegrator:public NonlinearFormIntegrator{
+public:
+    StressObjCutIntegrator():one(1.0)
+    {
+        kappa=&one;
+        a=2.0;
+
+        displ=nullptr;
+        adjgf=nullptr;
+
+        cut_int=nullptr;
+    }
+
+    virtual
+    ~StressObjCutIntegrator()
+    {
+
+    }
+
+    void SetCutIntegrationRules(CutIntegrationRules* cut_int_)
+    {
+        cut_int=cut_int_;
+    }
+
+    void SetWeight(Coefficient* w)
+    {
+        kappa=w;
+    }
+
+    void SetPower(double a_)
+    {
+        a=a_;
+    }
+
+    void SetDisplacements(GridFunction& gf){
+        displ=&gf;
+    }
+
+    void SetAdjoint(GridFunction& gf){
+        adjgf=&gf;
+    }
+
+
+    void SetVolForce(VectorCoefficient* f_)
+    {
+        force=f_;
+    }
+
+
+    void SetE(Coefficient* E_)
+    {
+        Ecoef=E_;
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun)
+    {
+        double energy=0.0;
+
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::OUTSIDE){
+            return 0.0;
+        }
+
+        const IntegrationRule *ir = nullptr;
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::INSIDE)
+        {
+            int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);//this might be too big
+            ir=&IntRules.Get(Tr.GetGeometryType(),order);
+        }
+        else
+        {
+            ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+        }
+
+        int ndim = Tr.GetSpaceDim();
+
+        double w;
+        double kap;
+        DenseMatrix gradu(ndim);
+        double vmsa;
+        for(int i=0; i<ir->GetNPoints(); i++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            w=Tr.Weight();
+            w = ip.weight * w;
+
+            double E=Ecoef->Eval(Tr,ip);
+            kap=kappa->Eval(Tr,ip);
+
+            displ->GetVectorGradient(Tr,gradu);
+
+            if(ndim==2){
+                vmsa=elast::vonMisesStress2D(gradu.GetData(),nu,E,a);
+            }else{
+                vmsa=elast::vonMisesStress3D(gradu.GetData(),nu,E,a);
+            }
+            energy=energy+w*vmsa*kap;
+        }
+        return energy;
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndim = Tr.GetSpaceDim();
+        int ndof = el.GetDof();
+
+        elvect.SetSize(ndof); elvect=0.0;
+        if(cut_int->GetElementMarker(Tr.ElementNo)!=ElementMarker::SBElementType::CUT){
+            return;
+        }
+        //cut element
+        const IntegrationRule *ir = nullptr;
+        ir=cut_int->GetSurfIntegrationRule(Tr.ElementNo);
+
+        Vector u(ndim);
+        Vector p(ndim);
+        Vector f(ndim);
+        DenseMatrix gradu; gradu.SetSize(ndim);
+        DenseMatrix grada; grada.SetSize(ndim);
+        DenseMatrix strains; strains.SetSize(ndim);
+        DenseMatrix CC;
+        if(ndim==3){CC.SetSize(6);}
+        else{CC.SetSize(3);}
+        Vector engstrain;
+        Vector engstress;
+        if(ndim==3){engstrain.SetSize(6);}
+        else{engstrain.SetSize(3);}
+        engstress.SetSize(engstrain.Size());
+
+        Vector shf(ndof);
+        DenseMatrix bmat(ndof,ndim);
+        Vector tnormal(ndim);
+
+        double w;
+        double kap;
+        double vmsa;
+        for (int j = 0; j < ir->GetNPoints(); j++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            Tr.SetIntPoint(&ip);
+            w=ip.weight;
+
+            double E=Ecoef->Eval(Tr,ip);
+            displ->GetVectorValue(Tr,ip,u);
+            adjgf->GetVectorValue(Tr,ip,p);
+
+            displ->GetVectorGradient(Tr,gradu);
+            adjgf->GetVectorGradient(Tr,grada);
+
+            if(ndim==2)
+            {
+                elast::EvalLinStrain2D(gradu,strains);
+                elast::Convert2DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor2D(E,nu,CC);
+                CC.Mult(engstrain,engstress);
+                elast::EvalLinStrain2D(grada,strains);
+                elast::Convert2DVoigtStrain(strains,engstrain);
+            }else{//dim==3
+                elast::EvalLinStrain3D(gradu,strains);
+                elast::Convert3DVoigtStrain(strains,engstrain);
+                elast::IsotropicStiffnessTensor3D(E,nu,CC);
+                CC.Mult(engstrain,engstress);
+                elast::EvalLinStrain2D(grada,strains);
+                elast::Convert3DVoigtStrain(strains,engstrain);
+            }
+
+            force->Eval(f,Tr,ip);
+
+            kap=kappa->Eval(Tr,ip);
+
+            if(ndim==2){
+                vmsa=elast::vonMisesStress2D(gradu.GetData(),nu,E,a);
+            }else{
+                vmsa=elast::vonMisesStress3D(gradu.GetData(),nu,E,a);
+            }
+
+
+            double cpl=kap*vmsa;
+            cpl=cpl+(engstrain*engstress)-(p*f);
+
+            el.CalcPhysShape(Tr,shf);
+            el.CalcPhysDShape(Tr,bmat);
+            bmat.MultTranspose(elfun,tnormal);
+
+            elvect.Add(w*cpl/tnormal.Norml2(), shf);
+
+        }
+
+
+    }
+
+    void GradVM(DenseMatrix& gradvm,DenseMatrix& gradu, double nnu, double EE, double aa)
+    {
+
+        using std::pow;
+        typedef internal::dual<double, double> ADFloatType;
+
+        int dim=gradu.Width();
+
+        ADFloatType vg[dim*dim];
+        for(int i=0;i<dim;i++){
+        for(int j=0;j<dim;j++){
+            vg[i*dim+j].value=gradu(i,j);
+            vg[i*dim+j].gradient=0.0;
+        }}
+
+        ADFloatType rez[dim*dim];
+        ADFloatType anu; anu.gradient=0.0; anu.value=nnu;
+        ADFloatType aE; aE.gradient=0.0; aE.value=EE;
+        ADFloatType aaa; aaa.gradient=0.0; aaa.value=aa;
+
+
+        if(dim==2){
+        for(int i=0;i<4;i++){
+            vg[i].gradient=1.0;
+            rez[i]=elast::vonMisesStress2D<ADFloatType>(vg,anu,aE,aaa);
+            vg[i].gradient=0.0;
+        }}
+        else{//dim==3
+        for(int i=0;i<9;i++){
+            vg[i].gradient=1.0;
+            rez[i]=elast::vonMisesStress3D<ADFloatType>(vg,anu,aE,aaa);
+            vg[i].gradient=0.0;
+        }}
+
+        for(int i=0;i<dim;i++){
+        for(int j=0;j<dim;j++){
+            gradvm(i,j)=rez[i*dim+j].gradient;
+        }}
+    }
+
+
+
+    virtual
+    void AssembleAdjointRHS(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect)
+    {
+        int ndim = Tr.GetSpaceDim();
+        int ndof = el.GetDof();
+
+        elvect.SetSize(ndof*ndim); elvect=0.0;
+
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::OUTSIDE){
+            return;
+        }
+
+        const IntegrationRule *ir = nullptr;
+        if(cut_int->GetElementMarker(Tr.ElementNo)==ElementMarker::SBElementType::INSIDE)
+        {
+            int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);//this might be too big
+            ir=&IntRules.Get(Tr.GetGeometryType(),order);
+        }
+        else
+        {
+            ir=cut_int->GetVolIntegrationRule(Tr.ElementNo);
+        }
+
+        Vector dd(ndim);
+        Vector ct(ndof);
+        DenseMatrix gradu; gradu.SetSize(ndim);
+        DenseMatrix vmgrad; vmgrad.SetSize(ndim);
+        DenseMatrix B(ndof,ndim);
+        Vector tv;
+
+        double w;
+        double kap;
+        for (int j = 0; j < ir->GetNPoints(); j++)
+        {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            Tr.SetIntPoint(&ip);
+            w=Tr.Weight();
+            w = ip.weight * w;
+
+            kap=kappa->Eval(Tr,ip);
+
+            el.CalcPhysDShape(Tr,B);
+
+            //evaluate the gradient
+            for(int d=0;d<ndim;d++){
+                tv.SetDataAndSize(elfun.GetData()+ndof*d,ndof);
+                B.MultTranspose(tv,dd);
+                for(int p=0;p<ndim;p++){
+                    gradu(p,d)=dd(p);
+                }
+            }
+
+            double E=Ecoef->Eval(Tr,ip);
+
+            //gradient of VM^(2*a) stress with respect to gradu
+            GradVM(vmgrad, gradu, nu, E, a);
+
+            //add the contribution
+            for(int d=0;d<ndim;d++){
+                for(int p=0;p<ndim;p++){
+                    dd(p)=vmgrad(p,d)*kap;
+                }
+                B.Mult(dd,ct);
+                for(int k=0;k<ndof;k++){
+                    elvect(d*ndof+k)=elvect(d*ndof+k)-w*ct[k];
+                }
+            }
+        }
+    }
+
+
+private:
+    GridFunction* displ; //displacements
+    GridFunction* adjgf; //adjoint
+
+    CutIntegrationRules* cut_int;
+
+    VectorCoefficient* force;
+    Coefficient* Ecoef;
+    double nu;
+    double a;
+    Coefficient* kappa;
+    ConstantCoefficient one;
+};
+
+
+class StressObjectiveCut
+{
+public:
+    StressObjectiveCut()
+    {
+        nfo=nullptr;
+        itgr=nullptr;
+        solver=nullptr;
+        int_wght=nullptr;
+
+    }
+
+    ~StressObjectiveCut()
+    {
+         delete nfo;
+    }
+
+    void SetVolForce(VectorCoefficient* force_)
+    {
+        volforce=force_;
+        if(itgr!=nullptr){
+            itgr->SetVolForce(volforce);
+        }
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+        if(itgr!=nullptr){
+            itgr->SetPoissonRatio(nu);
+        }
+    }
+
+    void SetE(Coefficient* E_){
+        Ecoef=E_;
+        if(itgr!=nullptr){
+            itgr->SetE(Ecoef);
+        }
+    }
+
+    void SetE(double E_)
+    {
+        locE.constant=E_;
+        SetE(&locE);
+    }
+
+    void SetPower(double a_)
+    {
+        a=a_;
+        if(itgr!=nullptr){
+            itgr->SetPower(a);
+        }
+    }
+
+    void SetIntegrationWeight(Coefficient* ww_){
+        int_wght=ww_;
+        if(itgr!=nullptr){
+            itgr->SetWeight(int_wght);
+        }
+
+    }
+
+
+    void SetSolver(CFElasticitySolver* solver_)
+    {
+        if(solver!=nullptr)
+        {
+            delete nfo;
+            nfo=nullptr;
+            itgr=nullptr;
+        }
+        solver=solver_;
+    }
+
+    void SetCutIntegrationRules(CutIntegrationRules* cut_int_)
+    {
+        cut_int=cut_int_;
+        if(itgr!=nullptr){
+            itgr->SetCutIntegrationRules(cut_int);
+        }
+    }
+
+    double Eval(ParGridFunction& lsf);
+
+    void Grad(ParGridFunction& lsf, Vector& grad);
+
+private:
+    CFElasticitySolver* solver;
+
+    StressObjCutIntegrator* itgr;
+
+
+    ParNonlinearForm* nfo;
+
+    Coefficient* Ecoef;
+    ConstantCoefficient locE;
+    double nu;
+    VectorCoefficient* volforce;
+    double a; //power in the objective
+    Coefficient* int_wght;
+
+
+    CutIntegrationRules* cut_int;
+
+    Vector adj_rhs;
+};
+
+
+
 
 #endif
 
@@ -1027,6 +2388,120 @@ public:
 
 #ifdef MFEM_USE_ALGOIM
 
+
+class GhostPenaltyIntegrator:public BilinearFormIntegrator
+{
+public:
+    GhostPenaltyIntegrator(double penal_=1.0):penal(penal_)
+    {
+
+    }
+
+    virtual
+    ~GhostPenaltyIntegrator()
+    {
+
+    }
+
+    virtual void AssembleFaceMatrix(const FiniteElement &fe1,
+                                        const FiniteElement &fe2,
+                                        FaceElementTransformations &Tr,
+                                        DenseMatrix &elmat);
+private:
+
+
+    void Shape(Vector& xx, int order, Vector& sh)
+    {
+        if(xx.Size()==1){
+            Shape1D(xx[0],order,sh);
+        }else
+        if(xx.Size()==2){
+            Shape2D(xx[0],xx[1],order,sh);
+        }else
+        if(xx.Size()==3){
+            Shape3D(xx[0],xx[1],xx[2],order,sh);
+        }
+    }
+
+    void Shape1D(double x, int order, Vector& sh){
+        sh.SetSize(order+1);
+        sh[0]=1.0;
+        for(int i=0;i<order;i++){sh[i+1]=sh[i]*x;}
+    }
+
+    void Shape2D(double x, double y, int order, Vector& sh)
+    {
+        Vector shx(order+1); Shape1D(x,order,shx);
+        Vector shy(order+1); Shape1D(y,order,shy);
+        sh.SetSize((order+1)*(order+2)/2);
+        int k=0;
+        for(int i=0;i<order+1;i++){
+        for(int j=0;j<order+1;j++){
+            if((i+j)<(order+1)){
+                sh[k]=shx[i]*shy[j];
+                k=k+1;
+            }
+        }}
+    }
+
+    void Shape3D(double x, double y, double z, int order, Vector& sh)
+    {
+        Vector shx(order+1); Shape1D(x,order,shx);
+        Vector shy(order+1); Shape1D(y,order,shy);
+        Vector shz(order+1); Shape1D(z,order,shz);
+        sh.SetSize((order+1)*(order+2)*(order+3)/6);
+        int p=0;
+        for(int i=0;i<order+1;i++){
+        for(int j=0;j<order+1;j++){
+        for(int k=0;k<order+1;k++){
+            if((i+j+k)<(order+1)){
+                sh[p]=shx[i]*shy[j]*shz[k];
+                p=p+1;
+            }
+        }}}
+    }
+
+    double penal;
+
+};
+
+class CutGhostPenaltyIntegrator:public BilinearFormIntegrator
+{
+public:
+    CutGhostPenaltyIntegrator(Array<int>& fmark_,double penal_):face_marks(fmark_),gp(penal_)
+    {
+    }
+
+    virtual void AssembleFaceMatrix(const FiniteElement &fe1,
+                                        const FiniteElement &fe2,
+                                        FaceElementTransformations &Tr,
+                                        DenseMatrix &elmat){
+
+        if(face_marks[Tr.ElementNo]==ElementMarker::SBFaceType::GHOSTP)
+        {
+            gp.AssembleFaceMatrix(fe1,fe2,Tr,elmat);
+        }
+        else
+        {
+            const int ndim=Tr.GetSpaceDim();
+            const int ndof1 = fe1.GetDof();
+            const int ndof2 = fe2.GetDof();
+            const int ndofs = ndof1+ndof2;
+
+            elmat.SetSize(ndofs*ndim);
+            elmat=0.0;
+            return;
+        }
+        //set it to the ghost penalization matrix
+        gp.AssembleFaceMatrix(fe1,fe2,Tr,elmat);
+    }
+
+private:
+    Array<int>& face_marks;
+    GhostPenaltyIntegrator gp;
+};
+
+
 class CFNLElasticityIntegrator:public NonlinearFormIntegrator
 {
 public:
@@ -1110,6 +2585,68 @@ private:
     CutIntegrationRules* cut_int;
 };
 
+class CombinedParNLForm:public ParNonlinearForm
+{
+public:
+    CombinedParNLForm(ParNonlinearForm* pnl_, ParBilinearForm* pbl_, Array<int>& ess_tdofs)
+                    :ParNonlinearForm(pnl_->ParFESpace()), ess_tdof_list(ess_tdofs)
+    {
+        pnl=pnl_;
+        pbl=pbl_;
+        std::cout<<"cl="<<pbl->NumCols()<<" rl="<<pbl->NumRows()<<std::endl;
+        bmat=pbl->ParallelAssemble();
+        std::cout<<"cl="<<bmat->NumCols()<<" rl="<<bmat->NumRows()<<std::endl;
+        elim=bmat->EliminateRowsCols(ess_tdofs);
+        opr=nullptr;
+    }
+
+    ~CombinedParNLForm(){
+        delete bmat;
+        delete elim;
+        delete opr;
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const{
+        pnl->Mult(x,y);
+        bmat->Mult(1.0,x,1.0,y);
+        elim->Mult(1.0,x,1.0,y);
+
+        for(int i=0;i<ess_tdof_list.Size();i++){
+            y[ess_tdof_list[i]]=0.0;
+        }
+    }
+
+    virtual Operator& GetGradient(const Vector &x) const
+    {
+       if(opr==nullptr){
+           Operator& mat=pnl->GetGradient(x);
+           HypreParMatrix* omat=static_cast<mfem::HypreParMatrix*>(&mat);
+           //omat->Add(1.0,*bmat);
+           opr=ParAdd(omat,bmat);
+       }else{
+           (*opr)=0.0;
+           Operator& mat=pnl->GetGradient(x);
+           HypreParMatrix* omat=static_cast<mfem::HypreParMatrix*>(&mat);
+           opr->Add(1.0,*omat);
+           opr->Add(1.0,*bmat);
+       }
+       return *opr;
+    }
+
+
+
+private:
+    Vector tmpv;
+    ParNonlinearForm* pnl;
+    ParBilinearForm* pbl;
+    HypreParMatrix* bmat;
+    HypreParMatrix* elim;
+    mutable HypreParMatrix* opr;
+    Array<int>& ess_tdof_list;
+
+
+
+};
 
 
 class CFElasticitySolver
@@ -1133,6 +2670,12 @@ public:
     void SetStiffnessRatio(double sr=1e-6)
     {
         stiffness_ratio=sr;
+    }
+
+    void SetGhostPenalty(double penal_, Array<int>& ghost_face_marks_){
+        ghost_penal=penal_;
+        ghost_assembly=true;
+        ghost_face_marks=&ghost_face_marks_;
     }
 
     /// Set the Newton Solver
@@ -1194,6 +2737,7 @@ public:
     /// Returns the adjoint displacements.
     mfem::ParGridFunction& GetADisplacements()
     {
+
         adisp.SetFromTrueDofs(adj);
         return adisp;
     }
@@ -1308,6 +2852,11 @@ private:
     Array<int>*  el_markers;
     CutIntegrationRules* cut_int;
     double stiffness_ratio;
+
+    double ghost_penal;
+    bool ghost_assembly;
+    Array<int>* ghost_face_marks;
+
 
 };
 

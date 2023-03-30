@@ -565,6 +565,8 @@ int main(int argc, char *argv[])
 
    Array<int> marks;
    elmark->MarkElements(marks);
+   Array<int> ghost_penalty_marks;
+   elmark->MarkGhostPenaltyFaces(ghost_penalty_marks);
 
 
    //define the cut integration rules
@@ -583,6 +585,8 @@ int main(int argc, char *argv[])
 
 
    CFElasticitySolver* elsolv=new CFElasticitySolver(&pmesh,order);
+   elsolv->SetGhostPenalty(0.001,ghost_penalty_marks);
+
    Vector vf(dim); vf=0.0; vf(1)=0.0;
    //VectorConstantCoefficient* ff=new VectorConstantCoefficient(vf);
    LinIsoElasticityCoefficient* lec=new LinIsoElasticityCoefficient(1.0,0.3);

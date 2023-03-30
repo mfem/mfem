@@ -719,73 +719,73 @@ void ElasticitySolver::FSolve()
             mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
             ess_bdr=0;
             ess_bdr[it->first -1]=1;
-            mfem::Array<int> ess_tdof_list;
-            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,0);
-            ess_tdofx.Append(ess_tdof_list);
+        mfem::Array<int> ess_tdof_list;
+        vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,0);
+        ess_tdofx.Append(ess_tdof_list);
 
-            mfem::VectorArrayCoefficient pcoeff(dim);
-            pcoeff.Set(0, it->second, false);
-            fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
-        }
+        mfem::VectorArrayCoefficient pcoeff(dim);
+        pcoeff.Set(0, it->second, false);
+        fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+    }
 
-        //copy tdofsx from velocity grid function
+    //copy tdofsx from velocity grid function
+    {
+        fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+        for(int ii=0;ii<ess_tdofx.Size();ii++)
         {
-            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
-            for(int ii=0;ii<ess_tdofx.Size();ii++)
-            {
-                sol[ess_tdofx[ii]]=rhs[ess_tdofx[ii]];
-            }
+            sol[ess_tdofx[ii]]=rhs[ess_tdofx[ii]];
         }
-        ess_tdofv.Append(ess_tdofx);
+    }
+    ess_tdofv.Append(ess_tdofx);
 
-        for(auto it=bccy.begin();it!=bccy.end();it++)
+    for(auto it=bccy.begin();it!=bccy.end();it++)
+    {
+        mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+        ess_bdr=0;
+        ess_bdr[it->first -1]=1;
+        mfem::Array<int> ess_tdof_list;
+        vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,1);
+        ess_tdofy.Append(ess_tdof_list);
+
+        mfem::VectorArrayCoefficient pcoeff(dim);
+        pcoeff.Set(1, it->second, false);
+        fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+    }
+    //copy tdofsy from velocity grid function
+    {
+        fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+        for(int ii=0;ii<ess_tdofy.Size();ii++)
+        {
+            sol[ess_tdofy[ii]]=rhs[ess_tdofy[ii]];
+        }
+    }
+    ess_tdofv.Append(ess_tdofy);
+
+    if(dim==3){
+        for(auto it=bccz.begin();it!=bccz.end();it++)
         {
             mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
             ess_bdr=0;
             ess_bdr[it->first -1]=1;
             mfem::Array<int> ess_tdof_list;
-            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,1);
-            ess_tdofy.Append(ess_tdof_list);
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,2);
+            ess_tdofz.Append(ess_tdof_list);
 
             mfem::VectorArrayCoefficient pcoeff(dim);
-            pcoeff.Set(1, it->second, false);
+            pcoeff.Set(2, it->second, false);
             fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
         }
-        //copy tdofsy from velocity grid function
+
+        //copy tdofsz from velocity grid function
         {
             fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
-            for(int ii=0;ii<ess_tdofy.Size();ii++)
+            for(int ii=0;ii<ess_tdofz.Size();ii++)
             {
-                sol[ess_tdofy[ii]]=rhs[ess_tdofy[ii]];
+                sol[ess_tdofz[ii]]=rhs[ess_tdofz[ii]];
             }
         }
-        ess_tdofv.Append(ess_tdofy);
-
-        if(dim==3){
-            for(auto it=bccz.begin();it!=bccz.end();it++)
-            {
-                mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-                ess_bdr=0;
-                ess_bdr[it->first -1]=1;
-                mfem::Array<int> ess_tdof_list;
-                vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,2);
-                ess_tdofz.Append(ess_tdof_list);
-
-                mfem::VectorArrayCoefficient pcoeff(dim);
-                pcoeff.Set(2, it->second, false);
-                fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
-            }
-
-            //copy tdofsz from velocity grid function
-            {
-                fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
-                for(int ii=0;ii<ess_tdofz.Size();ii++)
-                {
-                    sol[ess_tdofz[ii]]=rhs[ess_tdofz[ii]];
-                }
-            }
-            ess_tdofv.Append(ess_tdofz);
-        }
+        ess_tdofv.Append(ess_tdofz);
+    }
     }
 
     //allocate the nf
@@ -995,9 +995,9 @@ void ComplianceNLIntegrator::AssembleElementGrad(const FiniteElement &el, Elemen
                          const Vector &elfun, DenseMatrix &elmat)
 {
 
-        {
-            mfem::mfem_error("ComplianceNLIntegrator::AssembleElementGrad is not defined!");
-        }
+    {
+        mfem::mfem_error("ComplianceNLIntegrator::AssembleElementGrad is not defined!");
+    }
 }
 
 double ComplianceObjective::Eval(mfem::ParGridFunction& sol)
@@ -1100,12 +1100,163 @@ void ComplianceObjective::Grad(Vector& grad)
     nf->Mult(*dens,grad);
 }
 
+void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
+                        const FiniteElement &fe2,
+                        FaceElementTransformations &Tr,
+                        DenseMatrix &elmat)
+{
+    const int ndim=Tr.GetSpaceDim();
+    int elem2 = Tr.Elem2No;
+    if(elem2<0){
+        elmat.SetSize(fe1.GetDof()*ndim);
+        elmat=0.0;
+        return;
+    }
 
+    const int ndof1 = fe1.GetDof();
+    const int ndof2 = fe2.GetDof();
+    const int ndofs = ndof1+ndof2;
+
+    elmat.SetSize(ndofs*ndim);
+    elmat=0.0;
+
+    int order=std::max(fe1.GetOrder(), fe2.GetOrder());
+
+    int ndofg;
+    if(ndim==1){ndofg=order+1;}
+    else if(ndim==2){ ndofg=(order+1)*(order+2)/2;}
+    else if(ndim==3){ ndofg=(order+1)*(order+2)*(order+3)/6;}
+
+
+    Vector sh1(ndof1);
+    Vector sh2(ndof2);
+    Vector shg(ndofg);
+
+    Vector xx(ndim);
+
+    DenseMatrix Mge(ndofg,ndofs); Mge=0.0;
+    DenseMatrix Mgg(ndofg,ndofg); Mgg=0.0;
+    DenseMatrix Mee(ndofs,ndofs); Mee=0.0;
+
+    ElementTransformation &Tr1 = Tr.GetElement1Transformation();
+    ElementTransformation &Tr2 = Tr.GetElement2Transformation();
+
+    const IntegrationRule* ir;
+
+
+    /*
+    double hh;
+    Vector c1(ndim);
+    Vector c2(ndim);
+    // calculate h
+    {
+        DenseMatrix J(ndim,ndim);
+
+        Tr1.SetIntPoint(&Geometries.GetCenter(fe1.GetGeomType()));
+        Tr1.Transform(Geometries.GetCenter(fe1.GetGeomType()),c1);
+        Geometries.JacToPerfJac(fe1.GetGeomType(),Tr1.Jacobian(),J);
+        double h1=J.CalcSingularvalue(0); //h_max - diameter
+
+        Tr2.SetIntPoint(&Geometries.GetCenter(fe2.GetGeomType()));
+        Tr2.Transform(Geometries.GetCenter(fe2.GetGeomType()),c2);
+        Geometries.JacToPerfJac(fe2.GetGeomType(),Tr2.Jacobian(),J);
+        double h2=J.CalcSingularvalue(0); //h_max - diameter
+
+        hh=std::min(h1,h2);
+    }*/
+
+
+    //element 1
+    double w;
+    ir=&IntRules.Get(Tr1.GetGeometryType(), 2*order+2);
+    for(int ii=0;ii<ir->GetNPoints();ii++){
+        const IntegrationPoint &ip = ir->IntPoint(ii);
+        Tr1.SetIntPoint(&ip);
+        Tr1.Transform(ip,xx);
+        fe1.CalcPhysShape(Tr1,sh1);
+        Shape(xx,order,shg);
+
+        w = Tr1.Weight();
+        w = ip.weight * w;
+        for(int i=0;i<ndofg;i++){
+            for(int j=0;j<i;j++){
+                Mgg(i,j)=Mgg(i,j)+shg(i)*shg(j)*w;
+                Mgg(j,i)=Mgg(j,i)+shg(i)*shg(j)*w;
+            }
+            Mgg(i,i)=Mgg(i,i)+shg(i)*shg(i)*w;
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=0;j<i;j++){
+                Mee(i,j)=Mee(i,j)+sh1(i)*sh1(j)*w;
+                Mee(j,i)=Mee(j,i)+sh1(i)*sh1(j)*w;
+            }
+            Mee(i,i)=Mee(i,i)+sh1(i)*sh1(i)*w;
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=0;j<ndofg;j++){
+                Mge(j,i)=Mge(j,i)+shg(j)*sh1(i)*w;
+            }}
+    }
+
+    //element 2
+    ir=&IntRules.Get(Tr2.GetGeometryType(), 2*order+2);
+    for(int ii=0;ii<ir->GetNPoints();ii++){
+        const IntegrationPoint &ip = ir->IntPoint(ii);
+        Tr2.SetIntPoint(&ip);
+        Tr2.Transform(ip,xx);
+
+        fe2.CalcPhysShape(Tr2,sh2);
+        Shape(xx,order,shg);
+
+        w = Tr1.Weight();
+        w = ip.weight * w;
+
+        for(int i=0;i<ndofg;i++){
+            for(int j=0;j<i;j++){
+                Mgg(i,j)=Mgg(i,j)+shg(i)*shg(j)*w;
+                Mgg(j,i)=Mgg(j,i)+shg(i)*shg(j)*w;
+            }
+            Mgg(i,i)=Mgg(i,i)+shg(i)*shg(i)*w;
+        }
+
+        for(int i=0;i<ndof2;i++){
+            for(int j=0;j<i;j++){
+                Mee(ndof1+i,ndof1+j)=Mee(ndof1+i,ndof1+j)+sh2(i)*sh2(j)*w;
+                Mee(ndof1+j,ndof1+i)=Mee(ndof1+j,ndof1+i)+sh2(i)*sh2(j)*w;
+            }
+            Mee(ndof1+i,ndof1+i)=Mee(ndof1+i,ndof1+i)+sh2(i)*sh2(i)*w;
+        }
+
+        for(int i=0;i<ndof2;i++){
+            for(int j=0;j<ndofg;j++){
+                Mge(j,ndof1+i)=Mge(j,ndof1+i)+shg(j)*sh2(i)*w;
+            }}
+    }
+
+    DenseMatrixInverse Mii(Mgg);
+    DenseMatrix Mre(ndofg,ndofs);
+    DenseMatrix Mff(ndofs,ndofs);
+    Mii.Mult(Mge,Mre);
+    MultAtB(Mge,Mre,Mff);
+
+    double tv;
+    for(int i=0;i<ndofs;i++){
+        for(int j=0;j<ndofs;j++){
+            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
+            for(int d=0;d<ndim;d++){
+                elmat(i+d*ndofs,j+d*ndofs)=tv;
+            }
+        }
+    }
+
+}
 
 void ElastGhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
-                                        const FiniteElement &fe2,
-                                        FaceElementTransformations &Tr,
-                                        DenseMatrix &elmat)
+                             const FiniteElement &fe2,
+                             FaceElementTransformations &Tr,
+                             DenseMatrix &elmat)
 {
     const int ndim=Tr.GetSpaceDim();
     int elem1 = Tr.Elem1No;
@@ -1130,9 +1281,9 @@ void ElastGhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     if((*markers)[elem2]==ElementMarker::SBElementType::OUTSIDE)
     {flag=true;}
     if((*markers)[elem1]==ElementMarker::SBElementType::INSIDE){
-    if((*markers)[elem2]==ElementMarker::SBElementType::INSIDE){
-        flag=true;
-    }}
+        if((*markers)[elem2]==ElementMarker::SBElementType::INSIDE){
+            flag=true;
+        }}
 
     if(flag){ return; }
 
@@ -1204,26 +1355,26 @@ void ElastGhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         if(eorder>1){
             //initialize directional gradient 1
             for(int i=0;i<ndof1;i++){
-            for(int j=0;j<ndof1;j++){
-                dgrad1(i,j)=unn[0]*ngrad1(0*ndof1+i,j);
-            }}
+                for(int j=0;j<ndof1;j++){
+                    dgrad1(i,j)=unn[0]*ngrad1(0*ndof1+i,j);
+                }}
 
             //initialize directional gradient 2
             for(int i=0;i<ndof2;i++){
-            for(int j=0;j<ndof2;j++){
-                dgrad2(i,j)=unn[0]*ngrad2(0*ndof2+i,j);
-            }}
+                for(int j=0;j<ndof2;j++){
+                    dgrad2(i,j)=unn[0]*ngrad2(0*ndof2+i,j);
+                }}
 
             for(int d=1;d<ndim;d++){
                 for(int i=0;i<ndof1;i++){
-                for(int j=0;j<ndof1;j++){
-                    dgrad1(i,j)+=unn[d]*ngrad1(d*ndof1+i,j);
-                }}
+                    for(int j=0;j<ndof1;j++){
+                        dgrad1(i,j)+=unn[d]*ngrad1(d*ndof1+i,j);
+                    }}
 
                 for(int i=0;i<ndof2;i++){
-                for(int j=0;j<ndof2;j++){
-                    dgrad2(i,j)+=unn[d]*ngrad2(d*ndof2+i,j);
-                }}
+                    for(int j=0;j<ndof2;j++){
+                        dgrad2(i,j)+=unn[d]*ngrad2(d*ndof2+i,j);
+                    }}
             }
             //now we have the direction gradients for
             //element 1 and 2 dgrad1 and dgrad2
@@ -1244,22 +1395,22 @@ void ElastGhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     //add the matricess to the global matrix
     for(int d=0;d<ndim;d++){
         for(int i=0;i<ndof1;i++){
-        for(int j=0;j<ndof1;j++){
-            elmat(d*ndof1+i,d*ndof2+j)=m11(i,j);
-        }}
+            for(int j=0;j<ndof1;j++){
+                elmat(d*ndof1+i,d*ndof2+j)=m11(i,j);
+            }}
 
         for(int i=0;i<ndof2;i++){
-        for(int j=0;j<ndof2;j++){
-            elmat(ndim*ndof1+d*ndof2+i,ndim*ndof1+d*ndof2+j)=m22(i,j);
-        }}
+            for(int j=0;j<ndof2;j++){
+                elmat(ndim*ndof1+d*ndof2+i,ndim*ndof1+d*ndof2+j)=m22(i,j);
+            }}
 
         for(int i=0;i<ndof1;i++){
-        for(int j=0;j<ndof2;j++){
-            int ii=d*ndof1+i;
-            int jj=ndim*ndof1+d*ndof2+j;
-            elmat(ii,jj)=m12(i,j);
-            elmat(jj,ii)=m12(i,j);
-        }}
+            for(int j=0;j<ndof2;j++){
+                int ii=d*ndof1+i;
+                int jj=ndim*ndof1+d*ndof2+j;
+                elmat(ii,jj)=m12(i,j);
+                elmat(jj,ii)=m12(i,j);
+            }}
     }
 
 
@@ -1298,6 +1449,8 @@ CFElasticitySolver::CFElasticitySolver(ParMesh* mesh_, int vorder)
     level_set_function=nullptr;
     el_markers=nullptr;
     stiffness_ratio=1e-6;
+
+    ghost_assembly=false;
 }
 
 CFElasticitySolver::~CFElasticitySolver()
@@ -1534,13 +1687,13 @@ void CFElasticitySolver::FSolve()
                 }
             }
             else
-            if((*el_markers)[i]==ElementMarker::SBElementType::CUT){
-                vfes->GetElementVDofs(i,dofs);
-                for(int j=0;j<dofs.Size();j++){
-                    vvdof[dofs[j]]=1.0;
-                }
+                if((*el_markers)[i]==ElementMarker::SBElementType::CUT){
+                    vfes->GetElementVDofs(i,dofs);
+                    for(int j=0;j<dofs.Size();j++){
+                        vvdof[dofs[j]]=1.0;
+                    }
 
-            }
+                }
         }
 
         Array<int> tdof_mark; tdof_mark.SetSize(vfes->GetTrueVSize());
@@ -1585,8 +1738,6 @@ void CFElasticitySolver::FSolve()
         }
     }
 
-
-
     nf->SetEssentialTrueDofs(ess_tdofv);
 
     //allocate the solvers
@@ -1599,13 +1750,79 @@ void CFElasticitySolver::FSolve()
         prec->SetElasticityOptions(vfes);
     }
 
-    //set the parameters
-    ns->SetSolver(*ls);
-    ns->SetOperator(*nf);
-    ns->SetPrintLevel(print_level);
-    ns->SetRelTol(rel_tol);
-    ns->SetAbsTol(abs_tol);
-    ns->SetMaxIter(max_iter);
+
+    if(ghost_assembly==true){
+        ParBilinearForm* pbl=new ParBilinearForm(nf->ParFESpace());
+        BilinearFormIntegrator* gint=new CutGhostPenaltyIntegrator(*ghost_face_marks,ghost_penal);
+        pbl->AddInteriorFaceIntegrator(gint);
+        pbl->Assemble();
+        pbl->Finalize();
+        CombinedParNLForm* cnl=new CombinedParNLForm(nf,pbl,ess_tdofv);
+
+        //set the parameters
+        ns->SetSolver(*ls);
+        ns->SetOperator(*cnl);
+        ns->SetPrintLevel(print_level);
+        ns->SetRelTol(rel_tol);
+        ns->SetAbsTol(abs_tol);
+        ns->SetMaxIter(max_iter);
+
+        ls->SetPrintLevel(print_level);
+        ls->SetAbsTol(linear_atol);
+        ls->SetRelTol(linear_rtol);
+        ls->SetMaxIter(linear_iter);
+        ls->SetPreconditioner(*prec);
+
+        prec->SetPrintLevel(print_level);
+
+        //solve the problem
+        Vector b;
+        ns->Mult(b,sol);
+
+        delete cnl;
+        delete pbl;
+    }
+    else
+    {
+        //set the parameters
+        ns->SetSolver(*ls);
+        ns->SetOperator(*nf);
+        ns->SetPrintLevel(print_level);
+        ns->SetRelTol(rel_tol);
+        ns->SetAbsTol(abs_tol);
+        ns->SetMaxIter(max_iter);
+
+        ls->SetPrintLevel(print_level);
+        ls->SetAbsTol(linear_atol);
+        ls->SetRelTol(linear_rtol);
+        ls->SetMaxIter(linear_iter);
+        ls->SetPreconditioner(*prec);
+
+        prec->SetPrintLevel(print_level);
+
+        //solve the problem
+        Vector b;
+        ns->Mult(b,sol);
+    }
+}
+
+void CFElasticitySolver::ASolve(mfem::Vector& rhs_)
+{
+    if(nf==nullptr){
+        MFEM_ABORT("CFElasticitySolver::ASolve: The forward solver FSolve should be called before calling ASolve!!!")
+    }
+
+    //allocate the solvers
+    if(ns==nullptr)
+    {
+        ns=new mfem::NewtonSolver(pmesh->GetComm());
+        ls=new mfem::CGSolver(pmesh->GetComm());
+        prec=new mfem::HypreBoomerAMG();
+        prec->SetSystemsOptions(pmesh->Dimension());
+        prec->SetElasticityOptions(vfes);
+    }
+
+    Operator& mat=nf->GetGradient(sol);
 
     ls->SetPrintLevel(print_level);
     ls->SetAbsTol(linear_atol);
@@ -1613,11 +1830,13 @@ void CFElasticitySolver::FSolve()
     ls->SetMaxIter(linear_iter);
     ls->SetPreconditioner(*prec);
 
-    prec->SetPrintLevel(print_level);
+    //modify the rhs
+    for(int i=0;i<ess_tdofv.Size();i++){
+        rhs_[ess_tdofv[i]]=0.0;
+    }
 
-    //solve the problem
-    Vector b;
-    ns->Mult(b,sol);
+    ls->SetOperator(mat);
+    ls->Mult(rhs_,adj);
 }
 
 
@@ -2054,6 +2273,89 @@ void CFNLElasticityIntegrator::AssembleElementGrad(const FiniteElement &el,
     }
     //delete air;
 
+}
+
+double DisplObjectiveCut::Eval(ParGridFunction& lsf)
+{
+    if(nfo==nullptr){
+        nfo=new ParNonlinearForm(lsf.ParFESpace());
+        itgr=new DisplObjCutIntegrator();
+        itgr->SetE(Ecoef);
+        itgr->SetPoissonRatio(nu);
+        itgr->SetCutIntegrationRules(cut_int);
+        itgr->SetVolForce(volforce);
+        itgr->SetPower(a);
+        itgr->SetTargetDispl(trg_displ);
+        if(int_wght!=nullptr){
+            itgr->SetWeight(int_wght);
+        }
+        nfo->AddDomainIntegrator(itgr);
+    }
+
+    itgr->SetDisplacements(solver->GetDisplacements());
+    itgr->SetAdjoint(solver->GetADisplacements());
+    return nfo->GetEnergy(lsf.GetTrueVector());
+}
+
+void DisplObjectiveCut::Grad(ParGridFunction& lsf, Vector& grad)
+{
+    adj_rhs.SetSize(solver->GetADisplacements().ParFESpace()->GetTrueVSize());
+    grad.SetSize(lsf.ParFESpace()->GetTrueVSize());
+    //adjoint RHS
+    {
+        ParNonlinearForm* nf=new ParNonlinearForm(solver->GetADisplacements().ParFESpace());
+        RHSAdjointIntegrator<DisplObjCutIntegrator>*
+                rhs_itg=new RHSAdjointIntegrator<DisplObjCutIntegrator>(itgr);
+        nf->AddDomainIntegrator(rhs_itg);
+        nf->Mult(solver->GetDisplacements().GetTrueVector(),adj_rhs);
+        delete nf;
+    }
+
+    solver->ASolve(adj_rhs);
+    itgr->SetDisplacements(solver->GetDisplacements());
+    itgr->SetAdjoint(solver->GetADisplacements());
+    nfo->Mult(lsf.GetTrueVector(),grad);
+}
+
+
+double StressObjectiveCut::Eval(ParGridFunction& lsf)
+{
+    if(nfo==nullptr){
+        nfo=new ParNonlinearForm(lsf.ParFESpace());
+        itgr=new StressObjCutIntegrator();
+        itgr->SetE(Ecoef);
+        itgr->SetPoissonRatio(nu);
+        itgr->SetCutIntegrationRules(cut_int);
+        itgr->SetVolForce(volforce);
+        itgr->SetPower(a);
+        if(int_wght!=nullptr){
+            itgr->SetWeight(int_wght);
+        }
+        nfo->AddDomainIntegrator(itgr);
+    }
+
+    itgr->SetDisplacements(solver->GetDisplacements());
+    itgr->SetAdjoint(solver->GetADisplacements());
+    return nfo->GetEnergy(lsf.GetTrueVector());
+}
+void StressObjectiveCut::Grad(ParGridFunction& lsf, Vector& grad)
+{
+    adj_rhs.SetSize(solver->GetADisplacements().ParFESpace()->GetTrueVSize());
+    grad.SetSize(lsf.ParFESpace()->GetTrueVSize());
+    //adjoint RHS
+    {
+        ParNonlinearForm* nf=new ParNonlinearForm(solver->GetADisplacements().ParFESpace());
+        RHSAdjointIntegrator<StressObjCutIntegrator>*
+                rhs_itg=new RHSAdjointIntegrator<StressObjCutIntegrator>(itgr);
+        nf->AddDomainIntegrator(rhs_itg);
+        nf->Mult(solver->GetDisplacements().GetTrueVector(),adj_rhs);
+        delete nf;
+    }
+
+    solver->ASolve(adj_rhs);
+    itgr->SetDisplacements(solver->GetDisplacements());
+    itgr->SetAdjoint(solver->GetADisplacements());
+    nfo->Mult(lsf.GetTrueVector(),grad);
 }
 
 
