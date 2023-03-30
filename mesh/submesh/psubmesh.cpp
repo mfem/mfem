@@ -195,12 +195,18 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          if (GetFaceInformation(i).IsBoundary())
          {
             boundary[j] = faces[i]->Duplicate(this);
-
-            int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
-                        parent_face_to_be[parent_edge_ids_[i]];
-            if (pbeid != -1)
+            if ((Dim == 2 && spaceDim == 2) || (Dim == 3))
             {
-               boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
+               int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
+                           parent_face_to_be[parent_edge_ids_[i]];
+               if (pbeid != -1)
+               {
+                  boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
+               }
+               else
+               {
+                  boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
+               }
             }
             else
             {
