@@ -84,7 +84,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       GetEdgeVertices(i, lv);
 
       // Find vertices/edge in parent mesh
-      int parent_edge_id = v2v(parent_vertex_ids_[lv[0]], parent_vertex_ids_[lv[1]]);
+      int parent_edge_id = v2v(parent_vertex_ids_[lv[0]],
+                               parent_vertex_ids_[lv[1]]);
       parent_edge_ids_.Append(parent_edge_id);
    }
 
@@ -767,6 +768,53 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
    shared_quads.Reserve(nsquads);
    sface_lface.Reserve(nstrias + nsquads);
 
+   // sface_lface should list the triangular shared faces first
+   // followed by the quadrilateral shared faces.
+
+   for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
+   {
+      for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
+      {
+         int plt, o;
+         parent_.GroupTriangle(g, gt, plt, o);
+         int submesh_face_id = parent_to_submesh_face_ids_[plt];
+         if ((submesh_face_id == -1) || rht[st] == -1)
+         {
+            // parent shared face is not in SubMesh or is not shared
+         }
+         else
+         {
+            Array<int> vert;
+
+            GetFaceVertices(submesh_face_id, vert);
+
+            int v0 = vert[0];
+            int v1 = vert[1];
+            int v2 = vert[2];
+
+            // See Mesh::GetTriOrientation for info on interpretting "o"
+            switch (o)
+            {
+               case 1:
+                  std::swap(v0,v1);
+                  break;
+               case 3:
+                  std::swap(v2,v0);
+                  break;
+               case 5:
+                  std::swap(v1,v2);
+                  break;
+               default:
+                  // Do nothing
+                  break;
+            }
+
+            shared_trias.Append(Vert3(v0, v1, v2));
+            sface_lface.Append(submesh_face_id);
+         }
+      }
+   }
+
    for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
    {
       for (int gq = 0; gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
@@ -784,28 +832,6 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             GetFaceVertices(submesh_face_id, vert);
 
             shared_quads.Append(Vert4(vert[0], vert[1], vert[2], vert[3]));
-            sface_lface.Append(submesh_face_id);
-         }
-      }
-   }
-
-   for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
-   {
-      for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
-      {
-         int plt, o;
-         parent_.GroupTriangle(g, gt, plt, o);
-         int submesh_face_id = parent_to_submesh_face_ids_[plt];
-         if ((submesh_face_id == -1) || rht[st] == -1)
-         {
-            // parent shared face is not in SubMesh or is not shared
-         }
-         else
-         {
-            Array<int> vert;
-            GetFaceVertices(submesh_face_id, vert);
-
-            shared_trias.Append(Vert3(vert[0], vert[1], vert[2]));
             sface_lface.Append(submesh_face_id);
          }
       }
