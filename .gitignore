@@ -21,6 +21,9 @@ CMakeFiles/
 # Default install location
 /mfem/
 
+# Typical build directory
+/build/
+
 # Generated files in main directory, config/ and docs/
 /deps.mk
 config/_config.hpp
@@ -118,11 +121,9 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
-examples/gingko/ex1
-examples/gingko/refined.mesh
-examples/gingko/sol.gf
-examples/gingko/mesh.*
-examples/gingko/sol.*
+examples/ginkgo/ex1
+examples/ginkgo/refined.mesh
+examples/ginkgo/sol.gf
 
 examples/hiop/ex9
 examples/hiop/ex9p
@@ -148,8 +149,8 @@ examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
 examples/petsc/mode_*
 
-examples/pumi/ex1
-examples/pumi/ex[126]p
+examples/pumi/ex[12]
+examples/pumi/ex[16]p
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
 examples/pumi/mesh.*
@@ -194,6 +195,9 @@ miniapps/gslib/field-diff
 miniapps/gslib/field-interp
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
+miniapps/gslib/schwarz_ex1
+miniapps/gslib/schwarz_ex1p
+miniapps/gslib/interpolated.gf
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -245,6 +249,7 @@ miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
+miniapps/navier/navier_cht
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
