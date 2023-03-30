@@ -282,8 +282,8 @@ public:
     * @brief Get the integration rule based on IntOrderOffset, @see
     * AssembleFaceVector. Used only when ir is not provided
     *
-    * @param[in] trial_el trial finite element space
-    * @param[in] test_el test finite element space
+    * @param[in] trial_fe trial finite element space
+    * @param[in] test_fe test finite element space
     * @return const IntegrationRule& with order 2*p + IntOrderOffset
     */
    const IntegrationRule &GetRule(const FiniteElement &trial_fe,
@@ -311,8 +311,8 @@ public:
     * @brief implement <-hat(F)(u,x) n, [[v]]> with abstract hat(F) computed by
     * ComputeFluxDotN and numerical flux object
     *
-    * @param[in] el finite element of the first element
-    * @param[in] el finite element of the second element
+    * @param[in] el1 finite element of the first element
+    * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
     * @param[out] elvect evaluated dual vector <-hat(F)(u,x) n, [[v]]>
@@ -364,8 +364,6 @@ public:
     * @brief Construct a new DGHyperbolicConservationLaws object
     *
     * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
-    * @param nonlinForm_ empty nonlinear form with vfes. This is an input to
-    * support ParNonlinearForm
     * @param elementFormIntegrator_ (F(u,x), grad v)
     * @param faceFormIntegrator_ <-hat(F)(u,x), [[v]]>
     * @param num_equations_ the number of equations
@@ -588,9 +586,6 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    }
 }
 
-//////////////////////////////////////////////////////////////////
-///                      ELEMENT INTEGRATOR                    ///
-//////////////////////////////////////////////////////////////////
 void HyperbolicElementFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -630,9 +625,6 @@ void HyperbolicElementFormIntegrator::AssembleElementVector(
       AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
    }
 }
-//////////////////////////////////////////////////////////////////
-///                       FACE INTEGRATOR                      ///
-//////////////////////////////////////////////////////////////////
 
 void HyperbolicFaceFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
@@ -1304,7 +1296,6 @@ public:
     * @brief Compute normal flux, F(h, hu)
     *
     * @param state state (h, hu) at current integration point
-    * @param flux F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
     * @param nor normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
