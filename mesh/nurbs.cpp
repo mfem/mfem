@@ -462,7 +462,7 @@ void NURBSPatch::init(int dim_)
 
 NURBSPatch::NURBSPatch(const NURBSPatch &orig)
    : ni(orig.ni), nj(orig.nj), nk(orig.nk), Dim(orig.Dim),
-     data(NULL), kv(orig.kv.Size()), sd(orig.sd), nd(orig.nd)
+     data(NULL), kv(orig.kv.Size()), sd(orig.sd), nd(orig.nd), ls(orig.ls)
 {
    // Allocate and copy data:
    const int data_size = Dim*ni*nj*((kv.Size() == 2) ? 1 : nk);
