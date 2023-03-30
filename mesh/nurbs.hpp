@@ -95,17 +95,21 @@ protected:
 
    Array<KnotVector *> kv;
 
-   int sd, nd, ls;
-
    void swap(NURBSPatch *np);
 
    // Special B-NET access functions
+   //  - SetLoopDirection(int dir) flattens the multi-dimensional B-NET in the
+   //    requested direction. It effectively creates a 1D net.
+   //  - The slice(int, int) operator is the access function in that flattened structure.
+   //    The first int gives the slice and the second int the element in that slice.
+   //  - Both routines are used in 'InsertKnot', 'DegreeElevate' and 'UniformRefinement'.
+   //  - In older implementations slice(int int) was implemented as operator()(int, int)
+   int nd; // Number of knots in flattened structure
+   int ls; // Number of variables per knot in flattaned structure
+   int sd; // Stride for data access
    int SetLoopDirection(int dir);
    inline       double &slice(int i, int j);
    inline const double &slice(int i, int j) const;
-
-
-
    void init(int dim_);
 
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
@@ -499,11 +503,23 @@ public:
 
 inline double &NURBSPatch::slice(int i, int j)
 {
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
+   {
+      mfem_error("NURBSPatch::slice()");
+   }
+#endif
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
 inline const double &NURBSPatch::slice(int i, int j) const
 {
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
+   {
+      mfem_error("NURBSPatch::slice()");
+   }
+#endif
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
