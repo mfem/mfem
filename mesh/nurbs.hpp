@@ -95,8 +95,6 @@ protected:
 
    Array<KnotVector *> kv;
 
-   void swap(NURBSPatch *np);
-
    // Special B-NET access functions
    //  - SetLoopDirection(int dir) flattens the multi-dimensional B-NET in the
    //    requested direction. It effectively creates a 1D net.
@@ -110,9 +108,10 @@ protected:
    int SetLoopDirection(int dir);
    inline       double &slice(int i, int j);
    inline const double &slice(int i, int j) const;
-   void init(int dim_);
 
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
+   void swap(NURBSPatch *np);
+   void init(int dim_);
 
 public:
    NURBSPatch(const NURBSPatch &orig);
