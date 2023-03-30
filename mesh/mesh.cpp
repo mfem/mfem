@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2784,6 +2784,41 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    last_operation = Mesh::NONE;
    fes->Update(false); // want_transform = false
    Nodes->Update(); // just needed to update Nodes->sequence
+}
+
+void Mesh::SetPatchAttribute(int i, int attr)
+{
+   MFEM_ASSERT(NURBSext, "SetPatchAttribute is only for NURBS meshes");
+   NURBSext->SetPatchAttribute(i, attr);
+   const Array<int>& elems = NURBSext->GetPatchElements(i);
+   for (auto e : elems)
+   {
+      SetAttribute(e, attr);
+   }
+}
+
+int Mesh::GetPatchAttribute(int i) const
+{
+   MFEM_ASSERT(NURBSext, "GetPatchAttribute is only for NURBS meshes");
+   return NURBSext->GetPatchAttribute(i);
+}
+
+void Mesh::SetPatchBdrAttribute(int i, int attr)
+{
+   MFEM_ASSERT(NURBSext, "SetPatchBdrAttribute is only for NURBS meshes");
+   NURBSext->SetPatchBdrAttribute(i, attr);
+
+   const Array<int>& bdryelems = NURBSext->GetPatchBdrElements(i);
+   for (auto be : bdryelems)
+   {
+      SetBdrAttribute(be, attr);
+   }
+}
+
+int Mesh::GetPatchBdrAttribute(int i) const
+{
+   MFEM_ASSERT(NURBSext, "GetBdrPatchBdrAttribute is only for NURBS meshes");
+   return NURBSext->GetPatchBdrAttribute(i);
 }
 
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
@@ -8642,6 +8677,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                new Pyramid(oedge+e[7], oedge+e[6], oedge+e[5],
                            oedge+e[4], oface+qf0, attr);
 
+#ifndef MFEM_USE_MEMALLOC
             new_elements[j++] =
                new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
                                oface+qf0, attr);
@@ -8657,6 +8693,24 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             new_elements[j++] =
                new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
                                oface+qf0, attr);
+#else
+            Tetrahedron *tet;
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[0], oedge+e[4], oedge+e[5],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[1], oedge+e[5], oedge+e[6],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[2], oedge+e[6], oedge+e[7],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
+                      oface+qf0, attr);
+#endif
          }
          break;
 

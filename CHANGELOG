@@ -8,57 +8,54 @@
                                https://mfem.org
 
 
-Version 4.5.1 (development)
+Version 4.5.3 (development)
 ===========================
-- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
-  as the coarsening operator for non-conforming AMR meshes.
 
-Meshing improvements
---------------------
+- Added new methods in the Mesh class to set and get attributes on NURBS patches
+  and patch boundaries.
+
+Version 4.5.2, released on March 23, 2023
+=========================================
+
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
 
-- Added support for pyramids in Gmsh meshes.
-
-- Fixed a bug in TMOP metric 301.
-
-- Added an option to auto-balance compound TMOP metrics.
-
-Discretization improvements
----------------------------
-- TBD
-
-Linear and nonlinear solvers
-----------------------------
-- Added a fast normalization-based distance solver, see the Distance miniapp
-  in the miniapps/shifted/ directory.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
-  hexahedral mesh about a plane.
-
-- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
-  formats using the corresponding DataCollection objects. See option 'D' in the
-  main menu.
-
-Integrations, testing and documentation
----------------------------------------
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 
-- The following integrations have updated minimum version requirements:
-  * RAJA >= 2022.10.3
+- Added a fast normalization-based distance solver, see the Distance miniapp
+  in the miniapps/shifted/ directory.
 
-Miscellaneous
--------------
-- VisItDataCollection now correctly handles collection names containing
+- Added a new meshing miniapp, Reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
+
+- Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
+  domain boundary.
+
+- Added an option to auto-balance compound TMOP metrics.
+
+- Fixed a bug in TMOP metric 301.
+
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
+
+- Added support for GridFunction::GetGradients() and GetVectorGradient() on
+  face-neighbor elements.
+
+- Added support for pyramids in Gmsh meshes.
+
+- The Mesh Explorer miniapp can now save mesh files in the VisIt or ParaView
+  formats using the corresponding DataCollection. See option 'D' in the menu.
+
+- VisItDataCollection now correctly handles data collection names containing
   underscores.
 
-- VisItDataCollection::SetPadDigits() no longer alters the number of digits
-  used to represent the MPI rank because VisIt seems to require 6 digits.
-  This parameter can still be explicitly overridden with
-  VisItDataCollection::SetPadDigitsRank().
+- Added support for shared Windows builds with MSVC through CMake.
+  Developers note: this enhancement is facilitated by the addition of the macro
+  MFEM_EXPORT, see config.hpp for more details on its usage.
+
+- The following integrations have updated minimum version requirements:
+  * RAJA >= 2022.10.3
 
 API changes
 -----------
@@ -69,6 +66,11 @@ API changes
 - The methods Mesh::GetFaceBaseGeometry and Mesh::GetFaceGeometryType have been
   deprecated, and Mesh::GetFaceGeometry (which provides identical functionality)
   should be used instead.
+
+- VisItDataCollection::SetPadDigits() no longer alters the number of digits
+  used to represent the MPI rank because VisIt seems to require 6 digits.
+  This parameter can still be explicitly overridden with SetPadDigitsRank().
+
 
 Version 4.5, released on October 22, 2022
 =========================================
@@ -112,9 +114,6 @@ Discretization improvements
 
 - Added a class CoefficientVector for efficient access of variable coefficient
   values at quadrature points (in particular for GPU/device kernels).
-
-- Added support for GridFunction::GetGradients() and
-  GriFunction::GetVectorGradient() on face-neighbor elements.
 
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
