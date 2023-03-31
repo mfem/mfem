@@ -54,7 +54,7 @@ public:
     */
    MappedGridFunctionCoefficient(const GridFunction *gf,
                                  __LambdaFunction double_to_double, int comp = 1): GridFunctionCoefficient(gf,
-                                          comp), fun(double_to_double) {};
+                                          comp), fun(double_to_double) {}
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
@@ -71,9 +71,10 @@ public:
  */
 class ExponentialGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    ExponentialGridFunctionCoefficient(const GridFunction *gf,
                                       int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return exp(x);},
-   comp) {};
+   comp) {}
 };
 
 
@@ -83,9 +84,10 @@ class ExponentialGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class LogarithmicGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    LogarithmicGridFunctionCoefficient(const GridFunction *gf,
                                       int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return log(x);},
-   comp) {};
+   comp) {}
 };
 
 
@@ -95,9 +97,23 @@ class LogarithmicGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class SigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    SigmoidGridFunctionCoefficient(const GridFunction *gf,
                                   int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return sigmoid(x);},
-   comp) {};
+   comp) {}
+};
+
+
+/**
+ * @brief GridFunctionCoefficient that returns dsigdx(u) = sigmoid'(u)
+ *
+ */
+class DerSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
+{
+public:
+   DerSigmoidGridFunctionCoefficient(const GridFunction *gf,
+                                     int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return dsigdx(x);},
+   comp) {}
 };
 
 
@@ -107,9 +123,10 @@ class SigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class InvSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    InvSigmoidGridFunctionCoefficient(const GridFunction *gf,
                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return invsigmoid(x);},
-   comp) {};
+   comp) {}
 };
 
 
@@ -119,6 +136,7 @@ class InvSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    PowerGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
       : MappedGridFunctionCoefficient(gf, [exponent](double x) {return pow(x, exponent);},
    comp) {}
@@ -131,6 +149,7 @@ class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    PowerGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
       : MappedGridFunctionCoefficient(gf, [](const double x) {return x*x;},
    comp) {}
@@ -138,19 +157,40 @@ class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
 
 /**
  * @brief SIMP Rule, r(ρ) = ρ_0 + (1-ρ_0)ρ^p
- * 
+ *
  */
 class SIMPCoefficient : public MappedGridFunctionCoefficient
 {
+public:
    /**
     * @brief Make a GridFunctionCoefficient that computes r(ρ) = ρ_0 + (1-ρ_0)ρ^p
-    * 
+    *
     * @param gf Density, ρ
     * @param exponent Exponent, p
     * @param rho_min minimum density, ρ_0
     */
-   SIMPCoefficient(const const GridFunction *gf, const double exponent, const double rho_min=1e-12)
-   : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x){return rho_min + (1-rho_min)*pow(x, exponent);}){};
+   SIMPCoefficient(const const GridFunction *gf, const double exponent,
+                   const double rho_min=1e-12)
+      : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return rho_min + (1-rho_min)*pow(x, exponent);}) {}
+};
+
+/**
+ * @brief Derivative of SIMP Rule, r'(ρ) = p(1-ρ_0)ρ^(p-1). Used when computing RHS
+ *
+ */
+class SIMPDerCoefficient : public MappedGridFunctionCoefficient
+{
+public:
+   /**
+    * @brief Make a GridFunctionCoefficient that computes r'(ρ) = p(1-ρ_0)ρ^(p-1)
+    *
+    * @param gf Density, ρ
+    * @param exponent Exponent, p
+    * @param rho_min minimum density, ρ_0
+    */
+   SIMPDerCoefficient(const const GridFunction *gf, const double exponent,
+                      const double rho_min=1e-12)
+      : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return exponent*(1-rho_min)*pow(x, exponent - 1.0);}) {}
 };
 
 
