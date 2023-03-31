@@ -14,6 +14,12 @@ Version 4.5.3 (development)
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary fitting to implicit domains defined using level-set functions.
+
+- Moved the distance solver methods from miniapps/shifted to miniapps/common. 
+
 Version 4.5.2, released on March 23, 2023
 =========================================
 
