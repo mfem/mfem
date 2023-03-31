@@ -1,34 +1,36 @@
 //           MFEM Hyperbolic Conservation Laws Serial/Parallel Shared Class
 //
-// Description:  This is a refactored version of ex18.hpp to handle general
-//               class of hyperbolic conservation laws.
-//               Abstract RiemannSolver, HyperbolicFormIntegrator,
-//               HyperbolicFaceFormIntegrator, and DGHyperbolicConservationLaws
-//               are defined.
+// Description:  This file contains general hyperbolic conservation element/face
+//               form integrators.
+//
+//               Abstract RiemannSolver, HyperbolicFormIntegrator, and
+//               DGHyperbolicConservationLaws are defined. Also, several example
+//               hyperbolic equations are defined; including advection, burgers,
+//               shallow water, and euler equations.
 //
 //               To implement a specific hyperbolic conservation laws, users can
-//               create derived classes from HyperbolicFormIntegrator and
-//               HyperbolicFaceFormIntegrator with specific flux evaluation.
-//               Examples of derived classes are included such as compressible
-//               Euler equations, Burgers equation, Advection equation, and
-//               Shallow water equations.
+//               create derived classes from HyperbolicFormIntegrator with overloaded
+//               ComputeFlux. One can optionally overload ComputeFluxDotN to avoid
+//               creating dense matrix when computing normal flux.
 //
-//               FormIntegrators use high-order quadrature points to implement
+//               FormIntegrator use high-order quadrature points to implement
 //               the given form to handle nonlinear flux function. During the
 //               implementation of forms, it updates maximum characteristic
 //               speed and collected by DGHyperbolicConservationLaws. The global
 //               maximum characteristic speed can be obtained by public method
 //               getMaxCharSpeed so that the time step can be determined by CFL
-//               condition.
+//               condition. Also, resetMaxCharSpeed should be called after each Mult.
+//
 //               @note For parallel version, users should reduce all maximum
 //               characteristic speed from all processes using MPI_Allreduce.
 //
-// TODO: Implement limiter. IDEA:
+// @todo: Implement limiter @dohyun-cse
+// @todo: Implement boundary condition @dohyun-cse
 //
 //
 // Class structure: DGHyperbolicConservationLaws
-//                  |- HyperbolicFormIntegrator: (F(u,x), grad v) and <hat(F)(u+,x;u-,x), [[v]])
-//                  |  |- RiemannSolver: hat(F)
+//                  |- HyperbolicFormIntegrator: (F(u,x), grad v) and <F̂(u, x, n), [[v]])
+//                  |  |- RiemannSolver: (F±, u±) ↦ F̂(u,x,n)
 //                  |
 //                  |- (Par)NonlinearForm: Evaluate form integrators
 //
@@ -39,6 +41,30 @@
 
 using namespace std;
 using namespace mfem;
+
+/**
+ * @brief Average two states with sqrt of density as a weight
+ *
+ * @param state1 first state
+ * @param state2 second state
+ * @param avgs averaged state, (state1*sqrt(den1) + state2*sqrt(den2)) / (sqrt(den1) + sqrt(den2))
+ * @param densityIndex density index of the given state
+ *
+ * @note avgs[densityIndex] = sqrt(den1*den2)
+ */
+void densityWeightedAverage(const Vector &state1, const Vector &state2,
+                            Vector &avgs, const int densityIndex=0)
+{
+   const double den1 = state1[densityIndex];
+   const double den2 = state2[densityIndex];
+   const double sqrtden1 = sqrt(den1);
+   const double sqrtden2 = sqrt(den2);
+   avgs = state1;
+   avgs *= sqrtden1;
+   avgs.Add(sqrtden2, state2);
+   avgs /= sqrtden1*sqrtden2;
+   avgs[densityIndex] = sqrtden1*sqrtden2;
+}
 
 enum PRefineType
 {
@@ -89,12 +115,14 @@ private:
    // The maximum characterstic speed, updated during element/face vector assembly
    double max_char_speed;
    const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
+   RiemannSolver *rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
+#ifndef MFEM_THREAD_SAFE
+   // Local storages for element integration
    Vector shape;              // shape function value at an integration point
    Vector state;              // state value at an integration point
    DenseMatrix flux;          // flux value at an integration point
    DenseMatrix dshape;  // derivative of shape function at an integration point
 
-   RiemannSolver *rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
    Vector shape1;  // shape function value at an integration point - first elem
    Vector shape2;  // shape function value at an integration point - second elem
    Vector state1;  // state value at an integration point - first elem
@@ -103,6 +131,7 @@ private:
    Vector fluxN2;  // flux dot n value at an integration point - second elem
    Vector nor;     // normal vector (usually not a unit vector)
    Vector fluxN;   // hat(F)(u,x)
+#endif
 
 public:
    /**
@@ -216,14 +245,12 @@ public:
    }
 
    /**
-    * @brief Set the Max Char Speed pointer to be collected later
+    * @brief Reset the Max Char Speed 0
     *
-    * @param max_char_speed_ maximum characteristic speed (its pointer will be
-    * used)
     */
-   inline void setMaxCharSpeed(double max_char_speed_)
+   inline void resetMaxCharSpeed()
    {
-      max_char_speed = max_char_speed_;
+      max_char_speed = 0.0;
    }
 
    inline double getMaxCharSpeed()
@@ -367,7 +394,7 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
       nonlinearForm = new NonlinearForm(vfes);
    }
 #endif
-   formIntegrator.setMaxCharSpeed(max_char_speed);
+   formIntegrator.resetMaxCharSpeed();
 
    nonlinearForm->AddDomainIntegrator(&formIntegrator);
    nonlinearForm->AddInteriorFaceIntegrator(&formIntegrator);
@@ -396,7 +423,7 @@ void DGHyperbolicConservationLaws::ComputeInvMass()
 void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
-   formIntegrator.setMaxCharSpeed(0.0);
+   formIntegrator.resetMaxCharSpeed();
    // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
    nonlinearForm->Mult(x, z);
    max_char_speed = formIntegrator.getMaxCharSpeed();
@@ -429,6 +456,16 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
    // current element's the number of degrees of freedom
    // does not consider the number of equations
    const int dof = el.GetDof();
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storages for element integration
+
+   Vector shape;              // shape function value at an integration point
+   Vector state;              // state value at an integration point
+   DenseMatrix flux;          // flux value at an integration point
+   DenseMatrix dshape;  // derivative of shape function at an integration point
+#endif
+
    // resize shape and gradient shape storage
    shape.SetSize(dof);
    dshape.SetSize(dof, el.GetDim());
@@ -454,8 +491,10 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
       // compute current state value with given shape function values
       elfun_mat.MultTranspose(shape, state);
       // compute F(u,x) and point maximum characteristic speed
+
       const double mcs = ComputeFlux(state, Tr, flux);
       // update maximum characteristic speed
+      #pragma omp atomic
       max_char_speed = max(mcs, max_char_speed);
       // integrate (F(u,x), grad v)
       AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
@@ -470,6 +509,19 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    // does not consider the number of equations
    const int dof1 = el1.GetDof();
    const int dof2 = el2.GetDof();
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storages for element integration
+
+   Vector shape1;  // shape function value at an integration point - first elem
+   Vector shape2;  // shape function value at an integration point - second elem
+   Vector state1;  // state value at an integration point - first elem
+   Vector state2;  // state value at an integration point - second elem
+   Vector fluxN1;  // flux dot n value at an integration point - first elem
+   Vector fluxN2;  // flux dot n value at an integration point - second elem
+   Vector nor;     // normal vector (usually not a unit vector)
+   Vector fluxN;   // hat(F)(u,x)
+#endif
 
    shape1.SetSize(dof1);
    shape2.SetSize(dof2);
