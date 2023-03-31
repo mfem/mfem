@@ -194,5 +194,106 @@ public:
 };
 
 
+class SigmoidDensityProjector
+{
+private:
+   FiniteElementSpace *fes;
+   Mesh *mesh;
+   const double target_volue;
+   SigmoidGridFunctionCoefficient *rho = nullptr;
+   DerSigmoidGridFunctionCoefficient *dsigPsi = nullptr;
+   LinearForm *intRho = nullptr;
+   LinearForm *intDerSigPsi = nullptr;
+
+
+public:
+   /**
+    * @brief Projector Π : ψ → ψ + c so that ∫ ρ = θ|Ω| where ρ = sigmoid(ψ + c)
+    *
+    * @param fespace Finite element space for ψ
+    * @param volume_fraction Volume fraction, θ
+    * @param volume Total volume of the domain, |Ω|
+    */
+   SigmoidDensityProjector(FiniteElementSpace *fespace,
+                           const double volume_fraction,
+                           const double volume)
+      :fes(fespace),
+       mesh(fespace->GetMesh()),
+       target_volue(volume_fraction*volume) {}
+
+   /**
+    * @brief Update ψ ↦ ψ + c so that ∫ ρ = θ |Ω|.
+    *
+    * Using Newton's method, find c such that
+    *
+    * ∫ sigmoid(ψ + c) = θ |Ω|
+    *
+    * @param psi ρ = sigmoid(ψ)
+    * @param max_iteration Maximum iteration for Newton iteration
+    * @param tolerance Newton update tolerance
+    */
+   void Apply(GridFunction &psi, const int max_iteration,
+              const double tolerance=1e-12)
+   {
+      // 0. Make or Update Helper objects
+
+      if (rho) // if helper objects are already created,
+      {
+         // update with the current GridFunction
+         rho->SetGridFunction(&psi);
+         dsigPsi->SetGridFunction(&psi);
+      }
+      else // if Apply is not called at all
+      {
+         // Create MappedGridFunctionCoefficients
+         rho = new SigmoidGridFunctionCoefficient(&psi);
+         dsigPsi = new DerSigmoidGridFunctionCoefficient(&psi);
+
+         // Create ∫ sigmoid(ψ) and ∫ sigmoid'(ψ)
+#ifdef MFEM_USE_MPI // if Using MPI,
+         // try convert it to parallel version
+         ParFiniteElementSpace * pfes = dynamic_cast<ParFiniteElementSpace *>(fes);
+         if (pfes)
+         {
+            // make parallel linear forms
+            intRho = new ParLinearForm(pfes);
+            intDerSigPsi = new ParLinearForm(pfes);
+         }
+         else
+         {
+            // make serial linear forms
+            intRho = new LinearForm(fes);
+            intDerSigPsi = new LinearForm(fes);
+         }
+#else
+         intRho = new LinearForm(fes);
+         intDerSigPsi = new LinearForm(fes);
+#endif
+         intRho->AddDomainIntegrator(new DomainLFIntegrator(*rho));
+         intDerSigPsi->AddDomainIntegrator(new DomainLFIntegrator(*dsigPsi));
+      }
+
+      // Newton Method
+      for (int i=0; i<max_iteration; i++)
+      {
+         // Compute ∫ sigmoid(ψ + c)
+         intRho->Assemble(); // necessary whenever ψ is updated
+         const double f = intRho->Sum();
+         // Compute ∫ sigmoid'(ψ)
+         intDerSigPsi->Assemble();
+         const double df = intDerSigPsi->Sum();
+
+         // Newton increment
+         const double dc = - f / df;
+         // Update ψ
+         psi += dc;
+
+         if (abs(dc) < tolerance)
+         {
+            break;
+         }
+      }
+   }
+};
 
 #endif
