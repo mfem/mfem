@@ -55,7 +55,7 @@ GridFunction ProlongToMaxOrderDG(const GridFunction &x);
 class RiemannSolver
 {
 public:
-   RiemannSolver() {};
+   RiemannSolver() {}
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
     * overloaded in a derived class
@@ -135,7 +135,7 @@ public:
       double val = ComputeFlux(state, Tr, flux);
       flux.Mult(nor, fluxN);
       return val;
-   };
+   }
 
    /**
     * @brief Construct a new Hyperbolic Form Integrator object
@@ -160,7 +160,7 @@ public:
         fluxN1(num_equations_),
         fluxN2(num_equations_),
         nor(dim),
-        fluxN(num_equations_) {};
+        fluxN(num_equations_) {}
    /**
     * @brief Construct an object with a fixed integration rule
     *
@@ -183,7 +183,7 @@ public:
         fluxN1(num_equations_),
         fluxN2(num_equations_),
         nor(dim),
-        fluxN(num_equations_) {};
+        fluxN(num_equations_) {}
 
    /**
     * @brief Get the element integration rule based on IntOrderOffset, @see
@@ -241,7 +241,7 @@ public:
                                    const IntegrationRule *ir = NULL)
    {
       mfem_error("NOT IMPLEMENTED");
-   };
+   }
 
    /**
     * @brief implement (F(u), grad v) with abstract F computed by ComputeFlux
@@ -305,7 +305,7 @@ private:
       z.SetSize(height);
 
       ComputeInvMass();
-   };
+   }
 
 public:
    /**
@@ -836,6 +836,7 @@ public:
     * @brief Construct a new Euler Element Form Integrator object with given
     * integral order offset
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param specific_heat_ratio_ specific heat ratio, γ
     * @param gas_constant_ gas constant
@@ -852,6 +853,7 @@ public:
     * @brief Construct a new Euler Element Form Integrator object with given
     * integral rule
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param specific_heat_ratio_ specific heat ratio, γ
     * @param gas_constant_ gas constant
@@ -925,22 +927,24 @@ public:
     * @brief Construct a new Burgers Element Form Integrator object with given
     * integral order offset
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
    BurgersFormIntegrator(RiemannSolver *rsolver_, const int dim,
                          const int IntOrderOffset_ = 3)
-      : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_) {};
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_) {}
    /**
     * @brief Construct a new Burgers Element Form Integrator object with given
     * integral rule
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param ir this integral rule will be used for the Gauss quadrature
     */
    BurgersFormIntegrator(RiemannSolver *rsolver_, const int dim,
                          const IntegrationRule *ir)
-      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir) {};
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir) {}
 };
 
 
@@ -1007,6 +1011,7 @@ public:
     * @brief Construct a new Advection Element Form Integrator object with given
     * integral order offset
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param b_ velocity coefficient, possibly depends on space
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
@@ -1015,11 +1020,12 @@ public:
                            VectorCoefficient &b_,
                            const int IntOrderOffset_ = 3)
       : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_), b(b_),
-        bval(dim) {};
+        bval(dim) {}
    /**
     * @brief Construct a new Advection Element Form Integrator object with given
     * integral rule
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param b_ velocity coefficient, possibly depends on space
     * @param ir this integral rule will be used for the Gauss quadrature
@@ -1027,7 +1033,7 @@ public:
    AdvectionFormIntegrator(RiemannSolver *rsolver_, const int dim,
                            VectorCoefficient &b_,
                            const IntegrationRule *ir)
-      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim) {};
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim) {}
 };
 
 DGHyperbolicConservationLaws getAdvectionEquation(FiniteElementSpace *vfes,
@@ -1125,6 +1131,7 @@ public:
     * @brief Construct a new Shallow Water Element Form Integrator object with
     * given integral order offset
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param g_ gravity constant
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
@@ -1132,11 +1139,12 @@ public:
    ShallowWaterFormIntegrator(RiemannSolver *rsolver_, const int dim,
                               const double g_,
                               const int IntOrderOffset_ = 3)
-      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_), g(g_) {};
+      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_), g(g_) {}
    /**
     * @brief Construct a new Shallow Water Element Form Integrator object with
     * given integral rule
     *
+    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param g_ gravity constant
     * @param ir this integral rule will be used for the Gauss quadrature
@@ -1144,7 +1152,7 @@ public:
    ShallowWaterFormIntegrator(RiemannSolver *rsolver_, const int dim,
                               const double g_,
                               const IntegrationRule *ir)
-      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_) {};
+      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_) {}
 };
 
 DGHyperbolicConservationLaws getShallowWaterEquation(
