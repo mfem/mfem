@@ -114,12 +114,12 @@ public:
       mfem_error("ODESolver has no state vectors");
    }
 
-   static std::string ExplicitTypes;
-   static std::string ImplicitTypes;
-   static std::string Types;
-   static ODESolver *Select(const int ode_solver_type);
-   static ODESolver *SelectExplicit(const int ode_solver_type);
-   static ODESolver *SelectImplicit(const int ode_solver_type);
+   static MFEM_EXPORT std::string ExplicitTypes;
+   static MFEM_EXPORT std::string ImplicitTypes;
+   static MFEM_EXPORT std::string Types;
+   static MFEM_EXPORT ODESolver *Select(const int ode_solver_type);
+   static MFEM_EXPORT ODESolver *SelectExplicit(const int ode_solver_type);
+   static MFEM_EXPORT ODESolver *SelectImplicit(const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };
@@ -711,8 +711,8 @@ public:
       mfem_error("ODESolver has no state vectors");
    }
 
-   static std::string Types;
-   static SecondOrderODESolver *Select(const int ode_solver_type);
+   static MFEM_EXPORT std::string Types;
+   static MFEM_EXPORT SecondOrderODESolver *Select(const int ode_solver_type);
 
    virtual ~SecondOrderODESolver() { }
 };
