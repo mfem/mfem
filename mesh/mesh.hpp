@@ -534,6 +534,11 @@ protected:
    void Make3D(int nx, int ny, int nz, Element::Type type,
                double sx, double sy, double sz, bool sfc_ordering);
 
+   void MakeSimplicesBySplitting3D(int nx, int ny, int nz,
+                                   double sx, double sy, double sz,
+                                   int type);
+   void MakeSimplicesBySplitting2D(int nx, int ny, double sx, double sy);
+
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
@@ -617,6 +622,21 @@ public:
       int nx, int ny, int nz, Element::Type type,
       double sx = 1.0, double sy = 1.0, double sz = 1.0,
       bool sfc_ordering = true);
+
+   /** Creates a Tet mesh by splitting each hex in inline-hex mesh into
+       12 (type = 1) or 24 (type = 2) tets.
+       For 12 tets, each face of a hex is split into 2 triangles, and the
+       triangles are connected to a hex-centered point.
+       For 24 tets, each face of the hex is split into 4 triangle (face edges are
+       connected to a face-centered point), and the triangles are connected to
+       a hex-centered point.
+   */
+   static Mesh MakeTetMeshBySplittingHexes(
+      int nx, int ny, int nz,
+      double sx = 1.0, double sy = 1.0, double sz = 1.0,
+      int type = 2);
+   static Mesh MakeTriMeshBySplittingQuads(int nx, int ny,
+                                           double sx, double sy);
 
    /// Create a refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -720,6 +740,7 @@ public:
    int AddVertex(const Vector &coords);
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
+   int AddVertexAtMidPoint(Array<int> list, int dim = 3);
 
    int AddSegment(int v1, int v2, int attr = 1);
    int AddSegment(const int *vi, int attr = 1);
@@ -746,6 +767,12 @@ public:
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
    void AddHexAsPyramids(const int *vi, int attr = 1);
+   void AddHexAs24TetsWithPoints(int *vi,
+                                 std::map<std::tuple<int, int, int, int>, int>
+                                 &hex_face_to_center,
+                                 int attr = 1);
+   void AddHexAs12TetsWithPoints(int *vi, int attr = 1);
+   void AddQuadAs4TrisWithPoints(int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);
