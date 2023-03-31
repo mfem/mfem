@@ -313,13 +313,13 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    // extract information
    for (int i=0; i<np; ++i)
    {
-      cout << "Point " << i << ": (";
+      /*cout << "Point " << i << ": (";
       for (int j=0; j<dim; ++j)
       {
          cout << xyz[i + (j*np)];
          if (j == dim-1) {cout << ")" << endl;}
          else{cout << ", ";}
-      }
+      }*/
       //cout << "  element: " << elems[i] << endl;
       //cout << "  element " << elems[i] << " vertices:" << endl;
       //Array<int> vert;
@@ -405,12 +405,12 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 	  xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
         }
         //cout << "  face reference coordinates: (";
-        for (int j=0; j<dim-1; ++j)
+        /*for (int j=0; j<dim-1; ++j)
         {
            cout << faceRefCrd[j];
            if (j == dim-2){cout << ")" << endl;}
            else{cout << ", ";}
-        }
+        }*/
       }
       //cout << "  normal vector: ";
       //normal.Print();
@@ -547,7 +547,6 @@ int main(int argc, char *argv[])
    // boundary attribute 1 from the mesh as essential and converting it to a
    // list of true dofs.
    Array<int> ess_tdof_list1, ess_bdr1(mesh1.bdr_attributes.Max());
-   cout<<mesh1.bdr_attributes.Max()<<endl;
    ess_bdr1 = 0;
    //ess_bdr1[0] = 1;
    // Not ready to be passed on yet
@@ -634,10 +633,7 @@ int main(int argc, char *argv[])
 
    attr.Sort();
    cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
-   for (auto a : attr)
-   {
-      cout << a << endl;
-   }
+   for (auto a : attr)  cout << a << endl;
 
    Array<int> bdryFaces2;  // TODO: remove this?
 
@@ -723,7 +719,55 @@ int main(int argc, char *argv[])
    
    Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, 
 		    s_conn, m_conn, g, M, dM);
+
+   std::set<int> dirbdryv2;  
+   for (int b=0; b<mesh2.GetNBE(); ++b)
+   {
+      if (mesh2.GetBdrAttribute(b) == 1)
+      {
+         Array<int> vert;
+         mesh2.GetBdrElementVertices(b, vert);
+         for (auto v : vert)
+         {
+            dirbdryv2.insert(v);
+         }
+      }
+   }
+   std::set<int> dirbdryv1;  
+   for (int b=0; b<mesh1.GetNBE(); ++b)
+   {
+      if (mesh1.GetBdrAttribute(b) == 1)
+      {
+         Array<int> vert;
+         mesh1.GetBdrElementVertices(b, vert);
+         for (auto v : vert)
+         {
+            dirbdryv1.insert(v);
+         }
+      }
+   }
+
+   Array<int> Dirichlet_dof;    
+   Array<double> Dirichlet_val;    
    
+   for (auto v : dirbdryv2)
+   {
+      for (int i=0; i<dim; ++i)
+      {
+	 Dirichlet_dof.Append(v*dim + i + ndof_1);
+	 Dirichlet_val.Append(0.);
+      }
+   }
+   double delta = 0.1;
+   for (auto v : dirbdryv1)
+   {
+     Dirichlet_dof.Append(v*dim + 0);
+     Dirichlet_val.Append(delta);
+     Dirichlet_dof.Append(v*dim + 1);
+     Dirichlet_val.Append(0.);
+     Dirichlet_dof.Append(v*dim + 2);
+     Dirichlet_val.Append(0.);
+   }
    //M.Print();
    /*Vector eps(ndofs); 
    Vector sol(ndofs); sol = 0.; 
