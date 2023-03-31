@@ -17,6 +17,7 @@
 #include "operator.hpp"
 #include <vector>
 
+
 namespace mfem
 {
 
@@ -276,7 +277,6 @@ public:
    }
 };
 
-
 /** An explicit Adams-Bashforth method. */
 class AdamsBashforthSolver : public LMSSolver
 {
@@ -288,7 +288,6 @@ public:
 
    void Step(Vector &x, double &t, double &dt) override;
 };
-
 
 /** A 1-stage, 1st order AB method.  */
 class AB1Solver : public AdamsBashforthSolver

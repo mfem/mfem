@@ -13,8 +13,6 @@
 #include "operator.hpp"
 #include "ode.hpp"
 
-
-
 namespace mfem
 {
 
