@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,7 +145,6 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
-   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -153,16 +152,16 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
       Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
 #endif
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
       obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
    }
@@ -210,8 +209,8 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
    Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
       obasis1d.ScaleIntegrated(false);
@@ -476,7 +475,6 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
    Vector shape_cz(pp1 + 1), shape_oz(pp1);
-   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1), dshape_cz(pp1 + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -484,9 +482,9 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
       Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1), dshape_cz(pp1 + 1);
 #endif
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
+      basis1d.Eval(ip.z, shape_cz, dshape_cz);
       obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
@@ -494,9 +492,9 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
-      cbasis1d.Eval(ip.z, shape_cz);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.z, shape_cz);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
       obasis1d.Eval(ip.z, shape_oz);
@@ -570,9 +568,9 @@ void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
    Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1), dshape_cz(pp1 + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
       obasis1d.ScaleIntegrated(false);
