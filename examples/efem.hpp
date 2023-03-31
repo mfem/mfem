@@ -136,6 +136,22 @@ class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
    comp) {}
 };
 
+/**
+ * @brief SIMP Rule, r(ρ) = ρ_0 + (1-ρ_0)ρ^p
+ * 
+ */
+class SIMPCoefficient : public MappedGridFunctionCoefficient
+{
+   /**
+    * @brief Make a GridFunctionCoefficient that computes r(ρ) = ρ_0 + (1-ρ_0)ρ^p
+    * 
+    * @param gf Density, ρ
+    * @param exponent Exponent, p
+    * @param rho_min minimum density, ρ_0
+    */
+   SIMPCoefficient(const const GridFunction *gf, const double exponent, const double rho_min=1e-12)
+   : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x){return rho_min + (1-rho_min)*pow(x, exponent);}){};
+};
 
 
 
