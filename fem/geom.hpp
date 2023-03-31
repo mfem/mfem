@@ -32,7 +32,7 @@ namespace mfem
 class MFEM_EXPORT Geometry
 {
 public:
-   enum Type : signed char
+   enum Type
    {
       INVALID = -1,
       POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID,

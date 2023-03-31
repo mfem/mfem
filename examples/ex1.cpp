@@ -73,8 +73,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // std::cout << "USE_MPI " << MFEM_USE_MPI << std::endl;
-
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
