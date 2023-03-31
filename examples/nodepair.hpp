@@ -144,7 +144,7 @@ void SlaveToMaster(const DenseMatrix& m_coords, const Vector& s_x, Vector& xi)
     
     for (int it=0; it<max_iter; it++)
     {
-      cout<<it<<endl;
+      //cout<<it<<endl;
       Vector m_N(4);
       m_N = 0.;
       DenseMatrix m_dN(2,4);
@@ -205,7 +205,7 @@ void SlaveToMaster(const DenseMatrix& m_coords, const Vector& s_x, Vector& xi)
     }
     off_el_xi += 1 ; // tolerance of offset of xi outside [-1,1]
   
-    cout<<gap_v.Norml2()<<" " <<xi.Normlinf()<<endl; 
+    //cout<<gap_v.Norml2()<<" " <<xi.Normlinf()<<endl; 
     if (gap_v.Norml2() < proj_max_gap && xi.Normlinf() <= off_el_xi)
     {
       pt_on_elem = true;
