@@ -221,6 +221,9 @@ protected:
    Array2D<int> el_to_IJK;  // IJK are "knot-span" indices!
    Array2D<int> bel_to_IJK; // they are NOT element indices!
 
+   std::vector<Array<int>> patch_to_el;
+   std::vector<Array<int>> patch_to_bel;
+
    Array<NURBSPatch *> patches;
 
    inline int         KnotInd(int edge) const;
@@ -304,6 +307,9 @@ protected:
 
    void MergeWeights(Mesh *mesh_array[], int num_pieces);
 
+   void SetPatchToElements();
+   void SetPatchToBdrElements();
+
    // to be used by ParNURBSExtension constructor(s)
    NURBSExtension() { }
 
@@ -386,6 +392,23 @@ public:
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
    void GetElementLocalToGlobal(Array<int> &lelem_elem);
 
+   // Set the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   void SetPatchAttribute(int i, int attr) { patchTopo->SetAttribute(i, attr); }
+
+   // Get the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   int GetPatchAttribute(int i) const { return patchTopo->GetAttribute(i); }
+
+   // Set the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   void SetPatchBdrAttribute(int i, int attr)
+   { patchTopo->SetBdrAttribute(i, attr); }
+   // Get the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   int GetPatchBdrAttribute(int i) const
+   { return patchTopo->GetBdrAttribute(i); }
+
    // Load functions
    void LoadFE(int i, const FiniteElement *FE) const;
    void LoadBE(int i, const FiniteElement *BE) const;
@@ -410,6 +433,9 @@ public:
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   const Array<int>& GetPatchElements(int patch);
+   const Array<int>& GetPatchBdrElements(int patch);
 };
 
 
