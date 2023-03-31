@@ -1509,7 +1509,6 @@ public:
 
    Element::Type  GetFaceElementType(int Face) const;
 
-   // Gets the map from boundary edge (2D) /face (3D) to adjacent element.
    Array<int> GetFaceToBdrElMap() const;
 
    /// Check (and optionally attempt to fix) the orientation of the elements
