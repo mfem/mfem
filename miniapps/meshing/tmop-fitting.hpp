@@ -182,6 +182,14 @@ double kabaria_smooth(const Vector &x)
    return -(v1 + v2 + v3);
 }
 
+double dist_circle(const Vector &x, const Vector &x_center, double radius)
+{
+   Vector x_current = x;
+   x_current -= x_center;
+   double dist = x_current.Norml2() - radius;
+   return dist;
+}
+
 double in_circle(const Vector &x, const Vector &x_center, double radius)
 {
    Vector x_current = x;
@@ -320,6 +328,51 @@ double r_remove(double r1, double r2)
 {
    return r_intersect(r1, -r2);
 }
+
+double beam_level_set(const Vector &x)
+{
+   const int dim = x.Size();
+   double val = 0.0;
+   if (dim == 2)
+   {
+      double sf=1.0;
+      val = 2.0*(0.5*(1+std::tanh(sf*(x(1)-2.1))) - 0.5*(1+std::tanh(sf*(x(
+                                                                            1)-4.1))))-1.0;
+      val *= 1.0;
+
+      Vector xc(2);
+      double radius = 0.5;
+      double dist1;
+      // add circles to it
+      {
+         xc(0) = 3.0;
+         xc(1) = 3.0;
+         dist1 = dist_circle(x, xc, radius);
+      }
+      val = r_intersect(dist1, val);
+
+      {
+         xc(0) = 6.0;
+         xc(1) = 3.0;
+         dist1 = dist_circle(x, xc, radius);
+      }
+      val = r_intersect(dist1, val);
+
+      {
+         xc(0) = 9.0;
+         xc(1) = 3.0;
+         dist1 = dist_circle(x, xc, radius);
+      }
+      val = r_intersect(dist1, val);
+
+   }
+   else
+   {
+      MFEM_ABORT("3D not implemented yet.");
+   }
+   return val;
+}
+
 
 double csg_cubecylsph(const Vector &x)
 {

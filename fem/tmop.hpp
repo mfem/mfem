@@ -23,6 +23,7 @@ namespace mfem
 class TMOP_QualityMetric : public HyperelasticModel
 {
 protected:
+   bool linear = false;
    const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
                                 target-element transformation. */
 
@@ -74,7 +75,39 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
 
-   /** @brief Return the metric ID. */
+   /** @brief Linearize the metric.
+       mu(T) = mu(I+X) = mu(I) + X:dmu/dT + 0.5 X:d2mu/dT2:X.
+       This can reduce total computational work for metrics with mu(I) = 0 and
+       dmu/dT at T=I is 0. Thus,
+       mu =  0.5 X:d2mu/dT2:X at T=I
+       dmu/dT =  X:d2mu/dT2 at T=I
+       d2mu/dT2 = d2mu/dT2 at T=I */
+   virtual void EnableLinearization() { linear = true; }
+   virtual void DisableLinearization() { linear = false; }
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const
+   { MFEM_ABORT("ComputeH not implemented."); }
+
+   void ComputeHIdentity(const int dim) const;
+
+   /// Computes mu =  0.5 X:d2mu/dT2:X at T=I where X = Jpt-I and d2mu/dT2 is
+   /// given in HIden.
+   double EvalLinearizedW(const DenseMatrix &Jpt, DenseTensor &HIden) const;
+
+   /// Computes dmu/dT =  X:d2mu/dT2 at T=I where X = Jpt-I and d2mu/dT2 is
+   /// given in HIden.
+   void EvalLinearizedP(const DenseMatrix &Jpt, DenseTensor &HIden,
+                        DenseMatrix &P) const;
+
+   /// Assembles H.
+   void AssembleLinearizedH(const DenseMatrix &Jpt,
+                            const DenseMatrix &DS,
+                            const double weight,
+                            DenseMatrix &A,
+                            DenseTensor &HIden) const;
+
+   /** @brief Return the metric ID.
+    */
    virtual int Id() const { return 0; }
 };
 
@@ -97,6 +130,21 @@ public:
       for (int i = 0; i < tmop_q_arr.Size(); i++)
       {
          tmop_q_arr[i]->SetTargetJacobian(Jtr_);
+      }
+   }
+
+   virtual void EnableLinearization()
+   {
+      for (int i = 0; i < tmop_q_arr.Size(); i++)
+      {
+         tmop_q_arr[i]->EnableLinearization();
+      }
+   }
+   virtual void DisableLinearization()
+   {
+      for (int i = 0; i < tmop_q_arr.Size(); i++)
+      {
+         tmop_q_arr[i]->DisableLinearization();
       }
    }
 
@@ -276,9 +324,11 @@ class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
 
 public:
-   // W = 0.5 |J|^2 / det(J) - 1.
+   // W = 0.5|J|^2 / det(J) - 1.
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 I1b - 1.
@@ -288,6 +338,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
 
    virtual int Id() const { return 2; }
 };
@@ -434,9 +486,13 @@ class TMOP_Metric_058 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
+
 
 public:
    // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
+   //   = I1b (I1b - 2).
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b (I1b - 2).
@@ -446,6 +502,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
@@ -476,15 +534,23 @@ class TMOP_Metric_077 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
+
 
 public:
    // W = 0.5(det(J) - 1 / det(J))^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W =
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
 
    virtual int Id() const { return 77; }
 };
@@ -586,9 +652,14 @@ class TMOP_Metric_300 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
 
 public:
-   // W = ||T||^2
+   // W = |J| |J^-1| / 3 - 1.
+    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 1/3 sqrt(I1b * I2b) - 1
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -621,9 +692,11 @@ class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
 
 public:
-   // W = |J|^2 |J^{-1}|^2 / 9 - 1.
+   // W = |J|^2 |J^-1|^2 / 9 - 1.
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b * I2b / 9 - 1.
@@ -634,6 +707,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
+
    virtual int Id() const { return 302; }
 };
 
@@ -642,9 +717,11 @@ class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
 
 public:
-   // W = |J|^2 / 3 / det(J)^(2/3) - 1.
+   // W = |J|^2 / (3 * det(J)^(2/3)) - 1.
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b / 3 - 1.
@@ -654,6 +731,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
 
    virtual int Id() const { return 303; }
 };
@@ -724,6 +803,8 @@ class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
 
 public:
    // W = (det(J) - 1)^2.
@@ -733,6 +814,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
 
    virtual int Id() const { return 315; }
 };
@@ -761,6 +844,8 @@ class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
+   mutable DenseTensor
+   HIden; /**<Hessian associated with T=I, used for linearization. */
 
 public:
    // W = |J - J^-t|^2.
@@ -773,6 +858,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual void ComputeH(const DenseMatrix &Jpt) const;
 
    virtual int Id() const { return 321; }
 };
@@ -1701,6 +1788,8 @@ protected:
    // Compute the exact action of the Integrator (includes derivative of the
    // target with respect to spatial position)
    bool exact_action;
+   bool store_element_h = false;
+   DenseMatrix elmatLinear;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -2115,6 +2204,9 @@ public:
    {
       deactivate_list = deactivation_list_;
    }
+   // When linearized metrics are used with Identity targets, we can compute and
+   // store the assembled element matrix and re-use it.
+   void ComputeAndStoreElementH() { store_element_h = true; }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

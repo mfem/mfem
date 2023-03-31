@@ -533,7 +533,6 @@ protected:
    void MakeTetMeshFromHex(int nx, int ny, int nz,
                            double sx, double sy, double sz,
                            int type);
-
    void MakeTriMeshFromQuad(int nx, int ny,
                             double sx, double sy);
 
@@ -623,7 +622,7 @@ public:
 
    static Mesh MakeHexTo24or12TetMesh(
       int nx, int ny, int nz,
-      double sx = 1.0, double sy = 1.0, double sz = 1.0, int type = 1);
+      double sx = 1.0, double sy = 1.0, double sz = 1.0, int type = 2);
 
    static Mesh MakeQuadTo4TriMesh(int nx = 1, int ny = 1, double sx = 1.0,
                                   double sy = 1.0);

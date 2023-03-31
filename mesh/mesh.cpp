@@ -1866,6 +1866,28 @@ void Mesh::AddHexAsPyramids(const int *vi, int attr)
    }
 }
 
+void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
+{
+   int num_faces = 4;
+   static const int quad_to_tri[4][2] =
+   {
+      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
+   };
+   Array<int> plist(vi, 4);
+   int elem_center_index = AddVertexAtMidPoint(plist, 2) - 1;
+
+   int ti[3];
+   for (int i = 0; i < num_faces; i++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         ti[j] = vi[quad_to_tri[i][j]];
+      }
+      ti[2] = elem_center_index;
+      AddTri(ti, attr);
+   }
+}
+
 void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
 {
    auto get4tuple = [&](Array<int> v)
@@ -1880,7 +1902,7 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
    };
    int ti[4];
    Array<int> plist(vi, 8);
-   int elem_center_index = AddVertexAtMidPoint(plist) - 1;
+   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
    Array<int> flist(&ti[0], 4);
 
    static const int tet_face[4][2] =
@@ -1901,7 +1923,7 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
       auto it = hex_face_to_center.find(t);
       if (it == hex_face_to_center.end())
       {
-         face_center_index = AddVertexAtMidPoint(flist) - 1;
+         face_center_index = AddVertexAtMidPoint(flist, 3) - 1;
          hex_face_to_center.insert((std::pair<std::tuple<int, int, int, int>,int>
                                     (t, face_center_index)));
       }
@@ -1926,10 +1948,6 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
 
 void Mesh::AddHexAs12TetsWithPoints(int *vi, int attr)
 {
-   auto get4tuple = [&](Array<int> v)
-   {
-      return std::tuple<int, int, int, int>(v[0], v[1], v[2], v[3]);
-   };
    int num_faces = 6;
    static const int hex_to_tet[6][4] =
    {
@@ -1938,7 +1956,7 @@ void Mesh::AddHexAs12TetsWithPoints(int *vi, int attr)
    };
    int ti[4];
    Array<int> plist(vi, 8);
-   int elem_center_index = AddVertexAtMidPoint(plist) - 1;
+   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
    Array<int> flist(&ti[0], 4);
 
    static const int tet_face[2][3] =
@@ -1962,28 +1980,6 @@ void Mesh::AddHexAs12TetsWithPoints(int *vi, int attr)
          fti[3] = elem_center_index;
          AddTet(fti, attr);
       }
-   }
-}
-
-void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
-{
-   int num_faces = 4;
-   static const int quad_to_tri[4][2] =
-   {
-      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
-   };
-   Array<int> plist(vi, 4);
-   int elem_center_index = AddVertexAtMidPoint(plist, 2) - 1;
-
-   int ti[3];
-   for (int i = 0; i < num_faces; i++)
-   {
-      for (int j = 0; j < 2; j++)
-      {
-         ti[j] = vi[quad_to_tri[i][j]];
-      }
-      ti[2] = elem_center_index;
-      AddTri(ti, attr);
    }
 }
 

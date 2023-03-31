@@ -66,6 +66,7 @@ FindPointsGSLIB::FindPointsGSLIB()
 
 FindPointsGSLIB::~FindPointsGSLIB()
 {
+   comm_free(gsl_comm);
    delete gsl_comm;
    delete cr;
    for (int i = 0; i < 4; i++)
@@ -571,7 +572,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    const int pts_el = std::pow(dof_1D, dim);
    const int pts_cnt = NE_split_total * pts_el;
    node_vals.SetSize(vdim * pts_cnt);
-   node_vals *= 0;
+   node_vals = 0.0;
 
    int gsl_mesh_pt_index = 0;
 
@@ -1153,7 +1154,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    distfint.SetSize(pts_cnt);
    if (!gfmax)
    {
-      distfint = 0.;
+      distfint = 0.0;
    }
    else
    {
@@ -1284,12 +1285,13 @@ GSLIBCommunicator::GSLIBCommunicator(MPI_Comm comm_)
 void GSLIBCommunicator::SendInfo(Array<unsigned int> &gsl_proc,
                                  Array<unsigned int> &gsl_mfem_elem,
                                  Vector &sendinfoDoubles,
-                                 Vector &gsl_mfem_ref)
+                                 Vector &gsl_mfem_ref,
+                                 const int & dim)
 {
    int nptsend = gsl_proc.Size();
    int nptElem   = gsl_mfem_elem.Size();
    int nptRST    = gsl_mfem_ref.Size();
-   const int dim = nptRST/nptsend;
+
    int nptD    = sendinfoDoubles.Size();
 
    MFEM_VERIFY(nptElem == nptsend,
@@ -1349,74 +1351,6 @@ void GSLIBCommunicator::SendInfo(Array<unsigned int> &gsl_proc,
    delete outpt;
 }
 
-void GSLIBCommunicator::SendInfoGeneric(Array<unsigned int> &gsl_proc,
-                                        Array<unsigned int> &gsl_mfem_elem,
-                                        Vector &sendinfoDoubles)
-{
-   int nptsend = gsl_proc.Size();
-   int nptElem   = gsl_mfem_elem.Size();
-   int nptD    = sendinfoDoubles.Size();
-   const int tdim = nptD/nptsend;
-
-   MFEM_VERIFY(nptElem == nptsend,
-               "Incompatible Elem size.");
-
-   // Pack data to send via crystal router
-   struct gslib::array *outpt = new gslib::array;
-
-   // what about byte alignment?
-   // right now uint dummy is there for alignment.
-   struct out_pt { uint index, elem, proc; double infoD[1];};
-   const size_t sizeoutpt = sizeof(out_pt) + sizeof(double)*((size_t)tdim-1);
-
-   array_init_(outpt, nptsend, sizeoutpt, __FILE__, __LINE__);
-
-   struct out_pt *pt;
-   outpt->n=nptsend;
-   pt = (struct out_pt *)outpt->ptr;
-   char *cus = (char *)outpt->ptr; //for custom increment
-   for (int index = 0; index < nptsend; index++)
-   {
-      pt->index = (uint) index;
-      pt->elem = gsl_mfem_elem[index];
-      pt->proc  = gsl_proc[index];
-      for (int d = 0; d < tdim; ++d)
-      {
-         pt->infoD[d] = sendinfoDoubles(index*tdim + d);
-      }
-      cus += sizeoutpt;
-      pt = (struct out_pt *)cus;
-   }
-
-   // Transfer data to target MPI ranks
-   sarray_transfer_(outpt,sizeoutpt,offsetof(struct out_pt,proc), 1,cr);
-
-   // Store received data
-   int npt = outpt->n;
-   recv_gsl_proc.SetSize(npt);
-   recv_gsl_mfem_elem.SetSize(npt);
-   recvinfoIndex.SetSize(npt);
-   recvinfoDoubles.SetSize(npt*tdim);
-
-   pt = (struct out_pt *)outpt->ptr;
-   cus = (char *)outpt->ptr;
-   for (int index = 0; index < npt; index++)
-   {
-      recvinfoIndex[index] = pt->index;
-      recv_gsl_mfem_elem[index] = pt->elem;
-      recv_gsl_proc[index] = pt->proc;
-      for (int d = 0; d < tdim; ++d)
-      {
-         recvinfoDoubles(index*tdim + d)= pt->infoD[d];
-      }
-      cus += sizeoutpt;
-      pt = (struct out_pt *)cus;
-   }
-
-   array_free(outpt);
-   delete outpt;
-}
-
 void GSLIBCommunicator::FreeData()
 {
    crystal_free(cr);
@@ -1427,7 +1361,6 @@ GSLIBCommunicator::~GSLIBCommunicator()
    delete gsl_comm;
    delete cr;
 }
-
 
 GSLIBGroupCommunicator::GSLIBGroupCommunicator(MPI_Comm comm_)
    : cr(NULL), gsl_comm(NULL)
@@ -1483,8 +1416,6 @@ void GSLIBGroupCommunicator::GOP(Vector &senddata, int op)
       MFEM_ABORT("Invalid GS_OP operation.");
    }
 }
-
-
 #endif
 
 
