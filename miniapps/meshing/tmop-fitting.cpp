@@ -48,82 +48,87 @@ using namespace std;
 
 void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
 {
-    mfem::L2_FECollection l2fec(0, pmesh.Dimension());
-    mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
-    mfem::ParGridFunction el_to_refine(&l2fespace);
-    const int quad_order = 4;
+   mfem::L2_FECollection l2fec(0, pmesh.Dimension());
+   mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
+   mfem::ParGridFunction el_to_refine(&l2fespace);
+   const int quad_order = 4;
 
-    el_to_refine = 0.0;
+   el_to_refine = 0.0;
 
-    for (int i = 0; i < intel.Size(); i++) {
-        el_to_refine(intel[i]) = 1.0;
-    }
+   for (int i = 0; i < intel.Size(); i++)
+   {
+      el_to_refine(intel[i]) = 1.0;
+   }
 
-    mfem::H1_FECollection lhfec(1, pmesh.Dimension());
-    mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
-    mfem::ParGridFunction lhx(&lhfespace);
+   mfem::H1_FECollection lhfec(1, pmesh.Dimension());
+   mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
+   mfem::ParGridFunction lhx(&lhfespace);
 
-    el_to_refine.ExchangeFaceNbrData();
-    GridFunctionCoefficient field_in_dg(&el_to_refine);
-    lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+   el_to_refine.ExchangeFaceNbrData();
+   GridFunctionCoefficient field_in_dg(&el_to_refine);
+   lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
 
-    IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
-    for (int e = 0; e < pmesh.GetNE(); e++)
-    {
-       Array<int> dofs;
-       Vector x_vals;
-       lhfespace.GetElementDofs(e, dofs);
-       const IntegrationRule &ir =
-          irRules.Get(pmesh.GetElementGeometry(e), quad_order);
-       lhx.GetValues(e, ir, x_vals);
-       double max_val = x_vals.Max();
-       if (max_val > 0)
-       {
-          intel.Append(e);
-       }
-    }
+   IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      Array<int> dofs;
+      Vector x_vals;
+      lhfespace.GetElementDofs(e, dofs);
+      const IntegrationRule &ir =
+         irRules.Get(pmesh.GetElementGeometry(e), quad_order);
+      lhx.GetValues(e, ir, x_vals);
+      double max_val = x_vals.Max();
+      if (max_val > 0)
+      {
+         intel.Append(e);
+      }
+   }
 
-    intel.Sort();
-    intel.Unique();
+   intel.Sort();
+   intel.Unique();
 }
 
-void GetMaterialInterfaceElements(ParMesh *pmesh, ParGridFunction &mat, Array<int> &intel)
+void GetMaterialInterfaceElements(ParMesh *pmesh, ParGridFunction &mat,
+                                  Array<int> &intel)
 {
-    intel.SetSize(0);
-    mat.ExchangeFaceNbrData();
-    const int NElem = pmesh->GetNE();
-    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
-                                     "constant function over the mesh.");
-    for (int f = 0; f < pmesh->GetNumFaces(); f++ )
-    {
-       Array<int> nbrs;
-       pmesh->GetFaceAdjacentElements(f,nbrs);
-       Vector matvals;
-       Array<int> vdofs;
-       Vector vec;
-       Array<int> els;
-       //if there is more than 1 element across the face.
-       if (nbrs.Size() > 1) {
-           matvals.SetSize(nbrs.Size());
-           for (int j = 0; j < nbrs.Size(); j++) {
-               if (nbrs[j] < NElem)
-               {
-                   matvals(j) = mat(nbrs[j]);
-                   els.Append(nbrs[j]);
-               }
-               else
-               {
-                   const int Elem2NbrNo = nbrs[j] - NElem;
-                   mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
-                   mat.FaceNbrData().GetSubVector(vdofs, vec);
-                   matvals(j) = vec(0);
-               }
-           }
-           if (matvals(0) != matvals(1)) {
-               intel.Append(els);
-           }
-       }
-    }
+   intel.SetSize(0);
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      Array<int> els;
+      //if there is more than 1 element across the face.
+      if (nbrs.Size() > 1)
+      {
+         matvals.SetSize(nbrs.Size());
+         for (int j = 0; j < nbrs.Size(); j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j) = mat(nbrs[j]);
+               els.Append(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j) = vec(0);
+            }
+         }
+         if (matvals(0) != matvals(1))
+         {
+            intel.Append(els);
+         }
+      }
+   }
 }
 
 int main (int argc, char *argv[])
@@ -308,13 +313,13 @@ int main (int argc, char *argv[])
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-//   mesh->EnsureNCMesh();
+   //   mesh->EnsureNCMesh();
    for (int lev = 0; lev < rs_levels; lev++)
    {
-       mesh->UniformRefinement();
-//       mesh->RandomRefinement(0.5);
+      mesh->UniformRefinement();
+      //       mesh->RandomRefinement(0.5);
    }
-//   mesh->EnsureNCMesh();
+   //   mesh->EnsureNCMesh();
    const int dim = mesh->Dimension();
 
    // Define level-set coefficient
@@ -407,7 +412,7 @@ int main (int argc, char *argv[])
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
-//      pmesh->PrintAsSerial(mesh_ofs);
+      //      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -689,22 +694,24 @@ int main (int argc, char *argv[])
          }
          MFEM_VERIFY(matcheck, "Not all children at the interface have same material.");
 
-         if (int_amr_iters) {
-             Array<int> refinements;
-             for (int i = 0; i < 3; i++) {
-                 GetMaterialInterfaceElements(pmesh, mat, refinements);
-                 refinements.Sort();
-                 refinements.Unique();
-                 {
-                     ExtendRefinementListToNeighbors(*pmesh, refinements);
-                 }
-                 pmesh->GeneralRefinement(refinements, -1);
-                 HRUpdater.Update();
-             }
-             {
-                 pmesh->Rebalance();
-                 HRUpdater.Update();
-             }
+         if (int_amr_iters)
+         {
+            Array<int> refinements;
+            for (int i = 0; i < 3; i++)
+            {
+               GetMaterialInterfaceElements(pmesh, mat, refinements);
+               refinements.Sort();
+               refinements.Unique();
+               {
+                  ExtendRefinementListToNeighbors(*pmesh, refinements);
+               }
+               pmesh->GeneralRefinement(refinements, -1);
+               HRUpdater.Update();
+            }
+            {
+               pmesh->Rebalance();
+               HRUpdater.Update();
+            }
          }
 
          {
@@ -729,8 +736,8 @@ int main (int argc, char *argv[])
          Array<int> dofs;
          for (int i = 0; i < intfaces.Size(); i++)
          {
-              surf_fit_gf0.ParFESpace()->GetFaceDofs(intfaces[i], dofs);
-              dof_list.Append(dofs);
+            surf_fit_gf0.ParFESpace()->GetFaceDofs(intfaces[i], dofs);
+            dof_list.Append(dofs);
          }
 
 
@@ -881,37 +888,44 @@ int main (int argc, char *argv[])
    Array<int> ess_deactivate_dofs;
    Array<int> deactivate_list(0);
    Array<int> ess_elems;
-   if (deactivation_layers > 0) {
-       Array<int> active_list;
-       // Deactivate  elements away from interface
-       GetMaterialInterfaceElements(pmesh, mat, active_list);
-       for (int i = 0; i < deactivation_layers; i++) {
-           ExtendRefinementListToNeighbors(*pmesh, active_list);
-       }
-       active_list.Sort();
-       active_list.Unique();
-       int num_active_loc = active_list.Size();
-       int num_active_glob = num_active_loc;
-       MPI_Allreduce(&num_active_loc, &num_active_glob, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
-       const int neglob = pmesh->GetGlobalNE();
-       if (myid == 0) {
-           std::cout << neglob << " " <<
-                        num_active_glob << " length of active list\n";
-       }
-       deactivate_list.SetSize(pmesh->GetNE());
-       deactivate_list = 1;
-       for (int i = 0; i < active_list.Size(); i++) {
-           deactivate_list[active_list[i]] = 0;
-       }
+   if (deactivation_layers > 0)
+   {
+      Array<int> active_list;
+      // Deactivate  elements away from interface
+      GetMaterialInterfaceElements(pmesh, mat, active_list);
+      for (int i = 0; i < deactivation_layers; i++)
+      {
+         ExtendRefinementListToNeighbors(*pmesh, active_list);
+      }
+      active_list.Sort();
+      active_list.Unique();
+      int num_active_loc = active_list.Size();
+      int num_active_glob = num_active_loc;
+      MPI_Allreduce(&num_active_loc, &num_active_glob, 1, MPI_INT, MPI_SUM,
+                    pmesh->GetComm());
+      const int neglob = pmesh->GetGlobalNE();
+      if (myid == 0)
+      {
+         std::cout << neglob << " " <<
+                   num_active_glob << " length of active list\n";
+      }
+      deactivate_list.SetSize(pmesh->GetNE());
+      deactivate_list = 1;
+      for (int i = 0; i < active_list.Size(); i++)
+      {
+         deactivate_list[active_list[i]] = 0;
+      }
 
-       for (int i = 0; i < pmesh->GetNE(); i++) {
-           if (deactivate_list[i]) {
-               pfespace->GetElementVDofs(i, vdofs);
-               ess_deactivate_dofs.Append(vdofs);
-           }
-       }
-       tmop_integ->SetDeactivationList(deactivate_list);
-       a.SetEssentialElementMarker(deactivate_list);
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         if (deactivate_list[i])
+         {
+            pfespace->GetElementVDofs(i, vdofs);
+            ess_deactivate_dofs.Append(vdofs);
+         }
+      }
+      tmop_integ->SetDeactivationList(deactivate_list);
+      a.SetEssentialElementMarker(deactivate_list);
    }
 
    // 14. Fix all boundary nodes, or fix only a given component depending on the
@@ -928,8 +942,9 @@ int main (int argc, char *argv[])
          ess_bdr[marking_type-1] = 0;
       }
       a.SetEssentialBC(ess_bdr);
-      if (ess_deactivate_dofs.Size() > 0) {
-          MFEM_ABORT("deactive list not implemented yet\n");
+      if (ess_deactivate_dofs.Size() > 0)
+      {
+         MFEM_ABORT("deactive list not implemented yet\n");
       }
    }
    else
@@ -974,9 +989,10 @@ int main (int argc, char *argv[])
             { ess_vdofs[n++] = vdofs[j]; }
          }
       }
-      if (ess_deactivate_dofs.Size() > 0) {
-          ess_dofs_bdr = ess_vdofs;
-          ess_vdofs.Append(ess_deactivate_dofs);
+      if (ess_deactivate_dofs.Size() > 0)
+      {
+         ess_dofs_bdr = ess_vdofs;
+         ess_vdofs.Append(ess_deactivate_dofs);
       }
       a.SetEssentialVDofs(ess_vdofs);
    }
@@ -1060,7 +1076,7 @@ int main (int argc, char *argv[])
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
-//      pmesh->PrintAsSerial(mesh_ofs);
+      //      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
@@ -1138,24 +1154,27 @@ int main (int argc, char *argv[])
       x1 = x;
    }
 
-   if (deactivate_list.Size() > 0 && twopass) {
-       for (int i = 0; i < surf_fit_marker.Size(); i++) {
-           if (surf_fit_marker[i]) {
-               ess_dofs_bdr.Append(i);
-           }
-       }
-       pfespace->Update();
-       a.Update();
-       a.SetEssentialVDofs(ess_dofs_bdr);
-       tmop_integ->DisableSurfaceFitting();
-       deactivate_list.SetSize(0);
-       tmop_integ->SetDeactivationList(deactivate_list);
-       a.SetEssentialElementMarker(deactivate_list);
-       solver.SetTerminationWithMaxSurfaceFittingError(-1.0);
-       solver.SetAdaptiveSurfaceFittingScalingFactor(0.0);
-       solver.SetRelTol(1e-7);
-       solver.Mult(b, x.GetTrueVector());
-       x.SetFromTrueVector();
+   if (deactivate_list.Size() > 0 && twopass)
+   {
+      for (int i = 0; i < surf_fit_marker.Size(); i++)
+      {
+         if (surf_fit_marker[i])
+         {
+            ess_dofs_bdr.Append(i);
+         }
+      }
+      pfespace->Update();
+      a.Update();
+      a.SetEssentialVDofs(ess_dofs_bdr);
+      tmop_integ->DisableSurfaceFitting();
+      deactivate_list.SetSize(0);
+      tmop_integ->SetDeactivationList(deactivate_list);
+      a.SetEssentialElementMarker(deactivate_list);
+      solver.SetTerminationWithMaxSurfaceFittingError(-1.0);
+      solver.SetAdaptiveSurfaceFittingScalingFactor(0.0);
+      solver.SetRelTol(1e-7);
+      solver.Mult(b, x.GetTrueVector());
+      x.SetFromTrueVector();
    }
 
    // 19. Visualize the mesh displacement.
@@ -1181,7 +1200,7 @@ int main (int argc, char *argv[])
 
    // 20. Free the used memory.
    std::cout << " k101"
-   delete S;
+             delete S;
    delete S_prec;
    delete metric_coeff1;
    delete adapt_surface;

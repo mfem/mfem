@@ -62,14 +62,17 @@ double squircle_inside_circle_level_set(const Vector &x)
    double rcirc = 0.75;
    double rsqcirc = 0.4;
 
-   double dcir = std::pow(x2(0), 2.0) + std::pow(x2(1), 2.0) - std::pow(rcirc, 2.0);
-   double dsqcir = std::pow(x2(0), pwrr) + std::pow(x2(1), pwrr) - std::pow(rsqcirc, pwrr);
+   double dcir = std::pow(x2(0), 2.0) + std::pow(x2(1), 2.0) - std::pow(rcirc,
+                                                                        2.0);
+   double dsqcir = std::pow(x2(0), pwrr) + std::pow(x2(1),
+                                                    pwrr) - std::pow(rsqcirc, pwrr);
 
-//   return dcir;
+   //   return dcir;
    return std::max(dcir, -10*dsqcir);
 }
 
-double in_cube_smooth(const Vector &x, double xc, double yc, double zc, double lx,
+double in_cube_smooth(const Vector &x, double xc, double yc, double zc,
+                      double lx,
                       double ly, double lz)
 {
    double dx = fabs(x(0) - xc);
@@ -87,7 +90,7 @@ double in_cube_smooth(const Vector &x, double xc, double yc, double zc, double l
 
 
 double pipe_dist(const Vector &x, int pipedir, Vector x_pipe_center,
-                    double radius, double minv, double maxv)
+                 double radius, double minv, double maxv)
 {
    Vector x_pipe_copy = x_pipe_center;
    x_pipe_copy -= x;
@@ -96,37 +99,54 @@ double pipe_dist(const Vector &x, int pipedir, Vector x_pipe_center,
    return dist;
 }
 
+double cube_dist(const Vector &x, Vector &center, double halfwidth)
+{
+   //    x.Print();
+   Vector q = x;
+   q -= center;
+   Vector t1 = x;
+   for (int i = 0; i < q.Size(); i++)
+   {
+      q(i) = std::fabs(q(i))-halfwidth;
+      t1(i) = std::max(q(i), 0.0);
+   }
+   double sum1 = t1.Norml2();
+   double sum2 = std::min(std::max(q(0),std::max(q(1), q(2))), 0.0);
+   return sum1+sum2;
+}
 
 double csg_cubecylsph_smooth(const Vector &x)
 {
    double pwrr = 4.0;
    Vector xcc = x;
-   xcc = 1.0;
+   xcc = 0.5;
    const int dim = x.Size();
    MFEM_VERIFY(dim == 3, "Only 3D supported for this level set");
    Vector x2 = x;
    x2 -= xcc;
-   double rsph = 0.75;
-   double rcube = 0.5;
+   double rsph = 0.375;
+   double rcube = 0.3;
+   double dsph = x2.Norml2() - rsph;;/*x2.Norml2()*x2.Norml2() - rsph*rsph;*/
+   //      return dsph; //return here for sphere
+   double dcube = cube_dist(x, xcc, rcube);
+   return std::max(dsph, dcube); // return here for sphere + cube
+   double dist1 = std::max(dsph, dcube);
 
-   double dsph = std::pow(x2(0), 2.0) + std::pow(x2(1), 2.0) + std::pow(x2(2), 2.0)
-               - std::pow(rsph, 2.0);
-   double dcube = std::pow(x2(0), pwrr) + std::pow(x2(1), pwrr) +
-                   std::pow(x2(2), pwrr) - std::pow(rcube, pwrr);
-
-//   return std::max(dsph, -10*dcube);
-   double alpha = 10.0;
-   double dist1 = std::max(-1.0*alpha*dcube, dsph);
+   //   return std::max(dsph, -10*dcube);
+   //   double alpha = 10.0;
+   //   double dist1 = std::min(1.0*alpha*dcube, dsph);
 
    int pipedir = 1;
    Vector x_pipe_center(3);
-   x_pipe_center = 1.0;
+   x_pipe_center = 0.5;
    double xmin = 1.0-rsph;
    double xmax = 1.0+rsph;
-   double pipe_radius = 0.35;
-   double in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+   double pipe_radius = 0.25;
+   double in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin,
+                                xmax);
 
    double dist2 = std::max(dist1, -in_pipe_x);
+   //   return dist2;
 
    pipedir = 2;
    in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
@@ -137,29 +157,30 @@ double csg_cubecylsph_smooth(const Vector &x)
    double dist4 = std::max(dist3, -in_pipe_x);
 
    return dist4;
-
-
-//   int pipedir = 1;
-//   Vector x_pipe_center(3);
-//   x_pipe_center = 0.5;
-//   double xmin = 0.5-sphere_radius;
-//   double xmax = 0.5+sphere_radius;
-//   double pipe_radius = 0.075;
-//   double in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-
-//   in_return_val = std::min(in_return_val, -1*in_pipe_x);
-
-//   pipedir = 2;
-//   in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-//   in_return_val = std::min(in_return_val, -1*in_pipe_x);
-
-//   pipedir = 3;
-//   in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-//   in_return_val = std::min(in_return_val, -1*in_pipe_x);
-
-//   return in_return_val;
 }
 
+double kabaria_smooth(const Vector &x)
+{
+   double pwrr = 4.0;
+   Vector xcc = x;
+   xcc = 0.5;
+   const int dim = x.Size();
+   Vector x2 = x;
+   x2 -= xcc;
+
+
+   double v1 = 8.0*std::pow(4*x(0)-2, 4.0) -
+               8.0*std::pow(4*x(0)-2, 2.0);
+   double v2 = 8.0*std::pow(4*x(1)-2, 4.0) -
+               8.0*std::pow(4*x(1)-2, 2.0);
+   double v3 = 0.0;
+   if (dim == 3)
+   {
+      v3 = 8.0*std::pow(4.0*x(2)-2, 4.0) -
+           8.0*std::pow(4.0*x(2)-2, 2.0);
+   }
+   return -(v1 + v2 + v3);
+}
 
 double in_circle(const Vector &x, const Vector &x_center, double radius)
 {
@@ -337,6 +358,94 @@ double csg_cubecylsph(const Vector &x)
 
    return in_return_val;
 }
+void SetMaterialsForFitting(GridFunction &surf_fit_gf0, GridFunction &mat)
+{
+   FiniteElementSpace *pfespace = surf_fit_gf0.FESpace();
+   Mesh *pmesh = pfespace->GetMesh();
+   Array<int> verts;
+   Array<int> dofs;
+   Array<int> dofsv;
+   Vector vals;
+   //Identify elements cut by levelset
+   Vector elvals(pmesh->GetNE()*4); //Assume tetrahedron (4 vertices);
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      //        pfespace->GetElementDofs(e, dofs);
+      pmesh->GetElementVertices(e, verts);
+      dofsv.SetSize(0);
+      for (int v = 0; v < verts.Size(); v++)
+      {
+         pfespace->GetVertexDofs(verts[v], dofs);
+         dofsv.Append(dofs);
+      }
+      surf_fit_gf0.GetSubVector(dofsv, vals);
+      for (int v = 0; v < vals.Size(); v++)
+      {
+         vals(v) = vals(v) == 0.0 ? 0.0 : std::fabs(vals(v))/vals(v);
+         elvals(e*4 + v) = vals(v);
+      }
+      double maxv = vals.Max();
+      double minv = vals.Min();
+      if (maxv == 0.0 && minv == 0.0)
+      {
+         MFEM_ABORT("not all vertices can be 0.0");
+      }
+      else if (maxv > 0.0)
+      {
+         mat(e) = 1.0;
+      }
+      else if (minv < 0.0)
+      {
+         mat(e) = 0.0;
+      }
+      pmesh->SetAttribute(e, (int)(mat(e)+1));
+   }
+   pmesh->SetAttributes();
+}
+
+void SetMaterialsForFitting(ParGridFunction &surf_fit_gf0, ParGridFunction &mat)
+{
+   ParFiniteElementSpace *pfespace = surf_fit_gf0.ParFESpace();
+   ParMesh *pmesh = pfespace->GetParMesh();
+   Array<int> verts;
+   Array<int> dofs;
+   Array<int> dofsv;
+   Vector vals;
+   //Identify elements cut by levelset
+   Vector elvals(pmesh->GetNE()*4); //Assume tetrahedron (4 vertices);
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      pmesh->GetElementVertices(e, verts);
+      dofsv.SetSize(0);
+      for (int v = 0; v < verts.Size(); v++)
+      {
+         pfespace->GetVertexDofs(verts[v], dofs);
+         dofsv.Append(dofs);
+      }
+      surf_fit_gf0.GetSubVector(dofsv, vals);
+      for (int v = 0; v < vals.Size(); v++)
+      {
+         vals(v) = vals(v) == 0.0 ? 0.0 : std::fabs(vals(v))/vals(v);
+         elvals(e*4 + v) = vals(v);
+      }
+      double maxv = vals.Max();
+      double minv = vals.Min();
+      if (maxv == 0.0 && minv == 0.0)
+      {
+         MFEM_ABORT("not all vertices can be 0.0");
+      }
+      else if (maxv > 0.0)
+      {
+         mat(e) = 1.0;
+      }
+      else if (minv < 0.0)
+      {
+         mat(e) = 0.0;
+      }
+      pmesh->SetAttribute(e, (int)(mat(e)+1));
+   }
+   pmesh->SetAttributes();
+}
 
 void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
                                    int attr_to_switch)
@@ -412,7 +521,7 @@ void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
 }
 
 Mesh* TrimMeshAsSubMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
-                        Array<int> attr_to_keep)
+                        Array<int> attr_to_keep, int splittype)
 {
    // Note right now that we set new element attributes to original unless
    // el_attr_to_set is specified.
@@ -431,10 +540,35 @@ Mesh* TrimMeshAsSubMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
    {
       mesh.SetAttribute(e, 1);
    }
+
+   //   SetMaterialsForFitting(distance_s, mat);
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       mat(e) = material_id(e, distance_s);
       mesh.SetAttribute(e, mat(e) + 1);
+   }
+
+   //Make materials consistent. 24tetmesh
+   if (splittype > 0)
+   {
+      int num_elems_per_split = 12*splittype;
+      MFEM_VERIFY(mesh.GetNE() % num_elems_per_split == 0, "Not a 24 tet mesh.");
+      Vector groupmat(mesh.GetNE()/num_elems_per_split);
+      groupmat = -1.0;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         int rem = e % num_elems_per_split;
+         int idx = (e - rem)/num_elems_per_split;
+         groupmat(idx) = std::max(groupmat(idx), mat(e));
+      }
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         int rem = e % num_elems_per_split;
+         int idx = (e - rem)/num_elems_per_split;
+         mat(e) = groupmat(idx);
+         mesh.SetAttribute(e, mat(e) + 1);
+      }
+      mesh.SetAttributes();
    }
 
    int max_bdr_attr = mesh.bdr_attributes.Max();
@@ -442,26 +576,33 @@ Mesh* TrimMeshAsSubMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
    int smax_bdr_attr = smesh->bdr_attributes.Max();
 
    // no new boundaries are created.
-   if (max_bdr_attr == smax_bdr_attr) {
-       return smesh;
+   if (max_bdr_attr == smax_bdr_attr)
+   {
+      return smesh;
    }
    // only 1 boundary in new mesh
    int nbdr_attr = smesh->bdr_attributes.Size();
-   if (nbdr_attr == 1) {
-       for (int i = 0; i < smesh->GetNBE(); i++) {
-           smesh->SetBdrAttribute(i, 1);
-       }
+   if (nbdr_attr == 1)
+   {
+      for (int i = 0; i < smesh->GetNBE(); i++)
+      {
+         smesh->SetBdrAttribute(i, 1);
+      }
    }
-   else {
-       for (int i = 0; i < smesh->GetNBE(); i++) {
-           if (smesh->GetBdrAttribute(i) == smax_bdr_attr) {
-               smesh->SetBdrAttribute(i, max_bdr_attr+1);
-           }
-       }
+   else
+   {
+      for (int i = 0; i < smesh->GetNBE(); i++)
+      {
+         if (smesh->GetBdrAttribute(i) == smax_bdr_attr)
+         {
+            smesh->SetBdrAttribute(i, max_bdr_attr+1);
+         }
+      }
    }
 
-   for (int i = 0; i < smesh->GetNE(); i++) {
-       smesh->SetAttribute(i, 1);
+   for (int i = 0; i < smesh->GetNE(); i++)
+   {
+      smesh->SetAttribute(i, 1);
    }
 
    smesh->SetAttributes();
@@ -623,7 +764,7 @@ Mesh* TrimMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
                             (Element*)new Point(&f) :
                             mesh.GetFace(f)->Duplicate(trimmed_mesh);
             //bel->SetAttribute(bdr_attr[attr_inv[a1-1]]);
-//            bel->SetAttribute(3);
+            //            bel->SetAttribute(3);
             bel->SetAttribute(bdr_attr_to_set > 0 ? bdr_attr_to_set : 1);
             trimmed_mesh->AddBdrElement(bel);
          }
@@ -633,7 +774,7 @@ Mesh* TrimMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
                             (Element*)new Point(&f) :
                             mesh.GetFace(f)->Duplicate(trimmed_mesh);
             //bel->SetAttribute(bdr_attr[attr_inv[a2-1]]);
-//            bel->SetAttribute(3);
+            //            bel->SetAttribute(3);
             bel->SetAttribute(bdr_attr_to_set > 0 ? bdr_attr_to_set : 1);
             trimmed_mesh->AddBdrElement(bel);
          }
@@ -880,7 +1021,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
       }
 
       // Refine an element if its neighbor will be refined
-      for (int inner_iter = 0; inner_iter < 2; inner_iter++)
+      for (int inner_iter = 0; inner_iter < 4; inner_iter++)
       {
          el_to_refine.ExchangeFaceNbrData();
          GridFunctionCoefficient field_in_dg(&el_to_refine);
@@ -967,7 +1108,8 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
 
    const int p = pLapOrder;
    const int newton_iter = pLapNewton;
-   auto ds = new PLapDistanceSolver(p, newton_iter);
+   //   auto ds = new PLapDistanceSolver(p, newton_iter);
+   auto ds = new NormalizationDistanceSolver();
    dist_solver = ds;
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
@@ -992,80 +1134,88 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
 // that face have same material
 int CheckMaterialConsistency(ParMesh *pmesh, ParGridFunction &mat)
 {
-    mat.ExchangeFaceNbrData();
-    const int NElem = pmesh->GetNE();
-    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
-                                     "constant function over the mesh.");
-    int matcheck = 1;
-    int pass = 1;
-    for (int f = 0; f < pmesh->GetNumFaces(); f++ )
-    {
-       Array<int> nbrs;
-       pmesh->GetFaceAdjacentElements(f,nbrs);
-       Vector matvals;
-       Array<int> vdofs;
-       Vector vec;
-       //if there is more than 1 element across the face.
-       matvals.SetSize(nbrs.Size()-1);
-       if (nbrs.Size() > 2) {
-           for (int j = 1; j < nbrs.Size(); j++) {
-               if (nbrs[j] < NElem) {
-                   matvals(j-1) = mat(nbrs[j]);
-               }
-               else {
-                   const int Elem2NbrNo = nbrs[j] - NElem;
-                   mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
-                   mat.FaceNbrData().GetSubVector(vdofs, vec);
-                   matvals(j-1) = vec(0);
-               }
-           }
-           double minv = matvals.Min(),
-                  maxv = matvals.Max();
-           matcheck = minv == maxv;
-       }
-       if (matcheck == 0) { pass = 0; break; }
-    }
-    int global_pass = pass;
-    MPI_Allreduce(&pass, &global_pass, 1, MPI_INT, MPI_MIN,
-                  pmesh->GetComm());
-    return global_pass;
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   int matcheck = 1;
+   int pass = 1;
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      //if there is more than 1 element across the face.
+      matvals.SetSize(nbrs.Size()-1);
+      if (nbrs.Size() > 2)
+      {
+         for (int j = 1; j < nbrs.Size(); j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j-1) = mat(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j-1) = vec(0);
+            }
+         }
+         double minv = matvals.Min(),
+                maxv = matvals.Max();
+         matcheck = minv == maxv;
+      }
+      if (matcheck == 0) { pass = 0; break; }
+   }
+   int global_pass = pass;
+   MPI_Allreduce(&pass, &global_pass, 1, MPI_INT, MPI_MIN,
+                 pmesh->GetComm());
+   return global_pass;
 }
 
-void GetMaterialInterfaceFaces(ParMesh *pmesh, ParGridFunction &mat, Array<int> &intf)
+void GetMaterialInterfaceFaces(ParMesh *pmesh, ParGridFunction &mat,
+                               Array<int> &intf)
 {
-    intf.SetSize(0);
-    mat.ExchangeFaceNbrData();
-    const int NElem = pmesh->GetNE();
-    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
-                                     "constant function over the mesh.");
-    for (int f = 0; f < pmesh->GetNumFaces(); f++ )
-    {
-       Array<int> nbrs;
-       pmesh->GetFaceAdjacentElements(f,nbrs);
-       Vector matvals;
-       Array<int> vdofs;
-       Vector vec;
-       //if there is more than 1 element across the face.
-       if (nbrs.Size() > 1) {
-           matvals.SetSize(2);
-           for (int j = 0; j < 2; j++) {
-               if (nbrs[j] < NElem)
-               {
-                   matvals(j) = mat(nbrs[j]);
-               }
-               else
-               {
-                   const int Elem2NbrNo = nbrs[j] - NElem;
-                   mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
-                   mat.FaceNbrData().GetSubVector(vdofs, vec);
-                   matvals(j) = vec(0);
-               }
-           }
-           if (matvals(0) != matvals(1)) {
-               intf.Append(f);
-           }
-       }
-    }
+   intf.SetSize(0);
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      //if there is more than 1 element across the face.
+      if (nbrs.Size() > 1)
+      {
+         matvals.SetSize(2);
+         for (int j = 0; j < 2; j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j) = mat(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j) = vec(0);
+            }
+         }
+         if (matvals(0) != matvals(1))
+         {
+            intf.Append(f);
+         }
+      }
+   }
 }
 
 int GetRank(const Array<int> & offsets, int n)
@@ -1084,163 +1234,171 @@ int GetRank(const Array<int> & offsets, int n)
 // rule = 0 min of all children
 void MakeMaterialsConsistent(ParMesh *pmesh, ParGridFunction &mat, int rule = 0)
 {
-    mat.ExchangeFaceNbrData();
-    const int NElem = pmesh->GetNE();
-    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
-                                     "constant function over the mesh.");
-    const int num_procs = pmesh->GetNRanks();
-    const int myid = pmesh->GetMyRank();
-    Array<int> &fn_global_num = mat.ParFESpace()->face_nbr_glob_dof_map;
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   const int num_procs = pmesh->GetNRanks();
+   const int myid = pmesh->GetMyRank();
+   Array<int> &fn_global_num = mat.ParFESpace()->face_nbr_glob_dof_map;
 
-    ParNCMesh *pncmesh = pmesh->pncmesh;
-    if (!pncmesh) { return; }
+   ParNCMesh *pncmesh = pmesh->pncmesh;
+   if (!pncmesh) { return; }
 
-    // This can help get rank from global element number
-    Array<int> offsets(num_procs);
-    int offset = mat.ParFESpace()->GetMyDofOffset();
-    MPI_Allgather(&offset, 1, MPI_INT, offsets.GetData(),
-                  1, MPI_INT, MPI_COMM_WORLD);
-    Array<int> vdofs;
-    Vector vec;
-//    const int print_rank = 0;
+   // This can help get rank from global element number
+   Array<int> offsets(num_procs);
+   int offset = mat.ParFESpace()->GetMyDofOffset();
+   MPI_Allgather(&offset, 1, MPI_INT, offsets.GetData(),
+                 1, MPI_INT, MPI_COMM_WORLD);
+   Array<int> vdofs;
+   Vector vec;
+   //    const int print_rank = 0;
 
-    Array<int> send_count(num_procs);
-    Array<Array<int> * > sendbufs(num_procs);
-    for (int i = 0; i<num_procs; i++)
-    {
-       sendbufs[i]= new Array<int>();
-    }
-    send_count = 0;
+   Array<int> send_count(num_procs);
+   Array<Array<int> * > sendbufs(num_procs);
+   for (int i = 0; i<num_procs; i++)
+   {
+      sendbufs[i]= new Array<int>();
+   }
+   send_count = 0;
 
-//    pmesh->ComputeGlobalElementOffset();
-    pmesh->GetGlobalElementNum(0);
+   //    pmesh->ComputeGlobalElementOffset();
+   pmesh->GetGlobalElementNum(0);
 
-    for (int f = 0; f < pmesh->GetNumFaces(); f++ )
-    {
-        Array<int> nbrs;
-        pmesh->GetFaceAdjacentElements(f,nbrs);
-        int elem1no, elem2no, elem1inf, elem2inf, ncface;
-        pmesh->GetFaceElements(f, &elem1no, &elem2no);
-        pmesh->GetFaceInfos(f, &elem1inf, &elem2inf, &ncface);
-        Array<double> mats;
-        Array<double> globnums;
-        Array<int> ranks;
-        if (ncface >= 0 & elem2inf < 0)
-        { //non-conforming master face
-             for (int j = 0; j < nbrs.Size(); j++)
-             {
-                 if (nbrs[j] < pmesh->GetNE())
-                 {
-                     mats.Append(mat(nbrs[j]));
-                     globnums.Append(pmesh->GetGlobalElementNum(nbrs[j]));
-                     ranks.Append(myid);
-                 }
-                 else
-                 {
-                     const int Elem2NbrNo = nbrs[j] - NElem;
-                     mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
-                     mat.FaceNbrData().GetSubVector(vdofs, vec);
-                     mats.Append(vec(0));
-                     globnums.Append(fn_global_num[Elem2NbrNo]);
-                     ranks.Append(GetRank(offsets, fn_global_num[Elem2NbrNo]));
-                 }
-             }
-             double minv = mats.Min();
-             double maxv = mats.Max();
-//             mats = minv;
-             if (minv != maxv)
-             {
-                 double val_to_impose = 1-mats[0];
-                 for (int j = 1; j < mats.Size(); j++)
-                 {
-                     if (mats[j] != val_to_impose)
-                     {
-                         if (ranks[j] == myid)
-                         {
-                             mat(nbrs[j]) = val_to_impose;
-                         }
-                         else
-                         {
-                             send_count[ranks[j]] += 2;
-                             sendbufs[ranks[j]]->Append(globnums[j]);
-                             sendbufs[ranks[j]]->Append((int)val_to_impose);
-                         }
-                     }
-                 }
-             }
-        }
-    }
-    Array<int> recv_count(num_procs);
-    recv_count = 0;
-    MPI_Alltoall(&send_count[0], 1, MPI_INT, &recv_count[0], 1,
-                 MPI_INT, MPI_COMM_WORLD);
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      int elem1no, elem2no, elem1inf, elem2inf, ncface;
+      pmesh->GetFaceElements(f, &elem1no, &elem2no);
+      pmesh->GetFaceInfos(f, &elem1inf, &elem2inf, &ncface);
+      Array<double> mats;
+      Array<double> globnums;
+      Array<int> ranks;
+      if (ncface >= 0 & elem2inf < 0)
+      {
+         //non-conforming master face
+         for (int j = 0; j < nbrs.Size(); j++)
+         {
+            if (nbrs[j] < pmesh->GetNE())
+            {
+               mats.Append(mat(nbrs[j]));
+               globnums.Append(pmesh->GetGlobalElementNum(nbrs[j]));
+               ranks.Append(myid);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               mats.Append(vec(0));
+               globnums.Append(fn_global_num[Elem2NbrNo]);
+               ranks.Append(GetRank(offsets, fn_global_num[Elem2NbrNo]));
+            }
+         }
+         double minv = mats.Min();
+         double maxv = mats.Max();
+         //             mats = minv;
+         if (minv != maxv)
+         {
+            double val_to_impose = 1-mats[0];
+            for (int j = 1; j < mats.Size(); j++)
+            {
+               if (mats[j] != val_to_impose)
+               {
+                  if (ranks[j] == myid)
+                  {
+                     mat(nbrs[j]) = val_to_impose;
+                  }
+                  else
+                  {
+                     send_count[ranks[j]] += 2;
+                     sendbufs[ranks[j]]->Append(globnums[j]);
+                     sendbufs[ranks[j]]->Append((int)val_to_impose);
+                  }
+               }
+            }
+         }
+      }
+   }
+   Array<int> recv_count(num_procs);
+   recv_count = 0;
+   MPI_Alltoall(&send_count[0], 1, MPI_INT, &recv_count[0], 1,
+                MPI_INT, MPI_COMM_WORLD);
 
-    Array<Array<int> * > recvbufs(num_procs);
-    for (int i = 0; i<num_procs; i++)
-    {
-       recvbufs[i] = new Array<int>();
-       recvbufs[i]->SetSize(recv_count[i]);
-    }
+   Array<Array<int> * > recvbufs(num_procs);
+   for (int i = 0; i<num_procs; i++)
+   {
+      recvbufs[i] = new Array<int>();
+      recvbufs[i]->SetSize(recv_count[i]);
+   }
 
-    int send_recv_proc_count = 0;
-    for (int i = 0; i < num_procs; i++)
-    {
-        send_recv_proc_count += send_count[i] > 0;
-    }
-    for (int i = 0; i < num_procs; i++)
-    {
-        send_recv_proc_count += recv_count[i] > 0;
-    }
+   int send_recv_proc_count = 0;
+   for (int i = 0; i < num_procs; i++)
+   {
+      send_recv_proc_count += send_count[i] > 0;
+   }
+   for (int i = 0; i < num_procs; i++)
+   {
+      send_recv_proc_count += recv_count[i] > 0;
+   }
 
-    MPI_Status *statuses = NULL;
-    MPI_Request *requests = NULL;
-    if (send_recv_proc_count > 0) {
-        statuses = new MPI_Status[send_recv_proc_count];
-        requests = new MPI_Request[send_recv_proc_count];
-    }
+   MPI_Status *statuses = NULL;
+   MPI_Request *requests = NULL;
+   if (send_recv_proc_count > 0)
+   {
+      statuses = new MPI_Status[send_recv_proc_count];
+      requests = new MPI_Request[send_recv_proc_count];
+   }
 
-    // Post receives
-    int send_recv_index = 0;
-    int tag = 123421231;
-    for (int i = 0; i < num_procs; i++) {
-        if (recv_count[i] > 0) {
-            MPI_Irecv(recvbufs[i]->GetData(), recv_count[i], MPI_INT, i,
-                      tag, MPI_COMM_WORLD, &requests[send_recv_index++]);
-        }
-    }
+   // Post receives
+   int send_recv_index = 0;
+   int tag = 123421231;
+   for (int i = 0; i < num_procs; i++)
+   {
+      if (recv_count[i] > 0)
+      {
+         MPI_Irecv(recvbufs[i]->GetData(), recv_count[i], MPI_INT, i,
+                   tag, MPI_COMM_WORLD, &requests[send_recv_index++]);
+      }
+   }
 
-    for (int i = 0; i < num_procs; i++) {
-        if (send_count[i] > 0) {
-            MPI_Isend(sendbufs[i]->GetData(), send_count[i], MPI_INT, i, tag,
-                      MPI_COMM_WORLD, &requests[send_recv_index++]);
-        }
-    }
+   for (int i = 0; i < num_procs; i++)
+   {
+      if (send_count[i] > 0)
+      {
+         MPI_Isend(sendbufs[i]->GetData(), send_count[i], MPI_INT, i, tag,
+                   MPI_COMM_WORLD, &requests[send_recv_index++]);
+      }
+   }
 
-    if (send_recv_index > 0) {
-        MPI_Waitall(send_recv_index, requests, statuses);
-    }
+   if (send_recv_index > 0)
+   {
+      MPI_Waitall(send_recv_index, requests, statuses);
+   }
 
-    for (int i = 0; i<num_procs; i++)
-    {
-        const int cnt = recvbufs[i]->Size()/2;
-        for (int j = 0; j < cnt; j++) {
-            const int elem = (*(recvbufs[i]))[j*2];
-            const int matv = (*(recvbufs[i]))[j*2+1];
-            const int lelem = pmesh->GetLocalElementNum(elem);
-            mat(lelem) = matv*1.0;
-        }
-    }
+   for (int i = 0; i<num_procs; i++)
+   {
+      const int cnt = recvbufs[i]->Size()/2;
+      for (int j = 0; j < cnt; j++)
+      {
+         const int elem = (*(recvbufs[i]))[j*2];
+         const int matv = (*(recvbufs[i]))[j*2+1];
+         const int lelem = pmesh->GetLocalElementNum(elem);
+         mat(lelem) = matv*1.0;
+      }
+   }
 
-    for (int i=0; i<num_procs; i++)
-    {
-       delete recvbufs[i];
-       delete sendbufs[i];
-    }
+   for (int i=0; i<num_procs; i++)
+   {
+      delete recvbufs[i];
+      delete sendbufs[i];
+   }
 
-    delete [] statuses;
-    delete [] requests;
+   delete [] statuses;
+   delete [] requests;
 
-    mat.ExchangeFaceNbrData();
+   mat.ExchangeFaceNbrData();
 }
 
 class HRefUpdater

@@ -581,6 +581,22 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// 3D linear metric
+class TMOP_Metric_300 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = ||T||^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+};
+
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
@@ -1663,9 +1679,9 @@ protected:
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
-//#ifdef MFEM_USE_MPI
-//   ParGridFunction *surf_fit_grad, *surf_fit_hess;
-//#endif
+   //#ifdef MFEM_USE_MPI
+   //   ParGridFunction *surf_fit_grad, *surf_fit_hess;
+   //#endif
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
@@ -2097,7 +2113,7 @@ public:
 
    void SetDeactivationList(Array<int> &deactivation_list_)
    {
-       deactivate_list = deactivation_list_;
+      deactivate_list = deactivation_list_;
    }
 };
 

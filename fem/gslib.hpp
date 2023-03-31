@@ -23,6 +23,7 @@ struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
 struct crystal;
+struct gs_data;
 }
 
 namespace mfem
@@ -301,6 +302,27 @@ public:
    virtual const Array<unsigned int> &GetProc() const { return recv_gsl_proc; }
    virtual const Vector &GetReferencePosition() const { return recv_gsl_mfem_ref;  }
    virtual const Vector &GetDoubles() const { return recvinfoDoubles;  }
+
+   virtual void FreeData();
+};
+
+class GSLIBGroupCommunicator
+{
+protected:
+   struct gslib::crystal *cr;             // gslib's internal data
+   struct gslib::comm *gsl_comm;          // gslib's internal data
+   struct gslib::gs_data *gsl_data;
+   int num_ids;
+
+public:
+   GSLIBGroupCommunicator(MPI_Comm comm_);
+
+   virtual ~GSLIBGroupCommunicator();
+
+   //Same ids get grouped together. id == 0 does not participate.
+   virtual void Setup(Array<long long> &ids);
+
+   virtual void GOP(Vector &senddata, int op);
 
    virtual void FreeData();
 };

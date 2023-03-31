@@ -409,10 +409,10 @@ int material_id(int el_id, const GridFunction &g)
    const FiniteElementSpace *fes = g.FESpace();
    const FiniteElement *fe = fes->GetFE(el_id);
    Vector g_vals;
-//   const IntegrationRule &ir =
-//      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
-//   const IntegrationRule &ir =
-//      IntRulesLo.Get(fe->GetGeomType(), 2);
+   //   const IntegrationRule &ir =
+   //      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+   //   const IntegrationRule &ir =
+   //      IntRulesLo.Get(fe->GetGeomType(), 2);
    const IntegrationRule *ir =
       Geometries.GetVertices(fe->GetGeomType());
 
@@ -433,10 +433,11 @@ int material_id(int el_id, const GridFunction &g)
    else if (approach == 1)   // minimum value based
    {
       double minval = g_vals.Min();
-      double maxval = g_vals.Min();
+      double maxval = g_vals.Max();
+      return maxval <= 0.0 ? 0.0 : 1.0;
       return (minval >= 0.0 || (minval <= 0.0 && maxval >= 0.0)) ? 1.0 : 0.0;
-//      return (maxval <= 0.0 || (minval <= 0.0 && maxval >= 0.0)) ? 0.0 : 1.0;
-//      return minval > 0.0 ? 0.0 : 1.0;
+      //      return (maxval <= 0.0 || (minval <= 0.0 && maxval >= 0.0)) ? 0.0 : 1.0;
+      //      return minval > 0.0 ? 0.0 : 1.0;
    }
    return 0.0;
 }

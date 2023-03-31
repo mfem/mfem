@@ -212,8 +212,9 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
 
-   virtual void SetEssentialElementMarker(Array<int> &ess_elem_marker_) {
-       ess_elem_marker = ess_elem_marker_;
+   virtual void SetEssentialElementMarker(Array<int> &ess_elem_marker_)
+   {
+      ess_elem_marker = ess_elem_marker_;
    }
 
    /** @brief Destroy the NonlinearForm including the owned

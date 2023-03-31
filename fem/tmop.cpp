@@ -694,6 +694,33 @@ void TMOP_Metric_252::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(weight*(c - 0.5*c*c), A.GetData());
 }
 
+
+double TMOP_Metric_300::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_300 = I1
+   ie.SetJacobian(Jpt.GetData());
+   return ie.Get_I1();
+}
+
+void TMOP_Metric_300::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   //  W = dI1
+   ie.SetJacobian(Jpt.GetData());
+   P.Set(1.0, ie.Get_dI1());
+}
+
+void TMOP_Metric_300::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   // ddI1
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight, A.GetData());
+}
+
+
 double TMOP_Metric_301::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    // mu_301 = 1/3 |J| |J^-1| - 1.
@@ -2793,9 +2820,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 
 void TMOP_Integrator::DisableSurfaceFitting()
 {
-    delete surf_fit_gf;
-    surf_fit_gf = NULL;
-    surf_fit_gf_bg = false;
+   delete surf_fit_gf;
+   surf_fit_gf = NULL;
+   surf_fit_gf_bg = false;
 }
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
@@ -2888,7 +2915,7 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
          loc_sum += std::abs((*surf_fit_gf)(i));
       }
    }
-   err_avg = loc_sum / loc_cnt;
+   err_avg = loc_cnt == 0 ? 0.0 : loc_sum / loc_cnt;
    err_max = loc_max;
 
 #ifdef MFEM_USE_MPI
@@ -2898,7 +2925,7 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
    MPI_Allreduce(&loc_max, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
    MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, comm);
    MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, comm);
-   err_avg = err_avg / glob_cnt;
+   err_avg = glob_cnt == 0 ? 0.0 : err_avg / glob_cnt;
 #endif
 }
 
@@ -2932,8 +2959,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun)
 {
-   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1) {
-       return 0.0;
+   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1)
+   {
+      return 0.0;
    }
    const int dof = el.GetDof(), dim = el.GetDim();
    const int el_id = T.ElementNo;
@@ -3212,10 +3240,11 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)
 {
-   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1) {
-       elvect.SetSize(el.GetDof()*el.GetDim());
-       elvect = 0.0;
-       return;
+   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1)
+   {
+      elvect.SetSize(el.GetDof()*el.GetDim());
+      elvect = 0.0;
+      return;
    }
    if (!fdflag)
    {
@@ -3234,11 +3263,12 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
-    if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1) {
-        elmat.SetSize(el.GetDof()*el.GetDim());
-        elmat = 0.0;
-        return;
-    }
+   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1)
+   {
+      elmat.SetSize(el.GetDof()*el.GetDim());
+      elmat = 0.0;
+      return;
+   }
    if (!fdflag)
    {
       AssembleElementGradExact(el, T, elfun, elmat);
@@ -3757,7 +3787,6 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                      /* */ shape_x(idof) * shape_x(jdof));
             const int dofcount = std::min(surf_fit_dof_count[cdofs[idof]],
                                           surf_fit_dof_count[cdofs[jdof]]);
-//            const int dofcount = 1.0;
             entry *= 1.0/dofcount;
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
@@ -4128,18 +4157,8 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
-//       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
-//       if (surf_fit_gf_bg)
-//       {
-//          surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x, *surf_fit_grad, new_x_ordering);
-//          surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x, *surf_fit_hess, new_x_ordering);
-////          surf_fit_grad->ExchangeFaceNbrData();
-////          surf_fit_hess->ExchangeFaceNbrData();
-//       }
       if (surf_fit_gf_bg)
       {
-//          surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
-
          // Interpolate information for only DOFs marked for fitting.
          const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
          const int cnt = surf_fit_marker_dof_index.Size();
@@ -4201,8 +4220,8 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
                int dof_index = surf_fit_marker_dof_index[i];
                for (int d = 0; d < grad_dim; d++)
                {
-                  (*surf_fit_grad)[dof_index*dim + d] =
-                     surf_fit_grad_int(i*dim + d);
+                  (*surf_fit_grad)[dof_index*grad_dim + d] =
+                     surf_fit_grad_int(i*grad_dim + d);
                }
             }
          }
@@ -4231,8 +4250,8 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
                int dof_index = surf_fit_marker_dof_index[i];
                for (int d = 0; d < hess_dim; d++)
                {
-                  (*surf_fit_hess)[dof_index*dim + d] =
-                     surf_fit_hess_int(i*dim + d);
+                  (*surf_fit_hess)[dof_index*hess_dim + d] =
+                     surf_fit_hess_int(i*hess_dim + d);
                }
             }
          }

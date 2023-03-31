@@ -1429,6 +1429,61 @@ GSLIBCommunicator::~GSLIBCommunicator()
 }
 
 
+GSLIBGroupCommunicator::GSLIBGroupCommunicator(MPI_Comm comm_)
+   : cr(NULL), gsl_comm(NULL)
+{
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
+   crystal_init(cr, gsl_comm);
+}
+
+void GSLIBGroupCommunicator::FreeData()
+{
+   crystal_free(cr);
+   gslib_gs_free(gsl_data);
+}
+
+GSLIBGroupCommunicator::~GSLIBGroupCommunicator()
+{
+   delete gsl_comm;
+   delete cr;
+}
+
+void GSLIBGroupCommunicator::Setup(Array<long long> &ids)
+{
+   num_ids = ids.Size();
+   gsl_data = gslib_gs_setup(ids.GetData(),
+                             ids.Size(),
+                             gsl_comm, 0,
+                             gslib::gs_crystal_router, 1);
+}
+
+void GSLIBGroupCommunicator::GOP(Vector &senddata, int op)
+{
+   MFEM_VERIFY(senddata.Size() == num_ids,"Incompatible setup and GOP operation.");
+   if (op == 0)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_add, 0, gsl_data, 0);
+   }
+   else if (op == 1)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_mul, 0, gsl_data, 0);
+   }
+   else if (op == 2)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_max, 0, gsl_data, 0);
+   }
+   else if (op == 3)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_min, 0, gsl_data, 0);
+   }
+   else
+   {
+      MFEM_ABORT("Invalid GS_OP operation.");
+   }
+}
+
 
 #endif
 

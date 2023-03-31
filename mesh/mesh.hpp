@@ -65,6 +65,7 @@ class Mesh
 protected:
    int Dim;
    int spaceDim;
+   std::map<std::tuple<int, int, int, int>, int> hex_face_to_center;
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
@@ -529,6 +530,13 @@ protected:
    void Make3D(int nx, int ny, int nz, Element::Type type,
                double sx, double sy, double sz, bool sfc_ordering);
 
+   void MakeTetMeshFromHex(int nx, int ny, int nz,
+                           double sx, double sy, double sz,
+                           int type);
+
+   void MakeTriMeshFromQuad(int nx, int ny,
+                            double sx, double sy);
+
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
@@ -612,6 +620,13 @@ public:
       int nx, int ny, int nz, Element::Type type,
       double sx = 1.0, double sy = 1.0, double sz = 1.0,
       bool sfc_ordering = true);
+
+   static Mesh MakeHexTo24or12TetMesh(
+      int nx, int ny, int nz,
+      double sx = 1.0, double sy = 1.0, double sz = 1.0, int type = 1);
+
+   static Mesh MakeQuadTo4TriMesh(int nx = 1, int ny = 1, double sx = 1.0,
+                                  double sy = 1.0);
 
    /// Create a refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -710,6 +725,7 @@ public:
 
    Element *NewElement(int geom);
 
+   int AddVertexAtMidPoint(Array<int> list, int dim = 3);
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
    int AddVertex(const Vector &coords);
@@ -741,6 +757,9 @@ public:
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
    void AddHexAsPyramids(const int *vi, int attr = 1);
+   void AddHexAs24TetsWithPoints(int *vi, int attr = 1);
+   void AddHexAs12TetsWithPoints(int *vi, int attr = 1);
+   void AddQuadAs4TrisWithPoints(int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);

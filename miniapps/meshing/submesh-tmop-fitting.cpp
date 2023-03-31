@@ -43,7 +43,20 @@
 // make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 4 -mid 2 -tid 1 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-3 -deact 2 -no-vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 4 -slstype 3 -vl 0
 // 3D version
 // make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 3 -mid 303 -tid 1 -ni 100 -sfc 10 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 0 -vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 4 -slstype 4 -vl 2
-// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 4 -mid 303 -tid 1 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 2 -vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 4 -slstype 4 -vl
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 3 -mid 303 -tid 3 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 2 -vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 5 -slstype 4 -vl 2
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 2 -mid 303 -tid 3 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 0 -vis -trim -smtype 1 -fix-bnd -amriter 4 -slstype 4 -vl 2 -sbgmesh
+
+// Boundary fitting
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 4 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 0 -vis -trim -smtype 1 -fix-bnd -amriter 4 -slstype 4 -vl 2 -sbgmesh -htot 0 -m ../../data/inline-tet.mesh
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 4 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 0 -vis -trim -smtype 1 -fix-bnd -amriter 4 -slstype 4 -vl 2 -sbgmesh -htot 2
+
+// Interface
+// make submesh-tmop-fitting -j && time mpirun -np 2 submesh-tmop-fitting -o 1 -rs 3 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 0 -vis -smtype 0 -fix-bnd -amriter 4 -slstype 4 -vl 2 -sbgmesh -htot 2
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 2 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 2 -vis -smtype 0 -fix-bnd -amriter 4 -slstype 4 -vl 2 -sbgmesh -htot 2
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 3 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 2 -vis -smtype 0 -fix-bnd -amriter 4 -slstype 4 -vl 2 -sbgmesh -htot 2
+// smooth
+// 2D - make submesh-tmop-fitting -j && time mpirun -np 1 submesh-tmop-fitting -o 1 -rs 6 -mid 2 -tid 1 -ni 100 -sfc 10 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -vis -fix-bnd -sbgmesh -amriter 4 -slstype 7 -vl 2 -htot -2 -deact 4
+// 3D - make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 2 -mid 303 -tid 4 -ni 100 -sfc 1000 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 2 -vis -smtype 0 -fix-bnd -amriter 4 -slstype 7 -vl 2 -sbgmesh -htot 2
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -55,107 +68,129 @@ using namespace std;
 
 void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
 {
-    mfem::L2_FECollection l2fec(0, pmesh.Dimension());
-    mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
-    mfem::ParGridFunction el_to_refine(&l2fespace);
-    const int quad_order = 4;
+   mfem::L2_FECollection l2fec(0, pmesh.Dimension());
+   mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
+   mfem::ParGridFunction el_to_refine(&l2fespace);
+   const int quad_order = 4;
 
-    el_to_refine = 0.0;
+   el_to_refine = 0.0;
 
-    for (int i = 0; i < intel.Size(); i++) {
-        el_to_refine(intel[i]) = 1.0;
-    }
+   for (int i = 0; i < intel.Size(); i++)
+   {
+      el_to_refine(intel[i]) = 1.0;
+   }
 
-    mfem::H1_FECollection lhfec(1, pmesh.Dimension());
-    mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
-    mfem::ParGridFunction lhx(&lhfespace);
+   mfem::H1_FECollection lhfec(1, pmesh.Dimension());
+   mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
+   mfem::ParGridFunction lhx(&lhfespace);
 
-    el_to_refine.ExchangeFaceNbrData();
-    GridFunctionCoefficient field_in_dg(&el_to_refine);
-    lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+   el_to_refine.ExchangeFaceNbrData();
+   GridFunctionCoefficient field_in_dg(&el_to_refine);
+   lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
 
-    IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
-    for (int e = 0; e < pmesh.GetNE(); e++)
-    {
-       Array<int> dofs;
-       Vector x_vals;
-       lhfespace.GetElementDofs(e, dofs);
-       const IntegrationRule &ir =
-          irRules.Get(pmesh.GetElementGeometry(e), quad_order);
-       lhx.GetValues(e, ir, x_vals);
-       double max_val = x_vals.Max();
-       if (max_val > 0)
-       {
-          intel.Append(e);
-       }
-    }
+   IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      Array<int> dofs;
+      Vector x_vals;
+      lhfespace.GetElementDofs(e, dofs);
+      const IntegrationRule &ir =
+         irRules.Get(pmesh.GetElementGeometry(e), quad_order);
+      lhx.GetValues(e, ir, x_vals);
+      double max_val = x_vals.Max();
+      if (max_val > 0)
+      {
+         intel.Append(e);
+      }
+   }
 
-    intel.Sort();
-    intel.Unique();
+   intel.Sort();
+   intel.Unique();
 }
 
-void GetBoundaryElements(ParMesh *pmesh, ParGridFunction &mat, Array<int> &intel, int attr_to_match)
+void GetBoundaryElements(ParMesh *pmesh, ParGridFunction &mat,
+                         Array<int> &intel, int attr_to_match)
 {
-    intel.SetSize(0);
-    mat.ExchangeFaceNbrData();
-    const int NElem = pmesh->GetNE();
-    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
-                                     "constant function over the mesh.");
-    for (int f = 0; f < pmesh->GetNBE(); f++ )
-    {
-//       Array<int> nbrs;
-       int el;
-       int info;
-//       Array<int> info;
-       pmesh->GetBdrElementAdjacentElement(f, el, info);
-//         pmesh->GetFaceAdjacentElements(f,nbrs);
-//       std::cout << nbrs[0] << " " << pmesh->GetBdrAttribute(pmesh->GetBdrFace(f)) << " k10be\n";
-       if (pmesh->GetBdrAttribute(f) == attr_to_match) {
-           intel.Append(el);
-       }
-//       if (nbrs.Size() == 1 && pmesh->GetBdrAttribute(pmesh->GetBdrFace(f)) == attr_to_match) {
-//               intel.Append(nbrs[0]);
-//       }
-    }
+   intel.SetSize(0);
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   for (int f = 0; f < pmesh->GetNBE(); f++ )
+   {
+      int el;
+      int info;
+      pmesh->GetBdrElementAdjacentElement(f, el, info);
+      if (pmesh->GetBdrAttribute(f) == attr_to_match)
+      {
+         intel.Append(el);
+      }
+   }
 }
 
-void GetMaterialInterfaceElements(ParMesh *pmesh, ParGridFunction &mat, Array<int> &intel)
+void GetMaterialInterfaceElements(ParMesh *pmesh, ParGridFunction &mat,
+                                  Array<int> &intel)
 {
-    intel.SetSize(0);
-    mat.ExchangeFaceNbrData();
-    const int NElem = pmesh->GetNE();
-    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
-                                     "constant function over the mesh.");
-    for (int f = 0; f < pmesh->GetNumFaces(); f++ )
-    {
-       Array<int> nbrs;
-       pmesh->GetFaceAdjacentElements(f,nbrs);
-       Vector matvals;
-       Array<int> vdofs;
-       Vector vec;
-       Array<int> els;
-       //if there is more than 1 element across the face.
-       if (nbrs.Size() > 1) {
-           matvals.SetSize(nbrs.Size());
-           for (int j = 0; j < nbrs.Size(); j++) {
-               if (nbrs[j] < NElem)
-               {
-                   matvals(j) = mat(nbrs[j]);
-                   els.Append(nbrs[j]);
-               }
-               else
-               {
-                   const int Elem2NbrNo = nbrs[j] - NElem;
-                   mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
-                   mat.FaceNbrData().GetSubVector(vdofs, vec);
-                   matvals(j) = vec(0);
-               }
-           }
-           if (matvals(0) != matvals(1)) {
-               intel.Append(els);
-           }
-       }
-    }
+   intel.SetSize(0);
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      Array<int> els;
+      //if there is more than 1 element across the face.
+      if (nbrs.Size() > 1)
+      {
+         matvals.SetSize(nbrs.Size());
+         for (int j = 0; j < nbrs.Size(); j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j) = mat(nbrs[j]);
+               els.Append(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j) = vec(0);
+            }
+         }
+         if (matvals(0) != matvals(1))
+         {
+            intel.Append(els);
+         }
+      }
+   }
+}
+
+void MakeMaterialConsistentForElementGroups(ParGridFunction &mat,
+                                            ParGridFunction &pgl_el_num,
+                                            int nel_per_group)
+{
+   ParFiniteElementSpace *pfespace = mat.ParFESpace();
+   ParMesh *pmesh = pfespace->GetParMesh();
+   GSLIBGroupCommunicator gslib = GSLIBGroupCommunicator(pmesh->GetComm());
+
+   pmesh->GetGlobalElementNum(0);//To compute global offset
+   Array<long long> ids(pmesh->GetNE());
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      long long gl_el_num = pgl_el_num(e);
+      long long group_num = (gl_el_num - gl_el_num % nel_per_group)/nel_per_group + 1;
+      ids[e] = (long long)group_num;
+   }
+
+   gslib.Setup(ids);
+   gslib.GOP(mat, 2);
+   gslib.FreeData();
 }
 
 int main (int argc, char *argv[])
@@ -201,6 +236,7 @@ int main (int argc, char *argv[])
    int deactivation_layers = 0;
    bool twopass            = false;
    bool trim_mesh        = false;
+   int hex_to_tet_split_type = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -330,6 +366,8 @@ int main (int argc, char *argv[])
                   "are deactivated in 1st pass with surface fitting.");
    args.AddOption(&trim_mesh, "-trim", "--trim",
                   "-no-trim","--no-trim", "trim the mesh or not.");
+   args.AddOption(&hex_to_tet_split_type, "-htot", "--hex_to_tet_split_type",
+                  "Split Hex Mesh Into Tets");
    args.Parse();
    if (!args.Good())
    {
@@ -342,14 +380,30 @@ int main (int argc, char *argv[])
    if (myid == 0) { device.Print();}
 
    // 3. Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-//   mesh->EnsureNCMesh();
-   for (int lev = 0; lev < rs_levels; lev++)
+   Mesh *mesh = NULL;
+   if (hex_to_tet_split_type > 0)
    {
-       mesh->UniformRefinement();
-//       mesh->RandomRefinement(0.5);
+      int res = std::max(1, rs_levels);
+      //SPLIT TYPE == 1 - 12 TETS, 2 = 24 TETS
+      mesh = new Mesh(Mesh::MakeHexTo24or12TetMesh(8*res,8*res,8*res,
+                                                   1.0, 1.0, 1.0,
+                                                   hex_to_tet_split_type)); //24tet
    }
-//   mesh->EnsureNCMesh();
+   else if (hex_to_tet_split_type == 0)
+   {
+      mesh = new Mesh(mesh_file, 1, 1, false);
+      for (int lev = 0; lev < rs_levels; lev++)
+      {
+         mesh->UniformRefinement();
+      }
+   }
+   else
+   {
+      int res = std::max(1, rs_levels);
+      //SPLIT TYPE == 1 - 12 TETS, 2 = 24 TETS
+      mesh = new Mesh(Mesh::MakeQuadTo4TriMesh(8*res,8*res, 1.0, 1.0));
+   }
+   //   mesh->EnsureNCMesh();
    const int dim = mesh->Dimension();
 
    // Define level-set coefficient
@@ -378,6 +432,10 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(csg_cubecylsph);
    }
+   else if (surf_ls_type == 7) // cube inside sphere
+   {
+      ls_coeff = new FunctionCoefficient(kabaria_smooth);
+   }
    else
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
@@ -387,17 +445,43 @@ int main (int argc, char *argv[])
    // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
    if (trim_mesh)
    {
-//      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 2, 1, 1);
-       Array<int> attr_to_keep(1);
-       attr_to_keep = 1;
-      Mesh *mesh_trim = TrimMeshAsSubMesh(*mesh, *ls_coeff, mesh_poly_deg, attr_to_keep);
-//      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 1, 1, 3);
+      //      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 2, 1, 1);
+      Array<int> attr_to_keep(1);
+      attr_to_keep = 1;
+      Mesh *mesh_trim = TrimMeshAsSubMesh(*mesh, *ls_coeff, mesh_poly_deg,
+                                          attr_to_keep, hex_to_tet_split_type);
+      //      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 1, 1, 3);
+      if (myid == 0)
+      {
+         std::cout << " Original mesh size: " << mesh->GetNE() << " " << std::endl <<
+                   " Trimmer mesh size: " << mesh_trim->GetNE() << " " <<
+                   std::endl;
+      }
       delete mesh;
       mesh = new Mesh(*mesh_trim);
       delete mesh_trim;
+      {
+         ostringstream mesh_name;
+         mesh_name << "TrimmedInitialMesh.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         mesh->Print(mesh_ofs);
+      }
+      MFEM_VERIFY(marking_type > 0, "Trimmed mesh + marking type = 0 (i.e. interface)"
+                  " does not make sense\n");
    }
 
+   L2_FECollection gl_el_coll(0, dim);
+   FiniteElementSpace gl_el_fes(mesh, &gl_el_coll);
+   GridFunction gl_el_num(&gl_el_fes);
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      gl_el_num(e) = e;
+   }
+   int *partitioning = mesh->GeneratePartitioning(Mpi::WorldSize());
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParGridFunction pgl_el_num(pmesh, &gl_el_num, partitioning);
+
    delete mesh;
 
    for (int lev = 0; lev < rp_levels; lev++)
@@ -468,70 +552,86 @@ int main (int argc, char *argv[])
    ParGridFunction *psub_x = NULL;
    if (surface_fit_const > 0.0)
    {
-       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
-       if (comp_dist && !surf_bg_mesh)
-       {
-          ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, surf_fit_gf0);
-       }
+      surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+      if (comp_dist && !surf_bg_mesh)
+      {
+         ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, surf_fit_gf0);
+      }
 
-       // Set material gridfunction
-       for (int i = 0; i < pmesh->GetNE(); i++)
-       {
-          if (material || trim_mesh)
-          {
-             mat(i) = pmesh->GetAttribute(i)-1;
-          }
-          else
-          {
-             mat(i) = material_id(i, surf_fit_gf0);
-             pmesh->SetAttribute(i, mat(i) + 1);
-          }
-       }
-       mat.ExchangeFaceNbrData();
+      // Set material gridfunction
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         if (material || trim_mesh)
+         {
+            mat(i) = pmesh->GetAttribute(i)-1;
+         }
+         else
+         {
+            mat(i) = material_id(i, surf_fit_gf0);
+            pmesh->SetAttribute(i, mat(i) + 1);
+         }
+      }
+      // TODO: Make materials consistent using gslib communicator
+      {
+         ostringstream mesh_name;
+         mesh_name << "perturbed.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->PrintAsSerial(mesh_ofs);
+      }
+      if (hex_to_tet_split_type > 0)
+      {
+         MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
+                                                12*hex_to_tet_split_type);
+      }
 
-       // Adapt attributes for marking such that if all but 1 face of an element
-       // are marked, the element attribute is switched.
-       if (adapt_marking && !material && !trim_mesh)
-       {
-          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
-          ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
-       }
+      mat.ExchangeFaceNbrData();
 
-       // Set DOFs for fitting
-       // Strategy 1: Automatically choose face between elements of different attribute.
-       if (marking_type == 0)
-       {
-          //need to check material consistency for AMR meshes
-          int matcheck = CheckMaterialConsistency(pmesh, mat);
-          MFEM_VERIFY(matcheck, "Not all children at the interface have same material.");
-       }
+      // Adapt attributes for marking such that if all but 1 face of an element
+      // are marked, the element attribute is switched.
+      if (adapt_marking && !material && !trim_mesh)
+      {
+         ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+         ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
+      }
 
-       // Refine elements near fitting boundary
-      if (int_amr_iters) {
-          Array<int> refinements;
-          for (int i = 0; i < 3; i++) {
-              if (marking_type > 0)
-              {
-                  GetBoundaryElements(pmesh, mat, refinements, marking_type);
-              }
-              else
-              {
-                  GetMaterialInterfaceElements(pmesh, mat, refinements);
-              }
-//              GetMaterialInterfaceElements(pmesh, mat, refinements);
-              refinements.Sort();
-              refinements.Unique();
-              {
-                  ExtendRefinementListToNeighbors(*pmesh, refinements);
-              }
-              pmesh->GeneralRefinement(refinements, -1);
-              HRUpdater.Update();
-          }
-          if (!pmesh->Conforming())
-          {
-              pmesh->Rebalance();
-              HRUpdater.Update();
-          }
+      // Set DOFs for fitting
+      // Strategy 1: Automatically choose face between elements of different attribute.
+      if (marking_type == 0)
+      {
+         //need to check material consistency for AMR meshes
+         int matcheck = CheckMaterialConsistency(pmesh, mat);
+         MFEM_VERIFY(matcheck, "Not all children at the interface have same material.");
+      }
+
+      // Refine elements near fitting boundary
+      if (int_amr_iters)
+      {
+         Array<int> refinements;
+         for (int i = 0; i < 3; i++)
+         {
+            if (marking_type > 0)
+            {
+               GetBoundaryElements(pmesh, mat, refinements, marking_type);
+            }
+            else
+            {
+               GetMaterialInterfaceElements(pmesh, mat, refinements);
+            }
+            //              GetMaterialInterfaceElements(pmesh, mat, refinements);
+            refinements.Sort();
+            refinements.Unique();
+            {
+               ExtendRefinementListToNeighbors(*pmesh, refinements);
+            }
+            pmesh->GeneralRefinement(refinements, -1);
+            HRUpdater.Update();
+         }
+         if (!pmesh->Conforming())
+         {
+            pmesh->Rebalance();
+            HRUpdater.Update();
+         }
       }
    }
 
@@ -540,81 +640,100 @@ int main (int argc, char *argv[])
    int max_el_attr = pmesh->attributes.Max();
    int max_bdr_el_attr = pmesh->bdr_attributes.Max();
    Array<int> deactivate_list(0);
-   if (deactivation_layers > 0) {
-       Array<int> active_list;
-       // Deactivate  elements away from interface/boundary to fit
-       if (marking_type > 0)
-       {
-           GetBoundaryElements(pmesh, mat, active_list, marking_type);
-       }
-       else
-       {
-           GetMaterialInterfaceElements(pmesh, mat, active_list);
-       }
+   if (deactivation_layers > 0)
+   {
+      Array<int> active_list;
+      // Deactivate  elements away from interface/boundary to fit
+      if (marking_type > 0)
+      {
+         GetBoundaryElements(pmesh, mat, active_list, marking_type);
+      }
+      else
+      {
+         GetMaterialInterfaceElements(pmesh, mat, active_list);
+      }
 
-       for (int i = 0; i < deactivation_layers; i++) {
-           ExtendRefinementListToNeighbors(*pmesh, active_list);
-       }
-       active_list.Sort();
-       active_list.Unique();
-       int num_active_loc = active_list.Size();
-       num_active_glob = num_active_loc;
-       MPI_Allreduce(&num_active_loc, &num_active_glob, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
-       neglob = pmesh->GetGlobalNE() ;
-       if (myid == 0) {
-           std::cout << neglob << " " <<
-                        num_active_glob << " length of active list\n";
-       }
+      for (int i = 0; i < deactivation_layers; i++)
+      {
+         ExtendRefinementListToNeighbors(*pmesh, active_list);
+      }
+      active_list.Sort();
+      active_list.Unique();
+      int num_active_loc = active_list.Size();
+      num_active_glob = num_active_loc;
+      MPI_Allreduce(&num_active_loc, &num_active_glob, 1, MPI_INT, MPI_SUM,
+                    pmesh->GetComm());
+      neglob = pmesh->GetGlobalNE() ;
+      if (myid == 0)
+      {
+         std::cout << neglob << " " <<
+                   num_active_glob << " length of active list\n";
+      }
 
-       deactivate_list.SetSize(pmesh->GetNE());
-       if (neglob == num_active_glob) {
-           deactivate_list = 0;
-       }
-       else {
-           deactivate_list = 1;
-           for (int i = 0; i < active_list.Size(); i++) {
-               deactivate_list[active_list[i]] = 0;
-           }
-           orig_pmesh_attributes.SetSize(pmesh->GetNE());
-           for (int i = 0; i < pmesh->GetNE(); i++) {
-               orig_pmesh_attributes[i] = pmesh->GetAttribute(i);
-               if (deactivate_list[i]) {
-                   pmesh->SetAttribute(i, max_el_attr+1);
-               }
-           }
-       }
+      deactivate_list.SetSize(pmesh->GetNE());
+      if (neglob == num_active_glob)
+      {
+         deactivate_list = 0;
+      }
+      else
+      {
+         deactivate_list = 1;
+         for (int i = 0; i < active_list.Size(); i++)
+         {
+            deactivate_list[active_list[i]] = 0;
+         }
+         orig_pmesh_attributes.SetSize(pmesh->GetNE());
+         for (int i = 0; i < pmesh->GetNE(); i++)
+         {
+            orig_pmesh_attributes[i] = pmesh->GetAttribute(i);
+            if (deactivate_list[i])
+            {
+               pmesh->SetAttribute(i, max_el_attr+1);
+            }
+         }
+      }
 
-       Array<int> domain_attributes(max_el_attr);
-       if (marking_type == 0) { //interface fitting
-           // In this case, we will keep attributes 1 and 2 around the interface
-           domain_attributes[0] = 1;
-           domain_attributes[1] = 2;
-       }
-       else {
-           //for boundary fitting, there should be only 1 element attribute
-           // in the mesh.
-           domain_attributes[0] = 1;
-       }
+      Array<int> domain_attributes(max_el_attr);
+      if (marking_type == 0)   //interface fitting
+      {
+         // In this case, we will keep attributes 1 and 2 around the interface
+         domain_attributes[0] = 1;
+         domain_attributes[1] = 2;
+      }
+      else
+      {
+         //for boundary fitting, there should be only 1 element attribute
+         // in the mesh.
+         domain_attributes[0] = 1;
+      }
 
-       psubmesh = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh,
-                                               domain_attributes));
-       psub_x = dynamic_cast<ParGridFunction *>(psubmesh->GetNodes());
-       psub_pfespace = psub_x->ParFESpace();
+      psubmesh = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh,
+                                                             domain_attributes));
+      psub_x = dynamic_cast<ParGridFunction *>(psubmesh->GetNodes());
+      psub_pfespace = psub_x->ParFESpace();
+      psubmesh->SetAttributes();
 
-       //Fix boundary attribues of submesh
-//       int set_new_bdr_attr = max_bdr_el_attr == 2 ? 4 : max_bdr_el_attr+1;
-       int set_new_bdr_attr = max_bdr_el_attr+1;
-       for (int i = 0; i < psubmesh->GetNBE(); i++) {
-           if (psubmesh->GetBdrAttribute(i) > max_bdr_el_attr) {
-               psubmesh->SetBdrAttribute(i, set_new_bdr_attr);
-           }
-       }
-       psubmesh->SetAttributes();
+      //Fix boundary attribues of submesh
+      int n_bdr_el_attr_psub = psubmesh->bdr_attributes.Size();
+      int max_bdr_el_attr_psub = psubmesh->bdr_attributes.Max();
+      int set_new_bdr_attr = max_bdr_el_attr+1;
+      //      std::cout << n_bdr_el_attr_psub << " " <<
+      //                   max_bdr_el_attr_psub << " " <<
+      //                   set_new_bdr_attr << " k10set\n";
+      for (int i = 0; i < psubmesh->GetNBE(); i++)
+      {
+         if (psubmesh->GetBdrAttribute(i) > max_bdr_el_attr)
+         {
+            psubmesh->SetBdrAttribute(i, set_new_bdr_attr);
+         }
+      }
+      psubmesh->SetAttributes();
    }
-   else {
-       psubmesh = pmesh;
-       psub_pfespace = pfespace;
-       psub_x = &x;
+   else
+   {
+      psubmesh = pmesh;
+      psub_pfespace = pfespace;
+      psub_x = &x;
    }
    psub_x->SetTrueVector();
 
@@ -624,16 +743,16 @@ int main (int argc, char *argv[])
    ParGridFunction psub_surf_fit_gf0(&psub_surf_fit_fes);
    if (deactivation_layers > 0)
    {
-        auto tmap1 = ParSubMesh::CreateTransferMap(mat, psub_mat);
-        tmap1.Transfer(mat, psub_mat);
+      auto tmap1 = ParSubMesh::CreateTransferMap(mat, psub_mat);
+      tmap1.Transfer(mat, psub_mat);
 
-       auto tmap2 = ParSubMesh::CreateTransferMap(surf_fit_gf0, psub_surf_fit_gf0);
-       tmap2.Transfer(surf_fit_gf0, psub_surf_fit_gf0);
+      auto tmap2 = ParSubMesh::CreateTransferMap(surf_fit_gf0, psub_surf_fit_gf0);
+      tmap2.Transfer(surf_fit_gf0, psub_surf_fit_gf0);
    }
    else
    {
-       psub_mat = mat;
-       psub_surf_fit_gf0 = surf_fit_gf0;
+      psub_mat = mat;
+      psub_surf_fit_gf0 = surf_fit_gf0;
    }
 
    psub_mat.ExchangeFaceNbrData();
@@ -642,10 +761,9 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed_submesh.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      psubmesh->PrintAsOne(mesh_ofs);
-//      psubmesh->PrintAsSerial(mesh_ofs);
+      //      psubmesh->PrintAsOne(mesh_ofs);
+      psubmesh->PrintAsSerial(mesh_ofs);
    }
-
 
    // Setup background mesh for surface fitting
    ParMesh *pmesh_surf_fit_bg = NULL;
@@ -659,7 +777,7 @@ int main (int argc, char *argv[])
       }
       else if (dim == 3)
       {
-         mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON,
+         mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian3D(8, 8, 8, Element::HEXAHEDRON,
                                                            true));
       }
       mesh_surf_fit_bg->EnsureNCMesh();
@@ -675,8 +793,8 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
-//      pmesh->PrintAsSerial(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
    }
 
 
@@ -695,6 +813,7 @@ int main (int argc, char *argv[])
       case 55: metric = new TMOP_Metric_055; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
+      case 300: metric = new TMOP_Metric_300; break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
@@ -786,7 +905,7 @@ int main (int argc, char *argv[])
 
    if (surf_bg_mesh)
    {
-      pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
+      pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg, false, -1, 0);
 
       Vector p_min(dim), p_max(dim);
       psubmesh->GetBoundingBox(p_min, p_max);
@@ -802,19 +921,23 @@ int main (int argc, char *argv[])
                                     x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
          }
       }
-      surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1*0, dim);
+      surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg, dim);
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
 
+      if (myid == 0) { std::cout << "Do AMR on Background mesh\n"; }
       OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
                                             *surf_fit_bg_gf0);
+      if (myid == 0) { std::cout << "Done AMR on Background mesh\n"; }
       pmesh_surf_fit_bg->Rebalance();
       surf_fit_bg_fes->Update();
       surf_fit_bg_gf0->Update();
       if (comp_dist)
       {
+         if (myid == 0) { std::cout << "Computed Distance on Background mesh\n"; }
          ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
                                            *surf_fit_bg_gf0);
+         if (myid == 0) { std::cout << "Done ComputeDistance on Background mesh\n"; }
       }
       else
       {
@@ -856,6 +979,9 @@ int main (int argc, char *argv[])
          }
       }
    }
+
+   Array<int> el_face_marked_count(pmesh->GetNE());
+   el_face_marked_count = 0;
 
    // Surface fitting.
    AdaptivityEvaluator *adapt_surface = NULL;
@@ -901,8 +1027,8 @@ int main (int argc, char *argv[])
          Array<int> dofs;
          for (int i = 0; i < intfaces.Size(); i++)
          {
-              psub_surf_fit_gf0.ParFESpace()->GetFaceDofs(intfaces[i], dofs);
-              dof_list.Append(dofs);
+            psub_surf_fit_gf0.ParFESpace()->GetFaceDofs(intfaces[i], dofs);
+            dof_list.Append(dofs);
          }
          for (int i = 0; i < dof_list.Size(); i++)
          {
@@ -913,25 +1039,25 @@ int main (int argc, char *argv[])
          // do the same for actual mesh for the second pass
          if (deactivation_layers > 0 && twopass)
          {
-             dof_list.SetSize(0);
-             Array<int> intfaces2;
-             GetMaterialInterfaceFaces(pmesh, mat, intfaces2);
+            dof_list.SetSize(0);
+            Array<int> intfaces2;
+            GetMaterialInterfaceFaces(pmesh, mat, intfaces2);
 
-             surf_fit_marker.SetSize(x.Size());
-             for (int j = 0; j < surf_fit_marker.Size(); j++)
-             {
-                surf_fit_marker[j] = false;
-             }
+            surf_fit_marker.SetSize(x.Size());
+            for (int j = 0; j < surf_fit_marker.Size(); j++)
+            {
+               surf_fit_marker[j] = false;
+            }
 
-             for (int i = 0; i < intfaces2.Size(); i++)
-             {
-                  x.ParFESpace()->GetFaceVDofs(intfaces2[i], dofs);
-                  dof_list.Append(dofs);
-             }
-             for (int i = 0; i < dof_list.Size(); i++)
-             {
-                surf_fit_marker[dof_list[i]] = true;
-             }
+            for (int i = 0; i < intfaces2.Size(); i++)
+            {
+               x.ParFESpace()->GetFaceVDofs(intfaces2[i], dofs);
+               dof_list.Append(dofs);
+            }
+            for (int i = 0; i < dof_list.Size(); i++)
+            {
+               surf_fit_marker[dof_list[i]] = true;
+            }
          }
       }
       // Strategy 2: Mark all boundaries with attribute marking_type
@@ -946,6 +1072,9 @@ int main (int argc, char *argv[])
          for (int i = 0; i < psubmesh->GetNBE(); i++)
          {
             const int attr = psubmesh->GetBdrElement(i)->GetAttribute();
+            int elno, info;
+            psubmesh->GetBdrElementAdjacentElement(i, elno, info);
+            el_face_marked_count[elno] += 1;
             if (attr == marking_type)
             {
                psub_surf_fit_fes.GetBdrElementVDofs(i, vdofs);
@@ -957,6 +1086,32 @@ int main (int argc, char *argv[])
             }
          }
       }
+
+      ParGridFunction flagm(mat);
+      flagm = 0.0;
+      int n_c_count = 0;
+      for (int i = 0; i < el_face_marked_count.Size(); i++)
+      {
+         if (el_face_marked_count[i] > 1)
+         {
+            n_c_count++;
+            flagm(i) = 1;
+         }
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &n_c_count, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+      if (myid == 0)
+      {
+         std::cout << "TOTAL ELEMENTS WITH MORE THAN 1 FACE: " << n_c_count << " k101\n";
+      }
+
+      if (visualization && n_c_count > 0)
+      {
+         socketstream vis1, vis2, vis3, vis4, vis5;
+         common::VisualizeField(vis1, "localhost", 19916, flagm, "marked els",
+                                300, 600, 300, 300);
+      }
+
+
 
       // Set AdaptivityEvaluators for transferring information from initial
       // mesh to current mesh as it moves during adaptivity.
@@ -1004,7 +1159,8 @@ int main (int argc, char *argv[])
       if (visualization)
       {
          socketstream vis1, vis2, vis3, vis4, vis5;
-         common::VisualizeField(vis1, "localhost", 19916, psub_surf_fit_gf0, "Level Set 0",
+         common::VisualizeField(vis1, "localhost", 19916, psub_surf_fit_gf0,
+                                "Level Set 0",
                                 300, 600, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, psub_mat, "Materials",
                                 600, 600, 300, 300);
@@ -1023,6 +1179,9 @@ int main (int argc, char *argv[])
          }
       }
    }
+
+
+   //   MFEM_ABORT("k10aborting1");
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -1088,13 +1247,16 @@ int main (int argc, char *argv[])
 
 
    Array<int> ess_deactivate_dofs;
-   if (deactivate_list.Size() > 0) {
-       for (int i = 0; i < pmesh->GetNE(); i++) {
-           if (deactivate_list[i]) {
-               pfespace->GetElementVDofs(i, vdofs);
-               ess_deactivate_dofs.Append(vdofs);
-           }
-       }
+   if (deactivate_list.Size() > 0)
+   {
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         if (deactivate_list[i])
+         {
+            pfespace->GetElementVDofs(i, vdofs);
+            ess_deactivate_dofs.Append(vdofs);
+         }
+      }
    }
 
    // 14. Fix all boundary nodes, or fix only a given component depending on the
@@ -1119,10 +1281,10 @@ int main (int argc, char *argv[])
       {
          const int nd = psub_pfespace->GetBE(i)->GetDof();
          const int attr = psubmesh->GetBdrElement(i)->GetAttribute();
-//         MFEM_VERIFY(!(dim == 2 && attr == 3),
-//                     "Boundary attribute 3 must be used only for 3D meshes. "
-//                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-//                     "components, rest for free nodes), or use -fix-bnd.");
+         //         MFEM_VERIFY(!(dim == 2 && attr == 3),
+         //                     "Boundary attribute 3 must be used only for 3D meshes. "
+         //                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+         //                     "components, rest for free nodes), or use -fix-bnd.");
          if (attr == 1 || attr == 2 || (attr == 3 && dim == 3)) { n += nd; }
          if (attr > dim) { n += nd * dim; }
       }
@@ -1194,6 +1356,17 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
+   if (surface_fit_const > 0.0)
+   {
+      double err_avg, err_max;
+      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      if (myid == 0)
+      {
+         std::cout << "Avg fitting error Pre-Optimization: " << err_avg << std::endl
+                   << "Max fitting error Pre-Optimization: " << err_max << std::endl;
+      }
+   }
+
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(psub_pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -1228,9 +1401,10 @@ int main (int argc, char *argv[])
    solver.Mult(b, psub_x->GetTrueVector());
    psub_x->SetFromTrueVector();
 
-   if (deactivation_layers > 0) {
-       auto tmap = ParSubMesh::CreateTransferMap(*psub_x, x);
-       tmap.Transfer(*psub_x, x);
+   if (deactivation_layers > 0)
+   {
+      auto tmap = ParSubMesh::CreateTransferMap(*psub_x, x);
+      tmap.Transfer(*psub_x, x);
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1240,8 +1414,8 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-//      pmesh->PrintAsSerial(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
@@ -1319,117 +1493,124 @@ int main (int argc, char *argv[])
       x1 = x;
    }
 
+   DataCollection *dc = NULL;
+   dc = new VisItDataCollection("Optimized", pmesh);
+   dc->RegisterField("solution", &x1);
+   dc->SetCycle(0);
+   dc->SetTime(0.0);
+   dc->Save();
+
    // Don't do second pass
-//   if (deactivate_list.Size() > 0 && twopass) {
-//       ParNonlinearForm a2(pfespace);
-//       tmop_integ->DisableSurfaceFitting();
-//       a2.AddDomainIntegrator(tmop_integ);
-//       {
-//           if (move_bnd == false)
-//           {
-//              Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-//              ess_bdr = 1;
-//              if (marking_type > 0)
-//              {
-//                 ess_bdr[marking_type-1] = 0;
-//              }
-//              a2.SetEssentialBC(ess_bdr);
-//           }
-//           else
-//           {
-//              int n = 0;
-//              for (int i = 0; i < pmesh->GetNBE(); i++)
-//              {
-//                 const int nd = pfespace->GetBE(i)->GetDof();
-//                 const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-//                 MFEM_VERIFY(!(dim == 2 && attr == 3),
-//                             "Boundary attribute 3 must be used only for 3D meshes. "
-//                             "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-//                             "components, rest for free nodes), or use -fix-bnd.");
-//                 if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-//                 if (attr == 4) { n += nd * dim; }
-//              }
-//              Array<int> ess_vdofs(n);
-//              n = 0;
-//              for (int i = 0; i < pmesh->GetNBE(); i++)
-//              {
-//                 const int nd = pfespace->GetBE(i)->GetDof();
-//                 const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-//                 pfespace->GetBdrElementVDofs(i, vdofs);
-//                 if (attr == 1) // Fix x components.
-//                 {
-//                    for (int j = 0; j < nd; j++)
-//                    { ess_vdofs[n++] = vdofs[j]; }
-//                 }
-//                 else if (attr == 2) // Fix y components.
-//                 {
-//                    for (int j = 0; j < nd; j++)
-//                    { ess_vdofs[n++] = vdofs[j+nd]; }
-//                 }
-//                 else if (attr == 3) // Fix z components.
-//                 {
-//                    for (int j = 0; j < nd; j++)
-//                    { ess_vdofs[n++] = vdofs[j+2*nd]; }
-//                 }
-//                 else if (attr == 4) // Fix all components.
-//                 {
-//                    for (int j = 0; j < vdofs.Size(); j++)
-//                    { ess_vdofs[n++] = vdofs[j]; }
-//                 }
-//              }
-////              int old_size = ess_vdofs.Size();
-//              for (int i = 0; i < surf_fit_marker.Size(); i++) {
-//                  if (surf_fit_marker[i]) {
-//                      ess_vdofs.Append(i);
-//                  }
-//              }
-//              a2.SetEssentialVDofs(ess_vdofs);
-//           }
-//       }
-//       TMOPNewtonSolver solver2(pfespace->GetComm(), ir, solver_type);
-//       solver2.SetIntegrationRules(*irules, quad_order);
-//       if (solver_type == 0)
-//       {
-//          // Specify linear solver when we use a Newton-based solver.
-//          solver2.SetPreconditioner(*S);
-//       }
-//       if (tauval < 0.0) { solver2.SetMinDetPtr(&tauval); }
-//       solver2.SetMaxIter(solver_iter);
-//       solver2.SetRelTol(1e-7);
-//       solver2.SetAbsTol(0.0);
-//       solver2.SetMinimumDeterminantThreshold(0.001*tauval);
-//       if (solver_art_type > 0)
-//       {
-//          solver2.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-//       }
-//       solver2.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-//       solver2.SetOperator(a2);
-//       Vector b2(0);
-//       x.SetTrueVector();
-//       solver2.Mult(b2, x.GetTrueVector());
-//       x.SetFromTrueVector();
-//   }
+   //   if (deactivate_list.Size() > 0 && twopass) {
+   //       ParNonlinearForm a2(pfespace);
+   //       tmop_integ->DisableSurfaceFitting();
+   //       a2.AddDomainIntegrator(tmop_integ);
+   //       {
+   //           if (move_bnd == false)
+   //           {
+   //              Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   //              ess_bdr = 1;
+   //              if (marking_type > 0)
+   //              {
+   //                 ess_bdr[marking_type-1] = 0;
+   //              }
+   //              a2.SetEssentialBC(ess_bdr);
+   //           }
+   //           else
+   //           {
+   //              int n = 0;
+   //              for (int i = 0; i < pmesh->GetNBE(); i++)
+   //              {
+   //                 const int nd = pfespace->GetBE(i)->GetDof();
+   //                 const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+   //                 MFEM_VERIFY(!(dim == 2 && attr == 3),
+   //                             "Boundary attribute 3 must be used only for 3D meshes. "
+   //                             "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+   //                             "components, rest for free nodes), or use -fix-bnd.");
+   //                 if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+   //                 if (attr == 4) { n += nd * dim; }
+   //              }
+   //              Array<int> ess_vdofs(n);
+   //              n = 0;
+   //              for (int i = 0; i < pmesh->GetNBE(); i++)
+   //              {
+   //                 const int nd = pfespace->GetBE(i)->GetDof();
+   //                 const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+   //                 pfespace->GetBdrElementVDofs(i, vdofs);
+   //                 if (attr == 1) // Fix x components.
+   //                 {
+   //                    for (int j = 0; j < nd; j++)
+   //                    { ess_vdofs[n++] = vdofs[j]; }
+   //                 }
+   //                 else if (attr == 2) // Fix y components.
+   //                 {
+   //                    for (int j = 0; j < nd; j++)
+   //                    { ess_vdofs[n++] = vdofs[j+nd]; }
+   //                 }
+   //                 else if (attr == 3) // Fix z components.
+   //                 {
+   //                    for (int j = 0; j < nd; j++)
+   //                    { ess_vdofs[n++] = vdofs[j+2*nd]; }
+   //                 }
+   //                 else if (attr == 4) // Fix all components.
+   //                 {
+   //                    for (int j = 0; j < vdofs.Size(); j++)
+   //                    { ess_vdofs[n++] = vdofs[j]; }
+   //                 }
+   //              }
+   ////              int old_size = ess_vdofs.Size();
+   //              for (int i = 0; i < surf_fit_marker.Size(); i++) {
+   //                  if (surf_fit_marker[i]) {
+   //                      ess_vdofs.Append(i);
+   //                  }
+   //              }
+   //              a2.SetEssentialVDofs(ess_vdofs);
+   //           }
+   //       }
+   //       TMOPNewtonSolver solver2(pfespace->GetComm(), ir, solver_type);
+   //       solver2.SetIntegrationRules(*irules, quad_order);
+   //       if (solver_type == 0)
+   //       {
+   //          // Specify linear solver when we use a Newton-based solver.
+   //          solver2.SetPreconditioner(*S);
+   //       }
+   //       if (tauval < 0.0) { solver2.SetMinDetPtr(&tauval); }
+   //       solver2.SetMaxIter(solver_iter);
+   //       solver2.SetRelTol(1e-7);
+   //       solver2.SetAbsTol(0.0);
+   //       solver2.SetMinimumDeterminantThreshold(0.001*tauval);
+   //       if (solver_art_type > 0)
+   //       {
+   //          solver2.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   //       }
+   //       solver2.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   //       solver2.SetOperator(a2);
+   //       Vector b2(0);
+   //       x.SetTrueVector();
+   //       solver2.Mult(b2, x.GetTrueVector());
+   //       x.SetFromTrueVector();
+   //   }
 
    // 19. Visualize the mesh displacement.
-//   if (visualization)
-//   {
-//      x1 -= x;
-//      socketstream sock;
-//      if (myid == 0)
-//      {
-//         sock.open("localhost", 19916);
-//         sock << "solution\n";
-//      }
-//      pmesh->PrintAsOne(sock);
-//      x1.SaveAsOne(sock);
-//      if (myid == 0)
-//      {
-//         sock << "window_title 'Displacements'\n"
-//              << "window_geometry "
-//              << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-//              << "keys jRmclA" << endl;
-//      }
-//   }
+   //   if (visualization)
+   //   {
+   //      x1 -= x;
+   //      socketstream sock;
+   //      if (myid == 0)
+   //      {
+   //         sock.open("localhost", 19916);
+   //         sock << "solution\n";
+   //      }
+   //      pmesh->PrintAsOne(sock);
+   //      x1.SaveAsOne(sock);
+   //      if (myid == 0)
+   //      {
+   //         sock << "window_title 'Displacements'\n"
+   //              << "window_geometry "
+   //              << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
+   //              << "keys jRmclA" << endl;
+   //      }
+   //   }
 
    // 20. Free the used memory.
    delete S;
@@ -1454,12 +1635,14 @@ int main (int argc, char *argv[])
    delete pfespace;
    delete fec;
    delete pmesh_surf_fit_bg;
-   if (psubmesh == pmesh || psubmesh->GetGlobalNE() == pmesh->GetGlobalNE()) {
-       delete pmesh;
+   if (psubmesh == pmesh || psubmesh->GetGlobalNE() == pmesh->GetGlobalNE())
+   {
+      delete pmesh;
    }
-   else {
-       delete psubmesh;
-       delete pmesh;
+   else
+   {
+      delete psubmesh;
+      delete pmesh;
    }
    delete ls_coeff;
 

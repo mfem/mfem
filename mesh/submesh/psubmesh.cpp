@@ -196,7 +196,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
       else
       {
-          parent_face_to_be = parent.GetFaceToBdrElMap();
+         parent_face_to_be = parent.GetFaceToBdrElMap();
       }
       for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
       {
@@ -218,16 +218,16 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
             }
             else
             {
-                int pbeid = parent_face_to_be[parent_edge_ids_[i]];
-                if (pbeid != -1)
-                {
-                   boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
-                }
-                else
-                {
-                   boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
-                }
-//               boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
+               int pbeid = parent_face_to_be[parent_edge_ids_[i]];
+               if (pbeid != -1)
+               {
+                  boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
+               }
+               else
+               {
+                  boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
+               }
+               //               boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
             }
             be2face[j++] = i;
          }
