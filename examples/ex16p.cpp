@@ -5,10 +5,10 @@
 // Sample runs:  mpirun -np 4 ex16p
 //               mpirun -np 4 ex16p -m ../data/inline-tri.mesh
 //               mpirun -np 4 ex16p -m ../data/disc-nurbs.mesh -tf 2
-//               mpirun -np 4 ex16p -s 1 -a 0.0 -k 1.0
-//               mpirun -np 4 ex16p -s 2 -a 1.0 -k 0.0
-//               mpirun -np 8 ex16p -s 3 -a 0.5 -k 0.5 -o 4
-//               mpirun -np 4 ex16p -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               mpirun -np 4 ex16p -s 21 -a 0.0 -k 1.0
+//               mpirun -np 4 ex16p -s 22 -a 1.0 -k 0.0
+//               mpirun -np 8 ex16p -s 23 -a 0.5 -k 0.5 -o 4
+//               mpirun -np 4 ex16p -s 4 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               mpirun -np 16 ex16p -m ../data/fichera-q2.mesh
 //               mpirun -np 16 ex16p -m ../data/fichera-mixed.mesh
 //               mpirun -np 16 ex16p -m ../data/escher-p2.mesh
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    int order = 2;
-   int ode_solver_type = 3;
+   int ode_solver_type = 23;  // SDIRK33Solver
    double t_final = 0.5;
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
