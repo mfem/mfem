@@ -13,7 +13,7 @@ using namespace mfem;
  * @param tol tolerance to force x ∈ (tol, 1 - tol)
  * @return double log(x/(1-x))
  */
-double invsigmoid(const double x, const double tol=1.e-12)
+double invsigmoid(const double x, const double tol=1e-12)
 {
    // forcing x to be in (0, 1)
    const double clipped_x = min(max(tol,x),1.0-tol);
@@ -52,7 +52,7 @@ public:
     * @param[in] double_to_double lambda function, f(x)
     * @param[in] comp (Optional) index of a vector if u is a vector
     */
-   MappedGridFunctionCoefficient(GridFunction *gf,
+   MappedGridFunctionCoefficient(const GridFunction *gf,
                                  __LambdaFunction double_to_double, int comp = 1): GridFunctionCoefficient(gf,
                                           comp), fun(double_to_double) {};
 
@@ -71,7 +71,7 @@ public:
  */
 class ExponentialGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
-   ExponentialGridFunctionCoefficient(GridFunction *gf,
+   ExponentialGridFunctionCoefficient(const GridFunction *gf,
                                       int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return exp(x);},
    comp) {};
 };
@@ -83,7 +83,7 @@ class ExponentialGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class LogarithmicGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
-   LogarithmicGridFunctionCoefficient(GridFunction *gf,
+   LogarithmicGridFunctionCoefficient(const GridFunction *gf,
                                       int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return log(x);},
    comp) {};
 };
@@ -95,7 +95,7 @@ class LogarithmicGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class SigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
-   SigmoidGridFunctionCoefficient(GridFunction *gf,
+   SigmoidGridFunctionCoefficient(const GridFunction *gf,
                                   int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return sigmoid(x);},
    comp) {};
 };
@@ -107,7 +107,7 @@ class SigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class InvSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
-   InvSigmoidGridFunctionCoefficient(GridFunction *gf,
+   InvSigmoidGridFunctionCoefficient(const GridFunction *gf,
                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return invsigmoid(x);},
    comp) {};
 };
@@ -119,7 +119,7 @@ class InvSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
-   PowerGridFunctionCoefficient(GridFunction *gf, int exponent, int comp=1)
+   PowerGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
       : MappedGridFunctionCoefficient(gf, [exponent](double x) {return pow(x, exponent);},
    comp) {}
 };
@@ -131,7 +131,7 @@ class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
  */
 class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
-   PowerGridFunctionCoefficient(GridFunction *gf, int exponent, int comp=1)
+   PowerGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
       : MappedGridFunctionCoefficient(gf, [](const double x) {return x*x;},
    comp) {}
 };
