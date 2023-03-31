@@ -326,12 +326,6 @@ public:
     * @param y resulting dual vector to be used in an EXPLICIT solver
     */
    virtual void Mult(const Vector &x, Vector &y) const;
-
-   void pRefine(const Array<int> &orders, GridFunction &sol,
-                const PRefineType pRefineType = PRefineType::elevation);
-
-   void hRefine(Vector &errors, GridFunction &sol, const double z = 0.842);
-   void hDerefine(Vector &errors, GridFunction &sol, const double z = 0.842);
    // get global maximum characteristic speed to be used in CFL condition
    // where max_char_speed is updated during Mult.
    inline double getMaxCharSpeed()
@@ -397,115 +391,6 @@ void DGHyperbolicConservationLaws::ComputeInvMass()
       inv.Factor();
       inv.GetInverseMatrix(Me_inv[i]);
    }
-}
-
-/**
- * @brief Refine/Derefine FiniteElementSpace for DGHyperbolic.
- *
- * For each 0 ≤ i ≤ the number of elements,
- * If pRefineType == PRefineType::elevation, order(i) += orders(i).
- * If pRefineType == PRefineType::setDegree, order(i) = orders(i).
- *
- * @param[in] orders element-wise order offset or target order.
- * @param[out] sol The solution to be updated
- * @param[in] pRefineType p-refinement type. Default PRefineType::elevation.
- */
-void DGHyperbolicConservationLaws::pRefine(const Array<int> &orders,
-                                           GridFunction &sol,
-                                           const PRefineType pRefineType)
-{
-   Mesh *mesh = vfes->GetMesh();
-   mesh->EnsureNCMesh();  // Variable order needs nonconforming mesh
-   const int numElem = mesh->GetNE();
-   MFEM_VERIFY(orders.Size() == numElem, "Incorrect size of array is provided.");
-
-   // FiniteElementSpace old_vfes(*vfes);  // save old fes
-   DG_FECollection *fec = new DG_FECollection(0, mesh->Dimension());
-   FiniteElementSpace old_vfes(mesh, fec, vfes->GetVDim(), vfes->GetOrdering());
-   for (int i = 0; i < numElem; i++)
-   {
-      old_vfes.SetElementOrder(i, vfes->GetElementOrder(i));
-   }
-   old_vfes.Update(false);
-
-   switch (pRefineType)
-   {
-      case PRefineType::elevation:
-         for (int i = 0; i < numElem; i++)
-         {
-            if (orders[i] != 0)
-            {
-               const int order = vfes->GetElementOrder(i) + orders[i];
-               MFEM_VERIFY(order >= 0, "Order should be non-negative.");
-               vfes->SetElementOrder(i, vfes->GetElementOrder(i) + orders[i]);
-            }
-         }
-         break;
-      case PRefineType::setDegree:
-         MFEM_VERIFY(orders.Min() >= 0, "Order should be non-negative.");
-         for (int i = 0; i < numElem; i++)
-         {
-            vfes->SetElementOrder(i, orders[i]);
-         }
-         break;
-      default:
-         mfem_error("Undefined PRefineType.");
-   }
-   vfes->Update(false);  // p-refine transfer matrix is not provided.
-
-   PRefinementTransferOperator T(old_vfes, *vfes);
-   GridFunction new_sol(vfes);
-   T.Mult(sol, new_sol);
-   sol = new_sol;
-   Update();
-}
-
-void DGHyperbolicConservationLaws::hRefine(Vector &errors, GridFunction &sol,
-                                           const double z)
-{
-   Vector logErrors(errors);
-   for (auto &err : logErrors)
-   {
-      err = log(err);
-   }
-   const double mean = logErrors.Sum() / logErrors.Size();
-   const double sigma =
-      pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
-   const double upper_bound = exp(mean + z * pow(sigma / logErrors.Size(), 0.5));
-   Mesh *mesh = vfes->GetMesh();
-   mesh->RefineByError(errors, upper_bound * 1.5, 1, 2);
-   vfes->Update();
-   sol.Update();
-   Update();
-}
-
-/**
- * @brief Perform h-derefinement with given error and z-score
- *
- * Threshold is set to log(err[i]) < mean(log(err)) - z*std(log(err))
- * and error is aggregate by using max(neighbors).
- *
- * @param errors element-wise error
- * @param sol solution (updated by using interpolation)
- * @param z z-score for the threshold
- */
-void DGHyperbolicConservationLaws::hDerefine(Vector &errors, GridFunction &sol,
-                                             const double z)
-{
-   Vector logErrors(errors);
-   for (auto &err : logErrors)
-   {
-      err = log(err);
-   }
-   const double mean = logErrors.Sum() / logErrors.Size();
-   const double sigma =
-      pow(logErrors.Norml2(), 2) / logErrors.Size() - pow(mean, 2);
-   const double lower_bound = exp(mean - z * pow(sigma / logErrors.Size(), 0.5));
-   Mesh *mesh = vfes->GetMesh();
-   mesh->DerefineByError(errors, lower_bound, 2, 0);
-   vfes->Update();
-   sol.Update();
-   Update();
 }
 
 void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
@@ -1166,23 +1051,6 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
       new ShallowWaterFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
 
    return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
-}
-
-// Experimental - required for visualizing functions on p-refined spaces.
-GridFunction ProlongToMaxOrderDG(const GridFunction &x)
-{
-   const FiniteElementSpace *fes = x.FESpace();
-   Mesh *mesh = fes->GetMesh();
-   const int max_order = fes->GetMaxElementOrder() + 1;
-   FiniteElementCollection *fec =
-      new DG_FECollection(max_order, mesh->Dimension());
-   FiniteElementSpace *new_fes =
-      new FiniteElementSpace(mesh, fec, fes->GetVDim(), fes->GetOrdering());
-   PRefinementTransferOperator T(*fes, *new_fes);
-   GridFunction u(new_fes);
-   T.Mult(x, u);
-   u.MakeOwner(fec);
-   return u;
 }
 
 #endif
