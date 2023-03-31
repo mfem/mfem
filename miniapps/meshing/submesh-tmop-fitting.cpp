@@ -41,6 +41,7 @@
 // square (squircle) inside a circle
 // make submesh-tmop-fitting -j && time mpirun -np 1 submesh-tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 4 -mid 2 -tid 1 -ni 100 -sfc 10 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 2 -vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 4 -slstype 3 -vl 0
 // make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 4 -mid 2 -tid 1 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-3 -deact 2 -no-vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 4 -slstype 3 -vl 0
+// make submesh-tmop-fitting -j && time mpirun -np 1 submesh-tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 4 -mid 2 -tid 1 -ni 100 -sfc 10 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 4 -vis -smtype 0 -fix-bnd -sbgmesh -amriter 4 -slstype 5 -vl 0 -htot -2
 // 3D version
 // make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 3 -mid 303 -tid 1 -ni 100 -sfc 10 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 0 -vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 4 -slstype 4 -vl 2
 // make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 3 -mid 303 -tid 3 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -deact 2 -vis -trim -smtype 1 -fix-bnd -sbgmesh -amriter 5 -slstype 4 -vl 2
@@ -583,6 +584,11 @@ int main (int argc, char *argv[])
       {
          MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
                                                 12*hex_to_tet_split_type);
+      }
+      else if (hex_to_tet_split_type < 0)
+      {
+         MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
+                                                4);
       }
 
       mat.ExchangeFaceNbrData();
