@@ -5,10 +5,10 @@
 // Sample runs:  ex16
 //               ex16 -m ../data/inline-tri.mesh
 //               ex16 -m ../data/disc-nurbs.mesh -tf 2
-//               ex16 -s 1 -a 0.0 -k 1.0
-//               ex16 -s 2 -a 1.0 -k 0.0
-//               ex16 -s 3 -a 0.5 -k 0.5 -o 4
-//               ex16 -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               ex16 -s 21 -a 0.0 -k 1.0
+//               ex16 -s 22 -a 1.0 -k 0.0
+//               ex16 -s 23 -a 0.5 -k 0.5 -o 4
+//               ex16 -s 4 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               ex16 -m ../data/fichera-q2.mesh
 //               ex16 -m ../data/fichera-mixed.mesh
 //               ex16 -m ../data/escher.mesh
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 2;
-   int ode_solver_type = 3;
+   int ode_solver_type = 23;  // SDIRK33Solver
    double t_final = 0.5;
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
