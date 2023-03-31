@@ -353,6 +353,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       SparseMatrix *FT = Transpose(*F);
 
       // *HERE*
+      // SparseMatrix mF(*F);
       // SparseMatrix *mF(F);
       // *mF *= -1.0;
       SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
