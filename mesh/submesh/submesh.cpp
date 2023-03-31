@@ -55,21 +55,19 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
    FinalizeTopology(true);
 
-   int num_of_faces_or_edges = (spaceDim == 2) ? NumOfEdges : NumOfFaces;
-
-   if (Dim == 2 && spaceDim == 2)
+   if (from == From::Domain && Dim >= 2)
    {
-      parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
-                                                    parent_element_ids_);
-   }
-   else if (Dim == 3)
-   {
-      parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
-                                                    parent_element_ids_);
-   }
-
-   if ((Dim == 2 && spaceDim == 2) || (Dim == 3))
-   {
+      int num_of_faces_or_edges = (Dim == 2) ? NumOfEdges : NumOfFaces;
+      if (Dim == 2)
+      {
+         parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
+                                                       parent_element_ids_);
+      }
+      else
+      {
+         parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
+                                                       parent_element_ids_);
+      }
       Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
       for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
       {
@@ -77,7 +75,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          {
             boundary[j] = faces[i]->Duplicate(this);
 
-            int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
+            int pbeid = Dim == 3 ?
+                        parent_face_to_be[parent_face_ids_[i]] :
                         parent_face_to_be[parent_edge_ids_[i]];
             if (pbeid != -1)
             {
