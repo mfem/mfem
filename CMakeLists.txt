@@ -53,7 +53,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.5.1)
+set(${PROJECT_NAME}_VERSION 4.5.2)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -576,6 +576,17 @@ target_include_directories(mfem
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     ${TPL_INCLUDE_DIRS})
+if (MFEM_USE_MPI)
+  if (MPI_CXX_COMPILE_FLAGS)
+    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+      "${MPI_CXX_COMPILE_FLAGS}")
+    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
+  endif()
+  if (MPI_CXX_LINK_FLAGS)
+    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
+  endif()
+endif()
+
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -698,6 +709,8 @@ add_subdirectory(doc)
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
+set(INSTALL_BIN_DIR bin
+  CACHE PATH "Relative path for installing the binaries.")
 set(INSTALL_LIB_DIR lib
   CACHE PATH "Relative path for installing the library.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
@@ -716,7 +729,9 @@ set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME Development)
 # Install the library
 install(TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME_UC}Targets
-  DESTINATION ${INSTALL_LIB_DIR})
+  RUNTIME DESTINATION ${INSTALL_BIN_DIR}
+  LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+  ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
 foreach(Header mfem.hpp mfem-performance.hpp)
@@ -809,4 +824,9 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 # define install rules for 'config.mk' and 'test.mk'
 #-------------------------------------------------------------------------------
 
-mfem_export_mk_files()
+##### SERAC EDIT DO NOT CHECK INTO MFEM MASTER
+# This fails due to overriding hdf5 related variables to work with hdf5's cmake build system
+# which is now the default in Spack
+# TODO: Negotiate with MFEM either this not hard failing or option to turn this off
+#mfem_export_mk_files()
+##### END SERAC EDIT
