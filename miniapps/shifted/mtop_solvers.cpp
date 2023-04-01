@@ -617,7 +617,7 @@ ElasticitySolver::~ElasticitySolver()
         delete materials[i];
     }
 
-    for(auto it=surf_loads.begin();it!=surf_loads.end();it++){
+    for(auto it=load_coeff.begin();it!=load_coeff.end();it++){
         delete it->second;
     }
 }

@@ -18,7 +18,8 @@ if (MFEM_USE_MPI)
         integ_algoim.cpp
         shape_grad.cpp
         mtop_solvers.cpp
-        mtop_filters.cpp)
+        mtop_filters.cpp
+	MMA.cpp)
 
 
   list(APPEND DIST_COMMON_HEADERS
@@ -30,7 +31,8 @@ if (MFEM_USE_MPI)
         integ_algoim.hpp
         shape_grad.hpp
         mtop_solvers.hpp
-        mtop_filters.hpp)
+        mtop_filters.hpp
+	MMA.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -82,6 +84,15 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(cobj_test
       MAIN cut_obj_test.cpp
       ${DIST_COMMON_FILES}
+      LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(exo2gmsh
+      MAIN exo2gmsh.cpp
+      ${DIST_COMMON_FILES}
+      LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(stress_bra
+      MAIN stress_bracket
       LIBRARIES mfem mfem-common)
 
   if (MFEM_ENABLE_TESTING)
