@@ -152,4 +152,9 @@ add_mfem_miniapp(mtop_diff
         ${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_foundation
+        MAIN mtop_foundation.cpp
+        ${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
 endif ()

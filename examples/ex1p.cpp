@@ -295,6 +295,19 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << pmesh << x << flush;
    }
 
+   {
+       mfem::ParaViewDataCollection paraview_dc("Diffusion",&pmesh);
+       paraview_dc.SetPrefixPath("ParaView");
+       paraview_dc.SetLevelsOfDetail(order);
+       paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
+       paraview_dc.SetHighOrderOutput(true);
+       paraview_dc.SetCycle(0);
+       paraview_dc.SetTime(0.0);
+       paraview_dc.RegisterField("temp",&x);
+       paraview_dc.Save();
+   }
+
+
    // 17. Free the used memory.
    if (delete_fec)
    {

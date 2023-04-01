@@ -649,26 +649,31 @@ public:
         pp=1.0;
     }
 
+    virtual
     ~YoungModulus(){
         delete loc_eta;
     }
 
+    virtual
     void SetDens(ParGridFunction* dens_)
     {
         dens=dens_;
     }
 
+    virtual
     void SetDens(Coefficient* coef_)
     {
         coef=coef_;
     }
 
+    virtual
     void SetProjParam(Coefficient& eta_, double beta_)
     {
         eta=&eta_;
         beta=beta_;
     }
 
+    virtual
     void SetProjParam(double eta_, double beta_)
     {
         delete loc_eta;
@@ -677,12 +682,14 @@ public:
         beta=beta_;
     }
 
+    virtual
     void SetEMaxMin(double Emin_,double Emax_)
     {
         Emax=Emax_;
         Emin=Emin_;
     }
 
+    virtual
     void SetPenal(double pp_)
     {
         pp=pp_;
@@ -1148,6 +1155,7 @@ public:
         eta=loc_eta;
         beta=8.0;
         pp=1.0;
+        projection=true;
     }
 
     ~DiffusionMaterial()
@@ -1169,6 +1177,11 @@ public:
     {
         eta=&eta_;
         beta=beta_;
+    }
+
+    void SetProjection(bool pr=true)
+    {
+        projection=pr;
     }
 
     void SetProjParam(double eta_, double beta_)
@@ -1206,8 +1219,11 @@ public:
         double deta=eta->Eval(T,ip);
         //do the projection
         double pd=PointwiseTrans::HProject(dd,deta,beta);
-
         double cd=Dmin+(Dmax-Dmin)*std::pow(pd,pp);
+        if(projection==false)
+        {
+            cd=Dmin+(Dmax-Dmin)*std::pow(dd,pp);
+        }
 
         m=0.0;
         for(int i=0;i<GetWidth();i++)
@@ -1236,6 +1252,10 @@ public:
         double pg=PointwiseTrans::HGrad(dd,deta,beta);
         //evaluate the gradient with respect to the density field
         double cd=(Dmax-Dmin)*pg*pp*std::pow(pd,pp-1.0);
+        if(projection==false)
+        {
+            cd=(Dmax-Dmin)*pp*std::pow(dd,pp-1.0);
+        }
 
         m=0.0;
         for(int i=0;i<GetWidth();i++)
@@ -1253,6 +1273,7 @@ private:
     Coefficient* loc_eta;
     double beta;
     double pp;
+    bool projection;
 
 };
 

@@ -8,8 +8,6 @@
 
 #include "spde_solvers.hpp"
 
-
-
 class CoeffHoles:public mfem::Coefficient
 {
 public:
@@ -22,60 +20,188 @@ public:
     double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
     {
 
-        double x[3]={0.0,0.0,0.0};
+        double x[3];
         mfem::Vector transip(x, T.GetSpaceDim());
         T.Transform(ip, transip);
 
-        double ang = atan2 (x[1],x[0]);
+        int nx=x[0]/period;
+        int ny=x[1]/period;
 
-        double r=sin(ang*5);
+        x[0]=x[0]-double(nx)*period-0.5*period;
+        x[1]=x[1]-double(ny)*period-0.5*period;
 
-        /*
-        x[0]=x[0]*2.0*M_PI/period;
-        x[1]=x[1]*2.0*M_PI/period;
-        x[2]=x[2]*2.0*M_PI/period;
-        double r=sin(x[0])*cos(x[1])+sin(x[1])*cos(x[2])+sin(x[2])*cos(x[0]);
-        return 0.5+r/8.0;
-        */
-
-        return r*0.5+0.5;
-
+        double r=sqrt(x[0]*x[0]+x[1]*x[1]);
+        if(r<(0.45*period)){return 0.2;}
+        return 0.8;
     }
+
 
 private:
     double period;
+};
+
+class YoungModulusFoundation:public mfem::YoungModulus
+{
+public:
+    YoungModulusFoundation()
+    {
+        dens=nullptr;
+        Emax=1.0;
+        Emin=1e-6;
+        loc_eta=new mfem::ConstantCoefficient(0.5);
+        eta=loc_eta;
+        beta=8.0;
+        pp=1.0;
+        h=1.0; //default thickenss
+        period=10*M_PI;
+    }
+
+    virtual
+    ~YoungModulusFoundation(){
+        delete loc_eta;
+    }
+
+    virtual
+    void SetDens(mfem::ParGridFunction* dens_)
+    {
+        dens=dens_;
+    }
+
+    virtual
+    void SetDens(mfem::Coefficient* coef_)
+    {
+        coef=coef_;
+    }
+
+    void SetThickness(double t_)
+    {
+        h=t_;
+    }
+
+    void SetPeriod(double p_)
+    {
+        period=p_;
+    }
+
+    virtual
+    void SetProjParam(mfem::Coefficient& eta_, double beta_)
+    {
+        eta=&eta_;
+        beta=beta_;
+    }
+
+    virtual
+    void SetProjParam(double eta_, double beta_)
+    {
+        delete loc_eta;
+        loc_eta=new mfem::ConstantCoefficient(eta_);
+        eta=loc_eta;
+        beta=beta_;
+    }
+
+    virtual
+    void SetEMaxMin(double Emin_,double Emax_)
+    {
+        Emax=Emax_;
+        Emin=Emin_;
+    }
+
+    virtual
+    void SetPenal(double pp_)
+    {
+        pp=pp_;
+    }
+
+    virtual
+    double 	Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+    {
+
+        //evaluate the actual coordinates
+        mfem::Vector xx(T.GetSpaceDim()); xx=0.0;
+        T.Transform(ip,xx);
+
+        if(xx(1)>h/2.0){
+            //evaluate density
+            double dd=1.0;
+            if(dens!=nullptr){dd=dens->GetValue(T,ip);}
+            else if(coef!=nullptr){dd=coef->Eval(T,ip);}
+
+            if(dd>1.0){dd=1.0;}
+            if(dd<0.0){dd=0.0;}
+            //eval eta
+            double deta=eta->Eval(T,ip);
+            //do the projection
+            double pd=mfem::PointwiseTrans::HProject(dd,deta,beta);
+            //evaluate the E modulus
+            return Emin+(Emax-Emin)*std::pow(pd,pp);
+        }else{//soil
+            return Emin+(0.2*Emax-Emin)*(0.5+0.5*sin(xx(0)*period));
+        }
+    }
+
+    ///returnas the pointwise gradient with respect to the density
+    virtual
+    double Grad(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+    {
+
+        //evaluate the actual coordinates
+        mfem::Vector xx(T.GetSpaceDim()); xx=0.0;
+        T.Transform(ip,xx);
+
+        if(xx(1)>h/2.0){
+        //evaluate density
+        double dd=1.0;
+        if(dens!=nullptr){dd=dens->GetValue(T,ip);}
+        else if(coef!=nullptr){dd=coef->Eval(T,ip);}
+
+        if(dd>1.0){dd=1.0;}
+        if(dd<0.0){dd=0.0;}
+        //eval eta
+        double deta=eta->Eval(T,ip);
+        //do the projection
+        double pd=mfem::PointwiseTrans::HProject(dd,deta,beta);
+        //evaluate hte gradient of the projection
+        double pg=mfem::PointwiseTrans::HGrad(dd,deta,beta);
+        //evaluate the gradient with respect to the density field
+        return (Emax-Emin)*pg*pp*std::pow(pd,pp-1.0);
+        }else{
+            return 0.0;
+        }
+    }
+
+
+
+private:
+    double period;
+    double h; //thickness
+    mfem::ParGridFunction* dens;
+    mfem::Coefficient* coef;
+    double Emax;
+    double Emin;
+    mfem::Coefficient* eta;
+    mfem::Coefficient* loc_eta;
+    double beta;
+    double pp;
 
 };
 
 
-class HeatSink
+
+
+
+class Foundation2D
 {
 public:
-
-    HeatSink(mfem::ParMesh* pmesh_, int vorder=1)
+    Foundation2D(mfem::ParMesh* pmesh_, int vorder=1):E(),nu(0.2)
     {
-        mat=new mfem::DiffusionMaterial(pmesh_->SpaceDimension());
-        dsolv=new mfem::DiffusionSolver(pmesh_,vorder);
-        dsolv->AddMaterial(mat);
-        dsolv->SetVolInput(0.1);
-
+        esolv=new mfem::ElasticitySolver(pmesh_,vorder);
+        esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
+        esolv->SetNewtonSolver(1e-8,1e-12,1,0);
+        esolv->SetLinearSolver(1e-10,1e-12,400);
 
         pmesh=pmesh_;
         dfes=nullptr;
-        obj=new mfem::DiffusionComplianceObj();
-
-    }
-
-    ~HeatSink()
-    {
-        delete obj;
-        delete dsolv;
-    }
-
-
-    void Solve()
-    {
-
+        cobj=new mfem::ComplianceObjective();
     }
 
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
@@ -85,95 +211,69 @@ public:
         vdens.SetSize(dfes->GetTrueVSize());
     }
 
+    ~Foundation2D()
+    {
+        delete cobj;
+        delete esolv;
+    }
+
     void SetDensity(mfem::Vector& vdens_,
-                    double eta=0.5, double beta=8.0,double pen=1.0){
+                    double eta=0.75, double beta=8.0,double pen=1.0){
 
         vdens=vdens_;
         pdens.SetFromTrueDofs(vdens);
 
-        mat->SetDens(&pdens);
-        mat->SetProjParam(eta,beta);
-        mat->SetEMaxMin(1e-6,1.0);
-        mat->SetPenal(pen);
+        E.SetDens(&pdens);
+        E.SetProjParam(eta,beta);
+        E.SetEMaxMin(1e-6,1.0);
+        E.SetPenal(pen);
 
-        obj->SetDiffMaterial(mat);
-        obj->SetDens(vdens);
-        obj->SetDesignFES(dfes);
+        cobj->SetE(&E);
+        cobj->SetDens(vdens);
+        cobj->SetDesignFES(dfes);
 
     }
 
-    double Compliance(mfem::Vector& grad)
+    /// Evaluates the compliance
+    double  Compliance(mfem::Vector& grad)
     {
-        grad=0.0;
-        mat->SetProjParam(0.7,8.0);
-        mat->SetProjection(false);
-        mat->SetPenal(3.0);
-        dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        double vv=obj->Eval();
-        obj->Grad(grad);
-        return vv;
+        //set all bc
+        esolv->DelDispBC();
+        esolv->AddDispBC(1,4,0.0);
+        esolv->AddSurfLoad(2,0.00,1.00,0.0);
+        esolv->AddSurfLoad(3,0.00,1.00,0.0);
+        esolv->AddSurfLoad(4,0.00,1.00,0.0);
+        esolv->AddSurfLoad(5,0.00,1.00,0.0);
+
+        esolv->FSolve();
+
+        double rez=cobj->Eval(esolv->GetDisplacements());
+
+        cobj->Grad(esolv->GetDisplacements(),grad);
+
+        return rez;
     }
-
-    double MCompliance(mfem::Vector& grad)
-    {
-        double vv,oo;
-        grad=0.0;
-        vv=0.0;
-        mfem::Vector tgrad(grad);
-
-        mat->SetProjParam(0.8,8.0);
-        dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        oo=obj->Eval();
-        obj->Grad(tgrad);
-
-        grad.Add(1.0,tgrad);
-        vv=vv+oo;
-
-        mat->SetProjParam(0.7,8.0);
-        dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        oo=obj->Eval();
-        obj->Grad(tgrad);
-
-        grad.Add(1.0,tgrad);
-        vv=vv+oo;
-
-        mat->SetProjParam(0.6,8.0);
-        dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        oo=obj->Eval();
-        obj->Grad(tgrad);
-
-        grad.Add(1.0,tgrad);
-        vv=vv+oo;
-
-        return vv;
-    }
-
 
 private:
-    mfem::DiffusionMaterial* mat;
-    mfem::DiffusionSolver* dsolv;
-    mfem::ParMesh* pmesh;
+    YoungModulusFoundation E;
+    double nu;
 
-    mfem::ParFiniteElementSpace* dfes;
+    mfem::ParFiniteElementSpace* dfes; //design FES
     mfem::ParGridFunction pdens;
     mfem::Vector vdens;
 
-    mfem::DiffusionComplianceObj* obj;
+    mfem::ElasticitySolver* esolv;
+    mfem::ComplianceObjective* cobj;
 
+    //base solution vectors x,y,z direction loads
+    std::vector<mfem::ParGridFunction> bsolx;
+    std::vector<mfem::ParGridFunction> bsoly;
+    std::vector<mfem::ParGridFunction> bsolz;
+
+
+    mfem::ParGridFunction sol;
+    mfem::ParMesh* pmesh;
 };
-
 
 int main(int argc, char *argv[])
 {
@@ -184,7 +284,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "foundation.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 0;
@@ -264,52 +364,17 @@ int main(int argc, char *argv[])
    }
    mfem::MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 
+
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    {
-       mesh.EnsureNodes();
        mfem::Vector vert;
-       //mesh.GetVertices(vert);
-       mfem::GridFunction* nod=mesh.GetNodes();
-
-       std::cout<<"Size="<<nod->Size()<<std::endl;
-
-
-
-       int nv=nod->Size()/3;
-       /*
-       for(int i=0;i<nv;i++){
-           double xx=(*nod)[3*i+0];
-           double yy=(*nod)[3*i+1];
-           double zz=(*nod)[3*i+2];
-
-           double ang = atan2 (yy,xx);
-
-           double rr=sqrt(xx*xx+yy*yy);
-
-           (*nod)[3*i+0] = (1.0+0.1*cos(6*M_PI*zz))*(rr+0.3*rr*cos(6.0*ang))*cos(ang);
-           (*nod)[3*i+1] = (1.0+0.1*cos(6*M_PI*zz))*(rr+0.3*rr*cos(6.0*ang))*sin(ang);
-           (*nod)[3*i+2] = zz;
-       }*/
-
-       for(int i=0;i<nv;i++){
-           double xx=(*nod)[3*i+0];
-           double yy=(*nod)[3*i+1];
-           double zz=(*nod)[3*i+2];
-
-           double dd=pow(xx,8.0)+pow(yy,8.0)+pow(zz,8.0);
-           dd=pow(dd,1.0/8.0);
-
-           (*nod)[3*i+0] = xx/dd;
-           (*nod)[3*i+1] = yy/dd;
-           (*nod)[3*i+2] = zz/dd;
-       }
-
-
-       //mesh.SetVertices(vert);
+       mesh.GetVertices(vert);
+       //vert*=0.01;
+       mesh.SetVertices(vert);
        mfem::Vector xmin(dim), xmax(dim);
        mesh.GetBoundingBox(xmin,xmax);
        if(myrank==0){
@@ -350,10 +415,13 @@ int main(int argc, char *argv[])
    }
 
    //allocate the filter
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.08,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.04,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(1,1.0);
-
+   //fsolv->AddBC(1,1.0);
+   fsolv->AddBC(2,1.0);
+   fsolv->AddBC(3,1.0);
+   fsolv->AddBC(4,1.0);
+   fsolv->AddBC(5,1.0);
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
@@ -364,14 +432,13 @@ int main(int argc, char *argv[])
    fsolv->Mult(vtmpv,vdens);
    pgdens.SetFromTrueDofs(vdens);
 
-   HeatSink* sink=new HeatSink(&pmesh,1);
-   sink->SetDesignFES(pgdens.ParFESpace());
-   sink->SetDensity(vdens);
+   Foundation2D* alco=new Foundation2D(&pmesh,1);
+   alco->SetDesignFES(pgdens.ParFESpace());
+   alco->SetDensity(vdens);
 
-   //mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
-   mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
+   mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
+   //mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
    vobj->SetProjection(0.2,8.0);//threshold 0.2
-
 
    //compute the total volume
    double tot_vol;
@@ -379,11 +446,8 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.35*tot_vol;
+   double max_vol=0.200*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
-
-
-
 
    //intermediate volume
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -401,6 +465,7 @@ int main(int argc, char *argv[])
    mfem::Vector xxmin(fsolv->GetDesignFES()->GetTrueVSize()); xxmin=0.0;
 
    mfem::NativeMMA* mma;
+
    {
        double a=0.0;
        double c=1000.0;
@@ -413,17 +478,9 @@ int main(int argc, char *argv[])
    double cpl; //compliance
    double vol; //volume
    double ivol; //intermediate volume
+   double dcpl;
 
    {
-
-      vtmpv=0.2;
-      CoeffHoles cf;
-      oddens.ProjectCoefficient(cf);
-      oddens.GetTrueDofs(vtmpv);
-      vtmpv=0.2;
-      fsolv->Mult(vtmpv,vdens);
-      pgdens.SetFromTrueDofs(vdens);
-
       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order);
@@ -433,20 +490,35 @@ int main(int argc, char *argv[])
       paraview_dc.SetTime(0.0);
 
       paraview_dc.RegisterField("design",&pgdens);
+
       paraview_dc.Save();
+
+      CoeffHoles holes;
+      oddens.ProjectCoefficient(holes);
+      oddens*=0.2;
+      oddens.GetTrueDofs(vtmpv);
+      //oddens=0.2;
+      //oddens.GetTrueDofs(vtmpv);
+
+
+      fsolv->Mult(vtmpv,vdens);
+      pgdens.SetFromTrueDofs(vdens);
+      double nr=mfem::ParNormlp(vdens,2,pmesh.GetComm());
+      std::cout<<"nr="<<nr<<std::endl;
+
+      double obj;
 
       for(int i=1;i<max_it;i++){
 
-          vobj->SetProjection(0.5,8.0);
+          vobj->SetProjection(0.2,8.0);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
-          sink->SetDensity(vdens,0.8,8.0,1.0);
-          //cpl=sink->MCompliance(ograd);
-          cpl=sink->Compliance(ograd);
+          alco->SetDensity(vdens,0.5,8.0,1.0);
+          obj=alco->Compliance(ograd);
 
           if(myrank==0){
-              std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol<<std::endl;
+              std::cout<<"it: "<<i<<" obj="<<obj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
           }
           //compute the gradients
           vobj->Grad(vdens,vgrad);
@@ -470,6 +542,7 @@ int main(int argc, char *argv[])
           fsolv->Mult(vtmpv,vdens);
           pgdens.SetFromTrueDofs(vdens);
 
+
           //save the design
           if(i%4==0)
           {
@@ -480,14 +553,16 @@ int main(int argc, char *argv[])
       }
    }
 
-
    delete mma;
    delete vobj;
    delete ivobj;
-   delete sink;
+   delete alco;
    delete fsolv;
 
    mfem::MFEMFinalizePetsc();
    MPI_Finalize();
    return 0;
 }
+
+
+
