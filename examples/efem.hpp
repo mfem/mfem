@@ -3,9 +3,9 @@
 
 #include "mfem.hpp"
 
-using namespace std;
-using namespace mfem;
 
+namespace mfem
+{
 /**
  * @brief Inverse sigmoid, log(x/(1-x))
  *
@@ -295,5 +295,117 @@ public:
       }
    }
 };
+
+class EllipticSolver
+{
+private:
+   FiniteElementSpace *fes; // finite element space
+   BilinearForm *bilinForm; // main bilinear form
+   Array<int> ess_tdof_list; // essential boundary dof list
+   bool isParallel = false; // whether input fespace is parallel or not
+   bool pa; // partial assembly flag
+public:
+   EllipticSolver(FiniteElementSpace *fespace,
+                  BilinearForm *bilinearForm, Array<int> ess_bdr)
+      :fes(fespace),
+       bilinForm(bilinearForm)
+   {
+      fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+#ifdef MFEM_USE_MPI
+      {
+         ParFiniteElementSpace * pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+         if (pfes) { isParallel = true; }
+      }
+#endif
+      pa = bilinForm->GetAssemblyLevel() == AssemblyLevel::PARTIAL;
+   }
+
+
+   void Assemble()
+   {
+      bilinForm->Assemble();
+   }
+
+   void Solve(LinearForm *b, GridFunction *sol)
+   {
+      OperatorPtr A;
+      Vector B, X;
+      b->Assemble();
+      bilinForm->FormLinearSystem(ess_tdof_list, *sol, *b, A, X, B);
+
+      // 11. Solve the linear system A X = B.
+      if (!isParallel)
+      {
+         if (!pa)
+         {
+#ifndef MFEM_USE_SUITESPARSE
+            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+            GSSmoother M((SparseMatrix&)(*A));
+            PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+            // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+            UMFPackSolver umf_solver;
+            umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+            umf_solver.SetOperator(*A);
+            umf_solver.Mult(B, X);
+#endif
+         }
+         else
+         {
+            if (UsesTensorBasis(*fes))
+            {
+               if (DeviceCanUseCeed())
+               {
+                  ceed::AlgebraicSolver M(*bilinForm, ess_tdof_list);
+                  PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+               }
+               else
+               {
+                  OperatorJacobiSmoother M(*bilinForm, ess_tdof_list);
+                  PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+               }
+            }
+            else
+            {
+               CG(*A, B, X, 1, 400, 1e-12, 0.0);
+            }
+         }
+      }
+#ifdef MFEM_USE_MPI
+      else
+      {
+         Solver *prec = NULL;
+         if (pa)
+         {
+            if (UsesTensorBasis(*fes))
+            {
+               if (DeviceCanUseCeed)
+               {
+                  prec = new ceed::AlgebraicSolver(*bilinForm, ess_tdof_list);
+               }
+               else
+               {
+                  prec = new OperatorJacobiSmoother(*bilinForm, ess_tdof_list);
+               }
+            }
+         }
+         else
+         {
+            prec = new HypreBoomerAMG;
+         }
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(1);
+         if (prec) { cg.SetPreconditioner(*prec); }
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+         delete prec;
+      }
+#endif
+      bilinForm->RecoverFEMSolution(X, *b, *sol);
+   }
+};
+}
 
 #endif
