@@ -8,6 +8,8 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#ifndef SBM_AUX_HPP
+#define SBM_AUX_HPP
 
 #include "mfem.hpp"
 
@@ -16,86 +18,38 @@ using namespace mfem;
 
 /// Analytic distance to the 0 level set. Positive value if the point is inside
 /// the domain, and negative value if outside.
-double relativePosition(const Vector &x, const int type)
-{
-   if (type == 1) // circle of radius 0.2 - centered at 0.5, 0.5
-   {
-     Vector center(2);
-     center(0) = 0.5;
-     center(1) = 0.5;
-     double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
-     const double radius = 0.2;
-     return radiusOfPt - radius; // positive is the domain
-   }
-   else
-     {
-      MFEM_ABORT(" Function type not implement yet.");
-   }
-   return 0.;
-}
+double relativePosition(const Vector &x, const int type);
 
 // Distance to circle of radius 0.2 - centered at 0.5, 0.5 
-void Circle_Dist(const Vector &x, Vector &D){
-  double radius = 0.2;
-  Vector center(2);
-  center(0) = 0.5;
-  center(1) = 0.5;
-  double r = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
-  double distX = ((x(0)-center(0))/r)*(radius-r);
-  double distY = ((x(1)-center(1))/r)*(radius-r);
-  D(0) = distX;
-  D(1) = distY;
-}
+void Circle_Dist(const Vector &x, Vector &D);
 
 // Unit normal of circle of radius 0.2 - centered at 0.5, 0.5
-void Circle_Normal(const Vector &x, Vector &tN){
-  double radius = 0.2;
-  Vector center(2);
-  center(0) = 0.5;
-  center(1) = 0.5;
-  
-  double r = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
-  double distX = ((x(0)-center(0))/r)*(radius-r);
-  double distY = ((x(1)-center(1))/r)*(radius-r);
-  double normD = sqrt(distX * distX + distY * distY);
-  if (r < radius){
-    tN(0) = -distX / normD;
-    tN(1) = -distY / normD;
-  }
-  else if (r > radius){
-    tN(0) = distX / normD;
-    tN(1) = distY / normD;
-  }
-  else{
-    tN(0) = (center(0) - x(0))/radius;
-    tN(1) = (center(1) - x(1))/radius;
-  }
-}
+void Circle_Normal(const Vector &x, Vector &tN);
+
+// Distance to sphere of radius 0.2 - centered at 0.5, 0.5 
+void Sphere_Dist(const Vector &x, Vector &D);
+
+// Unit normal of sphere of radius 0.2 - centered at 0.5, 0.5
+void Sphere_Normal(const Vector &x, Vector &tN);
+
+// Distance to circle of radius 0.2 - centered at 0.5, 0.5 
+void Plane_Dist(const Vector &x, Vector &D);
+
+// Unit normal of circle of radius 0.2 - centered at 0.5, 0.5
+void Plane_Normal(const Vector &x, Vector &tN);
+
+// Distance to sphere of radius 0.2 - centered at 0.5, 0.5 
+void Gyroid_Dist(const Vector &x, Vector &D);
+
+// Unit normal of sphere of radius 0.2 - centered at 0.5, 0.5
+void Gyroid_Normal(const Vector &x, Vector &tN);
 
 /// Analytic distance to the 0 level set.
-void dist_value(const Vector &x, Vector &D, const int type)
-{
-   if (type == 1) {
-     return Circle_Dist(x, D);
-   }
-   else
-   {
-      MFEM_ABORT(" Function type not implement yet.");
-   }
-}
+void dist_value(const Vector &x, Vector &D, const int type);
 
 /// Analytic distance to the 0 level set. Positive value if the point is inside
 /// the domain, and negative value if outside.
-void normal_value(const Vector &x, Vector &tN, const int type)
-{
-   if (type == 1) {
-     return Circle_Normal(x, tN);
-   }
-   else
-   {
-      MFEM_ABORT(" Function type not implement yet.");
-   }
-}
+void normal_value(const Vector &x, Vector &tN, const int type);
 
 /// Distance vector to the zero level-set.
 class Dist_Vector_Coefficient : public VectorCoefficient
@@ -120,7 +74,7 @@ public:
   }
 };
   
-  /// Normal vector to the zero level-set.
+/// Normal vector to the zero level-set.
 class Normal_Vector_Coefficient : public VectorCoefficient
 {
 private:
@@ -147,46 +101,83 @@ public:
 class Dist_Level_Set_Coefficient : public Coefficient
 {
 private:
-   int type;
+  int type;
 
 public:
-   Dist_Level_Set_Coefficient(int type_)
-      : Coefficient(), type(type_) { }
+  Dist_Level_Set_Coefficient(int type_)
+    : Coefficient(), type(type_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      Vector x(3);
-      T.Transform(ip, x);
-      double dist = relativePosition(x, type);
-      //      return (dist >= 0.0) ? 1.0 : -1.0;
-      return dist;
-    }
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+  {
+    Vector x(3);
+    T.Transform(ip, x);
+    double dist = relativePosition(x, type);
+    return (dist >= 0.0) ? 1.0 : -1.0;
+  }
+};
+
+/// Level set coefficient: +1 inside the true domain, -1 outside.
+class Dist_Coefficient : public Coefficient
+{
+private:
+  int type;
+
+public:
+  Dist_Coefficient(int type_)
+    : Coefficient(), type(type_) { }
+
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+  {
+    Vector x(3);
+    T.Transform(ip, x);
+    double dist = relativePosition(x, type);
+    return dist;
+  }
 };
 
 /// Combination of level sets: +1 inside the true domain, -1 outside.
 class Combo_Level_Set_Coefficient : public Coefficient
 {
 private:
-   Array<Dist_Level_Set_Coefficient *> dls;
+  Array<Dist_Level_Set_Coefficient *> dls;
 
 public:
-   Combo_Level_Set_Coefficient() : Coefficient() { }
+  Combo_Level_Set_Coefficient() : Coefficient() { }
 
-   void Add_Level_Set_Coefficient(Dist_Level_Set_Coefficient &dls_)
-   { dls.Append(&dls_); }
+  void Add_Level_Set_Coefficient(Dist_Level_Set_Coefficient &dls_)
+  { dls.Append(&dls_); }
 
-   int GetNLevelSets() { return dls.Size(); }
+  int GetNLevelSets() { return dls.Size(); }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      MFEM_VERIFY(dls.Size() > 0,
-                  "Add at least 1 Dist_level_Set_Coefficient to the Combo.");
-      double dist = dls[0]->Eval(T, ip);
-      for (int j = 1; j < dls.Size(); j++)
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+  {
+    MFEM_VERIFY(dls.Size() > 0,
+		"Add at least 1 Dist_level_Set_Coefficient to the Combo.");
+    double dist = dls[0]->Eval(T, ip);
+    for (int j = 1; j < dls.Size(); j++)
       {
-         dist = min(dist, dls[j]->Eval(T, ip));
+	dist = min(dist, dls[j]->Eval(T, ip));
       }
-      //      return (dist >= 0.0) ? 1.0 : -1.0;
-      return dist;
-   }
+    //      return (dist >= 0.0) ? 1.0 : -1.0;
+    return dist;
+  }
 };
+
+  class WeightedDiffusionIntegrator : public BilinearFormIntegrator
+  {
+  private:
+    const ParMesh *pmesh;  
+    ParGridFunction *alpha;
+    
+  public:
+    WeightedDiffusionIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF) : pmesh(pmesh), alpha(&alphaF) {}
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+					ElementTransformation &Trans,
+					DenseMatrix &elmat);
+    const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+				   const FiniteElement &test_fe,
+				   ElementTransformation &Trans);
+  };
+
+void DiffuseH1(ParGridFunction &g, double c);
+#endif

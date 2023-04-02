@@ -110,13 +110,14 @@ double AvgElementSize(ParMesh &pmesh);
     }
 
     /// Adds shifted displacement BC in direction 0(x),1(y),2(z), or 4(all).
-    void AddShiftedNormalStressBC(mfem::ShiftedVectorFunctionCoefficient& val)
+    void AddShiftedNormalStressBC(mfem::ShiftedMatrixFunctionCoefficient& val)
+
     {
       shifted_traction_BC = &val;
     }
 
     /// Add surface load
-    void AddSurfLoad(int id, mfem::VectorCoefficient& ff)
+    void AddSurfLoad(int id, mfem::MatrixFunctionCoefficient& ff)
     {
       mfem::Array<int> * ess_bdr_tmp = new Array<int>(pmesh->bdr_attributes.Max());
       (*ess_bdr_tmp) = 0;
@@ -130,8 +131,8 @@ double AvgElementSize(ParMesh &pmesh);
     /// Set exact displacement solution.
     void SetExactDisplacementSolution(mfem::VectorCoefficient& ff);
 
-    /// Returns the velocities.
-    mfem::ParGridFunction& GetVelocities()
+    /// Returns the displacements.
+    mfem::ParGridFunction& GetDisplacements()
     {
       return *fdisplacement;
     }
@@ -146,6 +147,18 @@ double AvgElementSize(ParMesh &pmesh);
     void GetDisplacementSol(ParGridFunction& sgf){
       sgf.SetSpace(vfes); sgf.SetFromTrueDofs(*fdisplacement);}
 
+    void SetLevelSetGridFunction(ParGridFunction& levelSet_gf){
+      level_set_gf = &levelSet_gf;
+    }
+
+    void CreateDistanceAndNormalGridFunctions();
+    
+    void CalculateVolumeFractions();
+
+    void MarkElements();
+
+    void ExtractInactiveDofsAndElements();
+ 
     void ComputeL2Errors();
 
     void VisualizeFields();
@@ -171,12 +184,15 @@ double AvgElementSize(ParMesh &pmesh);
     /// coefficient.
     mfem::VectorCoefficient* volforce;
 
-    Solver *prec;    
+    mfem::HypreBoomerAMG *prec;    
     mfem::GMRESSolver *ns;
 
     // displacement space and fe
     mfem::ParFiniteElementSpace* vfes;
     mfem::FiniteElementCollection* vfec;
+
+    mfem::ParFiniteElementSpace* alpha_fes;
+    mfem::L2_FECollection* alpha_fec;
 
     ShearModulus* shearMod;
     BulkModulus* bulkMod;
@@ -190,29 +206,26 @@ double AvgElementSize(ParMesh &pmesh);
     std::map<mfem::Array<int> * ,mfem::VectorCoefficient*> displacement_BC;
 
     // shifted displacement BC
-    mfem::ShiftedVectorFunctionCoefficient* shifted_traction_BC;
+    mfem::ShiftedMatrixFunctionCoefficient* shifted_traction_BC;
 
     //surface loads
-    std::map<mfem::Array<int> *,mfem::VectorCoefficient*> surf_loads;
+    std::map<mfem::Array<int> *,mfem::MatrixFunctionCoefficient*> surf_loads;
 
     Array<int> ess_elem;
 
     double C_I;
 
-    Dist_Level_Set_Coefficient *neumann_dist_coef;
-    Combo_Level_Set_Coefficient *combo_dist_coef;
+    Coefficient *neumann_dist_coef;  
     // in case we are using level set to get distance and normal vectors
     ParFiniteElementSpace *distance_vec_space;
     ParGridFunction *distance;
     ParFiniteElementSpace *normal_vec_space;
     ParGridFunction *normal;
-    ParGridFunction *ls_func;
     ParGridFunction *level_set_gf;
-    ParGridFunction *filt_gf;
-
+    ParGridFunction *alphaCut;
     //
 
-    ShiftedFaceMarker *analyticalSurface;
+    AttributeShiftedFaceMarker *marker;
     bool useAnalyticalShape;
     VectorCoefficient *dist_vec;
     VectorCoefficient *normal_vec;

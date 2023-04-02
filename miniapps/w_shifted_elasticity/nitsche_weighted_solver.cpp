@@ -21,20 +21,22 @@ namespace mfem
 {
 
   void WeightedStressBoundaryForceIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
-							 const FiniteElement &fe2,
-							 FaceElementTransformations &Tr,
-							 DenseMatrix &elmat)
+								 const FiniteElement &fe2,
+								 FaceElementTransformations &Tr,
+								 DenseMatrix &elmat)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
+    
     const int dim = fe.GetDim();
     const int dofs_cnt = fe.GetDof();
     elmat.SetSize(dofs_cnt*dim);
     elmat = 0.0;
-
+    
     Vector nor(dim), ni(dim);
     DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim);
     Vector shape(dofs_cnt), gradURes(dofs_cnt);
     double w = 0.0;
-  
+      
     shape = 0.0;
     gradURes = 0.0;
     dshape = 0.0;
@@ -42,39 +44,45 @@ namespace mfem
     adjJ = 0.0;
     nor = 0.0;
     ni = 0.0;
-
+      
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
-
+      
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
-  
+      
     for (int q = 0; q < nqp_face; q++)
       {
+	shape = 0.0;
 	gradURes = 0.0;
+	dshape = 0.0;
+	dshape_ps = 0.0;
+	adjJ = 0.0;
+	nor = 0.0;
+	ni = 0.0;
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
 	const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 	CalcOrtho(Tr.Jacobian(), nor);
-    	double volumeFraction = alpha->GetValue(Trans_el1, eip);
-
+	double volumeFraction = alpha->GetValue(Trans_el1, eip);
+	  
 	fe.CalcShape(eip, shape);
 	fe.CalcDShape(eip, dshape);
 	CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
 	Mult(dshape, adjJ, dshape_ps);
 	w = ip_f.weight/Tr.Elem1->Weight();
 	dshape_ps.Mult(nor,gradURes);
-
+	  
 	double Mu = mu->Eval(*Tr.Elem1, eip);
 	double Kappa = kappa->Eval(*Tr.Elem1, eip);
 	ni.Set(w, nor);
-
+	  
 	for (int i = 0; i < dofs_cnt; i++)
 	  {
 	    for (int vd = 0; vd < dim; vd++) // Velocity components.
@@ -94,10 +102,12 @@ namespace mfem
   }
 
   void WeightedStressBoundaryForceTransposeIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
-								  const FiniteElement &fe2,
-								  FaceElementTransformations &Tr,
-								  DenseMatrix &elmat)
+									  const FiniteElement &fe2,
+									  FaceElementTransformations &Tr,
+									  DenseMatrix &elmat)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
+    
     const int dim = fe.GetDim();
     const int dofs_cnt = fe.GetDof();
     elmat.SetSize(dofs_cnt*dim);
@@ -107,30 +117,45 @@ namespace mfem
     DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim);
     Vector shape(dofs_cnt), gradURes(dofs_cnt);
     double w = 0.0;
-  
+    nor = 0.0;
     shape = 0.0;
     gradURes = 0.0;
-
+    ni = 0.0;
+    gradURes = 0.0;
+    shape = 0.0;
+    dshape = 0.0;
+    dshape_ps = 0.0;
+    adjJ = 0.0;
+      
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
   
     for (int q = 0; q < nqp_face; q++)
       {
+	nor = 0.0;
+	shape = 0.0;
 	gradURes = 0.0;
+	ni = 0.0;
+	gradURes = 0.0;
+	shape = 0.0;
+	dshape = 0.0;
+	dshape_ps = 0.0;
+	adjJ = 0.0;
+      
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
 	const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 	CalcOrtho(Tr.Jacobian(), nor);
-    	double volumeFraction = alpha->GetValue(Trans_el1, eip);
+	double volumeFraction = alpha->GetValue(Trans_el1, eip);
     
 	fe.CalcShape(eip, shape);
 	fe.CalcDShape(eip, dshape);
@@ -160,12 +185,12 @@ namespace mfem
       }
   }
 
-
   void WeightedNormalDisplacementPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
-						     const FiniteElement &fe2,
-						     FaceElementTransformations &Tr,
-						     DenseMatrix &elmat)
+								       const FiniteElement &fe2,
+								       FaceElementTransformations &Tr,
+								       DenseMatrix &elmat)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     const int dim = fe.GetDim();
     const int h1dofs_cnt = fe.GetDof();
     elmat.SetSize(h1dofs_cnt*dim);
@@ -179,22 +204,22 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
-
+  
     for (int q = 0; q < nqp_face; q++)
       {
+	shape = 0.0;
+	nor = 0.0;
+
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
     
 	const IntegrationPoint &eip = Tr.GetElement1IntPoint();
-	Vector nor;
-	nor.SetSize(dim);
-	nor = 0.0;
 	CalcOrtho(Tr.Jacobian(), nor);
 	fe.CalcShape(eip, shape);
 	double volumeFraction = alpha->GetValue(Trans_el1, eip);
@@ -220,12 +245,13 @@ namespace mfem
 	  }
       }
   }
-
+  
   void WeightedTangentialDisplacementPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
-						     const FiniteElement &fe2,
-						     FaceElementTransformations &Tr,
-						     DenseMatrix &elmat)
+									   const FiniteElement &fe2,
+									   FaceElementTransformations &Tr,
+									   DenseMatrix &elmat)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     const int dim = fe.GetDim();
     const int h1dofs_cnt = fe.GetDof();
     elmat.SetSize(h1dofs_cnt*dim);
@@ -239,11 +265,11 @@ namespace mfem
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(fe.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     DenseMatrix identity(dim);
     identity = 0.0;
     for (int s = 0; s < dim; s++){
@@ -252,14 +278,14 @@ namespace mfem
     
     for (int q = 0; q < nqp_face; q++)
       {
+	shape = 0.0;
+	nor = 0.0;
+	  
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
     
 	const IntegrationPoint &eip = Tr.GetElement1IntPoint();
-	Vector nor;
-	nor.SetSize(dim);
-	nor = 0.0;
 	CalcOrtho(Tr.Jacobian(), nor);
 	fe.CalcShape(eip, shape);
 	double volumeFraction = alpha->GetValue(Trans_el1, eip);
@@ -285,11 +311,11 @@ namespace mfem
 	  }
       }
   }
-
   void WeightedStressNitscheBCForceIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-							      FaceElementTransformations &Tr,
-							      Vector &elvect)
+								      FaceElementTransformations &Tr,
+								      Vector &elvect)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     const int dim = el.GetDim();
     const int dofs_cnt = el.GetDof();
     elvect.SetSize(dofs_cnt*dim);
@@ -302,21 +328,35 @@ namespace mfem
     
     shape = 0.0;
     gradURes = 0.0;
-    
+    ni = 0.0;
+    nor = 0.0;
+    bcEval = 0.0;
+    dshape = 0.0;
+    dshape_ps = 0.0;
+    adjJ = 0.0;
+      
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
      
     for (int q = 0; q  < nqp_face; q++)
       {
+	shape = 0.0;
 	gradURes = 0.0;
+	ni = 0.0;
+	nor = 0.0;
+	bcEval = 0.0;
+	dshape = 0.0;
+	dshape_ps = 0.0;
+	adjJ = 0.0;
+	  
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
@@ -353,16 +393,17 @@ namespace mfem
       }
   }
   void WeightedStressNitscheBCForceIntegrator::AssembleRHSElementVect(
-							      const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+								      const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
   {
     mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
   }
 
 
   void WeightedNormalDisplacementBCPenaltyIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-							   FaceElementTransformations &Tr,
-							   Vector &elvect)
+									     FaceElementTransformations &Tr,
+									     Vector &elvect)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     const int dim = el.GetDim();
     const int h1dofs_cnt = el.GetDof();
     elvect.SetSize(h1dofs_cnt*dim);
@@ -370,20 +411,23 @@ namespace mfem
     Vector shape(h1dofs_cnt), nor(dim), bcEval(dim);
     shape = 0.0;
     nor = 0.0;
-  
+    bcEval = 0.0;
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
-
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     for (int q = 0; q < nqp_face; q++)
       {
+	shape = 0.0;
+	nor = 0.0;
+	bcEval = 0.0;
+	  
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
@@ -391,9 +435,6 @@ namespace mfem
 	double volumeFraction = alpha->GetValue(Trans_el1, eip);
         
 	//   Trans_el1.SetIntPoint(&eip);
-	Vector nor;
-	nor.SetSize(dim);
-	nor = 0.0;
 	CalcOrtho(Tr.Jacobian(), nor);
 	el.CalcShape(eip, shape);
 	double nor_norm = 0.0;
@@ -417,17 +458,17 @@ namespace mfem
 	  }
       }
   }
-
   void WeightedNormalDisplacementBCPenaltyIntegrator::AssembleRHSElementVect(
-							   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+									     const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
   {
     mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
   }
 
-    void WeightedTangentialDisplacementBCPenaltyIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-							   FaceElementTransformations &Tr,
-							   Vector &elvect)
+  void WeightedTangentialDisplacementBCPenaltyIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+										 FaceElementTransformations &Tr,
+										 Vector &elvect)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     const int dim = el.GetDim();
     const int h1dofs_cnt = el.GetDof();
     elvect.SetSize(h1dofs_cnt*dim);
@@ -435,12 +476,14 @@ namespace mfem
     Vector shape(h1dofs_cnt), nor(dim), bcEval(dim);
     shape = 0.0;
     nor = 0.0;
-  
+    bcEval = 0.0;
+      
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -451,9 +494,12 @@ namespace mfem
     }
     
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     for (int q = 0; q < nqp_face; q++)
       {
+	shape = 0.0;
+	nor = 0.0;
+	bcEval = 0.0;
+	  
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
@@ -461,9 +507,6 @@ namespace mfem
 	double volumeFraction = alpha->GetValue(Trans_el1, eip);
         
 	//   Trans_el1.SetIntPoint(&eip);
-	Vector nor;
-	nor.SetSize(dim);
-	nor = 0.0;
 	CalcOrtho(Tr.Jacobian(), nor);
 	el.CalcShape(eip, shape);
 	double nor_norm = 0.0;
@@ -488,47 +531,51 @@ namespace mfem
 	  }
       }
   }
-  
   void WeightedTangentialDisplacementBCPenaltyIntegrator::AssembleRHSElementVect(
-							   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+										 const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
   {
     mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
   }
 
   void WeightedTractionBCIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-							   FaceElementTransformations &Tr,
-							   Vector &elvect)
+							    FaceElementTransformations &Tr,
+							    Vector &elvect)
   {
+    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     const int dim = el.GetDim();
     const int h1dofs_cnt = el.GetDof();
     elvect.SetSize(h1dofs_cnt*dim);
     elvect = 0.0;
     Vector shape(h1dofs_cnt), nor(dim), bcEval(dim);
+    DenseMatrix stress(dim);
+    stress = 0.0;    
     shape = 0.0;
     nor = 0.0;
- 
+    bcEval = 0.0;
+      
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
 	const int order = 5 * max(el.GetOrder(), 1);
+	//	const int order = 25;
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
-
     const int nqp_face = ir->GetNPoints();
-    ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
     for (int q = 0; q < nqp_face; q++)
       {
+	shape = 0.0;
+	nor = 0.0;
+	bcEval = 0.0;
+	stress = 0.0;
+	
 	const IntegrationPoint &ip_f = ir->IntPoint(q);
 	// Set the integration point in the face and the neighboring elements
 	Tr.SetAllIntPoints(&ip_f);
 	const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 	double volumeFraction = alpha->GetValue(Trans_el1, eip);
         
-	Vector nor;
-	nor.SetSize(dim);
-	nor = 0.0;
 	CalcOrtho(Tr.Jacobian(), nor);
 	el.CalcShape(eip, shape);
 	double nor_norm = 0.0;
@@ -536,8 +583,13 @@ namespace mfem
 	  nor_norm += nor(s) * nor(s);
 	}
 	nor_norm = sqrt(nor_norm);
-	tN->Eval(bcEval, Trans_el1, eip);
-
+	tN->Eval(stress, Trans_el1, eip);
+	for (int s = 0; s < dim; s++){
+	  for (int k = 0; k < dim; k++){
+	    bcEval(s) += stress(s,k) * nor(k)/nor_norm;
+	  }
+	}
+	
 	for (int i = 0; i < h1dofs_cnt; i++)
 	  {
 	    for (int vd = 0; vd < dim; vd++) // Velocity components.
@@ -547,9 +599,8 @@ namespace mfem
 	  }
       }
   }
-
   void WeightedTractionBCIntegrator::AssembleRHSElementVect(
-							   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+							    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
   {
     mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
 

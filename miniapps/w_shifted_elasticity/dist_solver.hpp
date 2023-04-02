@@ -17,8 +17,6 @@
 namespace mfem
 {
 
-  //double AvgElementSize(ParMesh &pmesh);
-
   
 class DistanceSolver
 {
@@ -225,34 +223,34 @@ public:
     PDEFilter(mfem::ParMesh& mesh, double rh, int order_=2,
               int maxiter=100, double rtol=1e-7, double atol=1e-15, int print_lv=0)
     {
-        int dim=mesh.Dimension();
-        lcom=mesh.GetComm();
-
-        rr=rh;
-
-        fecp=new mfem::H1_FECollection(order_,dim);
-        fesp=new mfem::ParFiniteElementSpace(&mesh,fecp,1,mfem::Ordering::byVDIM);
-
-        sv = fesp->NewTrueDofVector();
-        bv = fesp->NewTrueDofVector();
-
-        gf = new mfem::ParGridFunction(fesp);
-
-
-        nf=new mfem::ParNonlinearForm(fesp);
-        prec=new mfem::HypreBoomerAMG();
-        prec->SetPrintLevel(print_lv);
-
-        gmres = new mfem::GMRESSolver(lcom);
-
-        gmres->SetAbsTol(atol);
-        gmres->SetRelTol(rtol);
-        gmres->SetMaxIter(maxiter);
-        gmres->SetPrintLevel(print_lv);
-        gmres->SetPreconditioner(*prec);
-
-        K=nullptr;
-        sint=nullptr;
+      int dim=mesh.Dimension();
+      lcom=mesh.GetComm();
+      
+      rr=rh;
+      
+      fecp=new mfem::H1_FECollection(order_,dim);
+      fesp=new mfem::ParFiniteElementSpace(&mesh,fecp,1,mfem::Ordering::byVDIM);
+      
+      sv = fesp->NewTrueDofVector();
+      bv = fesp->NewTrueDofVector();
+      
+      gf = new mfem::ParGridFunction(fesp);
+      
+      
+      nf=new mfem::ParNonlinearForm(fesp);
+      prec=new mfem::HypreBoomerAMG();
+      prec->SetPrintLevel(print_lv);
+      
+      gmres = new mfem::GMRESSolver(lcom);
+      
+      gmres->SetAbsTol(atol);
+      gmres->SetRelTol(rtol);
+      gmres->SetMaxIter(maxiter);
+      gmres->SetPrintLevel(print_lv);
+      gmres->SetPreconditioner(*prec);
+      
+      K=nullptr;
+      sint=nullptr;
     }
 
     ~PDEFilter()
@@ -262,8 +260,6 @@ public:
         delete prec;
         delete nf;
         delete gf;
-        delete bv;
-        delete sv;
         delete fesp;
         delete fecp;
     }
@@ -275,47 +271,47 @@ public:
 
     }
 
-    void Filter(mfem::Coefficient& func, mfem::ParGridFunction& ffield)
-    {
-        if(sint==nullptr)
-        {
-            sint=new mfem::ScreenedPoisson(func,rr);
-            nf->AddDomainIntegrator(sint);
-            *sv=0.0;
-            K=&(nf->GetGradient(*sv));
-            gmres->SetOperator(*K);
-
-        }else{
-            sint->SetInput(func);
-        }
-
-        //form RHS
-        *sv=0.0;
-        nf->Mult(*sv,*bv);
-        //filter the input field
-        gmres->Mult(*bv,*sv);
-
-        gf->SetFromTrueDofs(*sv);
-
-        mfem::GridFunctionCoefficient gfc(gf);
-        ffield.ProjectCoefficient(gfc);
+  void Filter(mfem::Coefficient& func, mfem::ParGridFunction& ffield)
+  {
+    if(sint==nullptr)
+      {
+	sint=new mfem::ScreenedPoisson(func,rr);
+	nf->AddDomainIntegrator(sint);
+	*sv=0.0;
+	K=&(nf->GetGradient(*sv));
+	gmres->SetOperator(*K);
+	
+      }else{
+      sint->SetInput(func);
     }
-
+    
+    //form RHS
+    *sv=0.0;
+    nf->Mult(*sv,*bv);
+    //filter the input field
+    gmres->Mult(*bv,*sv);
+    
+    gf->SetFromTrueDofs(*sv);
+    gf->Neg();
+    mfem::GridFunctionCoefficient gfc(gf);
+    ffield.ProjectCoefficient(gfc);
+  }
+  
 private:
-    MPI_Comm lcom;
-    mfem::H1_FECollection* fecp;
-    mfem::ParFiniteElementSpace* fesp;
-    mfem::ParNonlinearForm* nf;
-    mfem::HypreBoomerAMG* prec;
-    mfem::GMRESSolver *gmres;
-    mfem::HypreParVector *sv;
-    mfem::HypreParVector *bv;
-
-    mfem::ParGridFunction* gf;
-
-    mfem::Operator* K;
-    mfem::ScreenedPoisson* sint;
-    double rr;
+  MPI_Comm lcom;
+  mfem::H1_FECollection* fecp;
+  mfem::ParFiniteElementSpace* fesp;
+  mfem::ParNonlinearForm* nf;
+  mfem::HypreBoomerAMG* prec;
+  mfem::GMRESSolver *gmres;
+  mfem::HypreParVector *sv;
+  mfem::HypreParVector *bv;
+  
+  mfem::ParGridFunction* gf;
+  
+  mfem::Operator* K;
+  mfem::ScreenedPoisson* sint;
+  double rr;
 
 };
 

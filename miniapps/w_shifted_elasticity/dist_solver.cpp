@@ -38,7 +38,6 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete Lap;
 }
 
-
 void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
                                         ParGridFunction &dist_v)
 {
@@ -65,7 +64,8 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
    const double eps = 1e-16;
    for (int i = 0; i < size; i++)
    {
-      const double vec_magn = std::sqrt(magn(i) + eps);
+     const double vec_magn = std::sqrt(magn(i) + eps);
+ 
       for (int d = 0; d < dim; d++)
       {
          dist_v(i + d*size) *= fabs(dist_s(i)) / vec_magn;

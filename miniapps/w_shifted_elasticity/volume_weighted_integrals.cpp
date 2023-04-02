@@ -19,7 +19,7 @@
 
 namespace mfem
 {
-  
+
   void WeightedStressForceIntegrator::AssembleElementMatrix(const FiniteElement &el,
 								  ElementTransformation &Trans,
 								  DenseMatrix &elmat)
@@ -91,7 +91,7 @@ namespace mfem
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
       {
-	ir = &IntRules.Get(el.GetGeomType(), 5 * el.GetOrder());
+	ir = &IntRules.Get(el.GetGeomType(), 25);
       }
 
     for (int q = 0; q < ir->GetNPoints(); q++)
@@ -102,6 +102,7 @@ namespace mfem
 	Q->Eval(forceEval, Tr, ip);
 	el.CalcShape (ip, shape);
     	double volumeFraction = alpha->GetValue(Tr, ip);
+	
 	for (int i = 0; i < dof; i++)
 	  {
 	    for (int md = 0; md < dim; md++)

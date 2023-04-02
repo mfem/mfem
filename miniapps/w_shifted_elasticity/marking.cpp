@@ -14,23 +14,21 @@
 namespace mfem
 {
 
-void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
+void AttributeShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
 {
-   elemStatus.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
-   ess_inactive.SetSize(pfes_sltn->GetVSize());
-   ess_inactive = -1;
+  MPI_Comm comm = pmesh.GetComm();
+  int myid;
+  MPI_Comm_rank(comm, &myid);
+
    const int max_elem_attr = (pmesh.attributes).Max();
    int activeCount = 0;
    int inactiveCount = 0;
    int cutCount = 0;
 
-   if (!initial_marking_done) { elemStatus = SBElementType::INSIDE; }
-   else { level_set_index += 1; }
-
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
    // This tolerance is relevant for points that are exactly on the zero LS.
-   const double eps = 1e-10;
+   const double eps = 1e-16;
    auto outside_of_domain = [&](double value)
    {
       if (include_cut_cell)
@@ -44,32 +42,31 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
          return (value + eps < 0.0);
       }
    };
-
+   ParFiniteElementSpace * ls_fes = ls_func.ParFESpace();
    Vector vals;
    // Check elements on the current MPI rank
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-      const IntegrationRule &ir = pfes_sltn->GetFE(i)->GetNodes();
-      ls_func.GetValues(i, ir, vals);
-    
-      int count = 0;
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         if (outside_of_domain(vals(j))) { count++; }
-      }
+     const IntegrationRule &ir = ls_fes->GetFE(i)->GetNodes();
+     ls_func.GetValues(i, ir, vals);
+     int count = 0;
+     for (int j = 0; j < ir.GetNPoints(); j++)
+       {
+	 if (outside_of_domain(vals(j))) { count++; }
+       }
 
       if (count == ir.GetNPoints()) // completely outside
-      {
+      {     
 	inactiveCount++;
-	elemStatus[i] = SBElementType::OUTSIDE;
-	pmesh.SetAttribute(i, max_elem_attr+1);
+	pmesh.SetAttribute(i, SBElementType::OUTSIDE);
+	mat_attr(i) = SBElementType::OUTSIDE;
       }
       else if ((count > 0) && (count < ir.GetNPoints())) // partially outside
       {
-	cutCount++;
-	/*MFEM_VERIFY(elemStatus[i] <= SBElementType::OUTSIDE,
-      	    " One element cut by multiple level-sets.");*/
-	elemStatus[i] = SBElementType::CUT + level_set_index;
+
+	cutCount++;	
+	pmesh.SetAttribute(i, SBElementType::CUT);
+	mat_attr(i) = SBElementType::CUT;		
 	if (include_cut_cell){
 	  Array<int> dofs;
 	  pfes_sltn->GetElementVDofs(i, dofs);
@@ -78,12 +75,11 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
 	      ess_inactive[dofs[k]] = 0;
 	    }
 	}
-	else{
-	  pmesh.SetAttribute(i, max_elem_attr+1);
-	}
       }
       else // inside
       {
+	pmesh.SetAttribute(i, SBElementType::INSIDE);
+	mat_attr(i) = SBElementType::INSIDE;		
 	activeCount++;
 	Array<int> dofs;
 	pfes_sltn->GetElementVDofs(i, dofs);
@@ -93,59 +89,70 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func)
 	  }
       }
    }
-
+   mat_attr.ExchangeFaceNbrData(); 
    pmesh.ExchangeFaceNbrNodes();
 
-   // Check neighbors on the adjacent MPI rank
-   for (int i = pmesh.GetNE(); i < pmesh.GetNE()+pmesh.GetNSharedFaces(); i++)
-   {
-      int shared_fnum = i-pmesh.GetNE();
-      FaceElementTransformations *tr =
-         pmesh.GetSharedFaceTransformations(shared_fnum);
-      int Elem2NbrNo = tr->Elem2No - pmesh.GetNE();
+   for (int f = 0; f < pmesh.GetNumFaces(); f++)
+     {
+       auto *ft = pmesh.GetFaceElementTransformations(f, 3);
+       if (ft->Elem2No > 0) {
+	 bool elem1_inside = (pmesh.GetAttribute(ft->Elem1No) == SBElementType::INSIDE);
+	 bool elem1_cut = (pmesh.GetAttribute(ft->Elem1No) == SBElementType::CUT);
+	 bool elem1_outside = (pmesh.GetAttribute(ft->Elem1No) == SBElementType::OUTSIDE);
+  
+	 bool elem2_inside = (pmesh.GetAttribute(ft->Elem2No) == SBElementType::INSIDE);
+	 bool elem2_cut = (pmesh.GetAttribute(ft->Elem2No) == SBElementType::CUT);
+	 bool elem2_outside = (pmesh.GetAttribute(ft->Elem2No) == SBElementType::OUTSIDE);
+	 // ghost faces
+ 	 if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) ) {
+	   pmesh.SetFaceAttribute(f, 77);
+	 }
+	 // outer surrogate boundaries      
+	 if ( (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
+	   pmesh.SetFaceAttribute(f, 11);	
+	 }
+       }
+     }
+   
+   for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
+     {
+       auto *ftr = pmesh.GetSharedFaceTransformations(f, 3);
+       int faceno = pmesh.GetSharedFace(f);
+       int Elem2NbrNo = ftr->Elem2No - pmesh.GetNE();
+       auto *nbrftr = ls_fes->GetFaceNbrElementTransformation(Elem2NbrNo);
+       int attr1 = pmesh.GetAttribute(ftr->Elem1No);
+       IntegrationPoint sip; sip.Init(0);
+       int attr2 = mat_attr.GetValue(*ftr->Elem2, sip);
+       bool elem1_inside = (attr1 == SBElementType::INSIDE);
+       bool elem1_cut = (attr1 == SBElementType::CUT);
+       bool elem1_outside = (attr1 == SBElementType::OUTSIDE);
+       
+       bool elem2_inside = (attr2 == SBElementType::INSIDE);
+       bool elem2_cut = (attr2 == SBElementType::CUT);
+       bool elem2_outside = (attr2 == SBElementType::OUTSIDE);
+       // ghost faces
+       if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) ) {
+	 pmesh.SetFaceAttribute(faceno, 77);
+       }
+       // outer surrogate boundaries
+       if ( (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
+	 pmesh.SetFaceAttribute(faceno, 11);	
+       }
+     }
 
-      ElementTransformation *eltr =
-         pmesh.GetFaceNbrElementTransformation(Elem2NbrNo);
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0), 4*eltr->OrderJ());
-
-      const int nip = ir.GetNPoints();
-      vals.SetSize(nip);
-      int count = 0;
-      for (int j = 0; j < nip; j++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         vals(j) = ls_func.GetValue(tr->Elem2No, ip);
-         if (outside_of_domain(vals(j))) { count++; }
-      }
-
-      if (count == ir.GetNPoints()) // completely outside
-      {
-	/*         MFEM_VERIFY(elemStatus[i] != SBElementType::OUTSIDE,
-		   "An element cannot be excluded by more than 1 level-set.");*/
-         elemStatus[i] = SBElementType::OUTSIDE;
-      }
-      else if (count > 0) // partially outside
-      {
-        /* MFEM_VERIFY(elemStatus[i] <= SBElementType::OUTSIDE,
-	   "An element cannot be cut by multiple level-sets.");*/
-         elemStatus[i] = SBElementType::CUT + level_set_index;
-      }
-   }
+   pmesh.ExchangeFaceNbrNodes();
+   
    initial_marking_done = true;
-   std::cout << " active elemSta " << activeCount << " cut " << cutCount << " inacive " << inactiveCount <<  std::endl;
+   std::cout << " myid " << myid << " active elemSta " << activeCount << " cut " << cutCount << " inacive " << inactiveCount <<  std::endl;
    // Synchronize
    for (int i = 0; i < ess_inactive.Size() ; i++) { ess_inactive[i] += 1; }
    pfes_sltn->Synchronize(ess_inactive);
    for (int i = 0; i < ess_inactive.Size() ; i++) { ess_inactive[i] -= 1; }
-   pmesh.SetAttributes();
+   pmesh.SetAttributes();  
 }
 
-  Array<int>& ShiftedFaceMarker::GetEss_Vdofs(){
+  Array<int>& AttributeShiftedFaceMarker::GetEss_Vdofs(){
     return ess_inactive;
-  }
-  Array<int>& ShiftedFaceMarker::GetElement_Status(){
-    return elemStatus;
   }
 
 }

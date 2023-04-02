@@ -1,4 +1,4 @@
-// Copyright (c) 20A17, Lawrence Livermore NatAional Security, LLC. Produced at
+// Copyright (c) 2017, Lawrence Livermore NatAional Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
 // reserved. See files LICENSE and NOTICE for details.
 //
@@ -42,41 +42,27 @@ namespace mfem
     Function(transip, V);
   }
 
+  void ShiftedMatrixFunctionCoefficient::Eval(DenseMatrix &V,
+					      ElementTransformation & T,
+					      const IntegrationPoint & ip,
+					      const Vector &D)
+  {
+    Vector transip;
+    T.Transform(ip, transip);
+    for (int i = 0; i < D.Size(); i++)
+      {
+	transip(i) += D(i);
+      }
+    
+    Function(transip, V);
+  }
+  
   void WeightedShiftedStressBoundaryForceIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
 									const FiniteElement &fe2,
 									FaceElementTransformations &Tr,
 									DenseMatrix &elmat)
   {
-    Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
-    int elem1 = Tr.Elem1No;
-    int elem2 = Tr.Elem2No;
-   
-    int elemStatus1 = elemStatus[elem1];
-    int elemStatus2;
-    if (Tr.Elem2No >= NEproc)
-      {
-        elemStatus2 = elemStatus[NEproc+par_shared_face_count];
-	par_shared_face_count++;
-   }
-    else
-      {
-        elemStatus2 = elemStatus[elem2];
-      }
-
-    const int e = Tr.ElementNo;
-    bool elem1_inside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem1_cut = (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem1_outside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    bool elem2_inside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem2_cut = (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem2_outside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) || (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
+    if ( (Tr.Attribute == 77) || (Tr.Attribute == 11) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
       elmat.SetSize(2*dofs_cnt*dim);
@@ -107,7 +93,8 @@ namespace mfem
       if (ir == NULL)
 	{
 	  // a simple choice for the integration order; is this OK?
-	  const int order = 10 * max(fe.GetOrder(), 1);
+	  const int order = 5 * max(fe.GetOrder(), 1);
+	  // const int order = 25;
 	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
 	}
       
@@ -119,20 +106,6 @@ namespace mfem
       fe.ProjectGrad(fe,Trans_el1,nodalGrad_el1);
       fe2.ProjectGrad(fe2,Trans_el2,nodalGrad_el2);
 
-      /*  const IntegrationRule &nodes = fe.GetNodes();
-      for (int j = 0; j < nodes.GetNPoints(); j++)
-	{
-	  const IntegrationPoint &ip_nodes = nodes.IntPoint(j);
-	  Vector D_el1(dim);
-	  D_el1 = 0.0;
-	  //	  Vector x(3);
-	  //  Trans_el1.Transform(ip_nodes,x);
-	  vD->Eval(D_el1, Trans_el1, ip_nodes);
-	  for (int s = 0; s < dim; s++){
-	    std::cout << " D " << D_el1(s) << std::endl;
-	  }
-	}
-      */
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape_el1 = 0.0;
@@ -166,13 +139,13 @@ namespace mfem
 	  double sum_volFrac = volumeFraction_el1 + volumeFraction_el2;
 	  double gamma_1 =  volumeFraction_el1/sum_volFrac;
 	  double gamma_2 =  volumeFraction_el2/sum_volFrac;
-
 	  /////
 	  Vector D_el1(dim);
 	  Vector tN_el1(dim);
+	  D_el1 = 0.0;
+	  tN_el1 = 0.0;
 	  vD->Eval(D_el1, Trans_el1, eip_el1);
-	  vN->Eval(tN_el1, Trans_el1, eip_el1);
-
+	  vN->Eval(tN_el1, Trans_el1, eip_el1);	  
 	  /////
 	  double nTildaDotN = 0.0;
 	  double nor_norm = 0.0;
@@ -182,7 +155,7 @@ namespace mfem
 	  nor_norm = sqrt(nor_norm);
 	  for (int s = 0; s < dim; s++){
 	    nTildaDotN += (nor(s) / nor_norm) * tN_el1(s);
-	    // std::cout << " D " << D_el1(s) << std::endl;
+	    //    std::cout << " D " << D_el1(s) << std::endl;
 	  }
 	  
 	  fe.CalcShape(eip_el1, shape_el1);
@@ -230,10 +203,12 @@ namespace mfem
 	  ////
 	  shape_el1 += gradUResD_el1;
 	  //
-	
+	  
 	  /////
 	  Vector D_el2(dim);
 	  Vector tN_el2(dim);
+	  D_el2 = 0.0;
+	  tN_el2 = 0.0;	
 	  vD->Eval(D_el2, Trans_el2, eip_el2);
 	  vN->Eval(tN_el2, Trans_el2, eip_el2);
 	  /////
@@ -339,37 +314,7 @@ namespace mfem
 									 FaceElementTransformations &Tr,
 									 DenseMatrix &elmat)
   {
-    Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
-
-    //  std::cout << " I AM IN ASSEMBLE FACE " << std::endl;
-    int elem1 = Tr.Elem1No;
-    int elem2 = Tr.Elem2No;
-    int elemStatus1 = elemStatus[elem1];
-    int elemStatus2;
-    if (Tr.Elem2No >= NEproc)
-      {
-        elemStatus2 = elemStatus[NEproc+par_shared_face_count];
-	par_shared_face_count++;
-      }
-    else
-      {
-        elemStatus2 = elemStatus[elem2];
-      }
-    const int e = Tr.ElementNo;
-    bool elem1_inside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem1_cut = (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem1_outside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    bool elem2_inside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem2_cut = (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem2_outside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    
-    if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) || (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
+    if ( (Tr.Attribute == 11) || (Tr.Attribute == 77) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
       elmat.SetSize(2*dofs_cnt*dim);
@@ -395,7 +340,8 @@ namespace mfem
       if (ir == NULL)
 	{
 	  // a simple choice for the integration order; is this OK?
-	  const int order = 10 * max(fe.GetOrder(), 1);
+	  const int order = 5 * max(fe.GetOrder(), 1);
+	  // const int order = 25;	 
 	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
 	}
       
@@ -491,35 +437,8 @@ namespace mfem
 								     FaceElementTransformations &Tr,
 								     Vector &elvect)
   {
-    Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-
-    MPI_Comm comm = pmesh->GetComm();
-    int myid;
-    MPI_Comm_rank(comm, &myid);
-    int NEproc = pmesh->GetNE();
-    int elem1 = Tr.Elem1No;
-    int elem2 = Tr.Elem2No;
-
-    int elemStatus1 = elemStatus[elem1];
-    int elemStatus2;
-    if (Tr.Elem2No >= NEproc)
-      {
-        elemStatus2 = elemStatus[NEproc+par_shared_face_count];
-	par_shared_face_count++;
-      }
-    else
-      {
-        elemStatus2 = elemStatus[elem2];
-      }
-    const int e = Tr.ElementNo;
-    bool elem1_inside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem1_cut = (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem1_outside = (elemStatus1 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
+    if ( (Tr.Attribute == 11) || (Tr.Attribute == 77) ){
     
-    bool elem2_inside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE);
-    bool elem2_cut = (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT);
-    bool elem2_outside = (elemStatus2 == AnalyticalGeometricShape::SBElementType::OUTSIDE);
-    if ( (elem1_inside && elem2_cut) || (elem1_cut && elem2_inside) ||  (elem1_cut && elem2_cut) || (elem1_cut && elem2_outside) ||  (elem1_outside && elem2_cut) ) {
       const int dim = el.GetDim();
       const int dofs_cnt = el.GetDof();
       elvect.SetSize(2*dofs_cnt*dim);
@@ -527,18 +446,20 @@ namespace mfem
 	
       Vector nor(dim), bcEval(dim);
       Vector shape_el1(dofs_cnt), shape_el2(dofs_cnt);
-
+      DenseMatrix stress(dim);
       shape_el1 = 0.0;
 
       shape_el2 = 0.0;
       nor = 0.0;
       bcEval = 0.0;
-	
+      stress = 0.0;
+      
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
 	  // a simple choice for the integration order; is this OK?
-	  const int order = 10 * max(el.GetOrder(), 1);
+	  const int order = 5 * max(el.GetOrder(), 1);	
+	  // const int order = 25;	 	
 	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
 	}
 	
@@ -548,7 +469,7 @@ namespace mfem
       for (int q = 0; q  < nqp_face; q++)
 	{
 	  shape_el1 = 0.0;
-	  
+	  stress = 0.0;
 	  shape_el2 = 0.0;
 	  nor = 0.0;
 	  bcEval = 0.0;
@@ -568,9 +489,14 @@ namespace mfem
 	  vD->Eval(D_el1, Trans_el1, eip_el1);
 	  vN->Eval(tN_el1, Trans_el1, eip_el1);
 
-	  uD->Eval(bcEval, Trans_el1, eip_el1, D_el1);
+	  uD->Eval(stress, Trans_el1, eip_el1, D_el1);
 	  ///
-	    
+	  for (int s = 0; s < dim; s++){
+	    for (int k = 0; k < dim; k++){
+	      bcEval(s) += stress(s,k) * tN_el1(k);
+	    }
+	  }
+	       
 	  el.CalcShape(eip_el1, shape_el1);
 	  
 	  el2.CalcShape(eip_el2, shape_el2);
@@ -605,5 +531,4 @@ namespace mfem
       elvect = 0.0;
     }
   }
-
 }

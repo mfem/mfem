@@ -18,54 +18,32 @@
 #define MFEM_GHOST_PENALTY
 
 #include "mfem.hpp"
-#include "AnalyticalGeometricShape.hpp"
 #include "marking.hpp"
 
 using namespace std;
 using namespace mfem;
 
-/// BilinearFormIntegrator for the high-order extension of shifted boundary
-/// method.
-/// A(u, w) = -<2*mu*epsilon(u) n, w>
-///           -<(p*I) n, w>
-///           -<u, sigma(w,q) n> // transpose of the above two terms
-///           +<alpha h^{-1} u , w >
+/// Ghost Penalty
+/// A(u,v) = \sum_{1}^{nTerms} (penPar/i!) h^{2*i-1) < [[ sigma(u),(i-1) ]], [[sigma(v),(i-1)]] >
+/// where [[sigma_{0}]] = sigma_{ij} n_tilda_{j} 
+///       [[sigma_{1}]] = sigma_{ij,k} n_tilda_{k}
+///       ....
 
 namespace mfem
 {
-
-  // Performs full assembly for the normal velocity mass matrix operator.
-  class GhostStressPenaltyIntegrator : public BilinearFormIntegrator
-  {
-  private:
-    const ParMesh *pmesh;
-    ParGridFunction *alpha;
-    double penaltyParameter;
-    Coefficient *mu;
-    Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
-    int par_shared_face_count;
-    int nTerms;
-  public:
-    GhostStressPenaltyIntegrator(const ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, ParGridFunction &alphaF, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), alpha(&alphaF), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
-    virtual void AssembleFaceMatrix(const FiniteElement &fe,
-				    const FiniteElement &fe2,
-				    FaceElementTransformations &Tr,
-				    DenseMatrix &elmat);
-  };
+  void AddOneToBinaryArray(Array<int> & binary, int size, int dim);
   // Performs full assembly for the normal velocity mass matrix operator.
   class GhostStressFullGradPenaltyIntegrator : public BilinearFormIntegrator
   {
   private:
-    const ParMesh *pmesh;
+    ParMesh *pmesh;
     double penaltyParameter;
     Coefficient *mu;
     Coefficient *kappa;
-    ShiftedFaceMarker *analyticalSurface;
-    int par_shared_face_count;
     int nTerms;
+    double dupPenaltyParameter;
   public:
-    GhostStressFullGradPenaltyIntegrator(const ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
+    GhostStressFullGradPenaltyIntegrator(ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, double penParameter, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), penaltyParameter(penParameter), nTerms(nTerms), dupPenaltyParameter(penParameter) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,

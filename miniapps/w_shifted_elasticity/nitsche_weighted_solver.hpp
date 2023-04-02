@@ -18,19 +18,26 @@
 #define MFEM_WEIGHTED_NITSCHE_SOLVER
 
 #include "mfem.hpp"
+#include "marking.hpp"
 
 using namespace std;
 using namespace mfem;
 
-/// BilinearFormIntegrator for the high-order extension of shifted boundary
-/// method.
-/// A(u, w) = -<2*mu*epsilon(u) n, w>
-///           -<(p*I) n, w>
-///           -<u, sigma(w,q) n> // transpose of the above two terms
-///           +<alpha h^{-1} u , w >
+/// A(u, v) = <alpha * sigma(v) n, u>
+///           -<alpha * sigma(u) n, v>
+///           +(3.0 * Kappa * penPar / h) <alpha * u.n, v.n>
+///           +(2.0 * Mu * penPar / h) <alpha * u (I - n x n), v>
+
+///  l(v)   = <alpha * sigma(v) n, uD>
+///           +(3.0 * Kappa * penPar / h) <alpha * v.n, uD.n>  
+///           +(2.0 * Mu * penPar / h) <alpha * v (I - n x n), uD>
+///           +<alpha *v ,tN>
+///  alpha = 1.0;       
+///  for 0 < alpha < 1 we apply the shifted operators (see shifted_weighted_solver.cpp)
+
 namespace mfem
 {
-
+  // A(u,v) = <sigma(v) n, u>
   class WeightedStressBoundaryForceIntegrator : public BilinearFormIntegrator
   {
   private:
@@ -45,14 +52,14 @@ namespace mfem
 				    FaceElementTransformations &Tr,
 				    DenseMatrix &elmat);
   };
-
+ // A(u,v) = -<sigma(u) n, v>
   class WeightedStressBoundaryForceTransposeIntegrator : public BilinearFormIntegrator
   {
   private:
     ParGridFunction *alpha;
     Coefficient *mu;
     Coefficient *kappa;
-    
+
   public:
     WeightedStressBoundaryForceTransposeIntegrator(ParGridFunction &alphaF, Coefficient &mu_, Coefficient &kappa_)  : alpha(&alphaF), mu(&mu_), kappa(&kappa_) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
@@ -61,13 +68,14 @@ namespace mfem
 				    DenseMatrix &elmat);
   };
 
-  // Performs full assembly for the normal velocity mass matrix operator.
+  // A(u,v) = (3.0 * Kappa * penPar / h) <u.n, v.n>
   class WeightedNormalDisplacementPenaltyIntegrator : public BilinearFormIntegrator
   {
   private:
     ParGridFunction *alpha;
     double penaltyParameter;
     Coefficient *kappa;
+
   public:
     WeightedNormalDisplacementPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &kappa_) : alpha(&alphaF), penaltyParameter(penParameter), kappa(&kappa_) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
@@ -76,13 +84,14 @@ namespace mfem
 				    DenseMatrix &elmat);
   };
 
-  // Performs full assembly for the normal velocity mass matrix operator.
+  // A(u,v) = (2.0 * Mu * penPar / h) <u (I - n x n), v> 
   class WeightedTangentialDisplacementPenaltyIntegrator : public BilinearFormIntegrator
   {
   private:
     ParGridFunction *alpha;
     double penaltyParameter;
     Coefficient *mu;
+    
   public:
     WeightedTangentialDisplacementPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &mu_) : alpha(&alphaF), penaltyParameter(penParameter), mu(&mu_) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
@@ -90,7 +99,8 @@ namespace mfem
 				    FaceElementTransformations &Tr,
 				    DenseMatrix &elmat);
   };
-  
+
+  // l(v) = <sigma(v) n, uD> 
   class WeightedStressNitscheBCForceIntegrator : public LinearFormIntegrator
   {
   private:
@@ -108,8 +118,8 @@ namespace mfem
 					ElementTransformation &Tr,
 					Vector &elvect);
   };
-  
-  // Performs full assembly for the normal velocity mass matrix operator.
+
+  // l(v) = (3.0 * Kappa * penPar / h) <v.n, uD.n>  
   class WeightedNormalDisplacementBCPenaltyIntegrator : public LinearFormIntegrator
   {
   private:
@@ -117,6 +127,7 @@ namespace mfem
     double penaltyParameter;
     Coefficient *kappa;
     VectorCoefficient *uD;
+    
   public:
     WeightedNormalDisplacementBCPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &kappa_, VectorCoefficient &uD_) : alpha(&alphaF), penaltyParameter(penParameter), kappa(&kappa_), uD(&uD_) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -127,7 +138,7 @@ namespace mfem
 					Vector &elvect);
   };
 
-  // Performs full assembly for the normal velocity mass matrix operator.
+  // l(v) = (2.0 * Mu * penPar / h) <v (I - n x n), uD> 
   class WeightedTangentialDisplacementBCPenaltyIntegrator : public LinearFormIntegrator
   {
   private:
@@ -135,6 +146,7 @@ namespace mfem
     double penaltyParameter;
     Coefficient *mu;
     VectorCoefficient *uD;
+    
   public:
     WeightedTangentialDisplacementBCPenaltyIntegrator(ParGridFunction &alphaF, double penParameter, Coefficient &mu_, VectorCoefficient &uD_) : alpha(&alphaF), penaltyParameter(penParameter), mu(&mu_), uD(&uD_) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -144,15 +156,16 @@ namespace mfem
 					ElementTransformation &Tr,
 					Vector &elvect);
   };
-  
-  // Performs full assembly for the normal velocity mass matrix operator.
+
+  // l(v) =  <v ,tN>  
   class WeightedTractionBCIntegrator : public LinearFormIntegrator
   {
   private:
     ParGridFunction *alpha;
-    VectorCoefficient *tN;
+    MatrixFunctionCoefficient *tN;
+    
   public:
-    WeightedTractionBCIntegrator(ParGridFunction &alphaF, VectorCoefficient &tN_) : alpha(&alphaF), tN(&tN_) { }
+    WeightedTractionBCIntegrator(ParGridFunction &alphaF, MatrixFunctionCoefficient &tN_) : alpha(&alphaF), tN(&tN_) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					FaceElementTransformations &Tr,
 					Vector &elvect);

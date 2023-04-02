@@ -18,16 +18,12 @@
 #define MFEM_VOLUME_FRACTIONS
 
 #include "mfem.hpp"
-#include "AnalyticalGeometricShape.hpp"
 #include "marking.hpp"
 
+
 namespace mfem
-{
-  bool IsInCircle(const Vector &x);
-  
-  bool IsInElement(const Vector &x, const int &type_);
-  
-  void UpdateAlpha(const ShiftedFaceMarker &analyticalShape, ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, const int &type);
+{  
+  void UpdateAlpha(ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, ParGridFunction &func);
 
 } // namespace mfem
 
