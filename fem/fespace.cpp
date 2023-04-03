@@ -1542,6 +1542,10 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
    delete old_elem_dof;
    delete old_elem_fos;
+   for (int i=0; i<old_DoFTrans.Size(); i++)
+   {
+      delete old_DoFTrans[i];
+   }
 }
 
 void FiniteElementSpace::RefinementOperator
