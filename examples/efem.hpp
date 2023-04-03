@@ -306,13 +306,15 @@ public:
          const double dc = - f / df;
          // Update ψ
          psi += dc;
-         out << "Iteration: " << i << " (∫ρ - θ|Ω|, Δc) = (" << f << ", " <<
-                   dc << ")" << std::endl;
+         out << "Iteration: " << i << " (θ|Ω|, ∫ρ - θ|Ω|, Δc) = (" <<
+             target_volume << ", " <<
+             f << ", " << dc << ")" << std::endl;
 
          if (abs(dc) < tolerance)
          {
             break;
          }
+         MFEM_VERIFY(std::isfinite(dc), "Projection failed");
       }
       intRho->Assemble();
       return intRho->Sum();
@@ -346,12 +348,6 @@ public:
       }
 #endif
       pa = bilinForm->GetAssemblyLevel() == AssemblyLevel::PARTIAL;
-   }
-
-
-   void Assemble()
-   {
-      bilinForm->Assemble();
    }
 
    void Solve(LinearForm *b, GridFunction *sol)
@@ -390,6 +386,240 @@ public:
       bilinForm->RecoverFEMSolution(X, *b, *sol);
    }
 };
+
+//  Class for solving Poisson's equation:
+//
+//       - ∇ ⋅(κ ∇ u) = f  in Ω
+//
+class DiffusionSolver
+{
+private:
+   Mesh * mesh = nullptr;
+   // diffusion coefficient
+   Coefficient * diffcf = nullptr;
+   // mass coefficient
+   Coefficient * masscf = nullptr;
+   Coefficient * rhscf = nullptr;
+   Coefficient * essbdr_cf = nullptr;
+   Coefficient * neumann_cf = nullptr;
+   VectorCoefficient * gradient_cf = nullptr;
+
+   // FEM solver
+   int dim;
+   FiniteElementCollection * fec = nullptr;
+   FiniteElementSpace * fes = nullptr;
+   Array<int> ess_bdr;
+   Array<int> neumann_bdr;
+   LinearForm * b = nullptr;
+   bool parallel = false;
+#ifdef MFEM_USE_MPI
+   ParMesh * pmesh = nullptr;
+   ParFiniteElementSpace * pfes = nullptr;
+#endif
+
+public:
+   DiffusionSolver() { }
+
+   void SetMesh(Mesh * mesh_)
+   {
+      mesh = mesh_;
+#ifdef MFEM_USE_MPI
+      pmesh = dynamic_cast<ParMesh *>(mesh);
+      if (pmesh) { parallel = true; }
+#endif
+   }
+   void SetDiffusionCoefficient(Coefficient * diffcf_) { diffcf = diffcf_; }
+   void SetMassCoefficient(Coefficient * masscf_) { masscf = masscf_; }
+   void SetRHSCoefficient(Coefficient * rhscf_) { rhscf = rhscf_; }
+   void SetEssentialBoundary(const Array<int> & ess_bdr_) { ess_bdr = ess_bdr_;};
+   void SetNeumannBoundary(const Array<int> & neumann_bdr_) { neumann_bdr = neumann_bdr_;};
+   void SetNeumannData(Coefficient * neumann_cf_) {neumann_cf = neumann_cf_;}
+   void SetEssBdrData(Coefficient * essbdr_cf_) {essbdr_cf = essbdr_cf_;}
+   void SetGradientData(VectorCoefficient * gradient_cf_) {gradient_cf = gradient_cf_;}
+   void SetFESpace(FiniteElementSpace * fespace)
+   {
+      fes = fespace;
+#ifdef MFEM_USE_MPI
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pmesh) {parallel = true;};
+#endif
+   }
+
+   void ResetFEM();
+   void SetupFEM();
+
+   void Solve(GridFunction *u);
+   LinearForm * GetLinearForm() {return b;}
+#ifdef MFEM_USE_MPI
+   ParLinearForm * GetParLinearForm()
+   {
+      if (parallel)
+      {
+         return dynamic_cast<ParLinearForm *>(b);
+      }
+      else
+      {
+         MFEM_ABORT("Wrong code path. Call GetLinearForm");
+         return nullptr;
+      }
+   }
+#endif
+
+   ~DiffusionSolver();
+
+};
+
+
+void DiffusionSolver::SetupFEM()
+{
+   dim = mesh->Dimension();
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      b = new ParLinearForm(pfes);
+   }
+   else
+   {
+      b = new LinearForm(fes);
+   }
+#else
+   fes = new FiniteElementSpace(mesh, fec);
+   b = new LinearForm(fes);
+#endif
+
+   if (!ess_bdr.Size())
+   {
+      if (mesh->bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+      }
+   }
 }
+
+void DiffusionSolver::Solve(GridFunction *u)
+{
+   OperatorPtr A;
+   Vector B, X;
+   Array<int> ess_tdof_list;
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      pfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+   }
+   else
+   {
+      fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+   }
+#else
+   fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+#endif
+   if (b)
+   {
+      delete b;
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         b = new ParLinearForm(pfes);
+      }
+      else
+      {
+         b = new LinearForm(fes);
+      }
+#else
+      b = new LinearForm(fes);
+#endif
+   }
+   if (rhscf)
+   {
+      b->AddDomainIntegrator(new DomainLFIntegrator(*rhscf));
+   }
+   if (neumann_cf)
+   {
+      MFEM_VERIFY(neumann_bdr.Size(), "neumann_bdr attributes not provided");
+      b->AddBoundaryIntegrator(new BoundaryLFIntegrator(*neumann_cf),neumann_bdr);
+   }
+   else if (gradient_cf)
+   {
+      MFEM_VERIFY(neumann_bdr.Size(), "neumann_bdr attributes not provided");
+      b->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(*gradient_cf),
+                               neumann_bdr);
+   }
+
+   b->Assemble();
+
+   BilinearForm * a = nullptr;
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+   {
+      a = new BilinearForm(fes);
+   }
+#else
+   a = new BilinearForm(fes);
+#endif
+   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
+   if (masscf)
+   {
+      a->AddDomainIntegrator(new MassIntegrator(*masscf));
+   }
+   a->Assemble();
+   if (essbdr_cf)
+   {
+      u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
+   }
+   a->FormLinearSystem(ess_tdof_list, *u, *b, A, X, B, 1);
+
+   CGSolver * cg = nullptr;
+   Solver * M = nullptr;
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      M = new HypreBoomerAMG;
+      dynamic_cast<HypreBoomerAMG*>(M)->SetPrintLevel(0);
+      cg = new CGSolver(pmesh->GetComm());
+   }
+   else
+   {
+      M = new GSSmoother((SparseMatrix&)(*A));
+      cg = new CGSolver;
+   }
+#else
+   M = new GSSmoother((SparseMatrix&)(*A));
+   cg = new CGSolver;
+#endif
+   cg->SetRelTol(1e-12);
+   cg->SetMaxIter(10000);
+   cg->SetPrintLevel(0);
+   cg->SetPreconditioner(*M);
+   cg->SetOperator(*A);
+   cg->Mult(B, X);
+   delete M;
+   delete cg;
+   a->RecoverFEMSolution(X, *b, *u);
+   delete a;
+}
+
+void DiffusionSolver::ResetFEM()
+{
+   delete fes; fes = nullptr;
+   delete fec; fec = nullptr;
+   delete b;
+}
+
+
+DiffusionSolver::~DiffusionSolver()
+{
+   ResetFEM();
+}
+
+}
+
 
 #endif
