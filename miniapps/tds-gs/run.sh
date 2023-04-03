@@ -26,7 +26,7 @@ do_test=0
 do_manufactured_solution=0
 max_krylov_iter=10000
 max_newton_iter=30
-krylov_tol=1e-24 # check this...
+krylov_tol=1e-9 # check this...
 newton_tol=1e-12
 # center solenoids
 c6=4.552585e+06

@@ -285,10 +285,10 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
     row_offsets[1] = pv.Size();
     row_offsets[2] = row_offsets[1] + uv->Size();
     row_offsets[3] = row_offsets[2] + pv.Size();
-    col_offsets[0] = 0;
-    col_offsets[1] = pv.Size();
-    col_offsets[2] = col_offsets[1] + uv->Size();
-    col_offsets[3] = col_offsets[2] + pv.Size();
+    // col_offsets[0] = 0;
+    // col_offsets[1] = pv.Size();
+    // col_offsets[2] = col_offsets[1] + uv->Size();
+    // col_offsets[3] = col_offsets[2] + pv.Size();
     
     // newton iterations
     double error_old;
@@ -351,57 +351,90 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
       // prepare block matrix
       SparseMatrix *FT = Transpose(*F);
-
-      // *HERE*
-      // SparseMatrix mF(*F);
-      // SparseMatrix *mF(F);
-      // *mF *= -1.0;
       SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
-      
       SparseMatrix *mFT = Transpose(*mF);
-
       SparseMatrix *ByT = Transpose(*By);
 
-      SparseMatrix *mFFT = Mult(*F, *mFT);
-
       // create block matrix
-      // + K  dx +      + By^T dp = - opt_res
-      //         + H du - F ^T dp = - reg_res
       // + By dx - F du +         = - eq_res
-      BlockMatrix *Mat;
-      Mat = new BlockMatrix(row_offsets, col_offsets);
-      Mat->SetBlock(2, 0, K);
-      Mat->SetBlock(2, 2, ByT);
+      //         + H du - F ^T dp = - reg_res
+      // + K  dx +      + By^T dp = - opt_res
+      // BlockMatrix *Mat;
+      // Mat = new BlockMatrix(row_offsets, col_offsets);
+      BlockOperator Mat(row_offsets);
+      Mat.SetBlock(0, 0, By);
+      Mat.SetBlock(0, 1, mF);
 
-      Mat->SetBlock(1, 1, H);
-      Mat->SetBlock(1, 2, mFT);
+      Mat.SetBlock(1, 1, H);
+      Mat.SetBlock(1, 2, mFT);
 
-      Mat->SetBlock(0, 0, By);
-      Mat->SetBlock(0, 1, mF);
+      Mat.SetBlock(2, 0, K);
+      Mat.SetBlock(2, 2, ByT);
+
+      // preconditioner
+      BlockDiagonalPreconditioner Prec(row_offsets);
+
+      SparseMatrix *invH = new SparseMatrix(uv->Size(), uv->Size());
+      for (int j = 0; j < uv->Size(); ++j) {
+        invH->Set(j, j, 1.0 / (*H)(j, j));
+      }
+      invH->Finalize();
+
+      Solver *inv_By, *inv_ByT;
+      int its = 60;
+      inv_By = new GSSmoother(*By, 0, its);
+      inv_ByT = new GSSmoother(*ByT, 0, its);
+
+      Prec.SetDiagonalBlock(0, inv_By);
+      Prec.SetDiagonalBlock(1, invH);
+      Prec.SetDiagonalBlock(2, inv_ByT);
 
       // create block rhs vector
       BlockVector Vec(row_offsets);
 
-      Vec.GetBlock(2) = opt_res;
-      Vec.GetBlock(1) = reg_res;
       Vec.GetBlock(0) = eq_res;
-
-      SparseMatrix * MAT = Mat->CreateMonolithic();
+      Vec.GetBlock(1) = reg_res;
+      Vec.GetBlock(2) = opt_res;
 
       BlockVector dx(row_offsets);
       dx = 0.0;
 
-      GSSmoother M(*MAT);
-      int gmres_iter = max_krylov_iter;
-      double gmres_tol = krylov_tol;
-      int gmres_kdim = kdim;
-      GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
-      printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
+      // solver
 
-      // DSmoother M(*MAT);
-      // int minres_iter = max_krylov_iter;
-      // double minres_tol = krylov_tol;
-      // MINRES(*MAT, Vec, dx, 1, minres_iter, minres_tol, 0.0);
+      // SparseMatrix * MAT = Mat->CreateMonolithic();
+      // GSSmoother M(*MAT);
+      // int gmres_iter = max_krylov_iter;
+      // double gmres_tol = krylov_tol;
+      // int gmres_kdim = kdim;
+      // GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
+      // printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
+
+      // MINRESSolver solver;
+      GMRESSolver solver;
+      // solver.SetAbsTol(1e-16);
+      // solver.SetRelTol(1e-9);
+      solver.SetAbsTol(1e-16);
+      solver.SetRelTol(krylov_tol);
+      solver.SetMaxIter(max_krylov_iter);
+      solver.SetOperator(Mat);
+      solver.SetPreconditioner(Prec);
+      solver.SetKDim(kdim);
+      solver.SetPrintLevel(1);
+
+      solver.Mult(Vec, dx);
+      if (solver.GetConverged())
+        {
+          std::cout << "GMRES converged in " << solver.GetNumIterations()
+                    << " iterations with a residual norm of "
+                    << solver.GetFinalNorm() << ".\n";
+        }
+      else
+        {
+          std::cout << "GMRES did not converge in " << solver.GetNumIterations()
+                    << " iterations. Residual norm is " << solver.GetFinalNorm()
+                    << ".\n";
+        }
+
       
       x -= dx.GetBlock(0);
       *uv -= dx.GetBlock(1);
@@ -525,7 +558,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    double L_ = 0.35;
 
    // solver options
-   int kdim = 300;
+   int kdim = 10000;
 
    /* 
       -------------------------------------------------------------------------------------------
