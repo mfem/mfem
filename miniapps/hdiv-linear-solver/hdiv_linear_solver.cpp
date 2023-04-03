@@ -213,20 +213,24 @@ void HdivSaddlePointSolver::Setup()
 
       A_11.reset(new RAPOperator(*L_inv, *L, *L_inv));
 
-      if (mode == Mode::GRAD_DIV)
+      if (mode == GRAD_DIV)
       {
-         Reciprocal(L_diag);
+         L_diag_unweighted.SetSize(L_diag.Size());
+
+         BilinearForm mass_l2_mix(&fes_l2);
+         mass_l2_mix.AddDomainIntegrator(new MassIntegrator(W_mix_coeff));
+         mass_l2_mix.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         mass_l2_mix.Assemble();
+         mass_l2_mix.AssembleDiagonal(L_diag_unweighted);
       }
-      else
+
+      const double *d_L_diag_unweighted = L_diag_unweighted.Read();
+      double *d_L_diag = L_diag.ReadWrite();
+      MFEM_FORALL(i, L_diag.Size(),
       {
-         const double *d_L_diag_unweighted = L_diag_unweighted.Read();
-         double *d_L_diag = L_diag.ReadWrite();
-         MFEM_FORALL(i, L_diag.Size(),
-         {
-            const double d = d_L_diag_unweighted[i];
-            d_L_diag[i] /= d*d;
-         });
-      }
+         const double d = d_L_diag_unweighted[i];
+         d_L_diag[i] /= d*d;
+      });
    }
 
    // Reassmble the RT mass operator with the new coefficient
