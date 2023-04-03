@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CPPFLAGS: "-g -fsanitize=address -fno-omit-frame-pointer"
+      CPPFLAGS: \"-g -fsanitize=address -fno-omit-frame-pointer\"
 
     steps:
     - name: Cancel Previous Runs
