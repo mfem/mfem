@@ -278,17 +278,12 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
     GridFunction opt_res(&fespace);
 
     // define block structure of matrix
-    int n_off = 4;
+    int n_off = 3;
     Array<int> row_offsets(n_off);
     Array<int> col_offsets(n_off);
     row_offsets[0] = 0;
     row_offsets[1] = pv.Size();
-    row_offsets[2] = row_offsets[1] + uv->Size();
-    row_offsets[3] = row_offsets[2] + pv.Size();
-    // col_offsets[0] = 0;
-    // col_offsets[1] = pv.Size();
-    // col_offsets[2] = col_offsets[1] + uv->Size();
-    // col_offsets[3] = col_offsets[2] + pv.Size();
+    row_offsets[2] = row_offsets[1] + pv.Size();
     
     // newton iterations
     double error_old;
@@ -296,20 +291,6 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
     LinearForm solver_error(&fespace);
     for (int i = 0; i < max_newton_iter; ++i) {
       // print out objective function and regularization
-
-      if (false) {
-        double obj = 0;
-        for (int j = 0; j < alpha_coeffs->size(); ++j) {
-          double psi_val = 0;
-          Vector coeffs = (*alpha_coeffs)[j];
-          Array<int> inds = (*J_inds)[j];
-          for (int k = 0; k < coeffs.Size(); ++k) {
-            // cout << inds[k] << endl;
-            psi_val += x[inds[k]] * coeffs[k];
-          }
-          obj += (psi_val - 6.864813e-02) * (psi_val - 6.864813e-02);
-        }
-      }
 
       // opt_res = K y^n + B_y^T p^n - g
       K->Mult(x, opt_res);
@@ -355,61 +336,81 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       SparseMatrix *mFT = Transpose(*mF);
       SparseMatrix *ByT = Transpose(*By);
 
-      // create block matrix
-      // + By dx - F du +         = - eq_res
-      //         + H du - F ^T dp = - reg_res
-      // + K  dx +      + By^T dp = - opt_res
-      // BlockMatrix *Mat;
-      // Mat = new BlockMatrix(row_offsets, col_offsets);
-      BlockOperator Mat(row_offsets);
-      Mat.SetBlock(0, 0, By);
-      Mat.SetBlock(0, 1, mF);
-
-      Mat.SetBlock(1, 1, H);
-      Mat.SetBlock(1, 2, mFT);
-
-      Mat.SetBlock(2, 0, K);
-      Mat.SetBlock(2, 2, ByT);
-
-      // preconditioner
-      BlockDiagonalPreconditioner Prec(row_offsets);
-
       SparseMatrix *invH = new SparseMatrix(uv->Size(), uv->Size());
       for (int j = 0; j < uv->Size(); ++j) {
         invH->Set(j, j, 1.0 / (*H)(j, j));
       }
       invH->Finalize();
 
-      Solver *inv_By, *inv_ByT;
-      int its = 60;
-      inv_By = new GSSmoother(*By, 0, its);
-      inv_ByT = new GSSmoother(*ByT, 0, its);
+      SparseMatrix *invDiagByT = new SparseMatrix(pv.Size(), pv.Size());
+      for (int j = 0; j < pv.Size(); ++j) {
+        invDiagByT->Set(j, j, 1.0 / (*ByT)(j, j));
+      }
+      invDiagByT->Finalize();
+      
 
-      Prec.SetDiagonalBlock(0, inv_By);
-      Prec.SetDiagonalBlock(1, invH);
-      Prec.SetDiagonalBlock(2, inv_ByT);
+      SparseMatrix *invHFT = Mult(*invH, *FT);
+      SparseMatrix *mFinvHFT = Mult(*mF, *invHFT);
+      SparseMatrix *FinvH = Mult(*F, *invH);
+
+      // SparseMatrix *M1 = Mult(*mFinvHFT, *invDiagByT);
+      SparseMatrix *M1 = Mult(*mFinvHFT, *ByT);
+      SparseMatrix *M2 = Mult(*M1, *K);
+      SparseMatrix *S = Add(1.0, *By, -1.0, *M2);
+
+      // the system
+      // + H du - F ^T dp         = b1 = - reg_res
+      // - F du +         + By dx = b2 = - eq_res
+      //        + By^T dp + K  dx = b3 = - opt_res
+      //
+      // is equivalent to
+      //                      du* = Hinv b1*
+      //          B^T dp* + K dx* = b3*
+      // - F Hinv F^T dp* + B dx* = b2*
+      //
+      // where
+      // b1* = b1             = - reg_res
+      // b2* = b2 + F Hinv b1 = - eq_res - F Hinv reg_res
+      // b3* = b3             = - opt_res
+      //
+      // dx = dx*
+      // dp = dp*
+      // du = du* - Hinv FT dp* = - Hinv reg_res - Hinv FT dp*
+      
+      // BlockMatrix *Mat;
+      // Mat = new BlockMatrix(row_offsets, col_offsets);
+      BlockOperator Mat(row_offsets);
+      Mat.SetBlock(0, 0, ByT);
+      Mat.SetBlock(0, 1, K);
+
+      Mat.SetBlock(1, 0, mFinvHFT);
+      Mat.SetBlock(1, 1, By);
+
+      // preconditioner
+      BlockDiagonalPreconditioner Prec(row_offsets);
+
+      Solver *inv_S, *inv_ByT;
+      int its = 60;
+      inv_ByT = new GSSmoother(*ByT, 0, its);
+      // inv_S = new GSSmoother(*S, 0, its);
+      inv_S = new GSSmoother(*By, 0, its);
+
+      Prec.SetDiagonalBlock(0, inv_ByT);
+      Prec.SetDiagonalBlock(1, inv_S);
 
       // create block rhs vector
       BlockVector Vec(row_offsets);
 
-      Vec.GetBlock(0) = eq_res;
-      Vec.GetBlock(1) = reg_res;
-      Vec.GetBlock(2) = opt_res;
+      // Vec.GetBlock(0) = - opt_res;
+      add(-1.0, opt_res, 0.0, opt_res, Vec.GetBlock(0));
+      // Vec.GetBlock(1) = - eq_res;
+      add(-1.0, eq_res, 0.0, eq_res, Vec.GetBlock(1));
+      FinvH->AddMult(reg_res, Vec.GetBlock(1), -1.0);
 
       BlockVector dx(row_offsets);
       dx = 0.0;
 
       // solver
-
-      // SparseMatrix * MAT = Mat->CreateMonolithic();
-      // GSSmoother M(*MAT);
-      // int gmres_iter = max_krylov_iter;
-      // double gmres_tol = krylov_tol;
-      // int gmres_kdim = kdim;
-      // GMRES(*MAT, dx, Vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
-      // printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
-
-      // MINRESSolver solver;
       GMRESSolver solver;
       // solver.SetAbsTol(1e-16);
       // solver.SetRelTol(1e-9);
@@ -419,7 +420,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       solver.SetOperator(Mat);
       solver.SetPreconditioner(Prec);
       solver.SetKDim(kdim);
-      solver.SetPrintLevel(1);
+      solver.SetPrintLevel(0);
 
       solver.Mult(Vec, dx);
       if (solver.GetConverged())
@@ -435,10 +436,11 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
                     << ".\n";
         }
 
-      
-      x -= dx.GetBlock(0);
-      *uv -= dx.GetBlock(1);
-      pv -= dx.GetBlock(2);
+      x += dx.GetBlock(1);
+      pv += dx.GetBlock(0);
+
+      invH->AddMult(reg_res, *uv, -1.0);
+      invHFT->AddMult(dx.GetBlock(0), *uv);
 
       x.Save("xtmp.gf");
 
