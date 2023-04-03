@@ -238,6 +238,7 @@ int main (int argc, char *argv[])
    bool twopass            = false;
    bool trim_mesh        = false;
    int hex_to_tet_split_type = 0;
+   bool mesh_save        = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -369,6 +370,9 @@ int main (int argc, char *argv[])
                   "-no-trim","--no-trim", "trim the mesh or not.");
    args.AddOption(&hex_to_tet_split_type, "-htot", "--hex_to_tet_split_type",
                   "Split Hex Mesh Into Tets");
+   args.AddOption(&mesh_save, "-ms", "--meshsave", "-no-ms",
+                 "--no-meshsave",
+                 "Save original and optimized mesh.");
    args.Parse();
    if (!args.Good())
    {
@@ -463,6 +467,7 @@ int main (int argc, char *argv[])
       delete mesh;
       mesh = new Mesh(*mesh_trim);
       delete mesh_trim;
+      if (mesh_save)
       {
          ostringstream mesh_name;
          mesh_name << "TrimmedInitialMesh.mesh";
@@ -579,6 +584,7 @@ int main (int argc, char *argv[])
          }
       }
       // TODO: Make materials consistent using gslib communicator
+      if (mesh_save)
       {
          ostringstream mesh_name;
          mesh_name << "perturbed.mesh";
@@ -772,6 +778,7 @@ int main (int argc, char *argv[])
    }
 
    psub_mat.ExchangeFaceNbrData();
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "perturbed_submesh.mesh";
@@ -804,6 +811,7 @@ int main (int argc, char *argv[])
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
    //     num_mpi_tasks".
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -1445,6 +1453,7 @@ int main (int argc, char *argv[])
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
@@ -1544,12 +1553,20 @@ int main (int argc, char *argv[])
       x1 = x;
    }
 
-   DataCollection *dc = NULL;
-   dc = new VisItDataCollection("Optimized", pmesh);
-   dc->RegisterField("solution", &x1);
-   dc->SetCycle(0);
-   dc->SetTime(0.0);
-   dc->Save();
+   {
+       DataCollection *dc = NULL;
+       dc = new VisItDataCollection("Optimized", pmesh);
+       dc->RegisterField("solution", &x1);
+
+       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+       dc->RegisterField("level-set-projected", &surf_fit_gf0);
+       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+       dc->RegisterField("level-set-projected", &surf_fit_gf0);
+
+       dc->SetCycle(0);
+       dc->SetTime(0.0);
+       dc->Save();
+   }
 
    // Don't do second pass
    //   if (deactivate_list.Size() > 0 && twopass) {
