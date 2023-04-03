@@ -25,7 +25,7 @@ on:
 
 jobs:
   Sanitizer:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
     - name: Cancel Previous Runs
@@ -33,12 +33,12 @@ jobs:
       with:
         access_token: ${{ github.token }}
 
-    - name: checkout MFEM
+    - name: MFEM Checkout
       uses: actions/checkout@v3
       with:
         path: mfem
 
-    - name: build MFEM
+    - name: MFEM Build
       uses: mfem/github-actions/build-mfem@v2.3
       with:
         os: ${{ runner.os }}
@@ -48,9 +48,13 @@ jobs:
         metis-dir: unused-metis-dir
         mfem-dir: mfem
         build-system: make
-        library-only: true
-        config-options: CXXFLAGS="-g -O2 -fsanitize=address -fno-omit-frame-pointer"
+        library-only: false
+        config-options: CXX=clang++ CXXFLAGS="-g -O2 -std=c++11 -fsanitize=address -fno-omit-frame-pointer"
 
-    - name: test MFEM
-      run: |
-        cd mfem && make -j3 && (cd examples && make ex1 && ./ex1 -pa)
+    - name: MFEM Info
+      working-directory: mfem
+      run: make info
+
+    - name: MFEM Sanitize Tests
+      working-directory: mfem
+      run: ASAN_OPTIONS=detect_leaks=1,halt_on_error=1 make test
