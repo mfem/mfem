@@ -27,9 +27,6 @@ jobs:
   Sanitizer:
     runs-on: ubuntu-latest
 
-    env:
-      CPPFLAGS: -fsanitize=address
-
     steps:
     - name: Cancel Previous Runs
       uses: styfle/cancel-workflow-action@0.11.0
@@ -42,13 +39,17 @@ jobs:
         path: mfem
 
     - name: build MFEM
-      uses: mfem/github-actions/build-mfem@v2.2
+      uses: mfem/github-actions/build-mfem@v2.3
       with:
         os: ${{ runner.os }}
-        mpi: seq
         target: opt
+        mpi: seq
+        hypre-dir: unused-hypre-dir
+        metis-dir: unused-metis-dir
         mfem-dir: mfem
         build-system: make
+        library-only: true
+        config-options: CXXFLAGS="-g -O2 -fsanitize=address -fno-omit-frame-pointer"
 
     - name: test MFEM
       run: |
