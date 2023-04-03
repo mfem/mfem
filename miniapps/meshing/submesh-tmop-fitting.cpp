@@ -204,6 +204,7 @@ int main (int argc, char *argv[])
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
    Hypre::Init();
+   int nranks = Mpi::WorldSize();
 
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
@@ -1505,18 +1506,19 @@ int main (int argc, char *argv[])
 
    if (myid == 0)
    {
-      std::cout << "Timings for Mesh Optimization:" << std::endl;
-      std::cout << "Time to Trim: " << TimeMeshTrim.RealTime() << std::endl;
-      std::cout << "Time to generate submesh: " << TimeSubMeshTrim.RealTime() <<
+      std::cout << "k10-Number of ranks: " << nranks << std::endl;
+      std::cout << "k10-Timings for Mesh Optimization:" << std::endl;
+      std::cout << "k10-Time to Trim: " << TimeMeshTrim.RealTime() << std::endl;
+      std::cout << "k10-Time to generate submesh: " << TimeSubMeshTrim.RealTime() <<
                 std::endl;
-      std::cout << "Time To do AMR on bg: " << TimeBGMeshAMR.RealTime() << std::endl;
-      std::cout << "Time To generate distance on bg: " << TimeBGMeshDist.RealTime() <<
+      std::cout << "k10-Time To do AMR on bg: " << TimeBGMeshAMR.RealTime() << std::endl;
+      std::cout << "k10-Time To generate distance on bg: " << TimeBGMeshDist.RealTime() <<
                 std::endl;
-      std::cout << "Time To get grad on bg: " << TimeBGMeshDer.RealTime() <<
+      std::cout << "k10-Time To get grad on bg: " << TimeBGMeshDer.RealTime() <<
                 std::endl;
-      std::cout << "Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
-      std::cout << "Number of elements in the mesh: " << neglob <<  endl;
-      std::cout << "Number of elements in the sub-mesh: " << num_active_glob <<  endl;
+      std::cout << "k10-Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
+      std::cout << "k10-Number of elements in the mesh: " << neglob <<  endl;
+      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<  endl;
    }
 
    // 18. Visualize the final mesh and metric values.
