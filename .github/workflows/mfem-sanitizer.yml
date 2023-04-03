@@ -22,12 +22,13 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  CPPFLAGS: "-g -fsanitize=address -fno-omit-frame-pointer"
 
 jobs:
-  sanitizer:
+  Sanitizer:
     runs-on: ubuntu-latest
+
+    env:
+      CPPFLAGS: "-g -fsanitize=address -fno-omit-frame-pointer"
 
     steps:
     - name: Cancel Previous Runs
@@ -44,9 +45,10 @@ jobs:
       uses: mfem/github-actions/build-mfem@v2.2
       with:
         os: ${{ runner.os }}
+        mpi: seq
         target: opt
-        build-system: make
         mfem-dir: mfem
+        build-system: make
 
     - name: test MFEM
       run: |
