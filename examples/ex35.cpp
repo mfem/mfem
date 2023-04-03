@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    int ref_levels = 4;
    int order = 2;
    bool visualization = true;
-   double alpha = 1.0;
+   double alpha0 = 1.0;
    double epsilon = 0.01;
    double mass_fraction = 0.5;
    int max_it = 1e2;
@@ -184,13 +184,14 @@ int main(int argc, char *argv[])
    double rho_min = 1e-6;
    double lambda = 1.0;
    double mu = 1.0;
+   double exponent = 3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&alpha, "-alpha", "--alpha-step-length",
+   args.AddOption(&alpha0, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
                   "epsilon phase field thickness");
@@ -366,8 +367,7 @@ int main(int argc, char *argv[])
    double c0 = 0.0;
    for (int k = 1; k < max_it; k++)
    {
-      if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
-      step++;
+      const double alpha = alpha0 * k;
 
       cout << "\nStep = " << k << endl;
 
