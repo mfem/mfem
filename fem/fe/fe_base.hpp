@@ -1256,7 +1256,7 @@ public:
       }
    }
 
-   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const override;
+   void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 };
 
 class VectorTensorFiniteElement : public VectorFiniteElement,

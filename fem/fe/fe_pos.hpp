@@ -77,7 +77,7 @@ public:
              GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
 
-   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const override;
+   void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 };
 
 
