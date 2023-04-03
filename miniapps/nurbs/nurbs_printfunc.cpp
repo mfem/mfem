@@ -19,10 +19,12 @@ int main()
    kv[8] = 1;
    kv[9] = 1;
 
+   cout << "Printing knotvector:" << endl;
    kv.Print(cout);
 
    // Count number of elements, required for printing of shapes
    kv.GetElements();
 
+   cout << "\nPrinting shapefunctions:" << endl;
    kv.PrintFunctions(cout);
 }
