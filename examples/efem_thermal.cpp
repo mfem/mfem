@@ -29,20 +29,20 @@
 //              and 0 < θ < 1 is the volume fraction. Note that we have
 //
 //              More specifically, we have f = 0 in an insulated rectagular
-//              domain Ω = (0, 20) x (0, 20) where the left middle section
-//              {x = 0} x (9, 11) is held at temperature 1.
+//              domain Ω = (0, 1) x (0, 1) where the left middle section
+//              {x = 0} x (0.4, 0.6) is held at temperature 0.
 //
 //                                INSULATED
-//                       ---------------------------  20
+//                       ---------------------------  1
 //                       |                         |
 //                       |                         |
 //                       * -                       |
-//                 u = 1 * |  2                    |
+//                 u = 0 * |  0.2                  |
 //                       * -                       |
 //                       |                         |
 //                       |                         |
 //                       ---------------------------   0
-//                       0                         20
+//                       0                         1
 //
 //              The problem is discretized and gradients are computing using
 //              finite elements [1]. The design is optimized using an entropic
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh = Mesh::MakeCartesian2D(20,20,mfem::Element::Type::QUADRILATERAL,true,
+   Mesh mesh = Mesh::MakeCartesian2D(10,10,mfem::Element::Type::QUADRILATERAL,true,
                                      1.0,1.0);
 
    int dim = mesh.Dimension();
@@ -442,6 +442,7 @@ int main(int argc, char *argv[])
       sout_u << "solution\n" << mesh << u;
       sout_u << "view 0 0\n";  // view from top
       sout_u << "keys jl********\n";  // turn off perspective and light
+      sout_u << "window_title 'Temperature u'";
       sout_u.flush();
 
       GridFunction rho_gf(&control_fes);
@@ -449,12 +450,14 @@ int main(int argc, char *argv[])
 
       sout_rho << "solution\n" << mesh << rho_gf;
       sout_rho << "view 0 0\n";  // view from top
-      sout_rho << "keys jl********\\n";  // turn off perspective and light
+      sout_rho << "keys jl********\n";  // turn off perspective and light
+      sout_rho << "window_title 'Density ρ'";
       sout_rho.flush();
 
       sout_r << "solution\n" << mesh << rho_filter;
       sout_r << "view 0 0\n";  // view from top
-      sout_r << "keys jl********\\n";  // turn off perspective and light
+      sout_r << "keys jl********\n";  // turn off perspective and light
+      sout_r << "window_title 'Filtered density ρ̃'";
       sout_r.flush();
    }
 
@@ -495,10 +498,11 @@ int main(int argc, char *argv[])
       mfem::out << "(r(ρ̃) ∇ w, ∇ v) = (f, v) + α⁻¹(log(u/uk), v)" <<
                 std::endl;
       state_solver->SetRHSCoefficient(&f);
+      w = u;
       state_solver->Solve(&w);
 
       // Step 4 - Dual filter solve
-      // Because of Step 3, we also solving -w̃ instead of w̃.
+      // @note Because of Step 3, we also solving -w̃ instead of w̃.
       mfem::out <<
                 "(ϵ^2 ∇ w̃, ∇ v) + (w̃, v) = (r'(ρ̃)(∇ u ⋅ ∇ w), v)" <<
                 std::endl;
@@ -512,15 +516,14 @@ int main(int argc, char *argv[])
 
       // Step 6 - ψ = proj(ψ⋆)
       // bound psi so that 0≈sigmoid(-100) < rho < sigmoid(100)≈1
-      clip(psi, -100, 100);
       // project
+      clip(psi, -100.0, 100.0);
       const double currVol = volProj.Apply(psi, 20);
 
       if (visualization)
       {
 
-
-         GridFunction rho_gf(&control_fes);
+         GridFunction rho_gf(&state_fes); // use continuous fes for visualization
          rho_gf.ProjectCoefficient(rho);
          sout_rho << "solution\n" << mesh << rho_gf;
          sout_rho.flush();
