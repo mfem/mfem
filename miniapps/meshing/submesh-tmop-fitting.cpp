@@ -58,6 +58,10 @@
 // smooth
 // 2D - make submesh-tmop-fitting -j && time mpirun -np 1 submesh-tmop-fitting -o 1 -rs 6 -mid 2 -tid 1 -ni 100 -sfc 10 -rtol 1e-12 -ae 1 -sfa 100 -st 0 -qo 8 -marking -sft 1e-4 -vis -fix-bnd -sbgmesh -amriter 4 -slstype 7 -vl 2 -htot -2 -deact 4
 // 3D - make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 2 -mid 303 -tid 4 -ni 100 -sfc 1000 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 2 -vis -smtype 0 -fix-bnd -amriter 4 -slstype 7 -vl 2 -sbgmesh -htot 2
+
+
+// 3D - cube+sphere:
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 4 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 1 -vis -trim -smtype 1 -fix-bnd -amriter 1 -slstype 4 -vl 2 -sbgmesh -htot 2 -ms
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -460,9 +464,9 @@ int main (int argc, char *argv[])
       //      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 1, 1, 3);
       if (myid == 0)
       {
-         std::cout << " Original mesh size: " << mesh->GetNE() << " " << std::endl <<
-                   " Trimmer mesh size: " << mesh_trim->GetNE() << " " <<
-                   std::endl;
+         std::cout << "Original mesh size: " << mesh->GetNE() << " " << std::endl <<
+                      "Trimmer mesh size: " << mesh_trim->GetNE() << " " <<
+                      std::endl;
       }
       delete mesh;
       mesh = new Mesh(*mesh_trim);
@@ -653,7 +657,12 @@ int main (int argc, char *argv[])
       }
    }
 
-   int num_active_glob, neglob;
+   int num_active_glob = 0,
+       neglob = pmesh->GetGlobalNE();
+   if (myid == 0)
+   {
+      std::cout << "Number of elements in the mesh: " << neglob <<  endl;
+   }
 
    int max_el_attr = pmesh->attributes.Max();
    int max_bdr_el_attr = pmesh->bdr_attributes.Max();
@@ -684,14 +693,11 @@ int main (int argc, char *argv[])
       num_active_glob = num_active_loc;
       MPI_Allreduce(&num_active_loc, &num_active_glob, 1, MPI_INT, MPI_SUM,
                     pmesh->GetComm());
-      neglob = pmesh->GetGlobalNE() ;
+      deactivate_list.SetSize(pmesh->GetNE());
       if (myid == 0)
       {
-         std::cout << neglob << " " <<
-                   num_active_glob << " length of active list\n";
+         std::cout << "Number of elements in the submesh: " << num_active_glob <<  endl;
       }
-
-      deactivate_list.SetSize(pmesh->GetNE());
       if (neglob == num_active_glob)
       {
          deactivate_list = 0;
