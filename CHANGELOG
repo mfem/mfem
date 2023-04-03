@@ -11,6 +11,8 @@
 Version 4.5.3 (development)
 ===========================
 
+- Added new methods in the Mesh class to set and get attributes on NURBS patches
+  and patch boundaries.
 
 Version 4.5.2, released on March 23, 2023
 =========================================
