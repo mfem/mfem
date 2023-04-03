@@ -219,11 +219,11 @@ private:
    FiniteElementSpace *fes;
    Mesh *mesh;
    const double target_volume;
-   SigmoidGridFunctionCoefficient *rho = nullptr;
-   DerSigmoidGridFunctionCoefficient *dsigPsi = nullptr;
-   LinearForm *intRho = nullptr;
-   LinearForm *intDerSigPsi = nullptr;
-
+   SigmoidGridFunctionCoefficient *rho = nullptr; // ρ = sigmoid(ψ)
+   DerSigmoidGridFunctionCoefficient *dsigPsi = nullptr; // d(sigmoid(ψ))/dψ
+   LinearForm *intRho = nullptr; // ∫ ρ = ∫ sigmoid(ψ)
+   LinearForm *intDerSigPsi = nullptr; // ∫ d(sigmoid(ψ))/dψ
+   bool isParallel = false;
 
 public:
    /**
@@ -274,6 +274,7 @@ public:
          ParFiniteElementSpace * pfes = dynamic_cast<ParFiniteElementSpace *>(fes);
          if (pfes)
          {
+            isParallel = true;
             // make parallel linear forms
             intRho = new ParLinearForm(pfes);
             intDerSigPsi = new ParLinearForm(pfes);
@@ -297,10 +298,20 @@ public:
       {
          // Compute ∫ sigmoid(ψ + c)
          intRho->Assemble(); // necessary whenever ψ is updated
-         const double f = intRho->Sum() - target_volume;
+         double f = intRho->Sum();
          // Compute ∫ sigmoid'(ψ + c)
          intDerSigPsi->Assemble();
-         const double df = intDerSigPsi->Sum();
+         double df = intDerSigPsi->Sum();
+
+#ifdef MFEM_USE_MPI
+         if (isParallel)
+         {
+            MPI_Allreduce(MPI_IN_PLACE, &f, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &df, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         }
+#endif
+         f -= target_volume;
+
 
          // Newton increment
          const double dc = - f / df;
