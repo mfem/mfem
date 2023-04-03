@@ -61,7 +61,7 @@
 
 
 // 3D - cube+sphere:
-// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 4 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -deact 1 -vis -trim -smtype 1 -fix-bnd -amriter 1 -slstype 4 -vl 2 -sbgmesh -htot 2 -ms
+// make submesh-tmop-fitting -j && time mpirun -np 6 submesh-tmop-fitting -o 1 -rs 4 -mid 303 -tid 4 -ni 100 -sfc 100 -rtol 1e-12 -ae 1 -sfa 10 -st 0 -qo 8 -marking -sft 10e-5 -vis -smtype 0 -fix-bnd -amriter 3 -slstype 4 -vl 2 -sbgmesh -htot 2 -deact 2
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -606,12 +606,17 @@ int main (int argc, char *argv[])
          MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
                                                 4);
       }
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         pmesh->SetAttribute(i, mat(i) + 1);
+      }
+      pmesh->SetAttributes();
 
       mat.ExchangeFaceNbrData();
 
       // Adapt attributes for marking such that if all but 1 face of an element
       // are marked, the element attribute is switched.
-      if (adapt_marking && !material && !trim_mesh)
+      if (adapt_marking && !material && !trim_mesh && hex_to_tet_split_type == 0)
       {
          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
          ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
@@ -682,6 +687,8 @@ int main (int argc, char *argv[])
       {
          GetMaterialInterfaceElements(pmesh, mat, active_list);
       }
+      active_list.Sort();
+      active_list.Unique();
 
       for (int i = 0; i < deactivation_layers; i++)
       {
@@ -739,14 +746,16 @@ int main (int argc, char *argv[])
       psub_x = dynamic_cast<ParGridFunction *>(psubmesh->GetNodes());
       psub_pfespace = psub_x->ParFESpace();
       psubmesh->SetAttributes();
+      num_active_glob = psubmesh->GetGlobalNE();
+      if (myid == 0)
+      {
+         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<  endl;
+      }
 
       //Fix boundary attribues of submesh
       int n_bdr_el_attr_psub = psubmesh->bdr_attributes.Size();
       int max_bdr_el_attr_psub = psubmesh->bdr_attributes.Max();
       int set_new_bdr_attr = max_bdr_el_attr+1;
-      //      std::cout << n_bdr_el_attr_psub << " " <<
-      //                   max_bdr_el_attr_psub << " " <<
-      //                   set_new_bdr_attr << " k10set\n";
       for (int i = 0; i < psubmesh->GetNBE(); i++)
       {
          if (psubmesh->GetBdrAttribute(i) > max_bdr_el_attr)
@@ -1425,6 +1434,7 @@ int main (int argc, char *argv[])
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    }
+   solver.SetAdaptiveSurfaceFittingRelativeChangeThreshold(0.01);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -1505,6 +1515,8 @@ int main (int argc, char *argv[])
       std::cout << "Time To get grad on bg: " << TimeBGMeshDer.RealTime() <<
                 std::endl;
       std::cout << "Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
+      std::cout << "Number of elements in the mesh: " << neglob <<  endl;
+      std::cout << "Number of elements in the sub-mesh: " << num_active_glob <<  endl;
    }
 
    // 18. Visualize the final mesh and metric values.
