@@ -5609,6 +5609,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
    }
+#else
+   MFEM_CONTRACT_VAR(fo);
 #endif
    return wo;
 }
