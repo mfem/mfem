@@ -16,21 +16,21 @@ namespace mfem
 double invsigmoid(const double x, const double tol=1e-12)
 {
    // forcing x to be in (0, 1)
-   const double clipped_x = min(max(tol,x),1.0-tol);
-   return log(clipped_x/(1.0-clipped_x));
+   const double clipped_x = std::min(std::max(tol,x),1.0-tol);
+   return std::log(clipped_x/(1.0-clipped_x));
 }
 
 // Sigmoid function
 double sigmoid(const double x)
 {
-   return x >= 0 ? 1.0 / (1.0 + exp(-x)) : exp(x) / (1.0 + exp(x));
+   return x >= 0 ? 1.0 / (1.0 + std::exp(-x)) : std::exp(x) / (1.0 + std::exp(x));
 }
 
 // Derivative of sigmoid function d(sigmoid)/dx
 double dsigdx(const double x)
 {
    double tmp = sigmoid(-x);
-   return tmp - pow(tmp,2);
+   return tmp - std::pow(tmp,2);
 }
 
 
@@ -44,6 +44,8 @@ class MappedGridFunctionCoefficient : public GridFunctionCoefficient
    typedef std::__1::function<double(const double)> __LambdaFunction;
 private:
    __LambdaFunction fun; // a lambda function f(u(x))
+protected:
+   std::string name = "NONE";
 public:
    /**
     * @brief Construct a mapped grid function coefficient with given gridfunction and lambda function
@@ -73,8 +75,8 @@ class ExponentialGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
 public:
    ExponentialGridFunctionCoefficient(const GridFunction *gf,
-                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return exp(x);},
-   comp) {}
+                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return std::exp(x);},
+   comp) {name = "EXP";}
 };
 
 
@@ -86,8 +88,8 @@ class LogarithmicGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
 public:
    LogarithmicGridFunctionCoefficient(const GridFunction *gf,
-                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return log(x);},
-   comp) {}
+                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return std::log(x);},
+   comp) {name = "LOG";}
 };
 /**
  * @brief GridFunctionCoefficient that returns log(max(u, tolerance))
@@ -100,8 +102,8 @@ public:
    SafeLogarithmicGridFunctionCoefficient(const GridFunction *gf,
                                           const double tolerance,
                                           int comp=1):MappedGridFunctionCoefficient(gf, [tolerance](
-                                                      const double x) {return log(max(x, tolerance));},
-   comp) {}
+                                                      const double x) {return std::log(std::max(x, tolerance));},
+   comp) {name = "SAFE LOG";}
 };
 
 
@@ -114,7 +116,7 @@ class SigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 public:
    SigmoidGridFunctionCoefficient(const GridFunction *gf,
                                   int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return sigmoid(x);},
-   comp) {}
+   comp) {name = "SIGMOID";}
 };
 
 
@@ -127,7 +129,7 @@ class DerSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 public:
    DerSigmoidGridFunctionCoefficient(const GridFunction *gf,
                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return dsigdx(x);},
-   comp) {}
+   comp) {name = "D(SIGMOID)/DX";}
 };
 
 
@@ -140,7 +142,7 @@ class InvSigmoidGridFunctionCoefficient : public MappedGridFunctionCoefficient
 public:
    InvSigmoidGridFunctionCoefficient(const GridFunction *gf,
                                      int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return invsigmoid(x);},
-   comp) {}
+   comp) {name = "INVSIGMOID";}
 };
 
 
@@ -152,8 +154,8 @@ class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
 public:
    PowerGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
-      : MappedGridFunctionCoefficient(gf, [exponent](double x) {return pow(x, exponent);},
-   comp) {}
+      : MappedGridFunctionCoefficient(gf, [exponent](double x) {return std::pow(x, exponent);},
+   comp) {name = "POWER";}
 };
 
 
@@ -161,12 +163,12 @@ public:
  * @brief GridFunctionCoefficient that returns u^2
  *
  */
-class PowerGridFunctionCoefficient : public MappedGridFunctionCoefficient
+class SquaredGridFunctionCoefficient : public MappedGridFunctionCoefficient
 {
 public:
-   PowerGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
+   SquaredGridFunctionCoefficient(const GridFunction *gf, int exponent, int comp=1)
       : MappedGridFunctionCoefficient(gf, [](const double x) {return x*x;},
-   comp) {}
+   comp) {name = "SQUARE";}
 };
 
 /**
@@ -183,9 +185,9 @@ public:
     * @param exponent Exponent, p
     * @param rho_min minimum density, ρ_0
     */
-   SIMPCoefficient(const const GridFunction *gf, const double exponent,
+   SIMPCoefficient(const GridFunction *gf, const double exponent,
                    const double rho_min=1e-12)
-      : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return rho_min + (1-rho_min)*pow(x, exponent);}) {}
+      : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return rho_min + (1-rho_min)*std::pow(x, exponent);}) {name = "SIMP";}
 };
 
 /**
@@ -202,9 +204,9 @@ public:
     * @param exponent Exponent, p
     * @param rho_min minimum density, ρ_0
     */
-   SIMPDerCoefficient(const const GridFunction *gf, const double exponent,
+   SIMPDerCoefficient(const GridFunction *gf, const double exponent,
                       const double rho_min=1e-12)
-      : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return exponent*(1-rho_min)*pow(x, exponent - 1.0);}) {}
+      : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return exponent*(1-rho_min)*std::pow(x, exponent - 1.0);}) {name = "SIMPDER";}
 };
 
 /**
@@ -216,7 +218,7 @@ class SigmoidDensityProjector
 private:
    FiniteElementSpace *fes;
    Mesh *mesh;
-   const double target_volue;
+   const double target_volume;
    SigmoidGridFunctionCoefficient *rho = nullptr;
    DerSigmoidGridFunctionCoefficient *dsigPsi = nullptr;
    LinearForm *intRho = nullptr;
@@ -236,7 +238,7 @@ public:
                            const double volume)
       :fes(fespace),
        mesh(fespace->GetMesh()),
-       target_volue(volume_fraction*volume) {}
+       target_volume(volume_fraction*volume) {}
 
    /**
     * @brief Update ψ ↦ ψ + c so that ∫ ρ = θ |Ω|.
@@ -249,8 +251,8 @@ public:
     * @param max_iteration Maximum iteration for Newton iteration
     * @param tolerance Newton update tolerance
     */
-   void Apply(GridFunction &psi, const int max_iteration,
-              const double tolerance=1e-12)
+   double Apply(GridFunction &psi, const int max_iteration,
+                const double tolerance=1e-12)
    {
       // 0. Make or Update Helper objects
 
@@ -286,8 +288,8 @@ public:
          intRho = new LinearForm(fes);
          intDerSigPsi = new LinearForm(fes);
 #endif
-         intRho->AddDomainIntegrator(new DomainLFIntegrator(*rho));
-         intDerSigPsi->AddDomainIntegrator(new DomainLFIntegrator(*dsigPsi));
+         intRho->AddDomainIntegrator(new DomainLFIntegrator(*rho, 2, 0));
+         intDerSigPsi->AddDomainIntegrator(new DomainLFIntegrator(*dsigPsi, 2, 0));
       }
 
       // Newton Method
@@ -295,8 +297,8 @@ public:
       {
          // Compute ∫ sigmoid(ψ + c)
          intRho->Assemble(); // necessary whenever ψ is updated
-         const double f = intRho->Sum();
-         // Compute ∫ sigmoid'(ψ)
+         const double f = intRho->Sum() - target_volume;
+         // Compute ∫ sigmoid'(ψ + c)
          intDerSigPsi->Assemble();
          const double df = intDerSigPsi->Sum();
 
@@ -304,12 +306,16 @@ public:
          const double dc = - f / df;
          // Update ψ
          psi += dc;
+         out << "Iteration: " << i << " (∫ρ - θ|Ω|, Δc) = (" << f << ", " <<
+                   dc << ")" << std::endl;
 
          if (abs(dc) < tolerance)
          {
             break;
          }
       }
+      intRho->Assemble();
+      return intRho->Sum();
    }
 };
 
@@ -320,6 +326,10 @@ private:
    BilinearForm *bilinForm; // main bilinear form
    Array<int> ess_tdof_list; // essential boundary dof list
    bool isParallel = false; // whether input fespace is parallel or not
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes; // parallel
+   ParMesh *pmesh;
+#endif
    bool pa; // partial assembly flag
 public:
    EllipticSolver(FiniteElementSpace *fespace,
@@ -328,10 +338,11 @@ public:
        bilinForm(bilinearForm)
    {
       fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      out << "Essential dof size: " << ess_tdof_list.Size() << std::endl;
 #ifdef MFEM_USE_MPI
       {
-         ParFiniteElementSpace * pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
-         if (pfes) { isParallel = true; }
+         pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+         if (pfes) { isParallel = true; pmesh = pfes->GetParMesh();}
       }
 #endif
       pa = bilinForm->GetAssemblyLevel() == AssemblyLevel::PARTIAL;
@@ -350,75 +361,32 @@ public:
       bilinForm->FormLinearSystem(ess_tdof_list, *sol, *b, A, X, B);
 
       // 11. Solve the linear system A X = B.
-      if (!isParallel)
-      {
-         if (!pa)
-         {
-#ifndef MFEM_USE_SUITESPARSE
-            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-            GSSmoother M((SparseMatrix&)(*A));
-            PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-            // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-            UMFPackSolver umf_solver;
-            umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-            umf_solver.SetOperator(*A);
-            umf_solver.Mult(B, X);
-#endif
-         }
-         else
-         {
-            if (UsesTensorBasis(*fes))
-            {
-               if (DeviceCanUseCeed())
-               {
-                  ceed::AlgebraicSolver M(*bilinForm, ess_tdof_list);
-                  PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-               }
-               else
-               {
-                  OperatorJacobiSmoother M(*bilinForm, ess_tdof_list);
-                  PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-               }
-            }
-            else
-            {
-               CG(*A, B, X, 1, 400, 1e-12, 0.0);
-            }
-         }
-      }
+      CGSolver * cg = nullptr;
+      Solver * M = nullptr;
 #ifdef MFEM_USE_MPI
+      if (isParallel)
+      {
+         M = new HypreBoomerAMG;
+         dynamic_cast<HypreBoomerAMG*>(M)->SetPrintLevel(0);
+         cg = new CGSolver(pmesh->GetComm());
+      }
       else
       {
-         Solver *prec = NULL;
-         if (pa)
-         {
-            if (UsesTensorBasis(*fes))
-            {
-               if (DeviceCanUseCeed)
-               {
-                  prec = new ceed::AlgebraicSolver(*bilinForm, ess_tdof_list);
-               }
-               else
-               {
-                  prec = new OperatorJacobiSmoother(*bilinForm, ess_tdof_list);
-               }
-            }
-         }
-         else
-         {
-            prec = new HypreBoomerAMG;
-         }
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-12);
-         cg.SetMaxIter(2000);
-         cg.SetPrintLevel(1);
-         if (prec) { cg.SetPreconditioner(*prec); }
-         cg.SetOperator(*A);
-         cg.Mult(B, X);
-         delete prec;
+         M = new GSSmoother((SparseMatrix&)(*A));
+         cg = new CGSolver;
       }
+#else
+      M = new GSSmoother((SparseMatrix&)(*A));
+      cg = new CGSolver;
 #endif
+      cg->SetRelTol(1e-12);
+      cg->SetMaxIter(10000);
+      cg->SetPrintLevel(0);
+      cg->SetPreconditioner(*M);
+      cg->SetOperator(*A);
+      cg->Mult(B, X);
+      delete M;
+      delete cg;
       bilinForm->RecoverFEMSolution(X, *b, *sol);
    }
 };

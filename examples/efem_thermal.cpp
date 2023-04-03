@@ -79,7 +79,7 @@ using namespace mfem;
  *  The Lagrangian for this problem is
  *
  *          L(u,ρ,ρ̃,w,w̃) = (f,u) + (r(ρ̃)∇u, ∇w) - (f,w) + ϵ^2(∇ρ̃, ∇w̃) + (ρ̃ - ρ, w̃)
- *                       + α_u * D≤(u, uk) + α_ρ * (D≥(ρ, ρk) + D≤(ρ, ρk))
+ *                       + α⁻¹D≤(u, uk) + α⁻¹(D≥(ρ, ρk) + D≤(ρ, ρk))
  *
  *  where
  *
@@ -121,7 +121,7 @@ using namespace mfem;
  *
  *     3. Solve dual problem ∂_u L = 0; i.e.,
  *
- *                    (r(ρ̃) ∇w, ∇v) = (f,v) + (log(u/uk), v)    ∀ v ∈ Vh.
+ *                    (r(ρ̃) ∇w, ∇v) = (f,v) + α⁻¹(log(u/uk), v)    ∀ v ∈ Vh.
  *
  *        NOTE: When there is no constraint u≤1, then w = u.
  *              In that case, we do not have to solve the dual problem.
@@ -130,7 +130,7 @@ using namespace mfem;
  *
  *      (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = ( r'(ρ̃) (∇ u ⋅ ∇ w), v)   ∀ v ∈ Vl.
  *
- *     5. Set intermediate variable ψ⋆ = ψ - α w̃.
+ *     5. Set intermediate variable ψ⋆ = ψ - α⁻¹ w̃.
  *
  *     6. Update ψ by ψ = proj(ψ⋆) = ψ⋆ + c where c is chosen to be
  *
@@ -142,7 +142,7 @@ using namespace mfem;
 
 
 /**
- * @brief log(max(a, tol)) - log(max(b, tol))
+ * @brief alpha*(log(max(a, tol)) - log(max(b, tol)))
  *
  */
 class SafeLogDiffGridFunctionCoefficient : public
@@ -151,6 +151,7 @@ class SafeLogDiffGridFunctionCoefficient : public
 private:
    SafeLogarithmicGridFunctionCoefficient
    *gf_other; // gridfunction log(b) to be subtracted
+   double a = 1.0;
 
 public:
 
@@ -158,22 +159,55 @@ public:
     * @brief log(max(a, tol)) - log(max(b, tol))
     *
     */
-   SafeLogDiffGridFunctionCoefficient(GridFunction *a,
-                                      GridFunction *b, const double tolerance):
-      SafeLogarithmicGridFunctionCoefficient(a, tolerance),
-      gf_other(new SafeLogarithmicGridFunctionCoefficient(b, tolerance)) {}
+   SafeLogDiffGridFunctionCoefficient(GridFunction *self_gf,
+                                      GridFunction *other_gf, const double tolerance):
+      SafeLogarithmicGridFunctionCoefficient(self_gf, tolerance),
+      gf_other(new SafeLogarithmicGridFunctionCoefficient(other_gf, tolerance)) {}
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-      return SafeLogarithmicGridFunctionCoefficient::Eval(T, ip)
+      return a*(SafeLogarithmicGridFunctionCoefficient::Eval(T, ip)
+                - gf_other->Eval(T, ip));
+   }
+   void SetAlpha(const double alpha) { a = alpha; }
+};
+
+
+/**
+ * @brief log(max(a, tol)) - log(max(b, tol))
+ *
+ */
+class SigmoidDiffGridFunctionCoefficient : public
+   SigmoidGridFunctionCoefficient
+{
+private:
+   SigmoidGridFunctionCoefficient
+   *gf_other; // gridfunction log(b) to be subtracted
+
+public:
+
+   /**
+    * @brief log(max(a, tol)) - log(max(b, tol))
+    *
+    */
+   SigmoidDiffGridFunctionCoefficient(GridFunction *a,
+                                      GridFunction *b):
+      SigmoidGridFunctionCoefficient(a),
+      gf_other(new SigmoidGridFunctionCoefficient(b)) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return SigmoidGridFunctionCoefficient::Eval(T, ip)
              - gf_other->Eval(T, ip);
    }
 };
 
 /**
- * @brief
+ * @brief -r'(ρ̃)(∇ u ⋅ ∇ w)
  *
  */
 class SIMPDerEnergyCoefficient : public GridFunctionCoefficient
@@ -183,7 +217,6 @@ private:
    GradientGridFunctionCoefficient *gradu;
    GradientGridFunctionCoefficient *gradw;
    Vector gradu_val, gradw_val;
-   double a;
 public:
 
    SIMPDerEnergyCoefficient(GridFunction *rho_filter, const double exponent,
@@ -204,12 +237,7 @@ public:
    {
       gradu->Eval(gradu_val, T, ip);
       gradw->Eval(gradw_val, T, ip);
-      return -a*r_prime_rho->Eval(T, ip)*(gradu_val*gradw_val);
-   }
-
-   void SetAlpha(const double alpha)
-   {
-      a = alpha;
+      return -r_prime_rho->Eval(T, ip)*(gradu_val*gradw_val);
    }
 };
 
@@ -338,51 +366,57 @@ int main(int argc, char *argv[])
 
    GridFunction u_old(u);
    GridFunction psi_old(psi);
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
 
    // 6. Set-up the physics solver.
 
    // 6 - 1. State problem LHS
-   int maxat = mesh.bdr_attributes.Max();
-   Array<int> ess_bdr(maxat);
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   mfem::out << mesh.bdr_attributes.Min() << std::endl;
    ess_bdr = 0;
    ess_bdr[0] = 1;
+   // r(ρ̃) = ρ0 + (1-ρ0)ρ̃^p
    SIMPCoefficient r_rho_filter(&rho_filter, exponent, rho_min);
-   BilinearForm diffForm(&state_fes);
-   diffForm.AddDomainIntegrator(new DiffusionIntegrator(r_rho_filter));
-   EllipticSolver state_solver(&state_fes, &diffForm, ess_bdr);
+   // (r(ρ̃) ∇ u, ∇ v), assemble when ρ̃ is updated
+   BilinearForm stateForm(&state_fes);
+   stateForm.AddDomainIntegrator(new DiffusionIntegrator(r_rho_filter));
+   EllipticSolver state_solver(&state_fes, &stateForm, ess_bdr);
 
    // 6 - 2. State problem RHS
    LinearForm state_RHS(&state_fes); // (f,v). Assemble only once.
-   ConstantCoefficient zero(0.0);
-   state_RHS.AddDomainIntegrator(new DomainLFIntegrator(zero));
+   state_RHS.AddDomainIntegrator(new DomainLFIntegrator(one));
    state_RHS.Assemble(); // Assemble only once
-   LinearForm state_dual_RHS(&state_fes);
-   state_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(zero));
+   LinearForm state_dual_RHS(&state_fes); //
+   state_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(one));
    SafeLogDiffGridFunctionCoefficient logdiffu(&u, &u_old, 1e-12);
    state_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(logdiffu));
 
    // 6 - 3. Filter problem LHS
    ess_bdr = 0;
-   BilinearForm epsDiffForm(&state_fes);
+   BilinearForm filterForm(
+      &filter_fes); // (ϵ^2 ∇ ρ̃, ∇ v) + (ρ̃, v), assemble only once
    ConstantCoefficient eps_squared(epsilon*epsilon);
-   epsDiffForm.AddDomainIntegrator(new DiffusionIntegrator(eps_squared));
-   EllipticSolver filter_solver(&filter_fes, &epsDiffForm, ess_bdr);
+   filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps_squared));
+   filterForm.AddDomainIntegrator(new MassIntegrator());
+   filterForm.Assemble();
+   EllipticSolver filter_solver(&filter_fes, &filterForm, ess_bdr);
 
    // 6 - 4. Filter problem RHS
-   LinearForm filter_RHS(&filter_fes);
+   LinearForm filter_RHS(&filter_fes); // (ρ, v)
    filter_RHS.AddDomainIntegrator(new DomainLFIntegrator(rho));
-   LinearForm filter_dual_RHS(&filter_fes);
+   LinearForm filter_dual_RHS(&filter_fes); // (r'(ρ̃)(∇ u ⋅ ∇ w), v)
    SIMPDerEnergyCoefficient r_energy(&rho_filter, exponent, rho_min, &u, &w);
    filter_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(r_energy));
-   EllipticSolver filter_Solver(&filter_fes, &epsDiffForm, ess_bdr);
 
-   LinearForm volForm(&filter_fes);
-   ConstantCoefficient one(1.0);
+   // 6 - 5. Prepare for Projection
+   LinearForm volForm(&control_fes);
    volForm.AddDomainIntegrator(new DomainLFIntegrator(one, 0, 0));
    volForm.Assemble();
-   const double vol = volForm.Sum();
+   const double vol = volForm.Sum(); // domain volume
    SigmoidDensityProjector volProj(&control_fes, mass_fraction, vol);
 
+   // 6 - 6. M⁻¹: Vl -> Wl
    BilinearForm invMass(&control_fes);
    invMass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
    invMass.Assemble();
@@ -407,19 +441,22 @@ int main(int argc, char *argv[])
       sout_r.precision(8);
    }
 
-   mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &mesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("displacement",&u);
-   paraview_dc.RegisterField("density",&rho);
-   paraview_dc.RegisterField("filtered_density",&rho_filter);
+   // mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &mesh);
+   // paraview_dc.SetPrefixPath("ParaView");
+   // paraview_dc.SetLevelsOfDetail(order);
+   // paraview_dc.SetCycle(0);
+   // paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   // paraview_dc.SetHighOrderOutput(true);
+   // paraview_dc.SetTime(0.0);
+   // paraview_dc.RegisterField("displacement",&u);
+   // paraview_dc.RegisterField("density",&rho);
+   // paraview_dc.RegisterField("filtered_density",&rho_filter);
 
    // 11. Iterate
    double c0 = 0.0;
+   SigmoidDiffGridFunctionCoefficient succ_err(&psi, &psi_old);
+   GridFunction zero_gf(&control_fes);
+   zero_gf = 0.0;
    for (int k = 1; k < max_it; k++)
    {
       const double alpha = alpha0*k;
@@ -427,61 +464,72 @@ int main(int argc, char *argv[])
       cout << "\nStep = " << k << endl;
 
       // Step 1 - Filter solve
-      // Solve (ϵ^2 ∇ ρ̃, ∇ v) + (ρ̃,v) = (ρ,v)
+      mfem::out << "(ϵ^2 ∇ ρ̃, ∇ v) + (ρ̃,v) = (ρ,v)" << std::endl;
       filter_RHS.Assemble();
       filter_solver.Solve(&filter_RHS, &rho_filter);
+      out << "(min(ρ̃), max(ρ̃)) = (" << rho_filter.Min() << ", " <<
+          rho_filter.Max() << ")" <<std::endl;
 
 
       // Step 2 - Primal solve
-      // Solve (r(ρ̃) ∇ u, ∇ v) = (f, v)
+      mfem::out << "(r(ρ̃) ∇ u, ∇ v) = (f, v)" << std::endl;
       // No need for assemble state_RHS because it does not change.
+      stateForm.Assemble();
+      u_old = u;
       state_solver.Solve(&state_RHS, &u);
 
       // Step 3 - Dual solve
-      // Solve (r(ρ̃) ∇ u, ∇ v) = (f, v) + (log(u/uk), v)
+      mfem::out << "(r(ρ̃) ∇ w, ∇ v) = (f, v) + α⁻¹(log(u/uk), v)" <<
+                std::endl;
+      logdiffu.SetAlpha(1/alpha);
       state_dual_RHS.Assemble();
       state_solver.Solve(&state_dual_RHS, &w);
 
       // Step 4 - Dual filter solve
-      // Solve (ϵ^2 ∇ w̃, ∇ v) + (w̃, v) = -(r'(ρ̃)(∇ u ⋅ ∇ w), v)
+      mfem::out <<
+                "(ϵ^2 ∇ w̃, ∇ v) + (w̃, v) = -(r'(ρ̃)(∇ u ⋅ ∇ w), v)" <<
+                std::endl;
       filter_dual_RHS.Assemble();
       filter_solver.Solve(&filter_dual_RHS, &w_filter);
 
-      // Step 5 - Get ψ⋆ = ψ - w̃
+      // Step 5 - Get ψ⋆ = ψ - α⁻¹ w̃
       w_filter_load.Assemble();
       psi_old = psi;
-      invM.AddMult(w_filter_load, psi, -alpha);
+      invM.AddMult(w_filter_load, psi, -1/alpha);
 
       // Step 6 - ψ = proj(ψ⋆)
-      clip(psi, -100,
-           100); // bound psi so that 0≈sigmoid(-100) < rho < sigmoid(100)≈1
-      volProj.Apply(psi, 20);
+      // bound psi so that 0≈sigmoid(-100) < rho < sigmoid(100)≈1
+      clip(psi, -100, 100);
+      // project
+      const double currVol = volProj.Apply(psi, 20);
 
       if (visualization)
       {
          sout_u << "solution\n" << mesh << u
                 << "window_title 'Displacement u'" << flush;
 
-         GridFunction rho_gf()
-         sout_rho << "solution\n" << mesh << rho
+         GridFunction rho_gf(&control_fes);
+         rho_gf.ProjectCoefficient(rho);
+         sout_rho << "solution\n" << mesh << rho_gf
                   << "window_title 'Control variable ρ'" << flush;
 
          sout_r << "solution\n" << mesh << rho_filter
                 << "window_title 'Design density r(ρ̃)'" << flush;
 
-         paraview_dc.SetCycle(k);
-         paraview_dc.SetTime((double)k);
-         paraview_dc.Save();
+         // paraview_dc.SetCycle(k);
+         // paraview_dc.SetTime((double)k);
+         // paraview_dc.Save();
       }
+      const double norm_reduced_gradient = zero_gf.ComputeL2Error(succ_err);
+
+      mfem::out << "||ψ-ψk||: " << norm_reduced_gradient << std::endl;
+      mfem::out << "Volume Fraction: " << currVol / vol << std::endl;
 
       if (norm_reduced_gradient < tol)
       {
          break;
       }
    }
-
-   delete ElasticitySolver;
-   delete FilterSolver;
 
    return 0;
 }
