@@ -91,14 +91,14 @@ TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
       {
          for (int d = 0; d < 2; ++d)
          {
-            const int nx = (d == 0) ? order : order + 1;
-            const int ny = (d == 0) ? order + 1 : order;
+            const int mx = (d == 0) ? order : order + 1;
+            const int my = (d == 0) ? order + 1 : order;
             for (int i = 0; i < n; ++i)
             {
-               const int ix = i % nx;
-               const int iy = i / nx;
-               if ((d == 0 && (iy == 0 || iy == ny - 1)) ||
-                   (d == 1 && (ix == 0 || ix == nx - 1)))
+               const int ix = i % mx;
+               const int iy = i / mx;
+               if ((d == 0 && (iy == 0 || iy == my - 1)) ||
+                   (d == 1 && (ix == 0 || ix == mx - 1)))
                {
                   face_vec[f*ndof_per_face + d*n + i] *= 0.5;
                }
