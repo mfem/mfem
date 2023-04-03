@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    Mesh mesh = Mesh::MakeCartesian2D(20,20,mfem::Element::Type::QUADRILATERAL,true,
-                                     20.0,20.0);
+                                     1.0,1.0);
 
    int dim = mesh.Dimension();
 
@@ -313,7 +313,10 @@ int main(int argc, char *argv[])
       center(0) = 0.5*(coords1[0] + coords2[0]);
       center(1) = 0.5*(coords1[1] + coords2[1]);
 
-      if (abs(center(1) - 10) < 1 && center(0) < 1e-12)
+      // if (abs(center(1) - 0.5) < 0.1 && center(0) < 1e-12)
+      if (center(0) < 1e-12 // left
+          && std::abs(center(1) - 0.5) < 0.1 // middle
+         )
       {
          // the left center
          be->SetAttribute(1);
@@ -336,12 +339,12 @@ int main(int argc, char *argv[])
 
 
    // 4. Define the necessary finite element spaces on the mesh.
-   H1_FECollection state_fec(order, dim); // space for u
-   H1_FECollection filter_fec(order, dim); // space for ρ̃
-   L2_FECollection control_fec(order-1, dim); // space for ρ
-   FiniteElementSpace state_fes(&mesh, &state_fec);
-   FiniteElementSpace filter_fes(&mesh, &filter_fec);
-   FiniteElementSpace control_fes(&mesh, &control_fec);
+   H1_FECollection state_fec(order, dim); // FE collection for u
+   H1_FECollection filter_fec(order-1, dim); // FE collection for ρ̃
+   L2_FECollection control_fec(order-1, dim); // FE collection for ρ
+   FiniteElementSpace state_fes(&mesh, &state_fec); // Space for u
+   FiniteElementSpace filter_fes(&mesh, &filter_fec); // space for ρ̃
+   FiniteElementSpace control_fes(&mesh, &control_fec); // space for ρ
 
    int state_size = state_fes.GetTrueVSize();
    int control_size = control_fes.GetTrueVSize();
@@ -357,12 +360,13 @@ int main(int argc, char *argv[])
    GridFunction rho_filter(&filter_fes);
    GridFunction w_filter(&filter_fes);
 
-   ExponentialGridFunctionCoefficient rho(&psi);
-   u = 1.0;
-   w = 1.0;
-   rho_filter = 0.0;
+   SigmoidGridFunctionCoefficient rho(&psi); // sigmoid(ρ)
+
+   u = 0.0;
+   w = 0.0;
    w_filter = 0.0;
    psi = invsigmoid(mass_fraction);
+   rho_filter.ProjectCoefficient(rho);
 
    GridFunction u_old(u);
    GridFunction psi_old(psi);
@@ -372,48 +376,43 @@ int main(int argc, char *argv[])
    // 6. Set-up the physics solver.
 
    // 6 - 1. State problem LHS
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   mfem::out << mesh.bdr_attributes.Min() << std::endl;
-   ess_bdr = 0;
-   ess_bdr[0] = 1;
+   Array<int> ess_bdr_state(mesh.bdr_attributes.Max()); // Dirichlet at bdr == 1
+   // Only the first component is essential bdr
+   ess_bdr_state = 0;
+   ess_bdr_state[0] = 1;
    // r(ρ̃) = ρ0 + (1-ρ0)ρ̃^p
    SIMPCoefficient r_rho_filter(&rho_filter, exponent, rho_min);
-   // (r(ρ̃) ∇ u, ∇ v), assemble when ρ̃ is updated
-   BilinearForm stateForm(&state_fes);
-   stateForm.AddDomainIntegrator(new DiffusionIntegrator(r_rho_filter));
-   EllipticSolver state_solver(&state_fes, &stateForm, ess_bdr);
-
-   // 6 - 2. State problem RHS
-   LinearForm state_RHS(&state_fes); // (f,v). Assemble only once.
-   state_RHS.AddDomainIntegrator(new DomainLFIntegrator(one));
-   state_RHS.Assemble(); // Assemble only once
-   LinearForm state_dual_RHS(&state_fes); //
-   state_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(one));
-   SafeLogDiffGridFunctionCoefficient logdiffu(&u, &u_old, 1e-12);
-   state_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(logdiffu));
+   // heat source
+   ConstantCoefficient f(1.0);
+   // (r(ρ̃)∇ u, ∇ v)
+   DiffusionSolver *state_solver = new DiffusionSolver();
+   state_solver->SetMesh(&mesh);
+   state_solver->SetFESpace(&state_fes);
+   state_solver->SetEssentialBoundary(ess_bdr_state);
+   state_solver->SetDiffusionCoefficient(&r_rho_filter);
+   state_solver->SetupFEM();
 
    // 6 - 3. Filter problem LHS
-   ess_bdr = 0;
-   BilinearForm filterForm(
-      &filter_fes); // (ϵ^2 ∇ ρ̃, ∇ v) + (ρ̃, v), assemble only once
+   Array<int> ess_bdr_filter(mesh.bdr_attributes.Max()); // Pure Neumann
+   ess_bdr_filter = 0;
+   // ϵ^2, filter diffusion coeff
    ConstantCoefficient eps_squared(epsilon*epsilon);
-   filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps_squared));
-   filterForm.AddDomainIntegrator(new MassIntegrator());
-   filterForm.Assemble();
-   EllipticSolver filter_solver(&filter_fes, &filterForm, ess_bdr);
-
-   // 6 - 4. Filter problem RHS
-   LinearForm filter_RHS(&filter_fes); // (ρ, v)
-   filter_RHS.AddDomainIntegrator(new DomainLFIntegrator(rho));
-   LinearForm filter_dual_RHS(&filter_fes); // (r'(ρ̃)(∇ u ⋅ ∇ w), v)
+   // (ϵ∇ ρ̃, ∇ v) + (ρ̃, v)
+   DiffusionSolver *filter_solver = new DiffusionSolver();
+   filter_solver->SetMesh(&mesh);
+   filter_solver->SetFESpace(&filter_fes);
+   filter_solver->SetEssentialBoundary(ess_bdr_filter);
+   filter_solver->SetDiffusionCoefficient(&eps_squared);
+   filter_solver->SetMassCoefficient(&one);
+   filter_solver->SetupFEM();
    SIMPDerEnergyCoefficient r_energy(&rho_filter, exponent, rho_min, &u, &w);
-   filter_dual_RHS.AddDomainIntegrator(new DomainLFIntegrator(r_energy));
 
    // 6 - 5. Prepare for Projection
    LinearForm volForm(&control_fes);
    volForm.AddDomainIntegrator(new DomainLFIntegrator(one, 0, 0));
    volForm.Assemble();
    const double vol = volForm.Sum(); // domain volume
+   out << "|Ω| = " << vol << std::endl;
    SigmoidDensityProjector volProj(&control_fes, mass_fraction, vol);
 
    // 6 - 6. M⁻¹: Vl -> Wl
@@ -439,6 +438,24 @@ int main(int argc, char *argv[])
       sout_u.precision(8);
       sout_rho.precision(8);
       sout_r.precision(8);
+
+      sout_u << "solution\n" << mesh << u;
+      sout_u << "view 0 0\n";  // view from top
+      sout_u << "keys jl********\n";  // turn off perspective and light
+      sout_u.flush();
+
+      GridFunction rho_gf(&control_fes);
+      rho_gf.ProjectCoefficient(rho);
+
+      sout_rho << "solution\n" << mesh << rho_gf;
+      sout_rho << "view 0 0\n";  // view from top
+      sout_rho << "keys jl********\\n";  // turn off perspective and light
+      sout_rho.flush();
+
+      sout_r << "solution\n" << mesh << rho_filter;
+      sout_r << "view 0 0\n";  // view from top
+      sout_r << "keys jl********\\n";  // turn off perspective and light
+      sout_r.flush();
    }
 
    // mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &mesh);
@@ -465,37 +482,33 @@ int main(int argc, char *argv[])
 
       // Step 1 - Filter solve
       mfem::out << "(ϵ^2 ∇ ρ̃, ∇ v) + (ρ̃,v) = (ρ,v)" << std::endl;
-      filter_RHS.Assemble();
-      filter_solver.Solve(&filter_RHS, &rho_filter);
-      out << "(min(ρ̃), max(ρ̃)) = (" << rho_filter.Min() << ", " <<
-          rho_filter.Max() << ")" <<std::endl;
-
+      filter_solver->SetRHSCoefficient(&rho);
+      filter_solver->Solve(&rho_filter);
 
       // Step 2 - Primal solve
       mfem::out << "(r(ρ̃) ∇ u, ∇ v) = (f, v)" << std::endl;
-      // No need for assemble state_RHS because it does not change.
-      stateForm.Assemble();
-      u_old = u;
-      state_solver.Solve(&state_RHS, &u);
+      state_solver->SetRHSCoefficient(&f);
+      state_solver->Solve(&u);
 
       // Step 3 - Dual solve
+      // @note w is actually -w as we do not negate the RHS.
       mfem::out << "(r(ρ̃) ∇ w, ∇ v) = (f, v) + α⁻¹(log(u/uk), v)" <<
                 std::endl;
-      logdiffu.SetAlpha(1/alpha);
-      state_dual_RHS.Assemble();
-      state_solver.Solve(&state_dual_RHS, &w);
+      state_solver->SetRHSCoefficient(&f);
+      state_solver->Solve(&w);
 
       // Step 4 - Dual filter solve
+      // Because of Step 3, we also solving -w̃ instead of w̃.
       mfem::out <<
-                "(ϵ^2 ∇ w̃, ∇ v) + (w̃, v) = -(r'(ρ̃)(∇ u ⋅ ∇ w), v)" <<
+                "(ϵ^2 ∇ w̃, ∇ v) + (w̃, v) = (r'(ρ̃)(∇ u ⋅ ∇ w), v)" <<
                 std::endl;
-      filter_dual_RHS.Assemble();
-      filter_solver.Solve(&filter_dual_RHS, &w_filter);
+      filter_solver->SetRHSCoefficient(&r_energy);
+      filter_solver->Solve(&w_filter);
 
       // Step 5 - Get ψ⋆ = ψ - α⁻¹ w̃
       w_filter_load.Assemble();
       psi_old = psi;
-      invM.AddMult(w_filter_load, psi, -1/alpha);
+      invM.AddMult(w_filter_load, psi, 1/alpha);
 
       // Step 6 - ψ = proj(ψ⋆)
       // bound psi so that 0≈sigmoid(-100) < rho < sigmoid(100)≈1
@@ -505,16 +518,18 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         sout_u << "solution\n" << mesh << u
-                << "window_title 'Displacement u'" << flush;
+
 
          GridFunction rho_gf(&control_fes);
          rho_gf.ProjectCoefficient(rho);
-         sout_rho << "solution\n" << mesh << rho_gf
-                  << "window_title 'Control variable ρ'" << flush;
+         sout_rho << "solution\n" << mesh << rho_gf;
+         sout_rho.flush();
 
-         sout_r << "solution\n" << mesh << rho_filter
-                << "window_title 'Design density r(ρ̃)'" << flush;
+         sout_r << "solution\n" << mesh << rho_filter;
+         sout_r.flush();
+
+         sout_u << "solution\n" << mesh << u;
+         sout_u.flush();
 
          // paraview_dc.SetCycle(k);
          // paraview_dc.SetTime((double)k);
