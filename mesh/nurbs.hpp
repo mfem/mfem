@@ -78,8 +78,9 @@ public:
 
    void Print(std::ostream &out) const;
 
-   /** Prints the shapefunctions associated with the the KnotVector per element.
-       @a samples is the number samples of the shapefunctions per element.*/
+   /** Prints the non-zero shape functions and their first and second
+       derivatives associated with the KnotVector per element. @a samples
+       is the number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &out, int samples=11) const;
 
    /// Destroys KnotVector
