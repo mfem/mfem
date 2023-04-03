@@ -135,15 +135,19 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 
    double x, dx = 1.0/double (samples - 1);
 
-   int el = 0;
-   for (int i = 0; i < GetNE(); i++, el++)
+   /* @a i is a counter including elements between repeated knots if
+      present. This is required for usage of CalcShape. */
+   int i = 0;
+
+   for (int e = 0; e < GetNE(); e++, i++)
    {
-      if (!isElement(i)) {el -= 1; continue;}
+      // Avoid printing shapes between repeated knots
+      if (!isElement(i)) { e -= 1; continue; }
 
       for (int j = 0; j <samples; j++)
       {
          x =j*dx;
-         os<< x + el;
+         os<< x + e;
 
          CalcShape ( shape, i, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
