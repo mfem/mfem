@@ -42,6 +42,7 @@ list(APPEND ALL_EXE_SRCS
   ex33.cpp
   ex34.cpp
   ex35.cpp
+  efem_thermal.cpp
   )
 
 if (MFEM_USE_MPI)
