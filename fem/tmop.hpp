@@ -657,7 +657,7 @@ protected:
 
 public:
    // W = |J| |J^-1| / 3 - 1.
-    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 1/3 sqrt(I1b * I2b) - 1
    virtual double EvalW(const DenseMatrix &Jpt) const;

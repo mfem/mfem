@@ -1074,7 +1074,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
       }
 
       // Refine an element if its neighbor will be refined
-      for (int inner_iter = 0; inner_iter < 4; inner_iter++)
+      for (int inner_iter = 0; inner_iter < 1; inner_iter++)
       {
          el_to_refine.ExchangeFaceNbrData();
          GridFunctionCoefficient field_in_dg(&el_to_refine);
@@ -1144,7 +1144,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        FunctionCoefficient &ls_coeff,
                                        ParGridFunction &distance_s,
                                        const int nDiffuse = 2,
-                                       const int pLapOrder = 5,
+                                       const int pLapOrder = 4,
                                        const int pLapNewton = 50)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
@@ -1161,8 +1161,8 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
 
    const int p = pLapOrder;
    const int newton_iter = pLapNewton;
-   //   auto ds = new PLapDistanceSolver(p, newton_iter);
-   auto ds = new NormalizationDistanceSolver();
+   auto ds = new PLapDistanceSolver(p, newton_iter);
+   //   auto ds = new NormalizationDistanceSolver();
    dist_solver = ds;
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());

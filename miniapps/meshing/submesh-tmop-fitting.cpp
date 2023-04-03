@@ -444,6 +444,8 @@ int main (int argc, char *argv[])
    mesh->EnsureNCMesh();
 
    // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
+   StopWatch TimeMeshTrim;
+   TimeMeshTrim.Start();
    if (trim_mesh)
    {
       //      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 2, 1, 1);
@@ -471,6 +473,7 @@ int main (int argc, char *argv[])
       MFEM_VERIFY(marking_type > 0, "Trimmed mesh + marking type = 0 (i.e. interface)"
                   " does not make sense\n");
    }
+   TimeMeshTrim.Stop();
 
    L2_FECollection gl_el_coll(0, dim);
    FiniteElementSpace gl_el_fes(mesh, &gl_el_coll);
@@ -551,13 +554,16 @@ int main (int argc, char *argv[])
    ParMesh *psubmesh = NULL;
    ParFiniteElementSpace *psub_pfespace = NULL;
    ParGridFunction *psub_x = NULL;
+   StopWatch TimeMeshDist;
    if (surface_fit_const > 0.0)
    {
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+      TimeMeshDist.Start();
       if (comp_dist && !surf_bg_mesh)
       {
          ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, surf_fit_gf0);
       }
+      TimeMeshDist.Stop();
 
       // Set material gridfunction
       for (int i = 0; i < pmesh->GetNE(); i++)
@@ -646,6 +652,9 @@ int main (int argc, char *argv[])
    int max_el_attr = pmesh->attributes.Max();
    int max_bdr_el_attr = pmesh->bdr_attributes.Max();
    Array<int> deactivate_list(0);
+
+   StopWatch TimeSubMeshTrim;
+   TimeSubMeshTrim.Start();
    if (deactivation_layers > 0)
    {
       Array<int> active_list;
@@ -742,6 +751,7 @@ int main (int argc, char *argv[])
       psub_x = &x;
    }
    psub_x->SetTrueVector();
+   TimeSubMeshTrim.Stop();
 
    ParFiniteElementSpace psub_surf_fit_fes(psubmesh, &surf_fit_fec);
    ParFiniteElementSpace psub_mat_fes(psubmesh, &mat_coll);
@@ -909,6 +919,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace *surf_fit_hess_fes = NULL;
    ParGridFunction *surf_fit_hess = NULL;
 
+   StopWatch TimeBGMeshDist, TimeBGMeshAMR, TimeBGMeshDer;
    if (surf_bg_mesh)
    {
       pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg, false, -1, 0);
@@ -931,16 +942,29 @@ int main (int argc, char *argv[])
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
 
+      TimeBGMeshAMR.Start();
       if (myid == 0) { std::cout << "Do AMR on Background mesh\n"; }
       OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
                                             *surf_fit_bg_gf0);
       if (myid == 0) { std::cout << "Done AMR on Background mesh\n"; }
+      {
+         int ne_glob_bg = pmesh_surf_fit_bg->GetGlobalNE();
+         if (myid == 0)
+         {
+            std::cout << "Number of elements in background mesh: " <<
+                      ne_glob_bg << endl;
+         }
+      }
+
+      TimeBGMeshAMR.Stop();
+
       pmesh_surf_fit_bg->Rebalance();
       surf_fit_bg_fes->Update();
       surf_fit_bg_gf0->Update();
+      TimeBGMeshDist.Start();
       if (comp_dist)
       {
-         if (myid == 0) { std::cout << "Computed Distance on Background mesh\n"; }
+         if (myid == 0) { std::cout << "Compute Distance on Background mesh\n"; }
          ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
                                            *surf_fit_bg_gf0);
          if (myid == 0) { std::cout << "Done ComputeDistance on Background mesh\n"; }
@@ -949,6 +973,8 @@ int main (int argc, char *argv[])
       {
          surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
       }
+      TimeBGMeshDist.Stop();
+
 
       surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
                                                        surf_fit_bg_fec,
@@ -962,6 +988,7 @@ int main (int argc, char *argv[])
                                                        n_hessian_bg);
       surf_fit_bg_hess = new ParGridFunction(surf_fit_bg_hess_fes);
 
+      TimeBGMeshDer.Start();
       //Setup gradient of the background mesh
       for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
       {
@@ -984,6 +1011,7 @@ int main (int argc, char *argv[])
             id++;
          }
       }
+      TimeBGMeshDer.Stop();
    }
 
    Array<int> el_face_marked_count(pmesh->GetNE());
@@ -1117,8 +1145,6 @@ int main (int argc, char *argv[])
                                 300, 600, 300, 300);
       }
 
-
-
       // Set AdaptivityEvaluators for transferring information from initial
       // mesh to current mesh as it moves during adaptivity.
       if (adapt_eval == 0)
@@ -1187,7 +1213,7 @@ int main (int argc, char *argv[])
    }
 
 
-   //   MFEM_ABORT("k10aborting1");
+//   MFEM_ABORT("k10aborting1");
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -1404,8 +1430,12 @@ int main (int argc, char *argv[])
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
+   StopWatch TimeSolve;
+   TimeSolve.Start();
    solver.Mult(b, psub_x->GetTrueVector());
    psub_x->SetFromTrueVector();
+   TimeSolve.Stop();
+
 
    if (deactivation_layers > 0)
    {
@@ -1445,6 +1475,21 @@ int main (int argc, char *argv[])
            << " + extra terms: " << fin_energy - fin_metric_energy << endl;
       cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
+   }
+
+
+   if (myid == 0)
+   {
+      std::cout << "Timings for Mesh Optimization:" << std::endl;
+      std::cout << "Time to Trim: " << TimeMeshTrim.RealTime() << std::endl;
+      std::cout << "Time to generate submesh: " << TimeSubMeshTrim.RealTime() <<
+                std::endl;
+      std::cout << "Time To do AMR on bg: " << TimeBGMeshAMR.RealTime() << std::endl;
+      std::cout << "Time To generate distance on bg: " << TimeBGMeshDist.RealTime() <<
+                std::endl;
+      std::cout << "Time To get grad on bg: " << TimeBGMeshDer.RealTime() <<
+                std::endl;
+      std::cout << "Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
    }
 
    // 18. Visualize the final mesh and metric values.
