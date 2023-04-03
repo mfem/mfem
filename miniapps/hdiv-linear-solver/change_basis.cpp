@@ -314,16 +314,16 @@ void ChangeOfBasis_RT::Mult(const Vector &x, Vector &y, Mode mode) const
 
    const Operator *P = fes.GetProlongationMatrix();
 
-   if (P)
+   if (IsIdentityProlongation(P))
+   {
+      x_l.MakeRef(const_cast<Vector&>(x), 0, fes.GetVSize());
+      y_l.MakeRef(y, 0, fes.GetVSize());
+   }
+   else
    {
       x_l.SetSize(fes.GetVSize());
       y_l.SetSize(fes.GetVSize());
       P->Mult(x, x_l);
-   }
-   else
-   {
-      x_l.MakeRef(const_cast<Vector&>(x), 0);
-      y_l.MakeRef(y, 0);
    }
 
    x_e.SetSize(elem_restr->Height());
