@@ -129,19 +129,21 @@ void KnotVector::Print(std::ostream &os) const
    knot.Print(os, knot.Size());
 }
 
-
 void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 {
    Vector shape(Order+1);
 
    double x, dx = 1.0/double (samples - 1);
 
-   for (int i = 0; i <GetNE() ; i++)
+   int el = 0;
+   for (int i = 0; i < GetNE(); i++, el++)
    {
+      if (!isElement(i)) {el -= 1; continue;}
+
       for (int j = 0; j <samples; j++)
       {
          x =j*dx;
-         os<< x + i;
+         os<< x + el;
 
          CalcShape ( shape, i, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
