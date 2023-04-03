@@ -22,7 +22,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-
 jobs:
   Sanitizer:
     runs-on: macos-latest
