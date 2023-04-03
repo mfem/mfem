@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include "../general/communication.hpp"
 
 namespace mfem
 {
@@ -232,6 +233,16 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
 
 public:
    AdamsBashforthSolver(int s_, const double *a_);
@@ -252,7 +263,6 @@ public:
       delete [] k;
    }
 };
-
 
 /** A 1-stage, 1st order AB method.  */
 class AB1Solver : public AdamsBashforthSolver
@@ -314,6 +324,16 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
 
 public:
    AdamsMoultonSolver(int s_, const double *a_);
