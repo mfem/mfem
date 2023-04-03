@@ -89,6 +89,20 @@ public:
                                       int comp=1):MappedGridFunctionCoefficient(gf, [](const double x) {return log(x);},
    comp) {}
 };
+/**
+ * @brief GridFunctionCoefficient that returns log(max(u, tolerance))
+ *
+ */
+class SafeLogarithmicGridFunctionCoefficient : public
+   MappedGridFunctionCoefficient
+{
+public:
+   SafeLogarithmicGridFunctionCoefficient(const GridFunction *gf,
+                                          const double tolerance,
+                                          int comp=1):MappedGridFunctionCoefficient(gf, [tolerance](
+                                                      const double x) {return log(max(x, tolerance));},
+   comp) {}
+};
 
 
 /**
@@ -193,7 +207,10 @@ public:
       : MappedGridFunctionCoefficient(gf, [rho_min, exponent](const double x) {return exponent*(1-rho_min)*pow(x, exponent - 1.0);}) {}
 };
 
-
+/**
+ * @brief Projector Π : ψ → ψ + c so that ∫ ρ = θ|Ω| where ρ = sigmoid(ψ + c)
+ *
+ */
 class SigmoidDensityProjector
 {
 private:
@@ -330,7 +347,6 @@ public:
    {
       OperatorPtr A;
       Vector B, X;
-      b->Assemble();
       bilinForm->FormLinearSystem(ess_tdof_list, *sol, *b, A, X, B);
 
       // 11. Solve the linear system A X = B.
