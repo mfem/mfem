@@ -538,7 +538,6 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
 
    a2->Assemble();
    a2->FormLinearSystem(ess_tdof_list2, *x2, *b2, A2, X2, B2);
-   A1.Print();
    K = new SparseMatrix(ndofs, ndofs);
    for (int i=0; i<A1.Height(); i++)
    {
@@ -792,11 +791,13 @@ void ExContactBlockTL::update_g()
 
 void ExContactBlockTL::update_jac()
 {
+   assert(0 && "cannot reach here");
    update_g();
 }
 
 void ExContactBlockTL::update_hess()
 {
+   assert(0 && "cannot reach here");
    update_g();
 }
 
@@ -814,11 +815,9 @@ bool ExContactBlockTL::get_nlp_info(
    // one equality constraint,
    m = nnd;
 
-   nnz_jac_g = M->NumNonZeroElems();
    nnz_jac_g = nnd*ndofs; // treat it as a dense matrix for now
 
    // treat it as a dense matrix for now. only need lower-triangular part
-
    nnz_h_lag = (ndofs*ndofs + ndofs)/2;
 
    // We use the standard fortran index style for row/col entries
@@ -1038,9 +1037,8 @@ bool ExContactBlockTL::eval_jac_g(
 
       for (auto i=0; i<nele_jac; i++)
       {
-         values[i] = 1e-20;
+         values[i] = 0.0;
       }
-      // TODO: M_i and M_j can be nullptr ???
       for (auto i=0; i<m; i++)
       {
          for (auto k=M_i[i]; k<M_i[i+1]; k++)
@@ -1104,7 +1102,7 @@ bool ExContactBlockTL::eval_h(
       // return the values
       for (auto k=0; k<nele_hess; k++)
       {
-         values[k] = 1e-20;
+         values[k] = 0.0;
       }
 
       const int *K_i = K->GetI();
