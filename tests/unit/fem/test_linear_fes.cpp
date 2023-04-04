@@ -396,7 +396,6 @@ TEST_CASE("Tet mesh with linear grid function",
       L2_FECollection fec(0,dim);
       testGridFunctions(fec, mesh, 1);
    }
-   mesh.Clear();
 }
 
 TEST_CASE("Prism mesh with linear grid function",
