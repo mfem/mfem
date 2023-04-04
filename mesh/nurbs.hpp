@@ -103,7 +103,7 @@ protected:
    //  - Both routines are used in 'InsertKnot', 'DegreeElevate' and 'UniformRefinement'.
    //  - In older implementations slice(int int) was implemented as operator()(int, int)
    int nd; // Number of knots in flattened structure
-   int ls; // Number of variables per knot in flattaned structure
+   int ls; // Number of variables per knot in flattened structure
    int sd; // Stride for data access
    int SetLoopDirection(int dir);
    inline       double &slice(int i, int j);
