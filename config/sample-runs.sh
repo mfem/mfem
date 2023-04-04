@@ -58,6 +58,10 @@ groups_serial=(
    "HiOp examples:"
    "examples/hiop"
    "ex9.cpp"'
+'"ipopt"
+   "IpOpt examples:"
+   "examples/ipopt"
+   "ex10.cpp"'
 '"pumi"
    "PUMI examples:"
    "examples/pumi"
@@ -215,6 +219,10 @@ groups_all=(
    "HiOp examples:"
    "examples/hiop"
    "ex9.cpp ex9p.cpp"'
+'"ipopt"
+   "IpOpt examples:"
+   "examples/ipopt"
+   "ex10.cpp"'
 '"pumi"
    "PUMI examples:"
    "examples/pumi"

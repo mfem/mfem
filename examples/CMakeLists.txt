@@ -178,6 +178,11 @@ if (MFEM_USE_HIOP)
   add_subdirectory(hiop)
 endif()
 
+# Include the examples/ipopt directory if IpOpt is enabled
+if (MFEM_USE_IPOPT)
+  add_subdirectory(ipopt)
+endif()
+
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)

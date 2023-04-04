@@ -471,6 +471,9 @@ MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
 
+MFEM_USE_IPOPT = YES/NO
+   Enable the usage of Ipopt in MFEM.
+
 MFEM_USE_CODIPACK = YES/NO
   Enable automatic differentiation using the CoDiPack library.
   www.scicomp.uni-kl.de/codi/
@@ -738,6 +741,11 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.6.
 
+- Ipopt (optional), used when MFEM_USE_IPOPT = YES.
+  URL: https://github.com/coin-or/Ipopt
+  Options: IPOPT_OPT, IPOPT_LIB.
+  Versions: IPOPT >= 3.14
+
 - CoDiPack (optional), used with MFEM_USE_CODIPACK = YES
   URL: https://www.scicomp.uni-kl.de/codi/
   Options: CODIPACK_OPT
@@ -972,6 +980,7 @@ MFEM_USE_MPFR
 MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
+MFEM_USE_IPOPT
 MFEM_USE_CODIPACK
 MFEM_USE_ADFORWARD
 MFEM_USE_CUDA
@@ -1035,6 +1044,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - POSIXCLOCKS
  - PUMI
  - HIOP
+ - IPOPT
  - CoDiPack
  - OCCA
  - RAJA

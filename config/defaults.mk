@@ -148,6 +148,7 @@ MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
+MFEM_USE_IPOPT         = NO
 MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_HIP           = NO
@@ -446,6 +447,11 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 HIOP_DIR = @MFEM_DIR@/../hiop/install
 HIOP_OPT = -I$(HIOP_DIR)/include
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
+
+# IPOPT
+IPOPT_DIR = @MFEM_DIR@/../ipopt/install
+IPOPT_OPT = -I$(IPOPT_DIR)/include
+IPOPT_LIB = -L$(IPOPT_DIR)/lib -lipopt $(LAPACK_LIB)
 
 # CoDiPack
 CODIPACK_DIR = @MFEM_DIR@/../CoDiPack

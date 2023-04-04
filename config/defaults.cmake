@@ -48,6 +48,7 @@ option(MFEM_USE_FMS "Enable FMS usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 option(MFEM_USE_HIOP "Enable HiOp" OFF)
+option(MFEM_USE_IPOPT "Enable Ipopt" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_HIP "Enable HIP" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
@@ -220,6 +221,10 @@ set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
     "Directory where HiOp is installed")
 set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
     "Packages that HiOp depends on.")
+set(IPOPT_DIR "${MFEM_DIR}/../ipopt/install" CACHE STRING
+    "Directory where IpOpt is installed")
+set(IPOPT_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
+    "Packages that IpOpt depends on.")
 
 set(MKL_CPARDISO_DIR "" CACHE STRING "MKL installation path.")
 set(MKL_MPI_WRAPPER_LIB "mkl_blacs_mpich_lp64" CACHE STRING "MKL MPI wrapper library")

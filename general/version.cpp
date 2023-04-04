@@ -97,6 +97,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_HIOP
       "MFEM_USE_HIOP\n"
 #endif
+#ifdef MFEM_USE_IPOPT
+      "MFEM_USE_IPOPT\n"
+#endif
 #ifdef MFEM_USE_HIP
       "MFEM_USE_HIP\n"
 #endif

@@ -141,6 +141,9 @@
 // Enable MFEM functionality based on the HIOP library.
 // #define MFEM_USE_HIOP
 
+// Enable MFEM functionality based on the IPOPT library.
+// #define MFEM_USE_IPOPT
+
 // Enable MFEM functionality based on the GSLIB library
 // #define MFEM_USE_GSLIB
 

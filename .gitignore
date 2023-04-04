@@ -131,6 +131,12 @@ examples/hiop/ex9-mesh.*
 examples/hiop/ex9-init.*
 examples/hiop/ex9-final.*
 
+examples/ipopt/exContactBlockTL
+examples/ipopt/exContactBlockTL.mesh
+examples/ipopt/exContactBlockTL-mesh.*
+examples/ipopt/exContactBlockTL-init.*
+examples/ipopt/exContactBlockTL-final.*
+
 examples/petsc/ex[1-69]p
 examples/petsc/ex1[0-1]p
 examples/petsc/mesh.*
