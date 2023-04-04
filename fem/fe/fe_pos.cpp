@@ -88,7 +88,7 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
 void PositiveTensorFiniteElement::GetFaceMap(const int face_id,
                                              Array<int> &face_map) const
 {
-   GetTensorFaceMap(dim, order, face_id, face_map);
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
 }
 
 
