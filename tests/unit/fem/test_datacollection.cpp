@@ -240,6 +240,7 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
       delete qs;
       delete qv;
    }
+
 }
 
 void SaveDataCollection(DataCollection &dc, int cycle, double t)

@@ -262,7 +262,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 }
 
 
-const double pi2 = M_PI_2;
+const double pi2 = M_PI / 2;
 
 struct Params3
 {
