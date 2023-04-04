@@ -147,8 +147,9 @@ public:
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
 
-   /// @brief Return the mapping from lexicographically ordered DOFs to face
-   /// DOFs corresponding to local face @a face_id.
+   /// @brief Return the mapping from lexicographically ordered face DOFs to
+   /// lexicographically ordered element DOFs corresponding to local face
+   /// @a face_id.
    virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
 protected:
