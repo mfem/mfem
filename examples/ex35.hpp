@@ -107,6 +107,42 @@ public:
    }
 };
 
+
+// Strain energy density coefficient
+class DiffusionEnergyCoefficient : public Coefficient
+{
+protected:
+   Coefficient * K=nullptr;
+   GridFunction *u = nullptr; // displacement
+   GridFunction *rho_filter = nullptr; // filter density
+   Vector grad; // auxiliary matrix, used in Eval
+   double exponent;
+   double rho_min;
+
+public:
+   DiffusionEnergyCoefficient(Coefficient *K_,
+                                  GridFunction * u_, GridFunction * rho_filter_, double rho_min_=1e-6,
+                                  double exponent_ = 3.0)
+      : K(K_),  u(u_), rho_filter(rho_filter_),
+        exponent(exponent_), rho_min(rho_min_)
+   {
+      MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
+      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
+      MFEM_ASSERT(u, "displacement field is not set");
+      MFEM_ASSERT(rho_filter, "density field is not set");
+   }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      double Kval = K->Eval(T, ip);
+      u->GetGradient(T, grad);
+      double density = Kval*(grad*grad);
+      double val = rho_filter->GetValue(T,ip);
+
+      return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
+   }
+};
+
 // Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
 {
