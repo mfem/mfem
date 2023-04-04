@@ -17,6 +17,9 @@
 namespace mfem
 {
 
+namespace internal
+{
+
 std::pair<int,int> GetFaceNormal3D(const int face_id)
 {
    switch (face_id)
@@ -106,5 +109,7 @@ void GetTensorFaceMap(const int dim, const int order, const int face_id,
    std::vector<int> n_dofs(dim - 1, dof1d);
    FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
+
+} // namespace internal
 
 } // namespace mfem
