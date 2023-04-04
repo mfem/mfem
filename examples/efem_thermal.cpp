@@ -28,7 +28,7 @@
 //              penalization (SIMP) law, ϵ > 0 is the design length scale,
 //              and 0 < θ < 1 is the volume fraction. Note that we have
 //
-//              More specifically, we have f = 0 in an insulated rectagular
+//              More specifically, we have f = 1 in an insulated rectagular
 //              domain Ω = (0, 1) x (0, 1) where the left middle section
 //              {x = 0} x (0.4, 0.6) is held at temperature 0.
 //
@@ -123,6 +123,8 @@ using namespace mfem;
  *
  *                    (r(ρ̃) ∇w, ∇v) = (f,v) + α⁻¹(log(u/uk), v)    ∀ v ∈ Vh.
  *
+ *        NOTE: Currently, log(u/uk) is not implemented here.
+ *
  *        NOTE: When there is no constraint u≤1, then w = u.
  *              In that case, we do not have to solve the dual problem.
  *
@@ -176,7 +178,7 @@ public:
 
 
 /**
- * @brief log(max(a, tol)) - log(max(b, tol))
+ * @brief sigmoid(u) - sigmoid(w), used for computing successive difference
  *
  */
 class SigmoidDiffGridFunctionCoefficient : public
@@ -315,7 +317,7 @@ int main(int argc, char *argv[])
 
       // if (abs(center(1) - 0.5) < 0.1 && center(0) < 1e-12)
       if (center(0) < 1e-12 // left
-          && std::abs(center(1) - 0.5) < 0.1 // middle
+          //  && std::abs(center(1) - 0.5) < 0.1 // middle
          )
       {
          // the left center
@@ -419,9 +421,6 @@ int main(int argc, char *argv[])
    BilinearForm invMass(&control_fes);
    invMass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
    invMass.Assemble();
-   SparseMatrix invM;
-   Array<int> empty;
-   invMass.FormSystemMatrix(empty,invM);
    GridFunctionCoefficient w_filter_cf(&w_filter);
    LinearForm w_filter_load(&control_fes);
    w_filter_load.AddDomainIntegrator(new DomainLFIntegrator(w_filter_cf));
@@ -512,7 +511,7 @@ int main(int argc, char *argv[])
       // Step 5 - Get ψ⋆ = ψ - α⁻¹ w̃
       w_filter_load.Assemble();
       psi_old = psi;
-      invM.AddMult(w_filter_load, psi, 1/alpha);
+      invMass.AddMult(w_filter_load, psi, 1/alpha);
 
       // Step 6 - ψ = proj(ψ⋆)
       // bound psi so that 0≈sigmoid(-100) < rho < sigmoid(100)≈1
