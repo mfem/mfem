@@ -237,7 +237,7 @@ protected:
    Array<int> scatter_indices; // Scattering indices for element 1 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
-   Array<int> vol_dof_map; // mapping to lexicographic ordering
+   Array<int> vol_dof_map; // mapping from lexicographic to native ordering
 
    /** @brief Construct a ConformingFaceRestriction.
 
