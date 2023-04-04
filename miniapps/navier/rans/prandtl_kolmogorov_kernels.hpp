@@ -1,4 +1,4 @@
-#include "../../hooke/kernels/kernel_helpers.hpp"
+#include "kernel_helpers.hpp"
 
 namespace mfem
 {

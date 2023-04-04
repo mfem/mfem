@@ -13,7 +13,7 @@
 #define MFEM_NAVIER_STRESS_INTEGRATOR_HPP
 
 #include <mfem.hpp>
-#include "../../hooke/kernels/kernel_helpers.hpp"
+#include "kernel_helpers.hpp"
 
 namespace mfem
 {

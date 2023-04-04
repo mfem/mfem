@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SRC_DIRS := ./lib ./kernels ./rans
 
 INC_DIRS := $(shell find $(SRC_DIRS) ./ -type d -not -path "./output/*")
-INC_DIRS := $(INC_DIRS) $(MFEM_DIR)/miniapps/shifted/
+INC_DIRS := $(INC_DIRS) $(MFEM_DIR)/miniapps/shifted/ $(MFEM_DIR)/miniapps/hooke/kernels/
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 NAVIER_LIB_SRCS := $(shell find $(SRC_DIRS) -name '*.cpp')
