@@ -3496,17 +3496,17 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
-      NURBSPatch &Patch = *patches[p];
-      MFEM_ASSERT(vdim+1 == Patch.GetNC(), "");
+      NURBSPatch &patch = *patches[p];
+      MFEM_ASSERT(vdim+1 == patch.GetNC(), "");
 
       for (int i = 0; i < kv[0]->GetNCP(); i++)
       {
          const int l = p2g(i);
          for (int d = 0; d < vdim; d++)
          {
-            coords(l*vdim + d) = Patch(i,d)/Patch(i,vdim);
+            coords(l*vdim + d) = patch(i,d)/patch(i,vdim);
          }
-         weights(l) = Patch(i,vdim);
+         weights(l) = patch(i,vdim);
       }
 
       delete patches[p];
@@ -3523,8 +3523,8 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
-      NURBSPatch &Patch = *patches[p];
-      MFEM_ASSERT(vdim+1 == Patch.GetNC(), "");
+      NURBSPatch &patch = *patches[p];
+      MFEM_ASSERT(vdim+1 == patch.GetNC(), "");
 
       for (int j = 0; j < kv[1]->GetNCP(); j++)
       {
@@ -3533,9 +3533,9 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
             const int l = p2g(i,j);
             for (int d = 0; d < vdim; d++)
             {
-               coords(l*vdim + d) = Patch(i,j,d)/Patch(i,j,vdim);
+               coords(l*vdim + d) = patch(i,j,d)/patch(i,j,vdim);
             }
-            weights(l) = Patch(i,j,vdim);
+            weights(l) = patch(i,j,vdim);
          }
       }
       delete patches[p];
@@ -3551,8 +3551,8 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
-      NURBSPatch &Patch = *patches[p];
-      MFEM_ASSERT(vdim+1 == Patch.GetNC(), "");
+      NURBSPatch &patch = *patches[p];
+      MFEM_ASSERT(vdim+1 == patch.GetNC(), "");
 
       for (int k = 0; k < kv[2]->GetNCP(); k++)
       {
@@ -3563,9 +3563,9 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
                const int l = p2g(i,j,k);
                for (int d = 0; d < vdim; d++)
                {
-                  coords(l*vdim + d) = Patch(i,j,k,d)/Patch(i,j,k,vdim);
+                  coords(l*vdim + d) = patch(i,j,k,d)/patch(i,j,k,vdim);
                }
-               weights(l) = Patch(i,j,k,vdim);
+               weights(l) = patch(i,j,k,vdim);
             }
          }
       }
