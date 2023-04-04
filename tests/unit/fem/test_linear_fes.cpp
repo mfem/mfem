@@ -370,8 +370,7 @@ TEST_CASE("Tet mesh with linear grid function",
    mesh.AddVertex(Vertex(1.,1.,1.)());
 
    int idx[4] = {0,1,2,3};
-   Tetrahedron *tetra = new Tetrahedron(idx, attrib);
-   mesh.AddElement(tetra);
+   mesh.AddElement(new Tetrahedron(idx, attrib));
 
    mesh.FinalizeMesh();
 
@@ -398,7 +397,6 @@ TEST_CASE("Tet mesh with linear grid function",
       testGridFunctions(fec, mesh, 1);
    }
    mesh.Clear();
-   delete tetra;
 }
 
 TEST_CASE("Prism mesh with linear grid function",
