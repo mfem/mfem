@@ -58,8 +58,8 @@ void FillFaceMap(const int n_face_dofs_per_component,
    }
 }
 
-void GetNodalTensorFaceMap(const int dim, const int order, const int face_id,
-                           Array<int> &face_map)
+void GetTensorFaceMap(const int dim, const int order, const int face_id,
+                      Array<int> &face_map)
 {
    const int dof1d = order + 1;
    int n_face_dofs = int(std::pow(dof1d, dim - 1));
