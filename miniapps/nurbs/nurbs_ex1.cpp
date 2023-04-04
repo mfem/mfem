@@ -416,8 +416,8 @@ int main(int argc, char *argv[])
          double x,val;
          Data(double x_, double val_) {x=x_; val=val_;};
 
-         bool operator==(const Data& d) { return (x == d.x); }
-         bool operator <(const Data& d) { return (x  < d.x); }
+         const bool operator==(const Data& d) { return (x == d.x); }
+         const bool operator <(const Data& d) { return (x  < d.x); }
       };
 
       std::list<Data> sol;
