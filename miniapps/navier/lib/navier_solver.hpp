@@ -12,7 +12,7 @@
 #ifndef MFEM_NAVIER_SOLVER_HPP
 #define MFEM_NAVIER_SOLVER_HPP
 
-#define NAVIER_VERSION 0.1
+#define NAVIER_VERSION 0.2
 
 #include "mfem.hpp"
 #include "turbulence_model.hpp"
