@@ -199,7 +199,10 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
       mfem::Swap(params, new_params);
    }
 
-   mesh->FinalizeMesh();
+   mesh->FinalizeTopology();
+   return mesh;
+   mesh->Finalize(0, true);
+   //mesh->FinalizeMesh();
 
    // create high-order curvature
    if (order > 1)
@@ -553,6 +556,7 @@ int main(int argc, char *argv[])
       sol_sock << "mesh\n" << *mesh << flush;
    }
 
+   mesh->Clear();
    delete mesh;
 
    return EXIT_SUCCESS;
