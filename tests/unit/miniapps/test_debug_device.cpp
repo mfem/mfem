@@ -94,7 +94,7 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    Array<int> y;
    y.MakeRef(x);
    x.Read();
-   y.Read();
+   REQUIRE_NOTHROW(y.Read());
 }
 
 TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
