@@ -569,7 +569,7 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
       {
          if (Conforming())
          {
-            res = new H1_ND_RT_FaceRestriction(*this, f_ordering, type);
+            res = new ConformingFaceRestriction(*this, f_ordering, type);
          }
          else
          {
