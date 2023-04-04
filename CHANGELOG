@@ -17,7 +17,7 @@ Version 4.5.3 (development)
 Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
-  spaces are now supported through the H1_ND_RT_FaceRestriction class.
+  spaces are now supported through the ConformingFaceRestriction class.
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 

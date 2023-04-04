@@ -1317,7 +1317,7 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       }
       else
       {
-         res = new H1_ND_RT_FaceRestriction(*this, f_ordering, type);
+         res = new ConformingFaceRestriction(*this, f_ordering, type);
       }
       L2F[key] = res;
       return res;
