@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace internal
+{
+
 /// Each face of a hexahedron is given by a level set x_i = l, where x_i is one
 /// of x, y, or z (corresponding to i=0, i=1, i=2), and l is either 0 or 1.
 /// Returns i and level.
@@ -47,6 +50,8 @@ void FillFaceMap(const int n_face_dofs_per_component,
 /// Return the face map for nodal tensor elements (H1, L2, and Bernstein basis).
 void GetTensorFaceMap(const int dim, const int order, const int face_id,
                       Array<int> &face_map);
+
+} // namespace internal
 
 } // namespace mfem
 

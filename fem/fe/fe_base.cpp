@@ -2519,7 +2519,7 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
 void NodalTensorFiniteElement::GetFaceMap(const int face_id,
                                           Array<int> &face_map) const
 {
-   GetTensorFaceMap(dim, order, face_id, face_map);
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
