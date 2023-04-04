@@ -250,25 +250,25 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
 #endif
                                               )
 {
-   int length = memsize/sizeof(double);
    SUNMemory sunmem = SUNMemoryNewEmpty();
 
    sunmem->ptr = NULL;
    sunmem->own = SUNTRUE;
 
+   // memsize is the number of bytes to allocate, so we use Memory<char>
    if (mem_type == SUNMEMTYPE_HOST)
-   {
-      Memory<double> mem(length, Device::GetHostMemoryType());
+   { 
+      Memory<char> mem(memsize, Device::GetHostMemoryType());
       mem.SetHostPtrOwner(false);
-      sunmem->ptr  = mfem::HostReadWrite(mem, length);
+      sunmem->ptr  = mfem::HostReadWrite(mem, memsize);
       sunmem->type = SUNMEMTYPE_HOST;
       mem.Delete();
    }
    else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
    {
-      Memory<double> mem(length, Device::GetDeviceMemoryType());
+      Memory<char> mem(memsize, Device::GetDeviceMemoryType());
       mem.SetDevicePtrOwner(false);
-      sunmem->ptr  = mfem::ReadWrite(mem, length);
+      sunmem->ptr  = mfem::ReadWrite(mem, memsize);
       sunmem->type = mem_type;
       mem.Delete();
    }
@@ -293,14 +293,14 @@ int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
    {
       if (sunmem->type == SUNMEMTYPE_HOST)
       {
-         Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                            Device::GetHostMemoryType(), true);
+         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
+                          Device::GetHostMemoryType(), true);
          mem.Delete();
       }
       else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
       {
-         Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                            Device::GetDeviceMemoryType(), true);
+         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
+                          Device::GetDeviceMemoryType(), true);
          mem.Delete();
       }
       else
