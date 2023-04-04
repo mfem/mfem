@@ -82,6 +82,13 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
+   // Vertex target(0.0, 0.0, 0.0);
+   // for (int l = 0; l < 1; l++)
+   // {
+   //    // mesh->RefineAtVertex(target);
+   //    mesh->RandomRefinement(0.5, false, 1, 1);
+   // }
+
    if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
@@ -108,8 +115,8 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
-   ParGridFunction w_gf(*u_gf);
-   flowsolver.ComputeCurl2D(*u_gf, w_gf);
+   // ParGridFunction w_gf(*u_gf);
+   // flowsolver.ComputeCurl2D(*u_gf, w_gf);
 
    ParaViewDataCollection pvdc("shear_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
@@ -119,7 +126,7 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
-   pvdc.RegisterField("vorticity", &w_gf);
+   // pvdc.RegisterField("vorticity", &w_gf);
    pvdc.Save();
 
    char vishost[] = "128.15.198.77";
@@ -140,7 +147,7 @@ int main(int argc, char *argv[])
 
       if (step % 10 == 0)
       {
-         flowsolver.ComputeCurl2D(*u_gf, w_gf);
+         // flowsolver.ComputeCurl2D(*u_gf, w_gf);
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
          pvdc.Save();

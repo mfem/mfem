@@ -23,7 +23,7 @@ class StressEvaluator
 {
 public:
    StressEvaluator(const ParFiniteElementSpace &kvfes,
-                   const ParFiniteElementSpace &ufes, const IntegrationRule &i);
+                   ParFiniteElementSpace &ufes, const IntegrationRule &i);
 
    void Apply(const Vector &kv, const Vector &u, Vector &y);
 
@@ -39,6 +39,7 @@ private:
    const DofToQuad *maps = nullptr;
    const GeometricFactors *geom = nullptr;
    const int dim, ne = 0;
+   ParFiniteElementSpace *ufes;
    Vector kv_l, kv_e, dkv_qp, u_l, u_e, y_l, y_e;
 };
 

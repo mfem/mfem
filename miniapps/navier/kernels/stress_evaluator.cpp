@@ -16,9 +16,9 @@ using namespace mfem;
 using namespace navier;
 
 StressEvaluator::StressEvaluator(const ParFiniteElementSpace &kvfes,
-                                 const ParFiniteElementSpace &ufes,
+                                 ParFiniteElementSpace &ufes,
                                  const IntegrationRule &ir)
-   : ir(ir), dim(kvfes.GetParMesh()->Dimension()), ne(ufes.GetNE())
+   : ir(ir), dim(kvfes.GetParMesh()->Dimension()), ne(ufes.GetNE()), ufes(&ufes)
 {
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    geom = ufes.GetParMesh()->GetGeometricFactors(
@@ -141,8 +141,15 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
       MFEM_ABORT("unknown kernel");
    }
 
+   // TODO: Need to average or similar to preserve smoothness
+
    // E -> L
    Ru->MultTranspose(y_e, y_l);
+
+   ParGridFunction ygf(ufes, y_l.GetData()), yavggf(ufes);
+   VectorGridFunctionCoefficient ygf_coeff(&ygf);
+   yavggf.ProjectDiscCoefficient(ygf_coeff);
+
    // L -> T
    Pu->MultTranspose(y_l, y);
 }

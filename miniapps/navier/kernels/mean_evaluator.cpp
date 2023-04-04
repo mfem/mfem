@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mean_evaluator.hpp"
-#include "../../../general/forall.hpp"
+#include "general/forall.hpp"
 
 using namespace mfem;
 using namespace navier;
@@ -31,10 +31,15 @@ MeanEvaluator::MeanEvaluator(ParFiniteElementSpace &fes_,
 double MeanEvaluator::ComputeIntegral(const Vector &x) const
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *P = fes.GetProlongationMatrix();
    const Operator *el_restr = fes.GetElementRestriction(ordering);
 
+   x_lvec.SetSize(P->Height());
+   P->Mult(x, x_lvec);
+
    x_evec.SetSize(el_restr->Height());
-   el_restr->Mult(x, x_evec);
+   el_restr->Mult(x_lvec, x_evec);
+
    quad_interp.Values(x_evec, x_qvec);
 
    double integ = x_evec*geom->detJ;

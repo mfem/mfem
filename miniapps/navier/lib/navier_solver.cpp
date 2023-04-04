@@ -11,19 +11,12 @@
 
 #include "navier_solver.hpp"
 #include "kernels/stress_integrator.hpp"
-#include "../../general/forall.hpp"
+#include "general/forall.hpp"
 #include <fstream>
 #include <iomanip>
 
 using namespace mfem;
 using namespace navier;
-
-static inline void vmul(const Vector &x, Vector &y)
-{
-   auto d_x = x.Read();
-   auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, x.Size(), d_y[i] = d_x[i] * d_y[i];);
-}
 
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    : pmesh(mesh), order(order), kin_vis(kin_vis),
@@ -92,9 +85,6 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    pn_gf = 0.0;
    resp_gf.SetSpace(pfes);
 
-   mv.SetSize(vfes_truevsize);
-   mvinv.SetSize(vfes_truevsize);
-
    kin_vis_gf.SetSpace(pfes);
    ConstantCoefficient kvcoeff_tmp(kin_vis);
    kin_vis_gf.ProjectCoefficient(kvcoeff_tmp);
@@ -152,6 +142,7 @@ void NavierSolver::Setup(double dt)
    Mv_form->AddDomainIntegrator(mv_blfi);
    Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    Mv_form->Assemble();
+   Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
    auto *sp_blfi = new DiffusionIntegrator;
@@ -229,15 +220,17 @@ void NavierSolver::Setup(double dt)
    }
    f_form->UseFastAssembly(true);
 
-   // Build diagonal vector from velocity Mass operator
-   Mv_form->AssembleDiagonal(mv);
+   Vector diag_pa(vfes->GetTrueVSize());
+   Mv_form->AssembleDiagonal(diag_pa);
+   auto MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
 
-   // Inverse mass operator is the inverse of the diagonal
-   {
-      const auto d_mv = mv.Read();
-      auto d_mvinv = mvinv.Write();
-      MFEM_FORALL(i, mv.Size(), d_mvinv[i] = 1.0 / d_mv[i];);
-   }
+   MvInv = new CGSolver(vfes->GetComm());
+   MvInv->iterative_mode = false;
+   MvInv->SetOperator(*Mv);
+   MvInv->SetPreconditioner(*MvInvPC);
+   MvInv->SetPrintLevel(pl_mvsolve);
+   MvInv->SetRelTol(1e-12);
+   MvInv->SetMaxIter(200);
 
    lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
    SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
@@ -405,7 +398,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    {
       Fext.Add(1.0, hpfrt_tdofs);
    }
-   vmul(mvinv, Fext);
+   MvInv->Mult(Fext, tmp1);
+   Fext.Set(1.0, tmp1);
 
    // Compute BDF terms.
    {
@@ -440,10 +434,23 @@ void NavierSolver::Step(double &time, double dt, int current_step,
                                ab3_ * d_unm2[i];);
    }
 
-   Lext_gf.SetFromTrueDofs(u_ext);
+   // TODO: Debug setup
+   // We keep this until the CurlCurlEvaluator works with AMR in PA mode.
+   {
+      curl_evaluator->EnablePA(true);
+      curl_evaluator->ComputeCurlCurl(u_ext, tmp1);
+      curlcurlu_gf.SetFromTrueDofs(tmp1);
+      ParGridFunction curlcurlu_gf_legacy(curlcurlu_gf);
 
-   curl_evaluator->ComputeCurlCurl(u_ext, tmp1);
-   curlcurlu_gf.SetFromTrueDofs(tmp1);
+      curl_evaluator->EnablePA(false);
+      curl_evaluator->ComputeCurlCurl(u_ext, tmp1);
+      curlcurlu_gf.SetFromTrueDofs(tmp1);
+      ParGridFunction curlcurlu_gf_pa(curlcurlu_gf);
+
+      curlcurlu_gf_legacy -= curlcurlu_gf_pa;
+      std::cout << "|cc(u)_LEGACY - cc(u)_PA| = "
+                << curlcurlu_gf_legacy.Norml2() << "\n";
+   }
 
    // (curl curl u)_i *= nu
    for (int d = 0; d < curlcurlu_gf.FESpace()->GetVDim(); d++)
@@ -466,7 +473,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    FText.Set(-1.0, Lext);
    FText.Add(1.0, Fext);
 
-   kin_vis_gf.ParallelAssemble(kv);
+   kin_vis_gf.GetTrueDofs(kv);
    stress_evaluator->Apply(kv, u_ext, grad_nu_sym_grad_uext);
 
    FText.Add(1.0, grad_nu_sym_grad_uext);
@@ -521,8 +528,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    // Project velocity.
    G->Mult(pn, resu);
    resu.Neg();
-   vmul(mv, Fext);
-   resu.Add(1.0, Fext);
+   Mv->Mult(Fext, tmp1);
+   resu.Add(1.0, tmp1);
 
    // un_next_gf = un_gf;
 
@@ -1106,3 +1113,4 @@ NavierSolver::~NavierSolver()
    delete HMv_form;
    delete stress_evaluator;
 }
+

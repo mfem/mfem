@@ -31,6 +31,8 @@ protected:
    int dim;
    /// Internal vector used when computing the curl-curl.
    mutable Vector u_curl_tmp;
+   /// Is partial assembly enabled?
+   bool partial_assembly = false;
 
    /// @name Partial assembly
    ///@{
@@ -53,10 +55,24 @@ protected:
    ///@}
 
    ///@}
+
+   /// @brief Used internally to compute the curl and perpendicular gradient.
+   ///
+   /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
+   /// result is the perpendicular gradient of a scalar field. If @a perp_grad
+   /// is false, the result is the (scalar) curl of a vector field.
+   ///
+   /// This function uses the "legacy" algorithm that is @b not GPU compatible.
+   void ComputeCurlLegacy(const Vector &u, Vector &curl_u, bool perp_grad) const;
 public:
    /// @brief Create an object to evaluate the curl and curl-curl of grid
    /// functions in @a fes.
    CurlEvaluator(ParFiniteElementSpace &fes_);
+
+   void EnablePA(bool pa = true)
+   {
+      partial_assembly = pa;
+   }
 
    /// @brief Return the finite element space containing the curl.
    ///

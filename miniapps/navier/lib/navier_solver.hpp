@@ -15,7 +15,6 @@
 #define NAVIER_VERSION 0.2
 
 #include "mfem.hpp"
-#include "turbulence_model.hpp"
 #include "kernels/curl_evaluator.hpp"
 #include "kernels/mean_evaluator.hpp"
 #include "kernels/stress_evaluator.hpp"
@@ -294,8 +293,6 @@ public:
       return &kin_vis_gf;
    }
 
-   void SetTurbulenceModel(std::shared_ptr<TurbulenceModel> k);
-
 protected:
    /// Print information about the Navier version.
    void PrintInfo();
@@ -419,6 +416,7 @@ protected:
    OperatorHandle D;
    OperatorHandle G;
    OperatorHandle H;
+   OperatorHandle Mv;
 
    HypreBoomerAMG *SpInvPC = nullptr;
    OrthoSolver *SpInvOrthoPC = nullptr;
@@ -427,14 +425,13 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
+   CGSolver *MvInv = nullptr;
+
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, u_ext, Fext, FText, Lext,
           resu;
-   Vector tmp1, hpfrt_tdofs;
+   Vector tmp1, tmp2, hpfrt_tdofs;
 
    Vector pn, resp, FText_bdr, g_bdr;
-
-   // Velocity space Mass and Mass inverse T-vectors
-   Vector mv, mvinv;
 
    ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
                    resu_gf;

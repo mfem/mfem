@@ -30,7 +30,7 @@ protected:
 
    double volume;
 
-   mutable ParGridFunction x_evec, x_qvec;
+   mutable Vector x_lvec, x_evec, x_qvec;
 public:
    MeanEvaluator(ParFiniteElementSpace &fes_, const IntegrationRule &ir_);
 

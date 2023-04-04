@@ -30,10 +30,11 @@ using namespace navier;
 
 struct s_NavierContext
 {
-   int ser_ref_levels = 1;
+   bool amr = false;
+   int ser_ref_levels = 0;
    int order = 4;
    double kinvis = 1.0;
-   double t_final = 10 * 0.25e-4;
+   double t_final = 2 * 0.25e-4;
    double dt = 0.25e-4;
    bool visualization = false;
    bool checkres = false;
@@ -89,6 +90,12 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
+   args.AddOption(&ctx.amr,
+                  "-amr",
+                  "--amr",
+                  "-no-amr",
+                  "--no-amr",
+                  "Test hanging nodes");
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
                   "--refine-serial",
@@ -135,6 +142,21 @@ int main(int argc, char *argv[])
    GridFunction *nodes = mesh->GetNodes();
    *nodes *= 2.0;
    *nodes -= 1.0;
+
+   for (int i = 0; i < ctx.ser_ref_levels; ++i)
+   {
+      mesh->UniformRefinement();
+   }
+
+   if (ctx.amr)
+   {
+      Vertex target(0.0, 0.0, 0.0);
+      for (int l = 0; l < 1; l++)
+      {
+         mesh->RefineAtVertex(target);
+         // mesh->RandomRefinement(0.5, false, 1, 1);
+      }
+   }
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -208,7 +230,7 @@ int main(int argc, char *argv[])
 
    if (ctx.visualization)
    {
-      char vishost[] = "localhost";
+      char vishost[] = "128.15.198.77";
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << Mpi::WorldSize() << " "
