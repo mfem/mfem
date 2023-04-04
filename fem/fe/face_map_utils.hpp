@@ -39,7 +39,7 @@ std::pair<int,int> GetFaceNormal3D(const int face_id);
 /// The DOFs for each vector component are arranged in a Cartesian grid defined
 /// by strides and n_dofs_per_dim.
 void FillFaceMap(const int n_face_dofs_per_component,
-                 const std::vector<int> offsets,
+                 const std::vector<int> &offsets,
                  const std::vector<int> &strides,
                  const std::vector<int> &n_dofs_per_dim,
                  Array<int> &face_map);
