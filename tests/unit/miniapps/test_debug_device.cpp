@@ -119,10 +119,10 @@ TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
    REQUIRE(mm.PrintAliases(dev_null) == n_alias);
 }
 
+#endif // _WIN32
+
 int main(int argc, char *argv[])
 {
    Device device("debug");
    return RunCatchSession(argc, argv, {"[DebugDevice]"});
 }
-
-#endif // _WIN32
