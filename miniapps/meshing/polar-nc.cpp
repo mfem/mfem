@@ -570,7 +570,6 @@ int main(int argc, char *argv[])
       sol_sock << "mesh\n" << *mesh << flush;
    }
 
-   //mesh->Clear();
    delete mesh;
 
    return EXIT_SUCCESS;

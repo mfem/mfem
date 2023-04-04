@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include <memory>
 #include <fstream>
 #include <sstream>
 
@@ -370,9 +371,8 @@ TEST_CASE("Tet mesh with linear grid function",
    mesh.AddVertex(Vertex(1.,1.,1.)());
 
    int idx[4] = {0,1,2,3};
-   //Tetrahedron *tetra = new Tetrahedron(idx, attrib);
-   //mesh.AddElement(tetra);
-   mesh.AddElement(new Tetrahedron(idx, attrib));
+   std::unique_ptr<Element> tetra_ptr(new Tetrahedron(idx, attrib));
+   mesh.AddElement(tetra_ptr.get());
 
    mesh.FinalizeMesh();
 
@@ -398,8 +398,7 @@ TEST_CASE("Tet mesh with linear grid function",
       L2_FECollection fec(0,dim);
       testGridFunctions(fec, mesh, 1);
    }
-   //mesh.Clear();
-   //delete tetra;
+   mesh.Clear();
 }
 
 TEST_CASE("Prism mesh with linear grid function",
