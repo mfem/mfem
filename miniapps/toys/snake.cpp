@@ -309,6 +309,7 @@ int main(int argc, char *argv[])
    }
 
    // Clean up and exit
+   delete fec;
    return 0;
 }
 
