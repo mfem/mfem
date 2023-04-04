@@ -36,7 +36,15 @@
 using namespace std;
 using namespace mfem;
 
+class Data
+{
+public:
+   double x,val;
+   Data(double x_, double val_) {x=x_; val=val_;};
+};
 
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
@@ -410,16 +418,6 @@ int main(int argc, char *argv[])
 
    if (mesh->Dimension() == 1 && lod > 0)
    {
-      class Data
-      {
-      public:
-         double x,val;
-         Data(double x_, double val_) {x=x_; val=val_;};
-
-         const bool operator==(const Data& d) { return (x == d.x); }
-         const bool operator <(const Data& d) { return (x  < d.x); }
-      };
-
       std::list<Data> sol;
 
       Vector      vals,coords;
