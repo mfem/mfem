@@ -187,9 +187,9 @@ private:
    mfem::Vector mu1;
    mfem::Vector mu2;
    mfem::Vector xyz;
-   
-   std::set<int> bdryVerts2; 
-   
+
+   std::set<int> bdryVerts2;
+
    int dim;
    // degrees of freedom of both meshes
    int ndof_1;
@@ -199,14 +199,14 @@ private:
    int nnd_1;
    int nnd_2;
    int nnd;
-   
+
    int npoints;
-   
+
    SparseMatrix A1;
    mfem::Vector B1, X1;
    SparseMatrix A2;
    mfem::Vector B2, X2;
-   
+
    SparseMatrix* K;
    mfem::Vector g;
    mfem::Vector m_xi;
@@ -215,7 +215,7 @@ private:
    Array<int> m_conn; // only works for linear elements that have 4 vertices!
    DenseMatrix* coordsm;
    SparseMatrix* M;
-   
+
    std::vector<SparseMatrix>* dM;
 
    Array<int> Dirichlet_dof;

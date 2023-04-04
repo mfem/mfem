@@ -27,7 +27,7 @@ bool ifequalarray(const Array<int> a1, const Array<int> a2)
    }
    for (int i=0; i<a1.Size(); i++)
    {
-      if(a1[i] != a2[i]) 
+      if (a1[i] != a2[i])
       {
          return false;
       }
@@ -45,11 +45,11 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
    std::vector<int > faceid;
    mesh.GetElementFaces(elem, faces, ori);
    int face = -1;
-   for(int i=0; i<faces.Size(); i++)
+   for (int i=0; i<faces.Size(); i++)
    {
       face = faces[i];
       Array<int> faceVert;
-      if(!mesh.FaceIsInterior(face)) // if on the boundary 
+      if (!mesh.FaceIsInterior(face)) // if on the boundary
       {
          mesh.GetFaceVertices(face, faceVert);
          faceVert.Sort();
@@ -57,11 +57,11 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
          faceid.push_back(face);
       }
    }
-   int bdrface = facesVertices.size(); 
+   int bdrface = facesVertices.size();
 
-   Array<int> bdryFaces;  
+   Array<int> bdryFaces;
    // This shoulnd't need to be rebuilt
-   std::vector<Array<int> > bdryVerts;  
+   std::vector<Array<int> > bdryVerts;
    for (int b=0; b<mesh.GetNBE(); ++b)
    {
       if (attr.FindSorted(mesh.GetBdrAttribute(b)) >= 0)  // found the contact surface
@@ -70,7 +70,7 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
          Array<int> vert;
          mesh.GetBdrElementVertices(b, vert);
          vert.Sort();
-         bdryVerts.push_back(vert); 
+         bdryVerts.push_back(vert);
       }
    }
 
@@ -80,21 +80,21 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 
    for (int i=0; i<bdrface; i++)
    {
-      for (int j=0; j<bdrvert; j++) 
+      for (int j=0; j<bdrvert; j++)
       {
-         if(ifequalarray(facesVertices[i], bdryVerts[j]))
+         if (ifequalarray(facesVertices[i], bdryVerts[j]))
          {
             cbdrface = faceid[i];
-            count_cbdrface += 1; 
+            count_cbdrface += 1;
          }
       }
    }
    MFEM_VERIFY(count_cbdrface == 1,"projection surface not found");
-   
+
 };
 
 mfem::Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
-                     int & refFace, int & refNormal, bool & interior)
+                             int & refFace, int & refNormal, bool & interior)
 {
    ElementTransformation *trans = mesh.GetElementTransformation(elem);
    const int dim = mesh.Dimension();
@@ -139,14 +139,14 @@ mfem::Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
       }
    }
    // closest point on the boundary
-   if(dimNormal < 0 || normalSide < 0) // node is inside the element
+   if (dimNormal < 0 || normalSide < 0) // node is inside the element
    {
       interior = 1;
       mfem::Vector n(3);
       n = 0.0;
-      return n;  
+      return n;
    }
-   
+
    MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
    refNormal = dimNormal;
 
@@ -271,7 +271,8 @@ int GetHexVertex(int cdim, int c, int fa, int fb, mfem::Vector & refCrd)
 // where X is the list of x-coordinates for all points and so on.
 // conn: connectivity of the target surface elements
 // xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
-void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn, mfem::Vector& xi)
+void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
+                      mfem::Vector& xi)
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
@@ -322,10 +323,11 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn, mf
    {
       int refFace, refNormal, refNormalSide;
       bool is_interior = -1;
-      mfem::Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim),
-                                    refFace, refNormal, is_interior);
+      mfem::Vector normal = GetNormalVector(mesh, elems[i],
+                                            refcrd.GetData() + (i*dim),
+                                            refFace, refNormal, is_interior);
       int phyFace;
-      if(is_interior)
+      if (is_interior)
       {
          phyFace = -1; // the id of the face that has the closest point
          FindSurfaceToProject(mesh, elems[i], phyFace);
@@ -340,7 +342,7 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn, mf
          // get nodes!
 
          GridFunction *nodes = mesh.GetNodes();
-         DenseMatrix coords(4,3); 
+         DenseMatrix coords(4,3);
          for (int i=0; i<4; i++)
          {
             for (int j=0; j<3; j++)
@@ -354,33 +356,33 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn, mf
          {
             xi[i*(dim-1)+j] = xi_tmp[j];
          }
-         // now get get the projection to the surface 
+         // now get get the projection to the surface
       }
       else
       {
          mfem::Vector faceRefCrd(dim-1);
          {
             int fd = 0;
-         for (int j=0; j<dim; ++j)
-         {
-            if (j == refNormal)
+            for (int j=0; j<dim; ++j)
             {
-               refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+               if (j == refNormal)
+               {
+                  refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+               }
+               else
+               {
+                  faceRefCrd[fd] = refcrd[(i*dim) + j];
+                  fd++;
+               }
             }
-            else
-            {
-               faceRefCrd[fd] = refcrd[(i*dim) + j];
-               fd++;
-            }
+
+            MFEM_VERIFY(fd == dim-1, "");
          }
 
-         MFEM_VERIFY(fd == dim-1, "");
-      }
-
-      for (int j=0; j<dim-1; ++j)
-      {
-         xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
-      }
+         for (int j=0; j<dim-1; ++j)
+         {
+            xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
+         }
 
       }
 
@@ -390,23 +392,23 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn, mf
       Array<int> ori;
       int face;
 
-      if(is_interior)
+      if (is_interior)
       {
-      face = phyFace;
+         face = phyFace;
       }
       else
       {
-      mesh.GetElementFaces(elems[i], faces, ori);
-      face = faces[refFace];
+         mesh.GetElementFaces(elems[i], faces, ori);
+         face = faces[refFace];
       }
 
       Array<int> faceVert;
       mesh.GetFaceVertices(face, faceVert);
 
-   
+
       for (int p=0; p<4; p++)
       {
-      conn[4*i+p] = faceVert[p];
+         conn[4*i+p] = faceVert[p];
       }
 
    }
@@ -415,7 +417,7 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn, mf
 
 /* Constructor. */
 ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
-:
+   :
    mesh1{nullptr},
    mesh2{nullptr},
    fec1{nullptr},
@@ -469,19 +471,19 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
 
    // boundary attribute 2 is the potential contact surface of nodes
    attr.Append(2);
-   // boundary attribute 2 is the potential contact surface for master surface 
+   // boundary attribute 2 is the potential contact surface for master surface
    m_attr.Append(2);
 
    fec1 = new H1_FECollection(1, dim);
    fespace1 = new FiniteElementSpace(mesh1, fec1, dim, Ordering::byVDIM);
    cout << "Number of finite element unknowns for mesh1: "
-      << fespace1->GetTrueVSize() << endl;
+        << fespace1->GetTrueVSize() << endl;
    mesh1->SetNodalFESpace(fespace1);
 
    fec2 = new H1_FECollection(1, dim);
    fespace2 = new FiniteElementSpace(mesh2, fec2, dim, Ordering::byVDIM);
    cout << "Number of finite element unknowns for mesh2: "
-      << fespace2->GetTrueVSize() << endl;
+        << fespace2->GetTrueVSize() << endl;
 
    nodes0 = mesh1->GetNodes();
    nodes1 = mesh1->GetNodes();
@@ -494,7 +496,7 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    nnd_1 = mesh1->GetNV();
    nnd_2 = mesh2->GetNV();
    nnd = nnd_1 + nnd_2;
-   
+
    Array<int> ess_bdr1(mesh1->bdr_attributes.Max());
    cout<<mesh1->bdr_attributes.Max()<<endl;
    ess_bdr1 = 0;
@@ -533,23 +535,23 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
 
    a1->Assemble();
    a1->FormLinearSystem(ess_tdof_list1, *x1, *b1, A1, X1, B1);
-   
+
    a2->Assemble();
    a2->FormLinearSystem(ess_tdof_list2, *x2, *b2, A2, X2, B2);
    A1.Print();
    K = new SparseMatrix(ndofs, ndofs);
    for (int i=0; i<A1.Height(); i++)
    {
-      Array<int> col_tmp;  
+      Array<int> col_tmp;
       mfem::Vector v_tmp;
       col_tmp = 0;
       v_tmp = 0.0;
       A1.GetRow(i, col_tmp, v_tmp);
-      K->SetRow(i, col_tmp, v_tmp); 
+      K->SetRow(i, col_tmp, v_tmp);
    }
    for (int i=0; i<A2.Height(); i++)
    {
-      Array<int> col_tmp;  
+      Array<int> col_tmp;
       mfem::Vector v_tmp;
       col_tmp = 0;
       v_tmp = 0.0;
@@ -565,8 +567,8 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
       }
    }
    K->Finalize(1,false);
-//   K->Threshold(1e-19, false);
-   // Construct node to segment contact constraint. 
+   //   K->Threshold(1e-19, false);
+   // Construct node to segment contact constraint.
    attr.Sort();
 
    for (int b=0; b<mesh2->GetNBE(); ++b)
@@ -585,7 +587,7 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    npoints = bdryVerts2.size();
    s_conn.SetSize(npoints);
    xyz.SetSize(dim * npoints);
-   xyz = 0.0;  
+   xyz = 0.0;
 
    cout << "Boundary vertices for contact surface vertices in mesh 2" << endl;
 
@@ -595,9 +597,9 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    {
       for (int i=0; i<dim; ++i)
       {
-         xyz[count + (i * npoints)] = mesh2->GetVertex(v)[i] + (*x2)[v*dim+i]; 
+         xyz[count + (i * npoints)] = mesh2->GetVertex(v)[i] + (*x2)[v*dim+i];
       }
-      
+
       s_conn[count] = v + nnd_1; // dof1 is the master
       count++;
    }
@@ -620,13 +622,14 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
       }
    }
 
-   m_conn.SetSize(npoints*4); // only works for linear elements that have 4 vertices!
+   m_conn.SetSize(
+      npoints*4); // only works for linear elements that have 4 vertices!
    coordsm = new DenseMatrix(npoints*4, dim);
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
    (*x1) = 0.0; // x1 order: [xyz xyz... xyz]
    add(*nodes0, *x1, *nodes1);
-   
+
    FindPointsInMesh(*mesh1, xyz, m_conn, m_xi);
 
    for (int i=0; i<npoints; i++)
@@ -635,28 +638,30 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
       {
          for (int k=0; k<dim; k++)
          {
-            (*coordsm)(i*4+j,k) = mesh1->GetVertex(m_conn[i*4+j])[k]+(*x1)[dim*m_conn[i*4+j]+k];     
+            (*coordsm)(i*4+j,k) = mesh1->GetVertex(m_conn[i*4+j])[k]+
+                                  (*x1)[dim*m_conn[i*4+j]+k];
          }
       }
    }
 
-   //coordsm.Print(); 
+   //coordsm.Print();
    M = new SparseMatrix(nnd,ndofs);
    dM = new std::vector<SparseMatrix>(nnd, SparseMatrix(ndofs,ndofs));
 
-   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, *coordsm, s_conn, m_conn, g, *M, *dM);
+   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, *coordsm, s_conn, m_conn, g, *M,
+                    *dM);
    M->Finalize(1,false);
-//   M->Threshold(1e-19, false);
+   //   M->Threshold(1e-19, false);
 
    for (int i=0; i<nnd; i++)
    {
       (*dM)[i].Finalize(1,false);
-//      (*dM)[i].Threshold(1e-19, false);
+      //      (*dM)[i].Threshold(1e-19, false);
    }
    assert(M);
 
 
-   std::set<int> dirbdryv2;  
+   std::set<int> dirbdryv2;
    for (int b=0; b<mesh2->GetNBE(); ++b)
    {
       if (mesh2->GetBdrAttribute(b) == 1)
@@ -669,7 +674,7 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
          }
       }
    }
-   std::set<int> dirbdryv1;  
+   std::set<int> dirbdryv1;
    for (int b=0; b<mesh1->GetNBE(); ++b)
    {
       if (mesh1->GetBdrAttribute(b) == 1)
@@ -682,7 +687,7 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
          }
       }
    }
-    
+
    for (auto v : dirbdryv2)
    {
       for (int i=0; i<dim; ++i)
@@ -694,12 +699,12 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    double delta = 0.1;
    for (auto v : dirbdryv1)
    {
-     Dirichlet_dof.Append(v*dim + 0);
-     Dirichlet_val.Append(delta);
-     Dirichlet_dof.Append(v*dim + 1);
-     Dirichlet_val.Append(0.);
-     Dirichlet_dof.Append(v*dim + 2);
-     Dirichlet_val.Append(0.);
+      Dirichlet_dof.Append(v*dim + 0);
+      Dirichlet_val.Append(delta);
+      Dirichlet_dof.Append(v*dim + 1);
+      Dirichlet_val.Append(0.);
+      Dirichlet_dof.Append(v*dim + 2);
+      Dirichlet_val.Append(0.);
    }
 }
 
@@ -734,8 +739,8 @@ void ExContactBlockTL::update_g()
    {
       for (int i=0; i<dim; ++i)
       {
-         xyz[count + (i * npoints)] = mesh2->GetVertex(v)[i] + (*x2)[v*dim+i]; 
-      }      
+         xyz[count + (i * npoints)] = mesh2->GetVertex(v)[i] + (*x2)[v*dim+i];
+      }
       count++;
    }
    MFEM_VERIFY(count == npoints, "");
@@ -748,7 +753,7 @@ void ExContactBlockTL::update_g()
          xs[i*dim+j] = xyz[i + (j*npoints)];
       }
    }
-   
+
    add(*nodes0, *x1, *nodes1);
    FindPointsInMesh(*mesh1, xyz, m_conn, m_xi);
 
@@ -758,7 +763,8 @@ void ExContactBlockTL::update_g()
       {
          for (int k=0; k<dim; k++)
          {
-            (*coordsm)(i*4+j,k) = mesh1->GetVertex(m_conn[i*4+j])[k]+(*x1)[dim*m_conn[i*4+j]+k];     
+            (*coordsm)(i*4+j,k) = mesh1->GetVertex(m_conn[i*4+j])[k]+
+                                  (*x1)[dim*m_conn[i*4+j]+k];
          }
       }
    }
@@ -766,16 +772,17 @@ void ExContactBlockTL::update_g()
    delete M;
    M = nullptr;
    M = new SparseMatrix(nnd,ndofs);
-//   M->OverrideSize(nnd,ndofs);
+   //   M->OverrideSize(nnd,ndofs);
    for (int i=0; i<nnd; i++)
    {
       (*dM)[i].Clear();
-//      (*dM)[i].OverrideSize(ndofs,ndofs);
+      //      (*dM)[i].OverrideSize(ndofs,ndofs);
    }
    delete dM;
    dM = new std::vector<SparseMatrix>(nnd, SparseMatrix(ndofs,ndofs));
-   
-   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, *coordsm, s_conn, m_conn, g, *M, *dM);
+
+   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, *coordsm, s_conn, m_conn, g, *M,
+                    *dM);
    M->Finalize(1,false);
    for (int i=0; i<nnd; i++)
    {
@@ -790,7 +797,7 @@ void ExContactBlockTL::update_jac()
 
 void ExContactBlockTL::update_hess()
 {
-   update_g();   
+   update_g();
 }
 
 bool ExContactBlockTL::get_nlp_info(
@@ -811,8 +818,8 @@ bool ExContactBlockTL::get_nlp_info(
    nnz_jac_g = nnd*ndofs; // treat it as a dense matrix for now
 
    // treat it as a dense matrix for now. only need lower-triangular part
-   
-   nnz_h_lag = (ndofs*ndofs + ndofs)/2; 
+
+   nnz_h_lag = (ndofs*ndofs + ndofs)/2;
 
    // We use the standard fortran index style for row/col entries
    index_style = C_STYLE;
@@ -832,20 +839,20 @@ bool ExContactBlockTL::get_bounds_info(
    assert(n == ndofs);
    assert(m == nnd);
 
-   for(auto i=0; i<n; i++)
+   for (auto i=0; i<n; i++)
    {
       x_l[i] = -1.0e20;
       x_u[i] = +1.0e20;
    }
 
-   for(auto i=0; i<Dirichlet_dof.Size(); i++)
+   for (auto i=0; i<Dirichlet_dof.Size(); i++)
    {
       x_l[Dirichlet_dof[i]] = Dirichlet_val[i];
       x_u[Dirichlet_dof[i]] = Dirichlet_val[i];
    }
-   
+
    // we only have equality constraints
-   for(auto i=0; i<m; i++)
+   for (auto i=0; i<m; i++)
    {
       g_l[i] = 0.0;
       g_u[i] = +1.0e20;
@@ -870,19 +877,19 @@ bool ExContactBlockTL::get_starting_point(
    assert(init_z == false);
    assert(init_lambda == false);
 
-   for(auto i=0; i<n; i++)
+   for (auto i=0; i<n; i++)
    {
       x[i] = 0;
    }
-      for(auto i=0; i<ndof_1; i++)
-      {
-         x[i] = (*x1)[i];
-      }
-      for(auto i=ndof_1; i<n; i++)
-      {
-         x[i] = (*x2)[i-ndof_1] ;
-      }
-      
+   for (auto i=0; i<ndof_1; i++)
+   {
+      x[i] = (*x1)[i];
+   }
+   for (auto i=ndof_1; i<n; i++)
+   {
+      x[i] = (*x2)[i-ndof_1] ;
+   }
+
    return true;
 }
 
@@ -893,18 +900,18 @@ bool ExContactBlockTL::eval_f(
    Number&       obj_value
 )
 {
-//   if(new_x)
+   //   if(new_x)
    {
-      for(auto i=0; i<ndof_1; i++)
+      for (auto i=0; i<ndof_1; i++)
       {
          (*x1)[i] = x[i];
       }
-      for(auto i=ndof_1; i<n; i++)
+      for (auto i=ndof_1; i<n; i++)
       {
          (*x2)[i-ndof_1] = x[i];
       }
    }
-   
+
    obj_value = 0;
    obj_value += A1.InnerProduct(*x1, *x1);
    obj_value += A2.InnerProduct(*x2, *x2);
@@ -920,30 +927,30 @@ bool ExContactBlockTL::eval_grad_f(
    Number*       grad_f
 )
 {
-//   if(new_x)
+   //   if(new_x)
    {
-      for(auto i=0; i<ndof_1; i++)
+      for (auto i=0; i<ndof_1; i++)
       {
          (*x1)[i] = x[i];
       }
-      for(auto i=ndof_1; i<n; i++)
+      for (auto i=ndof_1; i<n; i++)
       {
          (*x2)[i-ndof_1] = x[i];
-      } 
+      }
    }
 
    // return the gradient of the objective function grad_{x} f(x)
    mfem::Vector temp1(ndof_1);
    mfem::Vector temp2(ndof_2);
-   
+
    A1.Mult(*x1, temp1);
    A2.Mult(*x2, temp2);
 
-   for(auto i=0; i<ndof_1; i++)
+   for (auto i=0; i<ndof_1; i++)
    {
       grad_f[i] = temp1[i];
    }
-   for(auto i=0; i<ndof_2; i++)
+   for (auto i=0; i<ndof_2; i++)
    {
       grad_f[i+ndof_1] = temp2[i];
    }
@@ -962,20 +969,20 @@ bool ExContactBlockTL::eval_g(
    assert(n == ndofs);
    assert(m == nnd);
 
-//   if(new_x)
+   //   if(new_x)
    {
-      for(auto i=0; i<ndof_1; i++)
+      for (auto i=0; i<ndof_1; i++)
       {
          (*x1)[i] = x[i];
       }
-      for(auto i=ndof_1; i<n; i++)
+      for (auto i=ndof_1; i<n; i++)
       {
          (*x2)[i-ndof_1] = x[i];
-      } 
+      }
       update_g();
    }
 
-   for(auto i=0; i<m; i++)
+   for (auto i=0; i<m; i++)
    {
       cons[i] = g[i];
    }
@@ -997,49 +1004,49 @@ bool ExContactBlockTL::eval_jac_g(
    assert(n == ndofs);
    assert(m == nnd);
    assert(n*m == nele_jac); // TODO: dense matrix for now
-   if(new_x)
+   if (new_x)
    {
-      for(auto i=0; i<ndof_1; i++)
+      for (auto i=0; i<ndof_1; i++)
       {
          (*x1)[i] = x[i];
       }
-      for(auto i=ndof_1; i<n; i++)
+      for (auto i=ndof_1; i<n; i++)
       {
          (*x2)[i-ndof_1] = x[i];
-      } 
+      }
       // TODO: do something here to update jac
    }
 
    // TODO: we use dense Jac for now
-   if( values == nullptr )
+   if ( values == nullptr )
    {
       // return the structure of the jacobian of the constraints
-      for(auto i=0; i<m; i++)
+      for (auto i=0; i<m; i++)
       {
-         for(auto j=0; j<n; j++)
+         for (auto j=0; j<n; j++)
          {
             iRow[i*n+j] = i;
             jCol[i*n+j] = j;
-         }         
-      } 
+         }
+      }
    }
    else
    {
       const int *M_i = M->GetI();
       const int *M_j = M->GetJ();
-      const double *M_data = M->GetData();      
-      
-      for(auto i=0; i<nele_jac; i++)
+      const double *M_data = M->GetData();
+
+      for (auto i=0; i<nele_jac; i++)
       {
          values[i] = 1e-20;
       }
       // TODO: M_i and M_j can be nullptr ???
-      for(auto i=0; i<m;i++)
+      for (auto i=0; i<m; i++)
       {
-         for(auto k=M_i[i]; k<M_i[i+1]; k++)
+         for (auto k=M_i[i]; k<M_i[i+1]; k++)
          {
             values[i*n+M_j[k]] = M_data[k];
-         }   
+         }
       }
    }
 
@@ -1064,38 +1071,38 @@ bool ExContactBlockTL::eval_h(
    assert(m == nnd);
    assert((n*n+n)/2 == nele_hess); // TODO: dense matrix for now
 
-   if(new_x)
+   if (new_x)
    {
-      for(auto i=0; i<ndof_1; i++)
+      for (auto i=0; i<ndof_1; i++)
       {
          (*x1)[i] = x[i];
       }
-      for(auto i=ndof_1; i<n; i++)
+      for (auto i=ndof_1; i<n; i++)
       {
          (*x2)[i-ndof_1] = x[i];
-      } 
+      }
       // TODO: do something here to update hes
    }
 
    // TODO: we use dense Hes for now
-   if( values == nullptr )
+   if ( values == nullptr )
    {
       // return the structure. This is a symmetric matrix, fill the lower left triangle only.
       int k = 0;
-      for(auto i=0; i<n; i++)
+      for (auto i=0; i<n; i++)
       {
-         for(auto j=0; j<=i; j++)
+         for (auto j=0; j<=i; j++)
          {
             iRow[k] = i;
             jCol[k] = j;
             k++;
-         }         
-      } 
+         }
+      }
    }
    else
    {
-      // return the values  
-      for(auto k=0; k<nele_hess; k++)
+      // return the values
+      for (auto k=0; k<nele_hess; k++)
       {
          values[k] = 1e-20;
       }
@@ -1103,27 +1110,27 @@ bool ExContactBlockTL::eval_h(
       const int *K_i = K->GetI();
       const int *K_j = K->GetJ();
       const double *K_data = K->GetData();
-      for(auto i=0; i<n;i++)
+      for (auto i=0; i<n; i++)
       {
-         for(auto k=K_i[i]; k<K_i[i+1]; k++)
+         for (auto k=K_i[i]; k<K_i[i+1]; k++)
          {
-            if(K_j[k]<=i)
+            if (K_j[k]<=i)
             {
                values[(i*i+i)/2+K_j[k]] += K_data[k] * obj_factor;
             }
-         }   
+         }
       }
 
-      for(auto con_idx=0; con_idx<m; con_idx++)
+      for (auto con_idx=0; con_idx<m; con_idx++)
       {
          const int *dM_i = dM->at(con_idx).GetI();
          const int *dM_j = dM->at(con_idx).GetJ();
          const double *dM_data = dM->at(con_idx).GetData();
-         for(auto i=0; i<n; i++)
+         for (auto i=0; i<n; i++)
          {
-            for(auto k=dM_i[i]; k<dM_i[i+1]; k++)
+            for (auto k=dM_i[i]; k<dM_i[i+1]; k++)
             {
-               if(dM_j[k]<=i)
+               if (dM_j[k]<=i)
                {
                   values[(i*i+i)/2+dM_j[k]] += dM_data[k] * lambda[con_idx];
                }
@@ -1164,23 +1171,26 @@ int main(int argc, char *argv[])
    // Initialize the IpoptApplication and process the options
    ApplicationReturnStatus status;
    status = app->Initialize();
-   if( status != Solve_Succeeded )
+   if ( status != Solve_Succeeded )
    {
-      std::cout << std::endl << std::endl << "*** Error during initialization!" << std::endl;
+      std::cout << std::endl << std::endl << "*** Error during initialization!" <<
+                std::endl;
       return (int) status;
    }
 
    status = app->OptimizeTNLP(mynlp);
 
-   if( status == Solve_Succeeded )
+   if ( status == Solve_Succeeded )
    {
       // Retrieve some statistics about the solve
       Index iter_count = app->Statistics()->IterationCount();
-      std::cout << std::endl << std::endl << "*** The problem solved in " << iter_count << " iterations!" << std::endl;
+      std::cout << std::endl << std::endl << "*** The problem solved in " <<
+                iter_count << " iterations!" << std::endl;
 
       Number final_obj = app->Statistics()->FinalObjective();
-      std::cout << std::endl << std::endl << "*** The final value of the objective function is " << final_obj << '.'
-               << std::endl;
+      std::cout << std::endl << std::endl <<
+                "*** The final value of the objective function is " << final_obj << '.'
+                << std::endl;
    }
 
    return (int) status;
