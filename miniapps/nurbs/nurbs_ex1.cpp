@@ -31,9 +31,11 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <list>
 
 using namespace std;
 using namespace mfem;
+
 
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
@@ -394,6 +396,7 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+   sol_ofs.close();
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -407,8 +410,18 @@ int main(int argc, char *argv[])
 
    if (mesh->Dimension() == 1 && lod > 0)
    {
-      ofstream sol2_ofs("solution.dat");
-      sol2_ofs.precision(8);
+      class Data
+      {
+      public:
+         double x,val;
+         Data(double x_, double val_) {x=x_; val=val_;};
+
+         bool operator==(const Data& d) { return (d.x == x); }
+         bool operator <(const Data& d) { return (d.x > x); }
+      };
+
+      std::list<Data> sol;
+
       Vector      vals,coords;
       GridFunction *nodes = mesh->GetNodes();
       if (!nodes)
@@ -428,9 +441,18 @@ int main(int argc, char *argv[])
 
          for (int j = 0; j < vals.Size(); j++)
          {
-            sol2_ofs<<coords[j]<<" "<<vals[j]<<endl;
+            sol.push_back(Data(coords[j],vals[j]));
          }
       }
+      sol.sort();
+      sol.unique();
+      ofstream sol_ofs("solution.dat");
+      for (std::list<Data>::iterator d = sol.begin(); d != sol.end(); ++d)
+      {
+         sol_ofs<<d->x <<"\t"<<d->val<<endl;
+      }
+
+      sol_ofs.close();
    }
 
    // 14. Save data in the VisIt format
