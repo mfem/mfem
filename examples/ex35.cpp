@@ -349,6 +349,24 @@ int main(int argc, char *argv[])
       sout_u.precision(8);
       sout_rho.precision(8);
       sout_r.precision(8);
+
+      sout_u << "solution\n" << mesh << u;
+      sout_u << "view 0 0\n";  // view from top
+      sout_u << "keys jl********\n";  // turn off perspective and light
+      sout_u << "window_title 'Temperature u'";
+      sout_u.flush();
+
+      sout_rho << "solution\n" << mesh << rho;
+      sout_rho << "view 0 0\n";  // view from top
+      sout_rho << "keys jl********\n";  // turn off perspective and light
+      sout_rho << "window_title 'Density ρ'";
+      sout_rho.flush();
+
+      sout_r << "solution\n" << mesh << rho_filter;
+      sout_r << "view 0 0\n";  // view from top
+      sout_r << "keys jl********\n";  // turn off perspective and light
+      sout_r << "window_title 'Filtered density ρ̃'";
+      sout_r.flush();
    }
 
    mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &mesh);
