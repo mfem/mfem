@@ -31,7 +31,7 @@ void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
 
    MFEM_FORALL(e, nbe,
    {
-      if (M(e) == 0) { return; } // ignore
+      if (M(e) == 0) { return; } // ignore (in a lambda return acts as continue)
 
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       double QQ[Q];
