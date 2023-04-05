@@ -29,25 +29,12 @@
 //               polar-nc --dim 3 --order 4
 
 #include "mfem.hpp"
-#include <vector>
-#include <memory>
-#include <utility>
 #include <fstream>
 #include <iostream>
 
 using namespace mfem;
 using namespace std;
 
-using Elements = std::vector<std::unique_ptr<Element>>;
-
-void AddElem(Mesh *mesh, Elements &elems, Element *elem,
-             const Element::Type BDR = Element::QUADRILATERAL)
-{
-   std::unique_ptr<Element> elem_ptr(elem);
-   elems.push_back(std::move(elem_ptr));
-   if (elem->GetType() <= BDR) { mesh->AddBdrElement(elems.back().get()); }
-   else { mesh->AddElement(elems.back().get()); }
-};
 
 struct Params2
 {
@@ -63,8 +50,6 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
              bool sfc)
 {
    Mesh *mesh = new Mesh(2, 0, 0);
-   Elements elems;
-   const Element::Type bdr = Element::SEGMENT;
 
    int origin = mesh->AddVertex(0.0, 0.0);
 
@@ -84,14 +69,14 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
    {
       double alpha = phi * (i+1) / n;
       mesh->AddVertex(r*cos(alpha), r*sin(alpha));
-      AddElem(mesh, elems, new Triangle(origin, first+i, first+i+1), bdr);
+      mesh->AddTriangle(origin, first+i, first+i+1);
 
       params.Append(Params2(0, r, prev_alpha, alpha));
       prev_alpha = alpha;
    }
 
-   AddElem(mesh, elems, new Segment(origin, first, 1), bdr);
-   AddElem(mesh, elems, new Segment(first+n, origin, 2), bdr);
+   mesh->AddBdrSegment(origin, first, 1);
+   mesh->AddBdrSegment(first+n, origin, 2);
 
    for (int k = 1; k < nsteps; k++)
    {
@@ -107,7 +92,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          if (k == 1) { blocks.Append(Pair<int, int>(mesh->GetNE(), n)); }
 
          first = mesh->AddVertex(r, 0.0);
-         AddElem(mesh, elems, new Segment(prev_first, first, 1), bdr);
+         mesh->AddBdrSegment(prev_first, first, 1);
 
          // create a row of quads, same number as in previous row
          prev_alpha = 0.0;
@@ -115,14 +100,13 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          {
             double alpha = phi * (i+1) / n;
             mesh->AddVertex(r*cos(alpha), r*sin(alpha));
-            AddElem(mesh, elems,
-                    new Quadrilateral(prev_first+i, first+i, first+i+1,prev_first+i+1), bdr);
+            mesh->AddQuad(prev_first+i, first+i, first+i+1, prev_first+i+1);
 
             params.Append(Params2(prev_r, r, prev_alpha, alpha));
             prev_alpha = alpha;
          }
 
-         AddElem(mesh, elems, new Segment(first+n, prev_first+n, 2), bdr);
+         mesh->AddBdrSegment(first+n, prev_first+n, 2);
       }
       else // we need to double the number of elements per row
       {
@@ -143,7 +127,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          first = mesh->AddVertex(r, 0.0);
          int a = prev_first, b = first;
 
-         AddElem(mesh, elems, new Segment(a, b, 1), bdr);
+         mesh->AddBdrSegment(a, b, 1);
 
          // create a row of quad pairs
          prev_alpha = 0.0;
@@ -157,8 +141,8 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
             double alpha = phi * (2*i+2) / n;
             int f = mesh->AddVertex(r*cos(alpha), r*sin(alpha));
 
-            AddElem(mesh, elems, new Quadrilateral(a, b, d, c), bdr);
-            AddElem(mesh, elems, new Quadrilateral(c, d, f, e), bdr);
+            mesh->AddQuad(a, b, d, c);
+            mesh->AddQuad(c, d, f, e);
 
             a = e, b = f;
 
@@ -167,13 +151,13 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
             prev_alpha = alpha;
          }
 
-         AddElem(mesh, elems, new Segment(b, a, 2), bdr);
+         mesh->AddBdrSegment(b, a, 2);
       }
    }
 
    for (int i = 0; i < n; i++)
    {
-      AddElem(mesh, elems, new Segment(first+i, first+i+1, 3), bdr);
+      mesh->AddBdrSegment(first+i, first+i+1, 3);
    }
 
    // reorder blocks of elements with Grid SFC ordering
@@ -303,16 +287,16 @@ int GetMidVertex(int v1, int v2, double r, double u, double v, bool hanging,
 void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
                double r1, double r2, double u1, double v1, double u2, double v2,
                double u3, double v3, bool bnd1, bool bnd2, bool bnd3, bool bnd4,
-               Mesh *mesh, Elements &elems, HashTable<Vert> &hash, Array<Params3> &params)
+               Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
    {
-      AddElem(mesh, elems, new Wedge(vx1, vy1, vz1, vx2, vy2, vz2));
+      mesh->AddWedge(vx1, vy1, vz1, vx2, vy2, vz2);
 
-      if (bnd1) { AddElem(mesh, elems, new Quadrilateral(vx1, vy1, vy2, vx2, 1)); }
-      if (bnd2) { AddElem(mesh, elems, new Quadrilateral(vy1, vz1, vz2, vy2, 2)); }
-      if (bnd3) { AddElem(mesh, elems, new Quadrilateral(vz1, vx1, vx2, vz2, 3)); }
-      if (bnd4) { AddElem(mesh, elems, new Triangle(vx2, vy2, vz2, 4)); }
+      if (bnd1) { mesh->AddBdrQuad(vx1, vy1, vy2, vx2, 1); }
+      if (bnd2) { mesh->AddBdrQuad(vy1, vz1, vz2, vy2, 2); }
+      if (bnd3) { mesh->AddBdrQuad(vz1, vx1, vx2, vz2, 3); }
+      if (bnd4) { mesh->AddBdrTriangle(vx2, vy2, vz2, 4); }
 
       params.Append(Params3(r1, r2, u1, v1, u2, v2, u3, v3));
    }
@@ -333,32 +317,32 @@ void MakeLayer(int vx1, int vy1, int vz1, int vx2, int vy2, int vz2, int level,
 
       MakeLayer(vx1, vxy1, vxz1, vx2, vxy2, vxz2, level-1,
                 r1, r2, u1, v1, u12, v12, u31, v31,
-                bnd1, false, bnd3, bnd4, mesh, elems, hash, params);
+                bnd1, false, bnd3, bnd4, mesh, hash, params);
       MakeLayer(vxy1, vy1, vyz1, vxy2, vy2, vyz2, level-1,
                 r1, r2, u12, v12, u2, v2, u23, v23,
-                bnd1, bnd2, false, bnd4, mesh, elems, hash, params);
+                bnd1, bnd2, false, bnd4, mesh, hash, params);
       MakeLayer(vxz1, vyz1, vz1, vxz2, vyz2, vz2, level-1,
                 r1, r2, u31, v31, u23, v23, u3, v3,
-                false, bnd2, bnd3, bnd4, mesh, elems, hash, params);
+                false, bnd2, bnd3, bnd4, mesh, hash, params);
       MakeLayer(vyz1, vxz1, vxy1, vyz2, vxz2, vxy2, level-1,
                 r1, r2, u23, v23, u31, v31, u12, v12,
-                false, false, false, bnd4, mesh, elems, hash, params);
+                false, false, false, bnd4, mesh, hash, params);
    }
 }
 
 void MakeCenter(int origin, int vx, int vy, int vz, int level, double r,
                 double u1, double v1, double u2, double v2, double u3, double v3,
                 bool bnd1, bool bnd2, bool bnd3, bool bnd4,
-                Mesh *mesh, Elements &elems, HashTable<Vert> &hash, Array<Params3> &params)
+                Mesh *mesh, HashTable<Vert> &hash, Array<Params3> &params)
 {
    if (!level)
    {
-      AddElem(mesh, elems, new Tetrahedron(origin, vx, vy, vz));
+      mesh->AddTet(origin, vx, vy, vz);
 
-      if (bnd1) { AddElem(mesh, elems, new Triangle(0, vy, vx, 1)); }
-      if (bnd2) { AddElem(mesh, elems, new Triangle(0, vz, vy, 2)); }
-      if (bnd3) { AddElem(mesh, elems, new Triangle(0, vx, vz, 3)); }
-      if (bnd4) { AddElem(mesh, elems, new Triangle(vx, vy, vz, 4)); }
+      if (bnd1) { mesh->AddBdrTriangle(0, vy, vx, 1); }
+      if (bnd2) { mesh->AddBdrTriangle(0, vz, vy, 2); }
+      if (bnd3) { mesh->AddBdrTriangle(0, vx, vz, 3); }
+      if (bnd4) { mesh->AddBdrTriangle(vx, vy, vz, 4); }
 
       params.Append(Params3(0, r, u1, v1, u2, v2, u3, v3));
    }
@@ -373,20 +357,19 @@ void MakeCenter(int origin, int vx, int vy, int vz, int level, double r,
       int vxz = GetMidVertex(vx, vz, r, u31, v31, false, mesh, hash);
 
       MakeCenter(origin, vx, vxy, vxz, level-1, r, u1, v1, u12, v12, u31, v31,
-                 bnd1, false, bnd3, bnd4, mesh, elems, hash, params);
+                 bnd1, false, bnd3, bnd4, mesh, hash, params);
       MakeCenter(origin, vxy, vy, vyz, level-1, r, u12, v12, u2, v2, u23, v23,
-                 bnd1, bnd2, false, bnd4, mesh, elems, hash, params);
+                 bnd1, bnd2, false, bnd4, mesh, hash, params);
       MakeCenter(origin, vxz, vyz, vz, level-1, r, u31, v31, u23, v23, u3, v3,
-                 false, bnd2, bnd3, bnd4, mesh, elems, hash, params);
+                 false, bnd2, bnd3, bnd4, mesh, hash, params);
       MakeCenter(origin, vyz, vxz, vxy, level-1, r, u23, v23, u31, v31, u12, v12,
-                 false, false, false, bnd4, mesh, elems, hash, params);
+                 false, false, false, bnd4, mesh, hash, params);
    }
 }
 
 Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 {
    Mesh *mesh = new Mesh(3, 0, 0);
-   Elements elems;
 
    HashTable<Vert> hash;
    Array<Params3> params;
@@ -402,7 +385,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
    while (pi2 * rstep / (1 << levels) * aspect > rstep) { levels++; }
 
    MakeCenter(origin, a, b, c, levels, r, 1, 0, 0, 1, 0, 0,
-              true, true, true, (nsteps == 1), mesh, elems, hash, params);
+              true, true, true, (nsteps == 1), mesh, hash, params);
 
    for (int k = 1; k < nsteps; k++)
    {
@@ -420,7 +403,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
 
       MakeLayer(a, b, c, d, e, f, levels, prev_r, r,
                 1, 0, 0, 1, 0, 0, true, true, true, (k == nsteps-1),
-                mesh, elems, hash, params);
+                mesh, hash, params);
 
       a = d;
       b = e;
