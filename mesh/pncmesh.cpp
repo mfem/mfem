@@ -900,7 +900,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       return i + (x.slaves_end - x.slaves_begin);
    };
 
-   const int bound = shared.conforming.Size() + std::accumulate(shared.masters.begin(), shared.masters.end(), 0, count_slaves);
+   const int bound = shared.conforming.Size() + std::accumulate(
+                        shared.masters.begin(), shared.masters.end(), 0, count_slaves);
 
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
@@ -947,7 +948,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound. fnbr.Size(): " << fnbr.Size() << ", bound: " << bound);
+   MFEM_ASSERT(fnbr.Size() <= bound,
+               "oops, bad upper bound. fnbr.Size(): " << fnbr.Size() << ", bound: " << bound);
 
    // remove duplicate face neighbor elements and sort them by rank & index
    // (note that the send table is sorted the same way and the order is also the
@@ -1098,93 +1100,82 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             bool sloc = (sfe.rank == MyRank);
             bool mloc = (mfe.rank == MyRank);
-            if (sloc == mloc)
+            if (sloc == mloc // both or neither face is owned by this processor
+                || sf.index < 0) // the face is degenerate (i.e. a face-edge constraint)
             {
-               // both or neither of the elements are owned by this processor
                continue;
             }
 
-            if (sf.index >= 0)
+            // This is a genuine slave face, the info associated with it must
+            // be updated.
+            Mesh::FaceInfo &fi = pmesh.faces_info[sf.index];
+            fi.Elem1No = sfe.index;
+            fi.Elem2No = mfe.index;
+            fi.Elem1Inf = 64 * sf.local;
+            fi.Elem2Inf = 64 * mf.local;
+
+            if (!sloc)
             {
-               // This is a genuine slave face, the info associated with it must
-               // be updated.
-               Mesh::FaceInfo &fi = pmesh.faces_info[sf.index];
-               fi.Elem1No = sfe.index;
-               fi.Elem2No = mfe.index;
-               fi.Elem1Inf = 64 * sf.local;
-               fi.Elem2Inf = 64 * mf.local;
-
-               if (!sloc)
-               {
-                  // 'fi' is the info for a ghost slave face with index:
-                  // sf.index >= nfaces
-                  std::swap(fi.Elem1No, fi.Elem2No);
-                  std::swap(fi.Elem1Inf, fi.Elem2Inf);
-                  // After the above swap, Elem1No refers to the local, master-side
-                  // element. In other words, side 1 IS NOT the side that generated
-                  // the face.
-               }
-               else
-               {
-                  // 'fi' is the info for a local slave face with index:
-                  // sf.index < nfaces
-                  // Here, Elem1No refers to the local, slave-side element.
-                  // In other words, side 1 IS the side that generated the face.
-               }
-               MFEM_ASSERT(fi.Elem2No >= NElements, "");
-               fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
-
-               const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
-               if (!sloc && Dim == 3)
-               {
-                  // ghost slave in 3D needs flipping orientation
-                  DenseMatrix* pm2 = new DenseMatrix(*pm);
-                  if (sf.geom == Geometry::Type::SQUARE)
-                  {
-                     std::swap((*pm2)(0, 1), (*pm2)(0, 3));
-                     std::swap((*pm2)(1, 1), (*pm2)(1, 3));
-                  }
-                  else if (sf.geom == Geometry::Type::TRIANGLE)
-                  {
-                     std::swap((*pm2)(0, 0), (*pm2)(0, 1));
-                     std::swap((*pm2)(1, 0), (*pm2)(1, 1));
-                  }
-                  aux_pm_store.Append(pm2);
-
-                  fi.Elem2Inf ^= 1;
-                  pm = pm2;
-
-                  // The problem is that sf.point_matrix is designed for P matrix
-                  // construction and always has orientation relative to the slave
-                  // face. In ParMesh::GetSharedFaceTransformations the result
-                  // would therefore be the same on both processors, which is not
-                  // how that function works for conforming faces. The orientation
-                  // of Loc1, Loc2 and Face needs to always be relative to Element
-                  // 1, which is the element containing the slave face on one
-                  // processor, but on the other it is the element containing the
-                  // master face. In the latter case we need to flip the pm.
-               }
-               else if (!sloc && Dim == 2)
-               {
-                  fi.Elem2Inf ^= 1; // set orientation to 1
-                  // The point matrix (used to define "side 1" which is the same as
-                  // "parent side" in this case) does not require a flip since it
-                  // is aligned with the parent side, so NO flip is performed in
-                  // Mesh::ApplyLocalSlaveTransformation.
-               }
-
-               MFEM_ASSERT(fi.NCFace < 0, "fi.NCFace = " << fi.NCFace);
-               fi.NCFace = pmesh.nc_faces_info.Size();
-               pmesh.nc_faces_info.Append(Mesh::NCFaceInfo(true, sf.master, pm));
+               // 'fi' is the info for a ghost slave face with index:
+               // sf.index >= nfaces
+               std::swap(fi.Elem1No, fi.Elem2No);
+               std::swap(fi.Elem1Inf, fi.Elem2Inf);
+               // After the above swap, Elem1No refers to the local, master-side
+               // element. In other words, side 1 IS NOT the side that generated
+               // the face.
             }
             else
             {
-               // This is a degenerate face, introduced by a face-edge
-               // constraint: sf.index is actually the index of an edge.
-               // The slave and the master element are owned by different ranks,
-               // but given there is no corresponding face_info entry, there is
-               // no entry to update to reconcile the face orientation.
+               // 'fi' is the info for a local slave face with index:
+               // sf.index < nfaces
+               // Here, Elem1No refers to the local, slave-side element.
+               // In other words, side 1 IS the side that generated the face.
             }
+            MFEM_ASSERT(fi.Elem2No >= NElements, "");
+            fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
+
+            const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
+            if (!sloc && Dim == 3)
+            {
+               // ghost slave in 3D needs flipping orientation
+               DenseMatrix* pm2 = new DenseMatrix(*pm);
+               if (sf.geom == Geometry::Type::SQUARE)
+               {
+                  std::swap((*pm2)(0, 1), (*pm2)(0, 3));
+                  std::swap((*pm2)(1, 1), (*pm2)(1, 3));
+               }
+               else if (sf.geom == Geometry::Type::TRIANGLE)
+               {
+                  std::swap((*pm2)(0, 0), (*pm2)(0, 1));
+                  std::swap((*pm2)(1, 0), (*pm2)(1, 1));
+               }
+               aux_pm_store.Append(pm2);
+
+               fi.Elem2Inf ^= 1;
+               pm = pm2;
+
+               // The problem is that sf.point_matrix is designed for P matrix
+               // construction and always has orientation relative to the slave
+               // face. In ParMesh::GetSharedFaceTransformations the result
+               // would therefore be the same on both processors, which is not
+               // how that function works for conforming faces. The orientation
+               // of Loc1, Loc2 and Face needs to always be relative to Element
+               // 1, which is the element containing the slave face on one
+               // processor, but on the other it is the element containing the
+               // master face. In the latter case we need to flip the pm.
+            }
+            else if (!sloc && Dim == 2)
+            {
+               fi.Elem2Inf ^= 1; // set orientation to 1
+               // The point matrix (used to define "side 1" which is the same as
+               // "parent side" in this case) does not require a flip since it
+               // is aligned with the parent side, so NO flip is performed in
+               // Mesh::ApplyLocalSlaveTransformation.
+            }
+
+            MFEM_ASSERT(fi.NCFace < 0, "fi.NCFace = " << fi.NCFace);
+            fi.NCFace = pmesh.nc_faces_info.Size();
+            pmesh.nc_faces_info.Append(Mesh::NCFaceInfo(true, sf.master, pm));
          }
       }
    }
