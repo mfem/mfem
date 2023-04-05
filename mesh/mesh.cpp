@@ -9082,8 +9082,6 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       //    edges.
       HashTable<Hashed2> v_to_v;
 
-      std::cout << "v_to_v." << v_to_v.Size() << '\n';
-
       MFEM_VERIFY(GetNE() == 0 ||
                   ((Tetrahedron*)elements[0])->GetRefinementFlag() != 0,
                   "tetrahedral mesh is not marked for refinement:"
@@ -9091,7 +9089,6 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       // 2. Do the red refinement.
       int ii;
-      std::cout << "type = " << type << '\n';
       switch (type)
       {
          case 1:
@@ -9125,8 +9122,6 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
             }
             break;
       }
-
-      std::cout << "red refine done, v_to_v.Size() = " << v_to_v.Size() << '\n';
 
       // 3. Do the green refinement (to get conforming mesh).
       int need_refinement;

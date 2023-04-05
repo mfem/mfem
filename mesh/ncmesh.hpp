@@ -220,14 +220,7 @@ public:
       Slave() = default;
       Slave(int index, int element, int local, int geom)
          : MeshId(index, element, local, geom)
-         , master(-1), matrix(0), edge_flags(0)
-         {
-            if (index < 0)
-            {
-               std::cout << "index = " << index << '\n';
-               // throw std::logic_error("!");
-            }
-         }
+         , master(-1), matrix(0), edge_flags(0) {}
    };
 
    /// Lists all edges/faces in the nonconforming mesh.
