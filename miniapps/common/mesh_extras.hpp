@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH_EXTRAS
 #define MFEM_MESH_EXTRAS
@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 class ElementMeshStream : public std::stringstream
@@ -27,7 +27,85 @@ public:
    ElementMeshStream(Element::Type e);
 };
 
-} // namespace miniapps
+/// Merges vertices which lie at the same location
+void MergeMeshNodes(Mesh * mesh, int logging);
+
+/// Convert a set of attribute numbers to a marker array
+/** The marker array will be of size max_attr and it will contain only zeroes
+    and ones. Ones indicate which attribute numbers are present in the attrs
+    array. In the special case when attrs has a single entry equal to -1 the
+    marker array will contain all ones. */
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
+
+
+/// Generalized Kershaw mesh transformation in 2D and 3D, see D. Kershaw,
+/// "Differencing of the diffusion equation in Lagrangian hydrodynamic codes",
+/// JCP, 39:375–395, 1981.
+/** The input mesh should be Cartesian nx x ny x nz with nx divisible by 6 and
+    ny, nz divisible by 2.
+    The parameters @a epsy and @a epsz must be in (0, 1].
+    Uniform mesh is recovered for epsy=epsz=1.
+    The @a smooth parameter controls the transition between different layers. */
+// Usage:
+// common::KershawTransformation kershawT(pmesh->Dimension(), 0.3, 0.3, 2);
+// pmesh->Transform(kershawT);
+class KershawTransformation : public VectorCoefficient
+{
+private:
+   int dim;
+   double epsy, epsz;
+   int smooth;
+
+public:
+   KershawTransformation(const int dim_, double epsy_ = 0.3,
+                         double epsz_ = 0.3, int smooth_ = 1)
+      : VectorCoefficient(dim_), dim(dim_), epsy(epsy_),
+        epsz(epsz_), smooth(smooth_)
+   {
+      MFEM_VERIFY(dim > 1,"Kershaw transformation only works for 2D and 3D"
+                  "meshes.");
+      MFEM_VERIFY(smooth >= 1 && smooth <= 3,
+                  "Kershaw parameter smooth must be in [1, 3]");
+      MFEM_VERIFY(epsy > 0 && epsy <=1,
+                  "Kershaw parameter epsy must be in (0, 1].");
+      if (dim == 3)
+      {
+         MFEM_VERIFY(epsz > 0 && epsz <=1,
+                     "Kershaw parameter epsz must be in (0, 1].");
+      }
+   }
+
+   // 1D transformation at the right boundary.
+   double right(const double eps, const double x)
+   {
+      return (x <= 0.5) ? (2-eps) * x : 1 + eps*(x-1);
+   }
+
+   // 1D transformation at the left boundary
+   double left(const double eps, const double x)
+   {
+      return 1-right(eps,1-x);
+   }
+
+   // Transition from a value of "a" for x=0, to a value of "b" for x=1.
+   // Controlled through "smooth" parameter.
+   double step(const double a, const double b, double x)
+   {
+      if (x <= 0) { return a; }
+      if (x >= 1) { return b; }
+      if (smooth == 1) { return a + (b-a) * (x); }
+      else if (smooth == 2) { return a + (b-a) * (x*x*(3-2*x)); }
+      else { return a + (b-a) * (x*x*x*(x*(6*x-15)+10)); }
+   }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   using VectorCoefficient::Eval;
+};
+
+
+} // namespace common
 
 } // namespace mfem
 

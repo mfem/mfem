@@ -10,6 +10,7 @@
 //               mpirun -np 8 ex16p -s 3 -a 0.5 -k 0.5 -o 4
 //               mpirun -np 4 ex16p -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               mpirun -np 16 ex16p -m ../data/fichera-q2.mesh
+//               mpirun -np 16 ex16p -m ../data/fichera-mixed.mesh
 //               mpirun -np 16 ex16p -m ../data/escher-p2.mesh
 //               mpirun -np 8 ex16p -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               mpirun -np 4 ex16p -m ../data/amr-quad.mesh -o 4 -rs 0 -rp 0
@@ -23,7 +24,11 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration.
+//               high-order implicit (SDIRK) time integration. In this example,
+//               the diffusion operator is linearized by evaluating with the
+//               lagged solution from the previous timestep, so there is only
+//               a linear solve. Optional saving with ADIOS2
+//               (adios2.readthedocs.io) is also illustrated.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -88,11 +93,11 @@ double InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -107,6 +112,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
+   bool adios2 = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -139,11 +145,13 @@ int main(int argc, char *argv[])
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
       args.PrintUsage(cout);
-      MPI_Finalize();
       return 1;
    }
 
@@ -207,7 +215,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll);
 
-   int fe_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt fe_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of temperature unknowns: " << fe_size << endl;
@@ -246,6 +254,27 @@ int main(int argc, char *argv[])
       visit_dc.SetTime(0.0);
       visit_dc.Save();
    }
+
+   // Optionally output a BP (binary pack) file using ADIOS2. This can be
+   // visualized with the ParaView VTX reader.
+#ifdef MFEM_USE_ADIOS2
+   ADIOS2DataCollection* adios2_dc = NULL;
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      postfix += "_solver" + std::to_string(ode_solver_type);
+      const std::string collection_name = "ex16-p-" + postfix + ".bp";
+
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
+      adios2_dc->RegisterField("temperature", &u_gf);
+      adios2_dc->SetCycle(0);
+      adios2_dc->SetTime(0.0);
+      adios2_dc->Save();
+   }
+#endif
 
    socketstream sout;
    if (visualization)
@@ -316,9 +345,25 @@ int main(int argc, char *argv[])
             visit_dc.SetTime(t);
             visit_dc.Save();
          }
+
+#ifdef MFEM_USE_ADIOS2
+         if (adios2)
+         {
+            adios2_dc->SetCycle(ti);
+            adios2_dc->SetTime(t);
+            adios2_dc->Save();
+         }
+#endif
       }
       oper.SetParameters(u);
    }
+
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      delete adios2_dc;
+   }
+#endif
 
    // 11. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex16-mesh -g ex16-final".
@@ -333,8 +378,6 @@ int main(int argc, char *argv[])
    // 12. Free the used memory.
    delete ode_solver;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
@@ -377,8 +420,8 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
-   // for du_dt
+   //    du_dt = M^{-1}*-Ku
+   // for du_dt, where K is linearized by using u from the previous timestep
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
@@ -389,7 +432,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
 {
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   // for du_dt, where K is linearized by using u from the previous timestep
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);

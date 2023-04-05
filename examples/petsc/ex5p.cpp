@@ -50,11 +50,11 @@ int main(int argc, char *argv[])
 {
    StopWatch chrono;
 
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
    bool verbose = (myid == 0);
 
    // 2. Parse command-line options.
@@ -97,7 +97,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (verbose)
@@ -105,7 +104,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // 2b. We initialize PETSc
-   if (use_petsc) { PetscInitialize(NULL,NULL,petscrc_file,NULL); }
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -147,8 +146,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, hdiv_coll);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, l2_coll);
 
-   HYPRE_Int dimR = R_space->GlobalTrueVSize();
-   HYPRE_Int dimW = W_space->GlobalTrueVSize();
+   HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
+   HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
 
    if (verbose)
    {
@@ -544,9 +543,7 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
-
-   MPI_Finalize();
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    return 0;
 }

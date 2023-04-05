@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NURBS
 #define MFEM_NURBS
@@ -61,18 +61,24 @@ public:
 
    int findKnotSpan(double u) const;
 
-   void CalcShape (Vector &shape, int i, double xi) const;
-   void CalcDShape(Vector &grad,  int i, double xi) const;
+   void CalcShape  (Vector &shape, int i, double xi) const;
+   void CalcDShape (Vector &grad,  int i, double xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
+   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   { CalcDnShape(grad2, 2, i, xi); }
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
+   /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
    void Flip();
 
    void Print(std::ostream &out) const;
+
+   void PrintFunctions(std::ostream &out, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -111,6 +117,8 @@ public:
               const KnotVector *kv2, int dim_);
    NURBSPatch(Array<const KnotVector *> &kv, int dim_);
 
+   NURBSPatch& operator=(const NURBSPatch&) = delete;
+
    ~NURBSPatch();
 
    void Print(std::ostream &out) const;
@@ -119,13 +127,16 @@ public:
    void KnotInsert   (int dir, const KnotVector &knot);
    void KnotInsert   (int dir, const Vector     &knot);
 
+   void KnotInsert(Array<Vector *> &knot);
    void KnotInsert(Array<KnotVector *> &knot);
+
    void DegreeElevate(int t);
    void UniformRefinement();
 
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
    int GetNKV() const { return kv.Size(); }
+   /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
@@ -141,7 +152,9 @@ public:
    void SwapDirections(int dir1, int dir2);
    void Rotate3D(double normal[], double angle);
    int MakeUniformDegree(int degree = -1);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
                                 int times);
 };
@@ -182,6 +195,13 @@ protected:
    Array<KnotVector *> knotVectors;
    Vector weights;
 
+   // periodic BC info:
+   // - dof 2 dof map
+   // - master and slave boundary indices
+   Array<int> d_to_d;
+   Array<int> master;
+   Array<int> slave;
+
    // global offsets, meshOffsets == meshVertexOffsets
    Array<int> v_meshOffsets;
    Array<int> e_meshOffsets;
@@ -201,9 +221,13 @@ protected:
    Array2D<int> el_to_IJK;  // IJK are "knot-span" indices!
    Array2D<int> bel_to_IJK; // they are NOT element indices!
 
+   std::vector<Array<int>> patch_to_el;
+   std::vector<Array<int>> patch_to_bel;
+
    Array<NURBSPatch *> patches;
 
    inline int         KnotInd(int edge) const;
+   /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
    inline const KnotVector *KnotVec(int edge) const;
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
@@ -218,6 +242,16 @@ protected:
 
    void SetOrderFromOrders();
    void SetOrdersFromKnotVectors();
+
+   // periodic BC helper functions
+   void InitDofMap();
+   void ConnectBoundaries();
+   void ConnectBoundaries2D(int bnd0, int bnd1);
+   void ConnectBoundaries3D(int bnd0, int bnd1);
+   int DofMap(int dof) const
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -273,6 +307,9 @@ protected:
 
    void MergeWeights(Mesh *mesh_array[], int num_pieces);
 
+   void SetPatchToElements();
+   void SetPatchToBdrElements();
+
    // to be used by ParNURBSExtension constructor(s)
    NURBSExtension() { }
 
@@ -295,6 +332,15 @@ public:
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
+   /// Copy assignment not supported
+   NURBSExtension& operator=(const NURBSExtension&) = delete;
+
+   // Generate connections between boundaries, such as periodic BCs
+   void ConnectBoundaries(Array<int> &master, Array<int> &slave);
+   const Array<int> &GetMaster() const { return  master; };
+   Array<int> &GetMaster()  { return  master; };
+   const Array<int> &GetSlave() const { return  slave; };
+   Array<int> &GetSlave()  { return  slave; };
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
 
@@ -304,6 +350,7 @@ public:
    // Print functions
    void Print(std::ostream &out) const;
    void PrintCharacteristics(std::ostream &out) const;
+   void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
    int Dimension() const { return patchTopo->Dimension(); }
@@ -337,11 +384,30 @@ public:
 
    bool HavePatches() const { return (patches.Size() != 0); }
 
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetElementDofTable() { return el_dof; }
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetBdrElementDofTable() { return bel_dof; }
 
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
    void GetElementLocalToGlobal(Array<int> &lelem_elem);
+
+   // Set the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   void SetPatchAttribute(int i, int attr) { patchTopo->SetAttribute(i, attr); }
+
+   // Get the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   int GetPatchAttribute(int i) const { return patchTopo->GetAttribute(i); }
+
+   // Set the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   void SetPatchBdrAttribute(int i, int attr)
+   { patchTopo->SetBdrAttribute(i, attr); }
+   // Get the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   int GetPatchBdrAttribute(int i) const
+   { return patchTopo->GetBdrAttribute(i); }
 
    // Load functions
    void LoadFE(int i, const FiniteElement *FE) const;
@@ -366,6 +432,10 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
+
+   const Array<int>& GetPatchElements(int patch);
+   const Array<int>& GetPatchBdrElements(int patch);
 };
 
 

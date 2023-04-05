@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "handle.hpp"
 #include "sparsemat.hpp"
@@ -57,8 +57,8 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 }
 
 #ifdef MFEM_USE_MPI
-void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
-                                         HYPRE_Int *row_starts,
+void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
+                                         HYPRE_BigInt *row_starts,
                                          SparseMatrix *diag)
 {
    if (own_oper) { delete oper; }
@@ -78,7 +78,8 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
-         oper = new PetscParMatrix(comm, glob_size, row_starts, diag, type_id);
+         oper = new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
+                                   type_id);
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
@@ -87,9 +88,9 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
 }
 
 void OperatorHandle::
-MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
-                         HYPRE_Int glob_num_cols, HYPRE_Int *row_starts,
-                         HYPRE_Int *col_starts, SparseMatrix *diag)
+MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
+                         HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
+                         HYPRE_BigInt *col_starts, SparseMatrix *diag)
 {
    if (own_oper) { delete oper; }
 
@@ -110,7 +111,7 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
          oper = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
-                                   row_starts, col_starts, diag, type_id);
+                                   (PetscInt*)row_starts, (PetscInt*)col_starts, diag, type_id);
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
@@ -296,6 +297,43 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
          break;
       }
       default: MFEM_ABORT(not_supported_msg << A.Type());
+   }
+}
+
+void OperatorHandle::EliminateRows(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         this->As<HypreParMatrix>()->EliminateRows(ess_dof_list);
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
+         break;
+      }
+      default:
+         MFEM_ABORT(not_supported_msg << Type());
+   }
+}
+
+void OperatorHandle::EliminateCols(const Array<int> &ess_dof_list)
+{
+   switch (Type())
+   {
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         auto Ae = this->As<HypreParMatrix>()->EliminateCols(ess_dof_list);
+         delete Ae;
+#else
+         MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
+#endif
+         break;
+      }
+      default:
+         MFEM_ABORT(not_supported_msg << Type());
    }
 }
 

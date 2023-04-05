@@ -4,8 +4,11 @@
 //
 // Sample runs:  mpirun -np 4 ex14p -m ../data/inline-quad.mesh -o 0
 //               mpirun -np 4 ex14p -m ../data/star.mesh -o 2
+//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2
+//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2 -k 0 -e 1
 //               mpirun -np 4 ex14p -m ../data/escher.mesh -s 1
 //               mpirun -np 4 ex14p -m ../data/fichera.mesh -s 1 -k 1
+//               mpirun -np 4 ex14p -m ../data/fichera-mixed.mesh -s 1 -k 1
 //               mpirun -np 4 ex14p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex14p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex14p -m ../data/square-disc-nurbs.mesh -o 1
@@ -33,13 +36,45 @@
 using namespace std;
 using namespace mfem;
 
+class CustomSolverMonitor : public IterativeSolverMonitor
+{
+public:
+   CustomSolverMonitor(const ParMesh *m,
+                       ParGridFunction *f) :
+      pmesh(m),
+      pgf(f) {}
+
+   void MonitorSolution(int i, double norm, const Vector &x, bool final)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      int  num_procs, myid;
+
+      MPI_Comm_size(pmesh->GetComm(),&num_procs);
+      MPI_Comm_rank(pmesh->GetComm(),&myid);
+
+      pgf->SetFromTrueDofs(x);
+
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *pmesh << *pgf
+               << "window_title 'Iteration no " << i << "'"
+               << "keys rRjlc\n" << flush;
+   }
+
+private:
+   const ParMesh *pmesh;
+   ParGridFunction *pgf;
+};
+
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -48,6 +83,7 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
+   double eta = 0.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -61,11 +97,12 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
    args.AddOption(&sigma, "-s", "--sigma",
-                  "One of the two DG penalty parameters, typically +1/-1."
+                  "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "One of the two DG penalty parameters, should be positive."
+                  "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -76,7 +113,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (kappa < 0)
@@ -129,7 +165,7 @@ int main(int argc, char *argv[])
    //    use discontinuous finite elements of the specified order >= 0.
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;
@@ -160,6 +196,11 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   if (eta > 0)
+   {
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
+   }
    a->Assemble();
    a->Finalize();
 
@@ -179,21 +220,23 @@ int main(int argc, char *argv[])
    {
       HyprePCG pcg(*A);
       pcg.SetTol(1e-12);
-      pcg.SetMaxIter(200);
+      pcg.SetMaxIter(500);
       pcg.SetPrintLevel(2);
       pcg.SetPreconditioner(*amg);
       pcg.Mult(*B, *X);
    }
    else
    {
+      CustomSolverMonitor monitor(pmesh, &x);
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetAbsTol(0.0);
       gmres.SetRelTol(1e-12);
-      gmres.SetMaxIter(200);
+      gmres.SetMaxIter(500);
       gmres.SetKDim(10);
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       gmres.SetPreconditioner(*amg);
+      gmres.SetMonitor(monitor);
       gmres.Mult(*B, *X);
    }
    delete amg;
@@ -237,8 +280,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
