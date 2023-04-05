@@ -160,14 +160,37 @@ static void EAMassAssemble3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      for (int d = 0; d < D1D; d++)
+      constexpr int DQ = T_D1D * T_Q1D;
+
+#if 0
+      if (DQ < 20)
       {
-         for (int q = 0; q < Q1D; q++)
+         double r_B[MQ1][MD1];
+         for (int d = 0; d < D1D; d++)
          {
-            r_B[q][d] = B(q,d);
+            for (int q = 0; q < Q1D; q++)
+            {
+               r_B[q][d] = B(q,d);
+            }
          }
       }
+#else
+      //else
+      //{
+         MFEM_SHARED double r_B[MQ1][MD1];
+         if (MFEM_THREAD_ID(z) == 0)
+         {
+            MFEM_FOREACH_THREAD(d,x,D1D)
+            {
+               MFEM_FOREACH_THREAD(q,y,Q1D)
+               {
+                  r_B[q][d] = B(q,d);
+               }
+            }
+         }
+      //}
+#endif
+
       MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
       MFEM_FOREACH_THREAD(k1,x,Q1D)
       {
