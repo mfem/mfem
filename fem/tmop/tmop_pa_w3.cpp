@@ -111,7 +111,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
 
-   const double *metric_data = metric_param.GetData();
+   const double *metric_data = metric_param.Read();
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
