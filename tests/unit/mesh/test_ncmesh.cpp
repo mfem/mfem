@@ -343,7 +343,8 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       constexpr double linear_tol = 1e-16;
 
       // serial solve
-      auto serror = [&]{
+      auto serror = [&]
+      {
          FiniteElementSpace fes(&smesh, &fec);
          // solution vectors
          GridFunction x(&fes);
@@ -380,7 +381,8 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
          return x.ComputeL2Error(rhs_coef);
       }();
 
-      auto perror = [&]{
+      auto perror = [&]
+      {
          // parallel solve
          ParFiniteElementSpace fes(&pmesh, &fec);
          ParLinearForm b(&fes);
