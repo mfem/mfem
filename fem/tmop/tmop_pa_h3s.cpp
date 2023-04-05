@@ -339,6 +339,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto H = Reshape(h_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
+   const double *metric_data = metric_param.GetData();
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -410,12 +412,12 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                }
                if (mid == 332)
                {
-                  EvalH_332(e,qx,qy,qz,weight,metric_param.GetData(),Jpt,H,
+                  EvalH_332(e,qx,qy,qz,weight,metric_data,Jpt,H,
                             B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
                }
                if (mid == 338)
                {
-                  EvalH_338(e,qx,qy,qz,weight,metric_param.GetData(),Jpt,H,
+                  EvalH_338(e,qx,qy,qz,weight,metric_data,Jpt,H,
                             B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
                }
             } // qx

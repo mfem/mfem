@@ -126,7 +126,7 @@ void EvalP_338(const double *J, const double *w, double *P)
    double sign_detJ;
    const double I3b = ie.Get_I3b(sign_detJ);
    kernels::Add(3,3, w[1] * (I3b - 1.0/(I3b * I3b * I3b)),
-                     ie.Get_dI3b(sign_detJ), P);
+                ie.Get_dI3b(sign_detJ), P);
 }
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
@@ -157,6 +157,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
+
+   const double *metric_data = metric_param.GetData();
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -206,8 +208,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                if (mid == 303) { EvalP_303(Jpt, P); }
                if (mid == 315) { EvalP_315(Jpt, P); }
                if (mid == 321) { EvalP_321(Jpt, P); }
-               if (mid == 332) { EvalP_332(Jpt, metric_param.GetData(), P); }
-               if (mid == 338) { EvalP_338(Jpt, metric_param.GetData(), P); }
+               if (mid == 332) { EvalP_332(Jpt, metric_data, P); }
+               if (mid == 338) { EvalP_338(Jpt, metric_data, P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                // Y += DS . P^t += DSh . (Jrt . P^t)

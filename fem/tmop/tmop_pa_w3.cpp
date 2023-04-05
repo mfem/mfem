@@ -111,6 +111,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
 
+   const double *metric_data = metric_param.GetData();
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -159,8 +161,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                mid == 303 ? EvalW_303(Jpt) :
                mid == 315 ? EvalW_315(Jpt) :
                mid == 321 ? EvalW_321(Jpt) :
-               mid == 332 ? EvalW_332(Jpt, metric_param.GetData()) :
-               mid == 338 ? EvalW_338(Jpt, metric_param.GetData()) : 0.0;
+               mid == 332 ? EvalW_332(Jpt, metric_data) :
+               mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
             }
