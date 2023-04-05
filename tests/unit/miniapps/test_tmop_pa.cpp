@@ -190,8 +190,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 315: metric = new TMOP_Metric_315; break;
+      case 318: metric = new TMOP_Metric_318; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       default:
       {
          if (id == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -836,7 +838,7 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../miniapps/meshing/cube.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({4,2}).
-          TID({5}).MID({332})).Run(id,all);
+          TID({5}).MID({332,338})).Run(id,true);
 
    // Note: order 1 has no interior nodes, so all residuals are zero and the
    // Newton iteration exits immediately.

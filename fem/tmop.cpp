@@ -1125,7 +1125,7 @@ double TMOP_Metric_318::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_318::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_318 = mu_77_3D = 0.5*(I3 + 1/I3) - 1.
+   // mu_318 = mu_77_3D = 0.5 * (I3 + 1/I3) - 1.
    ie.SetJacobian(Jpt.GetData());
    const double I3 = ie.Get_I3();
    return 0.5*(I3 + 1.0/I3) - 1.0;
