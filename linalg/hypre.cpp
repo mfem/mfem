@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -292,13 +292,14 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 {
-   // If the argument vector owns its data, then the calling vector will as well
-   WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
-   // Either way the argument vector will no longer own its data
+   Vector::operator=(std::move(y));
+   // Self-assignment-safe way to move for 'own_ParVector' and 'x':
+   const auto own_tmp = y.own_ParVector;
    y.own_ParVector = 0;
+   own_ParVector = own_tmp;
+   const auto x_tmp = y.x;
    y.x = nullptr;
-   y.data.Reset();
-   y.size = 0;
+   x = x_tmp;
    return *this;
 }
 
@@ -804,7 +805,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    }
 #endif
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 }
 
 // Rectangular block-diagonal constructor (6 arguments, v1)
@@ -849,7 +850,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 }
 
 // General rectangular constructor with diagonal and off-diagonal (8+1
@@ -904,7 +905,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 }
 
 // General rectangular constructor with diagonal and off-diagonal (13+1
@@ -937,7 +938,6 @@ HypreParMatrix::HypreParMatrix(
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd, hypre_arrays);
    hypre_CSRMatrixI(A->offd) = offd_i;
@@ -947,7 +947,6 @@ HypreParMatrix::HypreParMatrix(
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->offd);
 
    hypre_ParCSRMatrixColMapOffd(A) = offd_col_map;
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
@@ -961,7 +960,7 @@ HypreParMatrix::HypreParMatrix(
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -979,6 +978,9 @@ HypreParMatrix::HypreParMatrix(
       offdOwner = HypreCsrToMem(A->offd, host_mt, false, mem_offd);
    }
    HypreRead();
+
+   hypre_CSRMatrixSetRownnz(A->diag);
+   hypre_CSRMatrixSetRownnz(A->offd);
 }
 
 // Constructor from a CSR matrix on rank 0 (4 arguments, v2)
@@ -1020,7 +1022,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(new_A));
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    WrapHypreParCSRMatrix(new_A);
 }
@@ -1064,7 +1066,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1123,7 +1125,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
    hypre_CSRMatrixI(A->offd)    = i_offd;
@@ -1132,7 +1133,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->offd);
 
    hypre_ParCSRMatrixColMapOffd(A) = cmap;
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
@@ -1146,7 +1146,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1155,6 +1155,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    diagOwner = HypreCsrToMem(A->diag, host_mt, true, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, host_mt, true, mem_offd);
    HypreRead();
+
+   hypre_CSRMatrixSetRownnz(A->diag);
+   hypre_CSRMatrixSetRownnz(A->offd);
 }
 
 // General rectangular constructor with diagonal and off-diagonal constructed
@@ -1296,7 +1299,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       mfem_hypre_TFree_host(col_starts);
    }
 #endif
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1323,7 +1326,7 @@ HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    diagOwner = HypreCsrToMem(A->diag, GetHypreMemoryType(), false, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
@@ -1708,6 +1711,25 @@ void HypreParMatrix::EnsureMultTranspose() const
 #endif
 }
 
+void HypreParMatrix::ResetTranspose() const
+{
+#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
+    (MFEM_HYPRE_VERSION > 22500)
+#ifdef HYPRE_USING_GPU
+   if (A->diagT)
+   {
+      hypre_CSRMatrixDestroy(A->diagT);
+      A->diagT = NULL;
+   }
+   if (A->offdT)
+   {
+      hypre_CSRMatrixDestroy(A->offdT);
+      A->offdT = NULL;
+   }
+#endif
+#endif
+}
+
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b) const
 {
@@ -1830,13 +1852,7 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
       }
    }
 
-#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
-    (MFEM_HYPRE_VERSION > 22500)
-#ifdef HYPRE_USING_GPU
-   MFEM_VERIFY(A->diagT != NULL,
-               "Transpose action requires EnsureMultTranspose()");
-#endif
-#endif
+   EnsureMultTranspose();
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
 
@@ -1853,13 +1869,7 @@ HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
 HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
                                         double a, double b) const
 {
-#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
-    (MFEM_HYPRE_VERSION > 22500)
-#ifdef HYPRE_USING_GPU
-   MFEM_VERIFY(A->diagT != NULL,
-               "Transpose action requires EnsureMultTranspose()");
-#endif
-#endif
+   EnsureMultTranspose();
    x.HypreRead();
    (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
@@ -2830,6 +2840,7 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 #else
    hypre_ParCSRMatrixAdd(1.0, *A, 1.0, *B, &C);
 #endif
+   if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
 
    return new HypreParMatrix(C);
 }
@@ -5525,7 +5536,7 @@ void HypreAMS::ResetAMSPrecond()
    HYPRE_Int maxit = hypre_AMSDataMaxIter(ams_data);
    HYPRE_Real tol = hypre_AMSDataTol(ams_data);
    HYPRE_Int cycle_type = hypre_AMSDataCycleType(ams_data);
-   HYPRE_Int print_level = hypre_AMSDataPrintLevel(ams_data);
+   HYPRE_Int ams_print_level = hypre_AMSDataPrintLevel(ams_data);
 
    /* Smoothing and AMG options */
    HYPRE_Int A_relax_type = hypre_AMSDataARelaxType(ams_data);
@@ -5559,7 +5570,7 @@ void HypreAMS::ResetAMSPrecond()
    HYPRE_AMSSetTol(ams, tol);
    HYPRE_AMSSetMaxIter(ams, maxit); // use as a preconditioner
    HYPRE_AMSSetCycleType(ams, cycle_type);
-   HYPRE_AMSSetPrintLevel(ams, print_level);
+   HYPRE_AMSSetPrintLevel(ams, ams_print_level);
 
    HYPRE_AMSSetCoordinateVectors(ams, hy_x, hy_y, hy_z);
 
@@ -5571,6 +5582,9 @@ void HypreAMS::ResetAMSPrecond()
    // set additional AMS options
    HYPRE_AMSSetSmoothingOptions(ams, A_relax_type, A_relax_times, A_relax_weight,
                                 A_omega);
+
+   hypre_AMSDataAChebyOrder(ams_data) = A_cheby_order;
+   hypre_AMSDataAChebyFraction(ams_data) = A_cheby_fraction;
 
    HYPRE_AMSSetAlphaAMGOptions(ams, B_Pi_coarsen_type, B_Pi_agg_levels,
                                B_Pi_relax_type,

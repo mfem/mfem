@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,6 +95,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
    auto *m = subfes.GetMesh();
    vdof_to_vdof_map.SetSize(subfes.GetVSize());
 
+   const int vdim = parentfes.GetVDim();
+
    IntegrationPointTransformation Tr;
    DenseMatrix T;
    Array<int> z1;
@@ -137,14 +139,20 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
 
             parentfes.GetElementVDofs(parent_volel_id, z1);
 
-            parent_vdofs.SetSize(parentfes.GetVDim() * T.Height());
+            parent_vdofs.SetSize(vdim * T.Height());
             for (int j = 0; j < T.Height(); j++)
             {
-               for (int k = 0; k < parentfes.GetVDim() * T.Width(); k++)
+               for (int k = 0; k < T.Width(); k++)
                {
                   if (T(j, k) != 0.0)
                   {
-                     parent_vdofs[j] = z1[static_cast<int>(k)];
+                     for (int vd=0; vd<vdim; vd++)
+                     {
+                        int sub_vdof = j + T.Height() * vd;
+                        int parent_vdof = k + T.Width() * vd;
+                        parent_vdofs[sub_vdof] =
+                           z1[static_cast<int>(parent_vdof)];
+                     }
                   }
                }
             }

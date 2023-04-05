@@ -38,7 +38,7 @@ PROJECT_NAME           = "MFEM"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = v4.4.1
+PROJECT_NUMBER         = v4.5.3
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -763,36 +763,54 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/config \
                          @MFEM_SOURCE_DIR@/general \
                          @MFEM_SOURCE_DIR@/linalg \
+                         @MFEM_SOURCE_DIR@/linalg/simd \
                          @MFEM_SOURCE_DIR@/mesh \
+                         @MFEM_SOURCE_DIR@/mesh/submesh \
                          @MFEM_SOURCE_DIR@/fem \
-                         @MFEM_SOURCE_DIR@/fem/moonolith \
+                         @MFEM_SOURCE_DIR@/fem/ceed \
+                         @MFEM_SOURCE_DIR@/fem/ceed/integrators \
+                         @MFEM_SOURCE_DIR@/fem/ceed/integrators/convection \
+                         @MFEM_SOURCE_DIR@/fem/ceed/integrators/diffusion \
+                         @MFEM_SOURCE_DIR@/fem/ceed/integrators/mass \
+                         @MFEM_SOURCE_DIR@/fem/ceed/integrators/nlconvection \
+                         @MFEM_SOURCE_DIR@/fem/ceed/interface \
+                         @MFEM_SOURCE_DIR@/fem/ceed/solvers \
                          @MFEM_SOURCE_DIR@/fem/fe \
                          @MFEM_SOURCE_DIR@/fem/lor \
+                         @MFEM_SOURCE_DIR@/fem/moonolith \
+                         @MFEM_SOURCE_DIR@/fem/qinterp \
+                         @MFEM_SOURCE_DIR@/fem/tmop \
                          @MFEM_SOURCE_DIR@/examples \
-                         @MFEM_SOURCE_DIR@/examples/caliper \
                          @MFEM_SOURCE_DIR@/examples/amgx \
+                         @MFEM_SOURCE_DIR@/examples/caliper \
                          @MFEM_SOURCE_DIR@/examples/ginkgo \
-                         @MFEM_SOURCE_DIR@/examples/moonolith \
                          @MFEM_SOURCE_DIR@/examples/hiop \
+                         @MFEM_SOURCE_DIR@/examples/moonolith \
                          @MFEM_SOURCE_DIR@/examples/petsc \
                          @MFEM_SOURCE_DIR@/examples/pumi \
                          @MFEM_SOURCE_DIR@/examples/sundials \
                          @MFEM_SOURCE_DIR@/examples/superlu \
                          @MFEM_SOURCE_DIR@/miniapps/adjoint \
+                         @MFEM_SOURCE_DIR@/miniapps/autodiff \
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
+                         @MFEM_SOURCE_DIR@/miniapps/hooke \
+                         @MFEM_SOURCE_DIR@/miniapps/hooke/kernels \
+                         @MFEM_SOURCE_DIR@/miniapps/hooke/materials \
+                         @MFEM_SOURCE_DIR@/miniapps/hooke/operators \
+                         @MFEM_SOURCE_DIR@/miniapps/hooke/preconditioners \
                          @MFEM_SOURCE_DIR@/miniapps/meshing \
                          @MFEM_SOURCE_DIR@/miniapps/mtop \
-                         @MFEM_SOURCE_DIR@/miniapps/autodiff \
+                         @MFEM_SOURCE_DIR@/miniapps/multidomain \
                          @MFEM_SOURCE_DIR@/miniapps/navier \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
+                         @MFEM_SOURCE_DIR@/miniapps/parelag \
                          @MFEM_SOURCE_DIR@/miniapps/performance \
                          @MFEM_SOURCE_DIR@/miniapps/shifted \
                          @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/tools \
-                         @MFEM_SOURCE_DIR@/miniapps/toys \
-                         @MFEM_SOURCE_DIR@/miniapps/parelag
+                         @MFEM_SOURCE_DIR@/miniapps/toys
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses

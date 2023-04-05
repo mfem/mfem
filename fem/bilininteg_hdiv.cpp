@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1797,7 +1797,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
@@ -1960,7 +1960,7 @@ static void PAHdivL2Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,

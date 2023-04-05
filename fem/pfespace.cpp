@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -959,10 +959,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
-
-   // The following call ensures that the action of the transpose of P is
-   // performed fast when HYPRE is built for GPUs.
-   P->EnsureMultTranspose();
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
@@ -1540,7 +1536,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
 
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   Geometry::Type face_geom = pmesh->GetFaceGeometryType(i);
+   Geometry::Type face_geom = pmesh->GetFaceGeometry(i);
    return fec->FiniteElementForGeometry(face_geom);
 }
 
@@ -2610,7 +2606,7 @@ int ParFiniteElementSpace
       if (dump < 10)
       {
          char fname[100];
-         sprintf(fname, "dofs%02d.txt", MyRank);
+         snprintf(fname, 100, "dofs%02d.txt", MyRank);
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
@@ -2628,10 +2624,6 @@ int ParFiniteElementSpace
    {
       *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
                                 dof_offs, tdof_offs);
-
-      // The following call ensures that the action of the transpose of *P_ is
-      // performed fast when HYPRE is built for GPUs.
-      (*P_)->EnsureMultTranspose();
    }
 
    // clean up possible remaining messages in the queue to avoid receiving
@@ -3033,6 +3025,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<char> mark(diag->Height());
    mark = 0;
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
+
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -3061,7 +3055,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   diag->SetRow(r, old_vdofs, row);
@@ -3113,7 +3107,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   MFEM_ASSERT(ldof[geom] == row.Size(), "");
@@ -3130,6 +3124,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          }
       }
    }
+
    messages.clear();
    offd->Finalize(0);
    offd->SetWidth(col_map.size());

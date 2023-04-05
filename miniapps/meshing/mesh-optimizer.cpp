@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,19 +46,19 @@
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation (requires GSLIB):
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete size+orientation:
+//      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
@@ -77,12 +77,14 @@
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     (requires CUDA):
+//   * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
+//     mesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
 //     mesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
@@ -136,6 +138,7 @@ int main(int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
+   bool bal_expl_combo   = false;
    bool hradaptivity     = false;
    int h_metric_id       = -1;
    bool normalization    = false;
@@ -150,6 +153,7 @@ int main(int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
 
@@ -253,6 +257,9 @@ int main(int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
+   args.AddOption(&bal_expl_combo, "-bec", "--balance-explicit-combo",
+                  "-no-bec", "--balance-explicit-combo",
+                  "Automatic balancing of explicit combo metrics.");
    args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
                   "--no-hr-adaptivity",
                   "Enable hr-adaptivity.");
@@ -290,6 +297,9 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
                   "0 - None,"
                   "1 - Shifted Barrier,"
@@ -334,7 +344,8 @@ int main(int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
+                                                        mesh_node_ordering);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
@@ -731,20 +742,9 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         if (metric_id == 14 || metric_id == 36)
-         {
-            ConstantCoefficient size_coeff(0.1*0.1);
-            size.ProjectCoefficient(size_coeff);
-            tc->SetSerialDiscreteTargetSize(size);
-         }
-
-         if (metric_id == 85)
-         {
-            FunctionCoefficient aspr_coeff(discrete_aspr_2d);
-            aspr.ProjectCoefficient(aspr_coeff);
-            DiffuseField(aspr,2);
-            tc->SetSerialDiscreteTargetAspectRatio(aspr);
-         }
+         ConstantCoefficient size_coeff(0.1*0.1);
+         size.ProjectCoefficient(size_coeff);
+         tc->SetSerialDiscreteTargetSize(size);
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
@@ -771,6 +771,16 @@ int main(int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
+
+   // Automatically balanced gamma in composite metrics.
+   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
+   if (metric_combo && bal_expl_combo)
+   {
+      Vector bal_weights;
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
+      metric_combo->SetWeights(bal_weights);
+   }
+
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
@@ -780,7 +790,6 @@ int main(int argc, char *argv[])
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
    }
-
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -1199,6 +1208,7 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
+   // Report the final energy of the functional.
    const double fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
    double fin_metric_energy = fin_energy;
@@ -1223,7 +1233,7 @@ int main(int argc, char *argv[])
    cout << "The strain energy decreased by: "
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // 16. Visualize the final mesh and metric values.
+   // Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -1237,6 +1247,7 @@ int main(int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
+   // Visualize fitting surfaces and report fitting errors.
    if (surface_fit_const > 0.0)
    {
       if (visualization)
@@ -1253,7 +1264,7 @@ int main(int argc, char *argv[])
                 << "Max fitting error: " << err_max << std::endl;
    }
 
-   // 17. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    if (visualization)
    {
       osockstream sock(19916, "localhost");

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,19 +142,35 @@ public:
    void Mult(const double *x, double *y) const;
 
    /// Matrix vector multiplication.
+   void Mult(const double *x, Vector &y) const;
+
+   /// Matrix vector multiplication.
+   void Mult(const Vector &x, double *y) const;
+
+   /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const double *x, double *y) const;
 
    /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const double *x, Vector &y) const;
+
+   /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const Vector &x, double *y) const;
+
+   /// Multiply a vector with the transpose matrix.
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
-   /// y += A.x
-   void AddMult(const Vector &x, Vector &y) const;
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
-   /// y += A^t x
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   /// y += a * A.x
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// y += a * A^t x
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
@@ -180,7 +196,7 @@ public:
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const
-   { return InnerProduct((const double *)x, (const double *)y); }
+   { return InnerProduct(x.GetData(), y.GetData()); }
 
    /// Returns a pointer to the inverse matrix.
    virtual MatrixInverse *Inverse() const;
@@ -235,6 +251,13 @@ public:
 
    /// Take the 2-norm of the columns of A and store in v
    void Norm2(double *v) const;
+
+   /// Take the 2-norm of the columns of A and store in v
+   void Norm2(Vector &v) const
+   {
+      MFEM_ASSERT(v.Size() == Width(), "incompatible Vector size!");
+      Norm2(v.GetData());
+   }
 
    /// Compute the norm ||A|| = max_{ij} |A_{ij}|
    double MaxMaxNorm() const;
@@ -325,8 +348,13 @@ public:
    /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
        CurlShape matrix. If *this is a N by D matrix, then curl is a D*N by
        D*(D-1)/2 matrix. The size of curl must be set outside. The dimension D
-       can be either 2 or 3. */
+       can be either 2 or 3. In 2D this computes the scalar-valued curl of a
+       2D vector field */
    void GradToCurl(DenseMatrix &curl);
+   /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
+       CurlShape matrix. This computes the vector-valued curl of a scalar field.
+       *this is N by 2 matrix and curl is N by 2 matrix as well. */
+   void GradToVectorCurl2D(DenseMatrix &curl);
    /** Given a DShape matrix (from a scalar FE), stored in *this,
        returns the DivShape vector. If *this is a N by dim matrix,
        then div is a dim*N vector. The size of div must be set
@@ -577,11 +605,11 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
 /** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
-    to accomodate the data */
+    to accommodate the data */
 void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
 
 /** Computes the matrix Rt^t * A * P. Note: The @a RAP matrix will be resized
-    to accomodate the data */
+    to accommodate the data */
 void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
          const DenseMatrix &P, DenseMatrix & RAP);
 
@@ -833,6 +861,8 @@ public:
 
    /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
    void Mult(DenseMatrix &X) const {factors->Solve(width, X.Width(), X.Data());}
+
+   using Operator::Mult;
 
    /// Compute and return the inverse matrix in Ainv.
    void GetInverseMatrix(DenseMatrix &Ainv) const;

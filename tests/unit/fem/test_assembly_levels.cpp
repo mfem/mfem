@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -145,14 +145,9 @@ void test_assembly_level(const char *meshname,
 
    k_ref.Assemble();
    k_ref.Finalize();
-   k_ref.SpMat().EnsureMultTranspose();
 
    k_test.SetAssemblyLevel(assembly);
    k_test.Assemble();
-   if ( assembly == AssemblyLevel::FULL )
-   {
-      k_test.SpMat().EnsureMultTranspose();
-   }
 
    GridFunction x(&fespace), y_ref(&fespace), y_test(&fespace);
 
