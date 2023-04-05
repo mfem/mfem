@@ -108,7 +108,7 @@ void EvalP_332(const double *J, const double *w, double *P)
    kernels::Add(3,3, w[1] * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
 }
 
-// P_338 = w0 P_302 + w1 P_38.
+// P_338 = w0 P_302 + w1 P_318.
 static MFEM_HOST_DEVICE inline
 void EvalP_338(const double *J, const double *w, double *P)
 {

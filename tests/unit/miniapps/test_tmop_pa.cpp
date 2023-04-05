@@ -187,6 +187,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       case   7: metric = new TMOP_Metric_007; break;
       case  77: metric = new TMOP_Metric_077; break;
       case  80: metric = new TMOP_Metric_080(0.5); break;
+      case  94: metric = new TMOP_Metric_094; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 315: metric = new TMOP_Metric_315; break;
@@ -798,7 +799,7 @@ static void tmop_tests(int id = 0, bool all = false)
           NORMALIZATION(true).
           POR({1,2}).QOR({4,6}).
           LINEAR_ITERATIONS(150).
-          TID({5}).MID({80}).LS({3})).Run(id,all);
+          TID({5}).MID({80,94}).LS({3})).Run(id,true);
 
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
@@ -838,7 +839,7 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../miniapps/meshing/cube.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({4,2}).
-          TID({5}).MID({332,338})).Run(id,true);
+          TID({5}).MID({332,338})).Run(id,all);
 
    // Note: order 1 has no interior nodes, so all residuals are zero and the
    // Newton iteration exits immediately.
