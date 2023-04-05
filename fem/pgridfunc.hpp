@@ -431,6 +431,14 @@ public:
    /// given @a precision will be used for ASCII output.
    void SaveAsOne(const char *fname, int precision=16) const;
 
+   /// Returns a GridFunction on MPI rank @a save_rank that does not have any
+   /// duplication of vertices/nodes at processor boundaries.
+   GridFunction GetSerialGridFunction(int save_rank) const;
+
+   /// Write the serial GridFunction a single file (written using MPI rank 0).
+   /// The given @a precision will be used for ASCII output.
+   void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
+
    /// Save the ParGridFunction to files (one for each MPI rank). The files will
    /// be given suffixes according to the MPI rank. The given @a precision will
    /// be used for ASCII output.

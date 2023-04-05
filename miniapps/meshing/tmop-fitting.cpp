@@ -1204,8 +1204,7 @@ int main (int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   std::cout << " k101"
-             delete S;
+   delete S;
    delete S_prec;
    delete metric_coeff1;
    delete adapt_surface;

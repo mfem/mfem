@@ -376,8 +376,8 @@ int main (int argc, char *argv[])
    args.AddOption(&hex_to_tet_split_type, "-htot", "--hex_to_tet_split_type",
                   "Split Hex Mesh Into Tets");
    args.AddOption(&mesh_save, "-ms", "--meshsave", "-no-ms",
-                 "--no-meshsave",
-                 "Save original and optimized mesh.");
+                  "--no-meshsave",
+                  "Save original and optimized mesh.");
    args.Parse();
    if (!args.Good())
    {
@@ -466,8 +466,8 @@ int main (int argc, char *argv[])
       if (myid == 0)
       {
          std::cout << "Original mesh size: " << mesh->GetNE() << " " << std::endl <<
-                      "Trimmer mesh size: " << mesh_trim->GetNE() << " " <<
-                      std::endl;
+                   "Trimmer mesh size: " << mesh_trim->GetNE() << " " <<
+                   std::endl;
       }
       delete mesh;
       mesh = new Mesh(*mesh_trim);
@@ -750,7 +750,8 @@ int main (int argc, char *argv[])
       num_active_glob = psubmesh->GetGlobalNE();
       if (myid == 0)
       {
-         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<  endl;
+         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<
+                   endl;
       }
 
       //Fix boundary attribues of submesh
@@ -1237,7 +1238,7 @@ int main (int argc, char *argv[])
    }
 
 
-//   MFEM_ABORT("k10aborting1");
+   //   MFEM_ABORT("k10aborting1");
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -1511,14 +1512,17 @@ int main (int argc, char *argv[])
       std::cout << "k10-Time to Trim: " << TimeMeshTrim.RealTime() << std::endl;
       std::cout << "k10-Time to generate submesh: " << TimeSubMeshTrim.RealTime() <<
                 std::endl;
-      std::cout << "k10-Time To do AMR on bg: " << TimeBGMeshAMR.RealTime() << std::endl;
-      std::cout << "k10-Time To generate distance on bg: " << TimeBGMeshDist.RealTime() <<
+      std::cout << "k10-Time To do AMR on bg: " << TimeBGMeshAMR.RealTime() <<
+                std::endl;
+      std::cout << "k10-Time To generate distance on bg: " <<
+                TimeBGMeshDist.RealTime() <<
                 std::endl;
       std::cout << "k10-Time To get grad on bg: " << TimeBGMeshDer.RealTime() <<
                 std::endl;
       std::cout << "k10-Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
       std::cout << "k10-Number of elements in the mesh: " << neglob <<  endl;
-      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<  endl;
+      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<
+                endl;
    }
 
    // 18. Visualize the final mesh and metric values.
@@ -1574,18 +1578,15 @@ int main (int argc, char *argv[])
    }
 
    {
-       DataCollection *dc = NULL;
-       dc = new VisItDataCollection("Optimized", pmesh);
-       dc->RegisterField("solution", &x1);
+      DataCollection *dc = NULL;
+      dc = new VisItDataCollection("Optimized", pmesh);
+      dc->RegisterField("solution", &x1);
+      surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+      dc->RegisterField("level-set-projected", &surf_fit_gf0);
 
-       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
-       dc->RegisterField("level-set-projected", &surf_fit_gf0);
-       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
-       dc->RegisterField("level-set-projected", &surf_fit_gf0);
-
-       dc->SetCycle(0);
-       dc->SetTime(0.0);
-       dc->Save();
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
    }
 
    // Don't do second pass
