@@ -908,6 +908,101 @@ void ParGridFunction::SaveAsOne(const char *fname, int precision) const
    SaveAsOne(ofs);
 }
 
+void ParGridFunction::SaveAsSerial(const char *fname, int precision,
+                                   int save_rank) const
+{
+   GridFunction serialgf = GetSerialGridFunction(save_rank);
+   ParMesh *pmesh = ParFESpace()->GetParMesh();
+   if (pmesh->GetMyRank() == save_rank)
+   {
+      serialgf.Save(fname, precision);
+   }
+   MPI_Barrier(pmesh->GetComm());
+}
+
+GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
+{
+   ParFiniteElementSpace *pfespace = ParFESpace();
+   ParMesh *pmesh = pfespace->GetParMesh();
+   int MyRank = pmesh->GetMyRank(),
+       NRanks = pmesh->GetNRanks();
+   int vdim = pfespace->GetVDim();
+   Mesh serialmesh = pmesh->GetSerialMesh(save_rank);
+   // Duplicate the FE collection to make sure the serial mesh is completely
+   // independent of the parallel mesh:
+   auto fec_serial = FiniteElementCollection::New(
+                        pfespace->FEColl()->Name());
+   auto *fespace_serial = new FiniteElementSpace(&serialmesh,
+                                                 fec_serial,
+                                                 vdim,
+                                                 pfespace->GetOrdering());
+   MPI_Comm MyComm = pmesh->GetComm();
+
+   GridFunction gf_serial(fespace_serial);
+   Array<double> vals;
+   Array<int> ints, dofs;
+   MPI_Status status;
+   int n_send_recv;
+
+   int elem_count = 0; // To keep track of element count in serial mesh
+   if (MyRank == save_rank)
+   {
+      Vector nodeval;
+      Array<int> ints_serial;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         GetElementDofValues(e, nodeval);
+         fespace_serial->GetElementVDofs(elem_count++, dofs);
+         gf_serial.SetSubVector(dofs, nodeval);
+      }
+
+      for (int p = 0; p < NRanks; p++)
+      {
+         if (p == save_rank) { continue; }
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MyComm, &status);
+         vals.SetSize(n_send_recv);
+         if (n_send_recv)
+         {
+            MPI_Recv(&vals[0], n_send_recv, MPI_DOUBLE, p, 449, MyComm, &status);
+         }
+         for (int i = 0; i < n_send_recv; )
+         {
+            fespace_serial->GetElementVDofs(elem_count++, dofs);
+            gf_serial.SetSubVector(dofs, &vals[i]);
+            i += dofs.Size();
+         }
+      }
+   } // MyRank == save_rank
+   else
+   {
+      n_send_recv = 0;
+      Vector nodeval;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         const FiniteElement *fe = pfespace->GetFE(e);
+         n_send_recv += vdim*fe->GetDof();
+      }
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, MyComm);
+      vals.Reserve(n_send_recv);
+      vals.SetSize(0);
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         GetElementDofValues(e, nodeval);
+         for (int j = 0; j < nodeval.Size(); j++)
+         {
+            vals.Append(nodeval(j));
+         }
+      }
+      if (n_send_recv)
+      {
+         MPI_Send(&vals[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MyComm);
+      }
+   }
+
+   MPI_Barrier(MyComm);
+   return gf_serial;
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &os,
                            const std::string& variable_name,
