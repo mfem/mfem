@@ -339,7 +339,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto H = Reshape(h_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
-   const double *metric_data = metric_param.GetData();
+   const double *metric_data = metric_param.Read();
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
