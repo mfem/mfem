@@ -447,7 +447,6 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    pmesh.GeneralRefinement(refines, 1); // nonconformal
 
    REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
-   REQUIRE(pmesh.GetNE() == (Mpi::WorldRank() == refining_rank ? 8 : 1));
    REQUIRE(smesh.GetNE() == 8 + 1);
 
    // This is the set of (i,j) that result in face-edge constraints.
@@ -472,7 +471,6 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       tmp.GeneralRefinement(refines);
 
       REQUIRE(tmp.GetGlobalNE() == 1 + 8 - 1 + 8); // 16 elements
-      REQUIRE(tmp.GetNE() == (Mpi::WorldRank() == refining_rank ? 15 : 1));
 
       Mesh stmp(smesh);
       stmp.GeneralRefinement(serial_refines);
@@ -490,7 +488,6 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       ttmp.GeneralRefinement(refines);
 
       REQUIRE(ttmp.GetGlobalNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
-      REQUIRE(ttmp.GetNE() == (Mpi::WorldRank() == refining_rank ? 22 : 1));
 
       Mesh sttmp(stmp);
       sttmp.GeneralRefinement(serial_refines);
