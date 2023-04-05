@@ -362,7 +362,7 @@ public:
                                          ElementTransformation &Trans,
                                          Vector &elvect);
 
-   virtual bool SupportsDevice() { return true; }
+   virtual bool SupportsDevice() const { return true; }
 
    virtual void AssembleDevice(const FiniteElementSpace &fes,
                                const Array<int> &markers,
