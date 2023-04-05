@@ -162,10 +162,19 @@ static void EAMassAssemble3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int DQ = T_D1D * T_Q1D;
 
-#if 0
-      if (DQ < 20)
+      // For quadratic and lower it's better to use registers but for higher-order you start to
+      // spill and it's better to use shared memory
+      constexpr bool USE_REG = DQ != 0 && DQ <= 12;
+      constexpr int MD1r = USE_REG ? MD1 : 1;
+      constexpr int MQ1r = USE_REG ? MQ1 : 1;
+      constexpr int MD1s = USE_REG ? 1 : MD1;
+      constexpr int MQ1s = USE_REG ? 1 : MQ1;
+
+      MFEM_SHARED double s_B[MQ1s][MD1s];
+      double r_B[MQ1r][MD1r];
+      double (*l_B)[MD1] = nullptr;
+      if (USE_REG)
       {
-         double r_B[MQ1][MD1];
          for (int d = 0; d < D1D; d++)
          {
             for (int q = 0; q < Q1D; q++)
@@ -173,23 +182,22 @@ static void EAMassAssemble3D(const int NE,
                r_B[q][d] = B(q,d);
             }
          }
+         l_B = (double (*)[MD1])r_B;
       }
-#else
-      //else
-      //{
-         MFEM_SHARED double r_B[MQ1][MD1];
+      else
+      {
          if (MFEM_THREAD_ID(z) == 0)
          {
             MFEM_FOREACH_THREAD(d,x,D1D)
             {
                MFEM_FOREACH_THREAD(q,y,Q1D)
                {
-                  r_B[q][d] = B(q,d);
+                  s_B[q][d] = B(q,d);
                }
             }
          }
-      //}
-#endif
+         l_B = (double (*)[MD1])s_B;
+      }
 
       MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
       MFEM_FOREACH_THREAD(k1,x,Q1D)
@@ -222,9 +230,9 @@ static void EAMassAssemble3D(const int NE,
                            {
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
-                                 val += r_B[k1][i1] * r_B[k1][j1]
-                                        * r_B[k2][i2] * r_B[k2][j2]
-                                        * r_B[k3][i3] * r_B[k3][j3]
+                                 val += l_B[k1][i1] * l_B[k1][j1]
+                                        * l_B[k2][i2] * l_B[k2][j2]
+                                        * l_B[k3][i3] * l_B[k3][j3]
                                         * s_D[k1][k2][k3];
                               }
                            }
