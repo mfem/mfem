@@ -1,16 +1,10 @@
-//                                MFEM Example 0
+//                                MFEM MarkingLS Example
 //
-// Compile with: make ex0
+// Compile with: make markinglst
 //
-// Sample runs:  ex0
-//               ex0 -m ../data/fichera.mesh
-//               ex0 -m ../data/square-disc.mesh -o 2
+// Sample runs:  mpirun -np 4 markinglst -m ../../../../data/ref-square.mesh -r 5 -g 0
 //
-// Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Laplace
-//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
-//              General 2D/3D mesh files and finite element polynomial degrees
-//              can be specified by command line options.
+// Description: This example code demonstrates marking of arbitrary number of level sets.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -132,11 +126,14 @@ int main(int argc, char *argv[])
    pd->RegisterField("solution", &x);
    pd->RegisterField("phi0", &sdf0);
    pd->RegisterField("phi1", &sdf1);
+   pd->RegisterField("phi2", &sdf2);
    pd->RegisterField("vof0", &vof0);
    pd->RegisterField("vof1", &vof1);
+   pd->RegisterField("vof2", &vof2);
    pd->RegisterField("alpha0", &alpha0);
    pd->RegisterField("alpha1", &alpha1);
    pd->RegisterField("alpha2", &alpha2);
+   pd->RegisterField("alpha3", &alpha3);
    pd->RegisterField("materials", &materials);
    pd->SetLevelsOfDetail(order);
    pd->SetDataFormat(VTKFormat::BINARY);
@@ -187,15 +184,8 @@ int main(int argc, char *argv[])
      LSM.orderedAlpha(VOFs,alphas);
  
      LSM.markMaterials(materials,alphas);
-
-     
-     //LSM.orderedAlpha(vof0,vof1,alpha0,alpha1,alpha2);
-     //LSM.markMaterials(materials,alpha0,alpha1,alpha2);
      
      LSM.tagCells(&mesh, materials,3);
-
-     
-     //mesh.Print();
 
      // 6. Set up the linear form b(.) corresponding to the right-hand side.
      ConstantCoefficient one(1.0);
@@ -239,10 +229,6 @@ int main(int argc, char *argv[])
      pd->Save();
      }
    }
-
-   //   if (glv==0){
-   //delete pd;   
-   //  }
    
    return 0;
 }
