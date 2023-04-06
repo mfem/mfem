@@ -72,7 +72,28 @@ enum PRefineType
    elevation,  // order <- order + value
    setDegree,  // order <- value
 };
-GridFunction ProlongToMaxOrderDG(const GridFunction &x);
+
+/**
+ * @brief Prolongate varying-order GridFunction to equal-order GridFunction by interpolation. Usually used for visualization purpose.
+ *
+ * @param x Varying order GridFunction
+ * @return GridFunction Max-order GridFunction
+ */
+GridFunction ProlongToMaxOrderDG(const GridFunction &x)
+{
+   const FiniteElementSpace *fes = x.FESpace();
+   Mesh *mesh = fes->GetMesh();
+   const int max_order = fes->GetMaxElementOrder();
+   FiniteElementCollection *fec =
+      new DG_FECollection(max_order, mesh->Dimension());
+   FiniteElementSpace *new_fes =
+      new FiniteElementSpace(mesh, fec, fes->GetVDim(), fes->GetOrdering());
+   GridFunctionCoefficient x_gf(&x);
+   GridFunction u(new_fes);
+   u.ProjectCoefficient(x_gf);
+   u.MakeOwner(fec);
+   return u;
+}
 
 /**
  * @brief Abstract class for numerical flux for an hyperbolic conservation laws
