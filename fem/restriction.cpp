@@ -618,15 +618,13 @@ ConformingFaceRestriction::ConformingFaceRestriction(
 {
    height = vdim*nf*face_dofs;
    width = fes.GetVSize();
-   if (!build) { return; }
    if (nf==0) { return; }
 
    CheckFESpace(f_ordering);
 
-   // Get the mapping from lexicographic DOF ordering to native ordering.
-   const FiniteElement *fe = fes.GetFE(0);
+   // Get the mapping from native DOF ordering to lexicographic ordering.
    const TensorBasisElement* el =
-      dynamic_cast<const TensorBasisElement*>(fe);
+      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
    const Array<int> &dof_map_ = el->GetDofMap();
    if (dof_map_.Size() > 0)
    {
@@ -641,6 +639,7 @@ ConformingFaceRestriction::ConformingFaceRestriction(
       for (int i = 0; i < elem_dofs; ++i) { vol_dof_map[i] = i; }
    }
 
+   if (!build) { return; }
    ComputeScatterIndicesAndOffsets(f_ordering, type);
    ComputeGatherIndices(f_ordering,type);
 }
