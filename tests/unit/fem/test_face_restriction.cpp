@@ -26,9 +26,12 @@ Mesh MakeCartesianMesh(int nx, int dim)
    }
 }
 
+namespace face_restriction_test { enum class SpaceType {RT, ND}; }
+
 TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
 {
-   enum class SpaceType {RT, ND};
+   using namespace face_restriction_test;
+
    const auto space_type = GENERATE(SpaceType::RT, SpaceType::ND);
    const int dim = GENERATE(2, 3);
    const int nx = 3;
