@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,6 +77,41 @@ public:
                            Array<int> &ess_shift_bdr) const;
 };
 
+
+class MarkingLS{
+public:
+        MarkingLS(){}
+
+  void createSDF(ParMesh *mesh,
+		 ParGridFunction &sdf,
+		 double (*func)(std::vector<double>));
+  
+  double heaviside(double x,
+		   double k);
+  
+  double heavisideExact(double x);
+
+
+  void mapVOFToNodes(ParGridFunction &sdf,
+		     ParGridFunction &vof);
+
+  void orderedAlpha(std::vector<ParGridFunction*> &VOFs,
+		    std::vector<ParGridFunction*> &alphas);
+  
+  void markMaterials(ParGridFunction &materials,
+		     std::vector<ParGridFunction*> &alphas);
+
+  void markCutCells(ParMesh *mesh,
+		    ParGridFunction &alpha);
+
+  void tagCells(ParMesh *mesh,
+		ParGridFunction &materials,
+		int max_marker);
+  
+};
+
+
+  
 } // namespace mfem
 
 #endif

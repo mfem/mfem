@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -75,7 +75,7 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
       ElementTransformation *eltr =
          pmesh.GetFaceNbrElementTransformation(Elem2NbrNo);
       const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0), 4*eltr->OrderJ());
+	IntRulesLo.Get(pmesh.GetElementBaseGeometry(0), 4*eltr->OrderJ()+4);//
 
       const int nip = ir.GetNPoints();
       vals.SetSize(nip);
@@ -351,4 +351,183 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
    }
 }
 
+
+
+
+void MarkingLS::createSDF(ParMesh *mesh,
+			  ParGridFunction &sdf,
+			  double (*func)(std::vector<double>)){
+
+  int dim = mesh->Dimension();
+  Vector vxyz = *mesh->GetNodes();
+  int nodes_cnt = vxyz.Size()/dim;
+    
+  for (int i = 0; i < nodes_cnt; i++)
+    {
+      sdf(i) = func({vxyz(i),
+		      vxyz(i+nodes_cnt)});
+    }
+  sdf.ExchangeFaceNbrData();
 }
+
+double MarkingLS::heaviside(double x, double k){
+  return std::pow(1+std::exp(-2*k*x),-1);
+}
+
+
+double MarkingLS::heavisideExact(double x){
+  if (x>=0){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+void MarkingLS::mapVOFToNodes(ParGridFunction &sdf,
+			      ParGridFunction &vof){
+  
+  for (long unsigned int i=0; i<sdf.Size(); ++i){
+    vof(i) = MarkingLS::heavisideExact(sdf(i));
+  }
+  vof.ExchangeFaceNbrData();
+}
+
+
+
+void MarkingLS::orderedAlpha(std::vector<ParGridFunction*> &VOFs,
+			     std::vector<ParGridFunction*> &alphas){
+  
+  for (long unsigned int i=0; i<(*VOFs[0]).Size(); ++i){
+    (*alphas[0])(i)=1-(*VOFs[0])(i);      
+   }
+  for (long unsigned int i=1; i<alphas.size(); ++i){
+    for (long unsigned int j=0; j<(*VOFs[0]).Size(); ++j){
+      if (i==alphas.size()-1){
+	(*alphas[i])(j)=1;
+      }else{
+	(*alphas[i])(j)=(*VOFs[i])(j);
+      }
+      for (long unsigned int k=0; k<i; ++k){
+	(*alphas[i])(j)*=(1-(*alphas[k])(j));
+      }
+    }
+  }  
+  
+ for (long unsigned int i=0; i<alphas.size(); ++i){
+
+  (*alphas[i]).ExchangeFaceNbrData();
+ }
+}
+
+void MarkingLS::markMaterials(ParGridFunction &materials,
+			      std::vector<ParGridFunction*> &alphas){
+  
+
+  for (long unsigned int i=0; i<(*alphas[0]).Size(); ++i){
+    for (long unsigned int j=0; j<alphas.size(); ++j){
+      if((*alphas[j])(i)==1){
+	materials(i)=j;
+      }
+    }
+  }
+
+  materials.ExchangeFaceNbrData();
+}
+
+
+void MarkingLS::markCutCells(ParMesh *mesh,
+			     ParGridFunction &alpha){
+  int NE;
+  Element *el;
+  Array<int> elNs;
+  Array<int> alNs;
+
+  NE = mesh->GetNE();
+  
+  for (int i=0; i<NE; ++i){
+    el = mesh->GetElement(i);
+    el->GetVertices(elNs);
+    alNs.LoseData();
+    for (long unsigned int j=0; j<elNs.Size(); ++j){
+      alNs.Append(alpha(elNs[j]));
+    }
+    if (alNs.Max() != alNs.Min()){
+      el->SetAttribute(1);
+    }else{
+      el->SetAttribute(0);
+    }
+    
+  }
+    
+}
+
+
+void MarkingLS::tagCells(ParMesh *mesh,
+			 ParGridFunction &materials,
+			 int max_marker){
+  int NE;
+  NE = mesh->GetNE();
+  Element *el;
+  Array<int> elNs;
+  std::vector<int> matNs,markers,celltags;
+  //int max_marker=3;
+  int count;
+
+  
+  for (long unsigned int i=0; i<materials.Size(); ++i){
+    if (materials(i)>max_marker){
+      max_marker=materials(i);
+	}
+  }
+
+  for(int i=0;i<max_marker+1;i++){
+        markers.push_back(i);
+    } 
+
+  std::set<std::set<int>> cellsets;
+  std::vector<std::vector<int>> v { markers,markers,markers,markers};
+
+  std::cout<<"markers parallel"<<markers.size()<<std::endl;
+  
+  auto product = []( long long a, std::vector<int>& b ) { return a*b.size(); };
+  const long long N = accumulate( v.begin(), v.end(), 1LL, product );
+  std::vector<int> u(v.size());
+  for( long long n=0 ; n<N ; ++n ) {
+    lldiv_t q { n, 0 };
+    for( long long i=v.size()-1 ; 0<=i ; --i ) {
+      q = div( q.quot, v[i].size() );
+      u[i] = v[i][q.rem];
+    }
+    std::set<int> s(u.begin(), u.end());
+    cellsets.insert(s);
+  }
+  
+  for (int i=0; i<NE; ++i){
+    el = mesh->GetElement(i);
+    el->GetVertices(elNs);
+    matNs.clear();
+
+    
+    for (long unsigned int j=0; j<elNs.Size(); ++j){
+      matNs.push_back(materials(elNs[j]));
+    }
+
+    std::set<int> matNs_set(matNs.begin(), matNs.end());
+
+    int count=0;
+    for( std::set<int> s : cellsets ){
+      if (s==matNs_set){
+	el->SetAttribute(count);
+	break;
+      }else{
+	count++;
+      }
+    }
+  }
+}
+}
+
+
+
+
+
