@@ -1,0 +1,14 @@
+Options used:
+   --mesh star.mesh
+   --order 1
+Number of unknowns: 101
+   Iteration :   0  (B r, r) = 0.184259
+   Iteration :   1  (B r, r) = 0.102754
+   Iteration :   2  (B r, r) = 0.00558141
+   Iteration :   3  (B r, r) = 1.5247e-05
+   Iteration :   4  (B r, r) = 1.13807e-07
+   Iteration :   5  (B r, r) = 6.27231e-09
+   Iteration :   6  (B r, r) = 3.76268e-11
+   Iteration :   7  (B r, r) = 6.07423e-13
+   Iteration :   8  (B r, r) = 4.10615e-15
+Average reduction factor = 0.140201
