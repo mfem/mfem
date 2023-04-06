@@ -39,9 +39,10 @@
 #define MFEM_HYPERBOLIC_CONSERVATION_LAWS
 #include "mfem.hpp"
 
-using namespace std;
-using namespace mfem;
-
+// using namespace std;
+// using namespace mfem;
+namespace mfem
+{
 /**
  * @brief Average two states with sqrt of density as a weight
  *
@@ -240,7 +241,7 @@ public:
                                   const FiniteElement &test_fe)
    {
       int order;
-      order = max(trial_fe.GetOrder(), test_fe.GetOrder()) * 2 + IntOrderOffset;
+      order = std::max(trial_fe.GetOrder(), test_fe.GetOrder()) * 2 + IntOrderOffset;
       return IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
@@ -495,7 +496,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
       const double mcs = ComputeFlux(state, Tr, flux);
       // update maximum characteristic speed
       #pragma omp atomic
-      max_char_speed = max(mcs, max_char_speed);
+      max_char_speed = std::max(mcs, max_char_speed);
       // integrate (F(u,x), grad v)
       AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
    }
@@ -567,14 +568,14 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
          CalcOrtho(Tr.Jacobian(), nor);
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
-      const double mcs = max(
+      const double mcs = std::max(
                             ComputeFluxDotN(state1, nor, Tr.GetElement1Transformation(), fluxN1),
                             ComputeFluxDotN(state2, nor, Tr.GetElement2Transformation(), fluxN2));
       // Compute hat(F) using evaluated quantities
       rsolver->Eval(state1, state2, fluxN1, fluxN2, mcs, nor, fluxN);
 
       // Update the global max char speed
-      max_char_speed = max(mcs, max_char_speed);
+      max_char_speed = std::max(mcs, max_char_speed);
 
       // pre-multiply integration weight to flux
       fluxN *= ip.weight;
@@ -1103,6 +1104,7 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
       new ShallowWaterFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
 
    return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
+}
 }
 
 #endif
