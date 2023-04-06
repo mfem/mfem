@@ -246,7 +246,7 @@ public:
    /// and return an MDTensor with the MDSpan's pointer and strides
    const MDTensor<N,const double> MDRead(bool on_dev = true) const
    {
-      double *ptr = mfem::Read(mfem_type::data, mfem_type::size, on_dev);
+      const double *ptr = mfem::Read(mfem_type::data, mfem_type::size, on_dev);
       return MDTensor<N,const double>(ptr, Sd);
    }
 
