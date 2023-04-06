@@ -622,7 +622,7 @@ ConformingFaceRestriction::ConformingFaceRestriction(
 
    CheckFESpace(f_ordering);
 
-   // Get the mapping from native DOF ordering to lexicographic ordering.
+   // Get the mapping from lexicographic DOF ordering to native ordering.
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
    const Array<int> &dof_map_ = el->GetDofMap();
