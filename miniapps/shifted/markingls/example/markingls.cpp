@@ -1,16 +1,10 @@
-//                                MFEM Example 0
+//                                MFEM MarkingLS Example
 //
-// Compile with: make ex0
+// Compile with: make markingls
 //
-// Sample runs:  ex0
-//               ex0 -m ../data/fichera.mesh
-//               ex0 -m ../data/square-disc.mesh -o 2
+// Sample runs:  mpirun -np 4 markingls -m ../../../../data/ref-square.mesh -r 5 -g 0
 //
-// Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Laplace
-//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
-//              General 2D/3D mesh files and finite element polynomial degrees
-//              can be specified by command line options.
+// Description: This example code demonstrates marking of arbitrary number of level sets.
 
 #include "mfem.hpp"
 #include "../../../common/mfem-common.hpp"
@@ -140,7 +134,6 @@ int main(int argc, char *argv[])
    ParGridFunction alpha2(&fespace);
    ParGridFunction alpha3(&fespace);
    
-   //LSM.orderedAlpha(vof0,vof1,alpha0,alpha1,alpha2);
 
    std::vector<ParGridFunction*> VOFs;
    std::vector<ParGridFunction*> alphas;
@@ -151,16 +144,9 @@ int main(int argc, char *argv[])
   
    LSM.orderedAlpha(VOFs,alphas);
 
-   //std::cout<<"pointer test "<<alphas[1](1)<<std::endl;
-   //std::cout<<"pointer test "<<alpha1(1)<<std::endl;
-   
-   //LSM.markMaterials(materials,alpha0,alpha1,alpha2,alpha3);
-   LSM.markMaterials(materials,alphas);
-   
-   // LSM.markCutCells(&mesh, alpha0);
+   LSM.markMaterials(materials,alphas);  
    
    LSM.tagCells(&mesh, materials,3);
-   //mesh.Print();
    
    // 6. Set up the linear form b(.) corresponding to the right-hand side.
    ConstantCoefficient one(1.0);
