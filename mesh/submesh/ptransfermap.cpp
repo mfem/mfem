@@ -136,19 +136,25 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         z_(sub2_to_parent_map_[i]) = dst(i);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
+         z_(j) = s * dst(i);
       }
 
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         z_(sub1_to_parent_map_[i]) = src(i);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         z_(j) = s * src(i);
       }
 
       CommunicateSharedVdofs(z_);
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         dst(i) = z_(sub2_to_parent_map_[i]);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
+         dst(i) = s * z_(j);
       }
    }
    else
