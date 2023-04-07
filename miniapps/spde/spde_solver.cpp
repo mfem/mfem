@@ -319,7 +319,7 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
     }
   }
   delete Ae;
-  delete Op_; Op_=nullptr;
+  delete Op;
 }
 
 void SPDESolver::LiftSolution(ParGridFunction &x) {
