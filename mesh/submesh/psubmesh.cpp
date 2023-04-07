@@ -107,6 +107,32 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       {
          parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
       }
+
+      parent_face_ori_.SetSize(NumOfFaces);
+
+      for (int i = 0; i < NumOfFaces; i++)
+      {
+         Array<int> sub_vert;
+         GetFaceVertices(i, sub_vert);
+
+         Array<int> sub_par_vert(sub_vert.Size());
+         for (int j = 0; j < sub_vert.Size(); j++)
+         {
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+         }
+
+         Array<int> par_vert;
+         parent.GetFaceVertices(parent_face_ids_[i], par_vert);
+
+         if (par_vert.Size() == 3)
+         {
+            parent_face_ori_[i] = GetTriOrientation(par_vert, sub_par_vert);
+         }
+         else
+         {
+            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
+         }
+      }
    }
 
    ListOfIntegerSets groups;
