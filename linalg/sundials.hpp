@@ -35,6 +35,12 @@
 #if defined(MFEM_USE_HIP) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 7))
 #error MFEM requires SUNDIALS version 5.7.0 or newer when MFEM_USE_HIP=TRUE!
 #endif
+#if defined(MFEM_USE_CUDA) && !defined(SUNDIALS_NVECTOR_CUDA)
+#error MFEM_USE_CUDA=TRUE requires SUNDIALS to be built with CUDA support
+#endif
+#if defined(MFEM_USE_HIP) && !defined(SUNDIALS_NVECTOR_HIP)
+#error MFEM_USE_HIP=TRUE requires SUNDIALS to be built with HIP support
+#endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
 #include <arkode/arkode_arkstep.h>

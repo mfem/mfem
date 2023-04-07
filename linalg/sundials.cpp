@@ -421,7 +421,7 @@ void SundialsNVector::_SetDataAndSize_()
          double *d_ptr = SUN_Hip_OR_Cuda(N_VGetDeviceArrayPointer)(local_x);
          const bool known = mm.IsKnown(h_ptr);
          size = SUN_Hip_OR_Cuda(N_VGetLength)(local_x);
-         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false);
+         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false, true);
          if (known) { data.ClearOwnerFlags(); }
          UseDevice(true);
          break;
