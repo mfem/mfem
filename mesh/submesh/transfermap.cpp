@@ -95,7 +95,9 @@ void TransferMap::Transfer(const GridFunction &src,
       // dst = S1^T src
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         dst(i) = src(sub1_to_parent_map_[i]);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         dst(i) = s * src(j);
       }
    }
    else if (category_ == TransferCategory::SubMeshToParent)
@@ -107,7 +109,9 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         dst(sub1_to_parent_map_[i]) = src(i);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         dst(j) = s * src(i);
       }
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
@@ -120,17 +124,23 @@ void TransferMap::Transfer(const GridFunction &src,
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         z_(sub2_to_parent_map_[i]) = dst(i);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
+         z_(j) = s * dst(i);
       }
 
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         z_(sub1_to_parent_map_[i]) = src(i);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         z_(j) = s * src(i);
       }
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
-         dst(i) = z_(sub2_to_parent_map_[i]);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
+         dst(i) = s * z_(j);
       }
    }
    else
