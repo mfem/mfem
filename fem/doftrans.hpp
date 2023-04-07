@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
-#include "fe.hpp"
 
 namespace mfem
 {
@@ -181,7 +180,7 @@ public:
    /// Return the nested DofTransformation object
    inline DofTransformation * GetDofTransformation() const { return doftrans_; }
 
-   inline void SetFaceOrientation(const Array<int> & face_orientation)
+   inline void SetFaceOrientations(const Array<int> & face_orientation)
    { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation); }
 
    using DofTransformation::TransformPrimal;

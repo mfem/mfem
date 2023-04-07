@@ -14,6 +14,7 @@
 
 #include "../intrules.hpp"
 #include "../geom.hpp"
+#include "../doftrans.hpp"
 
 #include <map>
 
@@ -575,6 +576,8 @@ public:
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
+
+   virtual DofTransformation * GetDofTransformation() const { return NULL; }
 
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
