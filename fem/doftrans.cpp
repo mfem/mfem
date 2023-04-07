@@ -14,54 +14,6 @@
 namespace mfem
 {
 
-void DofTransformation::TransformPrimal(Vector &v) const
-{
-   TransformPrimal(v.GetData());
-}
-
-void DofTransformation::TransformPrimalCols(DenseMatrix &V) const
-{
-   for (int c=0; c<V.Width(); c++)
-   {
-      TransformPrimal(V.GetColumn(c));
-   }
-}
-
-void DofTransformation::TransformDual(Vector &v) const
-{
-   TransformDual(v.GetData());
-}
-
-void DofTransformation::TransformDual(DenseMatrix &V) const
-{
-   TransformDualCols(V);
-   TransformDualRows(V);
-}
-
-void DofTransformation::TransformDualRows(DenseMatrix &V) const
-{
-   Vector row;
-   for (int r=0; r<V.Height(); r++)
-   {
-      V.GetRow(r, row);
-      TransformDual(row);
-      V.SetRow(r, row);
-   }
-}
-
-void DofTransformation::TransformDualCols(DenseMatrix &V) const
-{
-   for (int c=0; c<V.Width(); c++)
-   {
-      TransformDual(V.GetColumn(c));
-   }
-}
-
-void DofTransformation::InvTransformPrimal(Vector &v) const
-{
-   InvTransformPrimal(v.GetData());
-}
-
 void TransformPrimal(const DofTransformation *ran_dof_trans,
                      const DofTransformation *dom_dof_trans,
                      DenseMatrix &elmat)
@@ -83,11 +35,6 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
    {
       // If both transformations are NULL this function should not be called
    }
-}
-
-void DofTransformation::InvTransformDual(Vector &v) const
-{
-   InvTransformDual(v.GetData());
 }
 
 void TransformDual(const DofTransformation *ran_dof_trans,
@@ -290,8 +237,7 @@ void ND_TriDofTransformation::TransformPrimal(double *v) const
    }
 }
 
-void
-ND_TriDofTransformation::InvTransformPrimal(double *v) const
+void ND_TriDofTransformation::InvTransformPrimal(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -313,8 +259,7 @@ ND_TriDofTransformation::InvTransformPrimal(double *v) const
    }
 }
 
-void
-ND_TriDofTransformation::TransformDual(double *v) const
+void ND_TriDofTransformation::TransformDual(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -336,8 +281,7 @@ ND_TriDofTransformation::TransformDual(double *v) const
    }
 }
 
-void
-ND_TriDofTransformation::InvTransformDual(double *v) const
+void ND_TriDofTransformation::InvTransformDual(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -386,8 +330,7 @@ void ND_TetDofTransformation::TransformPrimal(double *v) const
    }
 }
 
-void
-ND_TetDofTransformation::InvTransformPrimal(double *v) const
+void ND_TetDofTransformation::InvTransformPrimal(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -409,8 +352,7 @@ ND_TetDofTransformation::InvTransformPrimal(double *v) const
    }
 }
 
-void
-ND_TetDofTransformation::TransformDual(double *v) const
+void ND_TetDofTransformation::TransformDual(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -432,8 +374,7 @@ ND_TetDofTransformation::TransformDual(double *v) const
    }
 }
 
-void
-ND_TetDofTransformation::InvTransformDual(double *v) const
+void ND_TetDofTransformation::InvTransformDual(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -482,8 +423,7 @@ void ND_WedgeDofTransformation::TransformPrimal(double *v) const
    }
 }
 
-void
-ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
+void ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -505,8 +445,7 @@ ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
    }
 }
 
-void
-ND_WedgeDofTransformation::TransformDual(double *v) const
+void ND_WedgeDofTransformation::TransformDual(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -528,8 +467,7 @@ ND_WedgeDofTransformation::TransformDual(double *v) const
    }
 }
 
-void
-ND_WedgeDofTransformation::InvTransformDual(double *v) const
+void ND_WedgeDofTransformation::InvTransformDual(double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
