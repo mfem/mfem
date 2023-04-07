@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DEBUG_PMATRIX
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -2139,18 +2140,28 @@ void NeighborRowMessage::Decode(int rank)
    rows.reserve(nrows);
 
    // read rows
-   for (int ent = 0, gi = 0; ent < 3; ent++)
+   // ent = {0,1,2} means vertex, edge and face entity
+   for (int ent = 0, gi = 0; ent < 2; ent++)
    {
+      // extract the vertex list, edge list or face list.
       const Array<MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
+         // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
 
-         // handle orientation and sign change
+         // Handle orientation and sign change.
+         // This flips the sign on dofs where necessary, and for edges and faces
+         // also reorders if flipped, i.e. an edge with
+         //    1 -> 2 -> 3 -> 4
+         // might become
+         //    -4 -> -3 -> -2 -> -1
+         // This cannot treat the
          const int *ind = NULL;
          if (ent == 1)
          {
+            // edge NC orientation is element defined.
             int eo = pncmesh->GetEdgeNCOrientation(id);
             ind = fec->DofOrderForOrientation(Geometry::SEGMENT, eo);
          }
@@ -2171,6 +2182,7 @@ void NeighborRowMessage::Decode(int rank)
             s *= -1.0;
          }
 
+         // Create a row for this entity, recording the index of the mesh element
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream, s);
 
@@ -2182,6 +2194,38 @@ void NeighborRowMessage::Decode(int rank)
 #endif
       }
    }
+
+   // All edge dofs signs have been flipped and assigned. Now if a finite
+   // element collection is Nedelec and three dimensional, need to load the P
+   // matrix portion corresponding to the whole element, to apply DOF
+   // transformations on the face dofs. This is because the transformations for
+   // ND face dofs have a minimal representation as a 2x2 operator, to
+   // incorporate flips etc.
+   // In a normal triangle face, orientation of the face is dictated by the
+   // element that reached the face first, then within each element the
+   // DofTransformation object is used to map from the face definition to the
+   // element definition. On a processor boundary however there is not a unique
+   // notion of face orientation, as in a way both left and right elements
+   // visited the face first, as for each it is a ghost on the other side. Thus
+   // for each rank, the orientation of the face is such that the normal points
+   // towards the ghost element.
+   // In crossing the processor boundary it is thus necessary to apply the
+   // effect of an orientation flip to get to the processor local face
+   // orientation. In effect, there are now global face orientations and local
+   // face orientations, for faces interior to any processor subdomain, these
+   // are identical. For faces on the processor boundary, there is a different
+   // face orientation local to each processor.
+   // The P matrix that ties DoFs across processor boundaries thus needs to
+   // incorporate this change. One way to address this is that the lower rank
+   // processor has the "global" orientation, and the higher rank processor
+   // needs to apply an orientation flip from the "global" orientation to the
+   // outward pointing normal orientation expected by the element orientation.
+   // This is extremely close to the notion of a "double face" introduced in
+   // https://github.com/mfem/mfem/pull/2145 however these "double faces" are
+   // only needed on a processor boundary, as for all other faces the two
+   // definitions are coincident.
+
+
 }
 
 void
@@ -2310,10 +2354,10 @@ int ParFiniteElementSpace
                                        bool partial) const
 {
    // TODO: general face DOF transformations in NeighborRowMessage::Decode()
-   MFEM_VERIFY(!(fec->GetOrder() >= 2
-                 && pmesh->HasGeometry(Geometry::TETRAHEDRON)
-                 && fec->GetContType() == FiniteElementCollection::TANGENTIAL),
-               "Nedelec NC tets of order >= 2 are not supported yet.");
+   // MFEM_VERIFY(!(fec->GetOrder() >= 2
+   //               && pmesh->HasGeometry(Geometry::TETRAHEDRON)
+   //               && fec->GetContType() == FiniteElementCollection::TANGENTIAL),
+   //             "Nedelec NC tets of order >= 2 are not supported yet.");
 
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
