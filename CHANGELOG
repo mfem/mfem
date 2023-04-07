@@ -14,6 +14,8 @@ Version 4.5.3 (development)
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+- Added HIP support to the SUNDIALS interface.
+
 Version 4.5.2, released on March 23, 2023
 =========================================
 
@@ -48,14 +50,6 @@ Version 4.5.2, released on March 23, 2023
   formats using the corresponding DataCollection. See option 'D' in the menu.
 
 - VisItDataCollection now correctly handles data collection names containing
-
-- Added HIP support to the SUNDIALS interface.
-
-- Added HIP support to the SUNDIALS interface.
-
-Miscellaneous
--------------
-- VisItDataCollection now correctly handles collection names containing
   underscores.
 
 - Added support for shared Windows builds with MSVC through CMake.
