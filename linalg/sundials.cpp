@@ -257,7 +257,7 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
 
    // memsize is the number of bytes to allocate, so we use Memory<char>
    if (mem_type == SUNMEMTYPE_HOST)
-   { 
+   {
       Memory<char> mem(memsize, Device::GetHostMemoryType());
       mem.SetHostPtrOwner(false);
       sunmem->ptr  = mfem::HostReadWrite(mem, memsize);
