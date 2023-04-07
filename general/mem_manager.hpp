@@ -382,7 +382,7 @@ public:
          - SetDevicePtrOwner.
 
        @note The current memory is NOT deleted by this method. */
-   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
+   inline void Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own, bool isHostValid = false, bool isDeviceValid = true);
 
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
@@ -958,17 +958,22 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
+inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own, bool isHostValid, bool isDeviceValid)
 {
    h_mt = mt;
    flags = 0;
    h_ptr = ptr;
    capacity = size;
    MFEM_ASSERT(IsHostMemory(h_mt),"");
+   MFEM_ASSERT(isHostValid || isDeviceValid,"");
    const size_t bytes = size*sizeof(T);
    const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
    MemoryManager::Register2_(h_ptr, d_ptr, bytes, h_mt, d_mt,
                              own, false, flags);
+   // Register2_ assumes host is valid 
+   flags &= ~(VALID_HOST | VALID_DEVICE);
+   if (isHostValid) { flags |= VALID_HOST; }
+   if (isDeviceValid) { flags |= VALID_DEVICE; }
 }
 
 template <typename T>
