@@ -13,10 +13,8 @@
 #include <cmath>
 #include <functional>
 
-namespace mfem
-{
-namespace materials
-{
+namespace mfem {
+namespace spde {
 
 // ---------------------------------------------------------------------------
 // Functions for TransformedCoefficient interface
@@ -24,13 +22,9 @@ namespace materials
 
 /// This function effectively implements equation 19 of the paper (see header).
 ///  `\Phi [y(x)]`
-double TransformToUniform(double x) {
-  return std::erfc(-x/std::sqrt(2))/2;
-}
+double TransformToUniform(double x) { return std::erfc(-x / std::sqrt(2)) / 2; }
 
-double ApplyLevelSetAtZero(double x) {
-  return x >= 0 ? 1 : 0;
-}
+double ApplyLevelSetAtZero(double x) { return x >= 0 ? 1 : 0; }
 
 // ---------------------------------------------------------------------------
 // Member functions for GFTransformer class
@@ -38,7 +32,7 @@ double ApplyLevelSetAtZero(double x) {
 
 void UniformGRFTransformer::Transform(ParGridFunction &x) const {
   GridFunctionCoefficient gf_coeff(&x);
-  ConstantCoefficient factor(max_-min_);
+  ConstantCoefficient factor(max_ - min_);
   ConstantCoefficient summand(min_);
   TransformedCoefficient transformation_coeff(&gf_coeff, TransformToUniform);
   ProductCoefficient product_coeff(transformation_coeff, factor);
@@ -55,9 +49,7 @@ void OffsetTransformer::Transform(ParGridFunction &x) const {
   x += xx;
 }
 
-void ScaleTransformer::Transform(ParGridFunction &x) const {
-  x *= scale_;
-}
+void ScaleTransformer::Transform(ParGridFunction &x) const { x *= scale_; }
 
 void LevelSetTransformer::Transform(ParGridFunction &x) const {
   GridFunctionCoefficient gf_coeff(&x);
@@ -69,5 +61,5 @@ void LevelSetTransformer::Transform(ParGridFunction &x) const {
   x = xx;
 }
 
-} // namespace materials
-} // namespace mfem
+}  // namespace spde
+}  // namespace mfem

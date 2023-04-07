@@ -12,25 +12,32 @@
 #include "mfem.hpp"
 
 namespace mfem {
-namespace materials {
+namespace spde {
 
 class Visualizer {
-public:
+ public:
   Visualizer(ParMesh &mesh, int order, GridFunction &g1, GridFunction &g2,
-             GridFunction &g3, GridFunction &g4)
-      : mesh_(&mesh), order_(order), g1_(g1), g2_(g2), g3_(g3), g4_(g4) {}
+             GridFunction &g3, GridFunction &g4, bool is_3D = true)
+      : mesh_(&mesh),
+        order_(order),
+        g1_(g1),
+        g2_(g2),
+        g3_(g3),
+        g4_(g4),
+        is_3D_(is_3D) {}
 
   void ExportToParaView();
-  void SendToGLVis();
+  void SendToGLVis() const;
 
-private:
+ private:
   ParMesh *mesh_;
   int order_;
   GridFunction &g1_;
   GridFunction &g2_;
   GridFunction &g3_;
   GridFunction &g4_;
+  bool is_3D_;
 };
 
-} // namespace materials
-} // namespace mfem
+}  // namespace spde
+}  // namespace mfem

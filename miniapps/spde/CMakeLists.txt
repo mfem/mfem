@@ -10,15 +10,15 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(main
-    MAIN main.cpp
-    EXTRA_SOURCES material_metrics.cpp solvers.cpp util.cpp visualizer.cpp
+  add_mfem_miniapp(generate_random_field
+    MAIN generate_random_field.cpp
+    EXTRA_SOURCES material_metrics.cpp spde_solver.cpp util.cpp visualizer.cpp
                   transformation.cpp boundary.cpp
     LIBRARIES mfem)
 
   # Copy files to the build folder.
-  file(COPY ${PROJECT_SOURCE_DIR}/miniapps/materials/README.md
-       DESTINATION ${PROJECT_BINARY_DIR}/miniapps/materials)
+  file(COPY ${PROJECT_SOURCE_DIR}/miniapps/spde/README.md
+       DESTINATION ${PROJECT_BINARY_DIR}/miniapps/spde)
 else ()
   message("This miniapp requires MPI to be enabled." 
           "Please compile with MFEM_USE_MPI.")

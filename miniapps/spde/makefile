@@ -12,25 +12,29 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/materials/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/spde/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MATERIALS_COMMON_SRC = material_metrics.cpp solvers.cpp util.cpp \
-											 visualizer.cpp transformation.cpp boundary.cpp
-MATERIALS_COMMON_OBJ = $(MATERIALS_COMMON_SRC:.cpp=.o)
+SPDE_COMMON_SRC = boundary.cpp material_metrics.cpp spde_solver.cpp transformation.cpp util.cpp visualizer.cpp
 
-PAR_MINIAPPS = main
+SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 
+SEQ_MINIAPPS = 
+PAR_MINIAPPS = generate_random_field
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -41,7 +45,7 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(MATERIALS_COMMON_OBJ)
+%: %.o $(SPDE_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
@@ -56,8 +60,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
-# clean-exec:
-	# @rm -rf tgv_out*.txt *_output
+clean-exec:
+	@rm -rf ParaView 
