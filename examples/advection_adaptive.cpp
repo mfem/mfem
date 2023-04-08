@@ -445,17 +445,17 @@ VectorFunctionCoefficient AdvectionSolution(const int problem, double &t)
       case 1:
          return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y)
          {
-            y(0) = __sinpi(x(0)) * __sinpi(x(1));
+            y(0) = sin(M_PI*x(0)) * sin(M_PI*x(1));
          });
       case 2:
          return VectorFunctionCoefficient(1, [&t](const Vector &x, Vector &y)
          {
-            y(0) = __sinpi(x(0) - t) * __sinpi(x(1) - t);
+            y(0) = sin(M_PI*x(0) - t) * sin(M_PI*x(1) - t);
          });
       case 3:
          return VectorFunctionCoefficient(1, [&t](const Vector &x, Vector &y)
          {
-            y(0) = __sinpi(2 * (x(0) - t));
+            y(0) = sin(M_PI*2 * (x(0) - t));
          });
       default:
          throw invalid_argument("Problem Undefined");

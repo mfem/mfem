@@ -527,7 +527,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             MFEM_ASSERT(x.Size() == 2, "");
             // std::cout << "2D Accuracy Test." << std::endl;
             // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
-            const double density = 1.0 + 0.2 * __sinpi(x(0) + x(1));
+            const double density = 1.0 + 0.2 * sin(M_PI*x(0) + x(1));
             const double velocity_x = 0.7;
             const double velocity_y = 0.3;
             const double pressure = 1.0;
@@ -544,7 +544,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
          return VectorFunctionCoefficient(3, [specific_heat_ratio, gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 1, "");
-            const double density = 1.0 + 0.2 * __sinpi(2 * x(0));
+            const double density = 1.0 + 0.2 * sin(M_PI*2 * x(0));
             const double velocity_x = 1.0;
             const double pressure = 1.0;
             const double energy =
@@ -561,8 +561,8 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             const double L = 1.0;
             const double density = abs(x(1)) < 0.25 ? 2 : 1;
             const double velocity_x = abs(x(1)) < 0.25 ? -0.5 : 0.5;
-            const double velocity_y = abs(x(1)) < 0.25 ? 0.01 * __sinpi(x(0) / L)
-                                      : 0.01 * __sinpi(x(0) / L);
+            const double velocity_y = abs(x(1)) < 0.25 ? 0.01 * sin(M_PI*x(0) / L)
+                                      : 0.01 * sin(M_PI*x(0) / L);
             const double pressure = abs(x(1)) < 0.25 ? 2.5 : 2.5;
             const double energy =
                pressure / (1.4 - 1.0) +

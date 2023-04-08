@@ -319,9 +319,9 @@ VectorFunctionCoefficient BurgersInitialCondition(const int problem)
    switch (problem)
    {
       case 1:
-         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = __sinpi(x(0) * 2); });
+         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = sin(M_PI*x(0) * 2); });
       case 2:
-         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = __sinpi(x.Sum()); });
+         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = sin(M_PI*x.Sum()); });
       case 3:
          return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = x(0) < 0.5 ? 1.0 : 2.0; });
       default:

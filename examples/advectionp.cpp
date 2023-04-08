@@ -392,7 +392,7 @@ VectorFunctionCoefficient AdvectionInitialCondition(const int problem)
          return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
-            y(0) = __sinpi(x(0)) * __sinpi(x(1));
+            y(0) = sin(M_PI*x(0)) * sin(M_PI*x(1));
          });
       default:
          throw invalid_argument("Problem Undefined");
