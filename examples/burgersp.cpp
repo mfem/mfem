@@ -53,11 +53,9 @@ using namespace mfem;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
 void BurgersMesh(const int problem, const char **mesh_file);
 
-SpatialFunction BurgersInitialCondition(const int problem);
+VectorFunctionCoefficient BurgersInitialCondition(const int problem);
 
 int main(int argc, char *argv[])
 {
@@ -198,7 +196,7 @@ int main(int argc, char *argv[])
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations, BurgersInitialCondition(problem));
+   VectorFunctionCoefficient u0 = BurgersInitialCondition(problem);
    ParGridFunction sol(fes);
    sol.ProjectCoefficient(u0);
 

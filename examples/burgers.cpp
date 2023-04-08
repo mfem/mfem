@@ -53,11 +53,9 @@ using namespace mfem;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
 void BurgersMesh(const int problem, const char **mesh_file);
 
-SpatialFunction BurgersInitialCondition(const int problem);
+VectorFunctionCoefficient BurgersInitialCondition(const int problem);
 
 int main(int argc, char *argv[])
 {
@@ -167,7 +165,7 @@ int main(int argc, char *argv[])
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations, BurgersInitialCondition(problem));
+   VectorFunctionCoefficient u0 = BurgersInitialCondition(problem);
    GridFunction sol(fes);
    sol.ProjectCoefficient(u0);
 
@@ -316,16 +314,16 @@ void BurgersMesh(const int problem, const char **mesh_file)
 }
 
 // Initial condition
-SpatialFunction BurgersInitialCondition(const int problem)
+VectorFunctionCoefficient BurgersInitialCondition(const int problem)
 {
    switch (problem)
    {
       case 1:
-         return [](const Vector &x, Vector &y) { y(0) = __sinpi(x(0) * 2); };
+         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = __sinpi(x(0) * 2); });
       case 2:
-         return [](const Vector &x, Vector &y) { y(0) = __sinpi(x.Sum()); };
+         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = __sinpi(x.Sum()); });
       case 3:
-         return [](const Vector &x, Vector &y) { y(0) = x(0) < 0.5 ? 1.0 : 2.0; };
+         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y) { y(0) = x(0) < 0.5 ? 1.0 : 2.0; });
       default:
          throw invalid_argument("Problem Undefined");
    }

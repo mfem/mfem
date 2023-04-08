@@ -53,13 +53,11 @@ using namespace mfem;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
 void EulerMesh(const int problem, const char **mesh_file);
 
-SpatialFunction EulerInitialCondition(const int problem,
-                                      const double specific_heat_ratio,
-                                      const double gas_constant);
+VectorFunctionCoefficient EulerInitialCondition(const int problem,
+                                                const double specific_heat_ratio,
+                                                const double gas_constant);
 
 int main(int argc, char *argv[])
 {
@@ -187,9 +185,8 @@ int main(int argc, char *argv[])
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
-   VectorFunctionCoefficient u0(
-      num_equations,
-      EulerInitialCondition(problem, specific_heat_ratio, gas_constant));
+   VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
+                                                        specific_heat_ratio, gas_constant);
    GridFunction sol(vfes);
    sol.ProjectCoefficient(u0);
 
@@ -348,14 +345,15 @@ void EulerMesh(const int problem, const char **mesh_file)
 }
 
 // Initial condition
-SpatialFunction EulerInitialCondition(const int problem,
-                                      const double specific_heat_ratio,
-                                      const double gas_constant)
+VectorFunctionCoefficient EulerInitialCondition(const int problem,
+                                                const double specific_heat_ratio,
+                                                const double gas_constant)
 {
    switch (problem)
    {
       case 1:
-         return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+                                              gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
 
@@ -403,9 +401,10 @@ SpatialFunction EulerInitialCondition(const int problem,
             y(1) = den * velX;
             y(2) = den * velY;
             y(3) = den * energy;
-         };
+         });
       case 2:
-         return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+                                              gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
 
@@ -453,9 +452,10 @@ SpatialFunction EulerInitialCondition(const int problem,
             y(1) = den * velX;
             y(2) = den * velY;
             y(3) = den * energy;
-         };
+         });
       case 3:
-         return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+                                              gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
             // std::cout << "2D Accuracy Test." << std::endl;
@@ -472,9 +472,10 @@ SpatialFunction EulerInitialCondition(const int problem,
             y(1) = density * velocity_x;
             y(2) = density * velocity_y;
             y(3) = energy;
-         };
+         });
       case 4:
-         return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(1, [specific_heat_ratio,
+                                              gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 1, "");
             const double density = 1.0 + 0.2 * __sinpi(2 * x(0));
@@ -486,9 +487,10 @@ SpatialFunction EulerInitialCondition(const int problem,
             y(0) = density;
             y(1) = density * velocity_x;
             y(2) = energy;
-         };
+         });
       case 5:
-         return [specific_heat_ratio, gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+                                              gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
             const double L = 1.0;
@@ -505,7 +507,7 @@ SpatialFunction EulerInitialCondition(const int problem,
             y(1) = density * velocity_x;
             y(2) = density * velocity_y;
             y(3) = energy;
-         };
+         });
       default:
          throw invalid_argument("Problem Undefined");
    }

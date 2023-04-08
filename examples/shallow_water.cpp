@@ -54,11 +54,9 @@ using namespace mfem;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
 void ShallowWaterMesh(const int problem, const char **mesh_file);
 
-SpatialFunction ShallowWaterInitialCondition(const int problem, const double g);
+VectorFunctionCoefficient ShallowWaterInitialCondition(const int problem, const double g);
 
 int main(int argc, char *argv[])
 {
@@ -178,8 +176,7 @@ int main(int argc, char *argv[])
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations,
-                                ShallowWaterInitialCondition(problem, g));
+   VectorFunctionCoefficient u0 = ShallowWaterInitialCondition(problem, g);
    GridFunction sol(vfes);
    sol.ProjectCoefficient(u0);
 
@@ -324,13 +321,13 @@ void ShallowWaterMesh(const int problem, const char **mesh_file)
 }
 
 // Initial condition
-SpatialFunction ShallowWaterInitialCondition(const int problem,
+VectorFunctionCoefficient ShallowWaterInitialCondition(const int problem,
                                              const double g)
 {
    switch (problem)
    {
       case 1:
-         return [g](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(3, [g](const Vector &x, Vector &y)
          {
             const double maxval = 10;
             const double minval = 6;
@@ -344,7 +341,7 @@ SpatialFunction ShallowWaterInitialCondition(const int problem,
                    minval;
             y(1) = 0.0;
             y(2) = 0.0;
-         };
+         });
       default:
          throw invalid_argument("Invalid problem");
    }

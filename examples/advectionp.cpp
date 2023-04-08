@@ -53,12 +53,10 @@ using namespace mfem;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
 void AdvectionMesh(const int problem, const char **mesh_file);
 
-SpatialFunction AdvectionInitialCondition(const int problem);
-SpatialFunction AdvectionVelocityVector(const int problem);
+VectorFunctionCoefficient AdvectionInitialCondition(const int problem);
+VectorFunctionCoefficient AdvectionVelocityVector(const int problem);
 
 int main(int argc, char *argv[])
 {
@@ -199,9 +197,8 @@ int main(int argc, char *argv[])
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations,
-                                AdvectionInitialCondition(problem));
-   VectorFunctionCoefficient b(dim, AdvectionVelocityVector(problem));
+   VectorFunctionCoefficient u0 = AdvectionInitialCondition(problem);
+   VectorFunctionCoefficient b = AdvectionVelocityVector(problem);
    ParGridFunction sol(fes);
    sol.ProjectCoefficient(u0);
 
@@ -387,35 +384,35 @@ void AdvectionMesh(const int problem, const char **mesh_file)
 }
 
 // Initial condition
-SpatialFunction AdvectionInitialCondition(const int problem)
+VectorFunctionCoefficient AdvectionInitialCondition(const int problem)
 {
    switch (problem)
    {
       case 1:
-         return [](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "Dimension should be 2");
             y(0) = __sinpi(x(0)) * __sinpi(x(1));
-         };
+         });
       default:
          throw invalid_argument("Problem Undefined");
    }
 }
 
 // Initial condition
-SpatialFunction AdvectionVelocityVector(const int problem)
+VectorFunctionCoefficient AdvectionVelocityVector(const int problem)
 {
    switch (problem)
    {
       case 1:
-         return [](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(2, [](const Vector &x, Vector &y)
          {
             const double d = max((x(0) + 1.) * (1. - x(0)), 0.) *
                              max((x(1) + 1.) * (1. - x(1)), 0.);
             const double d2 = d * d;
             y(0) = d2 * M_PI_2 * x(1);
             y(1) = -d2 * M_PI_2 * x(0);
-         };
+         });
       default:
          throw invalid_argument("Problem Undefined");
    }

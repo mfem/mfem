@@ -52,13 +52,10 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. See InitialCondition in ex18.hpp.
+Mesh *ShallowWaterMesh(const int problem);
 
-typedef std::__1::function<void(const Vector &, Vector &)> SpatialFunction;
-
-void ShallowWaterMesh(const int problem, const char **mesh_file);
-
-SpatialFunction ShallowWaterInitialCondition(const int problem, const double g);
+VectorFunctionCoefficient ShallowWaterInitialCondition(const int problem,
+                                                       const double g);
 
 int main(int argc, char *argv[])
 {
@@ -118,23 +115,16 @@ int main(int argc, char *argv[])
    }
    // When the user does not provide mesh file,
    // use the default mesh file for the problem.
+   Mesh *mesh;
    if ((mesh_file == NULL) || (mesh_file[0] == '\0'))    // if NULL or empty
    {
-      ShallowWaterMesh(problem, &mesh_file);  // get default mesh file name
+      mesh = ShallowWaterMesh(problem);  // get default mesh file name
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
 
    // 2. Read the mesh from the given mesh file.
-   Mesh *mesh = new Mesh(mesh_file);
    const int dim = mesh->Dimension();
    const int num_equations = dim + 1;
-
-   // perform uniform refine
-   mesh->Transform([](const Vector &x, Vector &newx)
-   {
-      newx = x;
-      newx *= 25.0;
-   });
 
    if (numProcs > mesh->GetNE())
    {
@@ -207,8 +197,7 @@ int main(int argc, char *argv[])
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations,
-                                ShallowWaterInitialCondition(problem, g));
+   VectorFunctionCoefficient u0 = ShallowWaterInitialCondition(problem, g);
    ParGridFunction sol(vfes);
    sol.ProjectCoefficient(u0);
 
@@ -385,26 +374,34 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void ShallowWaterMesh(const int problem, const char **mesh_file)
+Mesh *ShallowWaterMesh(const int problem)
 {
+   Mesh *mesh;
+   const char *mesh_file;
    switch (problem)
    {
       case 1:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
-         break;
+          mesh_file = "../data/periodic-square-4x4.mesh";
+         mesh = new Mesh(mesh_file);
+         mesh->Transform([](const Vector &x, Vector &newx)
+         {
+            newx = x;
+            newx *= 25.0;
+         });
+         return mesh;
       default:
          throw invalid_argument("Default mesh is undefined");
    }
 }
 
 // Initial condition
-SpatialFunction ShallowWaterInitialCondition(const int problem,
-                                             const double g)
+VectorFunctionCoefficient ShallowWaterInitialCondition(const int problem,
+                                                       const double g)
 {
    switch (problem)
    {
       case 1:
-         return [g](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(2, [](const Vector &x, Vector &y)
          {
             const double maxval = 10;
             const double minval = 6;
@@ -418,7 +415,7 @@ SpatialFunction ShallowWaterInitialCondition(const int problem,
                    minval;
             y(1) = 0.0;
             y(2) = 0.0;
-         };
+         });
       default:
          throw invalid_argument("Invalid problem");
    }
