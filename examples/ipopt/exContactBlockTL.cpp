@@ -378,7 +378,6 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
 
             MFEM_VERIFY(fd == dim-1, "");
          }
-
          for (int j=0; j<dim-1; ++j)
          {
             xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
@@ -424,7 +423,6 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    fec2{nullptr},
    fespace1{nullptr},
    fespace2{nullptr},
-   nodes0{nullptr},
    nodes1{nullptr},
    nodes2{nullptr},
    x1{nullptr},
@@ -485,7 +483,7 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    cout << "Number of finite element unknowns for mesh2: "
         << fespace2->GetTrueVSize() << endl;
 
-   nodes0 = mesh1->GetNodes();
+   nodes0 = *mesh1->GetNodes();
    nodes1 = mesh1->GetNodes();
 
    // degrees of freedom of both meshes
@@ -627,7 +625,7 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
    (*x1) = 0.0; // x1 order: [xyz xyz... xyz]
-   add(*nodes0, *x1, *nodes1);
+   add(nodes0, *x1, *nodes1);
 
    FindPointsInMesh(*mesh1, xyz, m_conn, m_xi);
 
@@ -643,7 +641,6 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
       }
    }
 
-   //coordsm.Print();
    M = new SparseMatrix(nnd,ndofs);
    dM = new std::vector<SparseMatrix>(nnd, SparseMatrix(ndofs,ndofs));
 
@@ -733,6 +730,7 @@ ExContactBlockTL::~ExContactBlockTL()
 
 void ExContactBlockTL::update_g()
 {
+   cout<<"update g"<<endl;
    int count = 0;
    for (auto v : bdryVerts2)
    {
@@ -753,7 +751,7 @@ void ExContactBlockTL::update_g()
       }
    }
 
-   add(*nodes0, *x1, *nodes1);
+   add(nodes0, *x1, *nodes1);
    FindPointsInMesh(*mesh1, xyz, m_conn, m_xi);
 
    for (int i=0; i<npoints; i++)
@@ -780,6 +778,8 @@ void ExContactBlockTL::update_g()
    delete dM;
    dM = new std::vector<SparseMatrix>(nnd, SparseMatrix(ndofs,ndofs));
 
+   //x2->Print();
+   
    Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, *coordsm, s_conn, m_conn, g, *M,
                     *dM);
    M->Finalize(1,false);
@@ -809,6 +809,7 @@ bool ExContactBlockTL::get_nlp_info(
    IndexStyleEnum& index_style
 )
 {
+   cout<<"get nlp info"<<endl;
    // The problem described in ExContactBlockTL.hpp has 2 variables, x1, & x2,
    n = ndofs;
 
@@ -835,6 +836,7 @@ bool ExContactBlockTL::get_bounds_info(
    Number* g_u
 )
 {
+   cout<<"get bounds"<<endl;
    assert(n == ndofs);
    assert(m == nnd);
 
@@ -843,7 +845,6 @@ bool ExContactBlockTL::get_bounds_info(
       x_l[i] = -1.0e20;
       x_u[i] = +1.0e20;
    }
-
    for (auto i=0; i<Dirichlet_dof.Size(); i++)
    {
       x_l[Dirichlet_dof[i]] = Dirichlet_val[i];
@@ -872,6 +873,8 @@ bool ExContactBlockTL::get_starting_point(
    Number* lambda
 )
 {
+   cout<<"get starting point"<<endl;
+   cout<<x[0]<<endl;
    assert(init_x == true);
    assert(init_z == false);
    assert(init_lambda == false);
@@ -965,6 +968,8 @@ bool ExContactBlockTL::eval_g(
    Number*       cons
 )
 {
+   cout<<"eval g"<<endl;
+   cout<<x[0]<<endl;
    assert(n == ndofs);
    assert(m == nnd);
 
@@ -1000,6 +1005,7 @@ bool ExContactBlockTL::eval_jac_g(
    Number*       values
 )
 {
+   cout<<"eval jac g"<<endl;
    assert(n == ndofs);
    assert(m == nnd);
    assert(n*m == nele_jac); // TODO: dense matrix for now
@@ -1047,7 +1053,6 @@ bool ExContactBlockTL::eval_jac_g(
          }
       }
    }
-
    return true;
 }
 
@@ -1065,6 +1070,7 @@ bool ExContactBlockTL::eval_h(
    Number*       values
 )
 {
+   cout<<"eval h"<<endl;
    assert(n == ndofs);
    assert(m == nnd);
    assert((n*n+n)/2 == nele_hess); // TODO: dense matrix for now

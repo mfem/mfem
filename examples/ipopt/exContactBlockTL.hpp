@@ -168,7 +168,7 @@ private:
    FiniteElementSpace* fespace2;
    Array<int> ess_tdof_list1;
    Array<int> ess_tdof_list2;
-   GridFunction* nodes0;
+   GridFunction nodes0;
    GridFunction* nodes1;
    GridFunction* nodes2;
    GridFunction* x1;
