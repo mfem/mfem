@@ -730,7 +730,6 @@ ExContactBlockTL::~ExContactBlockTL()
 
 void ExContactBlockTL::update_g()
 {
-   cout<<"update g"<<endl;
    int count = 0;
    for (auto v : bdryVerts2)
    {
@@ -809,7 +808,6 @@ bool ExContactBlockTL::get_nlp_info(
    IndexStyleEnum& index_style
 )
 {
-   cout<<"get nlp info"<<endl;
    // The problem described in ExContactBlockTL.hpp has 2 variables, x1, & x2,
    n = ndofs;
 
@@ -836,7 +834,6 @@ bool ExContactBlockTL::get_bounds_info(
    Number* g_u
 )
 {
-   cout<<"get bounds"<<endl;
    assert(n == ndofs);
    assert(m == nnd);
 
@@ -873,8 +870,6 @@ bool ExContactBlockTL::get_starting_point(
    Number* lambda
 )
 {
-   cout<<"get starting point"<<endl;
-   cout<<x[0]<<endl;
    assert(init_x == true);
    assert(init_z == false);
    assert(init_lambda == false);
@@ -968,8 +963,6 @@ bool ExContactBlockTL::eval_g(
    Number*       cons
 )
 {
-   cout<<"eval g"<<endl;
-   cout<<x[0]<<endl;
    assert(n == ndofs);
    assert(m == nnd);
 
@@ -1005,7 +998,6 @@ bool ExContactBlockTL::eval_jac_g(
    Number*       values
 )
 {
-   cout<<"eval jac g"<<endl;
    assert(n == ndofs);
    assert(m == nnd);
    assert(n*m == nele_jac); // TODO: dense matrix for now
@@ -1070,7 +1062,6 @@ bool ExContactBlockTL::eval_h(
    Number*       values
 )
 {
-   cout<<"eval h"<<endl;
    assert(n == ndofs);
    assert(m == nnd);
    assert((n*n+n)/2 == nele_hess); // TODO: dense matrix for now
