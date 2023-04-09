@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2634,6 +2634,8 @@ void NURBSExtension::GenerateElementDofTable()
       Generate3DElementDofTable();
    }
 
+   SetPatchToElements();
+
    NumOfActiveDofs = 0;
    for (int d = 0; d < GetNTotalDof(); d++)
       if (activeDof[d])
@@ -2780,6 +2782,8 @@ void NURBSExtension::GenerateBdrElementDofTable()
    {
       Generate3DBdrElementDofTable();
    }
+
+   SetPatchToBdrElements();
 
    int *dof = bel_dof->GetJ();
    int ndof = bel_dof->Size_of_connections();
@@ -3305,6 +3309,41 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
    }
 }
 
+void NURBSExtension::SetPatchToElements()
+{
+   const int np = GetNP();
+   patch_to_el.resize(np);
+
+   for (int e=0; e<el_to_patch.Size(); ++e)
+   {
+      patch_to_el[el_to_patch[e]].Append(e);
+   }
+}
+
+void NURBSExtension::SetPatchToBdrElements()
+{
+   const int nbp = GetNBP();
+   patch_to_bel.resize(nbp);
+
+   for (int e=0; e<bel_to_patch.Size(); ++e)
+   {
+      patch_to_bel[bel_to_patch[e]].Append(e);
+   }
+}
+
+const Array<int>& NURBSExtension::GetPatchElements(int patch)
+{
+   MFEM_ASSERT(patch_to_el.size() > 0, "patch_to_el not set");
+
+   return patch_to_el[patch];
+}
+
+const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
+{
+   MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_el not set");
+
+   return patch_to_bel[patch];
+}
 
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
