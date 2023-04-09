@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../../fem/pgridfunc.hpp"
 #include "transfer_category.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -51,8 +52,6 @@ public:
     * @param dst The destination ParGridFunction
     */
    void Transfer(const ParGridFunction &src, ParGridFunction &dst) const;
-
-   ~ParTransferMap();
 
 private:
    /**
@@ -97,7 +96,7 @@ private:
    /// Pointer to the supplemental ParFiniteElementSpace on the common root
    /// parent ParMesh. This is only used if this ParTransferMap represents a
    /// ParSubMesh to ParSubMesh transfer.
-   const ParFiniteElementSpace *root_fes_ = nullptr;
+   std::unique_ptr<const ParFiniteElementSpace> root_fes_;
 
    const GroupCommunicator *root_gc_ = nullptr;
 

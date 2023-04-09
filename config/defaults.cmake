@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,6 +19,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # MFEM options. Set to mimic the default "defaults.mk" file.
+option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
@@ -232,7 +233,7 @@ set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
 set(BLITZ_DIR "${MFEM_DIR}/../blitz" CACHE PATH "Path to Blitz")
 set(ALGOIM_DIR "${MFEM_DIR}/../algoim" CACHE PATH "Path to Algoim")
-set(ALGOIM_REQUIRED_PACKAGES "BLITZ" CACHE STRING
+set(Algoim_REQUIRED_PACKAGES "Blitz" CACHE STRING
     "Packages that ALGOIM depends on.")
 
 set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH
