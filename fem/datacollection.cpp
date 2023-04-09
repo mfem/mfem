@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -111,7 +111,7 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = SERIAL_FORMAT; // use serial mesh format
    compression = 0;
-   error = NO_ERROR;
+   error = No_Error;
 }
 
 void DataCollection::SetMesh(Mesh *new_mesh)
@@ -494,7 +494,7 @@ void VisItDataCollection::Load(int cycle_)
 {
    DeleteAll();
    time_step = 0.0;
-   error = NO_ERROR;
+   error = No_Error;
    cycle = cycle_;
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
