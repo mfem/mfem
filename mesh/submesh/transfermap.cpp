@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,17 +29,17 @@ TransferMap::TransferMap(const GridFunction &src,
 
       // There is no immediate relation and both src and dst come from a
       // SubMesh, check if they have an equivalent root parent.
-      if (SubMeshUtils::GetRootParent<SubMesh, Mesh>(*src_sm) !=
-          SubMeshUtils::GetRootParent<SubMesh, Mesh>(*dst_sm))
+      if (SubMeshUtils::GetRootParent(*src_sm) !=
+          SubMeshUtils::GetRootParent(*dst_sm))
       {
          MFEM_ABORT("Can't find a relation between the two GridFunctions");
       }
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new FiniteElementSpace(*src.FESpace(),
-                                         const_cast<Mesh *>(SubMeshUtils::GetRootParent<SubMesh, Mesh>
-                                                            (*src_sm)));
+      root_fes_.reset(new FiniteElementSpace(
+                         *src.FESpace(),
+                         const_cast<Mesh *>(SubMeshUtils::GetRootParent(*src_sm))));
       subfes1 = src.FESpace();
       subfes2 = dst.FESpace();
 
@@ -137,9 +137,4 @@ void TransferMap::Transfer(const GridFunction &src,
    {
       MFEM_ABORT("unknown TransferCategory: " << category_);
    }
-}
-
-TransferMap::~TransferMap()
-{
-   delete root_fes_;
 }

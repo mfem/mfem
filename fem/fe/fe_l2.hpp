@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,11 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
 };
 
 
@@ -55,6 +60,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_2D(fe, Trans, curl); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
    using FiniteElement::Project;
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
@@ -80,6 +90,11 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
    using FiniteElement::Project;
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
@@ -111,6 +126,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_2D(fe, Trans, curl); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
 };
 
 
@@ -133,6 +153,11 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
 };
 
 
