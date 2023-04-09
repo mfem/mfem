@@ -15,20 +15,22 @@ list(APPEND SEQADIFF_COMMON_SOURCES)
 list(APPEND SEQADIFF_COMMON_HEADERS)
 
 list(APPEND PARADIFF_COMMON_SOURCES
-	spde_solvers.cpp
 	mtop_filters.cpp
 	mtop_solvers.cpp
 	mtop_coefficients.cpp
-	MMA.cpp)
+	MMA.cpp
+	../spde/spde_solver.cpp
+	../spde/boundary.cpp)
 
 
 
 list(APPEND PARADIFF_COMMON_HEADERS
-	spde_solvers.hpp
 	mtop_filters.hpp
 	mtop_solvers.hpp
 	mtop_coefficients.hpp
-	MMA.hpp)
+	MMA.hpp
+	../spde/spde_solver.hpp
+	../spde/boundary.hpp)
 
 convert_filenames_to_full_paths(SEQADIFF_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQADIFF_COMMON_HEADERS)
@@ -156,5 +158,11 @@ add_mfem_miniapp(mtop_foundation
         MAIN mtop_foundation.cpp
         ${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
+
+add_mfem_miniapp(randfw_test
+	MAIN randfw_test.cpp
+	${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
 
 endif ()

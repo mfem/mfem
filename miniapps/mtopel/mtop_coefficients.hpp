@@ -4,6 +4,9 @@
 #include "mfem.hpp"
 #include <random>
 
+#include "../spde/boundary.hpp"
+#include "../spde/spde_solver.hpp"
+
 namespace mfem {
 
 
@@ -60,7 +63,126 @@ private:
 
 };
 
+class LognormalDistributionCoefficient:public Coefficient
+{
+public:
+    LognormalDistributionCoefficient(Coefficient* gf_,double mu_=0.0, double ss_=1.0):mu(mu_),ss(ss_)
+    {
+        gf=gf_;
+    }
 
+    void SetGaussianCoeff(Coefficient* gf_){
+        gf=gf_;
+    }
+
+    /// Evaluates the coefficient
+    virtual
+    double Eval(ElementTransformation& T, const IntegrationPoint& ip){
+        double val=gf->Eval(T,ip);
+        return std::exp(mu+ss*val);
+    }
+
+private:
+    double mu;
+    double ss;
+    Coefficient* gf;
+};
+
+
+class UniformDistributionCoefficient:public Coefficient
+{
+public:
+    UniformDistributionCoefficient(Coefficient* gf_, double a_=0.0, double b_=1.0):a(a_),b(b_)
+    {
+       gf=gf_;
+    }
+
+    void SetGaussianCoeff(Coefficient* gf_){
+        gf=gf_;
+    }
+
+    /// Evaluates the coefficient
+    virtual
+    double Eval(ElementTransformation& T, const IntegrationPoint& ip){
+        double val=gf->Eval(T,ip);
+        return a+(b-a)*(1.0+std::erf(-val/std::sqrt(2.0)))/2.0;
+    }
+
+private:
+    double a;
+    double b;
+    Coefficient* gf;
+
+};
+
+#ifdef MFEM_USE_MPI
+
+class RandFieldCoefficient:public Coefficient
+{
+public:
+    RandFieldCoefficient(ParMesh* mesh_, int order){
+        pmesh=mesh_;
+        fec=new H1_FECollection(order,mesh_->Dimension());
+        fes=new ParFiniteElementSpace(pmesh,fec,1);
+
+        lx=1.0;
+        ly=1.0;
+        lz=1.0;
+
+        solver=nullptr;
+        rf=new ParGridFunction(fes); (*rf)=0.0;
+        gfc.SetGridFunction(rf);
+
+    }
+
+    ~RandFieldCoefficient(){
+        delete solver;
+        delete rf;
+        delete fes;
+        delete fec;
+    }
+
+    void SetCorrelationLen(double l_){
+        lx=l_;
+        ly=l_;
+        lz=l_;
+        delete solver; solver=nullptr;
+    }
+
+    void SetMaternParameter(double nu_){
+        nu=nu_;
+        delete solver; solver=nullptr;
+    }
+
+    /// Evaluates the coefficient
+    virtual
+    double Eval(ElementTransformation& T, const IntegrationPoint& ip)
+    {
+        return gfc.Eval(T,ip);
+    }
+
+    /// Generates a new random center for the ball.
+    void Sample(int seed=std::numeric_limits<int>::max()){
+        if(solver==nullptr){
+            solver=new spde::SPDESolver(nu,bc,fes,pmesh->GetComm(),lx,ly,lz);
+        }
+        solver->GenerateRandomField(*rf,seed);
+        gfc.SetGridFunction(rf);
+    }
+
+private:
+    double lx,ly,lz;
+    double nu;
+    ParMesh* pmesh;
+    FiniteElementCollection* fec;
+    ParFiniteElementSpace* fes;
+    spde::SPDESolver* solver;
+    ParGridFunction* rf;
+    spde::Boundary bc;
+    GridFunctionCoefficient gfc;
+};
+
+#endif
 
 }
 

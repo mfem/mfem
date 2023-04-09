@@ -6,7 +6,7 @@
 
 #include "mtop_solvers.hpp"
 
-#include "spde_solvers.hpp"
+#include "mtop_coefficients.hpp"
 
 class CoeffHoles:public mfem::Coefficient
 {
@@ -54,6 +54,7 @@ public:
         pp=1.0;
         h=1.0; //default thickenss
         period=10*M_PI;
+        soil=nullptr;
     }
 
     virtual
@@ -113,6 +114,12 @@ public:
     }
 
     virtual
+    void SetSoilCoeff(mfem::Coefficient& soil_stiff)
+    {
+        soil=&soil_stiff;
+    }
+
+    virtual
     double 	Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
     {
 
@@ -120,7 +127,7 @@ public:
         mfem::Vector xx(T.GetSpaceDim()); xx=0.0;
         T.Transform(ip,xx);
 
-        if(xx(1)>h/2.0){
+        if(xx(1)>0.7*h){
             //evaluate density
             double dd=1.0;
             if(dens!=nullptr){dd=dens->GetValue(T,ip);}
@@ -135,7 +142,12 @@ public:
             //evaluate the E modulus
             return Emin+(Emax-Emin)*std::pow(pd,pp);
         }else{//soil
-            return Emin+(0.2*Emax-Emin)*(0.5+0.5*sin(xx(0)*period));
+            if(soil==nullptr)
+            {
+                return Emin+0.2*(Emax-Emin);
+            }else{
+                return Emin+(Emax-Emin)*(soil->Eval(T,ip));
+            }
         }
     }
 
@@ -148,7 +160,7 @@ public:
         mfem::Vector xx(T.GetSpaceDim()); xx=0.0;
         T.Transform(ip,xx);
 
-        if(xx(1)>h/2.0){
+        if(xx(1)>0.7*h){
         //evaluate density
         double dd=1.0;
         if(dens!=nullptr){dd=dens->GetValue(T,ip);}
@@ -183,6 +195,8 @@ private:
     double beta;
     double pp;
 
+    mfem::Coefficient* soil;
+
 };
 
 
@@ -192,7 +206,7 @@ private:
 class Foundation2D
 {
 public:
-    Foundation2D(mfem::ParMesh* pmesh_, int vorder=1):E(),nu(0.2)
+    Foundation2D(mfem::ParMesh* pmesh_, int vorder=2):E(),nu(0.2)
     {
         esolv=new mfem::ElasticitySolver(pmesh_,vorder);
         esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
@@ -202,6 +216,12 @@ public:
         pmesh=pmesh_;
         dfes=nullptr;
         cobj=new mfem::ComplianceObjective();
+
+        gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
+        gf->SetCorrelationLen(0.2);
+        gf->SetMaternParameter(4.0);
+        //uf=new mfem::UniformDistributionCoefficient(gf,0.0,0.3);
+        uf=new mfem::LognormalDistributionCoefficient(gf,-1.5,0.5);
     }
 
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
@@ -215,6 +235,11 @@ public:
     {
         delete cobj;
         delete esolv;
+    }
+
+    void SetCorrelationLen(double l)
+    {
+        gf->SetCorrelationLen(l);
     }
 
     void SetDensity(mfem::Vector& vdens_,
@@ -232,6 +257,124 @@ public:
         cobj->SetDens(vdens);
         cobj->SetDesignFES(dfes);
 
+    }
+
+    mfem::Coefficient* GetE(){
+        return &E;
+    }
+
+    double MeanCompliance(mfem::Vector& grad)
+    {
+        //set all bc
+        esolv->DelDispBC();
+        esolv->AddDispBC(1,4,0.0);
+        esolv->AddSurfLoad(2,0.00,1.00,0.0);
+        esolv->AddSurfLoad(3,0.00,1.00,0.0);
+        esolv->AddSurfLoad(4,0.00,1.00,0.0);
+        esolv->AddSurfLoad(5,0.00,1.00,0.0);
+
+        mfem::Vector lgr(grad.Size());
+        grad=0.0;;
+
+        int n=50;
+        double obj=0.0;
+        double var=0.0;
+        for(int i=0;i<n;i++){
+            gf->Sample();
+            E.SetSoilCoeff(*uf);
+
+            cobj->SetE(&E);
+            cobj->SetDens(vdens);
+            cobj->SetDesignFES(dfes);
+
+            for(int k=0;k<4;k++){
+                esolv->DelDispBC();
+                esolv->AddDispBC(1,4,0.0);
+                esolv->AddSurfLoad(2,0.0,0.0,0.0);
+                esolv->AddSurfLoad(3,0.0,0.0,0.0);
+                esolv->AddSurfLoad(4,0.0,0.0,0.0);
+                esolv->AddSurfLoad(5,0.0,0.0,0.0);
+                esolv->AddSurfLoad(k+2,0.0,2.0,0.0);
+
+
+                esolv->FSolve();
+                double rez=cobj->Eval(esolv->GetDisplacements());
+                cobj->Grad(esolv->GetDisplacements(),lgr);
+                grad.Add(1.0,lgr);
+                obj=obj+rez;
+                var=var+rez*rez;
+            }
+        }
+
+        grad/=double(4*n);
+        var=var/double(4*n);
+        obj=obj/double(4*n);
+
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+        if(myrank==0){
+        std::cout<<"Var="<<var-obj*obj<<std::endl;}
+
+        return obj;
+    }
+
+
+    double ComplVar(mfem::Vector& grad)
+    {
+        //set all bc
+        esolv->DelDispBC();
+        esolv->AddDispBC(1,4,0.0);
+        esolv->AddDispBC(6,0,0.0);
+        esolv->AddDispBC(7,0,0.0);
+        esolv->AddSurfLoad(2,0.00,1.00,0.0);
+        esolv->AddSurfLoad(3,0.00,1.00,0.0);
+        esolv->AddSurfLoad(4,0.00,1.00,0.0);
+        esolv->AddSurfLoad(5,0.00,1.00,0.0);
+
+        mfem::Vector lgr(grad.Size());
+        grad=0.0;;
+
+        int n=100;
+        double obj=0.0;
+        double var=0.0;
+        for(int i=0;i<n;i++){
+            gf->Sample();
+            E.SetSoilCoeff(*uf);
+
+            cobj->SetE(&E);
+            cobj->SetDens(vdens);
+            cobj->SetDesignFES(dfes);
+
+            for(int k=0;k<4;k++){
+                esolv->DelDispBC();
+                esolv->AddDispBC(1,4,0.0);
+                esolv->AddSurfLoad(2,0.0,0.0,0.0);
+                esolv->AddSurfLoad(3,0.0,0.0,0.0);
+                esolv->AddSurfLoad(4,0.0,0.0,0.0);
+                esolv->AddSurfLoad(5,0.0,0.0,0.0);
+                esolv->AddSurfLoad(k+2,0.0,10.0,0.0);
+
+
+                esolv->FSolve();
+                double rez=cobj->Eval(esolv->GetDisplacements());
+                cobj->Grad(esolv->GetDisplacements(),lgr);
+                //grad.Add(1.0,lgr);
+                grad.Add(rez,lgr);
+                obj=obj+rez;
+                var=var+rez*rez;
+            }
+        }
+
+        grad/=double(4*n);
+        var=var/double(4*n);
+        obj=obj/double(4*n);
+
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+        if(myrank==0){
+        std::cout<<"Mean="<<obj<<"  Var="<<var-obj*obj<<std::endl;}
+
+        return var-obj*obj;
     }
 
     /// Evaluates the compliance
@@ -273,6 +416,10 @@ private:
 
     mfem::ParGridFunction sol;
     mfem::ParMesh* pmesh;
+
+    mfem::RandFieldCoefficient* gf;
+    //mfem::UniformDistributionCoefficient* uf;
+    mfem::LognormalDistributionCoefficient* uf;
 };
 
 int main(int argc, char *argv[])
@@ -291,7 +438,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    double rel_tol = 1e-7;
    double abs_tol = 1e-15;
-   double fradius = 0.05;
+   double fradius = 0.04;
+   double corr_len = 0.2;
    int tot_iter = 100;
    int max_it = 51;
    int print_level = 1;
@@ -341,6 +489,10 @@ int main(int argc, char *argv[])
                   "-r",
                   "--radius",
                   "Filter radius");
+   args.AddOption(&corr_len,
+                  "-crl",
+                  "--corr",
+                  "Correlation length");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -383,6 +535,7 @@ int main(int argc, char *argv[])
        }
    }
 
+
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement. We choose
    // 'ref_levels' to be the largest number that gives a final mesh with no
@@ -415,7 +568,7 @@ int main(int argc, char *argv[])
    }
 
    //allocate the filter
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.04,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    //fsolv->AddBC(1,1.0);
    fsolv->AddBC(2,1.0);
@@ -424,6 +577,7 @@ int main(int argc, char *argv[])
    fsolv->AddBC(5,1.0);
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
+   mfem::ParGridFunction emod(fsolv->GetFilterFES()); emod=0.0;
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
    //mfem::ParGridFunction spdegf(fsolv->GetFilterFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
@@ -435,6 +589,7 @@ int main(int argc, char *argv[])
    Foundation2D* alco=new Foundation2D(&pmesh,1);
    alco->SetDesignFES(pgdens.ParFESpace());
    alco->SetDensity(vdens);
+   alco->SetCorrelationLen(corr_len);
 
    mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    //mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -490,6 +645,7 @@ int main(int argc, char *argv[])
       paraview_dc.SetTime(0.0);
 
       paraview_dc.RegisterField("design",&pgdens);
+      paraview_dc.RegisterField("E",&emod);
 
       paraview_dc.Save();
 
@@ -515,7 +671,9 @@ int main(int argc, char *argv[])
           ivol=ivobj->Eval(vdens);
 
           alco->SetDensity(vdens,0.5,8.0,1.0);
-          obj=alco->Compliance(ograd);
+          //obj=alco->Compliance(ograd);
+          //obj=alco->MeanCompliance(ograd);
+          obj=alco->ComplVar(ograd);
 
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<obj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
@@ -546,6 +704,7 @@ int main(int argc, char *argv[])
           //save the design
           if(i%4==0)
           {
+              emod.ProjectCoefficient(*(alco->GetE()));
               paraview_dc.SetCycle(i);
               paraview_dc.SetTime(i*1.0);
               paraview_dc.Save();

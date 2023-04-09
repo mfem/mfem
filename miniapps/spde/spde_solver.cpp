@@ -142,10 +142,11 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   helper_gf = 0.0;
 
   if (integer_order_of_exponent_ > 0) {
+    /*
     if (Mpi::Root()) {
       mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
                 << " u = f" << std::endl;
-    }
+    }*/
     ActivateRepeatedSolve();
     Solve(b, helper_gf, 1.0, 1.0, integer_order_of_exponent_);
     if (integer_order_) {
@@ -169,10 +170,11 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
     // Iterate over all expansion coefficient that contribute to the
     // solution.
     for (int i = 0; i < coeffs_.Size(); i++) {
+      /*
       if (Mpi::Root()) {
         mfem::out << "\n<SPDESolver> Solving PDE -Δ u + " << -poles_[i]
                   << " u = " << coeffs_[i] << " g " << std::endl;
-      }
+      }*/
       helper_gf = 0.0;
       Solve(b, helper_gf, 1.0 - poles_[i], coeffs_[i]);
       x += helper_gf;
@@ -185,10 +187,11 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   }
 
   sw.Stop();
+  /*
   if (Mpi::Root()) {
     mfem::out << "<SPDESolver::Timing> all PCG solves " << sw.RealTime()
               << " [s]" << std::endl;
-  }
+  }*/
 }
 
 void SPDESolver::GenerateRandomField(ParGridFunction &x, int seed) {
@@ -381,7 +384,7 @@ void SPDESolver::SolveLinearSystem(const HypreParMatrix *Op) {
   CGSolver cg(MPI_COMM_WORLD);
   cg.SetRelTol(1e-12);
   cg.SetMaxIter(2000);
-  cg.SetPrintLevel(3);
+  cg.SetPrintLevel(0);
   cg.SetPreconditioner(prec);
   cg.SetOperator(*Op);
   cg.Mult(B_, X_);

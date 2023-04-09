@@ -6,7 +6,6 @@
 
 #include "mtop_solvers.hpp"
 
-#include "spde_solvers.hpp"
 
 
 //return threshold level at the integration point
@@ -76,100 +75,6 @@ private:
     std::default_random_engine generator;
     std::uniform_real_distribution<double> udist;
 
-
-};
-
-class SPDERandField:public mfem::Coefficient
-{
-public:
-    SPDERandField(mfem::ParMesh* mesh_,int order_=1)
-    {
-        mesh=mesh_;
-        int dim=mesh->SpaceDimension();
-        fec=new mfem::H1_FECollection(order_,dim);
-        fes=new mfem::ParFiniteElementSpace(mesh,fec);
-        u.SetSpace(fes); u=0.0;
-
-        double nu=1.0;
-        double r=0.25;
-        //allocate the solvers
-        mfem::DenseMatrix MatCoeff=mfem::DenseMatrix(dim); MatCoeff=0.0;
-        for(int i=0;i<dim;i++){
-            MatCoeff(i,i)=r*r/(1.0*nu);
-        }
-        diff_co=new mfem::MatrixConstantCoefficient(MatCoeff);
-
-        //allocate the WhiteNose
-        int seed=0;
-        WhiteNoise=new mfem::WhiteGaussianNoiseDomainLFIntegrator(mesh->GetComm(),seed);
-
-
-        lf=new mfem::ParLinearForm(fes);
-        //(*lf)=0.0;
-        lf->AddDomainIntegrator(WhiteNoise);
-        lf->Assemble();
-        double normalization = 1.0;
-        lf->operator*=(normalization);
-
-        /*
-        bc.AddHomogeneousBoundaryCondition(1, mfem::materials::BoundaryType::kNeumann);
-        bc.AddHomogeneousBoundaryCondition(2, mfem::materials::BoundaryType::kNeumann);
-        bc.AddHomogeneousBoundaryCondition(3, mfem::materials::BoundaryType::kNeumann);
-        bc.AddHomogeneousBoundaryCondition(4, mfem::materials::BoundaryType::kNeumann);
-        bc.AddHomogeneousBoundaryCondition(5, mfem::materials::BoundaryType::kNeumann);
-        bc.AddHomogeneousBoundaryCondition(6, mfem::materials::BoundaryType::kNeumann);
-        */
-
-        solver=new mfem::materials::SPDESolver(*diff_co,nu,bc,fes);
-
-        solver->Solve(*lf,u);
-        gfc.SetGridFunction(&u);
-    }
-
-    virtual
-    ~SPDERandField()
-    {
-        delete solver;
-        delete lf;
-        delete fes;
-        delete fec;
-        delete diff_co;
-
-    }
-
-    virtual
-    double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
-    {
-        double rv=gfc.Eval(T,ip);
-        return 0.5+0.5*std::erf(rv/std::sqrt(2.0*8.0));
-    }
-
-    void Generate()
-    {
-        u=0.0;
-        //(*lf)=0.0;
-        lf->Assemble();
-        solver->Solve(*lf,u);
-        gfc.SetGridFunction(&u);
-    }
-
-private:
-
-    mfem::ParMesh* mesh;
-
-    mfem::H1_FECollection* fec;
-    mfem::ParFiniteElementSpace* fes;
-
-    mfem::WhiteGaussianNoiseDomainLFIntegrator* WhiteNoise;
-
-    mfem::ParGridFunction u;
-    mfem::MatrixConstantCoefficient* diff_co;
-
-    mfem::ParLinearForm* lf;
-    mfem::materials::Boundary bc;
-    mfem::materials::SPDESolver* solver;
-
-    mfem::GridFunctionCoefficient gfc;
 
 };
 
@@ -659,8 +564,6 @@ int main(int argc, char *argv[])
        std::cout<<"num el="<<pmesh.GetNE()<<std::endl;
    }
 
-   SPDERandField spderf(&pmesh,order);
-
    //allocate the filter
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.04,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
@@ -770,7 +673,6 @@ int main(int argc, char *argv[])
 
    mfem::ParGridFunction solx;
    mfem::ParGridFunction soly;
-   spderf.Generate();
 
    {
       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
