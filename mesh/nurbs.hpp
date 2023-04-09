@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -71,6 +71,7 @@ public:
    void UniformRefinement(Vector &newknots) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
+   /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
    void Flip();
@@ -135,6 +136,7 @@ public:
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
    int GetNKV() const { return kv.Size(); }
+   /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
@@ -150,7 +152,9 @@ public:
    void SwapDirections(int dir1, int dir2);
    void Rotate3D(double normal[], double angle);
    int MakeUniformDegree(int degree = -1);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
                                 int times);
 };
@@ -217,9 +221,13 @@ protected:
    Array2D<int> el_to_IJK;  // IJK are "knot-span" indices!
    Array2D<int> bel_to_IJK; // they are NOT element indices!
 
+   std::vector<Array<int>> patch_to_el;
+   std::vector<Array<int>> patch_to_bel;
+
    Array<NURBSPatch *> patches;
 
    inline int         KnotInd(int edge) const;
+   /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
    inline const KnotVector *KnotVec(int edge) const;
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
@@ -299,6 +307,9 @@ protected:
 
    void MergeWeights(Mesh *mesh_array[], int num_pieces);
 
+   void SetPatchToElements();
+   void SetPatchToBdrElements();
+
    // to be used by ParNURBSExtension constructor(s)
    NURBSExtension() { }
 
@@ -373,11 +384,30 @@ public:
 
    bool HavePatches() const { return (patches.Size() != 0); }
 
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetElementDofTable() { return el_dof; }
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetBdrElementDofTable() { return bel_dof; }
 
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
    void GetElementLocalToGlobal(Array<int> &lelem_elem);
+
+   // Set the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   void SetPatchAttribute(int i, int attr) { patchTopo->SetAttribute(i, attr); }
+
+   // Get the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   int GetPatchAttribute(int i) const { return patchTopo->GetAttribute(i); }
+
+   // Set the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   void SetPatchBdrAttribute(int i, int attr)
+   { patchTopo->SetBdrAttribute(i, attr); }
+   // Get the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   int GetPatchBdrAttribute(int i) const
+   { return patchTopo->GetBdrAttribute(i); }
 
    // Load functions
    void LoadFE(int i, const FiniteElement *FE) const;
@@ -403,6 +433,9 @@ public:
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   const Array<int>& GetPatchElements(int patch);
+   const Array<int>& GetPatchBdrElements(int patch);
 };
 
 
