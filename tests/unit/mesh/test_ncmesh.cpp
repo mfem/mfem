@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -62,8 +62,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          nc_a.AssembleDiagonal(nc_diag);
 
          double error = fabs(diag.Norml2() - nc_diag.Norml2());
-         std::cout << "Testing quad NCMesh PA diag:    "
-                   "order: " << order << ", error: " << error << std::endl;
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
    }
@@ -107,13 +106,75 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          nc_a.AssembleDiagonal(nc_diag);
 
          double error = fabs(diag.Sum() - nc_diag.Sum());
-         std::cout << "Testing hexa NCMesh PA diag:    "
-                   "order: " << order << ", error: " << error << std::endl;
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
    }
 
 } // test case
+
+
+TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
+{
+   auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",
+                              "../../data/ref-cube.mesh",
+                              "../../data/ref-prism.mesh",
+                              "../../data/ref-pyramid.mesh"
+                             );
+
+   auto ref_type = GENERATE(Refinement::X,
+                            Refinement::Y,
+                            Refinement::Z,
+                            Refinement::XY,
+                            Refinement::XZ,
+                            Refinement::YZ,
+                            Refinement::XYZ);
+
+   Mesh mesh(mesh_fname, 1, 1);
+   mesh.EnsureNCMesh(true);
+   double original_volume = mesh.GetElementVolume(0);
+   Array<Refinement> ref(1);
+   ref[0].ref_type = ref_type; ref[0].index = 0;
+
+   mesh.GeneralRefinement(ref, 1);
+   double summed_volume = 0.0;
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      summed_volume += mesh.GetElementVolume(i);
+   }
+   REQUIRE(summed_volume == MFEM_Approx(original_volume));
+} // test case
+
+
+TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
+{
+   auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",
+                              "../../data/ref-cube.mesh",
+                              "../../data/ref-prism.mesh",
+                              "../../data/ref-pyramid.mesh"
+                             );
+
+   auto ref_type = GENERATE(Refinement::XYZ);
+
+   Mesh mesh(mesh_fname, 1, 1);
+   mesh.EnsureNCMesh(true);
+   double original_volume = mesh.GetElementVolume(0);
+   Array<Refinement> ref(1);
+   ref[0].ref_type = ref_type; ref[0].index = 0;
+
+   mesh.GeneralRefinement(ref, 1);
+
+   Array<double> elem_error(mesh.GetNE());
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      elem_error[i] = 0.0;
+   }
+   mesh.DerefineByError(elem_error, 1.0);
+
+   double derefined_volume = mesh.GetElementVolume(0);
+   REQUIRE(derefined_volume == MFEM_Approx(original_volume));
+} // test case
+
 
 #ifdef MFEM_USE_MPI
 
@@ -174,11 +235,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
                        MPI_COMM_WORLD);
          double error = fabs(diag_gsum - nc_diag_gsum);
-         if (rank==0)
-         {
-            std::cout << "Testing quad pNCMesh PA diag:    "
-                      "order: " << order << ", error: " << error << std::endl;
-         }
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
       }
@@ -232,11 +289,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
                        MPI_COMM_WORLD);
          double error = fabs(diag_gsum - nc_diag_gsum);
-         if (rank==0)
-         {
-            std::cout << "Testing hexa pNCMesh PA diag:    "
-                      "order: " << order << ", error: " << error << std::endl;
-         }
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
       }

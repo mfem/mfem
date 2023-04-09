@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -239,7 +239,7 @@ void TensorDeterminants(const int NE,
          {
             constexpr int MD = 6;
             constexpr int MQ = 6;
-            // Highest orders that fit in shared mememory
+            // Highest orders that fit in shared memory
             if (D1D <= MD && Q1D <= MQ)
             { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
             // Last fall-back will use global memory

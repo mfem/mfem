@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -310,8 +310,13 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
    {
       CeedInt numsub;
       CeedOperator *subops;
+#if CEED_VERSION_GE(0, 10, 2)
+      CeedCompositeOperatorGetNumSub(op, &numsub);
+      ierr = CeedCompositeOperatorGetSubList(op, &subops); CeedChk(ierr);
+#else
       CeedOperatorGetNumSub(op, &numsub);
       ierr = CeedOperatorGetSubList(op, &subops); CeedChk(ierr);
+#endif
       for (int i = 0; i < numsub; ++i)
       {
          ierr = CeedSingleOperatorFullAssemble(subops[i], out); CeedChk(ierr);

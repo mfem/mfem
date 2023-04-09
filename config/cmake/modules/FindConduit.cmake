@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,8 +21,15 @@ if(EXISTS ${CONDUIT_DIR}/include/conduit/conduit_relay_hdf5.hpp)
   # we only need  HDF5 if Conduit was built with HDF5 support
   set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
       "Additional packages required by Conduit.")
-  else()
-    message(STATUS "Conduit Relay HDF5 Support is DISABLED")
+  # Suppress warning about HDF5_ROOT being set
+  if (POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+  endif()
+  # HDF5_ROOT is needed in some cases, e.g. when HDF5_TARGET_NAMES is set and
+  # MFEM's FindHDF5.cmake is not used.
+  set(HDF5_ROOT ${HDF5_DIR} CACHE PATH "")
+else()
+  message(STATUS "Conduit Relay HDF5 Support is DISABLED")
 endif()
 
 include(MfemCmakeUtilities)
@@ -32,4 +39,4 @@ mfem_find_package(Conduit CONDUIT CONDUIT_DIR
   ADD_COMPONENT relay
     "include;include/conduit" conduit_relay.hpp "lib" conduit_relay
   ADD_COMPONENT blueprint
-      "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)
+    "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)

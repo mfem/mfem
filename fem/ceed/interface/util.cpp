@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,11 +19,11 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef _WIN32
+#if !defined(_WIN32) || !defined(_MSC_VER)
 typedef struct stat struct_stat;
 #else
 #define stat(dir, buf) _stat(dir, buf)
-#define S_ISDIR(mode) _S_IFDIR(mode)
+#define S_ISDIR(mode) (((mode) & _S_IFMT) == _S_IFDIR)
 typedef struct _stat struct_stat;
 #endif
 
@@ -99,6 +99,34 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
    InitRestriction(fes, ceed, restr);
 }
 
+void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
+                                        const IntegrationRule &irm,
+                                        int nelem,
+                                        const int* indices,
+                                        Ceed ceed, CeedBasis *basis,
+                                        CeedElemRestriction *restr)
+{
+   InitBasisWithIndices(fes, irm, nelem, indices, ceed, basis);
+   InitRestrictionWithIndices(fes, nelem, indices, ceed, restr);
+}
+
+void InitBasisAndRestriction(const FiniteElementSpace &fes,
+                             const IntegrationRule &irm,
+                             int nelem,
+                             const int* indices,
+                             Ceed ceed, CeedBasis *basis,
+                             CeedElemRestriction *restr)
+{
+   if (indices)
+   {
+      InitBasisAndRestrictionWithIndices(fes,irm,nelem,indices,ceed,basis,restr);
+   }
+   else
+   {
+      InitBasisAndRestriction(fes,irm,ceed,basis,restr);
+   }
+}
+
 // Assumes a tensor-product operator with one active field
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
 {
@@ -112,7 +140,11 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    CeedOperator *subops;
    if (isComposite)
    {
+#if CEED_VERSION_GE(0, 10, 2)
+      ierr = CeedCompositeOperatorGetSubList(oper, &subops); CeedChk(ierr);
+#else
       ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+#endif
       ierr = CeedOperatorGetQFunction(subops[0], &qf); CeedChk(ierr);
    }
    else
@@ -156,6 +188,66 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    *field = inputfields[found_index];
 
    return 0;
+}
+
+template <>
+const IntegrationRule & GetRule<MassIntegrator>(
+   const MassIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return MassIntegrator::GetRule(trial_fe, test_fe, trans);
+}
+
+template <>
+const IntegrationRule & GetRule<VectorMassIntegrator>(
+   const VectorMassIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return MassIntegrator::GetRule(trial_fe, test_fe, trans);
+}
+
+template <>
+const IntegrationRule & GetRule<ConvectionIntegrator>(
+   const ConvectionIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return ConvectionIntegrator::GetRule(trial_fe, test_fe, trans);
+}
+
+template <>
+const IntegrationRule & GetRule<VectorConvectionNLFIntegrator>(
+   const VectorConvectionNLFIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return VectorConvectionNLFIntegrator::GetRule(trial_fe, trans);
+}
+
+template <>
+const IntegrationRule & GetRule<DiffusionIntegrator>(
+   const DiffusionIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
+}
+
+template <>
+const IntegrationRule & GetRule<VectorDiffusionIntegrator>(
+   const VectorDiffusionIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
 }
 
 std::string ceed_path;
