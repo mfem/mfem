@@ -632,8 +632,9 @@ The specific libraries and their options are:
   for HIP.
   URL: http://computing.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support, and 
-  SUNDIALS >= 5.7.0 for HIP support.
+  Versions: SUNDIALS >= 5.0.0,
+            SUNDIALS >= 5.4.0 for CUDA support, and
+            SUNDIALS >= 5.7.0 for HIP support.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
