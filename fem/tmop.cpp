@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,8 +48,7 @@ void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
       tmop_q_arr[i]->EvalP(Jpt, Pt);
-      Pt *= wt_arr[i];
-      P += Pt;
+      P.Add(wt_arr[i], Pt);
    }
 }
 
@@ -62,10 +61,107 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
       At = 0.0;
-      tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
-      At *= wt_arr[i];
+      tmop_q_arr[i]->AssembleH(Jpt, DS, weight * wt_arr[i], At);
       A += At;
    }
+}
+
+void TMOP_Combo_QualityMetric::
+ComputeBalancedWeights(const GridFunction &nodes,
+                       const TargetConstructor &tc, Vector &weights) const
+{
+   const int m_cnt = tmop_q_arr.Size();
+   Vector averages;
+   ComputeAvgMetrics(nodes, tc, averages);
+   weights.SetSize(m_cnt);
+
+   // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
+   // a = BC / (AB + AC + BC), b = AC / (AB + AC + BC), c = AB / (AB + AC + BC),
+   // where A = avg_m_A, B = avg_m_B, C = avg_m_C.
+   // Nested loop to avoid division, as some avg may be 0.
+   Vector products_no_m(m_cnt); products_no_m = 1.0;
+   for (int m_p = 0; m_p < m_cnt; m_p++)
+   {
+      for (int m_a = 0; m_a < m_cnt; m_a++)
+      {
+         if (m_p != m_a) { products_no_m(m_p) *= averages(m_a); }
+      }
+   }
+   const double pnm_sum = products_no_m.Sum();
+
+   if (pnm_sum == 0.0) { weights = 1.0 / m_cnt; return; }
+   for (int m = 0; m < m_cnt; m++) { weights(m) = products_no_m(m) / pnm_sum; }
+
+   MFEM_ASSERT(fabs(weights.Sum() - 1.0) < 1e-14,
+               "Error: sum should be 1 always: " << weights.Sum());
+}
+
+void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
+                                                 const TargetConstructor &tc,
+                                                 Vector &averages) const
+{
+   const int m_cnt = tmop_q_arr.Size(),
+             NE    = nodes.FESpace()->GetNE(),
+             dim   = nodes.FESpace()->GetMesh()->Dimension();
+
+   averages.SetSize(m_cnt);
+
+   // Integrals of all metrics.
+   Array<int> pos_dofs;
+   averages = 0.0;
+   double volume = 0.0;
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
+      const IntegrationRule &ir = IntRules.Get(fe_pos.GetGeomType(),
+                                               2 * fe_pos.GetOrder());
+      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+      DenseMatrix dshape(dof, dim);
+      DenseMatrix pos(dof, dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      nodes.FESpace()->GetElementVDofs(e, pos_dofs);
+      nodes.GetSubVector(pos_dofs, posV);
+
+      DenseTensor W(dim, dim, nsp);
+      DenseMatrix Winv(dim), T(dim), A(dim);
+      tc.ComputeElementTargets(e, fe_pos, ir, posV, W);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const DenseMatrix &Wj = W(q);
+         CalcInverse(Wj, Winv);
+
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         fe_pos.CalcDShape(ip, dshape);
+         MultAtB(pos, dshape, A);
+         Mult(A, Winv, T);
+
+         const double w_detA = ip.weight * A.Det();
+         for (int m = 0; m < m_cnt; m++)
+         {
+            tmop_q_arr[m]->SetTargetJacobian(Wj);
+            averages(m) += tmop_q_arr[m]->EvalW(T) * w_detA;
+         }
+         volume += w_detA;
+      }
+   }
+
+   // Parallel case.
+#ifdef MFEM_USE_MPI
+   auto par_nodes = dynamic_cast<const ParGridFunction *>(&nodes);
+   if (par_nodes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, averages.GetData(), m_cnt,
+                    MPI_DOUBLE, MPI_SUM, par_nodes->ParFESpace()->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM,
+                    par_nodes->ParFESpace()->GetComm());
+   }
+#endif
+
+   averages /= volume;
 }
 
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
@@ -2787,29 +2883,40 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
 
-   int loc_cnt = 0;
-   double loc_max = 0.0, loc_sum = 0.0;
+#ifdef MFEM_USE_MPI
+   auto pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(surf_fit_gf->FESpace());
+   bool parallel = (pfes) ? true : false;
+#endif
+
+   err_max = 0.0;
+   int dof_cnt = 0;
+   double err_sum = 0.0;
    for (int i = 0; i < surf_fit_marker->Size(); i++)
    {
       if ((*surf_fit_marker)[i] == true)
       {
-         loc_cnt++;
-         loc_max  = std::max(loc_max, std::abs((*surf_fit_gf)(i)));
-         loc_sum += std::abs((*surf_fit_gf)(i));
+#ifdef MFEM_USE_MPI
+         // Don't count the overlapping DOFs in parallel.
+         if (parallel && pfes->GetLocalTDofNumber(i) < 0) { continue; }
+#endif
+         dof_cnt++;
+         err_max  = fmax(err_max, fabs((*surf_fit_gf)(i)));
+         err_sum += fabs((*surf_fit_gf)(i));
       }
    }
-   err_avg = loc_sum / loc_cnt;
-   err_max = loc_max;
 
 #ifdef MFEM_USE_MPI
-   if (targetC->Parallel() == false) { return; }
-   int glob_cnt;
-   MPI_Comm comm = targetC->GetComm();
-   MPI_Allreduce(&loc_max, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
-   MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, comm);
-   MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, comm);
-   err_avg = err_avg / glob_cnt;
+   if (parallel)
+   {
+      MPI_Comm comm = pfes->GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &dof_cnt, 1, MPI_INT, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &err_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
 #endif
+
+   err_avg = (dof_cnt > 0) ? err_sum / dof_cnt : 0.0;
 }
 
 void TMOP_Integrator::UpdateAfterMeshTopologyChange()
@@ -3997,6 +4104,14 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
    ComputeFDh(x,*fes);
    if (discr_tc)
    {
+#ifdef MFEM_USE_GSLIB
+      const AdaptivityEvaluator *ae = discr_tc->GetAdaptivityEvaluator();
+      if (dynamic_cast<const InterpolatorFP *>(ae))
+      {
+         MFEM_ABORT("Using GSLIB-based interpolation with finite differences"
+                    "requires careful consideration. Contact TMOP team.");
+      }
+#endif
       discr_tc->UpdateTargetSpecification(x, false, fes->GetOrdering());
       discr_tc->UpdateGradientTargetSpecification(x, dx, false, fes->GetOrdering());
       discr_tc->UpdateHessianTargetSpecification(x, dx, false, fes->GetOrdering());
@@ -4011,6 +4126,14 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
    ComputeFDh(x,*pfes);
    if (discr_tc)
    {
+#ifdef MFEM_USE_GSLIB
+      const AdaptivityEvaluator *ae = discr_tc->GetAdaptivityEvaluator();
+      if (dynamic_cast<const InterpolatorFP *>(ae))
+      {
+         MFEM_ABORT("Using GSLIB-based interpolation with finite differences"
+                    "requires careful consideration. Contact TMOP team.");
+      }
+#endif
       discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
       discr_tc->UpdateGradientTargetSpecification(x, dx, false, pfes->GetOrdering());
       discr_tc->UpdateHessianTargetSpecification(x, dx, false, pfes->GetOrdering());

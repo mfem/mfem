@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,6 +63,7 @@ public:
    /// Returns element's vertices.
    virtual void GetVertices(Array<int> &v) const = 0;
 
+   /// @note The returned array should NOT be deleted by the caller.
    virtual int *GetVertices() = 0;
 
    const int *GetVertices() const
@@ -98,6 +99,7 @@ public:
    /// Return current coarse-fine transformation.
    virtual unsigned GetTransform() const { return 0; }
 
+   /// @note The returned object should be deleted by the caller.
    virtual Element *Duplicate(Mesh *m) const = 0;
 
    /// Destroys element.
