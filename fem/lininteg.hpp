@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -187,6 +187,13 @@ public:
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
+   virtual bool SupportsDevice() { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -209,6 +216,13 @@ public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
+
+   virtual bool SupportsDevice() { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

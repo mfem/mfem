@@ -3,34 +3,63 @@
 // Compile with: make ex33p
 //
 // Sample runs:  mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 4.5 -o 3
+//               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 1.4 -o 3
 //               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 0.99 -o 3
 //               mpirun -np 4 ex33p -m ../data/inline-quad.mesh -alpha 0.5 -o 3
-//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
+//               mpirun -np 4 ex33p -m ../data/amr-quad.mesh -alpha 1.5 -o 3
+//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3 -r 2
+//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 2.4 -o 3 -r 4
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
+//               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 1.7 -o 3 -r 5
+//
+// Verification runs:
+//    mpirun -np 4 ex33p -m ../data/inline-segment.mesh -ver -alpha 1.7 -o 2 -r 2
+//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 1.2 -o 2 -r 2
+//    mpirun -np 4 ex33p -m ../data/amr-quad.mesh -ver -alpha 2.6 -o 2 -r 2
+//    mpirun -np 4 ex33p -m ../data/inline-hex.mesh -ver -alpha 0.3 -o 2 -r 1
+
+//  Note: the analytic solution to this problem is u = ∏_{i=0}^{dim-1} sin(π x_i)
+//        for all alpha.
 //
 // Description:
 //
 //  In this example we solve the following fractional PDE with MFEM:
 //
-//    ( - Δ )^α u = f  in Ω,      u = 0  on ∂Ω,      0 < α < 1,
+//    ( - Δ )^α u = f  in Ω,      u = 0  on ∂Ω,      0 < α,
 //
-//  To solve this FPDE, we rely on a rational approximation [2] of the normal
-//  linear operator A^{-α}, where A = - Δ (with associated homogeneous
-//  boundary conditions). Namely, we first approximate the operator
+//  To solve this FPDE, we apply the operator ( - Δ )^(-N), where the integer
+//  N is given by floor(α). By doing so, we obtain
 //
-//    A^{-α} ≈ Σ_{i=0}^N c_i (A + d_i I)^{-1},      d_0 = 0,   d_i > 0,
+//    ( - Δ )^(α-N) u = ( - Δ )^(-N) f  in Ω,      u = 0  on ∂Ω,      0 < α.
+//
+//  We first compute the right hand side by solving the integer order PDE
+//
+//   ( - Δ )^N g = f  in Ω, g = ( - Δ )^k g = 0 on ∂Ω, k = 1,..,N-1
+//
+//  The remaining FPDE is then given by
+//
+//  ( - Δ )^(α-N) u = g  in Ω,      u = 0  on ∂Ω.
+//
+//  We rely on a rational approximation [2] of the normal linear operator
+//  A^{-α + N}, where A = - Δ (with associated homogeneous boundary conditions)
+//  and (a-N) in (0,1). We approximate the operator
+//
+//    A^{-α+N} ≈ Σ_{i=0}^M c_i (A + d_i I)^{-1},      d_0 = 0,   d_i > 0,
 //
 //  where I is the L2-identity operator and the coefficients c_i and d_i
 //  are generated offline to a prescribed accuracy in a pre-processing step.
 //  We use the triple-A algorithm [1] to generate the rational approximation
-//  that this partial fractional expansion derives from. We then solve N+1
+//  that this partial fractional expansion derives from. We then solve M+1
 //  independent integer-order PDEs,
 //
-//    A u_i + d_i u_i = c_i f  in Ω,      u_i = 0  on ∂Ω,      i=0,...,N,
+//    A u_i + d_i u_i = c_i g  in Ω,      u_i = 0  on ∂Ω,      i=0,...,M,
 //
 //  using MFEM and sum u_i to arrive at an approximate solution of the FPDE
 //
-//    u ≈ Σ_{i=0}^N u_i.
+//    u ≈ Σ_{i=0}^M u_i.
+//
+//  (If alpha is an integer, we stop after the first PDE was solved.)
 //
 // References:
 //
@@ -47,6 +76,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <math.h>
+#include <string>
 
 #include "ex33.hpp"
 
@@ -65,9 +96,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int num_refs = 3;
-   bool visualization = true;
-   bool visualize_x = false;
    double alpha = 0.5;
+   bool visualization = true;
+   bool verification = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -79,12 +110,12 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements");
    args.AddOption(&alpha, "-alpha", "--alpha",
                   "Fractional exponent");
-   args.AddOption(&visualize_x, "-vis_x", "--visualize_x", "-no-vis_x",
-                  "--no-visualization_x",
-                  "Enable or disable GLVis visualization of each integer-order PDE solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization of the fractional PDE solution.");
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&verification, "-ver", "--verification", "-no-ver",
+                  "--no-verification",
+                  "Use sinusoidal function (f) for analytic comparison.");
    args.Parse();
    if (!args.Good())
    {
@@ -97,61 +128,51 @@ int main(int argc, char *argv[])
    }
 
    Array<double> coeffs, poles;
+   int progress_steps = 1;
 
-   // 2. Compute the coefficients that define the integer-order PDEs.
-   ComputePartialFractionApproximation(alpha,coeffs,poles);
-
-   int num_par_solves;
-   int max_par_solves = max(1,num_procs/2);
-   for (num_par_solves=max_par_solves; num_par_solves>0; num_par_solves--)
+   // 2. Compute the rational expansion coefficients that define the
+   //    integer-order PDEs.
+   const int power_of_laplace = floor(alpha);
+   double exponent_to_approximate = alpha - power_of_laplace;
+   bool integer_order = false;
+   // Check if alpha is an integer or not.
+   if (abs(exponent_to_approximate) > 1e-12)
    {
-      if (num_procs%num_par_solves==0 && num_par_solves<coeffs.Size())
+      if (Mpi::Root())
       {
-         break;
+         mfem::out << "Approximating the fractional exponent "
+                   << exponent_to_approximate
+                   << endl;
+      }
+      ComputePartialFractionApproximation(exponent_to_approximate, coeffs,
+                                          poles);
+
+      // If the example is build without LAPACK, the exponent_to_approximate
+      // might be modified by the function call above.
+      alpha = exponent_to_approximate + power_of_laplace;
+   }
+   else
+   {
+      integer_order = true;
+      if (Mpi::Root())
+      {
+         mfem::out << "Treating integer order PDE." << endl;
       }
    }
-   if (num_par_solves == 1) {num_par_solves = num_procs;}
 
-   int solver_ranks = num_procs/num_par_solves;
-
-   // 3. Split the MPI communicator:
-   //    row_comm is used for parallel partition of the mesh
-   //    col_comm is used for independent integer-order solves
-   int row_color = myid / solver_ranks; // Determine color based on row
-   int col_color = myid % solver_ranks; // Determine color based on col
-
-   MPI_Comm row_comm, col_comm;
-   MPI_Comm_split(MPI_COMM_WORLD, row_color, myid, &row_comm);
-   MPI_Comm_split(MPI_COMM_WORLD, col_color, myid, &col_comm);
-
-   int row_rank, row_size, col_rank, col_size;
-   MPI_Comm_rank(row_comm, &row_rank);
-   MPI_Comm_size(row_comm, &row_size);
-   MPI_Comm_rank(col_comm, &col_rank);
-   MPI_Comm_size(col_comm, &col_size);
-
-   if (Mpi::Root())
-   {
-      mfem::out << "\nTotal number of MPI ranks = " << num_procs << endl;
-      mfem::out << "Number of independent parallel solves = " << col_size << endl;
-      mfem::out << "Number of MPI ranks within each solve = " << row_size
-                <<"\n" << endl;
-   }
-
-   // 4. Read the mesh from the given mesh file.
+   // 3. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 5. Refine the mesh to increase the resolution.
+   // 4. Refine the mesh to increase the resolution.
    for (int i = 0; i < num_refs; i++)
    {
       mesh.UniformRefinement();
    }
-
-   ParMesh pmesh(row_comm, mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // 6. Define a finite element space on the mesh.
+   // 5. Define a finite element space on the mesh.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    if (Mpi::Root())
@@ -160,7 +181,7 @@ int main(int argc, char *argv[])
            << fespace.GetTrueVSize() << endl;
    }
 
-   // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
@@ -169,120 +190,250 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Define diffusion coefficient, load, and solution GridFunction.
-   ConstantCoefficient f(1.0);
+   // 7. Define diffusion coefficient, load, and solution GridFunction.
+   auto func = [&alpha](const Vector &x)
+   {
+      double val = 1.0;
+      for (int i=0; i<x.Size(); i++)
+      {
+         val *= sin(M_PI*x(i));
+      }
+      return pow(x.Size()*pow(M_PI,2), alpha) * val;
+   };
+   FunctionCoefficient f(func);
    ConstantCoefficient one(1.0);
    ParGridFunction u(&fespace);
    ParGridFunction x(&fespace);
+   ParGridFunction g(&fespace);
    u = 0.0;
+   x = 0.0;
+   g = 0.0;
+
+   // 8. Prepare for visualization.
+   char vishost[] = "localhost";
+   int  visport   = 19916;
 
    // 9. Set up the linear form b(.) for integer-order PDE solves.
    ParLinearForm b(&fespace);
-   b.AddDomainIntegrator(new DomainLFIntegrator(f));
+   if (verification)
+   {
+      // This statement is only relevant for the verification of the code. It
+      // uses a different f such that an analytic solution is known and easy
+      // to compare with the numerical one. The FPDE becomes:
+      // (-Δ)^α u = (2\pi ^2)^α sin(\pi x) sin(\pi y) on [0,1]^2
+      // -> u(x,y) = sin(\pi x) sin(\pi y)
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
+   }
+   else
+   {
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   }
    b.Assemble();
 
-   int my_coeff_size = max(coeffs.Size()/col_size,1);
-   int ibeg = col_rank*my_coeff_size;
-   if (ibeg + 2*my_coeff_size > coeffs.Size())
+   // ------------------------------------------------------------------------
+   // 10. Solve the PDE (-Δ)^N g = f, i.e. compute g = (-Δ)^{-1}^N f.
+   // ------------------------------------------------------------------------
+
+   if (power_of_laplace > 0)
    {
-      my_coeff_size = coeffs.Size()-col_rank*my_coeff_size;
-   }
-   else if (ibeg > coeffs.Size() - 1)
-   {
-      my_coeff_size = 0;
-   }
+      // 10.1 Compute Stiffnes Matrix
+      ParBilinearForm k(&fespace);
+      k.AddDomainIntegrator(new DiffusionIntegrator(one));
+      k.Assemble();
 
-   int iend = ibeg+my_coeff_size;
+      // 10.2 Compute Mass Matrix
+      ParBilinearForm m(&fespace);
+      m.AddDomainIntegrator(new MassIntegrator(one));
+      m.Assemble();
+      HypreParMatrix mass;
+      Array<int> empty;
+      m.FormSystemMatrix(empty, mass);
 
-
-   for (int i = ibeg; i < iend; i++)
-   {
-      // 10. Reset GridFunction for integer-order PDE solve.
-      x = 0.0;
-
-      // 11. Set up the bilinear form a(.,.) for integer-order PDE solve.
-      ParBilinearForm a(&fespace);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      ConstantCoefficient d_i(-poles[i]);
-      a.AddDomainIntegrator(new MassIntegrator(d_i));
-      a.Assemble();
-
-      // 12. Assemble the bilinear form and the corresponding linear system.
-      OperatorPtr A;
+      // 10.3 Form the system of equations
       Vector B, X;
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-      // 13. Solve the linear system A X = B.
-      HypreBoomerAMG * prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(-1);
-
-      int print_level = (col_rank==0) ? 3 : 0;
-      if (Mpi::Root())
-      {
-         mfem::out << "\nMPI rank " <<  myid
-                   << ": Solving PDE -Δ u + " << -poles[i]
-                   << " u = " << coeffs[i] << " f " << endl;
-      }
-      CGSolver cg(row_comm);
+      OperatorPtr Op;
+      k.FormLinearSystem(ess_tdof_list, g, b, Op, X, B);
+      HypreBoomerAMG prec;
+      prec.SetPrintLevel(-1);
+      CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(print_level);
-      cg.SetPreconditioner(*prec);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
+      cg.SetPrintLevel(3);
+      cg.SetPreconditioner(prec);
+      cg.SetOperator(*Op);
 
-      // 14. Recover the solution as a finite element grid function.
-      a.RecoverFEMSolution(X, b, x);
-
-      // 15. Accumulate integer-order PDE solutions.
-      x *= coeffs[i];
-      u += x;
-
-      // 16. Send integer-order PDE solutions to a GLVis server.
-      if (visualize_x)
+      if (Mpi::Root())
       {
-         if (col_rank > 0 && i < iend-1)
+         mfem::out << "\nComputing (-Δ) ^ -" << power_of_laplace
+                   << " ( f ) " << endl;
+      }
+      for (int i = 0; i < power_of_laplace; i++)
+      {
+         // 10.4 Solve the linear system Op X = B (N times).
+         cg.Mult(B, X);
+         // 10.5 Visualize the solution g of -Δ ^ N g = f in the last step
+         if (i == power_of_laplace - 1)
          {
-            MPI_Status status;
-            MPI_Recv(nullptr,0,MPI_INT, col_rank-1,0,col_comm,&status);
+            // Needed for visualization and solution verification.
+            k.RecoverFEMSolution(X, b, g);
+            if (integer_order && verification)
+            {
+               // For an integer order PDE, g is also our solution u.
+               u+=g;
+            }
+            if (visualization)
+            {
+               socketstream fout;
+               ostringstream oss_f;
+               fout.open(vishost, visport);
+               fout.precision(8);
+               oss_f.str(""); oss_f.clear();
+               oss_f << "Step " << progress_steps++ << ": Solution of PDE -Δ ^ "
+                     << power_of_laplace
+                     << " g = f";
+               fout << "parallel " << num_procs << " " << myid << "\n"
+                    << "solution\n" << pmesh << g
+                    << "window_title '" << oss_f.str() << "'" << flush;
+            }
          }
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream xout(vishost, visport);
+
+         // 10.6 Prepare for next iteration (primal / dual space)
+         mass.Mult(X, B);
+         X.SetSubVectorComplement(ess_tdof_list,0.0);
+      }
+
+      // 10.7 Extract solution for the next step. The b now corresponds to the
+      //      function g in the PDE.
+      const SparseMatrix* rm = fespace.GetRestrictionMatrix();
+      rm->MultTranspose(B, b);
+   }
+
+   // ------------------------------------------------------------------------
+   // 11. Solve the fractional PDE by solving M integer order PDEs and adding
+   //     up the solutions.
+   // ------------------------------------------------------------------------
+   if (!integer_order)
+   {
+      // Setup visualization.
+      socketstream xout, uout;
+      ostringstream oss_x, oss_u;
+      if (visualization)
+      {
+         xout.open(vishost, visport);
          xout.precision(8);
-         ostringstream oss;
-         oss << "Solution of PDE -Δ u + " << -poles[i]
-             << " u = " << coeffs[i] << " f" ;
-         xout << "parallel " << row_size << " " << row_rank << "\n";
-         xout << "solution\n" << pmesh << x
-              << "window_title '" << oss.str() << "'" << flush;
-         if (col_rank < col_size-1)
+         uout.open(vishost, visport);
+         uout.precision(8);
+      }
+      // Iterate over all expansion coefficient that contribute to the
+      // solution.
+      for (int i = 0; i < coeffs.Size(); i++)
+      {
+         if (Mpi::Root())
          {
-            MPI_Send(nullptr,0,MPI_INT,col_rank+1,0,col_comm);
+            mfem::out << "\nSolving PDE -Δ u + " << -poles[i]
+                      << " u = " << coeffs[i] << " g " << endl;
+         }
+
+         // 11.1 Reset GridFunction for integer-order PDE solve.
+         x = 0.0;
+
+         // 11.2 Set up the bilinear form a(.,.) for integer-order PDE solve.
+         ParBilinearForm a(&fespace);
+         a.AddDomainIntegrator(new DiffusionIntegrator(one));
+         ConstantCoefficient d_i(-poles[i]);
+         a.AddDomainIntegrator(new MassIntegrator(d_i));
+         a.Assemble();
+
+         // 11.3 Assemble the bilinear form and the corresponding linear system.
+         OperatorPtr A;
+         Vector B, X;
+         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+         // 11.4 Solve the linear system A X = B.
+         HypreBoomerAMG prec;
+         prec.SetPrintLevel(-1);
+
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(3);
+         cg.SetPreconditioner(prec);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+
+         // 11.5 Recover the solution as a finite element grid function.
+         a.RecoverFEMSolution(X, b, x);
+
+         // 11.6 Accumulate integer-order PDE solutions.
+         x *= coeffs[i];
+         u += x;
+
+         // 11.7 Send fractional PDE solution to a GLVis server.
+         if (visualization)
+         {
+            oss_x.str(""); oss_x.clear();
+            oss_x << "Step " << progress_steps
+                  << ": Solution of PDE -Δ u + " << -poles[i]
+                  << " u = " << coeffs[i] << " g";
+            xout << "parallel " << num_procs << " " << myid << "\n"
+                 << "solution\n" << pmesh << x
+                 << "window_title '" << oss_x.str() << "'" << flush;
+
+            oss_u.str(""); oss_u.clear();
+            oss_u << "Step " << progress_steps + 1
+                  << ": Solution of fractional PDE (-Δ)^" << alpha
+                  << " u = f";
+            uout << "parallel " << num_procs << " " << myid << "\n"
+                 << "solution\n" << pmesh << u
+                 << "window_title '" << oss_u.str() << "'"
+                 << flush;
          }
       }
    }
 
-   // 17. Accumulate for the fractional PDE solution
-   MPI_Allreduce(MPI_IN_PLACE, u.GetData(), u.Size(),
-                 MPI_DOUBLE, MPI_SUM,col_comm);
-
-   // 18. Send fractional PDE solution to a GLVis server.
-   if (visualization)
+   // ------------------------------------------------------------------------
+   // 12. (optional) Verify the solution.
+   // ------------------------------------------------------------------------
+   if (verification)
    {
-      if (col_rank == 0)
+      auto solution = [] (const Vector &x)
       {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream uout(vishost, visport);
-         uout.precision(8);
-         ostringstream oss;
-         oss << "Solution of fractional PDE -Δ^" << alpha
-             << " u = f" ;
-         uout << "parallel " << row_size << " " << row_rank << "\n";
-         uout << "solution\n" << pmesh << u
-              << "window_title '" << oss.str() << "'" << flush;
+         double val = 1.0;
+         for (int i=0; i<x.Size(); i++)
+         {
+            val *= sin(M_PI*x(i));
+         }
+         return val;
+      };
+      FunctionCoefficient sol(solution);
+      double l2_error = u.ComputeL2Error(sol);
+
+      if (Mpi::Root())
+      {
+         string analytic_solution,expected_mesh;
+         switch (dim)
+         {
+            case 1:
+               analytic_solution = "sin(π x)";
+               expected_mesh = "inline_segment.mesh";
+               break;
+            case 2:
+               analytic_solution = "sin(π x) sin(π y)";
+               expected_mesh = "inline_quad.mesh";
+               break;
+            default:
+               analytic_solution = "sin(π x) sin(π y) sin(π z)";
+               expected_mesh = "inline_hex.mesh";
+               break;
+         }
+
+         mfem::out << "\n" << string(80,'=')
+                   << "\n\nSolution Verification in "<< dim << "D \n\n"
+                   << "Analytic solution : " << analytic_solution << "\n"
+                   << "Expected mesh     : " << expected_mesh <<"\n"
+                   << "Your mesh         : " << mesh_file << "\n"
+                   << "L2 error          : " << l2_error << "\n\n"
+                   << string(80,'=') << endl;
       }
    }
 

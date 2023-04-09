@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,7 @@
 #include "matrix.hpp"
 #include "sparsemat.hpp"
 #include "complex_operator.hpp"
+#include "complex_densemat.hpp"
 #include "blockvector.hpp"
 #include "blockmatrix.hpp"
 #include "blockoperator.hpp"

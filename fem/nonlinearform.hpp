@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -157,14 +157,14 @@ public:
    /// Return a (read-only) list of all essential true dofs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
    double GetGridFunctionEnergy(const Vector &x) const;
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */

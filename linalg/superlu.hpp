@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -124,6 +124,7 @@ public:
    void SetNumLookAheads    ( int           num_lookaheads );
    void SetLookAheadElimTree( bool                   etree );
    void SetSymmetricPattern ( bool                     sym );
+   void SetParSymbFact      ( bool                     par );
 
 private:
    void Init();
