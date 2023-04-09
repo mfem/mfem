@@ -15,13 +15,6 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_SUNDIALS)
-#include "sundials.hpp"
-#if defined(MFEM_USE_MPI)
-#include <nvector/nvector_parallel.h>
-#endif
-#endif
-
 #ifdef MFEM_USE_OPENMP
 #include <omp.h>
 #endif
