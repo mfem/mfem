@@ -39,7 +39,6 @@ list(APPEND ALL_EXE_SRCS
   ex29.cpp
   ex30.cpp
   ex31.cpp
-  ex32.cpp
   ex33.cpp
   ex34.cpp
   )
