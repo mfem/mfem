@@ -12,6 +12,7 @@
 // Finite Element Base classes
 
 #include "fe_base.hpp"
+#include "face_map_utils.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -483,6 +484,12 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
    }
    dof2quad_array.Append(d2q);
    return *d2q;
+}
+
+void FiniteElement::GetFaceMap(const int face_id,
+                               Array<int> &face_map) const
+{
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 FiniteElement::~FiniteElement()
@@ -2507,6 +2514,12 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
    {
       basis1d.ScaleIntegrated(map_type == VALUE);
    }
+}
+
+void NodalTensorFiniteElement::GetFaceMap(const int face_id,
+                                          Array<int> &face_map) const
+{
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
