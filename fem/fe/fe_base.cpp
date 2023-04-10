@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2519,7 +2519,7 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
 void NodalTensorFiniteElement::GetFaceMap(const int face_id,
                                           Array<int> &face_map) const
 {
-   GetNodalTensorFaceMap(dim, order, face_id, face_map);
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,

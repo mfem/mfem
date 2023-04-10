@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,8 +19,11 @@
 namespace mfem
 {
 
+namespace internal
+{
+
 /// Each face of a hexahedron is given by a level set x_i = l, where x_i is one
-/// of x, y, or z (corresponding to i = 0, i=1, i = 3), and l is either 0 or 1.
+/// of x, y, or z (corresponding to i=0, i=1, i=2), and l is either 0 or 1.
 /// Returns i and level.
 std::pair<int,int> GetFaceNormal3D(const int face_id);
 
@@ -39,14 +42,16 @@ std::pair<int,int> GetFaceNormal3D(const int face_id);
 /// The DOFs for each vector component are arranged in a Cartesian grid defined
 /// by strides and n_dofs_per_dim.
 void FillFaceMap(const int n_face_dofs_per_component,
-                 const std::vector<int> offsets,
+                 const std::vector<int> &offsets,
                  const std::vector<int> &strides,
                  const std::vector<int> &n_dofs_per_dim,
                  Array<int> &face_map);
 
 /// Return the face map for nodal tensor elements (H1, L2, and Bernstein basis).
-void GetNodalTensorFaceMap(const int dim, const int order, const int face_id,
-                           Array<int> &face_map);
+void GetTensorFaceMap(const int dim, const int order, const int face_id,
+                      Array<int> &face_map);
+
+} // namespace internal
 
 } // namespace mfem
 

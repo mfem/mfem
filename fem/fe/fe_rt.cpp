@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -316,7 +316,7 @@ void RT_QuadrilateralElement::GetFaceMap(const int face_id,
    }
 
    std::vector<int> n_dofs(dim - 1, p);
-   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
+   internal::FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
 
 
@@ -716,7 +716,7 @@ void RT_HexahedronElement::GetFaceMap(const int face_id,
    int n_face_dofs = p*p;
    std::vector<int> strides, offsets;
    const int n_dof_per_dim = p*p*pp1;
-   const auto f = GetFaceNormal3D(face_id);
+   const auto f = internal::GetFaceNormal3D(face_id);
    const int face_normal = f.first, level = f.second;
    if (face_normal == 0) // x-normal
    {
@@ -734,7 +734,7 @@ void RT_HexahedronElement::GetFaceMap(const int face_id,
       strides = {1, p};
    }
    std::vector<int> n_dofs = {p, p};
-   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
+   internal::FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
 
 

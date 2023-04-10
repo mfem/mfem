@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
 
    MFEM_FORALL(e, nbe,
    {
-      if (M(e) == 0) { return; } // ignore
+      if (M(e) == 0) { return; } // ignore (in a lambda return acts as continue)
 
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       double QQ[Q];

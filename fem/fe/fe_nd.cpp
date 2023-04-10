@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -493,7 +493,7 @@ void ND_HexahedronElement::GetFaceMap(const int face_id,
    std::vector<int> n_dofs = {p, pp1, pp1, p};
    std::vector<int> offsets, strides;
 
-   const auto f = GetFaceNormal3D(face_id);
+   const auto f = internal::GetFaceNormal3D(face_id);
    const int face_normal = f.first, level = f.second;
    if (face_normal == 0) // x-normal
    {
@@ -523,7 +523,8 @@ void ND_HexahedronElement::GetFaceMap(const int face_id,
       strides = {1, p, 1, pp1};
    }
 
-   FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs, face_map);
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
 }
 
 const double ND_QuadrilateralElement::tk[8] =
@@ -832,7 +833,8 @@ void ND_QuadrilateralElement::GetFaceMap(const int face_id,
       case 2: offsets = {p*(pp1 - 1)}; break; // y = 1
       case 3: offsets = {p*pp1}; break; // x = 0
    }
-   FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs, face_map);
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
 }
 
 
