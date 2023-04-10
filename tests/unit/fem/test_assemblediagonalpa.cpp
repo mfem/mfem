@@ -17,8 +17,6 @@ using namespace mfem;
 namespace assemblediagonalpa
 {
 
-int dimension;
-
 double coeffFunction(const Vector& x)
 {
    if (x.Size() == 2)
@@ -93,7 +91,7 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 
 TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
@@ -178,7 +176,7 @@ TEST_CASE("Mass Boundary Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 
 TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
@@ -358,7 +356,7 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 TEST_CASE("Hcurl/Hdiv diagonal PA",
           "[CUDA][PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
