@@ -305,9 +305,6 @@ public:
    void AddMultTransposeUnsigned(const Vector &x, Vector &y,
                                  const double a = 1.0) const override;
 
-   void AddMultTranspose(const Vector &x, Vector &y, bool use_signs,
-                         const double a) const;
-
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
