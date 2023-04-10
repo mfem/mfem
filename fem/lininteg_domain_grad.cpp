@@ -126,7 +126,9 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
 
    auto Y = Reshape(output, d,d,d, vdim, ne);
 
-   MFEM_FORALL_2D(e, ne, q, q, 1,
+   static constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
+
+   MFEM_FORALL_2D(e, ne, Q, Q, 1,
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -137,15 +139,14 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
       double r_u[D];
 
       MFEM_SHARED double sBGt[2][Q*D];
-      MFEM_SHARED double sQQQ_1[Q*MQD*MQD];
-      MFEM_SHARED double sQQQ_2[Q*Q*D];
+      MFEM_SHARED double sQQQ[MQD*MQD*MQD];
 
       const DeviceMatrix Bt(sBGt[0], q,d), Gt(sBGt[1], q,d);
       kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
-      const DeviceCube QQQ(sQQQ_1, q,q,q);
-      const DeviceCube QQD(sQQQ_2, q,q,d);
-      const DeviceCube QDD(sQQQ_1, q,d,d);
+      const DeviceCube QQQ(sQQQ, q,q,q);
+      const DeviceCube QQD(sQQQ, q,q,d);
+      const DeviceCube QDD(sQQQ, q,d,d);
 
       for (int c = 0; c < vdim; ++c)
       {
