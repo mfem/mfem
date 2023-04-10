@@ -54,7 +54,7 @@ void ParLinearForm::Assemble()
    }
 }
 
-bool ParLinearForm::SupportsDevice()
+bool ParLinearForm::SupportsDevice() const
 {
    bool parallel;
    bool local = LinearForm::SupportsDevice();

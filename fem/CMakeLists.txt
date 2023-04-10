@@ -73,6 +73,7 @@ set(SRCS
   eltrans.cpp
   estimators.cpp
   fe.cpp
+  fe/face_map_utils.cpp
   fe/fe_base.cpp
   fe/fe_fixed_order.cpp
   fe/fe_h1.cpp
@@ -103,8 +104,10 @@ set(SRCS
   linearform_ext.cpp
   lininteg.cpp
   lininteg_boundary.cpp
+  lininteg_boundary_flux.cpp
   lininteg_domain.cpp
   lininteg_domain_grad.cpp
+  lininteg_vectorfe_domain.cpp
   lor/lor.cpp
   lor/lor_ads.cpp
   lor/lor_ams.cpp
@@ -154,6 +157,7 @@ set(HDRS
   eltrans.hpp
   estimators.hpp
   fe.hpp
+  fe/face_map_utils.hpp
   fe/fe_base.hpp
   fe/fe_fixed_order.hpp
   fe/fe_h1.hpp
