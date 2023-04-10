@@ -14,6 +14,8 @@
 //               equations, a model nonlinear hyperbolic PDE, with a
 //               discontinuous Galerkin (DG) formulation.
 //
+//                (u_t, v)_T - (F(u), ∇ v)_T + (F̂(u,n), [[v]])_F = 0
+//
 //               Specifically, it solves for an exact solution of the equations
 //               whereby a vortex is transported by a uniform flow. Since all
 //               boundaries are periodic here, the method's accuracy can be
@@ -27,13 +29,12 @@
 //               method. An additional factor can be tuned by passing the --cfl
 //               (or -c shorter) flag.
 //
-//               The example demonstrates user-defined bilinear and nonlinear
-//               form integrators for systems of equations that are defined with
-//               block vectors, and how these are used with an operator for
-//               explicit time integrators. In this case the system also
-//               involves an external approximate Riemann solver for the DG
-//               interface flux. It also demonstrates how to use GLVis for
-//               in-situ visualization of vector grid functions.
+//               The example demonstrates usage of DGHyperbolicConservationLaws
+//               that wraps NonlinearFormIntegrators containing element and face
+//               integration schemes. In this case the system also involves an
+//               external approximate Riemann solver for the DG interface flux.
+//               It also demonstrates how to use GLVis for in-situ visualization
+//               of vector grid function and how to set top-view.
 //
 //               We recommend viewing examples 9, 14 and 17 before viewing this
 //               example.
