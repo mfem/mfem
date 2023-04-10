@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,9 @@
 namespace mfem
 {
 
+namespace internal
+{
+
 std::pair<int,int> GetFaceNormal3D(const int face_id)
 {
    switch (face_id)
@@ -33,7 +36,7 @@ std::pair<int,int> GetFaceNormal3D(const int face_id)
 }
 
 void FillFaceMap(const int n_face_dofs_per_component,
-                 const std::vector<int> offsets,
+                 const std::vector<int> &offsets,
                  const std::vector<int> &strides,
                  const std::vector<int> &n_dofs_per_dim,
                  Array<int> &face_map)
@@ -58,8 +61,8 @@ void FillFaceMap(const int n_face_dofs_per_component,
    }
 }
 
-void GetNodalTensorFaceMap(const int dim, const int order, const int face_id,
-                           Array<int> &face_map)
+void GetTensorFaceMap(const int dim, const int order, const int face_id,
+                      Array<int> &face_map)
 {
    const int dof1d = order + 1;
    int n_face_dofs = int(std::pow(dof1d, dim - 1));
@@ -106,5 +109,7 @@ void GetNodalTensorFaceMap(const int dim, const int order, const int face_id,
    std::vector<int> n_dofs(dim - 1, dof1d);
    FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
+
+} // namespace internal
 
 } // namespace mfem
