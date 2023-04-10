@@ -24,20 +24,24 @@ namespace mfem
 {
 
 ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
-                                               ElementDofOrdering ordering,
+                                               ElementDofOrdering f_ordering,
                                                FaceType type)
-   : H1FaceRestriction(fes, ordering, type, false),
+   : H1FaceRestriction(fes, f_ordering, type, false),
      type(type),
-     interpolations(fes, ordering, type)
+     interpolations(fes, f_ordering, type)
 {
    if (nf==0) { return; }
    x_interp.UseDevice(true);
 
-   CheckFESpace(ordering);
+   // Check that the space is H1 (not currently implemented for ND or RT spaces)
+   const bool is_h1 = dynamic_cast<const H1_FECollection*>(fes.FEColl());
+   MFEM_VERIFY(is_h1, "ParNCH1FaceRestriction is only implemented for H1 spaces.")
 
-   ComputeScatterIndicesAndOffsets(ordering, type);
+   CheckFESpace(f_ordering);
 
-   ComputeGatherIndices(ordering, type);
+   ComputeScatterIndicesAndOffsets(f_ordering, type);
+
+   ComputeGatherIndices(f_ordering, type);
 }
 
 void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
@@ -172,7 +176,7 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
 }
 
 void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType face_type)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -199,12 +203,12 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          if ( face.IsConforming() )
          {
             interpolations.RegisterFaceConformingInterpolation(face,f_ind);
-            SetFaceDofsScatterIndices(face, f_ind, ordering);
+            SetFaceDofsScatterIndices(face, f_ind, f_ordering);
             f_ind++;
          }
          else // Non-conforming face
          {
-            SetFaceDofsScatterIndices(face, f_ind, ordering);
+            SetFaceDofsScatterIndices(face, f_ind, f_ordering);
             if ( face.element[0].conformity==Mesh::ElementConformity::Superset )
             {
                // In this case the local face is the master (coarse) face, thus
@@ -222,7 +226,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
       }
       else if (face_type==FaceType::Boundary && face.IsBoundary())
       {
-         SetFaceDofsScatterIndices(face, f_ind, ordering);
+         SetFaceDofsScatterIndices(face, f_ind, f_ordering);
          f_ind++;
       }
    }
@@ -240,7 +244,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
 }
 
 void ParNCH1FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType face_type)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -258,7 +262,7 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
       }
       else if (face.IsOfFaceType(face_type))
       {
-         SetFaceDofsGatherIndices(face, f_ind, ordering);
+         SetFaceDofsGatherIndices(face, f_ind, f_ordering);
          f_ind++;
       }
    }
@@ -273,27 +277,27 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
 }
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                           ElementDofOrdering ordering,
+                                           ElementDofOrdering f_ordering,
                                            FaceType type,
                                            L2FaceValues m,
                                            bool build)
-   : L2FaceRestriction(fes, ordering, type, m, false)
+   : L2FaceRestriction(fes, f_ordering, type, m, false)
 {
    if (!build) { return; }
    if (nf==0) { return; }
 
-   CheckFESpace(ordering);
+   CheckFESpace(f_ordering);
 
-   ComputeScatterIndicesAndOffsets(ordering, type);
+   ComputeScatterIndicesAndOffsets(f_ordering, type);
 
-   ComputeGatherIndices(ordering, type);
+   ComputeGatherIndices(f_ordering, type);
 }
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                           ElementDofOrdering ordering,
+                                           ElementDofOrdering f_ordering,
                                            FaceType type,
                                            L2FaceValues m)
-   : ParL2FaceRestriction(fes, ordering, type, m, true)
+   : ParL2FaceRestriction(fes, f_ordering, type, m, true)
 { }
 
 void ParL2FaceRestriction::DoubleValuedConformingMult(
@@ -558,7 +562,7 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
 }
 
 void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -613,7 +617,7 @@ void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
 
 
 void ParL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -646,21 +650,21 @@ void ParL2FaceRestriction::ComputeGatherIndices(
 }
 
 ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
-                                               ElementDofOrdering ordering,
+                                               ElementDofOrdering f_ordering,
                                                FaceType type,
                                                L2FaceValues m)
-   : L2FaceRestriction(fes, ordering, type, m, false),
-     NCL2FaceRestriction(fes, ordering, type, m, false),
-     ParL2FaceRestriction(fes, ordering, type, m, false)
+   : L2FaceRestriction(fes, f_ordering, type, m, false),
+     NCL2FaceRestriction(fes, f_ordering, type, m, false),
+     ParL2FaceRestriction(fes, f_ordering, type, m, false)
 {
    if (nf==0) { return; }
    x_interp.UseDevice(true);
 
-   CheckFESpace(ordering);
+   CheckFESpace(f_ordering);
 
-   ComputeScatterIndicesAndOffsets(ordering, type);
+   ComputeScatterIndicesAndOffsets(f_ordering, type);
 
-   ComputeGatherIndices(ordering, type);
+   ComputeGatherIndices(f_ordering, type);
 }
 
 void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
@@ -864,7 +868,7 @@ void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
 }
 
 void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -948,7 +952,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
 }
 
 void ParNCL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering ordering,
+   const ElementDofOrdering f_ordering,
    const FaceType type)
 {
    Mesh &mesh = *fes.GetMesh();
