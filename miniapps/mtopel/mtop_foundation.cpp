@@ -181,8 +181,6 @@ public:
         }
     }
 
-
-
 private:
     double period;
     double h; //thickness
@@ -196,7 +194,6 @@ private:
     double pp;
 
     mfem::Coefficient* soil;
-
 };
 
 
@@ -337,8 +334,9 @@ public:
         int n=100;
         double obj=0.0;
         double var=0.0;
+        double mo=0.0;
         for(int i=0;i<n;i++){
-            gf->Sample();
+            gf->Sample(i*17+48951376197/(i+19));
             E.SetSoilCoeff(*uf);
 
             cobj->SetE(&E);
@@ -358,6 +356,7 @@ public:
                 esolv->FSolve();
                 double rez=cobj->Eval(esolv->GetDisplacements());
                 cobj->Grad(esolv->GetDisplacements(),lgr);
+                if(rez>mo){mo=rez;}
                 //grad.Add(1.0,lgr);
                 grad.Add(rez,lgr);
                 obj=obj+rez;
@@ -372,10 +371,75 @@ public:
         int myrank;
         MPI_Comm_rank(pmesh->GetComm(),&myrank);
         if(myrank==0){
-        std::cout<<"Mean="<<obj<<"  Var="<<var-obj*obj<<std::endl;}
+        std::cout<<"Mean="<<obj<<"  Var="<<var-obj*obj<<" Max="<<mo<<std::endl;}
 
         return var-obj*obj;
     }
+
+    double ComplEnt(mfem::Vector& grad, double t=1.0)
+    {
+        //set all bc
+        esolv->DelDispBC();
+        esolv->AddDispBC(1,4,0.0);
+        esolv->AddDispBC(6,0,0.0);
+        esolv->AddDispBC(7,0,0.0);
+        esolv->AddSurfLoad(2,0.00,1.00,0.0);
+        esolv->AddSurfLoad(3,0.00,1.00,0.0);
+        esolv->AddSurfLoad(4,0.00,1.00,0.0);
+        esolv->AddSurfLoad(5,0.00,1.00,0.0);
+
+        mfem::Vector lgr(grad.Size());
+        grad=0.0;;
+
+        int n=100;
+        double obj=0.0;
+        double mo=0.0;
+        for(int i=0;i<n;i++){
+            gf->Sample(i*17+48976197/(i+19));
+            E.SetSoilCoeff(*uf);
+
+            cobj->SetE(&E);
+            cobj->SetDens(vdens);
+            cobj->SetDesignFES(dfes);
+
+            for(int k=0;k<4;k++){
+                esolv->DelDispBC();
+                esolv->AddDispBC(1,4,0.0);
+                esolv->AddSurfLoad(2,0.0,0.0,0.0);
+                esolv->AddSurfLoad(3,0.0,0.0,0.0);
+                esolv->AddSurfLoad(4,0.0,0.0,0.0);
+                esolv->AddSurfLoad(5,0.0,0.0,0.0);
+                esolv->AddSurfLoad(k+2,0.0,10.0,0.0);
+
+
+                esolv->FSolve();
+                double rez=cobj->Eval(esolv->GetDisplacements());
+                cobj->Grad(esolv->GetDisplacements(),lgr);
+                if(rez>mo){mo=rez;}
+
+                obj=obj+std::exp(rez/t);
+                grad.Add(std::exp(rez/t),lgr);
+
+            }
+        }
+
+        grad/=double(4*n);
+        obj=obj/double(4*n);
+
+        grad/=obj;
+        obj=t*std::log(obj);
+
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+        if(myrank==0){
+        std::cout<<"Ent("<<t<<")="<<obj<<" Max="<<mo<<std::endl;}
+
+        return obj;
+    }
+
+
+
+
 
     /// Evaluates the compliance
     double  Compliance(mfem::Vector& grad)
@@ -601,7 +665,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.200*tot_vol;
+   double max_vol=0.1500*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
    //intermediate volume
@@ -673,7 +737,11 @@ int main(int argc, char *argv[])
           alco->SetDensity(vdens,0.5,8.0,1.0);
           //obj=alco->Compliance(ograd);
           //obj=alco->MeanCompliance(ograd);
-          obj=alco->ComplVar(ograd);
+          if(i<10){
+              obj=alco->ComplVar(ograd);
+          }else{
+              obj=alco->ComplEnt(ograd);
+          }
 
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<obj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
