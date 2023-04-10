@@ -710,7 +710,7 @@ void ConformingFaceRestriction::AddMultTranspose(
          for (int j = offset; j < next_offset; ++j)
          {
             const int s_idx_j = d_indices[j];
-            const int sgn = (s_idx_j >= 0 || !use_signs) ? 1 : -1;
+            const double sgn = (s_idx_j >= 0 || !use_signs) ? 1.0 : -1.0;
             const int idx_j = (s_idx_j >= 0) ? s_idx_j : -1 - s_idx_j;
             dof_value += sgn*d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
          }
