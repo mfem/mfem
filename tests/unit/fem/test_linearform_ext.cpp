@@ -75,8 +75,10 @@ struct LinearFormExtTest
       {
          case Lobatto: return 2*p - 1;
          case Legendre: return 2*p + 3;
-         case LegendreUnderIntegration: return 2*p -1;
+         case LegendreUnderIntegration: return 2*p - 1;
       }
+      MFEM_ABORT("Unknown QuadratureType.");
+      return 0;
    }
 
    LinearFormExtTest(const char *mesh_filename,
