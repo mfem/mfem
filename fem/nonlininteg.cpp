@@ -15,68 +15,69 @@
 namespace mfem
 {
 
-double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
-{
-   mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
-               "   is not implemented for this class.");
-   return 0.0;
-}
-
 void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
-   mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
-                                         const FiniteElementSpace &)
-{
-   mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
-               "   is not implemented for this class.");
+   MFEM_ABORT("NonlinearFormIntegrator::AssemblePA(...)\n"
+              "   is not implemented for this class.");
 }
 
 void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
                                              const FiniteElementSpace &fes)
 {
-   mfem_error ("NonlinearFormIntegrator::AssembleGradPA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
-{
-   mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
-{
-   mfem_error ("NonlinearFormIntegrator::AddMultGradPA(...)\n"
-               "   is not implemented for this class.");
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleGradPA(...)\n"
+              "   is not implemented for this class.");
 }
 
 void NonlinearFormIntegrator::AssembleGradDiagonalPA(Vector &diag) const
 {
-   mfem_error ("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
-               "   is not implemented for this class.");
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
+              "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
+{
+   MFEM_ABORT("NonlinearFormIntegrator::AddMultPA(...)\n"
+              "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
+{
+   MFEM_ABORT("NonlinearFormIntegrator::AddMultGradPA(...)\n"
+              "   is not implemented for this class.");
+}
+
+double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
+{
+   MFEM_ABORT("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
+              "   is not implemented for this class.");
+   return 0.0;
 }
 
 void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
-               "   is not implemented for this class.");
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleMF(...)\n"
+              "   is not implemented for this class.");
 }
 
 void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
 {
-   mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
-               "   is not implemented for this class.");
+   MFEM_ABORT("NonlinearFormIntegrator::AddMultMF(...)\n"
+              "   is not implemented for this class.");
+}
+
+double NonlinearFormIntegrator::GetElementEnergy(
+   const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
+{
+   MFEM_ABORT("NonlinearFormIntegrator::GetElementEnergy"
+              " is not overloaded!");
+   return 0.0;
 }
 
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
 {
-   mfem_error("NonlinearFormIntegrator::AssembleElementVector"
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleElementVector"
               " is not overloaded!");
 }
 
@@ -84,7 +85,7 @@ void NonlinearFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
 {
-   mfem_error("NonlinearFormIntegrator::AssembleFaceVector"
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleFaceVector"
               " is not overloaded!");
 }
 
@@ -92,7 +93,7 @@ void NonlinearFormIntegrator::AssembleElementGrad(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    DenseMatrix &elmat)
 {
-   mfem_error("NonlinearFormIntegrator::AssembleElementGrad"
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleElementGrad"
               " is not overloaded!");
 }
 
@@ -101,16 +102,8 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Tr, const Vector &elfun,
    DenseMatrix &elmat)
 {
-   mfem_error("NonlinearFormIntegrator::AssembleFaceGrad"
+   MFEM_ABORT("NonlinearFormIntegrator::AssembleFaceGrad"
               " is not overloaded!");
-}
-
-double NonlinearFormIntegrator::GetElementEnergy(
-   const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
-{
-   mfem_error("NonlinearFormIntegrator::GetElementEnergy"
-              " is not overloaded!");
-   return 0.0;
 }
 
 
@@ -120,7 +113,7 @@ void BlockNonlinearFormIntegrator::AssembleElementVector(
    const Array<const Vector *> &elfun,
    const Array<Vector *> &elvec)
 {
-   mfem_error("BlockNonlinearFormIntegrator::AssembleElementVector"
+   MFEM_ABORT("BlockNonlinearFormIntegrator::AssembleElementVector"
               " is not overloaded!");
 }
 
@@ -131,7 +124,7 @@ void BlockNonlinearFormIntegrator::AssembleFaceVector(
    const Array<const Vector *> &elfun,
    const Array<Vector *> &elvect)
 {
-   mfem_error("BlockNonlinearFormIntegrator::AssembleFaceVector"
+   MFEM_ABORT("BlockNonlinearFormIntegrator::AssembleFaceVector"
               " is not overloaded!");
 }
 
@@ -141,7 +134,7 @@ void BlockNonlinearFormIntegrator::AssembleElementGrad(
    const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
-   mfem_error("BlockNonlinearFormIntegrator::AssembleElementGrad"
+   MFEM_ABORT("BlockNonlinearFormIntegrator::AssembleElementGrad"
               " is not overloaded!");
 }
 
@@ -152,7 +145,7 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(
    const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
-   mfem_error("BlockNonlinearFormIntegrator::AssembleFaceGrad"
+   MFEM_ABORT("BlockNonlinearFormIntegrator::AssembleFaceGrad"
               " is not overloaded!");
 }
 
@@ -161,7 +154,7 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
    ElementTransformation &Tr,
    const Array<const Vector *>&elfun)
 {
-   mfem_error("BlockNonlinearFormIntegrator::GetElementEnergy"
+   MFEM_ABORT("BlockNonlinearFormIntegrator::GetElementEnergy"
               " is not overloaded!");
    return 0.0;
 }
@@ -497,6 +490,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
+
 double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
@@ -504,7 +498,7 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
 {
    if (el.Size() != 2)
    {
-      mfem_error("IncompressibleNeoHookeanIntegrator::GetElementEnergy"
+      MFEM_ABORT("IncompressibleNeoHookeanIntegrator::GetElementEnergy"
                  " has incorrect block finite element space size!");
    }
 
@@ -549,7 +543,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
 {
    if (el.Size() != 2)
    {
-      mfem_error("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
+      MFEM_ABORT("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
                  " has finite element space of incorrect block number");
    }
 
@@ -561,10 +555,9 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
 
    if (dim != spaceDim)
    {
-      mfem_error("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
+      MFEM_ABORT("IncompressibleNeoHookeanIntegrator::AssembleElementVector"
                  " is not defined on manifold meshes");
    }
-
 
    DSh_u.SetSize(dof_u, dim);
    DS_u.SetSize(dof_u, dim);
@@ -730,6 +723,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
    }
 
 }
+
 
 const IntegrationRule&
 VectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,

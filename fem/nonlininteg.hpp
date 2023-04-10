@@ -29,13 +29,12 @@ class NonlinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
 
-   // CEED extension
-   ceed::Operator* ceedOp;
+   ceed::Operator *ceedOp;  // libCEED extension
 
    MemoryType pa_mt = MemoryType::DEFAULT;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir), ceedOp(NULL) { }
+      : IntRule(ir), ceedOp(NULL) {}
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -51,6 +50,63 @@ public:
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }
+
+   /// Method defining partial assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA(). */
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   /** @brief Prepare the integrator for partial assembly (PA) gradient
+       evaluations on the given FE space @a fes at the state @a x. */
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
+       The state Vector @a x is an E-vector. */
+   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
+
+   /// Method for computing the diagonal of the gradient with partial assembly.
+   /** The result Vector @a diag is an E-Vector. This method can be called only
+       after the method AssembleGradPA() has been called.
+
+       @param[in,out] diag  The result Vector: @f$ diag += diag(G) @f$. */
+   virtual void AssembleGradDiagonalPA(Vector &diag) const;
+
+   /// Method for partially assembled action.
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled gradient action.
+   /** All arguments are E-vectors. This method can be called only after the
+       method AssembleGradPA() has been called.
+
+       @param[in]     x  The gradient Operator is applied to the Vector @a x.
+       @param[in,out] y  The result Vector: @f$ y += G x @f$. */
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
+
+   /// Compute the local (to the MPI rank) energy with partial assembly.
+   /** Here the state @a x is an E-vector. This method can be called only after
+       the method AssemblePA() has been called. */
+   virtual double GetLocalStateEnergyPA(const Vector &x) const;
+
+   /// Method defining fully unassembled operator.
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssembleMF() has been
+       called. */
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   /// Compute the local energy
+   virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Tr,
+                                   const Vector &elfun);
 
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
@@ -76,79 +132,17 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Vector &elfun, DenseMatrix &elmat);
 
-   /// Compute the local energy
-   virtual double GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &Tr,
-                                   const Vector &elfun);
-
-   /// Method defining partial assembly.
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA(). */
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA().
-       Used with BilinearFormIntegrators that have different spaces. */
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-
-   /** @brief Prepare the integrator for partial assembly (PA) gradient
-       evaluations on the given FE space @a fes at the state @a x. */
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
-       The state Vector @a x is an E-vector. */
-   virtual void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes);
-
-   /// Compute the local (to the MPI rank) energy with partial assembly.
-   /** Here the state @a x is an E-vector. This method can be called only after
-       the method AssemblePA() has been called. */
-   virtual double GetLocalStateEnergyPA(const Vector &x) const;
-
-   /// Method for partially assembled action.
-   /** Perform the action of integrator on the input @a x and add the result to
-       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
-       the element-wise discontinuous version of the FE space.
-
-       This method can be called only after the method AssemblePA() has been
-       called. */
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-
-   /// Method for partially assembled gradient action.
-   /** All arguments are E-vectors. This method can be called only after the
-       method AssembleGradPA() has been called.
-
-       @param[in]     x  The gradient Operator is applied to the Vector @a x.
-       @param[in,out] y  The result Vector: @f$ y += G x @f$. */
-   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
-
-   /// Method for computing the diagonal of the gradient with partial assembly.
-   /** The result Vector @a diag is an E-Vector. This method can be called only
-       after the method AssembleGradPA() has been called.
-
-       @param[in,out] diag  The result Vector: @f$ diag += diag(G) @f$. */
-   virtual void AssembleGradDiagonalPA(Vector &diag) const;
-
    /// Indicates whether this integrator can use a Ceed backend.
    virtual bool SupportsCeed() const { return false; }
 
-   /// Method defining fully unassembled operator.
-   virtual void AssembleMF(const FiniteElementSpace &fes);
-
-   /** Perform the action of integrator on the input @a x and add the result to
-       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
-       the element-wise discontinuous version of the FE space.
-
-       This method can be called only after the method AssembleMF() has been
-       called. */
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
-
-   ceed::Operator& GetCeedOp() { return *ceedOp; }
+   ceed::Operator &GetCeedOp() { return *ceedOp; }
 
    virtual ~NonlinearFormIntegrator()
    {
       delete ceedOp;
    }
 };
+
 
 /** The abstract base class BlockNonlinearFormIntegrator is
     a generalization of the NonlinearFormIntegrator class suitable
@@ -185,7 +179,7 @@ public:
                                  const Array<const Vector *> &elfun,
                                  const Array2D<DenseMatrix *> &elmats);
 
-   virtual ~BlockNonlinearFormIntegrator() { }
+   virtual ~BlockNonlinearFormIntegrator() {}
 };
 
 
@@ -197,8 +191,8 @@ protected:
                                     transformation. */
 
 public:
-   HyperelasticModel() : Ttr(NULL) { }
-   virtual ~HyperelasticModel() { }
+   HyperelasticModel() : Ttr(NULL) {}
+   virtual ~HyperelasticModel() {}
 
    /// A reference-element to target-element transformation that can be used to
    /// evaluate Coefficient%s.
@@ -277,7 +271,7 @@ public:
 
    NeoHookeanModel(Coefficient &mu_, Coefficient &K_, Coefficient *g_ = NULL)
       : mu(0.0), K(0.0), g(1.0), c_mu(&mu_), c_K(&K_), c_g(g_),
-        have_coeffs(true) { }
+        have_coeffs(true) {}
 
    virtual double EvalW(const DenseMatrix &J) const;
 
@@ -314,7 +308,7 @@ private:
 
 public:
    /** @param[in] m  HyperelasticModel that will be integrated. */
-   HyperelasticNLFIntegrator(HyperelasticModel *m) : model(m) { }
+   HyperelasticNLFIntegrator(HyperelasticModel *m) : model(m) {}
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone
        @param[in] el     Type of FiniteElement.
@@ -333,6 +327,7 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 };
 
+
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
     \f$P = \mu F - p F^{-T}\f$ where \f$\mu\f$ is the shear modulus,
     \f$p\f$ is the pressure, and \f$F\f$ is the deformation gradient */
@@ -345,7 +340,7 @@ private:
    Vector Sh_p;
 
 public:
-   IncompressibleNeoHookeanIntegrator(Coefficient &mu_) : c_mu(&mu_) { }
+   IncompressibleNeoHookeanIntegrator(Coefficient &mu_) : c_mu(&mu_) {}
 
    virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
@@ -371,6 +366,7 @@ private:
    Coefficient *Q{};
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
+
    // PA extension
    Vector pa_data;
    const DofToQuad *maps;         ///< Not owned
@@ -378,7 +374,7 @@ private:
    int dim, ne, nq;
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) {}
 
    VectorConvectionNLFIntegrator() = default;
 
@@ -395,13 +391,11 @@ public:
                                     const Vector &elfun,
                                     DenseMatrix &elmat);
 
-   using NonlinearFormIntegrator::AssemblePA;
-
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
-
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
@@ -418,7 +412,7 @@ private:
    Vector shape;
 
 public:
-   ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   ConvectiveVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) {}
 
    ConvectiveVectorConvectionNLFIntegrator() = default;
 
@@ -441,7 +435,7 @@ private:
    Vector shape;
 
 public:
-   SkewSymmetricVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   SkewSymmetricVectorConvectionNLFIntegrator(Coefficient &q): Q(&q) {}
 
    SkewSymmetricVectorConvectionNLFIntegrator() = default;
 

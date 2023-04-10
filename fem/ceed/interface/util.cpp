@@ -217,7 +217,7 @@ const IntegrationRule & GetRule<ConvectionIntegrator>(
    const FiniteElement &test_fe,
    ElementTransformation &trans)
 {
-   return ConvectionIntegrator::GetRule(trial_fe, test_fe, trans);
+   return ConvectionIntegrator::GetRule(trial_fe, trans);
 }
 
 template <>
