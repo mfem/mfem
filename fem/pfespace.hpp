@@ -310,7 +310,7 @@ public:
        the returned operator handles the communication needed to get the
        shared face values from other MPI ranks */
    virtual const FaceRestriction *GetFaceRestriction(
-      ElementDofOrdering e_ordering, FaceType type,
+      ElementDofOrdering f_ordering, FaceType type,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
