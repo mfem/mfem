@@ -462,6 +462,12 @@ public:
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   virtual bool SupportsDevice() const { return true; }
+
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 };
 
 /// Class for boundary integration \f$ L(v) = (n \times f, v) \f$
