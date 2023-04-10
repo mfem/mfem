@@ -681,13 +681,13 @@ void ConformingFaceRestriction::AddMultTranspose(
    AddMultTranspose(x, y, true, a);
 }
 
-void H1_ND_RT_FaceRestriction::AddMultTransposeUnsigned(
+void ConformingFaceRestriction::AddMultTransposeUnsigned(
    const Vector& x, Vector& y, const double a) const
 {
    AddMultTranspose(x, y, false, a);
 }
 
-void H1_ND_RT_FaceRestriction::AddMultTranspose(
+void ConformingFaceRestriction::AddMultTranspose(
    const Vector& x, Vector& y, bool use_signs, const double a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
