@@ -4,11 +4,11 @@
 //
 // Sample runs:
 //
-//       mpirun ex18p -p 1 -r 2 -o 1 -s 3
-//       mpirun ex18p -p 1 -r 1 -o 3 -s 4
-//       mpirun ex18p -p 1 -r 0 -o 5 -s 6
-//       mpirun ex18p -p 2 -r 1 -o 1 -s 3
-//       mpirun ex18p -p 2 -r 0 -o 3 -s 3
+//       mpirun ex18p -p 1 -rs 2 -o 1 -s 3
+//       mpirun ex18p -p 1 -rs 1 -o 3 -s 4
+//       mpirun ex18p -p 1 -rs 0 -o 5 -s 6
+//       mpirun ex18p -p 2 -rs 1 -o 1 -s 3
+//       mpirun ex18p -p 2 -rs 0 -o 3 -s 3
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -42,6 +42,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <cmath>
 
 #include "mfem.hpp"
 
@@ -85,7 +86,7 @@ int main(int argc, char *argv[])
    int vis_steps = 50;
 
    int precision = 8;
-   cout.precision(precision);
+   out.precision(precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -114,7 +115,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(out); }
       return 1;
    }
    // When the user does not provide mesh file,
@@ -123,7 +124,7 @@ int main(int argc, char *argv[])
    {
       EulerMesh(problem, &mesh_file);  // get default mesh file name
    }
-   if (Mpi::Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(out); }
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh = Mesh(mesh_file);
@@ -188,7 +189,7 @@ int main(int argc, char *argv[])
          ode_solver = new RK6Solver;
          break;
       default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         out << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
 
@@ -207,7 +208,7 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      cout << "Number of unknowns: " << vfes.GetVSize() << endl;
+      out << "Number of unknowns: " << vfes.GetVSize() << endl;
    }
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
@@ -257,9 +258,9 @@ int main(int argc, char *argv[])
          visualization = false;
          if (Mpi::Root())
          {
-            cout << "Unable to connect to GLVis server at " << vishost << ':'
+            out << "Unable to connect to GLVis server at " << vishost << ':'
                  << visport << endl;
-            cout << "GLVis visualization disabled.\n";
+            out << "GLVis visualization disabled.\n";
          }
       }
       else
@@ -274,7 +275,7 @@ int main(int argc, char *argv[])
          sout << flush;
          if (Mpi::Root())
          {
-            cout << "GLVis visualization paused."
+            out << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
          }
          MPI_Barrier(pmesh.GetComm());
@@ -337,7 +338,7 @@ int main(int argc, char *argv[])
       {
          if (Mpi::Root())
          {
-            cout << "time step: " << ti << ", time: " << t << endl;
+            out << "time step: " << ti << ", time: " << t << endl;
          }
          if (visualization)
          {
@@ -353,7 +354,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    if (Mpi::Root())
    {
-      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      out << " done, " << tic_toc.RealTime() << "s." << endl;
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
@@ -383,7 +384,7 @@ int main(int argc, char *argv[])
    const double error = sol.ComputeLpError(2, u0);
    if (Mpi::Root())
    {
-      cout << "Solution error: " << error << endl;
+      out << "Solution error: " << error << endl;
    }
 
    // Free the used memory.
@@ -423,7 +424,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 {
    switch (problem)
    {
-      case 1:
+      case 1: // fast moving vortex
          return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
@@ -474,7 +475,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = den * velY;
             y(3) = den * energy;
          });
-      case 2:
+      case 2: // slow moving vortex
          return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
@@ -525,14 +526,12 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = den * velY;
             y(3) = den * energy;
          });
-      case 3:
+      case 3: // moving sine wave
          return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
-            // std::cout << "2D Accuracy Test." << std::endl;
-            // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
-            const double density = 1.0 + 0.2 * sin(M_PI*x(0) + x(1));
+            const double density = 1.0 + 0.2 * sin(M_PI*(x(0) + x(1)));
             const double velocity_x = 0.7;
             const double velocity_y = 0.3;
             const double pressure = 1.0;

@@ -1,6 +1,6 @@
 //                                MFEM Example 18
 //
-// Compile with: make ex18
+// Compile with: make ex18p
 //
 // Sample runs:
 //
@@ -63,6 +63,11 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 
 int main(int argc, char *argv[])
 {
+   Mpi::Init(argc, argv);
+   const int numProcs = Mpi::WorldSize();
+   const int myRank = Mpi::WorldRank();
+   Hypre::Init();
+
    // 1. Parse command-line options.
    int problem = 1;
    const double specific_heat_ratio = 1.4;
@@ -73,14 +78,14 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 0.2;
+   double t_final = 2.0;
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
 
    int precision = 8;
-   cout.precision(precision);
+   out.precision(precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -107,40 +112,35 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(out);
       return 1;
    }
    // When the user does not provide mesh file,
    // use the default mesh file for the problem.
-   if ((mesh_file == NULL) || (mesh_file[0] == '\0'))  // if NULL or empty
+   if ((mesh_file == NULL) || (mesh_file[0] == '\0'))    // if NULL or empty
    {
       EulerMesh(problem, &mesh_file);  // get default mesh file name
    }
-   args.PrintOptions(cout);
 
    // 2. Read the mesh from the given mesh file.
-   Mesh *mesh = new Mesh(mesh_file);
-   const int dim = mesh->Dimension();
+   Mesh mesh = Mesh(mesh_file);
+   const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
    if (problem == 5)
    {
-      mesh->Transform([](const Vector &x, Vector &y)
+      mesh.Transform([](const Vector &x, Vector &y)
       {
          y = x;
          y *= 0.5;
       });
    }
-
    // perform uniform refine
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
-   if (dim > 1)
-   {
-      mesh->EnsureNCMesh();
-   }
+   if (dim > 1) { mesh.EnsureNCMesh(); }
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -163,55 +163,59 @@ int main(int argc, char *argv[])
          ode_solver = new RK6Solver;
          break;
       default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         out << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
 
    // 4. Define the discontinuous DG finite element space of the given
-   //    polynomial order on the refined mesh->
-   DG_FECollection *fec = new DG_FECollection(order, dim);
+   //    polynomial order on the refined mesh.
+   DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
-   FiniteElementSpace *fes = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpace fes(&mesh, &fec);
    // Finite element space for a mesh-dim vector quantity (momentum)
-   FiniteElementSpace *dfes =
-      new FiniteElementSpace(mesh, fec, dim, Ordering::byNODES);
+   FiniteElementSpace dfes(&mesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
-   FiniteElementSpace *vfes =
-      new FiniteElementSpace(mesh, fec, num_equations, Ordering::byNODES);
+   FiniteElementSpace vfes(&mesh, &fec, num_equations, Ordering::byNODES);
 
    // This example depends on this ordering of the space.
-   MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES, "");
+   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
-   cout << "Number of unknowns: " << vfes->GetVSize() << endl;
+   out << "Number of unknowns: " << vfes.GetVSize() << endl;
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
                                                         specific_heat_ratio, gas_constant);
-   GridFunction sol(vfes);
+   GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
 
    // Output the initial solution.
    {
-      ofstream mesh_ofs("euler.mesh");
+      ostringstream mesh_name;
+      mesh_name << "euler-mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+      ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << mesh;
+
       for (int k = 0; k < num_equations; k++)
       {
-         GridFunction uk(fes, sol.GetData() + fes->GetNDofs() * k);
+         GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
          ostringstream sol_name;
-         sol_name << "euler-" << k << "-init.gf";
+         sol_name << "euler-" << k << "-init." << setfill('0') << setw(6)
+                  << Mpi::WorldRank();
          ofstream sol_ofs(sol_name.str().c_str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
    }
 
+   // 7. Set up the nonlinear form corresponding to the DG discretization of the
+   //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
-
    DGHyperbolicConservationLaws euler = getEulerSystem(
-                                           vfes, numericalFlux, specific_heat_ratio, gas_constant, IntOrderOffset);
+                                           &vfes, numericalFlux, specific_heat_ratio, gas_constant, IntOrderOffset);
+
    // Visualize the density
    socketstream sout;
    if (visualization)
@@ -222,33 +226,34 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         cout << "Unable to connect to GLVis server at " << vishost << ':'
-              << visport << endl;
          visualization = false;
-         cout << "GLVis visualization disabled.\n";
+         if (Mpi::Root())
+         {
+            out << "Unable to connect to GLVis server at " << vishost << ':'
+                 << visport << endl;
+            out << "GLVis visualization disabled.\n";
+         }
       }
       else
       {
-         GridFunction density(dfes, sol.GetData());
-         sout.precision(precision);
-         sout << "solution\n" << *mesh << density;
-         sout << "pause\n";
+         GridFunction mom(&dfes, sol.GetData());
+         sout << "solution\n" << mesh << mom;
          sout << "view 0 0\n";  // view from top
          sout << "keys jlm\n";  // turn off perspective and light
+         sout << "pause\n";
          sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
+         out << "GLVis visualization paused."
+               << " Press space (in the GLVis window) to resume it.\n";
       }
    }
 
    // Determine the minimum element size.
-   double hmin = 0.0;
+   double hmin = infinity();
    if (cfl > 0)
    {
-      hmin = mesh->GetElementSize(0, 1);
-      for (int i = 1; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
-         hmin = min(mesh->GetElementSize(i, 1), hmin);
+         hmin = min(mesh.GetElementSize(i, 1), hmin);
       }
    }
 
@@ -266,8 +271,9 @@ int main(int argc, char *argv[])
       // maximum char speed at all quadrature points on all faces.
       Vector z(sol.Size());
       euler.Mult(sol, z);
-      // faceForm.Mult(sol, z);
-      dt = cfl * hmin / euler.getMaxCharSpeed() / (2 * order + 1);
+
+      double max_char_speed = euler.getMaxCharSpeed();
+      dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
 
    // Integrate in time.
@@ -279,42 +285,51 @@ int main(int argc, char *argv[])
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
       {
-         dt = cfl * hmin / euler.getMaxCharSpeed() / (2 * order + 1);
+         double max_char_speed = euler.getMaxCharSpeed();
+         dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+         out << "time step: " << ti << ", time: " << t << endl;
          if (visualization)
          {
-            GridFunction mom(dfes, sol.GetData());
-            sout << "solution\n" << *mesh << mom << flush;
+            GridFunction mom(&dfes, sol.GetData());
+            sout << "solution\n" << mesh << mom << flush;
+            sout << "window_title 't = " << t << "'";
          }
       }
    }
 
    tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   out << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m euler.mesh -g euler-1-final.gf".
-   for (int k = 0; k < num_equations; k++)
    {
-      GridFunction uk(fes, sol.GetData() + fes->GetNDofs());
-      ostringstream sol_name;
-      sol_name << "euler-" << k << "-final.gf";
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(precision);
-      sol_ofs << uk;
+      ostringstream mesh_name;
+      mesh_name << "euler-mesh-final.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(precision);
+      mesh_ofs << mesh;
+
+      for (int k = 0; k < num_equations; k++)
+      {
+         GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
+         ostringstream sol_name;
+         sol_name << "euler-" << k << "-final.gf";
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(precision);
+         sol_ofs << uk;
+      }
    }
 
    // 10. Compute the L2 solution error summed for all components.
    //   if (t_final == 2.0) {
    const double error = sol.ComputeLpError(2, u0);
-   cout << "Solution error: " << error << endl;
-   //   }
+   out << "Solution error: " << error << endl;
 
    // Free the used memory.
    delete ode_solver;
@@ -353,8 +368,8 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 {
    switch (problem)
    {
-      case 1:
-         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+      case 1: // fast moving vortex
+         return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
@@ -404,8 +419,8 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = den * velY;
             y(3) = den * energy;
          });
-      case 2:
-         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+      case 2: // slow moving vortex
+         return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
@@ -455,14 +470,12 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = den * velY;
             y(3) = den * energy;
          });
-      case 3:
-         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+      case 3: // moving sine wave
+         return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
-            // std::cout << "2D Accuracy Test." << std::endl;
-            // std::cout << "domain = (-1, 1) x (-1, 1)" << std::endl;
-            const double density = 1.0 + 0.2 * sin(M_PI*x(0) + x(1));
+            const double density = 1.0 + 0.2 * sin(M_PI*(x(0) + x(1)));
             const double velocity_x = 0.7;
             const double velocity_y = 0.3;
             const double pressure = 1.0;
@@ -476,11 +489,11 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(3) = energy;
          });
       case 4:
-         return VectorFunctionCoefficient(1, [specific_heat_ratio,
+         return VectorFunctionCoefficient(3, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 1, "");
-            const double density = 1.0 + 0.2 * sin(M_PI*2 * x(0));
+            const double density = 1.0 + 0.2 * sin(M_PI * 2 * x(0));
             const double velocity_x = 1.0;
             const double pressure = 1.0;
             const double energy =
@@ -491,7 +504,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = energy;
          });
       case 5:
-         return VectorFunctionCoefficient(2, [specific_heat_ratio,
+         return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
