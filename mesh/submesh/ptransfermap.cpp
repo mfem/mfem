@@ -238,7 +238,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
 }
 
 void
-ParTransferMap::CorrectFaceOrientations(ParFiniteElementSpace &fes,
+ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
                                         const Vector &src,
                                         Vector &dst,
                                         const Array<int> *sub_to_parent_map)
@@ -248,8 +248,7 @@ ParTransferMap::CorrectFaceOrientations(ParFiniteElementSpace &fes,
    VDofTransformation vdoftrans(fes.GetVDim(),
                                 fes.GetOrdering());
 
-   ParSubMesh * mesh =
-      dynamic_cast<ParSubMesh*>(fes.GetParMesh());
+   ParSubMesh * mesh = dynamic_cast<ParSubMesh*>(fes.GetParMesh());
 
    const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
 
