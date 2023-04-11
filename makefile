@@ -124,7 +124,8 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke multidomain
+ toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke multidomain \
+ spde
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
