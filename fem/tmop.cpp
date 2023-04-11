@@ -2167,17 +2167,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-               double min_size = par_vals.Min();//0.001; //
-               if (lim_min_size > 0.)
+               double min_size = par_vals.Min();
+               if (lim_min_size > 0.) { min_size = lim_min_size; }
+               MFEM_VERIFY(min_size > 0.0,
+                  "Non-positive size propagated in the target definition.");
+
+               double size = fmax(shape * par_vals, min_size);
+               NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+               if (ncmesh)
                {
-                  min_size = lim_min_size;
+                  size /= ncmesh->GetElementSizeReduction(e_id);
                }
-               else
-               {
-                  MFEM_VERIFY(min_size > 0.0,
-                              "Non-positive size propagated in the target definition.");
-               }
-               const double size = std::max(shape * par_vals, min_size);
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
                Jtrcomp_q = Jtr(q);
@@ -2945,30 +2945,40 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
 
-   int loc_cnt = 0;
-   double loc_max = 0.0, loc_sum = 0.0;
+#ifdef MFEM_USE_MPI
+   auto pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(surf_fit_gf->FESpace());
+   bool parallel = (pfes) ? true : false;
+#endif
+
+   err_max = 0.0;
+   int dof_cnt = 0;
+   double err_sum = 0.0;
    for (int i = 0; i < surf_fit_marker->Size(); i++)
    {
       if ((*surf_fit_marker)[i] == true)
       {
-         loc_cnt++;
-         loc_max  = std::max(loc_max, std::abs((*surf_fit_gf)(i)));
-         loc_sum += std::abs((*surf_fit_gf)(i));
+#ifdef MFEM_USE_MPI
+         // Don't count the overlapping DOFs in parallel.
+         if (parallel && pfes->GetLocalTDofNumber(i) < 0) { continue; }
+#endif
+         dof_cnt++;
+         err_max  = fmax(err_max, fabs((*surf_fit_gf)(i)));
+         err_sum += fabs((*surf_fit_gf)(i));
       }
    }
 
 #ifdef MFEM_USE_MPI
-   if (targetC->Parallel() == false) { return; }
-   int glob_cnt;
-   MPI_Comm comm = targetC->GetComm();
-   MPI_Allreduce(&loc_max, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
-   MPI_Allreduce(&loc_cnt, &glob_cnt, 1, MPI_INT, MPI_SUM, comm);
-   MPI_Allreduce(&loc_sum, &err_avg, 1, MPI_DOUBLE, MPI_SUM, comm);
-   err_avg = err_avg / glob_cnt;
-#else
-   err_avg = loc_sum / loc_cnt;
-   err_max = loc_max;
+   if (parallel)
+   {
+      MPI_Comm comm = pfes->GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &dof_cnt, 1, MPI_INT, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &err_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
 #endif
+
+   err_avg = (dof_cnt > 0) ? err_sum / dof_cnt : 0.0;
 }
 
 void TMOP_Integrator::UpdateAfterMeshTopologyChange()

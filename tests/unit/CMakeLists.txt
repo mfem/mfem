@@ -73,6 +73,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
+  fem/test_face_restriction.cpp
   fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp

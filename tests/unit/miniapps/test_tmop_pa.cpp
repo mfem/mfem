@@ -233,16 +233,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         if (dim == 2)
-         {
-            FunctionCoefficient ind_coeff(discrete_size_2d);
-            size.ProjectCoefficient(ind_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient ind_coeff(discrete_size_3d);
-            size.ProjectCoefficient(ind_coeff);
-         }
+         ConstructSizeGF(size);
          tc->SetDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -800,6 +791,13 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({4,6}).
           LINEAR_ITERATIONS(150).
           TID({5}).MID({80,94}).LS({3})).Run(id,true);
+
+   Launch(Launch::Args("NE mesh + Adapted discrete size").
+          MESH("../../miniapps/meshing/amr-quad-q2.mesh").REFINE(1).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({4,6}).
+          LINEAR_ITERATIONS(150).
+          TID({5}).MID({80}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
