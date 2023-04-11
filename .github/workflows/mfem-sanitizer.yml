@@ -50,7 +50,7 @@ jobs:
         library-only: false
         config-options: >
           CXX="clang++-14"
-          CXXFLAGS="-O1 -std=c++11 \
+          CXXFLAGS="-g -O1 -std=c++11 \
             -fsanitize=address \
             -fsanitize-address-use-after-scope \
             -fno-omit-frame-pointer"
