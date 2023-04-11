@@ -75,6 +75,11 @@ private:
     */
    void CommunicateSharedVdofs(Vector &f) const;
 
+   static void CorrectFaceOrientations(ParFiniteElementSpace &fes,
+                                       const Vector &src,
+                                       Vector &dst,
+                                       const Array<int> *s2p_map = NULL);
+
    TransferCategory category_;
 
    /// Mapping of the ParGridFunction defined on the SubMesh to the
