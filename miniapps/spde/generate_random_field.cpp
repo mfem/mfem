@@ -134,8 +134,8 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_export, "-pvis", "--paraview-visualization",
                   "-no-pvis", "--no-paraview-visualization",
                   "Enable or disable ParaView visualization.");
-   args.AddOption(&glvis_export, "-gvis", "--glvis-visualization", "-no-gvis",
-                  "--no-glvis-visualization",
+   args.AddOption(&glvis_export, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&uniform_rf, "-urf", "--uniform-rf", "-no-urf",
                   "--no-uniform-rf",

@@ -53,6 +53,15 @@ endif
 
 all: $(MINIAPPS)
 
+MFEM_TESTS = MINIAPPS
+include $(MFEM_TEST_MK)
+
+# Testing: Specific execution options
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+generate_random_field-test-par: generate_random_field
+	@$(call mfem-test,$<,$(RUN_MPI), random field miniapp,-r 3 -rp 2 \
+	 -nu 4 -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh)
+
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
