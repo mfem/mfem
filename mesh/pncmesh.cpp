@@ -2012,6 +2012,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                   "(glob_sent, glob_recv) = ("
                   << glob_sent << ", " << glob_recv << ")");
    }
+#else
+   MFEM_CONTRACT_VAR(nsent);
+   MFEM_CONTRACT_VAR(nrecv);
 #endif
 }
 
