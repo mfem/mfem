@@ -2105,17 +2105,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-               double min_size = par_vals.Min();//0.001; //
-               if (lim_min_size > 0.)
+               double min_size = par_vals.Min();
+               if (lim_min_size > 0.) { min_size = lim_min_size; }
+               MFEM_VERIFY(min_size > 0.0,
+                  "Non-positive size propagated in the target definition.");
+
+               double size = fmax(shape * par_vals, min_size);
+               NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+               if (ncmesh)
                {
-                  min_size = lim_min_size;
+                  size /= ncmesh->GetElementSizeReduction(e_id);
                }
-               else
-               {
-                  MFEM_VERIFY(min_size > 0.0,
-                              "Non-positive size propagated in the target definition.");
-               }
-               const double size = std::max(shape * par_vals, min_size);
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
                Jtrcomp_q = Jtr(q);
