@@ -225,23 +225,13 @@ SetReorderingStrategy(strumpack::ReorderingStrategy method)
    solver_->options().set_reordering_method(method);
 }
 
-#if STRUMPACK_VERSION_MAJOR >= 3
 template <typename STRUMPACKSolverType>
 void STRUMPACKSolverBase<STRUMPACKSolverType>::
 SetMatching(strumpack::MatchingJob job)
 {
    solver_->options().set_matching(job);
 }
-#else
-template <typename STRUMPACKSolverType>
-void STRUMPACKSolverBase<STRUMPACKSolverType>::
-SetMatching(strumpack::MC64Job job)
-{
-   solver_->options().set_mc64job(job);
-}
-#endif
 
-#if STRUMPACK_VERSION_MAJOR >= 3
 template <typename STRUMPACKSolverType>
 void STRUMPACKSolverBase<STRUMPACKSolverType>::
 SetCompression(strumpack::CompressionType type)
@@ -308,7 +298,6 @@ SetCompressionButterflyLevels(int levels)
    solver_->options().HODLR_options().set_butterfly_levels(levels);
 }
 #endif
-#endif
 
 template <typename STRUMPACKSolverType>
 void STRUMPACKSolverBase<STRUMPACKSolverType>::
@@ -345,7 +334,11 @@ FactorInternal() const
    strumpack::ReturnCode ret = solver_->factor();
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
+#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
       MFEM_ABORT("STRUMPACK: Factor failed with return code " << ret << "!");
+#else
+      MFEM_ABORT("STRUMPACK: Factor failed!");
+#endif
    }
 }
 
@@ -368,7 +361,11 @@ Mult(const Vector &x, Vector &y) const
    strumpack::ReturnCode ret = solver_->solve(xPtr, yPtr, false);
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
+#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
       MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");
+#else
+      MFEM_ABORT("STRUMPACK: Solve failed!");
+#endif
    }
 }
 
@@ -410,7 +407,11 @@ ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const
                                               false);
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
+#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
       MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");
+#else
+      MFEM_ABORT("STRUMPACK: Solve failed!");
+#endif
    }
 
    for (int i = 0; i < nrhs_; i++)

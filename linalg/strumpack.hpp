@@ -108,10 +108,8 @@ public:
 
    // Enable or not GPU off-loading available if STRUMPACK was compiled with CUDA. Note
    // that input/output from MFEM to STRUMPACK is all still through host memory.
-#if STRUMPACK_VERSION_MAJOR >= 3
    void EnableGPU();
    void DisableGPU();
-#endif
 
    /**
     * STRUMPACK is an (approximate) direct solver. It can be used as a direct
@@ -171,13 +169,8 @@ public:
     *    COMBBLAS:                      Use AWPM from CombBLAS (only with
     *                                   version >= 3)
     */
-#if STRUMPACK_VERSION_MAJOR >= 3
    void SetMatching(strumpack::MatchingJob job);
-#else
-   void SetMatching(strumpack::MC64Job job);
-#endif
 
-#if STRUMPACK_VERSION_MAJOR >= 3
    /**
     * Enable support for rank-structured data formats, which can be used
     * for compression within the sparse solver.
@@ -207,7 +200,6 @@ public:
 #if STRUMPACK_VERSION_MAJOR >= 5
    void SetCompressionLossyPrecision(int precision);
    void SetCompressionButterflyLevels(int levels);
-#endif
 #endif
 
 private:

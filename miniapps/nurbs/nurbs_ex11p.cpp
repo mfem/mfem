@@ -286,11 +286,8 @@ int main(int argc, char *argv[])
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-#if STRUMPACK_VERSION_MAJOR >= 3
          strumpack->SetMatching(strumpack::MatchingJob::NONE);
-#else
-         strumpack->SetMatching(strumpack::MC64Job::NONE);
-#endif
+         strumpack->SetCompression(strumpack::CompressionType::NONE);
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;
