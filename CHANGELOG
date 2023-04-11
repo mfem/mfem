@@ -21,6 +21,10 @@ Discretization improvements
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
+- Improved lambda body debugging with the addition of mfem::forall functions.
+  These functions can take the place of the MFEM_FORALL macros, which have
+  been preserved for backwards compatibility.
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================
@@ -64,9 +68,6 @@ Version 4.5.2, released on March 23, 2023
 
 - The following integrations have updated minimum version requirements:
   * RAJA >= 2022.10.3
-
-- Adds mfem::forall functions that can be used inplace of MFEM_FORALL macros,
-  which have been kept for backward compatibility.
 
 API changes
 -----------
