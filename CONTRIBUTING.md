@@ -121,6 +121,7 @@ The MFEM source code has the following structure:
   ├── fem
   │   ├── ceed
   │   ├── fe
+  │   ├── integ
   │   ├── lor
   │   ├── moonolith
   │   ├── qinterp
