@@ -203,15 +203,7 @@ public:
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
-        state(num_equations_),
-        rsolver(rsolver_),
-        flux(num_equations_, dim),
-        state1(num_equations_),
-        state2(num_equations_),
-        fluxN1(num_equations_),
-        fluxN2(num_equations_),
-        nor(dim),
-        fluxN(num_equations_) {}
+        rsolver(rsolver_) {}
    /**
     * @brief Construct an object with a fixed integration rule
     *
@@ -227,14 +219,7 @@ public:
         num_equations(num_equations_),
         IntOrderOffset(0),
         state(num_equations_),
-        rsolver(rsolver_),
-        flux(num_equations_, dim),
-        state1(num_equations_),
-        state2(num_equations_),
-        fluxN1(num_equations_),
-        fluxN2(num_equations_),
-        nor(dim),
-        fluxN(num_equations_) {}
+        rsolver(rsolver_) {}
 
    /**
     * @brief Get the element integration rule based on IntOrderOffset, @see
