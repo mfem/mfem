@@ -525,8 +525,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(3) = den * energy;
          });
       case 3: // moving sine wave
-         return VectorFunctionCoefficient(4, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
             const double density = 1.0 + 0.2 * sin(M_PI*(x(0) + x(1)));
@@ -543,11 +542,10 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(3) = energy;
          });
       case 4:
-         return VectorFunctionCoefficient(3, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(3, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 1, "");
-            const double density = 1.0 + 0.2 * sin(M_PI*2 * x(0));
+            const double density = 1.0 + 0.2 * sin(M_PI * 2 * x(0));
             const double velocity_x = 1.0;
             const double pressure = 1.0;
             const double energy =
@@ -558,8 +556,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = energy;
          });
       case 5:
-         return VectorFunctionCoefficient(4, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
+         return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
             const double L = 1.0;
