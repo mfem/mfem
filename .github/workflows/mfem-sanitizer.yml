@@ -48,7 +48,12 @@ jobs:
         mfem-dir: mfem
         build-system: make
         library-only: false
-        config-options: CXX=clang++-14 CXXFLAGS="-O1 -std=c++11 -fsanitize=address -fsanitize-address-use-after-scope -fno-omit-frame-pointer"
+        config-options: >
+        CXX=clang++-14
+        CXXFLAGS="-O1 -std=c++11
+                  -fsanitize=address
+                  -fsanitize-address-use-after-scope
+                  -fno-omit-frame-pointer"
 
     - name: MFEM Info
       working-directory: mfem
@@ -56,4 +61,12 @@ jobs:
 
     - name: MFEM Sanitize
       working-directory: mfem
-      run: ASAN_OPTIONS=strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1,detect_leaks=1,halt_on_error=1 make test
+      run: >
+      ASAN_OPTIONS=
+      strict_string_checks=1
+      :detect_stack_use_after_return=1
+      :check_initialization_order=1
+      :strict_init_order=1,
+      detect_leaks=1,
+      halt_on_error=1
+      make test
