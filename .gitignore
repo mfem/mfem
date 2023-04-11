@@ -114,6 +114,7 @@ examples/ex28p_*
 examples/flux.*
 
 examples/euler-*
+examples/euler.mesh
 
 examples/amgx/ex1
 examples/amgx/ex1p
