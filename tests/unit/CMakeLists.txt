@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -73,6 +73,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
+  fem/test_face_restriction.cpp
   fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
