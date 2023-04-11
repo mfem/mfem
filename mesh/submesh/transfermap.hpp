@@ -52,6 +52,12 @@ public:
    void Transfer(const GridFunction &src, GridFunction &dst) const;
 
 private:
+
+   static void CorrectFaceOrientations(const FiniteElementSpace &fes,
+                                       const Vector &src,
+                                       Vector &dst,
+                                       const Array<int> *s2p_map = NULL);
+
    TransferCategory category_;
 
    /// Mapping of the GridFunction defined on the SubMesh to the Gridfunction
