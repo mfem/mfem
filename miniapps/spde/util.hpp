@@ -16,7 +16,8 @@
 #include <vector>
 #include "mfem.hpp"
 
-namespace mfem {
+namespace mfem
+{
 
 /// Fills the vector x with random numbers between a and b.
 void FillWithRandomNumbers(std::vector<double> &x, double a = 0.0,

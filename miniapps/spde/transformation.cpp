@@ -13,8 +13,10 @@
 #include <cmath>
 #include <functional>
 
-namespace mfem {
-namespace spde {
+namespace mfem
+{
+namespace spde
+{
 
 // ---------------------------------------------------------------------------
 // Functions for TransformedCoefficient interface
@@ -30,35 +32,38 @@ double ApplyLevelSetAtZero(double x) { return x >= 0 ? 1 : 0; }
 // Member functions for GFTransformer class
 // ---------------------------------------------------------------------------
 
-void UniformGRFTransformer::Transform(ParGridFunction &x) const {
-  GridFunctionCoefficient gf_coeff(&x);
-  ConstantCoefficient factor(max_ - min_);
-  ConstantCoefficient summand(min_);
-  TransformedCoefficient transformation_coeff(&gf_coeff, TransformToUniform);
-  ProductCoefficient product_coeff(transformation_coeff, factor);
-  SumCoefficient sum_coeff(product_coeff, summand);
-  ParGridFunction xx(x);
-  xx.ProjectCoefficient(sum_coeff);
-  x = xx;
+void UniformGRFTransformer::Transform(ParGridFunction &x) const
+{
+   GridFunctionCoefficient gf_coeff(&x);
+   ConstantCoefficient factor(max_ - min_);
+   ConstantCoefficient summand(min_);
+   TransformedCoefficient transformation_coeff(&gf_coeff, TransformToUniform);
+   ProductCoefficient product_coeff(transformation_coeff, factor);
+   SumCoefficient sum_coeff(product_coeff, summand);
+   ParGridFunction xx(x);
+   xx.ProjectCoefficient(sum_coeff);
+   x = xx;
 }
 
-void OffsetTransformer::Transform(ParGridFunction &x) const {
-  ConstantCoefficient offset(offset_);
-  ParGridFunction xx(x);
-  xx.ProjectCoefficient(offset);
-  x += xx;
+void OffsetTransformer::Transform(ParGridFunction &x) const
+{
+   ConstantCoefficient offset(offset_);
+   ParGridFunction xx(x);
+   xx.ProjectCoefficient(offset);
+   x += xx;
 }
 
 void ScaleTransformer::Transform(ParGridFunction &x) const { x *= scale_; }
 
-void LevelSetTransformer::Transform(ParGridFunction &x) const {
-  GridFunctionCoefficient gf_coeff(&x);
-  ConstantCoefficient threshold(-threshold_);
-  SumCoefficient sum_coeff(gf_coeff, threshold);
-  TransformedCoefficient transformation_coeff(&sum_coeff, ApplyLevelSetAtZero);
-  ParGridFunction xx(x);
-  xx.ProjectCoefficient(transformation_coeff);
-  x = xx;
+void LevelSetTransformer::Transform(ParGridFunction &x) const
+{
+   GridFunctionCoefficient gf_coeff(&x);
+   ConstantCoefficient threshold(-threshold_);
+   SumCoefficient sum_coeff(gf_coeff, threshold);
+   TransformedCoefficient transformation_coeff(&sum_coeff, ApplyLevelSetAtZero);
+   ParGridFunction xx(x);
+   xx.ProjectCoefficient(transformation_coeff);
+   x = xx;
 }
 
 }  // namespace spde
