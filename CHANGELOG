@@ -21,6 +21,11 @@ Discretization improvements
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
+Integrations, testing and documentation
+---------------------------------------
+- Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
+  based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================
