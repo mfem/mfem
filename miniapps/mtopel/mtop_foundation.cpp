@@ -331,12 +331,17 @@ public:
         mfem::Vector lgr(grad.Size());
         grad=0.0;;
 
-        int n=100;
+        std::default_random_engine generator;
+        std::seed_seq seq{1, 2, 3, 4, 5};
+        generator.seed(seq);
+        std::uniform_int_distribution<int> udist(11,49876377);
+
+        int n=10;
         double obj=0.0;
         double var=0.0;
         double mo=0.0;
         for(int i=0;i<n;i++){
-            gf->Sample(i*17+48951376197/(i+19));
+            gf->Sample(udist(generator));
             E.SetSoilCoeff(*uf);
 
             cobj->SetE(&E);
@@ -389,13 +394,18 @@ public:
         esolv->AddSurfLoad(5,0.00,1.00,0.0);
 
         mfem::Vector lgr(grad.Size());
-        grad=0.0;;
+        grad=0.0;
 
-        int n=100;
+        std::default_random_engine generator;
+        std::seed_seq seq{1, 2, 3, 4, 5};
+        generator.seed(seq);
+        std::uniform_int_distribution<int> udist(11,49876377);
+
+        int n=400;
         double obj=0.0;
         double mo=0.0;
         for(int i=0;i<n;i++){
-            gf->Sample(i*17+48976197/(i+19));
+            gf->Sample(udist(generator));
             E.SetSoilCoeff(*uf);
 
             cobj->SetE(&E);

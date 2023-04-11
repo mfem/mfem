@@ -18,6 +18,7 @@ list(APPEND PARADIFF_COMMON_SOURCES
 	mtop_filters.cpp
 	mtop_solvers.cpp
 	mtop_coefficients.cpp
+	mtop_homogenization.cpp
 	MMA.cpp
 	../spde/spde_solver.cpp
 	../spde/boundary.cpp)
@@ -28,6 +29,7 @@ list(APPEND PARADIFF_COMMON_HEADERS
 	mtop_filters.hpp
 	mtop_solvers.hpp
 	mtop_coefficients.hpp
+	mtop_homogenization.hpp
 	MMA.hpp
 	../spde/spde_solver.hpp
 	../spde/boundary.hpp)
