@@ -22,7 +22,7 @@
 // smooth discrete function. See the following papers for more details:
 // (1) "Adaptive Surface Fitting and Tangential Relaxation for High-Order Mesh Optimization" by
 //     Knupp, Kolev, Mittal, Tomov.
-// (2) "Implicit High-Order Meshing using Boundary and Interface Fitting" by
+// (2) "High-Order Mesh Morphing for Boundary and Interface Fitting to Implicit Geometries" by
 //     Barrera, Kolev, Mittal, Tomov.
 // (3) "The target-matrix optimization paradigm for high-order meshes" by
 //     Dobrev, Knupp, Kolev, Mittal, Tomov.
