@@ -61,11 +61,6 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init(argc, argv);
-   const int numProcs = Mpi::WorldSize();
-   const int myRank = Mpi::WorldRank();
-   Hypre::Init();
-
    // 1. Parse command-line options.
    int problem = 1;
    const double specific_heat_ratio = 1.4;
@@ -191,7 +186,7 @@ int main(int argc, char *argv[])
    // Output the initial solution.
    {
       ostringstream mesh_name;
-      mesh_name << "euler-mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+      mesh_name << "euler-mesh.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << mesh;
@@ -200,8 +195,7 @@ int main(int argc, char *argv[])
       {
          GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
          ostringstream sol_name;
-         sol_name << "euler-" << k << "-init." << setfill('0') << setw(6)
-                  << Mpi::WorldRank();
+         sol_name << "euler-" << k << "-init.gf";
          ofstream sol_ofs(sol_name.str().c_str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
@@ -225,12 +219,9 @@ int main(int argc, char *argv[])
       if (!sout)
       {
          visualization = false;
-         if (Mpi::Root())
-         {
-            out << "Unable to connect to GLVis server at " << vishost << ':'
-                << visport << endl;
-            out << "GLVis visualization disabled.\n";
-         }
+         out << "Unable to connect to GLVis server at " << vishost << ':'
+               << visport << endl;
+         out << "GLVis visualization disabled.\n";
       }
       else
       {
