@@ -248,13 +248,10 @@ int main(int argc, char *argv[]) {
   // III.3 Solve the SPDE problem
   spde::SPDESolver solver(nu, bc, &fespace, MPI_COMM_WORLD, l1, l2, l3, e1, e2,
                           e3);
-  if (random_seed) {
-    solver.GenerateRandomField(u);
-  } else {
-    const int seed = 0;
-    solver.GenerateRandomField(u, seed);
-  }
-
+  const int seed = (random_seed) ? 0 : std::numeric_limits<int>::max();
+  solver.SetupRandomFieldGenerator(seed);
+  solver.GenerateRandomField(u);
+  
   /// III.4 Verify boundary conditions
   if (compute_boundary_integrals) {
     bc.ComputeBoundaryError(u);
