@@ -53,7 +53,6 @@ jobs:
           CXXFLAGS="-g -O1 -std=c++11
                     -fsanitize=address
                     -fno-omit-frame-pointer
-                    -fsanitize-recover=address
                     -fsanitize-address-use-after-scope"
 
     - name: MFEM Info
@@ -64,7 +63,6 @@ jobs:
       working-directory: mfem
       run:
         ASAN_OPTIONS="detect_leaks=1,
-                      halt_on_error=1,
                       strict_init_order=1,
                       strict_string_checks=1,
                       check_initialization_order=1,
