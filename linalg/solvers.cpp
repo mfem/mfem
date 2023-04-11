@@ -1034,6 +1034,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = true;
+      j = 0;
+      resid = beta;
       goto finish;
    }
 
