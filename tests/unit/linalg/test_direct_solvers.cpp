@@ -29,11 +29,10 @@ using namespace mfem;
 
 #if defined(DIRECT_SOLVE_SERIAL) || defined(DIRECT_SOLVE_PARALLEL)
 
-int dim;
-double uexact(const Vector& x)
+double uexact(const Vector &x)
 {
    double u;
-   switch (dim)
+   switch (x.Size())
    {
       case 1:
          u  = 3.0 + 2.0 * x(0) - 0.5 * x(0) * x(0);
@@ -48,16 +47,16 @@ double uexact(const Vector& x)
    return u;
 }
 
-void gradexact(const Vector& x, Vector & grad)
+void gradexact(const Vector &x, Vector &grad)
 {
-   grad.SetSize(dim);
-   switch (dim)
+   grad.SetSize(x.Size());
+   switch (x.Size())
    {
       case 1:
          grad[0] = 2.0 - x(0);
          break;
       case 2:
-         grad[0] = 0.2 - 0.9 * x(1) + x(1) * x (1);
+         grad[0] = 0.2 - 0.9 * x(1) + x(1) * x(1);
          grad[1] = - 0.9 * x(0) + 2.0 * x(0) * x(1);
          break;
       default:
@@ -71,7 +70,7 @@ void gradexact(const Vector& x, Vector & grad)
 double d2uexact(const Vector& x) // returns \Delta u
 {
    double d2u;
-   switch (dim)
+   switch (x.Size())
    {
       case 1:
          d2u  = -1.0;
@@ -86,7 +85,7 @@ double d2uexact(const Vector& x) // returns \Delta u
    return d2u;
 }
 
-double fexact(const Vector& x) // returns -\Delta u
+double fexact(const Vector &x) // returns -\Delta u
 {
    double d2u = d2uexact(x);
    return -d2u;
@@ -96,7 +95,7 @@ double fexact(const Vector& x) // returns -\Delta u
 
 #ifdef DIRECT_SOLVE_SERIAL
 
-TEST_CASE("direct-serial","[CUDA]")
+TEST_CASE("Serial Direct Solvers", "[CUDA]")
 {
    const int ne = 2;
    for (dim = 1; dim < 4; ++dim)
@@ -117,10 +116,9 @@ TEST_CASE("direct-serial","[CUDA]")
                    ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       }
       int order = 3;
-      FiniteElementCollection* fec = new H1_FECollection(order, dim);
-      FiniteElementSpace fespace(&mesh, fec);
-      Array<int> ess_tdof_list;
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      H1_FECollection fec(order, dim);
+      FiniteElementSpace fespace(&mesh, &fec);
+      Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -149,15 +147,14 @@ TEST_CASE("direct-serial","[CUDA]")
       umf_solver.Mult(B, X);
 
       Vector Y(X.Size());
-      A->Mult(X,Y);
-      Y-=B;
+      A->Mult(X, Y);
+      Y -= B;
       REQUIRE(Y.Norml2() < 1.e-12);
 
       a.RecoverFEMSolution(X, b, x);
-      VectorFunctionCoefficient grad(dim,gradexact);
-      double error = x.ComputeH1Error(&uex,&grad);
+      VectorFunctionCoefficient grad(dim, gradexact);
+      double error = x.ComputeH1Error(&uex, &grad);
       REQUIRE(error < 1.e-12);
-      delete fec;
    }
 }
 
@@ -165,12 +162,12 @@ TEST_CASE("direct-serial","[CUDA]")
 
 #ifdef DIRECT_SOLVE_PARALLEL
 
-TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
+TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    const int ne = 2;
-   for (dim = 1; dim < 4; ++dim)
+   for (int dim = 1; dim < 4; ++dim)
    {
       Mesh mesh;
       if (dim == 1)
@@ -188,16 +185,15 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
                    ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       }
 
-      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
       mesh.Clear();
       int order = 3;
-      FiniteElementCollection* fec = new H1_FECollection(order, dim);
-      ParFiniteElementSpace fespace(pmesh, fec);
-      Array<int> ess_tdof_list;
-      Array<int> ess_bdr;
-      if (pmesh->bdr_attributes.Size())
+      H1_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(&pmesh, &fec);
+      Array<int> ess_tdof_list, ess_bdr;
+      if (pmesh.bdr_attributes.Size())
       {
-         ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+         ess_bdr.SetSize(pmesh.bdr_attributes.Max());
          ess_bdr = 1;
          fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
@@ -235,15 +231,16 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          MUMPSSolver mumps;
          mumps.SetPrintLevel(0);
          mumps.SetOperator(*A.As<HypreParMatrix>());
-         mumps.Mult(B,X);
+         mumps.Mult(B, X);
+
          Vector Y(X.Size());
-         A->Mult(X,Y);
-         Y-=B;
+         A->Mult(X, Y);
+         Y -= B;
          REQUIRE(Y.Norml2() < 1.e-12);
 
          a.RecoverFEMSolution(X, b, x);
-         VectorFunctionCoefficient grad(dim,gradexact);
-         double error = x.ComputeH1Error(&uex,&grad);
+         VectorFunctionCoefficient grad(dim, gradexact);
+         double error = x.ComputeH1Error(&uex, &grad);
          REQUIRE(error < 1.e-12);
       }
 #endif
@@ -257,13 +254,15 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
          superlu.Mult(B, X);
+
          Vector Y(X.Size());
-         A->Mult(X,Y);
-         Y-=B;
+         A->Mult(X, Y);
+         Y -= B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
          a.RecoverFEMSolution(X, b, x);
-         VectorFunctionCoefficient grad(dim,gradexact);
-         double error = x.ComputeH1Error(&uex,&grad);
+         VectorFunctionCoefficient grad(dim, gradexact);
+         double error = x.ComputeH1Error(&uex, &grad);
          REQUIRE(error < 1.e-12);
       }
 #endif
@@ -277,19 +276,19 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
          strumpack.SetOperator(SA);
-         strumpack.Mult(B,X);
+         strumpack.Mult(B, X);
 
          Vector Y(X.Size());
-         A->Mult(X,Y);
-         Y-=B;
+         A->Mult(X, Y);
+         Y -= B;
          REQUIRE(Y.Norml2() < 1.e-12);
 
-         strumpack.Mult(BB,XX);
+         strumpack.ArrayMult(BB, XX);
 
          for (int i = 0; i < XX.Size(); i++)
          {
-            A->Mult(*XX[i],Y);
-            Y-=*BB[i];
+            A->Mult(*XX[i], Y);
+            Y -= *BB[i];
             REQUIRE(Y.Norml2() < 1.e-12);
          }
 
@@ -299,8 +298,6 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          REQUIRE(error < 1.e-12);
       }
 #endif
-      delete fec;
-      delete pmesh;
    }
 }
 
