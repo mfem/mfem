@@ -11,6 +11,16 @@
 Version 4.5.3 (development)
 ===========================
 
+- Added new methods in the Mesh class to set and get attributes on NURBS patches
+  and patch boundaries.
+
+Discretization improvements
+---------------------------
+- Face restriction operators for Nedelec and Raviart-Thomas finite element
+  spaces are now supported through the ConformingFaceRestriction class.
+
+- VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================
