@@ -170,8 +170,8 @@ public:
    virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) = 0;
    /**
-    * @brief Abstract method to compute normal flux. Optionally overloadded in the
-    * derived class to avoid full flux evaluation
+    * @brief Compute normal flux. Optionally overloadded in the
+    * derived class to avoid creating full dense matrix for flux.
     *
     * @param[in] state state value at the current integration point
     * @param[in] nor normal vector (usually not a unit vector)

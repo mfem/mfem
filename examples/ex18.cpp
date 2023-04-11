@@ -53,8 +53,6 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. See InitialCondition in ex18.hpp.
-
 void EulerMesh(const int problem, const char **mesh_file);
 
 VectorFunctionCoefficient EulerInitialCondition(const int problem,
@@ -230,7 +228,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             out << "Unable to connect to GLVis server at " << vishost << ':'
-                 << visport << endl;
+                << visport << endl;
             out << "GLVis visualization disabled.\n";
          }
       }
@@ -243,7 +241,7 @@ int main(int argc, char *argv[])
          sout << "pause\n";
          sout << flush;
          out << "GLVis visualization paused."
-               << " Press space (in the GLVis window) to resume it.\n";
+             << " Press space (in the GLVis window) to resume it.\n";
       }
    }
 
