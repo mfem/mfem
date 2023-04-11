@@ -593,16 +593,7 @@ int main(int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         if (dim == 2)
-         {
-            FunctionCoefficient size_coeff(discrete_size_2d);
-            size.ProjectCoefficient(size_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient size_coeff(discrete_size_3d);
-            size.ProjectCoefficient(size_coeff);
-         }
+         ConstructSizeGF(size);
          tc->SetSerialDiscreteTargetSize(size);
          target_c = tc;
          break;

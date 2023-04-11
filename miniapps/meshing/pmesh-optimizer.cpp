@@ -348,7 +348,6 @@ int main (int argc, char *argv[])
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++)
    {
@@ -622,16 +621,7 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         if (dim == 2)
-         {
-            FunctionCoefficient size_coeff(discrete_size_2d);
-            size.ProjectCoefficient(size_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient size_coeff(discrete_size_3d);
-            size.ProjectCoefficient(size_coeff);
-         }
+         ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
          target_c = tc;
          break;

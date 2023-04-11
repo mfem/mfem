@@ -12,6 +12,7 @@
 // H1 Finite Element classes utilizing the Bernstein basis
 
 #include "fe_pos.hpp"
+#include "face_map_utils.hpp"
 #include "../bilininteg.hpp"
 #include "../lininteg.hpp"
 #include "../coefficient.hpp"
@@ -83,6 +84,12 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
                            Pow(p + 1, dims), p,
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
+
+void PositiveTensorFiniteElement::GetFaceMap(const int face_id,
+                                             Array<int> &face_map) const
+{
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
+}
 
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
