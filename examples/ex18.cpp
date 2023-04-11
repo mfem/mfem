@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
       {
          visualization = false;
          out << "Unable to connect to GLVis server at " << vishost << ':'
-               << visport << endl;
+             << visport << endl;
          out << "GLVis visualization disabled.\n";
       }
       else
