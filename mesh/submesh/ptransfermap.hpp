@@ -75,7 +75,7 @@ private:
     */
    void CommunicateSharedVdofs(Vector &f) const;
 
-   static void CorrectFaceOrientations(ParFiniteElementSpace &fes,
+   static void CorrectFaceOrientations(const ParFiniteElementSpace &fes,
                                        const Vector &src,
                                        Vector &dst,
                                        const Array<int> *s2p_map = NULL);
