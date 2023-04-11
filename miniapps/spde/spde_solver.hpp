@@ -47,17 +47,20 @@ class SPDESolver {
              MPI_Comm comm, double l1 = 0.1, double l2 = 0.1, double l3 = 0.1,
              double e1 = 0.0, double e2 = 0.0, double e3 = 0.0);
 
+  /// Destructor.
+  ~SPDESolver(); 
+
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
   /// need b later on, make a copy of it before calling this function.
   void Solve(ParLinearForm &b, ParGridFunction &x);
 
+  /** Set up the random field generator. If called more than once it resets the generator */
+  void SetupRandomFieldGenerator(int seed=0);
+
   /// Generate a random field. Calls back to solve but generates the stochastic
-  /// load b internally. If no seed is provided, the function creates a seed
-  /// based on the system time, e.g. you obtain a different random field
-  /// whenever you call it.
-  void GenerateRandomField(ParGridFunction &x,
-                           int seed = std::numeric_limits<int>::max());
+  /// load b internally. 
+  void GenerateRandomField(ParGridFunction &x);
 
   /// Construct the normalization coefficient eta of the white noise right hands
   /// side.
@@ -99,9 +102,6 @@ class SPDESolver {
 
   // Compute the coefficients for the rational approximation of the solution.
   void ComputeRationalCoefficients(double exponent);
-
-  // MPI communicator.
-  MPI_Comm comm_ = MPI_COMM_WORLD;
 
   // Bilinear forms and corresponding matrices for the solver.
   ParBilinearForm k_;
@@ -148,6 +148,9 @@ class SPDESolver {
   bool repeated_solve_ = false;
   bool integer_order_ = false;
   bool apply_lift_ = false;
+
+  WhiteGaussianNoiseDomainLFIntegrator *integ = nullptr;
+  ParLinearForm * b_wn = nullptr;
 };
 
 }  // namespace spde
