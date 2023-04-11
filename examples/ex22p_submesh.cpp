@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
       port_sock << "parallel " << num_procs << " " << myid << "\n";
       port_sock.precision(8);
       port_sock << "solution\n" << *pmesh_port << port_bc
-                << "window_title ': Port BC'"
+                << "window_title 'Port BC'"
                 << "window_geometry 0 0 400 350" << flush;
    }
 
@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
    ParComplexGridFunction u(fespace);
    u = 0.0;
    pmesh_port->Transfer(port_bc, u.real());
-   /*
+   if (true)
    {
       ParGridFunction full_bc(fespace);
       ParTransferMap port_to_full(port_bc, full_bc);
@@ -363,10 +363,10 @@ int main(int argc, char *argv[])
          full_sock << "parallel " << num_procs << " " << myid << "\n";
          full_sock.precision(8);
          full_sock << "solution\n" << *pmesh << full_bc
-                   << "window_title ': Full BC'" << flush;
+                   << "window_title 'Full BC'" << flush;
       }
    }
-   */
+
    ConstantCoefficient zeroCoef(0.0);
    ConstantCoefficient oneCoef(1.0);
 
@@ -625,8 +625,7 @@ int main(int argc, char *argv[])
              sin(-2.0 * M_PI * t), u.imag(), u_t);
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock << "solution\n" << *pmesh << u_t
-                  << "window_title '" << oss.str() << "'"
-                  << "window_geometry 0 432 600 450" << flush;
+                  << "window_title '" << oss.str() << "'" << flush;
          i++;
       }
    }

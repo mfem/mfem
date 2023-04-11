@@ -110,53 +110,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
          dst(i) = s * src(j);
       }
 
-      // Correct copied values on faces with differing orientations
-      {
-         ParFiniteElementSpace * dst_fes = dst.ParFESpace();
-         const FiniteElementCollection * dst_fec = dst_fes->FEColl();
-
-         VDofTransformation vdoftrans(dst_fes->GetVDim(),
-                                      dst_fes->GetOrdering());
-
-         ParSubMesh * dst_mesh =
-            dynamic_cast<ParSubMesh*>(dst_fes->GetParMesh());
-
-         const Array<int>& parent_face_ori =
-            dst_mesh->GetParentFaceOrientations();
-
-         Array<int> dst_vdofs;
-         Array<int> Fo(1);
-         Vector dst_face_vector;
-
-         for (int i = 0; i < dst_mesh->GetNumFaces(); i++)
-         {
-            if (parent_face_ori[i] == 0) { continue; }
-
-            Geometry::Type geom = dst_mesh->GetFaceGeometry(i);
-
-            DofTransformation * doftrans =
-               dst_fec->DofTransformationForGeometry(geom);
-
-            if (doftrans == NULL) { continue; }
-
-            vdoftrans.SetDofTransformation(*doftrans);
-
-            Fo[0] = parent_face_ori[i];
-            vdoftrans.SetFaceOrientations(Fo);
-
-            dst_fes->GetFaceVDofs(i, dst_vdofs);
-            dst.GetSubVector(dst_vdofs, dst_face_vector);
-
-            vdoftrans.TransformPrimal(dst_face_vector);
-
-            for (int j = 0; j < dst_vdofs.Size(); j++)
-            {
-               double s = 1.0;
-               int k = FiniteElementSpace::DecodeDof(dst_vdofs[j], s);
-               dst[k] = s * dst_face_vector[j];
-            }
-         }
-      }
+      CorrectFaceOrientations(*dst.ParFESpace(), src, dst);
    }
    else if (category_ == TransferCategory::SubMeshToParent)
    {
@@ -172,60 +126,10 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
          dst(j) = s * src(i);
       }
 
-      // Correct copied values on faces with differing orientations
-      {
-         const ParFiniteElementSpace * src_fes = src.ParFESpace();
-         const FiniteElementCollection * src_fec = src_fes->FEColl();
+      CorrectFaceOrientations(*src.ParFESpace(), src, dst,
+                              &sub1_to_parent_map_);
 
-         VDofTransformation vdoftrans(src_fes->GetVDim(),
-                                      src_fes->GetOrdering());
-
-         ParSubMesh * src_mesh =
-            dynamic_cast<ParSubMesh*>(src_fes->GetParMesh());
-
-         const Array<int>& parent_face_ori =
-            src_mesh->GetParentFaceOrientations();
-
-         Array<int> src_vdofs;
-         Array<int> Fo(1);
-         Vector src_face_vector;
-
-         for (int i = 0; i < src_mesh->GetNumFaces(); i++)
-         {
-            if (parent_face_ori[i] == 0) { continue; }
-
-            Geometry::Type geom = src_mesh->GetFaceGeometry(i);
-
-            DofTransformation * doftrans =
-               src_fec->DofTransformationForGeometry(geom);
-
-            if (doftrans == NULL) { continue; }
-
-            vdoftrans.SetDofTransformation(*doftrans);
-
-            Fo[0] = parent_face_ori[i];
-            vdoftrans.SetFaceOrientations(Fo);
-
-            src_fes->GetFaceVDofs(i, src_vdofs);
-            src.GetSubVector(src_vdofs, src_face_vector);
-
-            vdoftrans.TransformPrimal(src_face_vector);
-
-            for (int j = 0; j < src_vdofs.Size(); j++)
-            {
-               double js = 1.0;
-               int jd = FiniteElementSpace::DecodeDof(src_vdofs[j], js);
-
-               double ks = 1.0;
-               int k = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[jd],
-                                                     ks);
-
-               dst[k] = ks * js * src_face_vector[j];
-            }
-         }
-      }
-
-      CommunicateSharedVdofs(dst);
+      // CommunicateSharedVdofs(dst);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
@@ -242,6 +146,9 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
          z_(j) = s * dst(i);
       }
 
+      CorrectFaceOrientations(*dst.ParFESpace(), dst, z_,
+                              &sub2_to_parent_map_);
+
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
          double s = 1.0;
@@ -249,7 +156,10 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
          z_(j) = s * src(i);
       }
 
-      CommunicateSharedVdofs(z_);
+      CorrectFaceOrientations(*src.ParFESpace(), src, z_,
+                              &sub1_to_parent_map_);
+
+      // CommunicateSharedVdofs(z_);
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
@@ -257,6 +167,8 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
          int j = FiniteElementSpace::DecodeDof(sub2_to_parent_map_[i], s);
          dst(i) = s * z_(j);
       }
+
+      CorrectFaceOrientations(*dst.ParFESpace(), z_, dst);
    }
    else
    {
@@ -323,6 +235,72 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    root_gc_->Bcast<double>(f.HostReadWrite());
+}
+
+void
+ParTransferMap::CorrectFaceOrientations(ParFiniteElementSpace &fes,
+                                        const Vector &src,
+                                        Vector &dst,
+                                        const Array<int> *sub_to_parent_map)
+{
+   const FiniteElementCollection * fec = fes.FEColl();
+
+   VDofTransformation vdoftrans(fes.GetVDim(),
+                                fes.GetOrdering());
+
+   ParSubMesh * mesh =
+      dynamic_cast<ParSubMesh*>(fes.GetParMesh());
+
+   const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
+
+   Array<int> vdofs;
+   Array<int> Fo(1);
+   Vector face_vector;
+
+   for (int i = 0; i < mesh->GetNumFaces(); i++)
+   {
+      if (parent_face_ori[i] == 0) { continue; }
+
+      Geometry::Type geom = mesh->GetFaceGeometry(i);
+
+      DofTransformation * doftrans = fec->DofTransformationForGeometry(geom);
+
+      if (doftrans == NULL) { continue; }
+
+      vdoftrans.SetDofTransformation(*doftrans);
+
+      Fo[0] = parent_face_ori[i];
+      vdoftrans.SetFaceOrientations(Fo);
+
+      fes.GetFaceVDofs(i, vdofs);
+      if (sub_to_parent_map)
+      {
+         src.GetSubVector(vdofs, face_vector);
+      }
+      else
+      {
+         dst.GetSubVector(vdofs, face_vector);
+      }
+
+      vdoftrans.TransformPrimal(face_vector);
+
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         double s = 1.0;
+         int k = FiniteElementSpace::DecodeDof(vdofs[j], s);
+
+         if (sub_to_parent_map)
+         {
+            double sps = 1.0;
+            int spk = FiniteElementSpace::DecodeDof((*sub_to_parent_map)[k],
+                                                    sps);
+            s *= sps;
+            k = spk;
+         }
+
+         dst[k] = s * face_vector[j];
+      }
+   }
 }
 
 #endif // MFEM_USE_MPI
