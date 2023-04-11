@@ -322,6 +322,7 @@ miniapps/multidomain/multidomain
 miniapps/hooke/hooke
 
 miniapps/spde/generate_random_field
+miniapps/spde/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes
