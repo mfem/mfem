@@ -14,6 +14,9 @@ Version 4.5.3 (development)
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+- Reorganized files for bilinear form, linear form, and nonlinear form integrators
+  in the fem/integ/ subdirectory.
+
 Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
