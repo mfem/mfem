@@ -18,7 +18,7 @@
 //
 //  Runs:
 //   -> Basic usage:
-//     mpirun -np 4 ./miniapps/spde/generate_random_field
+//     mpirun -np 4 generate_random_field
 //
 //   -> Generate 5 particles with random imperfections
 //     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 \
