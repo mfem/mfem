@@ -12,7 +12,7 @@
 #ifndef MFEM_LIBCEED_CONV_QF_H
 #define MFEM_LIBCEED_CONV_QF_H
 
-#include "../qf_utils.h"
+#include "../util/util_qf.h"
 
 #define LIBCEED_CONV_COEFF_COMP_MAX 3
 

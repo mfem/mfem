@@ -409,7 +409,8 @@ endif
 DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop
+       fem/ceed/integrators/util fem/ceed/solvers \
+       fem/fe fem/lor fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -603,6 +604,8 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/util
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/util/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk

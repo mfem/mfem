@@ -77,13 +77,13 @@ set(SRCS
   hybridization.cpp
   intrules.cpp
   ceed/interface/basis.cpp
-  ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
+  ceed/interface/restriction.cpp
   ceed/interface/util.cpp
+  ceed/integrators/mass/mass.cpp
   ceed/integrators/convection/convection.cpp
   ceed/integrators/diffusion/diffusion.cpp
   ceed/integrators/nlconvection/nlconvection.cpp
-  ceed/integrators/mass/mass.cpp
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
@@ -185,16 +185,23 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   ceed/interface/basis.hpp
+  ceed/interface/ceed.hpp
+  ceed/interface/coefficient.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
+  ceed/interface/mixed_integrator.hpp
   ceed/interface/operator.hpp
   ceed/interface/restriction.hpp
   ceed/interface/util.hpp
-  ceed/integrators/convection/convection.hpp
-  ceed/integrators/diffusion/diffusion.hpp
   ceed/integrators/mass/mass.hpp
+  ceed/integrators/mass/mass_qf.h
+  ceed/integrators/convection/convection.hpp
+  ceed/integrators/convection/convection_qf.h
+  ceed/integrators/diffusion/diffusion.hpp
+  ceed/integrators/diffusion/diffusion_qf.h
   ceed/integrators/nlconvection/nlconvection.hpp
-  ceed/interface/coefficient.hpp
+  ceed/integrators/nlconvection/nlconvection_qf.h
+  ceed/integrators/util/util_qf.h
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp
   ceed/solvers/solvers-atpmg.hpp

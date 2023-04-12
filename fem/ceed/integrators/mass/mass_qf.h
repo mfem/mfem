@@ -12,7 +12,7 @@
 #ifndef MFEM_LIBCEED_MASS_QF_H
 #define MFEM_LIBCEED_MASS_QF_H
 
-#include "../qf_utils.h"
+#include "../util/util_qf.h"
 
 /// A structure used to pass additional data to f_build_mass and f_apply_mass
 struct MassContext

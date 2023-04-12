@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_QF_UTILS_H
-#define MFEM_LIBCEED_QF_UTILS_H
+#ifndef MFEM_LIBCEED_UTIL_QF_H
+#define MFEM_LIBCEED_UTIL_QF_H
 
 #include <math.h>
 
@@ -580,4 +580,4 @@ CEED_QFUNCTION_HELPER void MultAdjJt32(const CeedScalar *J,
    qd[qd_stride * 5] = w * A23;
 }
 
-#endif // MFEM_LIBCEED_QF_UTILS_H
+#endif // MFEM_LIBCEED_UTIL_QF_H
