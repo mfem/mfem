@@ -169,6 +169,12 @@ public:
     */
    virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) = 0;
+
+   virtual void ComputeFluxJacobian(const Vector &state,
+                                    ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
+   {
+      mfem_error("Derived class does not implement flux jacobian.");
+   };
    /**
     * @brief Compute normal flux. Optionally overloadded in the
     * derived class to avoid creating full dense matrix for flux.
@@ -714,7 +720,7 @@ public:
    double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux)
    {
-      const int dim = state.Size() - 2;
+      const int dim = Tr.GetDimension();
 
       // 1. Get states
       const double density = state(0);                  // ρ
@@ -758,6 +764,55 @@ public:
       // max characteristic speed = fluid speed + sound speed
       return speed + sound;
    }
+
+   virtual void ComputeFluxJacobian(const Vector &state,
+                                    ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
+   {
+      const int dim = Tr.GetDimension();
+      const int nvars = state.Size();
+
+      const double density = state(0);                  // ρ
+      const Vector momentum(state.GetData() + 1, dim);  // ρu
+      const double energy = state(1 + dim);             // E, internal energy ρe
+
+      // ∂ p / ∂ ρ = ½(γ -1)|u|^2
+      const double dpdrho = -0.5*(specific_heat_ratio - 1)*(momentum*momentum)/
+                            (density*density);
+      // ∂ p / ∂ (ρ u) = (γ - 1)u
+      Vector dpdmom(dim);
+      dpdmom = momentum;
+      dpdmom *= (specific_heat_ratio - 1.0)/density;
+      // ∂ p / ∂ E = γ - 1
+      const double dpdE = specific_heat_ratio - 1.0;
+
+      Jacobian.SetSize(dim + 2, dim + 2, dim);
+      Jacobian = 0.0;
+      for (int i=0; i<dim; i++)
+      {
+         double* current_col = Jacobian.GetData(i);
+
+         // dF/dρ
+         for (int j=0; j<dim; j++) { current_col[1 + j] = -(momentum[i]/(density*density))*momentum[j]; }
+         current_col[1 + i] += dpdrho;
+         current_col[1 + dim] += momentum[i]/density*dpdrho;
+
+         // dF/d(ρu)
+         Jacobian(0, 1 + i, 0) = 1.0; // dF_1/d(ρu)
+         for (int j=0; j<dim; j++)
+         {
+            Jacobian(j + 1, i + 1, i) += momentum[j]/density; // (ρu * e_i^T)/ρ
+            Jacobian(j + 1, j + 1, i) += momentum[i]/density; // (ρu_i / ρ) I
+            Jacobian(i + 1, j + 1, i) += dpdmom[j]; // e_i * dp/d(ρu)^T
+         }
+
+         // dF/dE
+         current_col += nvars*(1 + dim); // move it to current column
+         current_col[i + 1] = dpdE; // dp/dE e_i
+         current_col[dim + 1] = momentum[i]/density*(energy + dpdE); // (ρu)/ρ * (E  + dp/dE)
+      }
+   }
+
+
    /**
     * @brief Compute normal flux, F(ρ, ρu, E)n
     *
@@ -893,6 +948,17 @@ public:
       return abs(state(0));
    }
 
+
+   virtual void ComputeFluxJacobian(const Vector &state,
+                                    ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
+   {
+      const int dim = Tr.GetDimension();
+      Jacobian.SetSize(1, 1, dim);
+      Jacobian = state(0);
+      eigs.SetSize(1, dim);
+      eigs = state(0);
+   }
+
    /**
     * @brief Construct a new Burgers Element Form Integrator object with given
     * integral order offset
@@ -957,6 +1023,17 @@ public:
       b.Eval(bval, Tr, Tr.GetIntPoint());
       MultVWt(state, bval, flux);
       return bval.Norml2();
+   }
+
+   virtual void ComputeFluxJacobian(const Vector &state,
+                                    ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
+   {
+      const int dim = Tr.GetDimension();
+      Jacobian.SetSize(1, 1, dim);
+      b.Eval(bval, Tr, Tr.GetIntPoint());
+      std::memcpy(Jacobian.GetData(0), bval.GetData(), dim);
+      eigs.SetSize(1, dim);
+      std::memcpy(eigs.GetData(), bval.GetData(), dim);
    }
    /**
     * @brief Compute normal flux, F(u)n
