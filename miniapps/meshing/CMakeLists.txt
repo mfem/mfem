@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -60,6 +60,10 @@ add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
 
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(reflector
+  MAIN reflector.cpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(toroid
