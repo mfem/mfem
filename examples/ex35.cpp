@@ -57,15 +57,16 @@ using namespace std;
 using namespace mfem;
 
 /**
- * @brief Nonlinear projection of 0 < τ < 1 onto the subspace
- *        ∫_Ω τ dx = θ vol(Ω) as follows.
+ * @brief Nonlinear projection of ψ onto the subspace
+ *        ∫_Ω sigmoid(ψ) dx = θ vol(Ω) as follows.
  *
  *        1. Compute the root of the R → R function
- *            f(c) = ∫_Ω sigmoid(inv_sigmoid(τ) + c) dx - θ vol(Ω)
- *        2. Set τ ← sigmoid(inv_sigmoid(τ) + c).
+ *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+ *        2. Set ψ ← ψ + c.
  *
  */
-void projit(GridFunction &psi, double target_volume, double tol=1e-12, int max_its=10)
+double projit(GridFunction &psi, double target_volume, double tol=1e-12,
+            int max_its=10)
 {
    MappedGridFunctionCoefficient sigmoid_psi(psi, sigmoid);
    MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
@@ -75,19 +76,25 @@ void projit(GridFunction &psi, double target_volume, double tol=1e-12, int max_i
    LinearForm int_der_sigmoid_psi(psi.FESpace());
    int_der_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(
                                               der_sigmoid_psi));
-
-   for (int k=0; k<max_its; k++)
+   bool done = false;
+   for (int k=0; k<max_its; k++) // Newton iteration
    {
-      int_sigmoid_psi.Assemble();
+      int_sigmoid_psi.Assemble(); // Recompute f(c) with updated ψ
       const double f = int_sigmoid_psi.Sum() - target_volume;
 
-      int_der_sigmoid_psi.Assemble();
+      int_der_sigmoid_psi.Assemble(); // Recompute df(c) with updated ψ
       const double df = int_der_sigmoid_psi.Sum();
 
       const double dc = -f/df;
       psi += dc;
-      if (abs(dc) < tol) { break; }
+      if (abs(dc) < tol) { done = true; break; }
    }
+   if (!done)
+   {
+      mfem_warning("Projection reached maximum iteration without converging. Result may not be accurate.");
+   }
+   int_sigmoid_psi.Assemble();
+   return int_sigmoid_psi.Sum();
 }
 
 
@@ -97,7 +104,7 @@ void projit(GridFunction &psi, double target_volume, double tol=1e-12, int max_i
  * @param psi a GridFunction to be bounded (in place)
  * @param max_val upper and lower bound
  */
-void clip(GridFunction &psi, const double max_val)
+inline void clip(GridFunction &psi, const double max_val)
 {
    for (auto &val : psi) { val = min(max_val, max(-max_val, val)); }
 }
@@ -166,17 +173,15 @@ void clip(GridFunction &psi, const double max_val)
  *
  *     6. Mirror descent update until convergence; i.e.,
  *
- *                      ρ ← projit(sigmoid(inv_sigmoid(ρ) - αG)),
+ *                      ψ ← clip(projit(ψ - αG)),
  *
  *     where
  *
- *          α > 0                                (step size parameter)
+ *          α > 0                                    (step size parameter)
  *
- *          sigmoid(x) = eˣ/(1+eˣ)               (sigmoid)
+ *          clip(y) = min(max_val, max(min_val, y))  (boundedness enforcement)
  *
- *          inv_sigmoid(y) = ln(y) - ln(1-y)     (inverse of sigmoid)
- *
- *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ dx = θ vol(Ω).
+ *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ(=sigmoid(ψ)) dx = θ vol(Ω).
  *
  *  end
  *
@@ -225,10 +230,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(out);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(out);
+   args.PrintOptions(mfem::out);
 
    Mesh mesh = Mesh::MakeCartesian2D(3,1,mfem::Element::Type::QUADRILATERAL,true,
                                      3.0,1.0);
@@ -272,7 +277,7 @@ int main(int argc, char *argv[])
    H1_FECollection state_fec(order, dim); // space for u
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
-                               BasisType::GaussLobatto); // space for ρ
+                               BasisType::GaussLobatto); // space for ψ
    FiniteElementSpace state_fes(&mesh, &state_fec,dim);
    FiniteElementSpace filter_fes(&mesh, &filter_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
@@ -280,9 +285,9 @@ int main(int argc, char *argv[])
    int state_size = state_fes.GetTrueVSize();
    int control_size = control_fes.GetTrueVSize();
    int filter_size = filter_fes.GetTrueVSize();
-   out << "Number of state unknowns: " << state_size << endl;
-   out << "Number of filter unknowns: " << filter_size << endl;
-   out << "Number of control unknowns: " << control_size << endl;
+   mfem::out << "Number of state unknowns: " << state_size << std::endl;
+   mfem::out << "Number of filter unknowns: " << filter_size << std::endl;
+   mfem::out << "Number of control unknowns: " << control_size << std::endl;
 
    // 5. Set the initial guess for ρ.
    GridFunction u(&state_fes);
@@ -298,6 +303,7 @@ int main(int argc, char *argv[])
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(psi, sigmoid);
+   // Interpolation of ρ = sigmoid(ψ) in control fes
    GridFunction rho_gf(&control_fes);
 
    // 6. Set-up the physics solver.
@@ -390,7 +396,7 @@ int main(int argc, char *argv[])
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
       step++;
 
-      out << "\nStep = " << k << endl;
+      mfem::out << "\nStep = " << k << std::endl;
 
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
@@ -423,25 +429,21 @@ int main(int argc, char *argv[])
       w_rhs.Assemble();
       M.Mult(w_rhs,grad);
 
-      // Step 5 - Update design variable ρ ← projit(sigmoid(inv_sigmoid(ρ) - αG))
-      // Note: The update here is performed on the coefficients of the linear
-      //       representation of the design variable in the Berstein basis. It would
-      //       be more mathematically sound to update the design variable so that
-      //       the values at the integration points follow this update rule.
+      // Step 5 - Update design variable ψ ← clip(projit(ψ - αG))
       psi.Add(-alpha, grad);
-      projit(psi, target_volume);
+      const double material_volume = projit(psi, target_volume);
       clip(psi, sigmoid_bound);
 
+      // Compute ||ρ - ρ_old|| in control fes.
       GridFunction old_rho(rho_gf);
       rho_gf.ProjectCoefficient(rho);
       double norm_reduced_gradient = old_rho.ComputeL2Error(rho)/alpha;
       psi_old = psi;
 
       double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
-      double material_volume = vol_form(psi);
-      mfem::out << "norm of reduced gradient = " << norm_reduced_gradient << endl;
-      mfem::out << "compliance = " << compliance << endl;
-      mfem::out << "mass_fraction = " << material_volume / domain_volume << endl;
+      mfem::out << "norm of reduced gradient = " << norm_reduced_gradient << std::endl;
+      mfem::out << "compliance = " << compliance << std::endl;
+      mfem::out << "mass_fraction = " << material_volume / domain_volume << std::endl;
 
       if (visualization)
       {
