@@ -13,7 +13,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(generate_random_field
     MAIN generate_random_field.cpp
     EXTRA_SOURCES material_metrics.cpp spde_solver.cpp util.cpp visualizer.cpp
-                  transformation.cpp boundary.cpp
+                  transformation.cpp
     LIBRARIES mfem)
 
   # Copy files to the build folder.
