@@ -230,8 +230,19 @@ public:
       : NonlinearFormIntegrator(ir),
         num_equations(num_equations_),
         IntOrderOffset(0),
-        state(num_equations_),
-        rsolver(rsolver_) {}
+        rsolver(rsolver_)
+   {
+#ifndef MFEM_THREAD_SAFE
+      state.SetSize(num_equations);
+      flux.SetSize(num_equations, dim);
+      state1.SetSize(num_equations);
+      state2.SetSize(num_equations);
+      fluxN1.SetSize(num_equations);
+      fluxN2.SetSize(num_equations);
+      fluxN.SetSize(num_equations);
+      nor.SetSize(dim);
+#endif
+   }
 
    /**
     * @brief Get the element integration rule based on IntOrderOffset, @see
