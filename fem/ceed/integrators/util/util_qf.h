@@ -27,7 +27,8 @@ CEED_QFUNCTION_HELPER CeedScalar DetJ21(const CeedScalar *J,
 {
    // J: 0
    //    1
-   return sqrt(J[J_stride * 0] * J[J_stride * 0] + J[J_stride * 1] * J[J_stride * 1]);
+   return sqrt(J[J_stride * 0] * J[J_stride * 0] +
+               J[J_stride * 1] * J[J_stride * 1]);
 }
 
 CEED_QFUNCTION_HELPER CeedScalar DetJ33(const CeedScalar *J,
@@ -438,12 +439,12 @@ CEED_QFUNCTION_HELPER void MultCtAdjJt33(const CeedScalar *J,
 }
 
 CEED_QFUNCTION_HELPER void MultCtAdjJt32(const CeedScalar *J,
-                                        const CeedInt J_stride,
-                                        const CeedScalar *c,
-                                        const CeedInt c_stride,
-                                        const CeedScalar qw,
-                                        const CeedInt qd_stride,
-                                        CeedScalar *qd)
+                                         const CeedInt J_stride,
+                                         const CeedScalar *c,
+                                         const CeedInt c_stride,
+                                         const CeedScalar qw,
+                                         const CeedInt qd_stride,
+                                         CeedScalar *qd)
 {
    // compute qw c^T adj(J)^T and store the result vector.
    // J: 0 3

@@ -17,7 +17,8 @@
 #define LIBCEED_CONV_COEFF_COMP_MAX 3
 
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
-struct ConvectionContext {
+struct ConvectionContext
+{
    CeedInt dim, space_dim;
    CeedScalar coeff[LIBCEED_CONV_COEFF_COMP_MAX];
    CeedScalar alpha;

@@ -730,17 +730,16 @@ status info:
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
-FORMAT_FILES += tests/unit/*.?pp
-UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
-MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels
-FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
-FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
-FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.[ch]pp $(dir)/*.[ch])
+FORMAT_FILES += tests/unit/*.[ch]pp
+FORMAT_FILES += $(foreach dir,$(wildcard tests/unit/*),$(dir)/*.[ch]pp $(dir)/*.[ch])
+FORMAT_FILES += $(foreach dir,$(wildcard miniapps/*/*),$(dir)/*.[ch]pp $(dir)/*.[ch])
+FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp fem/picojson.h general/tinyxml2.h
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
-COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp $(dir)/*.[ch])
+COUT_CERR_EXCLUDE = general/error.cpp general/globals.cpp general/globals.hpp
+COUT_CERR_LIST = $(filter-out $(COUT_CERR_EXCLUDE),$(wildcard $(COUT_CERR_FILES)))
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
@@ -776,12 +775,12 @@ style:
 	    "Please make sure the changes are committed");\
 	echo "Checking for use of std::cout...";\
 	$(call mfem_check_command,\
-	   grep cout $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %),\
+	   grep cout $(COUT_CERR_LIST),\
 	   "No use of std::cout found", "Use mfem::out instead of std::cout");\
 	echo "Checking for use of std::cerr...";\
 	$(call mfem_check_command,\
-	   grep cerr $(COUT_CERR_FILES) |\
-	      grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
+	   grep cerr $(COUT_CERR_LIST) |\
+	      grep -v -e cerrno,\
 	   "No use of std::cerr found", "Use mfem::err instead of std::cerr");\
 	exit $$err_code
 
