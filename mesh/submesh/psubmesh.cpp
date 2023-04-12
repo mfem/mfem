@@ -134,6 +134,46 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          }
       }
    }
+   else if (Dim == 2)
+   {
+      parent_face_ori_.SetSize(NumOfElements);
+
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         Array<int> sub_vert;
+         GetElementVertices(i, sub_vert);
+
+         Array<int> sub_par_vert(sub_vert.Size());
+         for (int j = 0; j < sub_vert.Size(); j++)
+         {
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+         }
+
+         Array<int> par_vert;
+         int be_ori = 0;
+         if (from == SubMesh::From::Boundary)
+         {
+            parent.GetBdrElementVertices(parent_element_ids_[i], par_vert);
+
+            int f = -1;
+            parent.GetBdrElementFace(parent_element_ids_[i], &f, &be_ori);
+         }
+         else
+         {
+            parent.GetElementVertices(parent_element_ids_[i], par_vert);
+         }
+
+         if (par_vert.Size() == 3)
+         {
+            int se_ori = GetTriOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeTriOrientations(be_ori, se_ori);
+         }
+         else
+         {
+            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
+         }
+      }
+   }
 
    ListOfIntegerSets groups;
    IntegerSet group;

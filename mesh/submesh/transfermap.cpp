@@ -176,15 +176,19 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
 
    const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
 
+   int dim = mesh->Dimension();
+   bool face = (dim == 3);
+
    Array<int> vdofs;
    Array<int> Fo(1);
    Vector face_vector;
 
-   for (int i = 0; i < mesh->GetNumFaces(); i++)
+   for (int i = 0; i < (face ? mesh->GetNumFaces() : mesh->GetNE()); i++)
    {
       if (parent_face_ori[i] == 0) { continue; }
 
-      Geometry::Type geom = mesh->GetFaceGeometry(i);
+      Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
+                            mesh->GetElementGeometry(i);;
 
       DofTransformation * doftrans = fec->DofTransformationForGeometry(geom);
 
@@ -195,17 +199,25 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
       Fo[0] = parent_face_ori[i];
       vdoftrans.SetFaceOrientations(Fo);
 
-      fes.GetFaceVDofs(i, vdofs);
+      if (face)
+      {
+         fes.GetFaceVDofs(i, vdofs);
+      }
+      else
+      {
+         fes.GetElementVDofs(i, vdofs);
+      }
+
       if (sub_to_parent_map)
       {
          src.GetSubVector(vdofs, face_vector);
+         vdoftrans.TransformPrimal(face_vector);
       }
       else
       {
          dst.GetSubVector(vdofs, face_vector);
+         vdoftrans.InvTransformPrimal(face_vector);
       }
-
-      vdoftrans.TransformPrimal(face_vector);
 
       for (int j = 0; j < vdofs.Size(); j++)
       {
