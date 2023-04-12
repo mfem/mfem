@@ -250,7 +250,7 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in, CeedScalar *const *out)
 {
    MassContext *bc = (MassContext *)ctx;
-   const CeedScalar *c = in[0], *u = in[1], *J = in[2], *qw = in[3];
+   const CeedScalar *u = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *v = out[0];
    switch (100 * bc->space_dim + 10 * bc->dim + bc->vdim)
    {

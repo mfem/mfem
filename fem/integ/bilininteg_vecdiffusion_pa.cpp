@@ -118,10 +118,10 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (mesh->GetNE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient is supported for partial assembly for VectorDiffusionIntegrator");
       delete ceedOp;
-      if (MQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, MQ); }
-      else if (VQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, VQ); }
-      else { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q); }
+      ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q);
       return;
    }
 
@@ -211,10 +211,10 @@ void VectorDiffusionIntegrator::AssemblePABoundary(
    if (mesh->GetNBE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient is supported for partial assembly for VectorDiffusionIntegrator");
       delete ceedOp;
-      if (MQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, MQ, true); }
-      else if (VQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, VQ, true); }
-      else { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q, true); }
+      ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q, true);
       return;
    }
 

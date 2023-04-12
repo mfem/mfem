@@ -215,11 +215,12 @@ void InitRestriction(const FiniteElementSpace &fes,
                      CeedElemRestriction *restr)
 {
    // Check for fes -> restriction in hash table
+   // {-1, -1, -1} is unique from CEED_STRIDES_BACKEND for non-strided restrictions
+   const int nelem = use_bdr ? fes.GetNBE() : fes.GetNE();
    const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0) : fes.GetFE(0);
    const int P = fe->GetDof();
-   const int nelem = fes.GetNE();
    const int ncomp = fes.GetVDim();
-   RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
+   RestrKey restr_key(&fes, nelem, P, ncomp, -1, -1, -1);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
    // Init or retrieve key values
@@ -242,11 +243,12 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
                                 CeedElemRestriction *restr)
 {
    // Check for fes -> restriction in hash table
+   // {-1, -1, -1} is unique from CEED_STRIDES_BACKEND for non-strided restrictions
    const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(indices[0]) :
                                    fes.GetFE(indices[0]);
    const int P = fe->GetDof();
    const int ncomp = fes.GetVDim();
-   RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
+   RestrKey restr_key(&fes, nelem, P, ncomp, -1, -1, -1);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
    // Init or retrieve key values
@@ -265,12 +267,13 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             CeedInt nelem,
                             CeedInt nqpts,
                             CeedInt qdatasize,
-                            const CeedInt *strides,
+                            const CeedInt strides[3],
                             Ceed ceed,
                             CeedElemRestriction *restr)
 {
    // Check for fes -> restriction in hash table
-   RestrKey restr_key(&fes, nelem, nqpts, qdatasize, restr_type::Strided);
+   RestrKey restr_key(&fes, nelem, nqpts, qdatasize,
+                      strides[0], strides[1], strides[2]);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
    // Init or retrieve key values

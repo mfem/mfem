@@ -240,15 +240,15 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      CeedScalar *const *out)
 {
    ConvectionContext *bc = (ConvectionContext *)ctx;
-   // in[0] is coefficients with shape [ncomp=space_dim, Q]
-   // in[1] has shape [dim, ncomp=1, Q]
+   // in[0] has shape [dim, ncomp=1, Q]
+   // in[1] is coefficients with shape [ncomp=space_dim, Q]
    // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[3] is quadrature weights, size (Q)
    // out[0] has shape [ncomp=1, Q]
    //
    // At every quadrature point, compute qw * α * c^T adj(J)^T.
    const CeedScalar alpha  = bc->alpha;
-   const CeedScalar *c = in[0], *ug = in[1], *J = in[2], *qw = in[3];
+   const CeedScalar *ug = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
    switch (10 * bc->space_dim + bc->dim)
    {

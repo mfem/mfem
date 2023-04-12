@@ -381,15 +381,15 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      CeedScalar *const *out)
 {
    NLConvectionContext *bc = (NLConvectionContext *)ctx;
-   // in[0] is coefficients, size (Q)
-   // in[1] has shape [ncomp=space_dim, Q]
-   // in[2] has shape [dim, ncomp=space_dim, Q]
+   // in[0] has shape [ncomp=space_dim, Q]
+   // in[1] has shape [dim, ncomp=space_dim, Q]
+   // in[2] is coefficients, size (Q)
    // in[3] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[4] is quadrature weights, size (Q)
    // out[0] has shape [ncomp=space_dim, Q]
    //
    // At every quadrature point, compute qw * c * adj(J)^T.
-   const CeedScalar *c = in[0], *u = in[1], *ug = in[2], *J = in[3], *qw = in[4];
+   const CeedScalar *u = in[0], *ug = in[1], *c = in[2], *J = in[3], *qw = in[4];
    CeedScalar *vg = out[0];
    switch (10 * bc->space_dim + bc->dim)
    {

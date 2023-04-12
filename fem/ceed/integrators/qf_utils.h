@@ -27,7 +27,7 @@ CEED_QFUNCTION_HELPER CeedScalar DetJ21(const CeedScalar *J,
 {
    // J: 0
    //    1
-   return sqrt(J[J_stride * 0] * J[J_stride * 0] - J[J_stride * 1] * J[J_stride * 1]);
+   return sqrt(J[J_stride * 0] * J[J_stride * 0] + J[J_stride * 1] * J[J_stride * 1]);
 }
 
 CEED_QFUNCTION_HELPER CeedScalar DetJ33(const CeedScalar *J,
@@ -94,8 +94,8 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt22(const CeedScalar *J,
    }
    else if (c_comp == 2)  // Vector coefficient
    {
-      qd[qd_stride * 0] =  w * (c[c_stride * 0] * J12 * J12 +
-                                c[c_stride * 1] * J22 * J22);
+      qd[qd_stride * 0] =  w * (c[c_stride * 1] * J12 * J12 +
+                                c[c_stride * 0] * J22 * J22);
       qd[qd_stride * 1] = -w * (c[c_stride * 1] * J11 * J12 +
                                 c[c_stride * 0] * J21 * J22);
       qd[qd_stride * 2] =  w * (c[c_stride * 1] * J11 * J11 +
@@ -307,19 +307,19 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt32(const CeedScalar *J,
                              F * (c[c_stride * 2] * J12 +
                                   c[c_stride * 4] * J22 +
                                   c[c_stride * 5] * J32);
-      const CeedScalar R12 = E * (c[c_stride * 0] * J11 +
+      const CeedScalar R12 = E * (c[c_stride * 0] * J12 +
                                   c[c_stride * 1] * J22 +
                                   c[c_stride * 2] * J32) -
                              F * (c[c_stride * 0] * J11 +
                                   c[c_stride * 1] * J21 +
                                   c[c_stride * 2] * J31);
-      const CeedScalar R22 = E * (c[c_stride * 1] * J11 +
+      const CeedScalar R22 = E * (c[c_stride * 1] * J12 +
                                   c[c_stride * 3] * J22 +
                                   c[c_stride * 4] * J32) -
                              F * (c[c_stride * 1] * J11 +
                                   c[c_stride * 3] * J21 +
                                   c[c_stride * 4] * J31);
-      const CeedScalar R32 = E * (c[c_stride * 2] * J11 +
+      const CeedScalar R32 = E * (c[c_stride * 2] * J12 +
                                   c[c_stride * 4] * J22 +
                                   c[c_stride * 5] * J32) -
                              F * (c[c_stride * 2] * J11 +
@@ -330,7 +330,7 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt32(const CeedScalar *J,
       qd[qd_stride * 1] = w * (G * (J11 * R12 + J21 * R22 + J31 * R32) -
                                F * (J12 * R12 + J22 * R22 + J32 * R32)) / d;
       qd[qd_stride * 2] = w * (E * (J12 * R12 + J22 * R22 + J32 * R32) -
-                               F * (J11 * R12 + J21 * R22 + J32 * R31)) / d;
+                               F * (J11 * R12 + J21 * R22 + J31 * R32)) / d;
    }
    else if (c_comp == 3)  // Vector coefficient
    {
@@ -349,7 +349,7 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt32(const CeedScalar *J,
       qd[qd_stride * 1] = w * (G * (J11 * R12 + J21 * R22 + J31 * R32) -
                                F * (J12 * R12 + J22 * R22 + J32 * R32)) / d;
       qd[qd_stride * 2] = w * (E * (J12 * R12 + J22 * R22 + J32 * R32) -
-                               F * (J11 * R12 + J21 * R22 + J32 * R31)) / d;
+                               F * (J11 * R12 + J21 * R22 + J31 * R32)) / d;
    }
    else  // Scalar coefficient
    {

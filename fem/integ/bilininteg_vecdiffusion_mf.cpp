@@ -22,10 +22,10 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (mesh->GetNE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient is supported for matrix-free assembly for VectorDiffusionIntegrator");
       delete ceedOp;
-      if (MQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, MQ); }
-      else if (VQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, VQ); }
-      else { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q); }
+      ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q);
       return;
    }
 
@@ -44,10 +44,10 @@ void VectorDiffusionIntegrator::AssembleMFBoundary(
    if (mesh->GetNBE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient is supported for matrix-free assembly for VectorDiffusionIntegrator");
       delete ceedOp;
-      if (MQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, MQ, true); }
-      else if (VQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, VQ, true); }
-      else { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q, true); }
+      ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q, true);
       return;
    }
 

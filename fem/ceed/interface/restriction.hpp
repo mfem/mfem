@@ -68,7 +68,7 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             CeedInt nelem,
                             CeedInt nqpts,
                             CeedInt qdatasize,
-                            const CeedInt *strides,
+                            const CeedInt strides[3],
                             Ceed ceed,
                             CeedElemRestriction *restr);
 

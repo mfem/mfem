@@ -145,6 +145,16 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
             vg[i] = ug[i] * qd[i];
          }
          break;
+      case 12:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd0 = qd[i];
+            CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
+            {
+               vg[i + Q * d] = ug[i + Q * d] * qd0;
+            }
+         }
+         break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
@@ -179,6 +189,22 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
             vg[i + Q * 0] = qd[i + Q * 0] * ug0 + qd[i + Q * 1] * ug1 + qd[i + Q * 2] * ug2;
             vg[i + Q * 1] = qd[i + Q * 1] * ug0 + qd[i + Q * 3] * ug1 + qd[i + Q * 4] * ug2;
             vg[i + Q * 2] = qd[i + Q * 2] * ug0 + qd[i + Q * 4] * ug1 + qd[i + Q * 5] * ug2;
+         }
+         break;
+      case 23:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd00 = qd[i + Q * 0];
+            const CeedScalar qd01 = qd[i + Q * 1];
+            const CeedScalar qd10 = qd01;
+            const CeedScalar qd11 = qd[i + Q * 2];
+            CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
+            {
+               const CeedScalar ug0 = ug[i + Q * (d + 3 * 0)];
+               const CeedScalar ug1 = ug[i + Q * (d + 3 * 1)];
+               vg[i + Q * (d + 3 * 0)] = qd00 * ug0 + qd01 * ug1;
+               vg[i + Q * (d + 3 * 1)] = qd10 * ug0 + qd11 * ug1;
+            }
          }
          break;
       case 33:
@@ -330,6 +356,7 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
                vg[i + Q * (d + 3 * 2)] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
             }
          }
+         break;
    }
    return 0;
 }
@@ -339,14 +366,14 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
                                      CeedScalar *const *out)
 {
    DiffusionContext *bc = (DiffusionContext *)ctx;
-   // in[0] is coefficients with shape [ncomp=coeff_comp, Q]
-   // in[1], out[0] have shape [dim, ncomp=vdim, Q]
+   // in[0], out[0] have shape [dim, ncomp=vdim, Q]
+   // in[1] is coefficients with shape [ncomp=coeff_comp, Q]
    // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[3] is quadrature weights, size (Q)
    //
    // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T
    const CeedInt coeff_comp = bc->coeff_comp;
-   const CeedScalar *c = in[0], *ug = in[1], *J = in[2], *qw = in[3];
+   const CeedScalar *ug = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
    switch (100 * bc->space_dim + 10 * bc->dim + bc->vdim)
    {
@@ -375,6 +402,7 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
                vg[i + Q * d] = ug[i + Q * d] * qd;
             }
          }
+         break;
       case 221:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {

@@ -29,7 +29,7 @@ struct MassOperatorInfo : public OperatorInfo
    MassOperatorInfo(const mfem::FiniteElementSpace &fes, mfem::Coefficient *Q,
                     bool use_bdr)
    {
-      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       ctx.vdim = fes.GetVDim();
       if (Q == nullptr)

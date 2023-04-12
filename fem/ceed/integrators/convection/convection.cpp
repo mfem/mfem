@@ -32,7 +32,7 @@ struct ConvectionOperatorInfo : public OperatorInfo
    {
       MFEM_VERIFY(VQ && VQ->GetVDim() == fes.GetMesh()->SpaceDimension(),
                   "Incorrect coefficient dimensions in ceed::ConvectionOperatorInfo!");
-      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       if (VectorConstantCoefficient *const_coeff =
              dynamic_cast<VectorConstantCoefficient *>(VQ))

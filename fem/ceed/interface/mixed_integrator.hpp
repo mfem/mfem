@@ -68,7 +68,7 @@ public:
                   "Trial and test basis must correspond to the same Mesh.");
       mfem::Mesh &mesh = *trial_fes.GetMesh();
       const bool mixed =
-         mesh.GetNumGeometries(mesh.Dimension() - (use_bdr * 1)) > 1 ||
+         mesh.GetNumGeometries(mesh.Dimension() - use_bdr) > 1 ||
          trial_fes.IsVariableOrder() || test_fes.IsVariableOrder();
       if (!mixed)
       {

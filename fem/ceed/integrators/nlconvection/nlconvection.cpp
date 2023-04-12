@@ -31,7 +31,7 @@ struct NLConvectionOperatorInfo : public OperatorInfo
    {
       MFEM_VERIFY(fes.GetVDim() == fes.GetMesh()->SpaceDimension(),
                   "Missing coefficient in ceed::NLConvectionOperatorInfo!");
-      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       if (Q == nullptr)
       {

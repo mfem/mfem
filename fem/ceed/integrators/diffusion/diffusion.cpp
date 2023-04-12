@@ -30,7 +30,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
    DiffusionOperatorInfo(const mfem::FiniteElementSpace &fes, CoeffType *Q,
                          bool use_bdr)
    {
-      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       ctx.vdim = fes.GetVDim();
       InitCoefficient(Q);
@@ -48,7 +48,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       apply_qf_mf_quad = &f_apply_diff_mf_quad;
       trial_op = EvalMode::Grad;
       test_op = EvalMode::Grad;
-      qdatasize = ctx.dim * (ctx.dim + 1) / 2;
+      qdatasize = (ctx.dim * (ctx.dim + 1)) / 2;
    }
    void InitCoefficient(mfem::Coefficient *Q)
    {
@@ -95,7 +95,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       }
       // Assumes matrix coefficient is symmetric
       const int vdim = MQ->GetVDim();
-      ctx.coeff_comp = vdim * (vdim + 1) / 2;
+      ctx.coeff_comp = (vdim * (vdim + 1)) / 2;
       if (MatrixConstantCoefficient *const_coeff =
              dynamic_cast<MatrixConstantCoefficient *>(MQ))
       {
@@ -188,12 +188,6 @@ template PADiffusionIntegrator::PADiffusionIntegrator(
 template PADiffusionIntegrator::PADiffusionIntegrator(
    const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
    mfem::Coefficient *, const bool);
-template PADiffusionIntegrator::PADiffusionIntegrator(
-   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *, const bool);
-template PADiffusionIntegrator::PADiffusionIntegrator(
-   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *, const bool);
 
 template MFDiffusionIntegrator::MFDiffusionIntegrator(
    const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
@@ -208,12 +202,6 @@ template MFDiffusionIntegrator::MFDiffusionIntegrator(
 template MFDiffusionIntegrator::MFDiffusionIntegrator(
    const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
    mfem::Coefficient *, const bool);
-template MFDiffusionIntegrator::MFDiffusionIntegrator(
-   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *, const bool);
-template MFDiffusionIntegrator::MFDiffusionIntegrator(
-   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *, const bool);
 
 } // namespace ceed
 

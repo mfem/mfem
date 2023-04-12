@@ -80,7 +80,7 @@ class Integrator : public Operator
 #ifdef MFEM_USE_CEED
 protected:
    CeedBasis trial_basis, test_basis, mesh_basis;
-   CeedElemRestriction trial_restr, test_restr, mesh_restr, restr_i;
+   CeedElemRestriction trial_restr, test_restr, mesh_restr, qdata_restr;
    CeedQFunction apply_qfunc;
    CeedQFunctionContext apply_ctx;
    CeedVector node_coords, qdata;
@@ -91,7 +91,7 @@ public:
       : Operator(),
         trial_basis(nullptr), test_basis(nullptr), mesh_basis(nullptr),
         trial_restr(nullptr), test_restr(nullptr), mesh_restr(nullptr),
-        restr_i(nullptr),
+        qdata_restr(nullptr),
         apply_qfunc(nullptr), apply_ctx(nullptr),
         node_coords(nullptr), qdata(nullptr), coeff(nullptr) {}
 
@@ -216,7 +216,7 @@ public:
    {
       Ceed ceed(internal::ceed);
       mfem::Mesh &mesh = *trial_fes.GetMesh();
-      CeedInt dim = mesh.Dimension() - (use_bdr * 1);
+      CeedInt dim = mesh.Dimension() - use_bdr;
       CeedInt space_dim = mesh.SpaceDimension();
       CeedInt trial_vdim = trial_fes.GetVDim();
       CeedInt test_vdim = test_fes.GetVDim();
@@ -265,7 +265,7 @@ public:
          const int qdatasize = info.qdatasize;
          InitStridedRestriction(*mesh_fes, nelem, nqpts, qdatasize,
                                 CEED_STRIDES_BACKEND, ceed,
-                                &restr_i);
+                                &qdata_restr);
          CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &qdata);
 
          std::string build_func = coeff ? info.build_func_quad
@@ -292,29 +292,29 @@ public:
          // Create the operator that builds the quadrature data for the operator.
          CeedOperator build_oper;
          CeedOperatorCreate(ceed, build_qfunc, NULL, NULL, &build_oper);
-         if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient *>(coeff))
+         if (GridCoefficient *grid_coeff = dynamic_cast<GridCoefficient *>(coeff))
          {
-            InitBasisAndRestriction(*gridCoeff->gf.FESpace(), ir,
+            InitBasisAndRestriction(*grid_coeff->gf.FESpace(), ir,
                                     use_bdr, nelem, indices, ceed,
-                                    &gridCoeff->basis, &gridCoeff->restr);
-            CeedOperatorSetField(build_oper, "coeff", gridCoeff->restr,
-                                 gridCoeff->basis, gridCoeff->coeffVector);
+                                    &grid_coeff->basis, &grid_coeff->restr);
+            CeedOperatorSetField(build_oper, "coeff", grid_coeff->restr,
+                                 grid_coeff->basis, grid_coeff->coeff_vector);
          }
-         else if (QuadCoefficient *quadCoeff = dynamic_cast<QuadCoefficient *>(coeff))
+         else if (QuadCoefficient *quad_coeff = dynamic_cast<QuadCoefficient *>(coeff))
          {
-            const int ncomp = quadCoeff->ncomp;
+            const int ncomp = quad_coeff->ncomp;
             CeedInt strides[3] = {ncomp, 1, ncomp * nqpts};
-            InitStridedRestriction(*mesh.GetNodalFESpace(),
-                                   nelem, nqpts, ncomp, strides, ceed,
-                                   &quadCoeff->restr);
-            CeedOperatorSetField(build_oper, "coeff", quadCoeff->restr,
-                                 CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
+            InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp,
+                                   strides, ceed,
+                                   &quad_coeff->restr);
+            CeedOperatorSetField(build_oper, "coeff", quad_coeff->restr,
+                                 CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
          }
          CeedOperatorSetField(build_oper, "dx", mesh_restr,
                               mesh_basis, CEED_VECTOR_ACTIVE);
          CeedOperatorSetField(build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
                               mesh_basis, CEED_VECTOR_NONE);
-         CeedOperatorSetField(build_oper, "qdata", restr_i,
+         CeedOperatorSetField(build_oper, "qdata", qdata_restr,
                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
 
          // Compute the quadrature data for the operator.
@@ -336,11 +336,6 @@ public:
       std::string qf = qf_file + apply_func;
       CeedQFunctionCreateInterior(ceed, 1, apply_qf, qf.c_str(),
                                   &apply_qfunc);
-      if (use_mf && coeff)
-      {
-         // coefficient
-         CeedQFunctionAddInput(apply_qfunc, "coeff", coeff->ncomp, coeff->emode);
-      }
       // input
       switch (info.trial_op)
       {
@@ -360,6 +355,11 @@ public:
       }
       if (use_mf)
       {
+         if (coeff)
+         {
+            // coefficient
+            CeedQFunctionAddInput(apply_qfunc, "coeff", coeff->ncomp, coeff->emode);
+         }
          CeedQFunctionAddInput(apply_qfunc, "dx", dim * space_dim, CEED_EVAL_GRAD);
          CeedQFunctionAddInput(apply_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
       }
@@ -389,28 +389,6 @@ public:
 
       // Create the operator.
       CeedOperatorCreate(ceed, apply_qfunc, NULL, NULL, &oper);
-      if (use_mf)
-      {
-         // coefficient
-         if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient *>(coeff))
-         {
-            InitBasisAndRestriction(*gridCoeff->gf.FESpace(), ir,
-                                    use_bdr, nelem, indices, ceed,
-                                    &gridCoeff->basis, &gridCoeff->restr);
-            CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
-                                 gridCoeff->basis, gridCoeff->coeffVector);
-         }
-         else if (QuadCoefficient *quadCoeff = dynamic_cast<QuadCoefficient *>(coeff))
-         {
-            const int ncomp = quadCoeff->ncomp;
-            CeedInt strides[3] = {ncomp, 1, ncomp * nqpts};
-            InitStridedRestriction(*mesh.GetNodalFESpace(),
-                                   nelem, nqpts, ncomp, strides, ceed,
-                                   &quadCoeff->restr);
-            CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
-                                 CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
-         }
-      }
       // input
       switch (info.trial_op)
       {
@@ -431,6 +409,25 @@ public:
       }
       if (use_mf)
       {
+         // coefficient
+         if (GridCoefficient *grid_coeff = dynamic_cast<GridCoefficient *>(coeff))
+         {
+            InitBasisAndRestriction(*grid_coeff->gf.FESpace(), ir,
+                                    use_bdr, nelem, indices, ceed,
+                                    &grid_coeff->basis, &grid_coeff->restr);
+            CeedOperatorSetField(oper, "coeff", grid_coeff->restr,
+                                 grid_coeff->basis, grid_coeff->coeff_vector);
+         }
+         else if (QuadCoefficient *quad_coeff = dynamic_cast<QuadCoefficient *>(coeff))
+         {
+            const int ncomp = quad_coeff->ncomp;
+            CeedInt strides[3] = {ncomp, 1, ncomp * nqpts};
+            InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp,
+                                   strides, ceed,
+                                   &quad_coeff->restr);
+            CeedOperatorSetField(oper, "coeff", quad_coeff->restr,
+                                 CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
+         }
          CeedOperatorSetField(oper, "dx", mesh_restr, mesh_basis, node_coords);
          CeedOperatorSetField(oper, "weights", CEED_ELEMRESTRICTION_NONE,
                               mesh_basis, CEED_VECTOR_NONE);
@@ -438,7 +435,7 @@ public:
       else
       {
          // qdata
-         CeedOperatorSetField(oper, "qdata", restr_i, CEED_BASIS_COLLOCATED, qdata);
+         CeedOperatorSetField(oper, "qdata", qdata_restr, CEED_BASIS_COLLOCATED, qdata);
       }
       // output
       switch (info.test_op)
