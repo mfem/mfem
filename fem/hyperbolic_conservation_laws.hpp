@@ -203,7 +203,19 @@ public:
       : NonlinearFormIntegrator(),
         num_equations(num_equations_),
         IntOrderOffset(IntOrderOffset_),
-        rsolver(rsolver_) {}
+        rsolver(rsolver_)
+   {
+#ifndef MFEM_THREAD_SAFE
+      state.SetSize(num_equations);
+      flux.SetSize(num_equations, dim);
+      state1.SetSize(num_equations);
+      state2.SetSize(num_equations);
+      fluxN1.SetSize(num_equations);
+      fluxN2.SetSize(num_equations);
+      fluxN.SetSize(num_equations);
+      nor.SetSize(dim);
+#endif
+   }
    /**
     * @brief Construct an object with a fixed integration rule
     *
@@ -467,17 +479,18 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
 #ifdef MFEM_THREAD_SAFE
    // Local storages for element integration
 
-   Vector shape;              // shape function value at an integration point
-   Vector state;              // state value at an integration point
-   DenseMatrix flux;          // flux value at an integration point
-   DenseMatrix dshape;  // derivative of shape function at an integration point
-#endif
-
+   Vector shape(dof); // shape function value at an integration point
+   DenseMatrix dshape(dof,
+                      el.GetDim()); // derivative of shape function at an integration point
+   Vector state(num_equations); // state value at an integration point
+   DenseMatrix flux(num_equations,
+                    el.GetDim()); // flux value at an integration point
+#else
    // resize shape and gradient shape storage
    shape.SetSize(dof);
    dshape.SetSize(dof, el.GetDim());
-   state.SetSize(num_equations);
-   flux.SetSize(num_equations, el.GetDim());
+#endif
+
    // setDegree-up output vector
    elvect.SetSize(dof * num_equations);
    elvect = 0.0;
@@ -522,24 +535,24 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 #ifdef MFEM_THREAD_SAFE
    // Local storages for element integration
 
-   Vector shape1;  // shape function value at an integration point - first elem
-   Vector shape2;  // shape function value at an integration point - second elem
-   Vector state1;  // state value at an integration point - first elem
-   Vector state2;  // state value at an integration point - second elem
-   Vector fluxN1;  // flux dot n value at an integration point - first elem
-   Vector fluxN2;  // flux dot n value at an integration point - second elem
-   Vector nor;     // normal vector (usually not a unit vector)
-   Vector fluxN;   // hat(F)(u,x)
-#endif
-
+   Vector shape1(
+      dof1);  // shape function value at an integration point - first elem
+   Vector shape2(
+      dof2);  // shape function value at an integration point - second elem
+   Vector nor(el1.GetDim());     // normal vector (usually not a unit vector)
+   Vector state1(
+      num_equations);  // state value at an integration point - first elem
+   Vector state2(
+      num_equations);  // state value at an integration point - second elem
+   Vector fluxN1(
+      num_equations);  // flux dot n value at an integration point - first elem
+   Vector fluxN2(
+      num_equations);  // flux dot n value at an integration point - second elem
+   Vector fluxN(num_equations);   // hat(F)(u,x)
+#else
    shape1.SetSize(dof1);
    shape2.SetSize(dof2);
-   state1.SetSize(num_equations);
-   state2.SetSize(num_equations);
-   fluxN1.SetSize(num_equations);
-   fluxN2.SetSize(num_equations);
-   fluxN.SetSize(num_equations);
-   nor.SetSize(el1.GetDim());
+#endif
 
    elvect.SetSize((dof1 + dof2) * num_equations);
    elvect = 0.0;
