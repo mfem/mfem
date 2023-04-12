@@ -64,12 +64,17 @@ using namespace mfem;
  *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
  *        2. Set ψ ← ψ + c.
  *
+ * @param psi a GridFunction to be updated
+ * @param target_volume θ vol(Ω)
+ * @param tol Newton iteration tolerance
+ * @param max_its Newton maximum iteration number
+ * @return double Final volume, ∫_Ω sigmoid(ψ)
  */
 double projit(GridFunction &psi, double target_volume, double tol=1e-12,
-            int max_its=10)
+              int max_its=10)
 {
-   MappedGridFunctionCoefficient sigmoid_psi(psi, sigmoid);
-   MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
+   MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
+   MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
 
    LinearForm int_sigmoid_psi(psi.FESpace());
    int_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
@@ -197,7 +202,7 @@ int main(int argc, char *argv[])
    double alpha = 1.0;
    double epsilon = 0.01;
    double mass_fraction = 0.5;
-   int max_it = 1e2;
+   int max_it = 1e3;
    double tol = 1e-4;
    double rho_min = 1e-6;
    double lambda = 1.0;
@@ -302,9 +307,11 @@ int main(int argc, char *argv[])
    const double sigmoid_bound = -inv_sigmoid(rho_min);
 
    // ρ = sigmoid(ψ)
-   MappedGridFunctionCoefficient rho(psi, sigmoid);
+   MappedGridFunctionCoefficient rho(&psi, sigmoid);
    // Interpolation of ρ = sigmoid(ψ) in control fes
    GridFunction rho_gf(&control_fes);
+   // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
+   DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
 
    // 6. Set-up the physics solver.
    int maxat = mesh.bdr_attributes.Max();
@@ -356,6 +363,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    GridFunction onegf(&control_fes);
    onegf = 1.0;
+   GridFunction zerogf(&control_fes);
+   zerogf = 0.0;
    LinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
@@ -435,13 +444,12 @@ int main(int argc, char *argv[])
       clip(psi, sigmoid_bound);
 
       // Compute ||ρ - ρ_old|| in control fes.
-      GridFunction old_rho(rho_gf);
-      rho_gf.ProjectCoefficient(rho);
-      double norm_reduced_gradient = old_rho.ComputeL2Error(rho)/alpha;
+      double norm_reduced_gradient = zerogf.ComputeL2Error(succ_diff_rho)/alpha;
       psi_old = psi;
 
       double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
-      mfem::out << "norm of reduced gradient = " << norm_reduced_gradient << std::endl;
+      mfem::out << "norm of reduced gradient = " << norm_reduced_gradient <<
+                std::endl;
       mfem::out << "compliance = " << compliance << std::endl;
       mfem::out << "mass_fraction = " << material_volume / domain_volume << std::endl;
 
@@ -450,6 +458,7 @@ int main(int argc, char *argv[])
          sout_u << "solution\n" << mesh << u
                 << "window_title 'Displacement u'" << flush;
 
+         rho_gf.ProjectCoefficient(rho);
          sout_rho << "solution\n" << mesh << rho_gf
                   << "window_title 'Control variable ρ'" << flush;
 
