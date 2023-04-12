@@ -472,8 +472,30 @@ protected:
 
    /// Returns the orientation of "test" relative to "base"
    static int GetTriOrientation (const int * base, const int * test);
+
+   /// Returns the orientation of "base" relative to "test"
+   /// In other words: GetTriOrientation(test, base) should equal
+   /// InverseTriOrientation(GetTriOrientation(base, test))
+   static int InverseTriOrientation(int ori);
+
+   /// Returns the orientation of "c" relative to "a" by composing
+   /// previously computed orientations relative to an intermediate
+   /// set "b".
+   static int ComposeTriOrientations(int ori_a_b, int ori_b_c);
+
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+
+   /// Returns the orientation of "base" relative to "test"
+   /// In other words: GetQuadOrientation(test, base) should equal
+   /// InverseQuadOrientation(GetQuadOrientation(base, test))
+   static int InverseQuadOrientation(int ori);
+
+   /// Returns the orientation of "c" relative to "a" by composing
+   /// previously computed orientations relative to an intermediate
+   /// set "b".
+   static int ComposeQuadOrientations(int ori_a_b, int ori_b_c);
+
    /// Returns the orientation of "test" relative to "base"
    static int GetTetOrientation (const int * base, const int * test);
 

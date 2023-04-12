@@ -5638,6 +5638,35 @@ int Mesh::GetTriOrientation(const int *base, const int *test)
    return orient;
 }
 
+int Mesh::ComposeTriOrientations(int ori_a_b, int ori_b_c)
+{
+   // Static method.
+   // Given three, possibly different, configurations of triangular face
+   // vertices: va, vb, and vc.  This function returns the relative orientation
+   // GetTriOrientation(va, vc) by composing previously computed orientations
+   // ori_a_b = GetTriOrientation(va, vb) and
+   // ori_b_c = GetTriOrientation(vb, vc) without accessing the vertices.
+
+   const int oo[6][6] =
+   {
+      {0, 1, 2, 3, 4, 5},
+      {1, 0, 5, 4, 3, 2},
+      {2, 3, 4, 5, 0, 1},
+      {3, 2, 1, 0, 5, 4},
+      {4, 5, 0, 1, 2, 3},
+      {5, 4, 3, 2, 1, 0}
+   };
+
+   int ori_a_c = oo[ori_a_b][ori_b_c];
+   return ori_a_c;
+}
+
+int Mesh::InverseTriOrientation(int ori)
+{
+   const int inv_ori[6] = {0, 1, 4, 3, 2, 5};
+   return inv_ori[ori];
+}
+
 int Mesh::GetQuadOrientation(const int *base, const int *test)
 {
    int i;
@@ -5684,6 +5713,37 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    }
 
    return 2*i+1;
+}
+
+int Mesh::ComposeQuadOrientations(int ori_a_b, int ori_b_c)
+{
+   // Static method.
+   // Given three, possibly different, configurations of quadrilateral face
+   // vertices: va, vb, and vc.  This function returns the relative orientation
+   // GetQuadOrientation(va, vc) by composing previously computed orientations
+   // ori_a_b = GetQuadOrientation(va, vb) and
+   // ori_b_c = GetQuadOrientation(vb, vc) without accessing the vertices.
+
+   const int oo[8][8] =
+   {
+      {0, 1, 2, 3, 4, 5, 6, 7},
+      {1, 0, 3, 2, 5, 4, 7, 6},
+      {2, 7, 4, 1, 6, 3, 0, 5},
+      {3, 6, 5, 0, 7, 2, 1, 4},
+      {4, 5, 6, 7, 0, 1, 2, 3},
+      {5, 4, 7, 6, 1, 0, 3, 2},
+      {6, 3, 0, 5, 2, 7, 4, 1},
+      {7, 2, 1, 4, 3, 6, 5, 0}
+   };
+
+   int ori_a_c = oo[ori_a_b][ori_b_c];
+   return ori_a_c;
+}
+
+int Mesh::InverseQuadOrientation(int ori)
+{
+   const int inv_ori[8] = {0, 1, 6, 3, 4, 5, 2, 7};
+   return inv_ori[ori];
 }
 
 int Mesh::GetTetOrientation(const int *base, const int *test)
