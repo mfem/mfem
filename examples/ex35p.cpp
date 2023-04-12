@@ -148,7 +148,7 @@ inline void clip(ParGridFunction &psi, const double max_val)
  *  Discretization choices:
  *
  *     u ∈ V ⊂ (H¹)ᵈ (order p)
- *     ρ ∈ L² (order p - 1)
+ *     ψ ∈ L² (order p - 1), ρ = sigmoid(ψ)
  *     ρ̃ ∈ H¹ (order p - 1)
  *     w ∈ V  (order p)
  *     w̃ ∈ H¹ (order p - 1)
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
    H1_FECollection state_fec(order, dim); // space for u
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
-                               BasisType::Positive); // space for ρ
+                               BasisType::GaussLobatto); // space for ψ
    ParFiniteElementSpace state_fes(&pmesh, &state_fec,dim);
    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);

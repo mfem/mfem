@@ -141,7 +141,7 @@ inline void clip(GridFunction &psi, const double max_val)
  *  Discretization choices:
  *
  *     u ∈ V ⊂ (H¹)ᵈ (order p)
- *     ρ ∈ L² (order p - 1)
+ *     ψ ∈ L² (order p - 1), ρ = sigmoid(ψ)
  *     ρ̃ ∈ H¹ (order p - 1)
  *     w ∈ V  (order p)
  *     w̃ ∈ H¹ (order p - 1)
