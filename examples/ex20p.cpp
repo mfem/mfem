@@ -246,17 +246,23 @@ int main(int argc, char *argv[])
    e_var /= (nsteps + 1);
    double e_sd = sqrt(e_var);
 
+   double e_loc_stats[2];
+   double *e_stats = (myid == 0) ? new double[2 * num_procs] : (double*)NULL;
+
+   e_loc_stats[0] = e_mean;
+   e_loc_stats[1] = e_sd;
+   MPI_Gather(e_loc_stats, 2, MPI_DOUBLE, e_stats, 2, MPI_DOUBLE, 0, comm);
+
    if (myid == 0)
    {
-      cout << endl << "Mean and standard deviation of the energy" << endl;
-   }
-   for (int i = 0; i < num_procs; i++)
-   {
-      if (myid == i)
+      cout << endl << "Mean and standard deviation of the energy "
+           << "for different initial conditions" << endl;
+      for (int i = 0; i < num_procs; i++)
       {
-         cout << myid << ": " << e_mean << "\t" << e_sd << endl;
+         cout << i << ": " << e_stats[2 * i + 0]
+              << "\t" << e_stats[2 * i + 1] << endl;
       }
-      MPI_Barrier(comm);
+      delete [] e_stats;
    }
 
    // 9. Finalize the GnuPlot output
