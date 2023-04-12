@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
    //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
    DGHyperbolicConservationLaws euler = getEulerSystem(
-                                           &vfes, numericalFlux, specific_heat_ratio, gas_constant, IntOrderOffset);
+                                           &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
 
    // Visualize the density
    socketstream sout;

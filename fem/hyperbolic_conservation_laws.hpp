@@ -668,7 +668,7 @@ class EulerFormIntegrator : public HyperbolicFormIntegrator
 {
 private:
    const double specific_heat_ratio;  // specific heat ratio, γ
-   const double gas_constant;         // gas constant
+   // const double gas_constant;         // gas constant
 
    /**
     * @brief Compute F(ρ, ρu, E)
@@ -783,15 +783,13 @@ public:
     * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param specific_heat_ratio_ specific heat ratio, γ
-    * @param gas_constant_ gas constant
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
    EulerFormIntegrator(RiemannSolver *rsolver_, const int dim,
                        const double specific_heat_ratio_,
-                       const double gas_constant_, const int IntOrderOffset_)
+                       const int IntOrderOffset_)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, IntOrderOffset_),
-        specific_heat_ratio(specific_heat_ratio_),
-        gas_constant(gas_constant_) {}
+        specific_heat_ratio(specific_heat_ratio_) {}
 
    /**
     * @brief Construct a new Euler Element Form Integrator object with given
@@ -800,29 +798,25 @@ public:
     * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param specific_heat_ratio_ specific heat ratio, γ
-    * @param gas_constant_ gas constant
     * @param ir this integral rule will be used for the Gauss quadrature
     */
    EulerFormIntegrator(RiemannSolver *rsolver_, const int dim,
                        const double specific_heat_ratio_,
-                       const double gas_constant_,
                        const IntegrationRule *ir)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, ir),
-        specific_heat_ratio(specific_heat_ratio_),
-        gas_constant(gas_constant_) {}
+        specific_heat_ratio(specific_heat_ratio_) {}
 };
 
 DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
                                             RiemannSolver *numericalFlux,
                                             const double specific_heat_ratio,
-                                            const double gas_constant,
                                             const int IntOrderOffset)
 {
    const int dim = vfes->GetMesh()->Dimension();
    const int num_equations = dim + 2;
 
    EulerFormIntegrator *elfi = new EulerFormIntegrator(
-      numericalFlux, dim, specific_heat_ratio, gas_constant, IntOrderOffset);
+      numericalFlux, dim, specific_heat_ratio, IntOrderOffset);
 
    return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
 }
