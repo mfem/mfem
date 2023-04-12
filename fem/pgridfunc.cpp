@@ -933,31 +933,30 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
 {
    ParFiniteElementSpace *pfespace = ParFESpace();
    ParMesh *pmesh = pfespace->GetParMesh();
-   int MyRank = pmesh->GetMyRank(),
-       NRanks = pmesh->GetNRanks();
-   int vdim = pfespace->GetVDim();
+
    Mesh serialmesh = pmesh->GetSerialMesh(save_rank);
-   // Duplicate the FE collection to make sure the serial mesh is completely
-   // independent of the parallel mesh:
-   auto fec_serial = FiniteElementCollection::New(
-                        pfespace->FEColl()->Name());
+
+   int vdim = pfespace->GetVDim();
    auto *fespace_serial = new FiniteElementSpace(&serialmesh,
-                                                 fec_serial,
+                                                 pfespace->FEColl(),
                                                  vdim,
                                                  pfespace->GetOrdering());
-   MPI_Comm MyComm = pmesh->GetComm();
 
    GridFunction gf_serial(fespace_serial);
    Array<double> vals;
-   Array<int> ints, dofs;
+   Array<int> dofs;
    MPI_Status status;
    int n_send_recv;
 
+   int MyRank = pmesh->GetMyRank(),
+       NRanks = pmesh->GetNRanks();
+   MPI_Comm MyComm = pmesh->GetComm();
+
    int elem_count = 0; // To keep track of element count in serial mesh
+
    if (MyRank == save_rank)
    {
       Vector nodeval;
-      Array<int> ints_serial;
       for (int e = 0; e < pmesh->GetNE(); e++)
       {
          GetElementDofValues(e, nodeval);
