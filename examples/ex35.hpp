@@ -43,7 +43,7 @@ double der_sigmoid(double x)
 
 /**
  * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
- * 
+ *
  */
 class MappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
@@ -52,18 +52,54 @@ protected:
 public:
    MappedGridFunctionCoefficient()
       :GridFunctionCoefficient(),
-       fun(nullptr) {}
-   MappedGridFunctionCoefficient(const GridFunction &gf,
+       fun([](double x) {return x;}) {}
+   MappedGridFunctionCoefficient(const GridFunction *gf,
                                  std::function<double(const double)> fun_,
                                  int comp=1)
-      :GridFunctionCoefficient(&gf, comp),
+      :GridFunctionCoefficient(gf, comp),
        fun(fun_) {}
-   
+
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
       return fun(GridFunctionCoefficient::Eval(T, ip));
+   }
+   void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
+};
+
+
+/**
+ * @brief Returns f(u(x)) - f(v(x)) where u, v are scalar GridFunctions and f:R → R
+ *
+ */
+class DiffMappedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   std::function<double(const double)> fun; // f:R → R
+   const GridFunction *OtherGridF;
+   GridFunctionCoefficient OtherGridF_cf;
+public:
+   DiffMappedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       OtherGridF(nullptr),
+       OtherGridF_cf(),
+       fun([](double x) {return x;}) {}
+   DiffMappedGridFunctionCoefficient(const GridFunction *gf,
+                                     const GridFunction *other_gf,
+                                     std::function<double(const double)> fun_,
+                                     int comp=1)
+      :GridFunctionCoefficient(gf, comp),
+       fun(fun_),
+       OtherGridF(other_gf),
+       OtherGridF_cf(OtherGridF) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      const double value1 = fun(GridFunctionCoefficient::Eval(T, ip));
+      const double value2 = fun(OtherGridF_cf.Eval(T, ip));
+      return value1 - value2;
    }
    void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
 };
