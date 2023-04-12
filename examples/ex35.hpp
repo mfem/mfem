@@ -5,37 +5,68 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <functional>
 
-using namespace std;
-using namespace mfem;
+// using namespace std;
+// using namespace mfem;
 
+namespace mfem
+{
 // Inverse sigmoid function
-double lnit(double x)
+double inv_sigmoid(double x)
 {
    double tol = 1e-12;
-   x = min(max(tol,x),1.0-tol);
-   return log(x/(1.0-x));
+   x = std::min(std::max(tol,x),1.0-tol);
+   return std::log(x/(1.0-x));
 }
 
 // Sigmoid function
-double expit(double x)
+double sigmoid(double x)
 {
    if (x >= 0)
    {
-      return 1.0/(1.0+exp(-x));
+      return 1.0/(1.0+std::exp(-x));
    }
    else
    {
-      return exp(x)/(1.0+exp(x));
+      return std::exp(x)/(1.0+std::exp(x));
    }
 }
 
 // Derivative of sigmoid function
-double dexpitdx(double x)
+double der_sigmoid(double x)
 {
-   double tmp = expit(-x);
-   return tmp - pow(tmp,2);
+   double tmp = sigmoid(-x);
+   return tmp - std::pow(tmp,2);
 }
+
+
+/**
+ * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+ * 
+ */
+class MappedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   std::function<double(const double)> fun; // f:R → R
+public:
+   MappedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       fun(nullptr) {}
+   MappedGridFunctionCoefficient(const GridFunction &gf,
+                                 std::function<double(const double)> fun_,
+                                 int comp=1)
+      :GridFunctionCoefficient(&gf, comp),
+       fun(fun_) {}
+   
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip));
+   }
+   void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
+};
 
 //  Solid isotropic material penalization (SIMP) coefficient
 class SIMPInterpolationCoefficient : public Coefficient
@@ -690,4 +721,5 @@ void LinearElasticitySolver::ResetFEM()
 LinearElasticitySolver::~LinearElasticitySolver()
 {
    ResetFEM();
+}
 }
