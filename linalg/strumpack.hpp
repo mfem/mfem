@@ -239,7 +239,7 @@ public:
    ~STRUMPACKSolver() {}
 };
 
-#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
+#if STRUMPACK_VERSION_MAJOR >= 7
 class STRUMPACKMixedPrecisionSolver :
    public STRUMPACKSolverBase<strumpack::
    SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
