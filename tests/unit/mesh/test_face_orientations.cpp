@@ -90,7 +90,7 @@ TEST_CASE("Face Orientation", "[FaceOrientation]")
       const int va[4] = {0,1,2,3};
       int vb[4] = {0,1,2,3};
       int vc[4] = {0,1,2,3};
-      std::cout << "\nQuads" << std::endl;
+
       for (int i=0; i<8; i++)
       {
          QuadPerm(i, vb);
