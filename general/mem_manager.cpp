@@ -876,8 +876,8 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 {
    mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset, bytes,
                   base_flags & Mem::ALIAS);
-   flags = (base_flags | Mem::ALIAS | Mem::OWNS_INTERNAL) &
-           ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+   flags = (base_flags | Mem::ALIAS) & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+   if (base_h_ptr) { flags |= Mem::OWNS_INTERNAL; }
 }
 
 void MemoryManager::SetDeviceMemoryType_(void *h_ptr, unsigned flags,
