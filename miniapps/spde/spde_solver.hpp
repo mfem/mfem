@@ -104,11 +104,12 @@ public:
    ~SPDESolver();
 
    /// Solve the SPDE for a given right hand side b. May alter b if
-   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
-   /// need b later on, make a copy of it before calling this function.
+   /// the exponent (alpha) is larger than 1. We avoid copying be default. If
+   /// you need b later on, make a copy of it before calling this function.
    void Solve(ParLinearForm &b, ParGridFunction &x);
 
-   /** Set up the random field generator. If called more than once it resets the generator */
+   /// Set up the random field generator. If called more than once it resets the
+   /// generator.
    void SetupRandomFieldGenerator(int seed=0);
 
    /// Generate a random field. Calls back to solve but generates the stochastic
@@ -126,6 +127,9 @@ public:
    static DenseMatrix ConstructMatrixCoefficient(double l1, double l2, double l3,
                                                  double e1, double e2, double e3,
                                                  double nu, int dim);
+
+   /// Set the print level
+   void SetPrintLevel(int print_level) {print_level_ = print_level;}
 
 private:
    /// The rational approximation of the SPDE results in multiple
@@ -196,6 +200,9 @@ private:
    double e1_ = 0.0;
    double e2_ = 0.0;
    double e3_ = 0.0;
+
+   // Print level
+   int print_level_ = 1;
 
    // Member to switch to repeated solve capabilities.
    bool repeated_solve_ = false;
