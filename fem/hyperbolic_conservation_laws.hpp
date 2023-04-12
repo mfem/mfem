@@ -476,6 +476,8 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
    // resize shape and gradient shape storage
    shape.SetSize(dof);
    dshape.SetSize(dof, el.GetDim());
+   state.SetSize(num_equations);
+   flux.SetSize(num_equations, el.GetDim());
    // setDegree-up output vector
    elvect.SetSize(dof * num_equations);
    elvect = 0.0;
@@ -532,6 +534,12 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 
    shape1.SetSize(dof1);
    shape2.SetSize(dof2);
+   state1.SetSize(num_equations);
+   state2.SetSize(num_equations);
+   fluxN1.SetSize(num_equations);
+   fluxN2.SetSize(num_equations);
+   fluxN.SetSize(num_equations);
+   nor.SetSize(el1.GetDim());
 
    elvect.SetSize((dof1 + dof2) * num_equations);
    elvect = 0.0;
