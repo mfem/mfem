@@ -53,44 +53,73 @@
 #include <fstream>
 #include "ex35.hpp"
 
-/**
- * @brief Nonlinear projection of 0 < τ < 1 onto the subspace
- *        ∫_Ω τ dx = θ vol(Ω) as follows.
- *
- *        1. Compute the root of the R → R function
- *            f(c) = ∫_Ω expit(lnit(τ) + c) dx - θ vol(Ω)
- *        2. Set τ ← expit(lnit(τ) + c).
- *
- */
-void projit(GridFunction &tau, double &c, LinearForm &vol_form,
-            double volume_fraction, double tol=1e-12, int max_its=10)
-{
-   GridFunction ftmp(tau.FESpace());
-   GridFunction dftmp(tau.FESpace());
-   for (int k=0; k<max_its; k++)
-   {
-      // Compute f(c) and dfdc(c)
-      for (int i=0; i<tau.Size(); i++)
-      {
-         ftmp[i]  = expit(lnit(tau[i]) + c) - volume_fraction;
-         dftmp[i] = dexpitdx(lnit(tau[i]) + c);
-      }
-      double f = vol_form(ftmp);
-      double df = vol_form(dftmp);
-
-      MPI_Allreduce(MPI_IN_PLACE,&f,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&df,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-
-      double dc = -f/df;
-      c += dc;
-      if (abs(dc) < tol) { break; }
-   }
-   tau = ftmp;
-   tau += volume_fraction;
-}
-
 using namespace std;
 using namespace mfem;
+
+/**
+ * @brief Nonlinear projection of ψ onto the subspace
+ *        ∫_Ω sigmoid(ψ) dx = θ vol(Ω) as follows.
+ *
+ *        1. Compute the root of the R → R function
+ *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+ *        2. Set ψ ← ψ + c.
+ *
+ * @param psi a GridFunction to be updated
+ * @param target_volume θ vol(Ω)
+ * @param tol Newton iteration tolerance
+ * @param max_its Newton maximum iteration number
+ * @return double Final volume, ∫_Ω sigmoid(ψ)
+ */
+double projit(ParGridFunction &psi, double target_volume, double tol=1e-12,
+              int max_its=10)
+{
+   MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
+   MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
+
+   ParLinearForm int_sigmoid_psi(psi.ParFESpace());
+   int_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
+   ParLinearForm int_der_sigmoid_psi(psi.ParFESpace());
+   int_der_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(
+                                              der_sigmoid_psi));
+   bool done = false;
+   for (int k=0; k<max_its; k++) // Newton iteration
+   {
+      int_sigmoid_psi.Assemble(); // Recompute f(c) with updated ψ
+      double f = int_sigmoid_psi.Sum();
+      MPI_Allreduce(MPI_IN_PLACE, &f, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      f -= target_volume;
+
+      int_der_sigmoid_psi.Assemble(); // Recompute df(c) with updated ψ
+      double df = int_der_sigmoid_psi.Sum();
+      MPI_Allreduce(MPI_IN_PLACE, &df, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+      const double dc = -f/df;
+      psi += dc;
+      if (abs(dc) < tol) { done = true; break; }
+   }
+   if (!done)
+   {
+      mfem_warning("Projection reached maximum iteration without converging. Result may not be accurate.");
+   }
+   int_sigmoid_psi.Assemble();
+   double material_volume = int_sigmoid_psi.Sum();
+   MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1, MPI_DOUBLE, MPI_SUM,
+                 MPI_COMM_WORLD);
+   return material_volume;
+   // return int_sigmoid_psi.Sum();
+}
+
+
+/**
+ * @brief Enforce boundedness, -max_val ≤ psi ≤ max_val
+ *
+ * @param psi a GridFunction to be bounded (in place)
+ * @param max_val upper and lower bound
+ */
+inline void clip(ParGridFunction &psi, const double max_val)
+{
+   for (auto &val : psi) { val = min(max_val, max(-max_val, val)); }
+}
 /**
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE
@@ -156,13 +185,13 @@ using namespace mfem;
  *
  *     6. Mirror descent update until convergence; i.e.,
  *
- *                      ρ ← projit(expit(linit(ρ) - αG)),
+ *                      ρ ← projit(sigmoid(linit(ρ) - αG)),
  *
  *     where
  *
  *          α > 0                            (step size parameter)
  *
- *          expit(x) = eˣ/(1+eˣ)             (sigmoid)
+ *          sigmoid(x) = eˣ/(1+eˣ)             (sigmoid)
  *
  *          linit(y) = ln(y) - ln(1-y)       (inverse of sigmoid)
  *
@@ -187,7 +216,7 @@ int main(int argc, char *argv[])
    double alpha = 1.0;
    double epsilon = 0.01;
    double mass_fraction = 0.5;
-   int max_it = 1e2;
+   int max_it = 1e3;
    double tol = 1e-4;
    double rho_min = 1e-6;
    double lambda = 1.0;
@@ -212,7 +241,7 @@ int main(int argc, char *argv[])
                   "Lame constant λ");
    args.AddOption(&mu, "-mu", "--mu",
                   "Lame constant μ");
-   args.AddOption(&rho_min, "-rmin", "--rho-min",
+   args.AddOption(&rho_min, "-rmin", "--psi-min",
                   "Minimum of density coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -230,6 +259,7 @@ int main(int argc, char *argv[])
    }
    if (myid == 0)
    {
+      mfem::out << num_procs << " number of process created.\n";
       args.PrintOptions(cout);
    }
 
@@ -295,13 +325,22 @@ int main(int argc, char *argv[])
 
    // 5. Set the initial guess for ρ.
    ParGridFunction u(&state_fes);
-   ParGridFunction rho(&control_fes);
-   ParGridFunction rho_old(&control_fes);
+   ParGridFunction psi(&control_fes);
+   ParGridFunction psi_old(&control_fes);
    ParGridFunction rho_filter(&filter_fes);
    u = 0.0;
-   rho_filter = 0.0;
-   rho = 0.5;
-   rho_old = 0.5;
+   rho_filter = mass_fraction;
+   psi = inv_sigmoid(mass_fraction);
+   psi_old = inv_sigmoid(mass_fraction);
+
+   const double sigmoid_bound = -inv_sigmoid(rho_min);
+
+   // ρ = sigmoid(ψ)
+   MappedGridFunctionCoefficient rho(&psi, sigmoid);
+   // Interpolation of ρ = sigmoid(ψ) in control fes
+   ParGridFunction rho_gf(&control_fes);
+   // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
+   DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
 
    // 6. Set-up the physics solver.
    int maxat = pmesh.bdr_attributes.Max();
@@ -353,10 +392,13 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    ParGridFunction onegf(&control_fes);
    onegf = 1.0;
+   ParGridFunction zerogf(&control_fes);
+   zerogf = 0.0;
    ParLinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
    double domain_volume = vol_form(onegf);
+   const double target_volume = domain_volume * mass_fraction;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -372,6 +414,7 @@ int main(int argc, char *argv[])
       sout_r.precision(8);
    }
 
+   rho_gf.ProjectCoefficient(rho);
    mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
@@ -380,7 +423,7 @@ int main(int argc, char *argv[])
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0);
    paraview_dc.RegisterField("displacement",&u);
-   paraview_dc.RegisterField("density",&rho);
+   paraview_dc.RegisterField("density",&rho_gf);
    paraview_dc.RegisterField("filtered_density",&rho_filter);
 
    // 11. Iterate
@@ -398,8 +441,7 @@ int main(int argc, char *argv[])
 
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
-      GridFunctionCoefficient rho_cf(&rho);
-      FilterSolver->SetRHSCoefficient(&rho_cf);
+      FilterSolver->SetRHSCoefficient(&rho);
       FilterSolver->Solve();
       rho_filter = *FilterSolver->GetFEMSolution();
 
@@ -428,24 +470,17 @@ int main(int argc, char *argv[])
       w_rhs.Assemble();
       M.Mult(w_rhs,grad);
 
-      // Step 5 - Update design variable ρ ← projit(expit(linit(ρ) - αG))
-      // Note: The update here is performed on the coefficients of the linear
-      //       representation of the design variable in the Berstein basis. It would
-      //       be more mathematically sound to update the design variable so that
-      //       the values at the integration points follow this update rule.
-      for (int i = 0; i < rho.Size(); i++)
-      {
-         rho[i] = expit(lnit(rho[i]) - alpha*grad[i]);
-      }
-      projit(rho, c0, vol_form, mass_fraction);
+      // Step 5 - Update design variable ψ ← clip(projit(ψ - αG))
+      psi.Add(-alpha, grad);
+      const double material_volume = projit(psi, target_volume);
+      clip(psi, sigmoid_bound);
 
-      GridFunctionCoefficient tmp(&rho_old);
-      double norm_reduced_gradient = rho.ComputeL2Error(tmp)/alpha;
-      rho_old = rho;
+      // Compute ||ρ - ρ_old|| in control fes.
+      double norm_reduced_gradient = zerogf.ComputeL2Error(succ_diff_rho)/alpha;
+      psi_old = psi;
 
       double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
       MPI_Allreduce(MPI_IN_PLACE,&compliance,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-      double material_volume = vol_form(rho);
       if (myid == 0)
       {
          mfem::out << "norm of reduced gradient = " << norm_reduced_gradient << endl;
@@ -459,8 +494,9 @@ int main(int argc, char *argv[])
          sout_u << "solution\n" << pmesh << u
                 << "window_title 'Displacement u'" << flush;
 
+         rho_gf.ProjectCoefficient(rho);
          sout_rho << "parallel " << num_procs << " " << myid << "\n";
-         sout_rho << "solution\n" << pmesh << rho
+         sout_rho << "solution\n" << pmesh << rho_gf
                   << "window_title 'Control variable ρ'" << flush;
 
          ParGridFunction r_gf(&filter_fes);
