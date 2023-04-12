@@ -273,7 +273,7 @@ public:
          CeedQFunctionUser build_qf = coeff ? info.build_qf_quad
                                       : info.build_qf_const;
 
-         // Create the Q-function that builds the operator (i.e. computes its
+         // Create the QFunction that builds the operator (i.e. computes its
          // quadrature data) and set its context data.
          CeedQFunction build_qfunc;
          std::string qf_file = GetCeedPath() + info.header;
@@ -331,7 +331,7 @@ public:
                                    (coeff ? info.apply_qf_mf_quad
                                     : info.apply_qf_mf_const);
 
-      // Create the Q-function that defines the action of the operator.
+      // Create the QFunction that defines the action of the operator.
       std::string qf_file = GetCeedPath() + info.header;
       std::string qf = qf_file + apply_func;
       CeedQFunctionCreateInterior(ceed, 1, apply_qf, qf.c_str(),

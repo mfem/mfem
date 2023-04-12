@@ -82,7 +82,7 @@ public:
             integ.GetIntegrationRule() ? *integ.GetIntegrationRule() :
             integ.GetRule(trial_fe, test_fe, T);
          sub_ops.reserve(1);
-         auto sub_op = new Integrator();
+         auto *sub_op = new Integrator();
          sub_op->Assemble(info, trial_fes, test_fes, ir, Q, use_bdr, use_mf);
          sub_ops.push_back(sub_op);
 
@@ -156,11 +156,10 @@ public:
             use_bdr ? *test_fes.GetBE(first_index) : *test_fes.GetFE(first_index);
          auto &T = use_bdr ? *mesh.GetBdrElementTransformation(first_index) :
                    *mesh.GetElementTransformation(first_index);
-         MFEM_ASSERT(!integ.GetIntegrationRule(),
-                     "Mixed mesh integrators should not have an"
-                     " IntegrationRule.");
-         const IntegrationRule &ir = integ.GetRule(el, el, T);
-         auto sub_op = new Integrator();
+         MFEM_VERIFY(!integ.GetIntegrationRule(),
+                     "Mixed mesh integrators should not have an IntegrationRule.");
+         const IntegrationRule &ir = integ.GetRule(trial_fe, test_fe, T);
+         auto *sub_op = new Integrator();
          sub_op->Assemble(info, trial_fes, test_fes, ir, *count[value.first], indices, Q,
                           use_bdr, use_mf);
          sub_ops.push_back(sub_op);
@@ -174,7 +173,7 @@ public:
 
    virtual ~MixedIntegrator()
    {
-      for (auto sub_op : sub_ops)
+      for (auto *sub_op : sub_ops)
       {
          delete sub_op;
       }

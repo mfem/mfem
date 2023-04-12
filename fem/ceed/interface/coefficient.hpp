@@ -67,6 +67,7 @@ struct QuadCoefficient : Coefficient
     @param[in] Q is the coefficient from the `Integrator`.
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
+    @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
@@ -93,10 +94,10 @@ inline void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
       QuadCoefficient *ceed_coeff = new QuadCoefficient(1);
       const mfem::QuadratureFunction &qfunc = qf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == nq * ne,
-                  "Incompatible QuadratureFunction dimension\n");
+                  "Incompatible QuadratureFunction dimension.");
       MFEM_VERIFY(&ir == &qfunc.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
+                  " QuadratureFunction appear to be different.");
       qfunc.Read();
       ceed_coeff->vector.MakeRef(const_cast<mfem::QuadratureFunction &>(qfunc), 0);
       InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
@@ -132,6 +133,7 @@ inline void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
     @param[in] VQ is the vector coefficient from the `Integrator`.
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
+    @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
@@ -159,10 +161,10 @@ inline void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       QuadCoefficient *ceed_coeff = new QuadCoefficient(vdim);
       const mfem::QuadratureFunction &qfunc = vqf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == vdim * nq * ne,
-                  "Incompatible QuadratureFunction dimension\n");
+                  "Incompatible QuadratureFunction dimension.");
       MFEM_VERIFY(&ir == &qfunc.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
+                  " QuadratureFunction appear to be different.");
       qfunc.Read();
       ceed_coeff->vector.MakeRef(const_cast<mfem::QuadratureFunction &>(qfunc), 0);
       InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
@@ -202,6 +204,7 @@ inline void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
     @param[in] MQ is the matrix coefficient from the `Integrator`.
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
+    @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficient(mfem::MatrixCoefficient *MQ, mfem::Mesh &mesh,
@@ -255,11 +258,12 @@ inline void InitCoefficient(mfem::MatrixCoefficient *MQ, mfem::Mesh &mesh,
     @param[in] Q is the coefficient from the `Integrator`.
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
-    @param[in] nelem The number of elements.
-    @param[in] indices The indices of the elements of same type in the
+    @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
+    @param[in] nelem is the number of elements.
+    @param[in] indices are the indices of the elements of same type in the
                        `FiniteElementSpace`.
     @param[out] coeff_ptr is the structure to store the coefficient for the
-                          `CeedOperator`.  */
+                          `CeedOperator`. */
 inline void InitCoefficientWithIndices(mfem::Coefficient *Q,
                                        mfem::Mesh &mesh,
                                        const mfem::IntegrationRule &ir,
@@ -289,10 +293,10 @@ inline void InitCoefficientWithIndices(mfem::Coefficient *Q,
       ceed_coeff->vector.SetSize(nq * nelem);
       const mfem::QuadratureFunction &qfunc = qf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == nq * ne,
-                  "Incompatible QuadratureFunction dimension\n");
+                  "Incompatible QuadratureFunction dimension.");
       MFEM_VERIFY(&ir == &qfunc.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
+                  " QuadratureFunction appear to be different.");
       Memory<int> m_indices((int*)indices, nelem, false);
       auto in = Reshape(qfunc.Read(), nq, ne);
       auto d_indices = Read(m_indices, nelem);
@@ -338,8 +342,9 @@ inline void InitCoefficientWithIndices(mfem::Coefficient *Q,
     @param[in] VQ is the vector coefficient from the `Integrator`.
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
-    @param[in] nelem The number of elements.
-    @param[in] indices The indices of the elements of same type in the
+    @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
+    @param[in] nelem is the number of elements.
+    @param[in] indices are the indices of the elements of same type in the
                        `FiniteElementSpace`.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
@@ -372,10 +377,10 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ,
       ceed_coeff->vector.SetSize(vdim * nq * nelem);
       const mfem::QuadratureFunction &qfunc = vqf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == vdim * nq * ne,
-                  "Incompatible QuadratureFunction dimension\n");
+                  "Incompatible QuadratureFunction dimension.");
       MFEM_VERIFY(&ir == &qfunc.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
+                  " QuadratureFunction appear to be different.");
       Memory<int> m_indices((int*)indices, nelem, false);
       auto in = Reshape(qfunc.Read(), vdim, nq, ne);
       auto d_indices = Read(m_indices, nelem);
@@ -428,8 +433,9 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ,
     @param[in] MQ is the matrix coefficient from the `Integrator`.
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
-    @param[in] nelem The number of elements.
-    @param[in] indices The indices of the elements of same type in the
+    @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
+    @param[in] nelem is the number of elements.
+    @param[in] indices are the indices of the elements of same type in the
                        `FiniteElementSpace`.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */

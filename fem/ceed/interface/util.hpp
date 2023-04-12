@@ -80,7 +80,7 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
-/// Return the path to the libCEED q-function headers.
+/// Return the path to the libCEED QFunction headers.
 const std::string &GetCeedPath();
 
 /// Wrapper for std::hash.

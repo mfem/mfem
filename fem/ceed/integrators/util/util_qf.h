@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,8 @@ CEED_QFUNCTION_HELPER CeedScalar DetJ22(const CeedScalar *J,
 {
    // J: 0 2
    //    1 3
-   return J[J_stride * 0] * J[J_stride * 3] - J[J_stride * 1] * J[J_stride * 2];
+   return J[J_stride * 0] * J[J_stride * 3] -
+          J[J_stride * 1] * J[J_stride * 2];
 }
 
 CEED_QFUNCTION_HELPER CeedScalar DetJ21(const CeedScalar *J,
@@ -95,6 +96,8 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt22(const CeedScalar *J,
    }
    else if (c_comp == 2)  // Vector coefficient
    {
+      // c: 0
+      //      1
       qd[qd_stride * 0] =  w * (c[c_stride * 1] * J12 * J12 +
                                 c[c_stride * 0] * J22 * J22);
       qd[qd_stride * 1] = -w * (c[c_stride * 1] * J11 * J12 +
@@ -137,12 +140,10 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt21(const CeedScalar *J,
    }
    else if (c_comp == 2)  // Vector coefficient
    {
-      // First compute entries of R = C adj(J)^T
       // c: 0
       //      1
-      const CeedScalar R11 = c[c_stride * 0] * J11;
-      const CeedScalar R21 = c[c_stride * 1] * J21;
-      qd[qd_stride * 0] = w * (J11 * R11 + J21 * R21) / d;
+      qd[qd_stride * 0] = w * (c[c_stride * 0] * J11 * J11 +
+                               c[c_stride * 1] * J21 * J21) / d;
    }
    else  // Scalar coefficient
    {
@@ -224,6 +225,9 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt33(const CeedScalar *J,
    }
    else if (c_comp == 3)  // Vector coefficient
    {
+      // c: 0
+      //      1
+      //        2
       qd[qd_stride * 0] = w * (c[c_stride * 0] * A11 * A11 +
                                c[c_stride * 1] * A12 * A12 +
                                c[c_stride * 2] * A13 * A13);

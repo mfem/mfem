@@ -24,7 +24,7 @@ struct ConvectionContext
    CeedScalar alpha;
 };
 
-/// libCEED Q-function for building quadrature data for a convection operator
+/// libCEED QFunction for building quadrature data for a convection operator
 /// with a constant coefficient
 CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
@@ -45,39 +45,39 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
-            qd[i] = alpha * coeff0 * qw[i] * J[i];
+            qd[i] = qw[i] * alpha * coeff0 * J[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt21(J + i, Q, coeff, 1, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt21(J + i, Q, coeff, 1, qw[i] * alpha, Q, qd + i);
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt22(J + i, Q, coeff, 1, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt22(J + i, Q, coeff, 1, qw[i] * alpha, Q, qd + i);
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt32(J + i, Q, coeff, 1, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt32(J + i, Q, coeff, 1, qw[i] * alpha, Q, qd + i);
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt33(J + i, Q, coeff, 1, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt33(J + i, Q, coeff, 1, qw[i] * alpha, Q, qd + i);
          }
          break;
    }
    return 0;
 }
 
-/// libCEED Q-function for building quadrature data for a convection operator
-/// coefficient evaluated at quadrature points.
+/// libCEED QFunction for building quadrature data for a convection operator
+/// with a coefficient evaluated at quadrature points.
 CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
@@ -96,39 +96,38 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar coeff = c[i];
-            qd[i] = alpha * coeff * qw[i] * J[i];
+            qd[i] = qw[i] * alpha * c[i] * J[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt21(J + i, Q, c + i, Q, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt21(J + i, Q, c + i, Q, qw[i] * alpha, Q, qd + i);
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt22(J + i, Q, c + i, Q, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt22(J + i, Q, c + i, Q, qw[i] * alpha, Q, qd + i);
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt32(J + i, Q, c + i, Q, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt32(J + i, Q, c + i, Q, qw[i] * alpha, Q, qd + i);
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultCtAdjJt33(J + i, Q, c + i, Q, alpha * qw[i], Q, qd + i);
+            MultCtAdjJt33(J + i, Q, c + i, Q, qw[i] * alpha, Q, qd + i);
          }
          break;
    }
    return 0;
 }
 
-/// libCEED Q-function for applying a conv operator
+/// libCEED QFunction for applying a conv operator
 CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
@@ -143,7 +142,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
       case 1:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            vg[i] = ug[i] * qd[i];
+            vg[i] = qd[i] * ug[i];
          }
          break;
       case 2:
@@ -167,7 +166,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED Q-function for applying a conv operator
+/// libCEED QFunction for applying a conv operator
 CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in,
                                       CeedScalar *const *out)
@@ -189,15 +188,15 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
-            const CeedScalar qd = alpha * coeff0 * qw[i] * J[i];
-            vg[i] = ug[i] * qd;
+            const CeedScalar qd = qw[i] * alpha * coeff0 * J[i];
+            vg[i] = qd * ug[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd;
-            MultCtAdjJt21(J + i, Q, coeff, 1, alpha * qw[i], 1, &qd);
+            MultCtAdjJt21(J + i, Q, coeff, 1, qw[i] * alpha, 1, &qd);
             vg[i] = qd * ug[i];
          }
          break;
@@ -205,7 +204,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[2];
-            MultCtAdjJt22(J + i, Q, coeff, 1, alpha * qw[i], 1, qd);
+            MultCtAdjJt22(J + i, Q, coeff, 1, qw[i] * alpha, 1, qd);
             const CeedScalar ug0 = ug[i + Q * 0];
             const CeedScalar ug1 = ug[i + Q * 1];
             vg[i] = qd[0] * ug0 + qd[1] * ug1;
@@ -215,7 +214,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[2];
-            MultCtAdjJt32(J + i, Q, coeff, 1, alpha * qw[i], 1, qd);
+            MultCtAdjJt32(J + i, Q, coeff, 1, qw[i] * alpha, 1, qd);
             const CeedScalar ug0 = ug[i + Q * 0];
             const CeedScalar ug1 = ug[i + Q * 1];
             vg[i] = qd[0] * ug0 + qd[1] * ug1;
@@ -225,7 +224,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[3];
-            MultCtAdjJt33(J + i, Q, coeff, 1, alpha * qw[i], 1, qd);
+            MultCtAdjJt33(J + i, Q, coeff, 1, qw[i] * alpha, 1, qd);
             const CeedScalar ug0 = ug[i + Q * 0];
             const CeedScalar ug1 = ug[i + Q * 1];
             const CeedScalar ug2 = ug[i + Q * 2];
@@ -236,6 +235,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
+/// libCEED QFunction for applying a conv operator
 CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
@@ -256,15 +256,15 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = alpha * c[i] * qw[i] * J[i];
-            vg[i] = ug[i] * qd;
+            const CeedScalar qd = qw[i] * alpha * c[i] * J[i];
+            vg[i] = qd * ug[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd;
-            MultCtAdjJt21(J + i, Q, c + i, Q, alpha * qw[i], 1, &qd);
+            MultCtAdjJt21(J + i, Q, c + i, Q, qw[i] * alpha, 1, &qd);
             vg[i] = qd * ug[i];
          }
          break;
@@ -272,7 +272,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[2];
-            MultCtAdjJt22(J + i, Q, c + i, Q, alpha * qw[i], 1, qd);
+            MultCtAdjJt22(J + i, Q, c + i, Q, qw[i] * alpha, 1, qd);
             const CeedScalar ug0 = ug[i + Q * 0];
             const CeedScalar ug1 = ug[i + Q * 1];
             vg[i] = qd[0] * ug0 + qd[1] * ug1;
@@ -282,7 +282,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[2];
-            MultCtAdjJt32(J + i, Q, c + i, Q, alpha * qw[i], 1, qd);
+            MultCtAdjJt32(J + i, Q, c + i, Q, qw[i] * alpha, 1, qd);
             const CeedScalar ug0 = ug[i + Q * 0];
             const CeedScalar ug1 = ug[i + Q * 1];
             vg[i] = qd[0] * ug0 + qd[1] * ug1;
@@ -292,7 +292,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[3];
-            MultCtAdjJt33(J + i, Q, c + i, Q, alpha * qw[i], 1, qd);
+            MultCtAdjJt33(J + i, Q, c + i, Q, qw[i] * alpha, 1, qd);
             const CeedScalar ug0 = ug[i + Q * 0];
             const CeedScalar ug1 = ug[i + Q * 1];
             const CeedScalar ug2 = ug[i + Q * 2];

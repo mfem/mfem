@@ -23,7 +23,7 @@ struct DiffusionContext
    CeedScalar coeff[LIBCEED_DIFF_COEFF_COMP_MAX];
 };
 
-/// libCEED Q-function for building quadrature data for a diffusion operator
+/// libCEED QFunction for building quadrature data for a diffusion operator
 /// with a constant coefficient
 CEED_QFUNCTION(f_build_diff_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
@@ -45,7 +45,7 @@ CEED_QFUNCTION(f_build_diff_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
-            qd[i] = coeff0 * qw[i] / J[i];
+            qd[i] = qw[i] * coeff0 / J[i];
          }
          break;
       case 21:
@@ -76,8 +76,8 @@ CEED_QFUNCTION(f_build_diff_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED Q-function for building quadrature data for a diffusion operator
-/// coefficient evaluated at quadrature points.
+/// libCEED QFunction for building quadrature data for a diffusion operator
+/// with a coefficient evaluated at quadrature points.
 CEED_QFUNCTION(f_build_diff_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
@@ -97,7 +97,7 @@ CEED_QFUNCTION(f_build_diff_quad)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = c[i] * qw[i] / J[i];
+            qd[i] = qw[i] * c[i] / J[i];
          }
          break;
       case 21:
@@ -128,7 +128,7 @@ CEED_QFUNCTION(f_build_diff_quad)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED Q-function for applying a diff operator
+/// libCEED QFunction for applying a diff operator
 CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
@@ -142,7 +142,7 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            vg[i] = ug[i] * qd[i];
+            vg[i] = qd[i] * ug[i];
          }
          break;
       case 12:
@@ -151,7 +151,7 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
             const CeedScalar qd0 = qd[i];
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
-               vg[i + Q * d] = ug[i + Q * d] * qd0;
+               vg[i + Q * d] = qd0 * ug[i + Q * d];
             }
          }
          break;
@@ -234,7 +234,7 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED Q-function for applying a diff operator
+/// libCEED QFunction for applying a diff operator
 CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in,
                                       CeedScalar *const *out)
@@ -244,7 +244,7 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T
+   // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T.
    const CeedInt coeff_comp = bc->coeff_comp;
    const CeedScalar *coeff = bc->coeff;
    const CeedScalar *ug = in[0], *J = in[1], *qw = in[2];
@@ -255,8 +255,8 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
-            const CeedScalar qd = coeff0 * qw[i] / J[i];
-            vg[i] = ug[i] * qd;
+            const CeedScalar qd = qw[i] * coeff0 / J[i];
+            vg[i] = qd * ug[i];
          }
          break;
       case 211:
@@ -264,7 +264,7 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
          {
             CeedScalar qd;
             MultAdjJCAdjJt21(J + i, Q, coeff, 1, coeff_comp, qw[i], 1, &qd);
-            vg[i] = ug[i] * qd;
+            vg[i] = qd * ug[i];
          }
          break;
       case 212:
@@ -274,7 +274,7 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
             MultAdjJCAdjJt21(J + i, Q, coeff, 1, coeff_comp, qw[i], 1, &qd);
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
-               vg[i + Q * d] = ug[i + Q * d] * qd;
+               vg[i + Q * d] = qd * ug[i + Q * d];
             }
          }
          break;
@@ -361,6 +361,7 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
+/// libCEED QFunction for applying a diff operator
 CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
@@ -371,7 +372,7 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
    // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[3] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T
+   // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T.
    const CeedInt coeff_comp = bc->coeff_comp;
    const CeedScalar *ug = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
@@ -380,8 +381,8 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
       case 111:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] / J[i];
-            vg[i] = ug[i] * qd;
+            const CeedScalar qd = qw[i] * c[i] / J[i];
+            vg[i] = qd * ug[i];
          }
          break;
       case 211:
@@ -389,7 +390,7 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
          {
             CeedScalar qd;
             MultAdjJCAdjJt21(J + i, Q, c + i, Q, coeff_comp, qw[i], 1, &qd);
-            vg[i] = ug[i] * qd;
+            vg[i] = qd * ug[i];
          }
          break;
       case 212:
@@ -399,7 +400,7 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
             MultAdjJCAdjJt21(J + i, Q, c + i, Q, coeff_comp, qw[i], 1, &qd);
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
-               vg[i + Q * d] = ug[i + Q * d] * qd;
+               vg[i + Q * d] = qd * ug[i + Q * d];
             }
          }
          break;

@@ -21,7 +21,7 @@ struct MassContext
    CeedScalar coeff;
 };
 
-/// libCEED Q-function for building quadrature data for a mass operator with a
+/// libCEED QFunction for building quadrature data for a mass operator with a
 /// constant coefficient
 CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
@@ -29,6 +29,8 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
 {
    // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[1] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute and store qw * c * det(J).
    MassContext *bc = (MassContext *)ctx;
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
@@ -38,38 +40,38 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = coeff * J[i] * qw[i];
+            qd[i] = qw[i] * coeff * J[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = coeff * qw[i] * DetJ21(J + i, Q);
+            qd[i] = qw[i] * coeff * DetJ21(J + i, Q);
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = coeff * qw[i] * DetJ22(J + i, Q);
+            qd[i] = qw[i] * coeff * DetJ22(J + i, Q);
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = coeff * qw[i] * DetJ32(J + i, Q);
+            qd[i] = qw[i] * coeff * DetJ32(J + i, Q);
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = coeff * qw[i] * DetJ33(J + i, Q);
+            qd[i] = qw[i] * coeff * DetJ33(J + i, Q);
          }
          break;
    }
    return 0;
 }
 
-/// libCEED Q-function for building quadrature data for a mass operator with a
+/// libCEED QFunction for building quadrature data for a mass operator with a
 /// coefficient evaluated at quadrature points.
 CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
@@ -78,6 +80,8 @@ CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
    // in[0] is coefficients, size (Q)
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute and store qw * c * det(J).
    MassContext *bc = (MassContext *)ctx;
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
@@ -86,43 +90,44 @@ CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = c[i] * J[i] * qw[i];
+            qd[i] = qw[i] * c[i] * J[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = c[i] * qw[i] * DetJ21(J + i, Q);
+            qd[i] = qw[i] * c[i] * DetJ21(J + i, Q);
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = c[i] * qw[i] * DetJ22(J + i, Q);
+            qd[i] = qw[i] * c[i] * DetJ22(J + i, Q);
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = c[i] * qw[i] * DetJ32(J + i, Q);
+            qd[i] = qw[i] * c[i] * DetJ32(J + i, Q);
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = c[i] * qw[i] * DetJ33(J + i, Q);
+            qd[i] = qw[i] * c[i] * DetJ33(J + i, Q);
          }
          break;
    }
    return 0;
 }
 
-/// libCEED Q-function for applying a mass operator
+/// libCEED QFunction for applying a mass operator
 CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
 {
    MassContext *bc = (MassContext *)ctx;
+   // in[0], out[0] have shape [ncomp=vdim, Q]
    const CeedScalar *u = in[0], *qd = in[1];
    CeedScalar *v = out[0];
    switch (bc->vdim)
@@ -157,11 +162,16 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED Q-function for applying a mass operator
+/// libCEED QFunction for applying a mass operator
 CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in, CeedScalar *const *out)
 {
    MassContext *bc = (MassContext *)ctx;
+   // in[0], out[0] have shape [ncomp=vdim, Q]
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw * c * det(J).
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *J = in[1], *qw = in[2];
    CeedScalar *v = out[0];
@@ -170,21 +180,21 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
       case 111:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * J[i];
+            const CeedScalar qd = qw[i] * coeff * J[i];
             v[i] = qd * u[i];
          }
          break;
       case 211:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ21(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ21(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 212:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ21(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ21(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -194,14 +204,14 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
       case 221:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ22(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ22(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 222:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ22(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ22(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -211,14 +221,14 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
       case 321:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ32(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ32(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 323:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ32(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ32(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -228,14 +238,14 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
       case 331:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ33(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ33(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = coeff * qw[i] * DetJ33(J + i, Q);
+            const CeedScalar qd = qw[i] * coeff * DetJ33(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -246,10 +256,16 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
+/// libCEED QFunction for applying a mass operator
 CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in, CeedScalar *const *out)
 {
    MassContext *bc = (MassContext *)ctx;
+   // in[0], out[0] have shape [ncomp=vdim, Q]
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw * c * det(J).
    const CeedScalar *u = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *v = out[0];
    switch (100 * bc->space_dim + 10 * bc->dim + bc->vdim)
@@ -257,21 +273,21 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
       case 111:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * J[i] * qw[i];
+            const CeedScalar qd = qw[i] * c[i] * J[i];
             v[i] = qd * u[i];
          }
          break;
       case 211:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ21(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ21(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 212:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ21(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ21(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -281,14 +297,14 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
       case 221:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ22(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ22(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 222:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ22(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ22(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 2; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -298,14 +314,14 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
       case 321:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ32(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ32(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 323:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ32(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ32(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];
@@ -315,14 +331,14 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
       case 331:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ33(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ33(J + i, Q);
             v[i] = qd * u[i];
          }
          break;
       case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = c[i] * qw[i] * DetJ33(J + i, Q);
+            const CeedScalar qd = qw[i] * c[i] * DetJ33(J + i, Q);
             CeedPragmaSIMD for (CeedInt d = 0; d < 3; d++)
             {
                v[i + d * Q] = qd * u[i + d * Q];

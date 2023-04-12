@@ -175,6 +175,8 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
 #endif
 }
 
+// @cond DOXYGEN_SKIP
+
 template PADiffusionIntegrator::PADiffusionIntegrator(
    const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
    mfem::Coefficient *, const bool);
@@ -202,6 +204,8 @@ template MFDiffusionIntegrator::MFDiffusionIntegrator(
 template MFDiffusionIntegrator::MFDiffusionIntegrator(
    const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
    mfem::Coefficient *, const bool);
+
+// @endcond
 
 } // namespace ceed
 
