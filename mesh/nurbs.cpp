@@ -39,6 +39,7 @@ KnotVector::KnotVector(int Order_, int NCP)
    Order = Order_;
    NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
+   NumOfElements = 0;
 
    knot = -1.;
 }
@@ -131,31 +132,33 @@ void KnotVector::Print(std::ostream &os) const
 
 void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 {
+   MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().");
+
    Vector shape(Order+1);
 
    double x, dx = 1.0/double (samples - 1);
 
-   /* @a i is a counter including elements between repeated knots if
+   /* @a cnt is a counter including elements between repeated knots if
       present. This is required for usage of CalcShape. */
-   int i = 0;
+   int cnt = 0;
 
-   for (int e = 0; e < GetNE(); e++, i++)
+   for (int e = 0; e < GetNE(); e++, cnt++)
    {
       // Avoid printing shapes between repeated knots
-      if (!isElement(i)) { e -= 1; continue; }
+      if (!isElement(cnt)) { e--; continue; }
 
       for (int j = 0; j <samples; j++)
       {
          x =j*dx;
          os<< x + e;
 
-         CalcShape ( shape, i, x);
+         CalcShape ( shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcDShape ( shape, i, x);
+         CalcDShape ( shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcD2Shape ( shape, i, x);
+         CalcD2Shape ( shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
          os<<endl;
       }
