@@ -21,10 +21,20 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
+/// Abstract base class that defines an interface for element restrictions.
+class ElementRestrictionOperator : public Operator
+{
+public:
+   /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
+   /// of freedom @a y.
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override = 0;
+};
+
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
-class ElementRestriction : public Operator
+class ElementRestriction : public ElementRestrictionOperator
 {
 private:
    /** This number defines the maximum number of elements any dof can belong to
@@ -99,7 +109,7 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
     corresponding to grid functions in L2 finite element spaces differ from
     E-vectors only in the ordering of the degrees of freedom. */
-class L2ElementRestriction : public Operator
+class L2ElementRestriction : public ElementRestrictionOperator
 {
    const int ne;
    const int vdim;
