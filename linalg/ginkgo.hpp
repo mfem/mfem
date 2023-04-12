@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,16 @@
 #ifndef MFEM_GINKGO
 #define MFEM_GINKGO
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_GINKGO
+
+#include "operator.hpp"
+#include "sparsemat.hpp"
+#include "solvers.hpp"
+
+#include <ginkgo/ginkgo.hpp>
+
 #include <iomanip>
 #include <ios>
 #include <string>
@@ -19,20 +29,22 @@
 #include <fstream>
 #include <iostream>
 
-
-#include "../config/config.hpp"
-#include "operator.hpp"
-#include "sparsemat.hpp"
-#include "solvers.hpp"
-
-#ifdef MFEM_USE_GINKGO
-#include <ginkgo/ginkgo.hpp>
-#endif
+#define MFEM_GINKGO_VERSION \
+   ((GKO_VERSION_MAJOR*100 + GKO_VERSION_MINOR)*100 + GKO_VERSION_PATCH)
 
 namespace mfem
 {
 namespace Ginkgo
 {
+
+/// The alias 'gko_array' refers to 'gko::Array' (Ginkgo < 1.5.0) or
+/// 'gko::array' (Ginkgo >= 1.5.0).
+#if MFEM_GINKGO_VERSION < 10500
+template <typename T> using gko_array = gko::Array<T>;
+#else
+template <typename T> using gko_array = gko::array<T>;
+#endif
+
 /**
 * Helper class for a case where a wrapped MFEM Vector
 * should be owned by Ginkgo, and deleted when the wrapper
@@ -66,10 +78,10 @@ public:
       : gko::matrix::Dense<double>(
            exec,
            gko::dim<2> {size, 1},
-   gko::Array<double>::view(exec,
-                            size,
-                            mfem_vec->ReadWrite(
-                               exec != exec->get_master() ? true : false)),
+   gko_array<double>::view(exec,
+                           size,
+                           mfem_vec->ReadWrite(
+                              exec != exec->get_master() ? true : false)),
    1)
    {
       // This controls whether or not we want Ginkgo to own its MFEM Vector.
@@ -390,11 +402,16 @@ struct ResidualLogger : gko::log::Logger
    ResidualLogger(std::shared_ptr<const gko::Executor> exec,
                   const gko::LinOp *matrix, const gko_dense *b,
                   bool compute_real_residual=false)
-      : gko::log::Logger(exec,
-                         gko::log::Logger::iteration_complete_mask),
-        matrix{matrix},
-        b{b},
-        compute_real_residual{compute_real_residual}
+      :
+#if MFEM_GINKGO_VERSION < 10500
+      gko::log::Logger(exec,
+                       gko::log::Logger::iteration_complete_mask),
+#else
+      gko::log::Logger(gko::log::Logger::iteration_complete_mask),
+#endif
+      matrix {matrix},
+      b{b},
+      compute_real_residual{compute_real_residual}
    {
       if (compute_real_residual == true)
       {
@@ -1268,6 +1285,8 @@ public:
 };
 } // namespace Ginkgo
 
-}
+} // namespace mfem
+
+#endif // MFEM_USE_GINKGO
 
 #endif // MFEM_GINKGO

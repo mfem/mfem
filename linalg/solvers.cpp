@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1028,6 +1028,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = true;
+      j = 0;
+      resid = beta;
       goto finish;
    }
 
