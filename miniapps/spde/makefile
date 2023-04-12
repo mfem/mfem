@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SPDE_COMMON_SRC = boundary.cpp material_metrics.cpp spde_solver.cpp transformation.cpp util.cpp visualizer.cpp
+SPDE_COMMON_SRC = material_metrics.cpp spde_solver.cpp transformation.cpp util.cpp visualizer.cpp
 
 SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 
