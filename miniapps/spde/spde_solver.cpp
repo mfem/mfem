@@ -339,7 +339,7 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
 }
 
 SPDESolver::SPDESolver(double nu, const Boundary &bc,
-                       ParFiniteElementSpace *fespace, MPI_Comm comm, double l1,
+                       ParFiniteElementSpace *fespace, double l1,
                        double l2, double l3, double e1, double e2, double e3)
    : k_(fespace),
      m_(fespace),

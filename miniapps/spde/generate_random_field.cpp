@@ -262,7 +262,7 @@ int main(int argc, char *argv[])
    }
 
    // III.3 Solve the SPDE problem
-   spde::SPDESolver solver(nu, bc, &fespace, MPI_COMM_WORLD, l1, l2, l3, e1, e2,
+   spde::SPDESolver solver(nu, bc, &fespace, l1, l2, l3, e1, e2,
                            e3);
    const int seed = (random_seed) ? 0 : std::numeric_limits<int>::max();
    solver.SetupRandomFieldGenerator(seed);
