@@ -152,7 +152,7 @@ inline void clip(GridFunction &psi, const double max_val)
  *
  *  Update ρ with projected mirror descent via the following algorithm.
  *
- *  1. Initialize density field 0 < ρ(x) < 1.
+ *  1. Initialize ψ = inv_sigmoid(mass_fraction) so that ∫ sigmoid(ψ) = θ vol(Ω)
  *
  *  While not converged:
  *

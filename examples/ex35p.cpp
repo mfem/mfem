@@ -159,7 +159,7 @@ inline void clip(ParGridFunction &psi, const double max_val)
  *
  *  Update ρ with projected mirror descent via the following algorithm.
  *
- *  1. Initialize density field 0 < ρ(x) < 1.
+ *  1. Initialize ψ = inv_sigmoid(mass_fraction) so that ∫ sigmoid(ψ) = θ vol(Ω)
  *
  *  While not converged:
  *
@@ -185,17 +185,15 @@ inline void clip(ParGridFunction &psi, const double max_val)
  *
  *     6. Mirror descent update until convergence; i.e.,
  *
- *                      ρ ← projit(sigmoid(linit(ρ) - αG)),
+ *                      ψ ← clip(projit(ψ - αG)),
  *
  *     where
  *
- *          α > 0                            (step size parameter)
+ *          α > 0                                    (step size parameter)
  *
- *          sigmoid(x) = eˣ/(1+eˣ)             (sigmoid)
+ *          clip(y) = min(max_val, max(min_val, y))  (boundedness enforcement)
  *
- *          linit(y) = ln(y) - ln(1-y)       (inverse of sigmoid)
- *
- *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ dx = θ vol(Ω).
+ *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ(=sigmoid(ψ)) dx = θ vol(Ω).
  *
  *  end
  *
