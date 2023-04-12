@@ -334,7 +334,7 @@ FactorInternal() const
    strumpack::ReturnCode ret = solver_->factor();
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
-#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
+#if STRUMPACK_VERSION_MAJOR >= 7
       MFEM_ABORT("STRUMPACK: Factor failed with return code " << ret << "!");
 #else
       MFEM_ABORT("STRUMPACK: Factor failed!");
@@ -361,7 +361,7 @@ Mult(const Vector &x, Vector &y) const
    strumpack::ReturnCode ret = solver_->solve(xPtr, yPtr, false);
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
-#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
+#if STRUMPACK_VERSION_MAJOR >= 7
       MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");
 #else
       MFEM_ABORT("STRUMPACK: Solve failed!");
@@ -407,7 +407,7 @@ ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const
                                               false);
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
-#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
+#if STRUMPACK_VERSION_MAJOR >= 7
       MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");
 #else
       MFEM_ABORT("STRUMPACK: Solve failed!");
@@ -447,7 +447,7 @@ STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
      SparseSolverMPIDist<double, HYPRE_BigInt>>
      (A, argc, argv) {}
 
-#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
+#if STRUMPACK_VERSION_MAJOR >= 7
 STRUMPACKMixedPrecisionSolver::
 STRUMPACKMixedPrecisionSolver(MPI_Comm comm)
    : STRUMPACKSolverBase<strumpack::
@@ -475,7 +475,7 @@ STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
 
 template class STRUMPACKSolverBase<strumpack::
                                    SparseSolverMPIDist<double, HYPRE_BigInt>>;
-#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
+#if STRUMPACK_VERSION_MAJOR >= 7
 template class STRUMPACKSolverBase<strumpack::
                                    SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>;
 #endif
