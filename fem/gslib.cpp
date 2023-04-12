@@ -182,19 +182,19 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 
    auto xvFill = [&](const double *xv_base[], unsigned xv_stride[], int dim)
    {
-      for (int d = 0; d < dim; d++)
-      {
-         if (point_pos_ordering == Ordering::byNODES)
-         {
+    for (int d = 0; d < dim; d++)
+    {
+        if (point_pos_ordering == Ordering::byNODES)
+        {
             xv_base[d] = point_pos.GetData() + d*points_cnt;
             xv_stride[d] = sizeof(double);
-         }
-         else
-         {
+        }
+        else
+        {
             xv_base[d] = point_pos.GetData() + d;
             xv_stride[d] = dim*sizeof(double);
-         }
-      }
+        }
+    }
    };
    if (dim == 2)
    {

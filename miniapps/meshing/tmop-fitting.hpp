@@ -115,7 +115,7 @@ double cube_dist(const Vector &x, Vector &center, double halfwidth)
    return sum1+sum2;
 }
 
-double csg_cubecylsph_smooth(const Vector &x)
+double csg_cubesph_smooth(const Vector &x)
 {
    double pwrr = 4.0;
    Vector xcc = x;
@@ -130,6 +130,23 @@ double csg_cubecylsph_smooth(const Vector &x)
    //      return dsph; //return here for sphere
    double dcube = cube_dist(x, xcc, rcube);
    return std::max(dsph, dcube); // return here for sphere + cube
+}
+
+double csg_cubecylsph_smooth(const Vector &x)
+{
+   double pwrr = 4.0;
+   Vector xcc = x;
+   xcc = 0.5;
+   const int dim = x.Size();
+   MFEM_VERIFY(dim == 3, "Only 3D supported for this level set");
+   Vector x2 = x;
+   x2 -= xcc;
+   double rsph = 0.375;
+   double rcube = 0.3;
+   double dsph = x2.Norml2() - rsph;;/*x2.Norml2()*x2.Norml2() - rsph*rsph;*/
+   //      return dsph; //return here for sphere
+   double dcube = cube_dist(x, xcc, rcube);
+//    return std::max(dsph, dcube); // return here for sphere + cube
    double dist1 = std::max(dsph, dcube);
 
    //   return std::max(dsph, -10*dcube);

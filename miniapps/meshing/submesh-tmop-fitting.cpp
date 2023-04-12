@@ -430,9 +430,9 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(squircle_inside_circle_level_set);
    }
-   else if (surf_ls_type == 4) // cube inside sphere
+   else if (surf_ls_type == 4) // cube inside sphere 
    {
-      ls_coeff = new FunctionCoefficient(csg_cubecylsph_smooth);
+      ls_coeff = new FunctionCoefficient(csg_cubesph_smooth);
    }
    else if (surf_ls_type == 5) // squircle 2D
    {
@@ -445,6 +445,10 @@ int main (int argc, char *argv[])
    else if (surf_ls_type == 7) // cube inside sphere
    {
       ls_coeff = new FunctionCoefficient(kabaria_smooth);
+   }
+   else if (surf_ls_type == 8) // cube inside sphere
+   {
+      ls_coeff = new FunctionCoefficient(csg_cubecylsph_smooth);
    }
    else
    {
@@ -615,6 +619,7 @@ int main (int argc, char *argv[])
 
       mat.ExchangeFaceNbrData();
 
+
       // Adapt attributes for marking such that if all but 1 face of an element
       // are marked, the element attribute is switched.
       if (adapt_marking && !material && !trim_mesh && hex_to_tet_split_type == 0)
@@ -663,8 +668,10 @@ int main (int argc, char *argv[])
       }
    }
 
+
    int num_active_glob = 0,
        neglob = pmesh->GetGlobalNE();
+   int neprocsubmesh = 0;
    if (myid == 0)
    {
       std::cout << "Number of elements in the mesh: " << neglob <<  endl;
@@ -748,10 +755,13 @@ int main (int argc, char *argv[])
       psub_pfespace = psub_x->ParFESpace();
       psubmesh->SetAttributes();
       num_active_glob = psubmesh->GetGlobalNE();
+      neprocsubmesh = psubmesh->GetNE() > 0 ? 1 : 0;
+      MPI_Allreduce(MPI_IN_PLACE, &neprocsubmesh, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+
       if (myid == 0)
       {
-         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<
-                   endl;
+         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<  endl;
+         std::cout << "k10-Number of ranks for submesh: " << neprocsubmesh << std::endl;
       }
 
       //Fix boundary attribues of submesh
@@ -1413,20 +1423,20 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
+   double surf_fit_err_avg, surf_fit_err_max;  
    if (surface_fit_const > 0.0)
    {
-      double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      tmop_integ->GetSurfaceFittingErrors(surf_fit_err_avg, surf_fit_err_max);
       if (myid == 0)
       {
-         std::cout << "Avg fitting error Pre-Optimization: " << err_avg << std::endl
-                   << "Max fitting error Pre-Optimization: " << err_max << std::endl;
+         std::cout << "Avg fitting error Pre-Optimization: " << surf_fit_err_avg << std::endl
+                   << "Max fitting error Pre-Optimization: " << surf_fit_err_max << std::endl;
       }
    }
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
-      irules->Get(psub_pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(0, quad_order);
    TMOPNewtonSolver solver(psub_pfespace->GetComm(), ir, solver_type);
    if (surface_fit_adapt > 0.0)
    {
@@ -1505,9 +1515,33 @@ int main (int argc, char *argv[])
    }
 
 
+   if (surface_fit_const > 0.0)
+   {
+      if (visualization)
+      {
+         socketstream vis2, vis3;
+         common::VisualizeField(vis2, "localhost", 19916, psub_mat,
+                                "Materials", 600, 900, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
+                                "Surface dof", 900, 900, 300, 300);
+      }
+      tmop_integ->GetSurfaceFittingErrors(surf_fit_err_avg, surf_fit_err_max);
+      if (myid == 0)
+      {
+         std::cout << "Avg fitting error: " << surf_fit_err_avg << std::endl
+                   << "Max fitting error: " << surf_fit_err_max << std::endl;
+
+         std::cout << "Last active surface fitting constant: " <<
+                   tmop_integ->GetLastActiveSurfaceFittingWeight() <<
+                   std::endl;
+      }
+   }
+
+
    if (myid == 0)
    {
       std::cout << "k10-Number of ranks: " << nranks << std::endl;
+      std::cout << "k10-Number of ranks for submesh: " << neprocsubmesh << std::endl;
       std::cout << "k10-Timings for Mesh Optimization:" << std::endl;
       std::cout << "k10-Time to Trim: " << TimeMeshTrim.RealTime() << std::endl;
       std::cout << "k10-Time to generate submesh: " << TimeSubMeshTrim.RealTime() <<
@@ -1521,8 +1555,14 @@ int main (int argc, char *argv[])
                 std::endl;
       std::cout << "k10-Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
       std::cout << "k10-Number of elements in the mesh: " << neglob <<  endl;
-      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<
-                endl;
+      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<  endl;
+      std::cout << "K10info-1: rs_levels, nranks, nranks_submesh, neglob, ne_submesh, Time, avg_fit_err, max_fit_err" << endl;
+      std::cout << "K10info-2: " << rs_levels << " " <<
+                                  nranks << " " << neprocsubmesh << " " <<
+                                  neglob << " " << num_active_glob << " " <<
+                                  TimeSolve.RealTime() << " " <<
+                                  surf_fit_err_avg << " " <<
+                                  surf_fit_err_max << endl;
    }
 
    // 18. Visualize the final mesh and metric values.
@@ -1530,29 +1570,6 @@ int main (int argc, char *argv[])
    {
       char title[] = "Final metric values";
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
-   }
-
-   if (surface_fit_const > 0.0)
-   {
-      if (visualization)
-      {
-         socketstream vis2, vis3;
-         common::VisualizeField(vis2, "localhost", 19916, psub_mat,
-                                "Materials", 600, 900, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-                                "Surface dof", 900, 900, 300, 300);
-      }
-      double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-      if (myid == 0)
-      {
-         std::cout << "Avg fitting error: " << err_avg << std::endl
-                   << "Max fitting error: " << err_max << std::endl;
-
-         std::cout << "Last active surface fitting constant: " <<
-                   tmop_integ->GetLastActiveSurfaceFittingWeight() <<
-                   std::endl;
-      }
    }
 
    ParGridFunction x1(x0);
