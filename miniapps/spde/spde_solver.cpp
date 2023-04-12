@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 
+#include <algorithm>
 #include <ctime>
 
 #include "examples/ex33.hpp"
@@ -18,6 +19,14 @@ namespace mfem
 {
 namespace spde
 {
+
+// Helper function that determines if output should be printed to the console.
+// The output is printed if the rank is 0 and if the print level is greater than
+// 0. The rank is retrieved via the fespace.
+bool PrintOutput(const ParFiniteElementSpace *fespace_ptr, int print_level)
+{
+   return (fespace_ptr->GetMyRank() == 0 && print_level > 0);
+}
 
 void Boundary::PrintInfo(std::ostream &os) const
 {
@@ -126,7 +135,7 @@ void Boundary::ComputeBoundaryError(const ParGridFunction &solution)
    const ParFiniteElementSpace &fes = *solution.ParFESpace();
    const ParMesh &pmesh = *fes.GetParMesh();
 
-   if (Mpi::Root())
+   if (PrintOutput(&fes, 1))
    {
       mfem::out << "<Boundary::ComputeBoundaryError>"
                 << "\n";
@@ -149,7 +158,7 @@ void Boundary::ComputeBoundaryError(const ParGridFunction &solution)
 
       UpdateIntegrationCoefficients(i + 1, alpha, beta, gamma);
       avg = IntegrateBC(solution, bdr, alpha, beta, gamma, error);
-      if (Mpi::Root())
+      if (PrintOutput(&fes, 1))
       {
          mfem::out << "->Boundary " << i + 1 << "\n";
          mfem::out << "    Alpha   : " << alpha << "\n";
@@ -160,7 +169,7 @@ void Boundary::ComputeBoundaryError(const ParGridFunction &solution)
       }
    }
 
-   if (Mpi::Root())
+   if (PrintOutput(&fes, 1))
    {
       mfem::out << "<Boundary::ComputeBoundaryError>" << std::endl;
    }
@@ -339,8 +348,8 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
 }
 
 SPDESolver::SPDESolver(double nu, const Boundary &bc,
-                       ParFiniteElementSpace *fespace, double l1,
-                       double l2, double l3, double e1, double e2, double e3)
+                       ParFiniteElementSpace *fespace, double l1, double l2,
+                       double l3, double e1, double e2, double e3)
    : k_(fespace),
      m_(fespace),
      fespace_ptr_(fespace),
@@ -353,7 +362,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
      e2_(e2),
      e3_(e3)
 {
-   if (Mpi::Root())
+   if (PrintOutput(fespace_ptr_, print_level_))
    {
       mfem::out << "<SPDESolver> Initialize Solver .." << std::endl;
    }
@@ -452,7 +461,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
    }
 
    sw.Stop();
-   if (Mpi::Root())
+   if (PrintOutput(fespace_ptr_, print_level_))
    {
       mfem::out << "<SPDESolver::Timing> matrix assembly " << sw.RealTime()
                 << " [s]" << std::endl;
@@ -476,7 +485,7 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x)
 
    if (integer_order_of_exponent_ > 0)
    {
-      if (Mpi::Root())
+      if (PrintOutput(fespace_ptr_, print_level_))
       {
          mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
                    << " u = f" << std::endl;
@@ -508,7 +517,7 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x)
       // solution.
       for (int i = 0; i < coeffs_.Size(); i++)
       {
-         if (Mpi::Root())
+         if (PrintOutput(fespace_ptr_, print_level_))
          {
             mfem::out << "\n<SPDESolver> Solving PDE -Δ u + " << -poles_[i]
                       << " u = " << coeffs_[i] << " g " << std::endl;
@@ -526,7 +535,7 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x)
    }
 
    sw.Stop();
-   if (Mpi::Root())
+   if (PrintOutput(fespace_ptr_, print_level_))
    {
       mfem::out << "<SPDESolver::Timing> all PCG solves " << sw.RealTime()
                 << " [s]" << std::endl;
@@ -536,16 +545,18 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x)
 void SPDESolver::SetupRandomFieldGenerator(int seed)
 {
    delete b_wn;
-   integ = new WhiteGaussianNoiseDomainLFIntegrator(fespace_ptr_->GetComm(), seed);
+   integ =
+      new WhiteGaussianNoiseDomainLFIntegrator(fespace_ptr_->GetComm(), seed);
    b_wn = new ParLinearForm(fespace_ptr_);
    b_wn->AddDomainIntegrator(integ);
 };
 
-
 void SPDESolver::GenerateRandomField(ParGridFunction &x)
 {
-
-   if (!b_wn) { MFEM_ABORT("Need to call SPDESolver::SetupRandomFieldGenerator(...) first"); }
+   if (!b_wn)
+   {
+      MFEM_ABORT("Need to call SPDESolver::SetupRandomFieldGenerator(...) first");
+   }
    // Create stochastic load
    b_wn->Assemble();
    double normalization = ConstructNormalizationCoefficient(
@@ -698,7 +709,7 @@ void SPDESolver::LiftSolution(ParGridFunction &x)
 
    // Lifting of the solution takes care of inhomogeneous boundary conditions.
    // See doi:10.1016/j.jcp.2019.109009; section 2.6
-   if (Mpi::Root())
+   if (PrintOutput(fespace_ptr_, print_level_))
    {
       mfem::out << "\n<SPDESolver> Applying inhomogeneous DBC" << std::endl;
    }
@@ -762,6 +773,7 @@ void SPDESolver::SolveLinearSystem(const HypreParMatrix *Op)
    cg.SetPrintLevel(3);
    cg.SetPreconditioner(prec);
    cg.SetOperator(*Op);
+   cg.SetPrintLevel(std::max(0, print_level_ - 1));
    cg.Mult(B_, X_);
 }
 
@@ -769,7 +781,7 @@ void SPDESolver::ComputeRationalCoefficients(double exponent)
 {
    if (abs(exponent) > 1e-12)
    {
-      if (Mpi::Root())
+      if (PrintOutput(fespace_ptr_, print_level_))
       {
          mfem::out << "<SPDESolver> Approximating the fractional exponent "
                    << exponent << std::endl;
@@ -783,17 +795,14 @@ void SPDESolver::ComputeRationalCoefficients(double exponent)
    else
    {
       integer_order_ = true;
-      if (Mpi::Root())
+      if (PrintOutput(fespace_ptr_, print_level_))
       {
          mfem::out << "<SPDESolver> Treating integer order PDE." << std::endl;
       }
    }
 }
 
-SPDESolver::~SPDESolver()
-{
-   delete b_wn;
-}
+SPDESolver::~SPDESolver() { delete b_wn; }
 
 }  // namespace spde
 }  // namespace mfem
