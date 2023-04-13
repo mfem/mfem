@@ -3693,8 +3693,10 @@ void GridFunction::Save(std::ostream &os) const
          FiniteElementCollection *new_fec = fec->Clone(max_order);
          FiniteElementSpace new_fes(fes->GetMesh(), new_fec);
          GridFunction new_gf(&new_fes);
+         new_gf.MakeOwner(new_fec);
          new_gf.ProjectCoefficient(cf);
          new_gf.Save(os);
+
       }
       else // if vector
       {
@@ -3702,6 +3704,7 @@ void GridFunction::Save(std::ostream &os) const
          FiniteElementCollection *new_fec = fec->Clone(max_order);
          FiniteElementSpace new_fes(fes->GetMesh(), new_fec, VectorDim());
          GridFunction new_gf(&new_fes);
+         new_gf.MakeOwner(new_fec);
          new_gf.ProjectCoefficient(cf);
          new_gf.Save(os);
       }
