@@ -12116,37 +12116,44 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    return pts_found;
 }
 
-void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par)
+void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
+                                              double &volume,
+                                              Vector &aspr,
+                                              Vector &skew,
+                                              Vector &ori) const
 {
+   J.HostRead();
+   aspr.HostWrite();
+   skew.HostWrite();
+   ori.HostWrite();
    MFEM_VERIFY(Dim == 2 || Dim == 3, "Only 2D/3D meshes supported right now.");
    MFEM_VERIFY(Dim == spaceDim, "Surface meshes not currently supported.");
    if (Dim == 2)
    {
-      par.SetSize(4);
+      aspr.SetSize(1);
+      skew.SetSize(1);
+      ori.SetSize(1);
       Vector col1, col2;
       J.GetColumn(0, col1);
       J.GetColumn(1, col2);
 
       // Area/Volume
-      double det = J.Det();
+      volume = J.Det();
 
       // Aspect-ratio
-      double aspr = col2.Norml2()/col1.Norml2();
+      aspr(0) = col2.Norml2()/col1.Norml2();
 
       // Skewness
-      double skew = std::atan2(J.Det(), col1 * col2);
+      skew(0) = std::atan2(J.Det(), col1 * col2);
 
       // Orientation
-      double ori = std::atan2(J(1,0), J(0,0));
-
-      par(0) = det;   // Determinant
-      par(1) = aspr;  // Aspect-Ratio
-      par(2) = skew;  // Skewness
-      par(3) = ori;   // Orientation
+      ori(0) = std::atan2(J(1,0), J(0,0));
    }
    else if (Dim == 3)
    {
-      par.SetSize(12);
+      aspr.SetSize(4);
+      skew.SetSize(3);
+      ori.SetSize(4);
       Vector col1, col2, col3;
       J.GetColumn(0, col1);
       J.GetColumn(1, col2);
@@ -12163,23 +12170,23 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par)
       col3unit *= 1.0/len3;
 
       // Area/Volume
-      double det = J.Det();
-
-      // Aspect-ratio - dimensional
-      double sigma1 = std::sqrt(len1/(len2*len3)),
-             sigma2 = std::sqrt(len2/(len1*len3));
+      volume = J.Det();
 
       // Aspect-ratio - non-dimensional
-      double rho1 = len1/std::sqrt(len2*len3),
-             rho2 = len2/std::sqrt(len1*len3);
+      aspr(0) = len1/std::sqrt(len2*len3),
+      aspr(1) = len2/std::sqrt(len1*len3);
+
+      // Aspect-ratio - dimensional - needed for TMOP
+      aspr(2) = std::sqrt(len1/(len2*len3)),
+      aspr(3) = std::sqrt(len2/(len1*len3));
 
       // Skewness
       Vector crosscol12, crosscol13;
       col1.cross3D(col2, crosscol12);
       col1.cross3D(col3, crosscol13);
-      double phi_12 = std::acos(col1unit*col2unit),
-             phi_13 = std::acos(col1unit*col3unit),
-             chi = std::atan(len1*det/(crosscol12*crosscol13));
+      skew(0) = std::acos(col1unit*col2unit);
+      skew(1) = std::acos(col1unit*col3unit);
+      skew(2) = std::atan(len1*volume/(crosscol12*crosscol13));
 
       // Orientation
       // First we define the rotation matrix
@@ -12200,9 +12207,7 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par)
       double delta = sqrt(pow(rot(2,1)-rot(1,2), 2.0) +
                           pow(rot(0,2)-rot(2,0), 2.0) +
                           pow(rot(1,0)-rot(0,1), 2.0));
-      Vector uvw(3);
-      uvw *= 0.0;
-      double lambda = 0.0;
+      ori = 0.0;
       if (delta == 0.0)   // Matrix is symmetric. Check if it is Identity.
       {
          DenseMatrix Iden(Dim);
@@ -12217,24 +12222,11 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par)
       }
       else
       {
-         uvw(0) = (1./delta)*(rot(2,1)-rot(1,2));
-         uvw(1) = (1./delta)*(rot(0,2)-rot(2,0));
-         uvw(2) = (1./delta)*(rot(1,0)-rot(0,1));
-         lambda = std::acos(0.5*(rot.Trace()-1.0));
+         ori(0) = (1./delta)*(rot(2,1)-rot(1,2));
+         ori(1) = (1./delta)*(rot(0,2)-rot(2,0));
+         ori(2) = (1./delta)*(rot(1,0)-rot(0,1));
+         ori(3) = std::acos(0.5*(rot.Trace()-1.0));
       }
-
-      par(0) = det;     // Determinant
-      par(1) = rho1;    // Non-dimensional aspect-ratio
-      par(2) = rho2;    // Non-dimensional aspect-ratio
-      par(3) = phi_12;  // Skewness
-      par(4) = phi_13;  // Skewness
-      par(5) = chi;     // Skewness
-      par(6) = uvw(0);  // Orientation
-      par(7) = uvw(1);  // Orientation
-      par(8) = uvw(2);  // Orientation
-      par(9) = lambda;  // Orientation
-      par(10) = sigma1; // Dimensional Aspect-ratio
-      par(11) = sigma2; // Dimensional Aspect-ratio
    }
 }
 
