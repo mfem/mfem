@@ -541,8 +541,9 @@ struct HipWrap<3>
 
 
 /// The forall kernel body wrapper
-template <const int DIM, typename lambda>
-inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
+template <const int DIM, typename d_lambda, typename h_lambda>
+inline void ForallWrap(const bool use_dev, const int N,
+                       d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
@@ -550,13 +551,14 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
    MFEM_CONTRACT_VAR(Y);
    MFEM_CONTRACT_VAR(Z);
    MFEM_CONTRACT_VAR(G);
+   MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-      return RajaCuWrap<DIM>::run(N, body, X, Y, Z, G);
+      return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -564,7 +566,7 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
    // If Backend::RAJA_HIP is allowed, use it
    if (Device::Allows(Backend::RAJA_HIP))
    {
-      return RajaHipWrap<DIM>::run(N, body, X, Y, Z, G);
+      return RajaHipWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -572,7 +574,7 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
-      return CuWrap<DIM>::run(N, body, X, Y, Z, G);
+      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -580,7 +582,7 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
-      return HipWrap<DIM>::run(N, body, X, Y, Z, G);
+      return HipWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -589,24 +591,32 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // If Backend::RAJA_OMP is allowed, use it
-   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, body); }
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_OPENMP
    // If Backend::OMP is allowed, use it
-   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, body); }
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_RAJA
    // If Backend::RAJA_CPU is allowed, use it
-   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, body); }
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 #endif
 
 backend_cpu:
    // Handle Backend::CPU. This is also a fallback for any allowed backends not
    // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
    // OCCA_OMP with configuration 'occa-omp,cpu'.
-   for (int k = 0; k < N; k++) { body(k); }
+   for (int k = 0; k < N; k++) { h_body(k); }
+}
+
+template <const int DIM, typename lambda>
+inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
+{
+   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
 }
 
 template<typename lambda>
