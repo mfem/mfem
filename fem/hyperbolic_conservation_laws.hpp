@@ -157,7 +157,8 @@ private:
 
 public:
    /**
-    * @brief Compute flux F(u, x) for given state u and physical point x
+    * @brief Compute flux F(u, x) for given state u and physical point x.
+    * @a flux should be provided with correct size
     *
     * @param[in] state value of state at the current integration point
     * @param[in] Tr Transformation to find physical location x of the current
@@ -169,7 +170,15 @@ public:
     */
    virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) = 0;
-
+   /**
+    * @brief Compute flux ∂F(u, x) / ∂u for given state u and physical point x.
+    * @a flux: vdim x vdim x sdim and @a eigs: vdim x sdim should be provided with correct size
+    * 
+    * @param state 
+    * @param Tr 
+    * @param Jacobian 
+    * @param eigs 
+    */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
    {
@@ -777,7 +786,6 @@ public:
       // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
       const double pressure = (specific_heat_ratio - 1.0) *
                               (energy - 0.5 * (momentum * momentum) / density);
-
       // ∂ p / ∂ ρ = ½(γ -1)|u|^2
       const double dpdrho = -0.5*(specific_heat_ratio - 1)*(momentum*momentum)/
                             (density*density);
@@ -788,7 +796,6 @@ public:
       // ∂ p / ∂ E = γ - 1
       const double dpdE = specific_heat_ratio - 1.0;
 
-      Jacobian.SetSize(dim + 2, dim + 2, dim);
       Jacobian = 0.0;
       for (int i=0; i<dim; i++)
       {
@@ -959,9 +966,7 @@ public:
                                     ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
    {
       const int dim = Tr.GetDimension();
-      Jacobian.SetSize(1, 1, dim);
       Jacobian = state(0);
-      eigs.SetSize(1, dim);
       eigs = state(0);
    }
 
@@ -1035,11 +1040,9 @@ public:
                                     ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
    {
       const int dim = Tr.GetDimension();
-      Jacobian.SetSize(1, 1, dim);
       b.Eval(bval, Tr, Tr.GetIntPoint());
-      std::memcpy(Jacobian.GetData(0), bval.GetData(), dim);
-      eigs.SetSize(1, dim);
-      std::memcpy(eigs.GetData(), bval.GetData(), dim);
+      for(int i=0; i<dim; i++) Jacobian(0, 0, i) = bval(i);
+      for(int i=0; i<dim; i++) eigs(0,i) = bval(i);
    }
    /**
     * @brief Compute normal flux, F(u)n
