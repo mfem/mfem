@@ -774,6 +774,9 @@ public:
       const double density = state(0);                  // ρ
       const Vector momentum(state.GetData() + 1, dim);  // ρu
       const double energy = state(1 + dim);             // E, internal energy ρe
+      // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
+      const double pressure = (specific_heat_ratio - 1.0) *
+                              (energy - 0.5 * (momentum * momentum) / density);
 
       // ∂ p / ∂ ρ = ½(γ -1)|u|^2
       const double dpdrho = -0.5*(specific_heat_ratio - 1)*(momentum*momentum)/
@@ -803,12 +806,15 @@ public:
             Jacobian(j + 1, i + 1, i) += momentum[j]/density; // (ρu * e_i^T)/ρ
             Jacobian(j + 1, j + 1, i) += momentum[i]/density; // (ρu_i / ρ) I
             Jacobian(i + 1, j + 1, i) += dpdmom[j]; // e_i * dp/d(ρu)^T
+            Jacobian(dim + 1, j + 1, i) = momentum[i]/density*dpdmom[j];
          }
+         Jacobian(dim + 1, i + 1, i) += (energy + pressure)/density;
 
          // dF/dE
          current_col += nvars*(1 + dim); // move it to current column
          current_col[i + 1] = dpdE; // dp/dE e_i
-         current_col[dim + 1] = momentum[i]/density*(energy + dpdE); // (ρu)/ρ * (E  + dp/dE)
+         current_col[dim + 1] = momentum[i]/density*(energy +
+                                                     dpdE); // (ρu)/ρ * (E  + dp/dE)
       }
    }
 
