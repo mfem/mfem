@@ -714,6 +714,8 @@ public:
    static void AdjustVDofs(Array<int> &vdofs);
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
+   /// The returned indexes are always ordered byNODES, irrespective of whether
+   /// the space is byNODES or byVDIM.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.

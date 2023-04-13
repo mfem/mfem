@@ -1965,13 +1965,17 @@ public:
    /** @brief Computes geometric parameters associated with a Jacobian matrix
        in 2D/3D. These parameters are
        (i) Area/Volume,
-       (ii) Aspect-ratio (1 in 2D, and 2 dimensional and 2 non-dimensional
+       (ii) Aspect-ratio (1 in 2D, and 2 non-dimensional and 2 dimensional
                           parameters in 3D. Dimensional parameters are used
                           for target construction in TMOP),
        (iii) skewness (1 in 2D and 3 in 3D), and finally
        (iv) orientation (1 in 2D and 3 in 3D).
     */
-   void GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par);
+   void GetGeometricParametersFromJacobian(const DenseMatrix &J,
+                                           double &volume,
+                                           Vector &aspr,
+                                           Vector &skew,
+                                           Vector &ori) const;
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.

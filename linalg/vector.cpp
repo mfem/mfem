@@ -521,8 +521,11 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
    }
 }
 
-void Vector::cross3D(const Vector &vin, Vector &vout)
+void Vector::cross3D(const Vector &vin, Vector &vout) const
 {
+   HostRead();
+   vin.HostRead();
+   vout.HostWrite();
    MFEM_VERIFY(size == 3, "Only 3D vectors supported in cross.");
    MFEM_VERIFY(vin.Size() == 3, "Only 3D vectors supported in cross.");
    vout.SetSize(3);

@@ -83,40 +83,59 @@ int main(int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   const int nParams = dim == 2 ? 4 : 12;
+   int nSize = 1,
+       nAspr = 1,
+       nSkew = 1;
+   if (dim == 3)
+   {
+      nAspr = 2;
+      nSkew = 3;
+   }
+
+   // Total number of geometric parameters; for now we skip orientation.
+   const int nTotalParams = nSize + nAspr + nSkew;
    if (order < 0)
    {
       order = mesh->GetNodes() == NULL ? 1 :
               mesh->GetNodes()->FESpace()->GetFE(0)->GetOrder();
    }
 
-   // Define a GridFunction for geometric parameters associated with the mesh.
+   // Define a GridFunction for all geometric parameters associated
+   // with the mesh.
    L2_FECollection l2fec(order, mesh->Dimension());
-   FiniteElementSpace fespace(mesh, &l2fec, nParams); //must order byNodes
+   FiniteElementSpace fespace(mesh, &l2fec, nTotalParams); //must order byNodes
    GridFunction quality(&fespace);
 
    DenseMatrix jacobian(dim);
-   Vector geomParams;
+   Vector geomParams(nTotalParams);
    Array<int> vdofs;
-   Vector vals;
+   Vector allVals;
    // Compute the geometric parameter at the dofs of each element.
    for (int e = 0; e < mesh->GetNE(); e++)
    {
       const FiniteElement *fe = fespace.GetFE(e);
       const IntegrationRule &ir = fe->GetNodes();
       fespace.GetElementVDofs(e, vdofs);
-      vals.SetSize(vdofs.Size());
+      allVals.SetSize(vdofs.Size());
       for (int q = 0; q < ir.GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          mesh->GetElementJacobian(e, jacobian, &ip);
-         mesh->GetGeometricParametersFromJacobian(jacobian, geomParams);
-         for (int n = 0; n < nParams; n++)
+         double sizeVal;
+         Vector asprVals, skewVals, oriVals;
+         mesh->GetGeometricParametersFromJacobian(jacobian, sizeVal,
+                                                  asprVals, skewVals, oriVals);
+         allVals(q + 0) = sizeVal;
+         for (int n = 0; n < nAspr; n++)
          {
-            vals(q + n*ir.GetNPoints()) = geomParams(n);
+            allVals(q + (n+1)*ir.GetNPoints()) = asprVals(n);
+         }
+         for (int n = 0; n < nSkew; n++)
+         {
+            allVals(q + (n+1+nAspr)*ir.GetNPoints()) = skewVals(n);
          }
       }
-      quality.SetSubVector(vdofs, vals);
+      quality.SetSubVector(vdofs, allVals);
    }
 
    VisItDataCollection visit_dc("quality", mesh);
@@ -136,7 +155,7 @@ int main(int argc, char *argv[])
       socketstream vis1, vis2, vis3;
       if (size)
       {
-         size_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         size_gf.MakeRef(&scfespace, quality.GetData());
          if (visit) { visit_dc.RegisterField("Size", &size_gf); }
          if (visualization)
          {
@@ -148,9 +167,10 @@ int main(int argc, char *argv[])
          cout << "Min size:           " << min_size << endl;
          cout << "Max size:           " << max_size << endl;
       }
+      idx++;
       if (aspect_ratio)
       {
-         aspr_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         aspr_gf.MakeRef(&scfespace, quality.GetData() + idx*ndofs);
          if (visit) { visit_dc.RegisterField("Aspect-Ratio", &aspr_gf); }
          if (visualization)
          {
@@ -164,9 +184,10 @@ int main(int argc, char *argv[])
          cout << "Worst aspect-ratio: " << max_aspr << endl;
          cout << "(in any direction)" << endl;
       }
+      idx++;
       if (skewness)
       {
-         skew_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         skew_gf.MakeRef(&scfespace, quality.GetData() + idx*ndofs);
          if (visit) { visit_dc.RegisterField("Skewness", &skew_gf); }
          if (visualization)
          {
@@ -193,7 +214,7 @@ int main(int argc, char *argv[])
       socketstream vis1, vis2, vis3, vis4, vis5, vis6;
       if (size)
       {
-         size_gf.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
+         size_gf.MakeRef(&scfespace, quality.GetData());
          if (visit) { visit_dc.RegisterField("Size", &size_gf); }
          if (visualization)
          {
@@ -205,6 +226,7 @@ int main(int argc, char *argv[])
          cout << "Min size:            " << min_size << endl;
          cout << "Max size:            " << max_size << endl;
       }
+      idx++;
       if (aspect_ratio)
       {
          aspr_gf1.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
@@ -245,6 +267,7 @@ int main(int argc, char *argv[])
          cout << "Worst aspect-ratio:  " << max_aspr << endl;
          cout << "(in any direction)" << endl;
       }
+      else { idx += 2; }
       if (skewness)
       {
          skew_gf1.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
@@ -284,6 +307,7 @@ int main(int argc, char *argv[])
          cout << "Min skew 3 (in deg): " << min_skew3*180/M_PI << endl;
          cout << "Max skew 3 (in deg): " << max_skew3*180/M_PI << endl;
       }
+      else { idx += 3; }
       if (visit)
       {
          visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
