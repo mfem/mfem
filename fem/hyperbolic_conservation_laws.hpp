@@ -803,12 +803,12 @@ public:
          Jacobian(0, 1 + i, 0) = 1.0; // dF_1/d(ρu)
          for (int j=0; j<dim; j++)
          {
-            Jacobian(j + 1, i + 1, i) += momentum[j]/density; // (ρu * e_i^T)/ρ
-            Jacobian(j + 1, j + 1, i) += momentum[i]/density; // (ρu_i / ρ) I
-            Jacobian(i + 1, j + 1, i) += dpdmom[j]; // e_i * dp/d(ρu)^T
-            Jacobian(dim + 1, j + 1, i) = momentum[i]/density*dpdmom[j];
+            Jacobian(j + 1, i + 1, i) += momentum[j]/density; // (ρu * e_i^T)/ρ, column
+            Jacobian(j + 1, j + 1, i) += momentum[i]/density; // (ρu_i / ρ) I, diagonal
+            Jacobian(i + 1, j + 1, i) += dpdmom[j]; // e_i * dp/d(ρu)^T, row
+            Jacobian(dim + 1, j + 1, i) = momentum[i]/density*dpdmom[j]; // ((ρu)⋅e_i)*dp/d(ρu)^T, entry
          }
-         Jacobian(dim + 1, i + 1, i) += (energy + pressure)/density;
+         Jacobian(dim + 1, i + 1, i) += (energy + pressure)/density; // (E + p)/ρ e_i^T
 
          // dF/dE
          current_col += nvars*(1 + dim); // move it to current column
