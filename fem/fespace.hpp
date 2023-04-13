@@ -509,7 +509,7 @@ public:
        is the number of the mesh elements.
 
        The parameter @a e_ordering describes how the local DOFs in each element
-       should be ordered, see ElementDofOrdering.
+       should be ordered in the E-vector, see ElementDofOrdering.
 
        For discontinuous spaces, the element restriction corresponds to a
        permutation of the degrees of freedom, implemented by the
@@ -521,7 +521,7 @@ public:
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const FaceRestriction *GetFaceRestriction(
-      ElementDofOrdering e_ordering, FaceType,
+      ElementDofOrdering f_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
