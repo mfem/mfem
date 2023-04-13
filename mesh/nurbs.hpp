@@ -74,6 +74,12 @@ public:
    /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
+   /// Returns the Number of Repeated Knots in this KnotVector.
+   int GetNRK();
+
+   /// Returns internal knots of this KnotVector in @a internalknots.
+   void GetInternalKnots(Vector &internalknots);
+
    void Flip();
 
    void Print(std::ostream &out) const;
@@ -132,6 +138,26 @@ public:
 
    void DegreeElevate(int t);
    void UniformRefinement();
+
+   /** Reduces the continuity of all the shapefunctions in this
+   NURBSPatch to 0. Specific and problably most commonly used
+   case of @a ReduceToCnContinuity(int n). */
+   void ReduceToC0Continuity();
+
+   /** Reduces the continuity of all the shapefunctions in this
+   NURBSPatch to @a n. */
+   void ReduceToCnContinuity(int n);
+
+   /** Reduces the continuity of all the shapefunctions in this
+   NURBSPatch with @a n. The continuity is not necessarely the
+   same for all direction after the reduction depending on orders
+   of the knotvectors. */
+   void ReduceContinuity(int n);
+
+   /** Reduces the continuity of the shapefunctions in this
+   NURBSPatch with @a n only for the KnotVector in direction
+   @a dir. */
+   void ReduceContinuity(int n, int dir);
 
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
@@ -433,6 +459,19 @@ public:
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   /** Reduces the continuity of all the shapefunctions in all
+   NURBSPatches in this NURBSExtension to 0. Specific and problably most
+   commonly used case of @a ReduceToCnContinuity(int n). */
+   void ReduceToC0Continuity();
+
+   /** Reduces the continuity of all the shapefunctions in all
+   NURBSPatches in this NURBSExtension to @a n. */
+   void ReduceToCnContinuity(int n);
+
+   /** Reduces the continuity of the shapefunctions in all NURBSPatches
+   in this NURBSExtension with @a n. */
+   void ReduceContinuity(int n);
 
    const Array<int>& GetPatchElements(int patch);
    const Array<int>& GetPatchBdrElements(int patch);

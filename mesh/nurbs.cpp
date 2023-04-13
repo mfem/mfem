@@ -84,6 +84,32 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
+int KnotVector::GetNRK()
+{
+   MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().")
+
+   // Expected # elements without repeated knots
+   int nexp = Size() - 2 * GetOrder() - 1;
+
+   // Number of repeated knots
+   return nexp - GetNE();
+}
+
+void KnotVector::GetInternalKnots(Vector &internalknots)
+{
+   int o = GetOrder();
+   int s = Size();
+
+   internalknots.SetSize(s - 2 * (o + 1));
+   internalknots = 0.0;
+
+   int cnt = 0;
+   for (int i = o + 1; i < s - o - 1; i++, cnt++)
+   {
+      internalknots[cnt] = knot[i];
+   }
+}
+
 void KnotVector::UniformRefinement(Vector &newknots) const
 {
    newknots.SetSize(NumOfElements);
@@ -1083,6 +1109,49 @@ void NURBSPatch::DegreeElevate(int dir, int t)
    newkv.GetElements();
 
    swap(newpatch);
+}
+
+void NURBSPatch::ReduceToC0Continuity()
+{
+   ReduceToCnContinuity(0);
+}
+
+void NURBSPatch::ReduceToCnContinuity(int n)
+{
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      MFEM_VERIFY(kv[dir]->GetNRK() == 0,
+                  "Repeated knots in KnotVector. Can not guarantee specific continuity.")
+
+      int reduction = kv[dir]->GetOrder()-n-1;
+      ReduceContinuity(reduction, dir);
+   }
+}
+
+void NURBSPatch::ReduceContinuity(int n)
+{
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      ReduceContinuity(dir, n);
+   }
+}
+
+void NURBSPatch::ReduceContinuity(int n, int dir)
+{
+   MFEM_VERIFY(n < kv[dir]->GetOrder(),
+               "Continuity of shape functions can not be reduced below C^0");
+   MFEM_VERIFY(n >= 0,
+               "Can not increase continuity. Use DegreeElevate instead.")
+   MFEM_VERIFY(kv[dir]->GetNRK() == 0,
+               "Repeated knots in KnotVector. Can not guarantee continuity > 0.")
+
+   Vector knots;
+   kv[dir]->GetInternalKnots(knots);
+
+   for (int i=0; i<n; i++)
+   {
+      KnotInsert(dir, knots);
+   }
 }
 
 void NURBSPatch::FlipDirection(int dir)
@@ -3168,6 +3237,29 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
    }
 }
 
+void NURBSExtension::ReduceToC0Continuity()
+{
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->ReduceToC0Continuity();
+   }
+}
+
+void NURBSExtension::ReduceToCnContinuity(int n)
+{
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->ReduceToCnContinuity(n);
+   }
+}
+
+void NURBSExtension::ReduceContinuity(int n)
+{
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->ReduceContinuity(n);
+   }
+}
 
 void NURBSExtension::GetPatchNets(const Vector &coords, int vdim)
 {
