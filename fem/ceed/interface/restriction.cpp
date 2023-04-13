@@ -21,7 +21,7 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
-static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
+static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
                             bool use_bdr,
                             Ceed ceed,
                             CeedElemRestriction *restr)
@@ -32,31 +32,51 @@ static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
    const int P = fe->GetDof();
    const mfem::TensorBasisElement *tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   const mfem::Array<int>& dof_map = tfe->GetDofMap();
+   const mfem::Array<int> &dof_map = tfe->GetDofMap();
    CeedInt compstride =
       (fes.GetOrdering() == Ordering::byVDIM) ? 1 : fes.GetNDofs();
    const int stride = (compstride == 1) ? fes.GetVDim() : 1;
    const mfem::Table &el_dof = use_bdr ? fes.GetBdrElementToDofTable() :
                                fes.GetElementToDofTable();
+   const int *el_map = el_dof.GetJ();
    mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   mfem::Array<bool> tp_el_orients(el_dof.Size_of_connections());
+   bool use_orients = false;
 
    for (int i = 0; i < nelem; i++)
    {
-      // TODO: Implement DofTransformation support
-      const int el_offset = P * i;
+      // No need to handle DofTransformation for tensor-product elements
       for (int j = 0; j < P; j++)
       {
-         tp_el_dof[j+el_offset] = stride*el_dof.GetJ()[dof_map[j]+el_offset];
+         const int sdid = dof_map[j];  // signed
+         const int did = (sdid >= 0) ? sdid : -1 - sdid;
+         const int sgid = el_map[did + P * i];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         tp_el_dof[j + P * i] = stride * gid;
+         tp_el_orients[j + P * i] =
+            (sgid >= 0 && sdid < 0) || (sgid < 0 && sdid >= 0);
+         use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
 
-   CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
-                             compstride, fes.GetVDim() * fes.GetNDofs(),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
+   if (use_orients)
+   {
+      CeedElemRestrictionCreateOriented(ceed, nelem, P, fes.GetVDim(),
+                                        compstride, fes.GetVDim() * fes.GetNDofs(),
+                                        CEED_MEM_HOST, CEED_COPY_VALUES,
+                                        tp_el_dof.GetData(), tp_el_orients.GetData(),
+                                        restr);
+   }
+   else
+   {
+      CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
+                                compstride, fes.GetVDim() * fes.GetNDofs(),
+                                CEED_MEM_HOST, CEED_COPY_VALUES,
+                                tp_el_dof.GetData(), restr);
+   }
 }
 
-static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
+static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
                             bool use_bdr,
                             Ceed ceed,
                             CeedElemRestriction *restr)
@@ -70,24 +90,42 @@ static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
    const int stride = (compstride == 1) ? fes.GetVDim() : 1;
    const mfem::Table &el_dof = use_bdr ? fes.GetBdrElementToDofTable() :
                                fes.GetElementToDofTable();
+   const int *el_map = el_dof.GetJ();
    mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   mfem::Array<bool> tp_el_orients(el_dof.Size_of_connections());
+   bool use_orients = false;
 
-   for (int e = 0; e < nelem; e++)
+   for (int i = 0; i < nelem; i++)
    {
       // TODO: Implement DofTransformation support
-      for (int i = 0; i < P; i++)
+      for (int j = 0; j < P; j++)
       {
-         tp_el_dof[i + e*P] = stride*el_dof.GetJ()[i + e*P];
+         const int sgid = el_map[j + P * i];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         tp_el_dof[j + P * i] = stride * gid;
+         tp_el_orients[j + P * i] = (sgid < 0);
+         use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
 
-   CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
-                             compstride, fes.GetVDim() * fes.GetNDofs(),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
+   if (use_orients)
+   {
+      CeedElemRestrictionCreateOriented(ceed, nelem, P, fes.GetVDim(),
+                                        compstride, fes.GetVDim() * fes.GetNDofs(),
+                                        CEED_MEM_HOST, CEED_COPY_VALUES,
+                                        tp_el_dof.GetData(), tp_el_orients.GetData(),
+                                        restr);
+   }
+   else
+   {
+      CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
+                                compstride, fes.GetVDim() * fes.GetNDofs(),
+                                CEED_MEM_HOST, CEED_COPY_VALUES,
+                                tp_el_dof.GetData(), restr);
+   }
 }
 
-static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
+static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
                                        bool use_bdr,
                                        int nelem,
                                        const int *indices,
@@ -104,33 +142,55 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
       (fes.GetOrdering() == Ordering::byVDIM) ? 1 : fes.GetNDofs();
    const int stride = (compstride == 1) ? fes.GetVDim() : 1;
    mfem::Array<int> tp_el_dof(nelem * P), dofs;
+   mfem::Array<bool> tp_el_orients(nelem * P);
+   bool use_orients = false;
 
    for (int i = 0; i < nelem; i++)
    {
-      // TODO: Implement DofTransformation support
+      // No need to handle DofTransformation for tensor-product elements
       const int elem_index = indices[i];
+      DofTransformation *dof_trans;
       if (use_bdr)
       {
-         fes.GetBdrElementDofs(elem_index, dofs);
+         dof_trans = fes.GetBdrElementDofs(elem_index, dofs);
       }
       else
       {
-         fes.GetElementDofs(elem_index, dofs);
+         dof_trans = fes.GetElementDofs(elem_index, dofs);
       }
-      const int el_offset = P * i;
+      MFEM_VERIFY(!dof_trans,
+                  "DofTransformation support for CeedElemRestriction does not exist yet.");
       for (int j = 0; j < P; j++)
       {
-         tp_el_dof[j + el_offset] = stride*dofs[dof_map[j]];
+         const int sdid = dof_map[j];  // signed
+         const int did = (sdid >= 0) ? sdid : -1 - sdid;
+         const int sgid = dofs[did];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         tp_el_dof[j + P * i] = stride * gid;
+         tp_el_orients[j + P * i] =
+            (sgid >= 0 && sdid < 0) || (sgid < 0 && sdid >= 0);
+         use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
 
-   CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
-                             compstride, fes.GetVDim() * fes.GetNDofs(),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
+   if (use_orients)
+   {
+      CeedElemRestrictionCreateOriented(ceed, nelem, P, fes.GetVDim(),
+                                        compstride, fes.GetVDim() * fes.GetNDofs(),
+                                        CEED_MEM_HOST, CEED_COPY_VALUES,
+                                        tp_el_dof.GetData(), tp_el_orients.GetData(),
+                                        restr);
+   }
+   else
+   {
+      CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
+                                compstride, fes.GetVDim() * fes.GetNDofs(),
+                                CEED_MEM_HOST, CEED_COPY_VALUES,
+                                tp_el_dof.GetData(), restr);
+   }
 }
 
-static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
+static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
                                        bool use_bdr,
                                        int nelem,
                                        const int *indices,
@@ -144,30 +204,48 @@ static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
       (fes.GetOrdering() == Ordering::byVDIM) ? 1 : fes.GetNDofs();
    const int stride = (compstride == 1) ? fes.GetVDim() : 1;
    mfem::Array<int> tp_el_dof(nelem * P), dofs;
+   mfem::Array<bool> tp_el_orients(nelem * P);
+   bool use_orients = false;
 
    for (int i = 0; i < nelem; i++)
    {
       // TODO: Implement DofTransformation support
       const int elem_index = indices[i];
+      DofTransformation *dof_trans;
       if (use_bdr)
       {
-         fes.GetBdrElementDofs(elem_index, dofs);
+         dof_trans = fes.GetBdrElementDofs(elem_index, dofs);
       }
       else
       {
-         fes.GetElementDofs(elem_index, dofs);
+         dof_trans = fes.GetElementDofs(elem_index, dofs);
       }
-      const int el_offset = P * i;
+      MFEM_VERIFY(!dof_trans,
+                  "DofTransformation support for CeedElemRestriction does not exist yet.");
       for (int j = 0; j < P; j++)
       {
-         tp_el_dof[j + el_offset] = stride*dofs[j];
+         const int sgid = dofs[j];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         tp_el_dof[j + P * i] = stride * gid;
+         use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
 
-   CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
-                             compstride, fes.GetVDim() * fes.GetNDofs(),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
+   if (use_orients)
+   {
+      CeedElemRestrictionCreateOriented(ceed, nelem, P, fes.GetVDim(),
+                                        compstride, fes.GetVDim() * fes.GetNDofs(),
+                                        CEED_MEM_HOST, CEED_COPY_VALUES,
+                                        tp_el_dof.GetData(), tp_el_orients.GetData(),
+                                        restr);
+   }
+   else
+   {
+      CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
+                                compstride, fes.GetVDim() * fes.GetNDofs(),
+                                CEED_MEM_HOST, CEED_COPY_VALUES,
+                                tp_el_dof.GetData(), restr);
+   }
 }
 
 static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
@@ -178,13 +256,13 @@ static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
    const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0): fes.GetFE(0);
    const mfem::TensorBasisElement *tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if (tfe && tfe->GetDofMap().Size() > 0)  // Native ordering using dof_map
-   {
-      InitNativeRestr(fes, use_bdr, ceed, restr);
-   }
-   else  // Lexicographic ordering
+   if (tfe && tfe->GetDofMap().Size() > 0)  // Lexicographic ordering using dof_map
    {
       InitLexicoRestr(fes, use_bdr, ceed, restr);
+   }
+   else  // Native ordering
+   {
+      InitNativeRestr(fes, use_bdr, ceed, restr);
    }
 }
 
@@ -199,13 +277,13 @@ static void InitRestrictionWithIndicesImpl(const mfem::FiniteElementSpace &fes,
                                    fes.GetFE(indices[0]);
    const mfem::TensorBasisElement *tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if (tfe && tfe->GetDofMap().Size() > 0)  // Native ordering using dof_map
-   {
-      InitNativeRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
-   }
-   else  // Lexicographic ordering
+   if (tfe && tfe->GetDofMap().Size() > 0)  // Lexicographic ordering using dof_map
    {
       InitLexicoRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
+   }
+   else  // Native ordering
+   {
+      InitNativeRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
    }
 }
 

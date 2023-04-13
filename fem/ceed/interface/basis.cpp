@@ -66,9 +66,24 @@ static void InitNonTensorBasis(const mfem::FiniteElementSpace &fes,
       if (dim > 2) { qX(2, i) = ip.z; }
       qW(i) = ip.weight;
    }
-   CeedBasisCreateH1(ceed, GetCeedTopology(fe.GetGeomType()), ncomp, P, Q,
-                     maps.Bt.GetData(), maps.Gt.GetData(),
-                     qX.GetData(), qW.GetData(), basis);
+   if (fe.GetMapType() == mfem::FiniteElement::H_DIV)
+   {
+      CeedBasisCreateHdiv(ceed, GetCeedTopology(fe.GetGeomType()), ncomp, P, Q,
+                          maps.Bt.GetData(), maps.Gt.GetData(),
+                          qX.GetData(), qW.GetData(), basis);
+   }
+   else if (fe.GetMapType() == mfem::FiniteElement::H_CURL)
+   {
+      CeedBasisCreateHcurl(ceed, GetCeedTopology(fe.GetGeomType()), ncomp, P, Q,
+                           maps.Bt.GetData(), maps.Gt.GetData(),
+                           qX.GetData(), qW.GetData(), basis);
+   }
+   else
+   {
+      CeedBasisCreateH1(ceed, GetCeedTopology(fe.GetGeomType()), ncomp, P, Q,
+                        maps.Bt.GetData(), maps.Gt.GetData(),
+                        qX.GetData(), qW.GetData(), basis);
+   }
 }
 
 static void InitTensorBasis(const mfem::FiniteElementSpace &fes,
@@ -110,15 +125,16 @@ static void InitBasisImpl(const FiniteElementSpace &fes,
    const int ncomp = fes.GetVDim();
    const int P = fe.GetDof();
    const int Q = ir.GetNPoints();
-   const bool tensor =
-      dynamic_cast<const mfem::TensorBasisElement *>(&fe) != nullptr;
    BasisKey basis_key(&fes, &ir, ncomp, P, Q);
    auto basis_itr = mfem::internal::ceed_basis_map.find(basis_key);
 
    // Init or retrieve key values
    if (basis_itr == mfem::internal::ceed_basis_map.end())
    {
-      if (tensor)
+      const bool tensor =
+         dynamic_cast<const mfem::TensorBasisElement *>(&fe) != nullptr;
+      const bool vector = fe.GetRangeType() == mfem::FiniteElement::VECTOR;
+      if (tensor && !vector)
       {
          InitTensorBasis(fes, fe, ir, ceed, basis);
       }
