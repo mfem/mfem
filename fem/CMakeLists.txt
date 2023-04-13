@@ -17,12 +17,14 @@ set(SRCS
   integ/bilininteg_convection_mf.cpp
   integ/bilininteg_convection_pa.cpp
   integ/bilininteg_convection_ea.cpp
+  integ/bilininteg_curlcurl_mf.cpp
   integ/bilininteg_curlcurl_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
   integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_divdiv_mf.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_pa.cpp
@@ -38,6 +40,7 @@ set(SRCS
   integ/bilininteg_vecmass_mf.cpp
   integ/bilininteg_vecmass_pa.cpp
   integ/bilininteg_vectorfediv_pa.cpp
+  integ/bilininteg_vectorfemass_mf.cpp
   integ/bilininteg_vectorfemass_pa.cpp
   integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
@@ -84,6 +87,9 @@ set(SRCS
   ceed/integrators/convection/convection.cpp
   ceed/integrators/diffusion/diffusion.cpp
   ceed/integrators/nlconvection/nlconvection.cpp
+  ceed/integrators/vecfemass/vecfemass.cpp
+  ceed/integrators/divdiv/divdiv.cpp
+  ceed/integrators/curlcurl/curlcurl.cpp
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
@@ -201,6 +207,12 @@ set(HDRS
   ceed/integrators/diffusion/diffusion_qf.h
   ceed/integrators/nlconvection/nlconvection.hpp
   ceed/integrators/nlconvection/nlconvection_qf.h
+  ceed/integrators/vecfemass/vecfemass.hpp
+  ceed/integrators/vecfemass/vecfemass_qf.h
+  ceed/integrators/divdiv/divdiv.hpp
+  ceed/integrators/divdiv/divdiv_qf.h
+  ceed/integrators/curlcurl/curlcurl.hpp
+  ceed/integrators/curlcurl/curlcurl_qf.h
   ceed/integrators/util/util_qf.h
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp

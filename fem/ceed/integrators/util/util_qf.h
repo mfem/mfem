@@ -364,6 +364,273 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt32(const CeedScalar *J,
    }
 }
 
+CEED_QFUNCTION_HELPER void MultJtCJ22(const CeedScalar *J,
+                                      const CeedInt J_stride,
+                                      const CeedScalar *c,
+                                      const CeedInt c_stride,
+                                      const CeedInt c_comp,
+                                      const CeedScalar qw,
+                                      const CeedInt qd_stride,
+                                      CeedScalar *qd)
+{
+   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // J: 0 2   qd: 0 1
+   //    1 3       1 2
+   const CeedScalar J11 = J[J_stride * 0];
+   const CeedScalar J21 = J[J_stride * 1];
+   const CeedScalar J12 = J[J_stride * 2];
+   const CeedScalar J22 = J[J_stride * 3];
+   const CeedScalar w = qw / (J11 * J22 - J21 * J12);
+   if (c_comp == 3)  // Matrix coefficient (symmetric)
+   {
+      // First compute entries of R = C J
+      // c: 0 1
+      //    1 2
+      const CeedScalar R11 = c[c_stride * 0] * J11 + c[c_stride * 1] * J12;
+      const CeedScalar R21 = c[c_stride * 1] * J11 + c[c_stride * 2] * J12;
+      const CeedScalar R12 = c[c_stride * 0] * J21 + c[c_stride * 1] * J22;
+      const CeedScalar R22 = c[c_stride * 1] * J21 + c[c_stride * 2] * J22;
+      qd[qd_stride * 0] = w * (J11 * R11 + J21 * R21);
+      qd[qd_stride * 1] = w * (J11 * R12 + J21 * R22);
+      qd[qd_stride * 2] = w * (J12 * R12 + J22 * R22);
+   }
+   else if (c_comp == 2)  // Vector coefficient
+   {
+      // c: 0
+      //      1
+      qd[qd_stride * 0] = w * (c[c_stride * 0] * J11 * J11 +
+                               c[c_stride * 1] * J21 * J21);
+      qd[qd_stride * 1] = w * (c[c_stride * 0] * J11 * J12 +
+                               c[c_stride * 1] * J21 * J22);
+      qd[qd_stride * 2] = w * (c[c_stride * 0] * J12 * J12 +
+                               c[c_stride * 1] * J22 * J22);
+   }
+   else  // Scalar coefficient
+   {
+      qd[qd_stride * 0] = w * c[c_stride * 0] * (J11 * J11 + J21 * J21);
+      qd[qd_stride * 1] = w * c[c_stride * 0] * (J11 * J12 + J21 * J22);
+      qd[qd_stride * 2] = w * c[c_stride * 0] * (J12 * J12 + J22 * J22);
+   }
+}
+
+CEED_QFUNCTION_HELPER void MultJtCJ21(const CeedScalar *J,
+                                      const CeedInt J_stride,
+                                      const CeedScalar *c,
+                                      const CeedInt c_stride,
+                                      const CeedInt c_comp,
+                                      const CeedScalar qw,
+                                      const CeedInt qd_stride,
+                                      CeedScalar *qd)
+{
+   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // J: 0   qd: 0
+   //    1
+   const CeedScalar J11 = J[J_stride * 0];
+   const CeedScalar J21 = J[J_stride * 1];
+   if (c_comp == 3)  // Matrix coefficient (symmetric)
+   {
+      // First compute entries of R = C J
+      // c: 0 1
+      //    1 2
+      const CeedScalar w = qw / sqrt(J11 * J11 + J21 * J21);
+      const CeedScalar R11 = c[c_stride * 0] * J11 + c[c_stride * 1] * J21;
+      const CeedScalar R21 = c[c_stride * 1] * J11 + c[c_stride * 2] * J21;
+      qd[qd_stride * 0] = w * (J11 * R11 + J21 * R21);
+   }
+   else if (c_comp == 2)  // Vector coefficient
+   {
+      // c: 0
+      //      1
+      const CeedScalar w = qw / sqrt(J11 * J11 + J21 * J21);
+      qd[qd_stride * 0] = w * (c[c_stride * 0] * J11 * J11 +
+                               c[c_stride * 1] * J21 * J21);
+   }
+   else  // Scalar coefficient
+   {
+      qd[qd_stride * 0] = qw * c[c_stride * 0] * sqrt(J11 * J11 + J21 * J21);
+   }
+}
+
+CEED_QFUNCTION_HELPER void MultJtCJ33(const CeedScalar *J,
+                                      const CeedInt J_stride,
+                                      const CeedScalar *c,
+                                      const CeedInt c_stride,
+                                      const CeedInt c_comp,
+                                      const CeedScalar qw,
+                                      const CeedInt qd_stride,
+                                      CeedScalar *qd)
+{
+   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // J: 0 3 6   qd: 0 1 2
+   //    1 4 7       1 3 4
+   //    2 5 8       2 4 5
+   const CeedScalar J11 = J[J_stride * 0];
+   const CeedScalar J21 = J[J_stride * 1];
+   const CeedScalar J31 = J[J_stride * 2];
+   const CeedScalar J12 = J[J_stride * 3];
+   const CeedScalar J22 = J[J_stride * 4];
+   const CeedScalar J32 = J[J_stride * 5];
+   const CeedScalar J13 = J[J_stride * 6];
+   const CeedScalar J23 = J[J_stride * 7];
+   const CeedScalar J33 = J[J_stride * 8];
+   const CeedScalar w = qw / (J11 * (J22 * J33 - J23 * J32) +
+                              J21 * (J13 * J32 - J12 * J33) +
+                              J31 * (J12 * J23 - J13 * J22));
+   if (c_comp == 6)  // Matrix coefficient (symmetric)
+   {
+      // First compute entries of R = C J
+      // c: 0 1 2
+      //    1 3 4
+      //    2 4 5
+      const CeedScalar R11 = c[c_stride * 0] * J11 +
+                             c[c_stride * 1] * J21 +
+                             c[c_stride * 2] * J31;
+      const CeedScalar R12 = c[c_stride * 0] * J12 +
+                             c[c_stride * 1] * J22 +
+                             c[c_stride * 2] * J32;
+      const CeedScalar R13 = c[c_stride * 0] * J13 +
+                             c[c_stride * 1] * J23 +
+                             c[c_stride * 2] * J33;
+      const CeedScalar R21 = c[c_stride * 1] * J11 +
+                             c[c_stride * 3] * J21 +
+                             c[c_stride * 4] * J31;
+      const CeedScalar R22 = c[c_stride * 1] * J12 +
+                             c[c_stride * 3] * J22 +
+                             c[c_stride * 4] * J31;
+      const CeedScalar R23 = c[c_stride * 1] * J13 +
+                             c[c_stride * 3] * J23 +
+                             c[c_stride * 4] * J33;
+      const CeedScalar R31 = c[c_stride * 2] * J11 +
+                             c[c_stride * 4] * J21 +
+                             c[c_stride * 5] * J31;
+      const CeedScalar R32 = c[c_stride * 2] * J12 +
+                             c[c_stride * 4] * J22 +
+                             c[c_stride * 5] * J32;
+      const CeedScalar R33 = c[c_stride * 2] * J13 +
+                             c[c_stride * 4] * J23 +
+                             c[c_stride * 5] * J33;
+      qd[qd_stride * 0] = w * (J11 * R11 + J21 * R21 + J31 * R31);
+      qd[qd_stride * 1] = w * (J11 * R12 + J21 * R22 + J31 * R32);
+      qd[qd_stride * 2] = w * (J11 * R13 + J21 * R23 + J31 * R33);
+      qd[qd_stride * 3] = w * (J12 * R12 + J22 * R22 + J32 * R32);
+      qd[qd_stride * 4] = w * (J12 * R13 + J22 * R23 + J32 * R33);
+      qd[qd_stride * 5] = w * (J13 * R13 + J23 * R23 + J33 * R33);
+   }
+   else if (c_comp == 3)  // Vector coefficient
+   {
+      // c: 0
+      //      1
+      //        2
+      qd[qd_stride * 0] = w * (c[c_stride * 0] * J11 * J11 +
+                               c[c_stride * 1] * J21 * J21 +
+                               c[c_stride * 2] * J31 * J31);
+      qd[qd_stride * 1] = w * (c[c_stride * 0] * J11 * J12 +
+                               c[c_stride * 1] * J21 * J22 +
+                               c[c_stride * 2] * J31 * J32);
+      qd[qd_stride * 2] = w * (c[c_stride * 0] * J11 * J13 +
+                               c[c_stride * 1] * J21 * J23 +
+                               c[c_stride * 2] * J31 * J33);
+      qd[qd_stride * 3] = w * (c[c_stride * 0] * J12 * J12 +
+                               c[c_stride * 1] * J22 * J22 +
+                               c[c_stride * 2] * J32 * J32);
+      qd[qd_stride * 4] = w * (c[c_stride * 0] * J12 * J13 +
+                               c[c_stride * 1] * J22 * J23 +
+                               c[c_stride * 2] * J32 * J33);
+      qd[qd_stride * 5] = w * (c[c_stride * 0] * J13 * J13 +
+                               c[c_stride * 1] * J23 * J23 +
+                               c[c_stride * 2] * J33 * J33);
+   }
+   else  // Scalar coefficient
+   {
+      qd[qd_stride * 0] =
+         w * c[c_stride * 0] * (J11 * J11 + J21 * J21 + J31 * J31);
+      qd[qd_stride * 1] =
+         w * c[c_stride * 0] * (J11 * J12 + J21 * J22 + J31 * J32);
+      qd[qd_stride * 2] =
+         w * c[c_stride * 0] * (J11 * J13 + J21 * J23 + J31 * J33);
+      qd[qd_stride * 3] =
+         w * c[c_stride * 0] * (J12 * J12 + J22 * J22 + J32 * J32);
+      qd[qd_stride * 4] =
+         w * c[c_stride * 0] * (J12 * J13 + J22 * J23 + J32 * J33);
+      qd[qd_stride * 5] =
+         w * c[c_stride * 0] * (J13 * J13 + J23 * J23 + J33 * J33);
+   }
+}
+
+CEED_QFUNCTION_HELPER void MultJtCJ32(const CeedScalar *J,
+                                      const CeedInt J_stride,
+                                      const CeedScalar *c,
+                                      const CeedInt c_stride,
+                                      const CeedInt c_comp,
+                                      const CeedScalar qw,
+                                      const CeedInt qd_stride,
+                                      CeedScalar *qd)
+{
+   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // J: 0 3   qd: 0 1
+   //    1 4       1 2
+   //    2 5
+   const CeedScalar J11 = J[J_stride * 0];
+   const CeedScalar J21 = J[J_stride * 1];
+   const CeedScalar J31 = J[J_stride * 2];
+   const CeedScalar J12 = J[J_stride * 3];
+   const CeedScalar J22 = J[J_stride * 4];
+   const CeedScalar J32 = J[J_stride * 5];
+   const CeedScalar E = J11 * J11 + J21 * J21 + J31 * J31;
+   const CeedScalar G = J12 * J12 + J22 * J22 + J32 * J32;
+   const CeedScalar F = J11 * J12 + J21 * J22 + J31 * J32;
+   const CeedScalar w = qw / sqrt(E * G - F * F);
+   if (c_comp == 6)  // Matrix coefficient (symmetric)
+   {
+      // First compute entries of R = C J
+      // c: 0 1 2
+      //    1 3 4
+      //    2 4 5
+      const CeedScalar R11 = c[c_stride * 0] * J11 +
+                             c[c_stride * 1] * J21 +
+                             c[c_stride * 2] * J31;
+      const CeedScalar R21 = c[c_stride * 1] * J11 +
+                             c[c_stride * 3] * J21 +
+                             c[c_stride * 4] * J31;
+      const CeedScalar R31 = c[c_stride * 2] * J11 +
+                             c[c_stride * 4] * J21 +
+                             c[c_stride * 5] * J31;
+      const CeedScalar R12 = c[c_stride * 0] * J12 +
+                             c[c_stride * 1] * J22 +
+                             c[c_stride * 2] * J32;
+      const CeedScalar R22 = c[c_stride * 1] * J12 +
+                             c[c_stride * 3] * J22 +
+                             c[c_stride * 4] * J32;
+      const CeedScalar R32 = c[c_stride * 2] * J12 +
+                             c[c_stride * 4] * J22 +
+                             c[c_stride * 5] * J32;
+      qd[qd_stride * 0] = w * (J11 * R11 + J21 * R21 + J31 * R31);
+      qd[qd_stride * 1] = w * (J11 * R12 + J21 * R22 + J31 * R32);
+      qd[qd_stride * 2] = w * (J12 * R12 + J22 * R22 + J32 * R32);
+   }
+   else if (c_comp == 3)  // Vector coefficient
+   {
+      // c: 0
+      //      1
+      //        2
+      qd[qd_stride * 0] = w * (c[c_stride * 0] * J11 * J11 +
+                               c[c_stride * 1] * J21 * J21 +
+                               c[c_stride * 2] * J31 * J31);
+      qd[qd_stride * 1] = w * (c[c_stride * 0] * J11 * J12 +
+                               c[c_stride * 1] * J21 * J22 +
+                               c[c_stride * 2] * J31 * J32);
+      qd[qd_stride * 2] = w * (c[c_stride * 0] * J12 * J12 +
+                               c[c_stride * 1] * J22 * J22 +
+                               c[c_stride * 2] * J32 * J32);
+   }
+   else  // Scalar coefficient
+   {
+      qd[qd_stride * 0] = w * c[c_stride * 0] * E;
+      qd[qd_stride * 1] = w * c[c_stride * 0] * F;
+      qd[qd_stride * 2] = w * c[c_stride * 0] * G;
+   }
+}
+
 CEED_QFUNCTION_HELPER void MultCtAdjJt22(const CeedScalar *J,
                                          const CeedInt J_stride,
                                          const CeedScalar *c,

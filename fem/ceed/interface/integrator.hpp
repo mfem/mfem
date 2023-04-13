@@ -27,7 +27,7 @@ namespace ceed
 {
 
 /** The different evaluation modes available for PA and MF CeedIntegrator. */
-enum class EvalMode { None, Interp, Grad, InterpAndGrad };
+enum class EvalMode { None, Interp, Grad, InterpAndGrad, Div, Curl };
 
 #ifdef MFEM_USE_CEED
 /** This structure is a template interface for the Assemble methods of
@@ -218,8 +218,15 @@ public:
       mfem::Mesh &mesh = *trial_fes.GetMesh();
       CeedInt dim = mesh.Dimension() - use_bdr;
       CeedInt space_dim = mesh.SpaceDimension();
+      CeedInt curl_dim = (mesh.Dimension() < 3) ? 1 : dim;
       CeedInt trial_vdim = trial_fes.GetVDim();
       CeedInt test_vdim = test_fes.GetVDim();
+      bool is_trial_vectorfe =
+         (trial_fes.FEColl()->GetDerivType(dim) == mfem::FiniteElement::DIV ||
+          trial_fes.FEColl()->GetDerivType(dim) == mfem::FiniteElement::CURL);
+      bool is_test_vectorfe =
+         (test_fes.FEColl()->GetDerivType(dim) == mfem::FiniteElement::DIV ||
+          test_fes.FEColl()->GetDerivType(dim) == mfem::FiniteElement::CURL);
       MFEM_VERIFY(!(!indices && mesh.GetNumGeometries(dim) > 1),
                   "Use ceed::MixedIntegrator on mixed meshes.");
       InitCoefficient(Q, mesh, ir, use_bdr, nelem, indices, coeff);
@@ -249,7 +256,7 @@ public:
 
       mesh.EnsureNodes();
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
-      MFEM_VERIFY(mesh_fes, "The Mesh has no nodal FE space");
+      MFEM_VERIFY(mesh_fes, "The mesh has no nodal FE space.");
       InitBasisAndRestriction(*mesh_fes, ir, use_bdr, nelem, indices, ceed,
                               &mesh_basis, &mesh_restr);
       InitVector(*mesh.GetNodes(), node_coords);
@@ -343,14 +350,24 @@ public:
             CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim, CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "u",
+                                  trial_vdim * (is_trial_vectorfe ? dim : 1),
+                                  CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
             CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim * dim, CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
+            MFEM_VERIFY(!is_trial_vectorfe,
+                        "EvalMode::InterpAndGrad is not intended for vector FE.");
             CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim, CEED_EVAL_INTERP);
             CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim * dim, CEED_EVAL_GRAD);
+            break;
+         case EvalMode::Div:
+            CeedQFunctionAddInput(apply_qfunc, "du", trial_vdim, CEED_EVAL_DIV);
+            break;
+         case EvalMode::Curl:
+            CeedQFunctionAddInput(apply_qfunc, "cu", trial_vdim * curl_dim, CEED_EVAL_CURL);
             break;
       }
       if (use_mf)
@@ -375,14 +392,24 @@ public:
             CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim, CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "v",
+                                   test_vdim * (is_test_vectorfe ? dim : 1),
+                                   CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
             CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim * dim, CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
+            MFEM_VERIFY(!is_test_vectorfe,
+                        "EvalMode::InterpAndGrad is not intended for vector FE.");
             CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim, CEED_EVAL_INTERP);
             CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim * dim, CEED_EVAL_GRAD);
+            break;
+         case EvalMode::Div:
+            CeedQFunctionAddOutput(apply_qfunc, "dv", test_vdim, CEED_EVAL_DIV);
+            break;
+         case EvalMode::Curl:
+            CeedQFunctionAddOutput(apply_qfunc, "cv", test_vdim * curl_dim, CEED_EVAL_CURL);
             break;
       }
       CeedQFunctionSetContext(apply_qfunc, apply_ctx);
@@ -405,6 +432,12 @@ public:
          case EvalMode::InterpAndGrad:
             CeedOperatorSetField(oper, "u", trial_restr, trial_basis, CEED_VECTOR_ACTIVE);
             CeedOperatorSetField(oper, "gu", trial_restr, trial_basis, CEED_VECTOR_ACTIVE);
+            break;
+         case EvalMode::Div:
+            CeedOperatorSetField(oper, "du", trial_restr, trial_basis, CEED_VECTOR_ACTIVE);
+            break;
+         case EvalMode::Curl:
+            CeedOperatorSetField(oper, "cu", trial_restr, trial_basis, CEED_VECTOR_ACTIVE);
             break;
       }
       if (use_mf)
@@ -453,6 +486,12 @@ public:
          case EvalMode::InterpAndGrad:
             CeedOperatorSetField(oper, "v", test_restr, test_basis, CEED_VECTOR_ACTIVE);
             CeedOperatorSetField(oper, "gv", test_restr, test_basis, CEED_VECTOR_ACTIVE);
+            break;
+         case EvalMode::Div:
+            CeedOperatorSetField(oper, "dv", test_restr, test_basis, CEED_VECTOR_ACTIVE);
+            break;
+         case EvalMode::Curl:
+            CeedOperatorSetField(oper, "cv", test_restr, test_basis, CEED_VECTOR_ACTIVE);
             break;
       }
 

@@ -2196,6 +2196,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2207,6 +2208,7 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssembleMFBoundary;
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2285,6 +2287,7 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssembleMFBoundary;
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2351,6 +2354,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2362,6 +2366,7 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssembleMFBoundary;
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2506,6 +2511,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2515,6 +2521,7 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssembleMFBoundary;
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2587,6 +2594,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2596,6 +2604,7 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssembleMFBoundary;
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2778,6 +2787,8 @@ public:
    CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq) {}
 
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
    using NonlinearFormIntegrator::GetRule;
    virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                           const FiniteElement &test_fe,
@@ -2807,9 +2818,22 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleMF;
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   using BilinearFormIntegrator::AssembleMFBoundary;
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2924,6 +2948,8 @@ public:
    VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
    VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
 
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
    using NonlinearFormIntegrator::GetRule;
    virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                           const FiniteElement &test_fe,
@@ -2942,11 +2968,24 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleMF;
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   using BilinearFormIntegrator::AssembleMFBoundary;
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -3022,6 +3061,8 @@ public:
    DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(&q) {}
 
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
    using NonlinearFormIntegrator::GetRule;
    virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                           const FiniteElement &test_fe,
@@ -3039,9 +3080,22 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleMF;
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   using BilinearFormIntegrator::AssembleMFBoundary;
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };

@@ -271,7 +271,6 @@ MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX CALIPER PARELAG BENCHMARK\
  MOONOLITH ALGOIM
 
-
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
 
@@ -409,7 +408,8 @@ endif
 DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/integrators/util fem/ceed/solvers \
+       fem/ceed/integrators/vecfemass fem/ceed/integrators/divdiv \
+       fem/ceed/integrators/curlcurl fem/ceed/integrators/util fem/ceed/solvers \
        fem/fe fem/lor fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
@@ -424,7 +424,7 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
-.PHONY: lib all clean distclean install config status info deps serial parallel	\
+.PHONY: lib all clean distclean install config status info deps serial parallel \
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
 	deprecation-warnings
 
@@ -604,6 +604,12 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/vecfemass
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/vecfemass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/vecfemass
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/divdiv
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/divdiv/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/divdiv
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurl
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/curlcurl/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurl
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/util/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 # install config.mk in $(PREFIX_SHARE)

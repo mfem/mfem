@@ -2694,11 +2694,11 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
 #endif
 
       elmat.SetSize(vdim*test_dof, trial_dof);
+      elmat = 0.0;
 
       const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
                                                                Trans);
 
-      elmat = 0.0;
       for (int i = 0; i < ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
@@ -2791,12 +2791,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
 
       elmat.SetSize(test_dof, trial_dof);
 
-      const IntegrationRule *ir = IntRule;
-      if (ir == NULL)
-      {
-         int order = (Trans.OrderW() + test_fe.GetOrder() + trial_fe.GetOrder());
-         ir = &IntRules.Get(test_fe.GetGeomType(), order);
-      }
+      const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                               Trans);
 
       elmat = 0.0;
       for (int i = 0; i < ir->GetNPoints(); i++)
