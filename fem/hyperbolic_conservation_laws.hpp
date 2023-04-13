@@ -79,20 +79,46 @@ enum PRefineType
  * @param x Varying order GridFunction
  * @return GridFunction Max-order GridFunction
  */
-GridFunction ProlongToMaxOrderDG(const GridFunction &x)
+// Experimental - required for visualizing functions on p-refined spaces.
+GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype=1)
 {
-   const FiniteElementSpace *fes = x.FESpace();
-   Mesh *mesh = fes->GetMesh();
-   const int max_order = fes->GetMaxElementOrder();
-   FiniteElementCollection *fec =
-      new DG_FECollection(max_order, mesh->Dimension());
-   FiniteElementSpace *new_fes =
-      new FiniteElementSpace(mesh, fec, fes->GetVDim(), fes->GetOrdering());
-   GridFunctionCoefficient x_gf(&x);
-   GridFunction u(new_fes);
-   u.ProjectCoefficient(x_gf);
-   u.MakeOwner(fec);
-   return u;
+   const FiniteElementSpace *fespace = x->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   const FiniteElementCollection *fec = fespace->FEColl();
+
+   // find the max order in the space
+   const int max_order = fespace->GetMaxElementOrder();
+
+   // create a visualization space of max order for all elements
+   FiniteElementCollection *fecInt = NULL;
+   if (fieldtype == 0)
+   {
+      fecInt = new H1_FECollection(max_order, mesh->Dimension());
+   }
+   else if (fieldtype == 1)
+   {
+      fecInt = new L2_FECollection(max_order, mesh->Dimension());
+   }
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt, fespace->GetVDim());
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   GridFunction *xInt = new GridFunction(spaceInt);
+
+   if (fespace->GetVDim() == 1)
+   {
+      GridFunctionCoefficient cf(x);
+      xInt->ProjectCoefficient(cf);
+   }
+   else
+   {
+      VectorGridFunctionCoefficient cf(x);
+      xInt->ProjectCoefficient(cf);
+   }
+
+   xInt->MakeOwner(fecInt);
+   return xInt;
 }
 
 /**
