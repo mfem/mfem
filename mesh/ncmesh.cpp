@@ -6193,6 +6193,7 @@ void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
       }
    }
    MFEM_ASSERT(count == order.Size(), "");
+   MFEM_CONTRACT_VAR(count);
 }
 
 
