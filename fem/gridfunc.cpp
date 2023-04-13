@@ -3672,8 +3672,6 @@ GridFunction & GridFunction::operator=(const Vector &v)
 
 void GridFunction::Save(std::ostream &os) const
 {
-   fes->Save(os);
-   os << '\n';
 #if 0
    // Testing: write NURBS GridFunctions using "NURBS_patches" format.
    if (fes->GetNURBSext())
@@ -3711,6 +3709,8 @@ void GridFunction::Save(std::ostream &os) const
    }
    else
    {
+      fes->Save(os);
+      os << '\n';
       if (fes->GetOrdering() == Ordering::byNODES)
       {
          Vector::Print(os, 1);
