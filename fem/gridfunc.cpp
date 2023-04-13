@@ -3672,6 +3672,8 @@ GridFunction & GridFunction::operator=(const Vector &v)
 
 void GridFunction::Save(std::ostream &os) const
 {
+   fes->Save(os);
+   os << '\n';
 #if 0
    // Testing: write NURBS GridFunctions using "NURBS_patches" format.
    if (fes->GetNURBSext())
@@ -3682,45 +3684,15 @@ void GridFunction::Save(std::ostream &os) const
       return;
    }
 #endif
-   if (fes->IsVariableOrder()) // prolongate to maximum order
+   if (fes->GetOrdering() == Ordering::byNODES)
    {
-      const int max_order = fes->GetMaxElementOrder();
-      if (VectorDim() == 1) // if scalar
-      {
-         GridFunctionCoefficient cf(this);
-         FiniteElementCollection *new_fec = fec->Clone(max_order);
-         FiniteElementSpace new_fes(fes->GetMesh(), new_fec);
-         GridFunction new_gf(&new_fes);
-         new_gf.MakeOwner(new_fec);
-         new_gf.ProjectCoefficient(cf);
-         new_gf.Save(os);
-
-      }
-      else // if vector
-      {
-         VectorGridFunctionCoefficient cf(this);
-         FiniteElementCollection *new_fec = fec->Clone(max_order);
-         FiniteElementSpace new_fes(fes->GetMesh(), new_fec, VectorDim());
-         GridFunction new_gf(&new_fes);
-         new_gf.MakeOwner(new_fec);
-         new_gf.ProjectCoefficient(cf);
-         new_gf.Save(os);
-      }
+      Vector::Print(os, 1);
    }
    else
    {
-      fes->Save(os);
-      os << '\n';
-      if (fes->GetOrdering() == Ordering::byNODES)
-      {
-         Vector::Print(os, 1);
-      }
-      else
-      {
-         Vector::Print(os, fes->GetVDim());
-      }
-      os.flush();
+      Vector::Print(os, fes->GetVDim());
    }
+   os.flush();
 }
 
 void GridFunction::Save(const char *fname, int precision) const
