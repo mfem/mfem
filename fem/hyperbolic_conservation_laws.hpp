@@ -369,16 +369,6 @@ private:
    // Compute element-wise inverse mass matrix
    void ComputeInvMass();
 
-   void Update()
-   {
-      nonlinearForm->Update();
-      height = nonlinearForm->Height();
-      width = height;
-      z.SetSize(height);
-
-      ComputeInvMass();
-   }
-
 public:
    /**
     * @brief Construct a new DGHyperbolicConservationLaws object
@@ -403,6 +393,16 @@ public:
    inline double getMaxCharSpeed()
    {
       return max_char_speed;
+   }
+
+   void Update()
+   {
+      nonlinearForm->Update();
+      height = nonlinearForm->Height();
+      width = height;
+      z.SetSize(height);
+
+      ComputeInvMass();
    }
 
    virtual ~DGHyperbolicConservationLaws() {}
