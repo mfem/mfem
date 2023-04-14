@@ -1132,7 +1132,7 @@ void NURBSPatch::ReduceContinuity(int n)
 {
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      ReduceContinuity(dir, n);
+      ReduceContinuity(n, dir);
    }
 }
 
