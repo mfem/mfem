@@ -13,13 +13,13 @@
 using namespace mfem;
 
 #define CATCH_CONFIG_RUNNER
-#define CATCH_CONFIG_POSIX_SIGNALS
 #include "run_unit_tests.hpp"
 
 #ifndef _WIN32 // Debug device specific tests, not supported on Windows
 
 #include <iosfwd>
 #include <csetjmp>
+#include <signal.h>
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
