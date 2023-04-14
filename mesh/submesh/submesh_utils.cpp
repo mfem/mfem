@@ -127,7 +127,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                Tr.Transf,
                face_info);
 
-            Geometry::Type face_geom = pm->GetBdrElementBaseGeometry(i);
+            Geometry::Type face_geom =
+               pm->GetBdrElementBaseGeometry(parent_element_ids[i]);
             const FiniteElement *face_el =
                parentfes.GetTraceElement(parent_element_ids[i], face_geom);
             MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),

@@ -169,12 +169,14 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
 {
    const FiniteElementCollection * fec = fes.FEColl();
 
-   VDofTransformation vdoftrans(fes.GetVDim(),
-                                fes.GetOrdering());
-
    SubMesh * mesh = dynamic_cast<SubMesh*>(fes.GetMesh());
 
    const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
+
+   if (parent_face_ori.Size() == 0) { return; }
+
+   VDofTransformation vdoftrans(fes.GetVDim(),
+                                fes.GetOrdering());
 
    int dim = mesh->Dimension();
    bool face = (dim == 3);

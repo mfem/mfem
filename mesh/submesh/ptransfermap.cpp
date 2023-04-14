@@ -245,12 +245,14 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
 {
    const FiniteElementCollection * fec = fes.FEColl();
 
-   VDofTransformation vdoftrans(fes.GetVDim(),
-                                fes.GetOrdering());
-
    ParSubMesh * mesh = dynamic_cast<ParSubMesh*>(fes.GetParMesh());
 
    const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
+
+   if (parent_face_ori.Size() == 0) { return; }
+
+   VDofTransformation vdoftrans(fes.GetVDim(),
+                                fes.GetOrdering());
 
    int dim = mesh->Dimension();
    bool face = (dim == 3);
