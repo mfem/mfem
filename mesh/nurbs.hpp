@@ -75,7 +75,7 @@ public:
    KnotVector *DegreeElevate(int t) const;
 
    /// Returns the Number of Knot Repetitions in this KnotVector.
-   int GetNKR();
+   int GetNKR() const;
 
    /// Returns internal knots of this KnotVector in @a internalknots.
    void GetInternalKnots(Vector &internalknots);

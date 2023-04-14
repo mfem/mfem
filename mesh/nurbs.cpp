@@ -84,7 +84,7 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
-int KnotVector::GetNKR()
+int KnotVector::GetNKR() const
 {
    MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().")
 
