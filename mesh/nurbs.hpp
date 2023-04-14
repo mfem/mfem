@@ -74,8 +74,8 @@ public:
    /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
-   /// Returns the Number of Repeated Knots in this KnotVector.
-   int GetNRK();
+   /// Returns the Number of Knot Repetitions in this KnotVector.
+   int GetNKR();
 
    /// Returns internal knots of this KnotVector in @a internalknots.
    void GetInternalKnots(Vector &internalknots);

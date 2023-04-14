@@ -84,7 +84,7 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
-int KnotVector::GetNRK()
+int KnotVector::GetNKR()
 {
    MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().")
 
@@ -1120,8 +1120,8 @@ void NURBSPatch::ReduceToCnContinuity(int n)
 {
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      MFEM_VERIFY(kv[dir]->GetNRK() == 0,
-                  "Repeated knots in KnotVector. Can not guarantee specific continuity.")
+      MFEM_VERIFY(kv[dir]->GetNKR() == 0,
+                  "Knot repetitions in KnotVector. Can not guarantee specific continuity.")
 
       int reduction = kv[dir]->GetOrder()-n-1;
       ReduceContinuity(reduction, dir);
@@ -1142,8 +1142,8 @@ void NURBSPatch::ReduceContinuity(int n, int dir)
                "Continuity of shape functions can not be reduced below C^0");
    MFEM_VERIFY(n >= 0,
                "Can not increase continuity. Use DegreeElevate instead.")
-   MFEM_VERIFY(kv[dir]->GetNRK() == 0,
-               "Repeated knots in KnotVector. Can not guarantee continuity > 0.")
+   MFEM_VERIFY(kv[dir]->GetNKR() == 0,
+               "Knot repetitions in KnotVector. Can not guarantee continuity > 0.")
 
    Vector knots;
    kv[dir]->GetInternalKnots(knots);
