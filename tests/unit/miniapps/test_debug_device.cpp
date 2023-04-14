@@ -10,15 +10,16 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "unit_tests.hpp"
-
 using namespace mfem;
 
-// Debug device specific tests, not done on Windows
-#ifndef _WIN32
-#include <unistd.h>
+#define CATCH_CONFIG_RUNNER
+#define CATCH_CONFIG_POSIX_SIGNALS
+#include "run_unit_tests.hpp"
 
-struct NullBuf: public std::streambuf { int overflow(int c) { return c; }};
+#ifndef _WIN32 // Debug device specific tests, not supported on Windows
+
+#include <iosfwd>
+#include <csetjmp>
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
@@ -51,15 +52,28 @@ static void ScanMemoryTypes()
 static void MmuCatch(const int N = 1024)
 {
    Vector Y(N);
-   // double *h_Y = (double*)Y;
    Y.UseDevice(true);
-   Y = 0.0;
-   // in debug device, should raise a SIGSEGV
-   // but it can't be caught by this version of Catch
-   // h_Y[0] = 0.0;
+   static double *h_Y = Y.GetData(); // store host address
+   Y = 0.0; // use Y on the device
+   // using h_Y raises an MFEM abort that needs to be caught with a new handler
+   static jmp_buf env;
+   struct sigaction sa = { .sa_mask = 0, .sa_flags = SA_SIGINFO };
+   sa.sa_sigaction = [](int, siginfo_t *si, void*)
+   {
+      REQUIRE(si->si_addr == h_Y);
+      mfem::out << "Illegal memory access caught at " << si->si_addr << std::endl;
+      std::longjmp(env, EXIT_FAILURE); // noreturn, setjmp returns EXIT_FAILURE
+   };
+   REQUIRE(sigaction(SIGBUS, &sa, NULL) != -1); // set the new handler
+   if (setjmp(env) == EXIT_SUCCESS) // save the execution context to env
+   {
+      h_Y[0] = 0.0; // raises a SIGBUS, handler, longjmp
+      REQUIRE(false); // should not be here
+   }
+   REQUIRE(true); // rewinding to env through setjmp returning EXIT_FAILURE
 }
 
-void Aliases(const int N = 0x1234)
+static void Aliases(const int N = 0x1234)
 {
    Vector S(2*3*N + N);
    S.UseDevice(true);
@@ -89,14 +103,18 @@ void Aliases(const int N = 0x1234)
 
 TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
 {
-   NullBuf null_buffer;
+   // If MFEM_MEMORY is set, we can start with some non-empty maps,
+   // we need to use the number of pointers and aliases there already are
+   // present in the maps
+   struct NullBuffer: public std::streambuf
+   {
+      int overflow(int c) { return c; }
+   } null_buffer;
    std::ostream dev_null(&null_buffer);
-   // If MFEM_MEMORY is set, we start with some non-empty maps
    const int n_ptr = mm.PrintPtrs(dev_null);
    const int n_alias = mm.PrintAliases(dev_null);
    const long pagesize = sysconf(_SC_PAGE_SIZE);
    REQUIRE(pagesize > 0);
-   Device device("debug");
    for (int n = 1; n < 2*pagesize; n+=7)
    {
       Aliases(n);
@@ -110,3 +128,9 @@ TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
 }
 
 #endif // _WIN32
+
+int main(int argc, char *argv[])
+{
+   Device device("debug");
+   return RunCatchSession(argc, argv, {"[DebugDevice]"});
+}
