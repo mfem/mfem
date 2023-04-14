@@ -57,20 +57,27 @@ static void MmuCatch(const int N = 1024)
    Y = 0.0; // use Y on the device
    // using h_Y raises an MFEM abort that needs to be caught with a new handler
    static jmp_buf env;
-   struct sigaction sa = { .sa_mask = 0, .sa_flags = SA_SIGINFO };
+   struct sigaction sa;
+   sa.sa_flags = SA_SIGINFO;
+   sigemptyset(&sa.sa_mask);
+   static volatile bool caught_illegal_memory_access = false;
    sa.sa_sigaction = [](int, siginfo_t *si, void*)
    {
       REQUIRE(si->si_addr == h_Y);
+      caught_illegal_memory_access = true;
       mfem::out << "Illegal memory access caught at " << si->si_addr << std::endl;
       std::longjmp(env, EXIT_FAILURE); // noreturn, setjmp returns EXIT_FAILURE
    };
-   REQUIRE(sigaction(SIGBUS, &sa, NULL) != -1); // set the new handler
+   // set the new handlers
+   REQUIRE(sigaction(SIGBUS, &sa, NULL) != -1); // macOS
+   REQUIRE(sigaction(SIGSEGV, &sa, NULL) != -1); // Linux
+
    if (setjmp(env) == EXIT_SUCCESS) // save the execution context to env
    {
       h_Y[0] = 0.0; // raises a SIGBUS, handler, longjmp
       REQUIRE(false); // should not be here
    }
-   REQUIRE(true); // rewinding to env through setjmp returning EXIT_FAILURE
+   REQUIRE(caught_illegal_memory_access); // rewinding to env through setjmp
 }
 
 static void Aliases(const int N = 0x1234)
@@ -101,7 +108,7 @@ static void Aliases(const int N = 0x1234)
    REQUIRE(S*S == MFEM_Approx(24.0*N));
 }
 
-TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
+TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,
    // we need to use the number of pointers and aliases there already are
