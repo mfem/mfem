@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool nc = false;
    const char *device_config = "cpu";
    bool visualization = true;
 #ifdef MFEM_USE_AMGX
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-no-nc",
+                  "--no-non-conforming", "Enable Nonconforming Refinement.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -129,29 +132,25 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
-   // {
-   //    int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
-   //    for (int l = 0; l < ref_levels; l++)
-   //    {
-   //       mesh->UniformRefinement();
-   //    }
-   // }
-   mesh->UniformRefinement();
+   {
+      int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh->UniformRefinement();
+      }
+   }
 
-   mesh->EnsureNCMesh(true);
+   if (nc)
+   {
+      mesh->EnsureNCMesh(true);
+   }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
+   // std::vector<int> part = {1,0};
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
-      {
-         pmesh->UniformRefinement();
-      }
-   }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.

@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define MFEM_DEBUG_PMATRIX
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -1174,6 +1173,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
             Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
+
       return Pconf;
    }
    else
@@ -1949,9 +1949,8 @@ struct PMatrixRow
    void AddRow(const PMatrixRow &other, double coef)
    {
       elems.reserve(elems.size() + other.elems.size());
-      for (unsigned i = 0; i < other.elems.size(); i++)
+      for (const PMatrixElement &oei : other.elems)
       {
-         const PMatrixElement &oei = other.elems[i];
          elems.push_back(
             PMatrixElement(oei.column, oei.stride, coef * oei.value));
       }
@@ -2089,6 +2088,7 @@ void NeighborRowMessage::Encode(int rank)
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
+
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
@@ -2141,7 +2141,7 @@ void NeighborRowMessage::Decode(int rank)
 
    // read rows
    // ent = {0,1,2} means vertex, edge and face entity
-   for (int ent = 0, gi = 0; ent < 2; ent++)
+   for (int ent = 0, gi = 0; ent < 3; ent++)
    {
       // extract the vertex list, edge list or face list.
       const Array<MeshId> &ids = ent_ids[ent];
@@ -2157,8 +2157,10 @@ void NeighborRowMessage::Decode(int rank)
          //    1 -> 2 -> 3 -> 4
          // might become
          //    -4 -> -3 -> -2 -> -1
-         // This cannot treat the
-         const int *ind = NULL;
+         // This cannot treat all face dofs, as they can have rotations and
+         // reflections.
+         const int *ind = nullptr;
+         Geometry::Type geom;
          if (ent == 1)
          {
             // edge NC orientation is element defined.
@@ -2167,7 +2169,7 @@ void NeighborRowMessage::Decode(int rank)
          }
          else if (ent == 2)
          {
-            Geometry::Type geom = pncmesh->GetFaceGeometry(id.index);
+            geom = pncmesh->GetFaceGeometry(id.index);
             int fo = pncmesh->GetFaceOrientation(id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
          }
@@ -2192,40 +2194,94 @@ void NeighborRowMessage::Decode(int rank)
                    << rows.back().index << ", edof " << rows.back().edof
                    << std::endl;
 #endif
+         if (ent == 2 && fec->GetContType() == FiniteElementCollection::TANGENTIAL
+             && !Geometry::IsTensorProduct(geom))
+         {
+            // ND face dofs need to be processed together, as the transformation
+            // is given by a 2x2 matrix, so manually extra increment the loop
+            // counter to add in a new row. Once these are placed, they
+            // represent the Identity transformation. To map across the
+            // processor boundary, we also need to apply a Primal Transformation
+            // (see doftrans.hpp). For simplicity we perform the action of these 2x2 matrices
+            // manually using the AddRow capability, followed by a Collapse.
+
+            // To perform the operations, we add and subtract initial versions
+            // of the rows, that represent [1 0; 0 1] in row major notation.
+            // The first row represents the 1 at (0,0) in [1 0; 0 1]
+            // The second row represents the 1 at (1,1) in [1 0; 0 1]
+
+            // We can safely bind this reference as rows was reserved above so
+            // there is no hidden copying that could result in a dangling reference.
+            auto &first_row = rows.back().row;
+            // This is the first "fundamental unit" used in the transformation.
+            auto initial_first_row = first_row;
+            // Extract the next dof too, and apply any dof order transformation expected.
+            const MeshId &next_id = ids[++i];
+            int fo = pncmesh->GetFaceOrientation(next_id.index);
+            ind = fec->DofOrderForOrientation(geom, fo);
+
+            s = 1.0;
+            edof = bin_io::read<int>(stream);
+            if (ind && (edof = ind[edof]) < 0)
+            {
+               edof = -1 - edof;
+               s = -1.0;
+            }
+            rows.push_back(RowInfo(ent, next_id.index, edof, group_ids[gi++]));
+            rows.back().row.read(stream, s);
+
+            auto &second_row = rows.back().row;
+            // This is the second "fundamental unit" used in the transformation.
+            auto initial_second_row = rows.back().row;
+            if (fo == 0)
+            {
+               // do nothing, the primal map is identity
+            }
+            else if (fo == 1)
+            {
+               // [-1 0; 0 1]
+               first_row.AddRow(initial_first_row, -2);
+               second_row.AddRow(initial_first_row, -1);
+            }
+            else if (fo == 2)
+            {
+               // [0 -1; 1 -1]
+               first_row.AddRow(initial_first_row, -1);
+               first_row.AddRow(initial_second_row, -1);
+               second_row.AddRow(initial_first_row, 1);
+               second_row.AddRow(initial_second_row, -2);
+            }
+            else if (fo == 3)
+            {
+               // [1 -1; 0 -1]
+               first_row.AddRow(initial_second_row, -1);
+               second_row.AddRow(initial_second_row, -2);
+            }
+            else if (fo == 4)
+            {
+               // [-1 1; -1 0]
+               first_row.AddRow(initial_first_row, -2);
+               first_row.AddRow(initial_second_row, 1);
+               second_row.AddRow(initial_first_row, -1);
+               second_row.AddRow(initial_second_row, -1);
+            }
+            else if (fo == 5)
+            {
+               // [0 1; 1 0]
+               first_row.AddRow(initial_first_row, -1);
+               first_row.AddRow(initial_second_row, 1);
+               second_row.AddRow(initial_second_row, -1);
+               second_row.AddRow(initial_first_row, 1);
+            }
+            else
+            {
+               MFEM_ABORT("Developer error: unexpected triangular face orientation.");
+            }
+            first_row.Collapse();
+            second_row.Collapse();
+         }
       }
    }
-
-   // All edge dofs signs have been flipped and assigned. Now if a finite
-   // element collection is Nedelec and three dimensional, need to load the P
-   // matrix portion corresponding to the whole element, to apply DOF
-   // transformations on the face dofs. This is because the transformations for
-   // ND face dofs have a minimal representation as a 2x2 operator, to
-   // incorporate flips etc.
-   // In a normal triangle face, orientation of the face is dictated by the
-   // element that reached the face first, then within each element the
-   // DofTransformation object is used to map from the face definition to the
-   // element definition. On a processor boundary however there is not a unique
-   // notion of face orientation, as in a way both left and right elements
-   // visited the face first, as for each it is a ghost on the other side. Thus
-   // for each rank, the orientation of the face is such that the normal points
-   // towards the ghost element.
-   // In crossing the processor boundary it is thus necessary to apply the
-   // effect of an orientation flip to get to the processor local face
-   // orientation. In effect, there are now global face orientations and local
-   // face orientations, for faces interior to any processor subdomain, these
-   // are identical. For faces on the processor boundary, there is a different
-   // face orientation local to each processor.
-   // The P matrix that ties DoFs across processor boundaries thus needs to
-   // incorporate this change. One way to address this is that the lower rank
-   // processor has the "global" orientation, and the higher rank processor
-   // needs to apply an orientation flip from the "global" orientation to the
-   // outward pointing normal orientation expected by the element orientation.
-   // This is extremely close to the notion of a "double face" introduced in
-   // https://github.com/mfem/mfem/pull/2145 however these "double faces" are
-   // only needed on a processor boundary, as for all other faces the two
-   // definitions are coincident.
-
-
 }
 
 void
