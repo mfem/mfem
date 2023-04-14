@@ -176,6 +176,7 @@ void VDofTransformation::InvTransformDual(double *v) const
    }
 }
 
+// ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
 const double ND_DofTransformation::T_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,

@@ -141,8 +141,8 @@ public:
       return (index < NFaces) ? face_orient[index] : 0;
    }
 
-   typedef short GroupId;
-   typedef std::vector<int> CommGroup;
+   using GroupId = short;
+   using CommGroup = std::vector<int>;
 
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
