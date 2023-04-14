@@ -1788,6 +1788,13 @@ public:
    /* For each knot vector:
          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
+   /// Insert knots to reduce continuity of NURBS shapefunctions to C^0
+   void NURBSReduceToC0Continuity();
+   /** Insert knots to reduce continuity of NURBS shapefunctions to C^n using
+   @a int n. */
+   void NURBSReduceToCnContinuity(int n);
+   /// Insert knots to reduce continuity of NURBS shapefunctions with @a int n.
+   void NURBSReduceContinuity(int n);
    ///@}
 
    /** Make sure that a quad/hex mesh is considered to be nonconforming (i.e.,
