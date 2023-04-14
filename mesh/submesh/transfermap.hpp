@@ -74,6 +74,13 @@ private:
    /// SubMesh transfer.
    std::unique_ptr<const FiniteElementSpace> root_fes_;
 
+   /// Pointer to the supplemental FiniteElementCollection used with root_fes_.
+   /// This is only used if this TransferMap represents a SubMesh to
+   /// SubMesh transfer where the root requires a different type of collection
+   /// than the SubMesh objects. For example, when the subpaces are L2 on
+   /// boundaries of the parent mesh and the root space can be RT.
+   std::unique_ptr<const FiniteElementCollection> root_fec_;
+
    /// Temporary vector
    mutable Vector z_;
 };

@@ -41,9 +41,68 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_.reset(new ParFiniteElementSpace(
-                         *src.ParFESpace(),
-                         *const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm))));
+      {
+         ParMesh * parent_mesh =
+            const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm));
+
+         int parent_dim = parent_mesh->Dimension();
+         int src_sm_dim = src_sm->Dimension();
+         int dst_sm_dim = dst_sm->Dimension();
+
+         bool root_fes_reset = false;
+         if (src_sm_dim == parent_dim - 1 && dst_sm_dim == parent_dim - 1)
+         {
+            const ParFiniteElementSpace *src_fes = src.ParFESpace();
+            const ParFiniteElementSpace *dst_fes = dst.ParFESpace();
+
+            const FiniteElementCollection *src_fec = src_fes->FEColl();
+            const FiniteElementCollection *dst_fec = dst_fes->FEColl();
+
+            const L2_FECollection *src_l2_fec =
+               dynamic_cast<const L2_FECollection*>(src_fec);
+            const L2_FECollection *dst_l2_fec =
+               dynamic_cast<const L2_FECollection*>(dst_fec);
+
+            if (src_l2_fec != NULL && dst_l2_fec != NULL)
+            {
+               // Source and destination are both lower dimension L2 spaces.
+               // Transfer them as the trace of an RT space if possible.
+
+               int src_mt = src_fec->GetMapType(src_sm_dim);
+               int dst_mt = dst_fec->GetMapType(dst_sm_dim);
+
+               int src_bt = src_l2_fec->GetBasisType();
+               int dst_bt = dst_l2_fec->GetBasisType();
+
+               int src_p = src_fec->GetOrder();
+               int dst_p = dst_fec->GetOrder();
+
+               if (src_mt == FiniteElement::INTEGRAL &&
+                   dst_mt == FiniteElement::INTEGRAL &&
+                   src_bt == BasisType::GaussLegendre &&
+                   dst_bt == BasisType::GaussLegendre &&
+                   src_p == dst_p)
+               {
+                  // The subspaces are consistent with the trace of an RT space
+                  root_fec_.reset(new RT_FECollection(src_p, parent_dim));
+                  root_fes_.reset(new ParFiniteElementSpace(
+                                     const_cast<ParMesh *>(
+                                        SubMeshUtils::GetRootParent(*src_sm)),
+                                     root_fec_.get()));
+                  root_fes_reset = true;
+               }
+            }
+         }
+
+         if (!root_fes_reset)
+         {
+            root_fes_.reset(new ParFiniteElementSpace(
+                               *src.ParFESpace(),
+                               const_cast<ParMesh *>(
+                                  SubMeshUtils::GetRootParent(*src_sm))));
+         }
+      }
+
       subfes1 = src.ParFESpace();
       subfes2 = dst.ParFESpace();
 
