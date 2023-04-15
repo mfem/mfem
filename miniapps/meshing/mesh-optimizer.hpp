@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -82,24 +82,6 @@ double material_indicator_2d(const Vector &x)
 double discrete_ori_2d(const Vector &x)
 {
    return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));
-}
-
-double discrete_aspr_2d(const Vector &x)
-{
-   double xc = x(0)-0.5, yc = x(1)-0.5;
-   double th = 22.5*M_PI/180.;
-   double xn =  cos(th)*xc + sin(th)*yc;
-   double yn = -sin(th)*xc + cos(th)*yc;
-   xc = xn; yc = yn;
-
-   double tfac = 20;
-   double s1 = 3;
-   double s2 = 2;
-   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-   if (wgt > 1) { wgt = 1; }
-   if (wgt < 0) { wgt = 0; }
-   return 0.1 + 1*(1-wgt)*(1-wgt);
 }
 
 void discrete_aspr_3d(const Vector &x, Vector &v)
