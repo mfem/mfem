@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,6 @@ template <int dim> struct LinearElasticMaterial
     * compute the gradient matrix entries of the current quadrature point,
     * instead of the action.
     *
-    * @param[in] dudx
     * @return tensor<double, dim, dim, dim, dim>
     */
    tensor<double, dim, dim, dim, dim>

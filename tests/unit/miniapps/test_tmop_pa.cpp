@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -75,6 +75,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    double lim_const      = 0.0;
+   int lim_type          = 0;
    int normalization     = 0;
    double jitter         = 0.0;
    bool diag             = true;
@@ -104,6 +105,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    args.AddOption(&lin_solver, "-ls", "--lin-solver", "");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter", "");
    args.AddOption(&lim_const, "-lc", "--limit-const", "");
+   args.AddOption(&lim_type, "-lt", "--limit-type", "");
    args.AddOption(&normalization, "-nor", "--normalization", "");
    args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
    args.AddOption(&jitter, "-ji", "--jitter", "");
@@ -299,7 +301,18 @@ int tmop(int id, Req &res, int argc, char *argv[])
    dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
-   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+   if (lim_const != 0.0)
+   {
+      if (lim_type == 0)
+      {
+         he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
+      }
+      else
+      {
+         he_nlf_integ->EnableLimiting(x0, dist, lim_coeff,
+                                      new TMOP_ExponentialLimiter);
+      }
+   }
 
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
@@ -366,7 +379,18 @@ int tmop(int id, Req &res, int argc, char *argv[])
          TMOP_Integrator *nlfi_fa = new TMOP_Integrator(metric, target_c);
          nlfi_fa->SetIntegrationRule(*ir);
          if (normalization == 1) { nlfi_fa->ParEnableNormalization(x0); }
-         if (lim_const != 0.0) { nlfi_fa->EnableLimiting(x0, dist, lim_coeff); }
+         if (lim_const != 0.0)
+         {
+            if (lim_type == 0)
+            {
+               nlfi_fa->EnableLimiting(x0, dist, lim_coeff);
+            }
+            else
+            {
+               nlfi_fa->EnableLimiting(x0, dist, lim_coeff,
+                                       new TMOP_ExponentialLimiter);
+            }
+         }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
          nlf_fa.SetEssentialBC(ess_bdr);
          dynamic_cast<GradientClass&>(nlf_fa.GetGradient(xt)).GetDiag(d);
@@ -470,7 +494,18 @@ int tmop(int id, Req &res, int argc, char *argv[])
       dist *= 0.93;
       if (normalization == 1) { dist = small_phys_size; }
 
-      if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+      if (lim_const != 0.0)
+      {
+         if (lim_type == 0)
+         {
+            he_nlf_integ->EnableLimiting(x0, dist, lim_coeff);
+         }
+         else
+         {
+            he_nlf_integ->EnableLimiting(x0, dist, lim_coeff,
+                                         new TMOP_ExponentialLimiter);
+         }
+      }
 
       if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x); }
 
@@ -519,7 +554,8 @@ static void req_tmop(int id, const char *args[], Req &res)
     "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
     "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
     "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
-    "-lc", "0", "-nor", "0", "-ji", "0", "-nl", "1", "-cmb", "0", nullptr }
+   "-lc", "0", "-nor", "0", "-ji", "0", "-nl", "1",\
+   "-cmb", "0", "-lt", "0", nullptr }
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
@@ -536,6 +572,7 @@ constexpr int NOR = 27;
 constexpr int JI  = 29;
 constexpr int NL  = 31;
 constexpr int CMB = 33;
+constexpr int LT  = 35;
 
 static void dump_args(int id, const char *args[])
 {
@@ -543,7 +580,7 @@ static void dump_args(int id, const char *args[])
    const char *format =
       "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s"
       "%s%s%s%s"         // Optional args: RS, QTY
-      "%s%s%s%s%s%s%s%s" // Optional args: LC, NOR, JI, NL & CMB
+      "%s%s%s%s%s%s%s%s%s%s" // Optional args: LC, NOR, JI, NL, CMB, LT
       " %s\n";           // Assembly level
    printf(format,
           args[MSH], args[POR], args[QOR], args[MID], args[TID], args[LS],
@@ -561,6 +598,8 @@ static void dump_args(int id, const char *args[])
           args[NL][0] == '1' ? "" : args[NL],
           args[CMB][0] == '0' ? "" : " -cmb ",
           args[CMB][0] == '0' ? "" : args[CMB],
+          args[LT][0] == '0' ? "" : " -lt ",
+          args[LT][0] == '0' ? "" : args[LT],
           // Assembly level
           args[ALV]);
    fflush(0);
@@ -578,15 +617,17 @@ static void tmop_require(int id, const char *args[])
    REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
 }
 
+static constexpr size_t sz = 16;
+
 static inline const char *itoa(const int i, char *buf)
 {
-   std::sprintf(buf, "%d", i);
+   std::snprintf(buf, sz, "%d", i);
    return buf;
 }
 
 static inline const char *dtoa(const double d, char *buf)
 {
-   std::sprintf(buf, "%.4f", d);
+   std::snprintf(buf, sz, "%.4f", d);
    return buf;
 }
 
@@ -606,6 +647,7 @@ public:
       int combo = 0;
       bool normalization = false;
       double lim_const = 0.0;
+      int lim_type = 0;
       double jitter = 0.0;
       set order = {1,2,3,4};
       set target_id = {1,2,3};
@@ -623,6 +665,7 @@ public:
       Args &CMB(const int arg) { combo = arg; return *this; }
       Args &NORMALIZATION(const bool arg) { normalization = arg; return *this; }
       Args &LIMITING(const double arg) { lim_const = arg; return *this; }
+      Args &LIMIT_TYPE(const int arg) { lim_type = arg; return *this; }
       Args &JI(const double arg) { jitter = arg; return *this; }
 
       Args &POR(set arg) { order = arg; return *this; }
@@ -633,7 +676,7 @@ public:
       Args &NL(set arg) { newton_loop = arg; return *this; }
    };
    const char *name, *mesh;
-   int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO;
+   int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
    bool NORMALIZATION;
    double LIMITING, JITTER;
    set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
@@ -641,7 +684,7 @@ public:
    Launch(Args a = Args()):
       name(a.name), mesh(a.mesh),
       NEWTON_ITERATIONS(a.newton_iter), REFINE(a.rs_levels),
-      LINEAR_ITERATIONS(a.max_lin_iter), COMBO(a.combo),
+      LINEAR_ITERATIONS(a.max_lin_iter), COMBO(a.combo), LIMIT_TYPE(a.lim_type),
       NORMALIZATION(a.normalization), LIMITING(a.lim_const), JITTER(a.jitter),
       P_ORDERS(a.order), TARGET_IDS(a.target_id), METRIC_IDS(a.metric_id),
       Q_ORDERS(a.quad_order), LINEAR_SOLVERS(a.lin_solver),
@@ -652,42 +695,44 @@ public:
    {
       if ((id==0) && name) { mfem::out << "[" << name << "]" << std::endl; }
       DEFAULT_ARGS;
-      char ni[8] {}, rs[8] {}, li[8] {}, lc[16] {}, ji[16] {}, cmb[8] {};
+      char ni[sz] {}, rs[sz] {}, li[sz] {}, lc[sz] {}, ji[sz] {},
+           cmb[sz] {}, lt[sz] {};
       args[MSH] = mesh;
       args[RS] = itoa(REFINE,rs);
       args[NI] = itoa(NEWTON_ITERATIONS,ni);
       args[LI] = itoa(LINEAR_ITERATIONS,li);
       args[CMB] = itoa(COMBO,cmb);
       args[LC] = dtoa(LIMITING,lc);
+      args[LT] = itoa(LIMIT_TYPE,lt);
       args[JI] = dtoa(JITTER,ji);
       args[NOR] = NORMALIZATION ? "1" : "0";
       for (int p : P_ORDERS)
       {
-         char por[2] {};
+         char por[sz] {};
          args[POR] = itoa(p, por);
          for (int t : TARGET_IDS)
          {
-            char tid[2] {};
+            char tid[sz] {};
             args[TID] = itoa(t, tid);
             for (int m : METRIC_IDS)
             {
-               char mid[4] {};
+               char mid[sz] {};
                args[MID] = itoa(m, mid);
                for (int q : Q_ORDERS)
                {
                   if (q <= p) { continue; }
-                  char qor[2] {};
+                  char qor[sz] {};
                   args[QOR] = itoa(q, qor);
                   for (int ls : LINEAR_SOLVERS)
                   {
                      // skip some linear solver & metric combinations
                      // that lead to non positive definite operators
                      if (ls == 1 && m != 1) { continue; }
-                     char lsb[2] {};
+                     char lsb[sz] {};
                      args[LS] = itoa(ls, lsb);
                      for (int n : NEWTON_LOOPS)
                      {
-                        char nl[2] {};
+                        char nl[sz] {};
                         args[NL] = itoa(n, nl);
                         tmop_require(id, args);
                         if (!nr) { break; }
@@ -770,6 +815,12 @@ static void tmop_tests(int id = 0, bool all = false)
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id,all);
 
+   Launch(Launch::Args("Blade + limiting_expo + normalization").
+          MESH("../../miniapps/meshing/blade.mesh").
+          NORMALIZATION(true).LIMITING(M_PI).LIMIT_TYPE(1).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2,3}).MID({2})).Run(id,all);
+
    Launch(Launch::Args("Cube").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,4}).
@@ -803,6 +854,12 @@ static void tmop_tests(int id = 0, bool all = false)
    Launch(Launch::Args("Toroid-Hex + limiting + norm.").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).NORMALIZATION(true).
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id,all);
+
+   Launch(Launch::Args("Toroid-Hex + limiting_expo + norm.").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).LIMIT_TYPE(1).NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
           TID({1,2}).MID({321})).Run(id,all);
 

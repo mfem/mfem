@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1032,12 +1032,12 @@ void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
       massinteg.AssembleElementMatrix(el, Tr, *M);
       CholeskyFactors chol(M->Data());
       chol.Factor(M->Height());
-      chol.LMult(n,1,elvect);
+      chol.LMult(n,1,elvect.GetData());
    }
    else
    {
       CholeskyFactors chol(L[iel]->Data());
-      chol.LMult(n,1,elvect);
+      chol.LMult(n,1,elvect.GetData());
    }
 }
 

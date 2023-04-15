@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,6 +38,9 @@
 
 // Description of the git commit used to build MFEM.
 // #define MFEM_GIT_STRING "@MFEM_GIT_STRING@"
+
+// Enable shared library build of MFEM.
+// #define MFEM_SHARED_BUILD
 
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
@@ -84,9 +87,6 @@
 
 // Enable MFEM functionality based on the SUNDIALS libraries.
 // #define MFEM_USE_SUNDIALS
-
-// Enable MFEM functionality based on the Mesquite library.
-// #define MFEM_USE_MESQUITE
 
 // Enable MFEM functionality based on the SuiteSparse library.
 // #define MFEM_USE_SUITESPARSE
