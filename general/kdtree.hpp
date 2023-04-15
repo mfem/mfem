@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <tuple>
 
 #include "../linalg/vector.hpp"
 
@@ -30,15 +31,12 @@ namespace KDTreeNorms
 template <typename Tfloat, int ndim>
 struct Norm_l1
 {
-   Tfloat tm;
    Tfloat operator() (const Tfloat* xx)
    {
-      if (xx[0]<Tfloat(0.0)) { tm=-xx[0];}
-      else { tm=xx[0];}
+      Tfloat tm=abs(xx[0]);
       for (int i=1; i<ndim; i++)
       {
-         if (xx[i]<Tfloat(0.0)) { tm=tm-xx[i]; }
-         else { tm=tm+xx[i];}
+          tm=tm+abs(xx[i]);
       }
       return tm;
    }
@@ -48,9 +46,9 @@ struct Norm_l1
 template<typename Tfloat,int ndim>
 struct Norm_l2
 {
-   Tfloat tm;
    Tfloat operator() (const Tfloat* xx)
    {
+      Tfloat tm;
       tm=xx[0]*xx[0];
       for (int i=1; i<ndim; i++)
       {
@@ -64,9 +62,9 @@ struct Norm_l2
 template<typename Tfloat,int ndim>
 struct Norm_li
 {
-   Tfloat tm;
    Tfloat operator() (const Tfloat* xx)
    {
+      Tfloat tm;
       if (xx[0]<Tfloat(0.0)) { tm=-xx[0];}
       else { tm=xx[0];}
       for (int i=1; i<ndim; i++)
@@ -91,19 +89,27 @@ struct Norm_li
 /// specifying a float type for representing the coordinates of the
 /// points, integer parameter ndim specifying the dimensionality of the
 /// space and template function Tnorm for evaluating the distance
-/// between two points.
-template <typename Tindex, typename Tfloat, size_t ndim=3, typename Tnorm=KDTreeNorms::Norm_l2<Tfloat,ndim> >
+/// between two points. The KDTree class implements the standard k-d
+/// tree data structure that can be used to transfer a ParGridFunction
+/// defined on one MPI communicator to a ParGridFunction/GridFunction
+/// defined on different MPI communicator. This can be useful when
+/// comparing a solution computed on m ranks against a solution
+/// computed with n or 1 rank(s).
+template <typename Tindex, typename Tfloat, size_t ndim=3,
+          typename Tnorm=KDTreeNorms::Norm_l2<Tfloat,ndim> >
 class KDTree
 {
 public:
 
    /// Structure defining a geometric point in the ndim-dimensional
-   /// space.
+   /// space. The coordinate type (Tfloat) can be any floating or
+   /// integer type. It can be even a character if necessary. For
+   /// such types users should redefine the norms.
    struct PointND
    {
 
       /// Geometric point constructor
-      PointND() {for (size_t i=0; i<ndim; i++) {xx[i]=Tfloat(0.0);}}
+      PointND() { std::fill(xx,ndim,Tfloat(0.0));}
 
       /// Coordinates of the point
       Tfloat xx[ndim];
@@ -121,10 +127,10 @@ public:
    };
 
    /// Default constructor
-   KDTree() {}
+   KDTree() = default;
 
    /// Returns the spatial dimension of the points
-   int SpatialDimension() {return ndim;}
+   int SpaceDimension() {return ndim;}
 
    /// Data iterator
    typedef typename std::vector<NodeND>::iterator iterator;
@@ -534,16 +540,16 @@ private:
          level=level+1;
          if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) // look to the right only
          {
-            RNS(pt, R, itb+siz/2+1, ite, level, res);
+            FindNeighborPoints(pt, R, itb+siz/2+1, ite, level, res);
          }
          else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) // look to the left only
          {
-            RNS(pt,R, itb, itb+siz/2, level,   res);
+            FindNeighborPoints(pt,R, itb, itb+siz/2, level,   res);
          }
          else  //check all
          {
-            RNS(pt,R, itb+siz/2+1, ite, level, res); // right
-            RNS(pt,R, itb, itb+siz/2, level,   res); // left
+            FindNeighborPoints(pt,R, itb+siz/2+1, ite, level, res); // right
+            FindNeighborPoints(pt,R, itb, itb+siz/2, level,   res); // left
 
             // check central one
             Tfloat dd=Dist(mtb->pt, pt);
@@ -584,16 +590,16 @@ private:
          level=level+1;
          if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) // look to the right only
          {
-            RNS(pt, R, itb+siz/2+1, ite, level, res, dist);
+            FindNeighborPoints(pt, R, itb+siz/2+1, ite, level, res, dist);
          }
          else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) // look to the left only
          {
-            RNS(pt,R, itb, itb+siz/2, level,   res, dist);
+            FindNeighborPoints(pt,R, itb, itb+siz/2, level,   res, dist);
          }
          else  // check all
          {
-            RNS(pt,R, itb+siz/2+1, ite, level, res, dist); // right
-            RNS(pt,R, itb, itb+siz/2, level,   res, dist); // left
+            FindNeighborPoints(pt,R, itb+siz/2+1, ite, level, res, dist); // right
+            FindNeighborPoints(pt,R, itb, itb+siz/2, level,   res, dist); // left
 
             // check central one
             Tfloat dd=Dist(mtb->pt, pt);
@@ -631,135 +637,6 @@ typedef KDTree<int,double,2> KDTree2D;
 
 /// Defines KDTree in 1D
 typedef KDTree<int,double,1> KDTree1D;
-
-
-/// Defines KDTree with points stored outside the class.
-/// The external storage slows down the search and the construction
-/// methods.
-class KDTreeM
-{
-public:
-   /// Construtor
-   KDTreeM(mfem::Vector& coords_,int dim_)
-   {
-      gf=&coords_;
-      ndim=dim_;
-      tp.SetSize(ndim);
-      int np=(gf->Size())/ndim;
-      data.resize(np);
-      for (int i=0; i<np; i++)
-      {
-         data[i].xx=coords_.GetData()+i*ndim;
-         data[i].ind=i;
-      }
-      Sort();
-   }
-
-   /// Internal structure used as a node in the KDTree
-   struct NodeND
-   {
-      size_t ind;
-      double *xx;//coordinates of the node
-   };
-
-
-   /// Returns the spatial dimension of the points
-   int SpatialDimension() {return ndim;}
-
-   /// Data iterator
-   typedef typename std::vector<NodeND>::iterator iterator;
-
-   /// Returns iterator to beginning of the point cloud
-   iterator begin() {return data.begin();}
-
-   /// Returns iterator to the end of the point cloud
-   iterator end() {return data.end();}
-
-   /// Returns the size of the point cloud
-   size_t size() {return data.size();}
-
-   /// Clears the point cloud.
-   void clear() { data.clear();}
-
-   /// Builds the KDTree.
-   void Sort() { SortInPlace(data.begin(),data.end(),0);}
-
-   /// Returns the index of the closest point to the input point pt.
-   int FindClosestPoint(mfem::Vector& pt);
-
-   ///  Returns the closest point and the distance to the input point pt.
-   void FindClosestPoint(Vector& pt, int &ind, double& dist);
-
-   /// Brute force search - please, use it only for debuging purposes.
-   void _FindClosestPoint(Vector& pt,int& ind, double& dist);
-
-private:
-   mfem::Vector* gf;
-   int ndim;
-   Vector tp;
-
-   /// The actual data in the KDTree.
-   std::vector<NodeND> data;
-
-   /// Structure utilized for nearest neighbor search (NNS)
-   struct PointS
-   {
-      double dist;
-      size_t pos;
-      size_t level;
-      NodeND sp; //index of the point
-   };
-
-   /// Functor utilized in the coordinate comparison
-   /// for building the KDTree
-   struct CompN
-   {
-      /// Current coordinate index
-      std::uint8_t dim;
-
-      /// Constructor for the comparison
-      CompN(std::uint8_t dd):dim(dd) {}
-
-      /// Compares two points p1 and p2
-      bool operator() (const NodeND& p1, const NodeND& p2)
-      {
-         return p1.xx[dim]<p2.xx[dim];
-      }
-   };
-
-   /// Computes the distance between two points
-   double Dist(const NodeND& p1, const NodeND& p2)
-   {
-      for (int i=0; i<ndim; i++)
-      {
-         tp(i)=p1.xx[i]-p2.xx[i];
-      }
-      return tp.Norml2();
-   }
-
-   /// Sorts the point cloud
-   void SortInPlace(typename std::vector<NodeND>::iterator itb,
-                    typename std::vector<NodeND>::iterator ite,
-                    size_t level)
-   {
-      std::uint8_t cdim=(std::uint8_t)(level%ndim);
-      size_t siz=ite-itb;
-      if (siz>2)
-      {
-         std::nth_element(itb, itb+siz/2, ite, CompN(cdim));
-         level=level+1;
-         SortInPlace(itb, itb+siz/2, level);
-         SortInPlace(itb+siz/2+1,ite, level);
-      }
-   }
-
-   /// Finds the closest point to bc.sp in the point cloud
-   /// bounded between [itb,ite).
-   void PSearch(typename std::vector<NodeND>::iterator itb,
-                typename std::vector<NodeND>::iterator ite,
-                size_t level, PointS& bc);
-
-};
 
 }
 #endif

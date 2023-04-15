@@ -31,7 +31,6 @@ list(APPEND SRCS
   tinyxml2.cpp
   version.cpp
   hip.cpp
-  kdtree.cpp
   )
 
 list(APPEND HDRS

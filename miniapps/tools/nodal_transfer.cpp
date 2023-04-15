@@ -1,42 +1,23 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
-//
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
-//
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
-//
-// This miniapp projects a set of functions, defined by a set of points and
-// values evaluated at these points, onto a grid function. The main assumption
-// is that the nodes of the target grid function coincide with some of the
-// evaluation points. The miniapp has two modes. The first mode generates the
-// data and writes it to a set of data files. The data can be generated on any
-// number of processes. The second mode reads the saved data and projects it
-// on the newly defined grid function. The number of processes in the second
-// mode can differ from the number of processes used for the set generation.
-//
-// Sample runs:
-// Generate second order mesh on 4 processes
-// mpirun -np 4 ./nodal_transfer -rs 2 -rp 1 -gd 1 -o 2
-// Read the generated data and map it to a grid function
-// defined on two processes
-// mpirun -np 2 ./nodal_transfer -rs 2 -rp 0 -gd 0 -snp 4 -o 2
-//
-// Generate first order grid function on 8 processes
-// mpirun -np 8 ./nodal_transfer -rs 2 -rp 2 -gd 1 -o 1 -m ../../data/star.mesh
-// Read the generated data on 4 processes and coarser mesh
-// mpirun -np 4 ./nodal_transfer -rs 2 -rp 0 -gd 0
-//                            -snp 8 -o 1 -m ../../data/star.mesh
-//
-
 #include <mfem.hpp>
 #include <fstream>
 #include <iostream>
 #include "../common/mfem-common.hpp"
 #include <cmath>
+
+
+/// Generate second order mesh on 4 processes
+/// mpirun -np 4 ./nodal_transfer -rs 2 -rp 1 -gd 1 -o 2
+/// Read the generated data and map it to a grid function
+/// defined on two processes
+/// mpirun -np 2 ./nodal_transfer -rs 2 -rp 0 -gd 0 -snp 4 -o 2
+///
+/// Generate first order grid function on 8 processes
+/// mpirun -np 8 ./nodal_transfer -rs 2 -rp 2 -gd 1 -o 1 -m ../../data/star.mesh
+/// Read the generated data on 4 processes and coarser mesh
+/// mpirun -np 4 ./nodal_transfer -rs 2 -rp 0 -gd 0 -snp 8 -o 1 -m ../../data/star.mesh
+///
+
+
 
 using namespace mfem;
 
@@ -61,13 +42,20 @@ public:
                 std::sin(x[1])*std::cos(x[2]) +
                 std::sin(x[2])*std::cos(x[0]);
       }
-      else
+      else if(T.GetSpaceDim()==2)
       {
          double x[2];
          Vector transip(x, 2);
          T.Transform(ip, transip);
          return std::sin(x[0])*std::cos(x[1]) +
                 std::sin(x[1])*std::cos(x[0]);
+      }
+      else
+      {
+         double x;
+         Vector transip(&x,1);
+         T.Transform(ip, transip);
+         return std::sin(x)+std::cos(x);
       }
    }
 };
@@ -86,7 +74,6 @@ int main(int argc, char* argv[])
    int order = 1;
    int gen_data = 1;
    int src_num_procs = 4;
-   bool vis = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -110,9 +97,6 @@ int main(int argc, char* argv[])
                   "-snp",
                   "--src_num_procs",
                   "Number of processes for the src grid function.");
-   args.AddOption(&vis, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -128,35 +112,32 @@ int main(int argc, char* argv[])
       args.PrintOptions(std::cout);
    }
 
-   // Read the (serial) mesh from the given mesh file on all processors. We
-   // can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
-   // with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->SpaceDimension();
+   //    Read the (serial) mesh from the given mesh file on all processors. We
+   //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
+   //    with the same code.
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.SpaceDimension();
 
-   // Refine the mesh in serial to increase the resolution. In this example
-   // we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
-   // a command-line parameter.
+   //    Refine the mesh in serial to increase the resolution. In this example
+   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   //    a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   // Define a parallel mesh by a partitioning of the serial mesh. Refine
-   // this mesh further in parallel to increase the resolution. Once the
-   // parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   //    Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
 
-   // Define the finite element spaces for the solution
+   //   Define the finite element spaces for the solution
    H1_FECollection fec(order, dim);
-   // L2_FECollection fec(order,dim);
-   ParFiniteElementSpace fespace(pmesh, &fec, 2, Ordering::byVDIM);
-   // ParFiniteElementSpace fespace(pmesh, &fec, 2, Ordering::byNODES);
+   ParFiniteElementSpace fespace(&pmesh, &fec, 1, Ordering::byVDIM);
    HYPRE_Int glob_size = fespace.GlobalTrueVSize();
    if (myrank == 0)
    {
@@ -164,64 +145,32 @@ int main(int argc, char* argv[])
                 << std::endl;
    }
 
+   ParGridFunction x(&fespace); x=0.0;
+   TestCoeff prco;
    if (gen_data)
    {
-      Vector coo; // coordinates associated with fespace nodes
-      coo.SetSize(fespace.GetVSize()*dim/(fespace.GetVDim()));
-      {
-         ElementTransformation *trans;
-         const IntegrationRule* ir=nullptr;
-         Array<int> vdofs;
-         DenseMatrix elco;
-         int isca=1;
-         if (fespace.GetOrdering()==Ordering::byVDIM) {isca=fespace.GetVDim();}
-
-         for (int i=0; i<fespace.GetNE(); i++)
-         {
-            const FiniteElement* el=fespace.GetFE(i);
-            // get the element transformation
-            trans = fespace.GetElementTransformation(i);
-            ir=&(el->GetNodes());
-            fespace.GetElementVDofs(i,vdofs);
-            elco.SetSize(dim,ir->GetNPoints());
-            trans->Transform(*ir,elco);
-            for (int p=0; p<ir->GetNPoints(); p++)
-            {
-               for (int d=0; d<dim; d++)
-               {
-                  coo[vdofs[p]*dim/isca+d]=elco(d,p);
-               }
-            }
-         }
-      }
-
-      ParGridFunction x(&fespace);
-      TestCoeff prco;
       Coefficient* coef[2]; coef[0]=&prco; coef[1]=&prco;
       x.ProjectCoefficient(coef);
 
-      // Save the grid function
+      //  Save the grid function
       {
-         // save the mesh and the data
+         //save the mesh and the data
          std::ostringstream oss;
          oss << std::setw(10) << std::setfill('0') << myrank;
-         std::string mname="coords_"+oss.str()+".msh";
+         std::string mname="mesh_"+oss.str()+".msh";
          std::string gname="grid_func_"+oss.str()+".gf";
          std::ofstream out;
 
-         // save the points
+         // save the mesh
          out.open(mname.c_str(),std::ios::out);
          out.precision(20);
-         out<<coo.Size()<<std::endl;
-         coo.Print(out,dim);
+         pmesh.ParPrint(out);
          out.close();
 
-
-         // save the grid function data
+         //save the grid function data
          out.open(gname.c_str(),std::ios::out);
          out.precision(20);
-         out<<x.Size()<<std::endl;
-         x.Print(out);
+         x.Save(out);
          out.close();
       }
 
@@ -229,49 +178,47 @@ int main(int argc, char* argv[])
    else
    {
       // read the grid function written to files
-      // and map it to the current partition scheme
-
+      //  and map it to the current partition scheme
       // x-grid function will be the target of the transfer
-      ParGridFunction x(&fespace); x=0.0;
       // y will be utilized later for comparison
       ParGridFunction y(&fespace);
 
-      TestCoeff prco;
       Coefficient* coef[2]; coef[0]=&prco; coef[1]=&prco;
       y.ProjectCoefficient(coef);
 
       // Map the src grid function
       {
          std::ifstream in;
-
          KDTreeNodalProjection map(x);
 
-         Vector sgf;
-         Vector coords;
 
          for (int p=0; p<src_num_procs; p++)
          {
             std::ostringstream oss;
             oss << std::setw(10) << std::setfill('0') << p;
-            std::string mname="coords_"+oss.str()+".msh";
+            std::string mname="mesh_"+oss.str()+".msh";
             std::string gname="grid_func_"+oss.str()+".gf";
 
+
+            // read the mesh
+            Mesh lmesh;
             in.open(mname.c_str(),std::ios::in);
-            coords.Load(in);
+            lmesh.Load(in);
             in.close();
 
             in.open(gname.c_str(),std::ios::in);
-            sgf.Load(in);
+            GridFunction gf(&lmesh,in);
             in.close();
 
-            map.Project(coords,sgf,Ordering::byVDIM);
+            // project the grid function
+            map.Project(gf,1e-8);
          }
 
       }
 
-      // write the result into a ParaView file
+      //write the result into a ParaView file
       {
-         ParaViewDataCollection paraview_dc("GridFunc", pmesh);
+         ParaViewDataCollection paraview_dc("GridFunc", &pmesh);
          paraview_dc.SetPrefixPath("ParaView");
          paraview_dc.SetLevelsOfDetail(order);
          paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
@@ -282,7 +229,7 @@ int main(int argc, char* argv[])
          paraview_dc.Save();
       }
 
-      // compare the results
+      //compare the results
       Vector tmpv=x;
       tmpv-=y;
       double l2err=mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
@@ -293,6 +240,5 @@ int main(int argc, char* argv[])
 
    }
 
-   delete pmesh;
    return 0;
 }
