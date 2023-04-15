@@ -286,6 +286,8 @@ miniapps/tools/lor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
 miniapps/tools/tmop-metric-magnitude
+miniapps/tools/coeff_shift_test
+miniapps/tools/nodal_transfer
 
 miniapps/toys/automata
 miniapps/toys/life
