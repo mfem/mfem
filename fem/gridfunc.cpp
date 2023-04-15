@@ -4555,12 +4555,11 @@ KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
    dest=&dest_;
    FiniteElementSpace* space=dest->FESpace();
    Mesh* mesh=space->GetMesh();
-   int dim=mesh->SpaceDimension();
+   const int dim=mesh->SpaceDimension();
 
    if (dim==2) { kdt2D=new KDTree2D(); kdt3D=nullptr;}
    if (dim==3) { kdt3D=new KDTree3D(); kdt2D=nullptr;}
-   std::vector<bool> indt; indt.resize(space->GetVSize()/space->GetVDim());
-   for (size_t i=0; i<indt.size(); i++) {indt[i]=true;}
+   std::vector<bool> indt; indt.resize(space->GetVSize()/space->GetVDim(), true);
 
    minbb.SetSize(dim);
    maxbb.SetSize(dim);
@@ -4641,21 +4640,18 @@ KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
    // build the KDTree
    if (dim==2) { kdt2D->Sort();}
    else {kdt3D->Sort();}
-
-   minbb-=1e-8;
-   maxbb+=1e-8;
-
 }
 
-void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
+void KDTreeNodalProjection::Project(const Vector& coords,
+                                    const Vector& src,
                                     int ordering,double lerr)
 {
-   int dim=dest->FESpace()->GetMesh()->SpaceDimension();
-   int vd=dest->VectorDim();
-   int np=src.Size()/vd;
+   const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
+   const int vd=dest->VectorDim(); //dimension of the vector field
+   const int np=src.Size()/vd; // number of points
    int ind;
    double dist;
-   bool flag;
+   bool pt_inside_bbox;
 
    if (dim==2)
    {
@@ -4665,16 +4661,15 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
          pnd.xx[0]=coords(i*dim+0);
          pnd.xx[1]=coords(i*dim+1);
 
-         flag=true;
+         pt_inside_bbox=true;
          for (int j=0; j<dim; j++)
          {
-            if (pnd.xx[j]>(maxbb[j]+lerr)) {flag=false; break;}
-            if (pnd.xx[j]<(minbb[j]-lerr)) {flag=false; break;}
+            if (pnd.xx[j]>(maxbb[j]+lerr)){pt_inside_bbox=false; break;}
+            if (pnd.xx[j]<(minbb[j]-lerr)){pt_inside_bbox=false; break;}
          }
 
-         if (flag)
+         if (pt_inside_bbox)
          {
-            //kdtree->FindClosestPoint(pt,ind,dist);
             kdt2D->FindClosestPoint(pnd,ind,dist);
             if (dist<lerr)
             {
@@ -4725,14 +4720,14 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
          pnd.xx[1]=coords(i*dim+1);
          pnd.xx[2]=coords(i*dim+2);
 
-         flag=true;
+         pt_inside_bbox=true;
          for (int j=0; j<dim; j++)
          {
-            if (pnd.xx[j]>maxbb[j]) {flag=false; break;}
-            if (pnd.xx[j]<minbb[j]) {flag=false; break;}
+            if (pnd.xx[j]>(maxbb[j]+lerr)){pt_inside_bbox=false;break;}
+            if (pnd.xx[j]<(minbb[j]-lerr)){pt_inside_bbox=false;break;}
          }
 
-         if (flag)
+         if (pt_inside_bbox)
          {
             kdt3D->FindClosestPoint(pnd,ind,dist);
             if (dist<lerr)
@@ -4777,7 +4772,7 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
    }
 }
 
-void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
+void KDTreeNodalProjection::Project(const GridFunction& gf, double lerr)
 {
    int ordering = gf.FESpace()->GetOrdering();
    int dim=dest->FESpace()->GetMesh()->SpaceDimension();
@@ -4789,8 +4784,8 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
    double dist;
 
 
-   Vector bbmax(dim);
-   Vector bbmin(dim);
+   Vector maxbb_src(dim);
+   Vector minbb_src(dim);
 
    // extract the nodal coordinates from gf
    {
@@ -4813,8 +4808,8 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
       trans->Transform(*ir,elco);
       for (int d=0; d<dim; d++)
       {
-         bbmax(d)=elco(d,0);
-         bbmin(d)=elco(d,0);
+         maxbb_src(d)=elco(d,0);
+         minbb_src(d)=elco(d,0);
       }
 
       for (int i=0; i<gf.FESpace()->GetNE(); i++)
@@ -4832,15 +4827,15 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
             {
                coo[vdofs[p]*dim/isca+d]=elco(d,p);
 
-               if (bbmax(d)<elco(d,p)) {bbmax(d)=elco(d,p);}
-               if (bbmin(d)>elco(d,p)) {bbmin(d)=elco(d,p);}
+               if (maxbb_src(d)<elco(d,p)) {maxbb_src(d)=elco(d,p);}
+               if (minbb_src(d)>elco(d,p)) {minbb_src(d)=elco(d,p);}
             }
          }
       }
    }
 
-   bbmax+=lerr;
-   bbmin-=lerr;
+   maxbb_src+=lerr;
+   minbb_src-=lerr;
 
    //check for intersection
    bool flag;
@@ -4848,12 +4843,11 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
       flag=true;
       for (int i=0; i<dim; i++)
       {
-         if (bbmin(i)>maxbb(i)) {flag=false;}
-         if (bbmax(i)<minbb(i)) {flag=false;}
+         if (minbb_src(i)>maxbb(i)) {flag=false;}
+         if (maxbb_src(i)<minbb(i)) {flag=false;}
       }
       if (flag==false) {return;}
    }
-
 
    if (dim==2)
    {

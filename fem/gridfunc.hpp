@@ -858,7 +858,11 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
 /// The class provides methods for projecting function values evaluated on a
 /// set of points to a grid function. The values are directly copied to the
 /// nodal values of the target grid function if any of the points is matching
-/// a node of the grid function.
+/// a node of the grid function. For example, if a parallel grid function is
+/// saved in parallel, every saved chunk can be read on every other process
+/// and mapped to a local grid function that does not have the same structure
+/// as the original one. The functionality is based on a kd-tree search in a
+/// cloud of points.
 class KDTreeNodalProjection
 {
 private:
@@ -880,7 +884,7 @@ private:
 
 public:
    /// The constructor takes as input an L2 or H1 grid function (it can be
-   /// a vector grid function). The Transfer method coppies a set of values
+   /// a vector grid function). The Project method coppies a set of values
    /// to the grid function.
    KDTreeNodalProjection(GridFunction& dest_);
 
@@ -895,17 +899,17 @@ public:
    /// different sets of coordinates and corresponding values. For vector
    /// grid function, users have to specify the data ordering and for all
    /// cases the user can modify the error tolerance err to smaller or
-   /// bigger value. A node in the target grid function is mathcning
-   /// a point with coordinates psecified in the vector coords if the
-   /// distance between them is smaller than err.
-   void Project(Vector& coords, Vector& src,
+   /// bigger value. A node in the target grid function is matching
+   /// a point with coordinates specified in the vector coords if the
+   /// distance between them is smaller than lerr.
+   void Project(const Vector& coords,const Vector& src,
                 int ordering=Ordering::byNODES,double lerr=1e-8);
 
    /// The project method can be called as many times as necessary with
    /// different grid functions gf. A node in the target grid function is
-   /// mathcning a node from the source grid function if the distance
-   /// between them is smaller than err.
-   void Project(GridFunction& gf, double lerr=1e-8);
+   /// matching a node from the source grid function if the distance
+   /// between them is smaller than lerr.
+   void Project(const GridFunction& gf, double lerr=1e-8);
 
 };
 
