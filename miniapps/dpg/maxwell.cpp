@@ -386,23 +386,18 @@ int main(int argc, char *argv[])
 
       Vector x(2*offsets.Last());
       x = 0.;
-      double * xdata = x.GetData();
 
-      ComplexGridFunction hatE_gf(hatE_fes);
-      hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
-      hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
-
-      ComplexGridFunction hatH_gf(hatH_fes);
-      hatH_gf.real().MakeRef(hatH_fes,&xdata[offsets[3]]);
-      hatH_gf.imag().MakeRef(hatH_fes,&xdata[offsets.Last()+ offsets[3]]);
-
+      GridFunction hatE_gf_r(hatE_fes, x, offsets[2]);
+      GridFunction hatE_gf_i(hatE_fes, x, offsets.Last() + offsets[2]);
       if (dim == 3)
       {
-         hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
+         hatE_gf_r.ProjectBdrCoefficientTangent(hatEex_r, ess_bdr);
+         hatE_gf_i.ProjectBdrCoefficientTangent(hatEex_i, ess_bdr);
       }
       else
       {
-         hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         hatE_gf_r.ProjectBdrCoefficientNormal(hatEex_r, ess_bdr);
+         hatE_gf_i.ProjectBdrCoefficientNormal(hatEex_i, ess_bdr);
       }
       OperatorPtr Ah;
       Vector X,B;
@@ -455,16 +450,14 @@ int main(int argc, char *argv[])
 
       a->RecoverFEMSolution(X,x);
 
-      ComplexGridFunction E(E_fes);
-      E.real().MakeRef(E_fes,x.GetData());
-      E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
+      GridFunction E_r(E_fes, x, 0);
+      GridFunction E_i(E_fes, x, offsets.Last());
 
       VectorFunctionCoefficient E_ex_r(dim,E_exact_r);
       VectorFunctionCoefficient E_ex_i(dim,E_exact_i);
 
-      ComplexGridFunction H(H_fes);
-      H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
-      H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
+      GridFunction H_r(H_fes, x, offsets[1]);
+      GridFunction H_i(H_fes, x, offsets.Last() + offsets[1]);
 
       VectorFunctionCoefficient H_ex_r(dimc,H_exact_r);
       VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
@@ -475,10 +468,10 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GetTrueVSize();
       }
 
-      double E_err_r = E.real().ComputeL2Error(E_ex_r);
-      double E_err_i = E.imag().ComputeL2Error(E_ex_i);
-      double H_err_r = H.real().ComputeL2Error(H_ex_r);
-      double H_err_i = H.imag().ComputeL2Error(H_ex_i);
+      double E_err_r = E_r.ComputeL2Error(E_ex_r);
+      double E_err_i = E_i.ComputeL2Error(E_ex_i);
+      double H_err_r = H_r.ComputeL2Error(H_ex_r);
+      double H_err_i = H_i.ComputeL2Error(H_ex_i);
 
       double L2Error = sqrt(E_err_r*E_err_r + E_err_i*E_err_i
                             + H_err_r*H_err_r + H_err_i*H_err_i);
@@ -507,9 +500,9 @@ int main(int argc, char *argv[])
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
-         VisualizeField(E_out_r,vishost, visport, E.real(),
+         VisualizeField(E_out_r,vishost, visport, E_r,
                         "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-         VisualizeField(E_out_i,vishost, visport, E.imag(),
+         VisualizeField(E_out_i,vishost, visport, E_i,
                         "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);
       }
 

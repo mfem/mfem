@@ -312,12 +312,11 @@ int main(int argc, char *argv[])
 
       Vector x(2*offsets.Last());
       x = 0.;
-      double * xdata = x.GetData();
 
-      ComplexGridFunction hatp_gf(hatp_fes);
-      hatp_gf.real().MakeRef(hatp_fes,&xdata[offsets[2]]);
-      hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
-      hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
+      GridFunction hatp_gf_r(hatp_fes, x, offsets[2]);
+      GridFunction hatp_gf_i(hatp_fes, x, offsets.Last()+ offsets[2]);
+      hatp_gf_r.ProjectBdrCoefficient(hatpex_r, ess_bdr);
+      hatp_gf_i.ProjectBdrCoefficient(hatpex_i, ess_bdr);
 
       OperatorPtr Ah;
       Vector X,B;
@@ -371,13 +370,11 @@ int main(int argc, char *argv[])
 
       a->RecoverFEMSolution(X,x);
 
-      ComplexGridFunction p(p_fes);
-      p.real().MakeRef(p_fes,x.GetData());
-      p.imag().MakeRef(p_fes,&x.GetData()[offsets.Last()]);
+      GridFunction p_r(p_fes, x, 0);
+      GridFunction p_i(p_fes, x, offsets.Last());
 
-      ComplexGridFunction u(u_fes);
-      u.real().MakeRef(u_fes,x.GetData()+offsets[1]);
-      u.imag().MakeRef(u_fes,&x.GetData()[offsets.Last()+offsets[1]]);
+      GridFunction u_r(u_fes, x, offsets[1]);
+      GridFunction u_i(u_fes, x, offsets.Last() + offsets[1]);
 
       FunctionCoefficient p_ex_r(p_exact_r);
       FunctionCoefficient p_ex_i(p_exact_i);
@@ -391,10 +388,10 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GetTrueVSize();
       }
 
-      double p_err_r = p.real().ComputeL2Error(p_ex_r);
-      double p_err_i = p.imag().ComputeL2Error(p_ex_i);
-      double u_err_r = u.real().ComputeL2Error(u_ex_r);
-      double u_err_i = u.imag().ComputeL2Error(u_ex_i);
+      double p_err_r = p_r.ComputeL2Error(p_ex_r);
+      double p_err_i = p_i.ComputeL2Error(p_ex_i);
+      double u_err_r = u_r.ComputeL2Error(u_ex_r);
+      double u_err_i = u_i.ComputeL2Error(u_ex_i);
 
       double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
                             +u_err_r*u_err_r + u_err_i*u_err_i);
@@ -423,9 +420,9 @@ int main(int argc, char *argv[])
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
-         VisualizeField(p_out_r,vishost, visport, p.real(),
+         VisualizeField(p_out_r,vishost, visport, p_r,
                         "Numerical presure (real part)", 0, 0, 500, 500, keys);
-         VisualizeField(p_out_i,vishost, visport, p.imag(),
+         VisualizeField(p_out_i,vishost, visport, p_i,
                         "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);
       }
 

@@ -46,7 +46,6 @@ void ComplexDPGWeakForm::Init()
       lfis_i[j] = new Array<LinearFormIntegrator * >();
    }
 
-
    ComputeOffsets();
 
    mat_r = mat_e_r = NULL;
@@ -90,10 +89,10 @@ void ComplexDPGWeakForm::AllocMat()
    mat_i = new BlockMatrix(dof_offsets);
    mat_i->owns_blocks = 1;
 
-   for (int i = 0; i<mat_r->NumRowBlocks(); i++)
+   for (int i = 0; i < mat_r->NumRowBlocks(); i++)
    {
       int h = dof_offsets[i+1] - dof_offsets[i];
-      for (int j = 0; j<mat_r->NumColBlocks(); j++)
+      for (int j = 0; j < mat_r->NumColBlocks(); j++)
       {
          int w = dof_offsets[j+1] - dof_offsets[j];
          mat_r->SetBlock(i,j,new SparseMatrix(h, w));
@@ -101,10 +100,9 @@ void ComplexDPGWeakForm::AllocMat()
       }
    }
    y = new Vector(2*dof_offsets.Last());
-   double * ydata = y->GetData();
    *y=0.;
-   y_r = new BlockVector(ydata, dof_offsets);
-   y_i = new BlockVector(&ydata[dof_offsets.Last()], dof_offsets);
+   y_r = new BlockVector(*y, dof_offsets);
+   y_i = new BlockVector(*y, dof_offsets.Last(), dof_offsets);
 }
 
 void ComplexDPGWeakForm::Finalize(int skip_zeros)
@@ -128,9 +126,9 @@ void ComplexDPGWeakForm::AddTrialIntegrator(
    BilinearFormIntegrator *bfi_i,
    int n, int m)
 {
-   MFEM_VERIFY(n<trial_fes.Size(),
+   MFEM_VERIFY(n < trial_fes.Size(),
                "ComplexDPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
-   MFEM_VERIFY(m<test_fecols.Size(),
+   MFEM_VERIFY(m < test_fecols.Size(),
                "ComplexDPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
    if (bfi_r)
    {
@@ -148,7 +146,7 @@ void ComplexDPGWeakForm::AddTestIntegrator(
    BilinearFormIntegrator *bfi_i,
    int n, int m)
 {
-   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(),
+   MFEM_VERIFY(n < test_fecols.Size() && m < test_fecols.Size(),
                "ComplexDPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
    if (bfi_r)
    {
@@ -165,7 +163,7 @@ void ComplexDPGWeakForm::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi_r,
    LinearFormIntegrator *lfi_i, int n)
 {
-   MFEM_VERIFY(n<test_fecols.Size(),
+   MFEM_VERIFY(n < test_fecols.Size(),
                "ComplexDPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");
    if (lfi_r)
    {
@@ -189,8 +187,8 @@ void ComplexDPGWeakForm::BuildProlongation()
       if (P_)
       {
          const SparseMatrix *R_ = trial_fes[i]->GetRestrictionMatrix();
-         P->SetBlock(i,i,const_cast<SparseMatrix*>(P_));
-         R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
+         P->SetBlock(i, i, const_cast<SparseMatrix*>(P_));
+         R->SetBlock(i, i, const_cast<SparseMatrix*>(R_));
       }
    }
 }
@@ -205,16 +203,16 @@ void ComplexDPGWeakForm::ConformingAssemble()
    BlockMatrix * PtA_i = mfem::Mult(*Pt, *mat_i);
    mat_r->owns_blocks = 0;
    mat_i->owns_blocks = 0;
-   for (int i = 0; i<nblocks; i++)
+   for (int i = 0; i < nblocks; i++)
    {
-      for (int j = 0; j<nblocks; j++)
+      for (int j = 0; j < nblocks; j++)
       {
          SparseMatrix * tmp_r = &mat_r->GetBlock(i,j);
          SparseMatrix * tmp_i = &mat_i->GetBlock(i,j);
-         if (Pt->IsZeroBlock(i,i))
+         if (Pt->IsZeroBlock(i, i))
          {
-            PtA_r->SetBlock(i,j,tmp_r);
-            PtA_i->SetBlock(i,j,tmp_i);
+            PtA_r->SetBlock(i, j, tmp_r);
+            PtA_i->SetBlock(i, j, tmp_i);
          }
          else
          {
@@ -235,12 +233,12 @@ void ComplexDPGWeakForm::ConformingAssemble()
       {
          for (int j = 0; j<nblocks; j++)
          {
-            SparseMatrix * tmp_r = &mat_e_r->GetBlock(i,j);
-            SparseMatrix * tmp_i = &mat_e_i->GetBlock(i,j);
-            if (Pt->IsZeroBlock(i,i))
+            SparseMatrix * tmp_r = &mat_e_r->GetBlock(i, j);
+            SparseMatrix * tmp_i = &mat_e_i->GetBlock(i, j);
+            if (Pt->IsZeroBlock(i, i))
             {
-               PtAe_r->SetBlock(i,j,tmp_r);
-               PtAe_i->SetBlock(i,j,tmp_i);
+               PtAe_r->SetBlock(i, j, tmp_r);
+               PtAe_i->SetBlock(i, j, tmp_i);
             }
             else
             {
@@ -261,16 +259,16 @@ void ComplexDPGWeakForm::ConformingAssemble()
 
    PtA_r->owns_blocks = 0;
    PtA_i->owns_blocks = 0;
-   for (int i = 0; i<nblocks; i++)
+   for (int i = 0; i < nblocks; i++)
    {
-      for (int j = 0; j<nblocks; j++)
+      for (int j = 0; j < nblocks; j++)
       {
-         SparseMatrix * tmp_r = &PtA_r->GetBlock(j,i);
-         SparseMatrix * tmp_i = &PtA_i->GetBlock(j,i);
-         if (P->IsZeroBlock(i,i))
+         SparseMatrix * tmp_r = &PtA_r->GetBlock(j, i);
+         SparseMatrix * tmp_i = &PtA_i->GetBlock(j, i);
+         if (P->IsZeroBlock(i, i))
          {
-            mat_r->SetBlock(j,i,tmp_r);
-            mat_i->SetBlock(j,i,tmp_i);
+            mat_r->SetBlock(j, i, tmp_r);
+            mat_i->SetBlock(j, i, tmp_i);
          }
          else
          {
@@ -288,16 +286,16 @@ void ComplexDPGWeakForm::ConformingAssemble()
       BlockMatrix *PtAeP_i = mfem::Mult(*mat_e_i, *P);
       mat_e_r->owns_blocks = 0;
       mat_e_i->owns_blocks = 0;
-      for (int i = 0; i<nblocks; i++)
+      for (int i = 0; i < nblocks; i++)
       {
-         for (int j = 0; j<nblocks; j++)
+         for (int j = 0; j < nblocks; j++)
          {
-            SparseMatrix * tmp_r = &mat_e_r->GetBlock(j,i);
-            SparseMatrix * tmp_i = &mat_e_i->GetBlock(j,i);
-            if (P->IsZeroBlock(i,i))
+            SparseMatrix * tmp_r = &mat_e_r->GetBlock(j, i);
+            SparseMatrix * tmp_i = &mat_e_i->GetBlock(j, i);
+            if (P->IsZeroBlock(i, i))
             {
-               PtAeP_r->SetBlock(j,i,tmp_r);
-               PtAeP_i->SetBlock(j,i,tmp_i);
+               PtAeP_r->SetBlock(j, i, tmp_r);
+               PtAeP_i->SetBlock(j, i, tmp_i);
             }
             else
             {
@@ -365,14 +363,13 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
       {
          int order = test_fecols[j]->GetOrder(); // assuming uniform order
          test_offs[j+1] = test_fecols_vdims[j]*test_fecols[j]->GetFE(
-                             eltrans->GetGeometryType(),
-                             order)->GetDof();
+                             eltrans->GetGeometryType(), order)->GetDof();
       }
       for (int j = 0; j < trial_fes.Size(); j++)
       {
          if (IsTraceFes[j])
          {
-            for (int ie = 0; ie<faces.Size(); ie++)
+            for (int ie = 0; ie < faces.Size(); ie++)
             {
                trial_offs[j+1] += trial_fes[j]->GetVDim()*trial_fes[j]->GetFaceElement(
                                      faces[ie])->GetDof();
@@ -405,14 +402,14 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
          // real integrators
          for (int k = 0; k < lfis_r[j]->Size(); k++)
          {
-            (*lfis_r[j])[k]->AssembleRHSElementVect(test_fe,*eltrans,vec_e_r);
-            vec_r.AddSubVector(vec_e_r,test_offs[j]);
+            (*lfis_r[j])[k]->AssembleRHSElementVect(test_fe, *eltrans, vec_e_r);
+            vec_r.AddSubVector(vec_e_r, test_offs[j]);
          }
          // imag integrators
          for (int k = 0; k < lfis_i[j]->Size(); k++)
          {
             (*lfis_i[j])[k]->AssembleRHSElementVect(test_fe,*eltrans,vec_e_i);
-            vec_i.AddSubVector(vec_e_i,test_offs[j]);
+            vec_i.AddSubVector(vec_e_i, test_offs[j]);
          }
 
          for (int i = 0; i < test_fecols.Size(); i++)
@@ -427,11 +424,11 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
             {
                if (i==j)
                {
-                  (*test_integs_r(i,j))[k]->AssembleElementMatrix(test_fe,*eltrans,Ge_r);
+                  (*test_integs_r(i,j))[k]->AssembleElementMatrix(test_fe, *eltrans, Ge_r);
                }
                else
                {
-                  (*test_integs_r(i,j))[k]->AssembleElementMatrix2(test_fe_i,test_fe,*eltrans,
+                  (*test_integs_r(i,j))[k]->AssembleElementMatrix2(test_fe_i, test_fe, *eltrans,
                                                                    Ge_r);
                }
                G_r.AddSubMatrix(test_offs[j], test_offs[i], Ge_r);
@@ -466,9 +463,10 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
                      int iface = faces[ie];
                      FaceElementTransformations * ftr = mesh->GetFaceElementTransformations(iface);
                      const FiniteElement & tfe = *trial_fes[i]->GetFaceElement(iface);
-                     (*trial_integs_r(i,j))[k]->AssembleTraceFaceMatrix(iel,tfe,test_fe,*ftr,Be_r);
+                     (*trial_integs_r(i,j))[k]->AssembleTraceFaceMatrix(iel, tfe, test_fe, *ftr,
+                                                                        Be_r);
                      B_r.AddSubMatrix(test_offs[j], trial_offs[i]+face_dof_offs, Be_r);
-                     face_dof_offs+=Be_r.Width();
+                     face_dof_offs += Be_r.Width();
                   }
                }
                // imag integrators
@@ -482,7 +480,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
                      const FiniteElement & tfe = *trial_fes[i]->GetFaceElement(iface);
                      (*trial_integs_i(i,j))[k]->AssembleTraceFaceMatrix(iel,tfe,test_fe,*ftr,Be_i);
                      B_i.AddSubMatrix(test_offs[j], trial_offs[i]+face_dof_offs, Be_i);
-                     face_dof_offs+=Be_i.Width();
+                     face_dof_offs += Be_i.Width();
                   }
                }
             }
@@ -499,7 +497,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
                // imag integrators
                for (int k = 0; k < trial_integs_i(i,j)->Size(); k++)
                {
-                  (*trial_integs_i(i,j))[k]->AssembleElementMatrix2(fe,test_fe,*eltrans,Be_i);
+                  (*trial_integs_i(i,j))[k]->AssembleElementMatrix2(fe, test_fe, *eltrans, Be_i);
                   B_i.AddSubMatrix(test_offs[j], trial_offs[i], Be_i);
                }
             }
@@ -515,8 +513,8 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
       chol.LSolve(h,1,vec_r.GetData(), vec_i.GetData());
 
       Vector vec(vec_i.Size()+vec_r.Size());
-      vec.SetVector(vec_r,0);
-      vec.SetVector(vec_i,vec_r.Size());
+      vec.SetVector(vec_r, 0);
+      vec.SetVector(vec_i, vec_r.Size());
 
       if (store_matrices)
       {
@@ -524,15 +522,13 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
                                             true,true);
          fvec[iel] = new Vector(vec);
       }
-      ComplexDenseMatrix B(&B_r,&B_i,false,false);
-      ComplexDenseMatrix * A = mfem::MultAtB(B,B);
+      ComplexDenseMatrix B(&B_r, &B_i, false, false);
+      ComplexDenseMatrix * A = mfem::MultAtB(B, B);
       Vector b(B.Width());
-      B.MultTranspose(vec,b);
+      B.MultTranspose(vec, b);
 
-
-      double * bdata = b.GetData();
-      b_r.SetDataAndSize(bdata, b.Size()/2);
-      b_i.SetDataAndSize(&bdata[b.Size()/2], b.Size()/2);
+      b_r.MakeRef(b, 0, b.Size()/2);
+      b_i.MakeRef(b, b.Size()/2,b.Size()/2);
 
       if (static_cond)
       {
@@ -559,7 +555,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
             {
                doftrans_i = trial_fes[i]->GetElementVDofs(iel, vdofs_i);
             }
-            for (int j = 0; j<trial_fes.Size(); j++)
+            for (int j = 0; j < trial_fes.Size(); j++)
             {
                Array<int> vdofs_j;
                doftrans_j = nullptr;
@@ -598,15 +594,9 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
             }
 
             // assemble rhs
-            double * data_r = b_r.GetData();
-            double * data_i = b_i.GetData();
-            Vector vec1_r;
-            Vector vec1_i;
-            // ref subvector
-            vec1_r.SetDataAndSize(&data_r[trial_offs[i]],
-                                  trial_offs[i+1]-trial_offs[i]);
-            vec1_i.SetDataAndSize(&data_i[trial_offs[i]],
-                                  trial_offs[i+1]-trial_offs[i]);
+            Vector vec1_r(b_r,trial_offs[i],trial_offs[i+1]-trial_offs[i]);
+            Vector vec1_i(b_i,trial_offs[i],trial_offs[i+1]-trial_offs[i]);
+
             if (doftrans_i)
             {
                doftrans_i->TransformDual(vec1_r);
@@ -635,9 +625,8 @@ void ComplexDPGWeakForm::FormLinearSystem(const Array<int>
    }
    else if (!P)
    {
-      Vector x_r(x.GetData(),x.Size()/2);
-      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
-
+      Vector x_r(x, 0, x.Size()/2);
+      Vector x_i(x, x.Size()/2, x.Size()/2);
       EliminateVDofsInRHS(ess_tdof_list, x_r,x_i, *y_r, *y_i);
       if (!copy_interior)
       {
@@ -650,50 +639,46 @@ void ComplexDPGWeakForm::FormLinearSystem(const Array<int>
    else // non conforming space
    {
       B.SetSize(2*P->Width());
-      double * bdata = B.GetData();
-      Vector B_r(bdata,P->Width());
-      Vector B_i(&bdata[P->Width()],P->Width());
+      Vector B_r(B, 0, P->Width());
+      Vector B_i(B, P->Width(),P->Width());
 
       P->MultTranspose(*y_r, B_r);
       P->MultTranspose(*y_i, B_i);
-      double *data_r = y_r->GetData();
-      double *data_i = y_i->GetData();
       Vector tmp_r,tmp_i;
       for (int i = 0; i<nblocks; i++)
       {
          if (P->IsZeroBlock(i,i))
          {
             int offset = tdof_offsets[i];
-            tmp_r.SetDataAndSize(&data_r[offset],tdof_offsets[i+1]-tdof_offsets[i]);
-            tmp_i.SetDataAndSize(&data_i[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_r.MakeRef(*y_r, offset,tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_i.MakeRef(*y_i, offset,tdof_offsets[i+1]-tdof_offsets[i]);
             B_r.SetVector(tmp_r,offset);
             B_i.SetVector(tmp_i,offset);
          }
       }
 
       X.SetSize(2*R->Height());
-      Vector X_r(X.GetData(),X.Size()/2);
-      Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
+      Vector X_r(X, 0, X.Size()/2);
+      Vector X_i(X, X.Size()/2, X.Size()/2);
 
-      Vector x_r(x.GetData(),x.Size()/2);
-      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
+      Vector x_r(x, 0,x.Size()/2);
+      Vector x_i(x, x.Size()/2, x.Size()/2);
+
       R->Mult(x_r, X_r);
       R->Mult(x_i, X_i);
-      data_r = x_r.GetData();
-      data_i = x_i.GetData();
       for (int i = 0; i<nblocks; i++)
       {
          if (R->IsZeroBlock(i,i))
          {
             int offset = tdof_offsets[i];
-            tmp_r.SetDataAndSize(&data_r[offset],tdof_offsets[i+1]-tdof_offsets[i]);
-            tmp_i.SetDataAndSize(&data_i[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_r.MakeRef(x_r, offset, tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_i.MakeRef(x_i, offset, tdof_offsets[i+1]-tdof_offsets[i]);
             X_r.SetVector(tmp_r,offset);
             X_i.SetVector(tmp_i,offset);
          }
       }
 
-      EliminateVDofsInRHS(ess_tdof_list, X_r,X_i, B_r,B_i);
+      EliminateVDofsInRHS(ess_tdof_list, X_r, X_i, B_r, B_i);
       if (!copy_interior)
       {
          X_r.SetSubVectorComplement(ess_tdof_list, 0.0);
@@ -765,25 +750,24 @@ void ComplexDPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
       mat_e_r->owns_blocks = 1;
       mat_e_i = new BlockMatrix(offsets);
       mat_e_i->owns_blocks = 1;
-      for (int i = 0; i<mat_e_r->NumRowBlocks(); i++)
+      for (int i = 0; i < mat_e_r->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];
-         for (int j = 0; j<mat_e_r->NumColBlocks(); j++)
+         for (int j = 0; j < mat_e_r->NumColBlocks(); j++)
          {
             int w = offsets[j+1] - offsets[j];
-            mat_e_r->SetBlock(i,j,new SparseMatrix(h, w));
-            mat_e_i->SetBlock(i,j,new SparseMatrix(h, w));
+            mat_e_r->SetBlock(i, j, new SparseMatrix(h, w));
+            mat_e_i->SetBlock(i, j, new SparseMatrix(h, w));
          }
       }
    }
-   mat_r->EliminateRowCols(vdofs,mat_e_r,diag_policy);
-   mat_i->EliminateRowCols(vdofs,mat_e_i,Operator::DiagonalPolicy::DIAG_ZERO);
+   mat_r->EliminateRowCols(vdofs, mat_e_r, diag_policy);
+   mat_i->EliminateRowCols(vdofs, mat_e_i, Operator::DiagonalPolicy::DIAG_ZERO);
 }
 
 void ComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
                                             Vector &x)
 {
-
    if (static_cond)
    {
       // Private dofs back solve
@@ -796,24 +780,23 @@ void ComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
    else
    {
       x.SetSize(2*P->Height());
-      Vector X_r(X.GetData(),X.Size()/2);
-      Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
+      Vector X_r(const_cast<Vector &>(X), 0, X.Size()/2);
+      Vector X_i(const_cast<Vector &>(X), X.Size()/2, X.Size()/2);
 
-      Vector x_r(x.GetData(),x.Size()/2);
-      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
+      Vector x_r(x, 0, x.Size()/2);
+      Vector x_i(x, x.Size()/2, x.Size()/2);
 
       P->Mult(X_r, x_r);
       P->Mult(X_i, x_i);
-      double *data_r = X_r.GetData();
-      double *data_i = X_i.GetData();
+
       Vector tmp_r, tmp_i;
       for (int i = 0; i<nblocks; i++)
       {
          if (P->IsZeroBlock(i,i))
          {
             int offset = tdof_offsets[i];
-            tmp_r.SetDataAndSize(&data_r[offset],tdof_offsets[i+1]-tdof_offsets[i]);
-            tmp_i.SetDataAndSize(&data_i[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_r.MakeRef(X_r, offset, tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_i.MakeRef(X_i, offset, tdof_offsets[i+1]-tdof_offsets[i]);
             x_r.SetVector(tmp_r,offset);
             x_i.SetVector(tmp_i,offset);
          }
@@ -821,21 +804,20 @@ void ComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
    }
 }
 
-
 void ComplexDPGWeakForm::ReleaseInitMemory()
 {
    if (initialized)
    {
-      for (int k = 0; k< trial_integs_r.NumRows(); k++)
+      for (int k = 0; k < trial_integs_r.NumRows(); k++)
       {
-         for (int l = 0; l<trial_integs_r.NumCols(); l++)
+         for (int l = 0; l < trial_integs_r.NumCols(); l++)
          {
-            for (int i = 0; i<trial_integs_r(k,l)->Size(); i++)
+            for (int i = 0; i < trial_integs_r(k,l)->Size(); i++)
             {
                delete (*trial_integs_r(k,l))[i];
             }
             delete trial_integs_r(k,l);
-            for (int i = 0; i<trial_integs_i(k,l)->Size(); i++)
+            for (int i = 0; i < trial_integs_i(k,l)->Size(); i++)
             {
                delete (*trial_integs_i(k,l))[i];
             }
@@ -882,8 +864,6 @@ void ComplexDPGWeakForm::ReleaseInitMemory()
    }
 }
 
-
-
 void ComplexDPGWeakForm::Update()
 {
    delete mat_e_r; mat_e_r = nullptr;
@@ -920,14 +900,14 @@ void ComplexDPGWeakForm::Update()
 
    if (store_matrices)
    {
-      for (int i = 0; i<Bmat.Size(); i++)
+      for (int i = 0; i < Bmat.Size(); i++)
       {
          delete Bmat[i]; Bmat[i] = nullptr;
          delete fvec[i]; fvec[i] = nullptr;
       }
       Bmat.SetSize(mesh->GetNE());
       fvec.SetSize(mesh->GetNE());
-      for (int i = 0; i<Bmat.Size(); i++)
+      for (int i = 0; i < Bmat.Size(); i++)
       {
          Bmat[i] = nullptr;
          fvec[i] = nullptr;
@@ -935,24 +915,21 @@ void ComplexDPGWeakForm::Update()
    }
 }
 
-
 void ComplexDPGWeakForm::EnableStaticCondensation()
 {
    delete static_cond;
    static_cond = new ComplexBlockStaticCondensation(trial_fes);
 }
 
-
-
 Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
 {
    MFEM_VERIFY(store_matrices,
                "Matrices needed for the residual are not store. Call ComplexDPGWeakForm::StoreMatrices()")
    // wrap vector in a blockvector
-   double * xdata = x.GetData();
    int n = x.Size()/2;
-   BlockVector x_r(xdata,dof_offsets);
-   BlockVector x_i(&xdata[n],dof_offsets);
+
+   BlockVector x_r(const_cast<Vector &>(x),0,dof_offsets);
+   BlockVector x_i(const_cast<Vector &>(x),n,dof_offsets);
 
    // Element vector of trial space size
    Vector u;
@@ -988,7 +965,7 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
       {
          if (IsTraceFes[j])
          {
-            for (int ie = 0; ie<faces.Size(); ie++)
+            for (int ie = 0; ie < faces.Size(); ie++)
             {
                trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
             }
@@ -1003,8 +980,6 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
 
       int nn = trial_offs.Last();
       u.SetSize(2*nn);
-      double * data_r = u.GetData();
-      double * data_i = &u.GetData()[nn];
       DofTransformation * doftrans = nullptr;
       for (int i = 0; i<trial_fes.Size(); i++)
       {
@@ -1026,10 +1001,8 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
          }
          Vector vec1_r;
          Vector vec1_i;
-         vec1_r.SetDataAndSize(&data_r[trial_offs[i]],
-                               trial_offs[i+1]-trial_offs[i]);
-         vec1_i.SetDataAndSize(&data_i[trial_offs[i]],
-                               trial_offs[i+1]-trial_offs[i]);
+         vec1_r.MakeRef(u, trial_offs[i], trial_offs[i+1]-trial_offs[i]);
+         vec1_i.MakeRef(u, trial_offs[i]+nn, trial_offs[i+1]-trial_offs[i]);
          x_r.GetBlock(i).GetSubVector(vdofs,vec1_r);
          x_i.GetBlock(i).GetSubVector(vdofs,vec1_i);
          if (doftrans)
@@ -1047,7 +1020,6 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
    } // end of loop through elements
    return residuals;
 }
-
 
 ComplexDPGWeakForm::~ComplexDPGWeakForm()
 {
