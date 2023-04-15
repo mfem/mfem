@@ -4661,8 +4661,8 @@ void KDTreeNodalProjection::Project(const Vector& coords,
          pt_inside_bbox=true;
          for (int j=0; j<dim; j++)
          {
-            if (pnd.xx[j]>(maxbb[j]+lerr)){pt_inside_bbox=false; break;}
-            if (pnd.xx[j]<(minbb[j]-lerr)){pt_inside_bbox=false; break;}
+            if (pnd.xx[j]>(maxbb[j]+lerr)) {pt_inside_bbox=false; break;}
+            if (pnd.xx[j]<(minbb[j]-lerr)) {pt_inside_bbox=false; break;}
          }
 
          if (pt_inside_bbox)
@@ -4720,8 +4720,8 @@ void KDTreeNodalProjection::Project(const Vector& coords,
          pt_inside_bbox=true;
          for (int j=0; j<dim; j++)
          {
-            if (pnd.xx[j]>(maxbb[j]+lerr)){pt_inside_bbox=false;break;}
-            if (pnd.xx[j]<(minbb[j]-lerr)){pt_inside_bbox=false;break;}
+            if (pnd.xx[j]>(maxbb[j]+lerr)) {pt_inside_bbox=false; break;}
+            if (pnd.xx[j]<(minbb[j]-lerr)) {pt_inside_bbox=false; break;}
          }
 
          if (pt_inside_bbox)
