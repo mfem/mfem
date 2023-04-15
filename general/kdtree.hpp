@@ -36,7 +36,7 @@ struct Norm_l1
       Tfloat tm=abs(xx[0]);
       for (int i=1; i<ndim; i++)
       {
-          tm=tm+abs(xx[i]);
+         tm=tm+abs(xx[i]);
       }
       return tm;
    }
@@ -109,7 +109,7 @@ public:
    {
 
       /// Geometric point constructor
-      PointND() { std::fill(xx,ndim,Tfloat(0.0));}
+      PointND() { std::fill(xx,xx+ndim,Tfloat(0.0));}
 
       /// Coordinates of the point
       Tfloat xx[ndim];

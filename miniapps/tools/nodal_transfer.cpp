@@ -42,7 +42,7 @@ public:
                 std::sin(x[1])*std::cos(x[2]) +
                 std::sin(x[2])*std::cos(x[0]);
       }
-      else if(T.GetSpaceDim()==2)
+      else if (T.GetSpaceDim()==2)
       {
          double x[2];
          Vector transip(x, 2);
