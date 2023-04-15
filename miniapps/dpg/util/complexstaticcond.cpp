@@ -148,7 +148,6 @@ void ComplexBlockStaticCondensation::ComputeOffsets()
    tdof_offsets.PartialSum();
 }
 
-
 void ComplexBlockStaticCondensation::Init()
 {
    lmat.SetSize(mesh->GetNE());
@@ -178,10 +177,9 @@ void ComplexBlockStaticCondensation::Init()
    }
 
    y = new Vector(2*rdof_offsets.Last());
-   double * ydata = y->GetData();
    *y=0.;
-   y_r = new BlockVector(ydata,rdof_offsets);
-   y_i = new BlockVector(&ydata[rdof_offsets.Last()], rdof_offsets);
+   y_r = new BlockVector(*y, rdof_offsets);
+   y_i = new BlockVector(*y, rdof_offsets.Last(), rdof_offsets);
 }
 
 void ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
@@ -385,13 +383,11 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
    Vector yt(2*rdofs);
    Vector yi(2*idofs);
 
-   double * yt_data = yt.GetData();
-   Vector yt_real(yt_data,rdofs);
-   Vector yt_imag(&yt_data[rdofs],rdofs);
+   Vector yt_real(yt, 0,rdofs);
+   Vector yt_imag(yt, rdofs, rdofs);
 
-   double * yi_data = yi.GetData();
-   Vector yi_real(yi_data,idofs);
-   Vector yi_imag(&yi_data[idofs],idofs);
+   Vector yi_real(yi, 0, idofs);
+   Vector yi_imag(yi,idofs, idofs);
 
    // real part of Matrix and vectors
    elmat.real().GetSubMatrix(tr_idx,A_tt_real);
@@ -556,10 +552,8 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
       }
 
       // assemble rhs
-      double * data_r = rvecptr_real->GetData();
-      double * data_i = rvecptr_imag->GetData();
-      Vector vec1_r(&data_r[offsets[i]],offsets[i+1]-offsets[i]);
-      Vector vec1_i(&data_i[offsets[i]],offsets[i+1]-offsets[i]);
+      Vector vec1_r(*rvecptr_real, offsets[i], offsets[i+1]-offsets[i]);
+      Vector vec1_i(*rvecptr_imag, offsets[i], offsets[i+1]-offsets[i]);
       // ref subvector
       if (doftrans_i)
       {
@@ -791,7 +785,6 @@ void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
    }
 }
 
-
 void ComplexBlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    Array<int> & tdof_marker,
    Array<int> & rtdof_marker)
@@ -801,10 +794,11 @@ void ComplexBlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    Array<int> tdof_marker0;
    Array<int> dof_marker0;
    Array<int> dof_marker;
-   int * data = tdof_marker.GetData();
+
    for (int i = 0; i<nblocks; i++)
    {
-      tdof_marker0.MakeRef(&data[tdof_offsets[i]],tdof_offsets[i+1]-tdof_offsets[i]);
+      tdof_marker0.MakeRef(&tdof_marker[tdof_offsets[i]],
+                           tdof_offsets[i+1]-tdof_offsets[i]);
       const SparseMatrix * R_ = fes[i]->GetRestrictionMatrix();
       if (!R_)
       {
@@ -829,12 +823,12 @@ void ComplexBlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    // convert rdof_marker to rtdof_marker
    Array<int> rtdof_marker0;
    Array<int> rdof_marker0;
-   int * rdata = rdof_marker.GetData();
    int k=0;
    for (int i = 0; i<nblocks; i++)
    {
       if (!tr_fes[i]) { continue; }
-      rdof_marker0.MakeRef(&rdata[rdof_offsets[k]],rdof_offsets[k+1]-rdof_offsets[k]);
+      rdof_marker0.MakeRef(&rdof_marker[rdof_offsets[k]],
+                           rdof_offsets[k+1]-rdof_offsets[k]);
       const SparseMatrix *tr_R = tr_fes[i]->GetRestrictionMatrix();
       if (!tr_R)
       {
@@ -920,8 +914,8 @@ void ComplexBlockStaticCondensation::ReduceSolution(const Vector &sol,
    if (!R)
    {
       sc_sol.SetSize(2*nrdofs);
-      sol_r_real.SetDataAndSize(sc_sol.GetData(), nrdofs);
-      sol_r_imag.SetDataAndSize(&sc_sol.GetData()[nrdofs], nrdofs);
+      sol_r_real.MakeRef(sc_sol, 0,  nrdofs);
+      sol_r_imag.MakeRef(sc_sol, nrdofs, nrdofs);
    }
    else
    {
@@ -938,9 +932,8 @@ void ComplexBlockStaticCondensation::ReduceSolution(const Vector &sol,
    {
       int n = R->Height();
       sc_sol.SetSize(2*n);
-      double * sc_data = sc_sol.GetData();
-      Vector sc_real(sc_data,n);
-      Vector sc_imag(&sc_data[n],n);
+      Vector sc_real(sc_sol, 0, n);
+      Vector sc_imag(sc_sol, n, n);
 
       // wrap vector into a block vector
       BlockVector blsol_r_real(sol_r_real,rdof_offsets);
@@ -955,8 +948,8 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
                                                   int copy_interior) const
 {
    ReduceSolution(x, X);
-   Vector X_r(X.GetData(),X.Size()/2);
-   Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
+   Vector X_r(X,0, X.Size()/2);
+   Vector X_i(X, X.Size()/2, X.Size()/2);
 
    if (!parallel)
    {
@@ -975,9 +968,8 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
       else
       {
          B.SetSize(2*P->Width());
-         double * bdata = B.GetData();
-         Vector B_r(bdata,P->Width());
-         Vector B_i(&bdata[P->Width()],P->Width());
+         Vector B_r(B, 0, P->Width());
+         Vector B_i(B, P->Width(), P->Width());
 
          P->MultTranspose(*y_r, B_r);
          P->MultTranspose(*y_i, B_i);
@@ -995,9 +987,8 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
 #ifdef MFEM_USE_MPI
       int n = pP->Width();
       B.SetSize(2*n);
-      double * Bdata = B.GetData();
-      Vector B_r(Bdata,n);
-      Vector B_i(&Bdata[n],n);
+      Vector B_r(B, 0, n);
+      Vector B_i(B, n, n);
 
       pP->MultTranspose(*y_r,B_r);
       pP->MultTranspose(*y_i,B_i);
@@ -1044,13 +1035,14 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    {
       if (!P)
       {
-         sol_r_real.SetDataAndSize(sc_sol.GetData(), sc_sol.Size()/2);
-         sol_r_imag.SetDataAndSize(&sc_sol.GetData()[sc_sol.Size()/2], sc_sol.Size()/2);
+         sol_r_real.MakeRef(const_cast<Vector &>(sc_sol), 0, sc_sol.Size()/2);
+         sol_r_imag.MakeRef(const_cast<Vector &>(sc_sol), sc_sol.Size()/2,
+                            sc_sol.Size()/2);
       }
       else
       {
-         Vector sc_real(sc_sol.GetData(), nrtdofs);
-         Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
+         Vector sc_real(const_cast<Vector &>(sc_sol),0, nrtdofs);
+         Vector sc_imag(const_cast<Vector &>(sc_sol),nrtdofs, nrtdofs);
          sol_r_real.SetSize(nrdofs);
          sol_r_imag.SetSize(nrdofs);
          P->Mult(sc_real, sol_r_real);
@@ -1060,8 +1052,8 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    else
    {
 #ifdef MFEM_USE_MPI
-      Vector sc_real(sc_sol.GetData(), nrtdofs);
-      Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
+      Vector sc_real(const_cast<Vector &>(sc_sol),0, nrtdofs);
+      Vector sc_imag(const_cast<Vector &>(sc_sol),nrtdofs, nrtdofs);
       sol_r_real.SetSize(nrdofs);
       sol_r_imag.SetSize(nrdofs);
       pP->Mult(sc_real, sol_r_real);
@@ -1070,9 +1062,8 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    }
 
    sol.SetSize(2*dof_offsets.Last());
-   double *data = sol.GetData();
-   Vector sol_real(data,dof_offsets.Last());
-   Vector sol_imag(&data[dof_offsets.Last()],dof_offsets.Last());
+   Vector sol_real(sol,0,dof_offsets.Last());
+   Vector sol_imag(sol,dof_offsets.Last(),dof_offsets.Last());
 
    if (rdof_offsets.Last() == dof_offsets.Last())
    {
@@ -1088,8 +1079,6 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    Vector lsi_real; // element (local) interior solution vector
    Vector lsi_imag; // element (local) interior solution vector
 
-
-
    const int NE = mesh->GetNE();
 
    Array<int> trace_vdofs;
@@ -1104,16 +1093,16 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
 
       int n = trace_vdofs.Size();
       lsr.SetSize(2*n);
-      lsr_real.SetDataAndSize(lsr.GetData(), n);
-      lsr_imag.SetDataAndSize(&lsr.GetData()[n], n);
+      lsr_real.MakeRef(lsr, 0, n);
+      lsr_imag.MakeRef(lsr, n, n);
       sol_r_real.GetSubVector(trace_vdofs, lsr_real);
       sol_r_imag.GetSubVector(trace_vdofs, lsr_imag);
 
       // complete the interior dofs
       int m = lmat[iel]->Height()/2;
       lsi.SetSize(2*m);
-      lsi_real.SetDataAndSize(lsi.GetData(), m);
-      lsi_imag.SetDataAndSize(&lsi.GetData()[m], m);
+      lsi_real.MakeRef(lsi, 0, m);
+      lsi_imag.MakeRef(lsi, m, m);
       lmat[iel]->Mult(lsr,lsi);
       lsi.Neg();
       lsi+=*lvec[iel];
@@ -1124,8 +1113,8 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
       // complete all the dofs in the element
       int k = (lmat[iel]->Width() + lmat[iel]->Height())/2;
       lsol.SetSize(2*k);
-      lsol_real.SetDataAndSize(lsol.GetData(), k);
-      lsol_imag.SetDataAndSize(&lsol.GetData()[k], k);
+      lsol_real.MakeRef(lsol, 0, k);
+      lsol_imag.MakeRef(lsol, k, k);
 
       lsol_real.SetSubVector(tr_idx,lsr_real);
       lsol_real.SetSubVector(int_idx,lsi_real);
@@ -1138,7 +1127,6 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
       sol_real.SetSubVector(vdofs,lsol_real);
       sol_imag.SetSubVector(vdofs,lsol_imag);
    }
-
 }
 
 ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()

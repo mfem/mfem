@@ -20,7 +20,7 @@ void ParComplexDPGWeakForm::FillEssTdofLists(const Array<int> &
                                              ess_tdof_list)
 {
    int j;
-   for (int i = 0; i<ess_tdof_list.Size(); i++)
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
       int tdof = ess_tdof_list[i];
       for (j = 0; j < nblocks; j++)
@@ -53,7 +53,7 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
    HypreParMatrix * A_i = nullptr;
    HypreParMatrix * PtAP_r = nullptr;
    HypreParMatrix * PtAP_i = nullptr;
-   for (int i = 0; i<nblocks; i++)
+   for (int i = 0; i < nblocks; i++)
    {
       HypreParMatrix * Pi = (HypreParMatrix*)(&P->GetBlock(i,i));
       for (int j = 0; j<nblocks; j++)
@@ -63,17 +63,17 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
          {
             // Make block diagonal square hypre matrix
             A_r = new HypreParMatrix(trial_pfes[i]->GetComm(), trial_pfes[i]->GlobalVSize(),
-                                     trial_pfes[i]->GetDofOffsets(),&m_r->GetBlock(i,i));
+                                     trial_pfes[i]->GetDofOffsets(), &m_r->GetBlock(i,i));
             PtAP_r = RAP(A_r,Pi);
             delete A_r;
-            p_mat_e_r->SetBlock(i,i,PtAP_r->EliminateRowsCols(*ess_tdofs[i]));
+            p_mat_e_r->SetBlock(i, i, PtAP_r->EliminateRowsCols(*ess_tdofs[i]));
 
             A_i = new HypreParMatrix(trial_pfes[i]->GetComm(), trial_pfes[i]->GlobalVSize(),
-                                     trial_pfes[i]->GetDofOffsets(),&m_i->GetBlock(i,i));
+                                     trial_pfes[i]->GetDofOffsets(), &m_i->GetBlock(i,i));
 
             PtAP_i = RAP(A_i,Pi);
             delete A_i;
-            p_mat_e_i->SetBlock(i,i,PtAP_i->EliminateCols(*ess_tdofs[i]));
+            p_mat_e_i->SetBlock(i, i, PtAP_i->EliminateCols(*ess_tdofs[i]));
             PtAP_i->EliminateRows(*ess_tdofs[i]);
          }
          else
@@ -84,7 +84,7 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
                                      trial_pfes[j]->GetDofOffsets(), &m_r->GetBlock(i,j));
             PtAP_r = RAP(Pi,A_r,Pj);
             delete A_r;
-            p_mat_e_r->SetBlock(i,j,PtAP_r->EliminateCols(*ess_tdofs[j]));
+            p_mat_e_r->SetBlock(i, j, PtAP_r->EliminateCols(*ess_tdofs[j]));
             PtAP_r->EliminateRows(*ess_tdofs[i]);
 
             A_i = new HypreParMatrix(trial_pfes[i]->GetComm(), trial_pfes[i]->GlobalVSize(),
@@ -92,11 +92,11 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
                                      trial_pfes[j]->GetDofOffsets(), &m_i->GetBlock(i,j));
             PtAP_i = RAP(Pi,A_i,Pj);
             delete A_i;
-            p_mat_e_i->SetBlock(i,j,PtAP_i->EliminateCols(*ess_tdofs[j]));
+            p_mat_e_i->SetBlock(i, j, PtAP_i->EliminateCols(*ess_tdofs[j]));
             PtAP_i->EliminateRows(*ess_tdofs[i]);
          }
-         p_mat_r->SetBlock(i,j,PtAP_r);
-         p_mat_i->SetBlock(i,j,PtAP_i);
+         p_mat_r->SetBlock(i, j, PtAP_r);
+         p_mat_i->SetBlock(i, j, PtAP_i);
       }
    }
 }
@@ -109,12 +109,12 @@ void ParComplexDPGWeakForm::BuildProlongation()
    P->owns_blocks = 0;
    R->owns_blocks = 0;
 
-   for (int i = 0; i<nblocks; i++)
+   for (int i = 0; i < nblocks; i++)
    {
       HypreParMatrix * P_ = trial_pfes[i]->Dof_TrueDof_Matrix();
       P->SetBlock(i,i,P_);
       const SparseMatrix * R_ = trial_pfes[i]->GetRestrictionMatrix();
-      R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
+      R->SetBlock(i, i, const_cast<SparseMatrix*>(R_));
    }
 }
 
@@ -128,43 +128,40 @@ void ParComplexDPGWeakForm::FormLinearSystem(const Array<int>
    FormSystemMatrix(ess_tdof_list, A);
    if (static_cond)
    {
-
       static_cond->ReduceSystem(x, X, B, copy_interior);
    }
    else
    {
       int n = P->Width();
       B.SetSize(2*n);
-      double * bdata = B.GetData();
-      Vector B_r(bdata,n);
-      Vector B_i(&bdata[n],n);
-      P->MultTranspose(*y_r,B_r);
-      P->MultTranspose(*y_i,B_i);
+      Vector B_r(B, 0, n);
+      Vector B_i(B, n, n);
+      P->MultTranspose(*y_r, B_r);
+      P->MultTranspose(*y_i, B_i);
 
       int m = R->Height();
       X.SetSize(2*m);
-      double * Xdata = X.GetData();
-      Vector X_r(Xdata,m);
-      Vector X_i(&Xdata[m],m);
 
-      Vector x_r(x.GetData(),x.Size()/2);
-      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
+      Vector X_r(X, 0, m);
+      Vector X_i(X, m, m);
 
+      Vector x_r(x, 0, x.Size()/2);
+      Vector x_i(x, x.Size()/2, x.Size()/2);
 
-      R->Mult(x_r,X_r);
-      R->Mult(x_i,X_i);
+      R->Mult(x_r, X_r);
+      R->Mult(x_i, X_i);
 
       // eliminate tdof is RHS
       // B_r -= Ae_r*X_r + Ae_i X_i
       // B_i -= Ae_i*X_r + Ae_r X_i
       Vector tmp(B_r.Size());
-      p_mat_e_r->Mult(X_r,tmp); B_r-=tmp;
-      p_mat_e_i->Mult(X_i,tmp); B_r+=tmp;
+      p_mat_e_r->Mult(X_r, tmp); B_r-=tmp;
+      p_mat_e_i->Mult(X_i, tmp); B_r+=tmp;
 
-      p_mat_e_i->Mult(X_r,tmp); B_i-=tmp;
-      p_mat_e_r->Mult(X_i,tmp); B_i-=tmp;
+      p_mat_e_i->Mult(X_r, tmp); B_i-=tmp;
+      p_mat_e_r->Mult(X_i, tmp); B_i-=tmp;
 
-      for (int j = 0; j<nblocks; j++)
+      for (int j = 0; j < nblocks; j++)
       {
          if (!ess_tdofs[j]->Size()) { continue; }
          for (int i = 0; i < ess_tdofs[j]->Size(); i++)
@@ -203,7 +200,7 @@ void ParComplexDPGWeakForm::FormSystemMatrix(const Array<int>
       {
          const int remove_zeros = 0;
          Finalize(remove_zeros);
-         ParallelAssemble(mat_r,mat_i);
+         ParallelAssemble(mat_r, mat_i);
          delete mat_r;
          delete mat_i;
          mat_r = nullptr;
@@ -213,17 +210,14 @@ void ParComplexDPGWeakForm::FormSystemMatrix(const Array<int>
          mat_e_r = nullptr;
          mat_e_i = nullptr;
       }
-      p_mat = new ComplexOperator(p_mat_r,p_mat_i,false,false);
-      A.Reset(p_mat,false);
+      p_mat = new ComplexOperator(p_mat_r, p_mat_i, false, false);
+      A.Reset(p_mat, false);
    }
 }
-
-
 
 void ParComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
                                                Vector &x)
 {
-
    if (static_cond)
    {
       static_cond->ComputeSolution(X, x);
@@ -233,12 +227,11 @@ void ParComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
       int n = P->Height();
       int m = P->Width();
       x.SetSize(2*n);
-      double * xdata = x.GetData();
-      double * Xdata = X.GetData();
-      Vector x_r(xdata,n);
-      Vector x_i(&xdata[n],n);
-      Vector X_r(Xdata,m);
-      Vector X_i(&Xdata[m],m);
+
+      Vector x_r(x,0,n);
+      Vector x_i(x,n,n);
+      Vector X_r(const_cast<Vector&>(X), 0, m);
+      Vector X_i(const_cast<Vector&>(X), m, m);
 
       P->Mult(X_r, x_r);
       P->Mult(X_i, x_i);
@@ -258,7 +251,7 @@ void ParComplexDPGWeakForm::Update()
    p_mat_i = nullptr;
    delete p_mat;
    p_mat = nullptr;
-   for (int i = 0; i<nblocks; i++)
+   for (int i = 0; i < nblocks; i++)
    {
       delete ess_tdofs[i];
       ess_tdofs[i] = new Array<int>();
@@ -281,7 +274,7 @@ ParComplexDPGWeakForm::~ParComplexDPGWeakForm()
    p_mat_i = nullptr;
    delete p_mat;
    p_mat = nullptr;
-   for (int i = 0; i<nblocks; i++)
+   for (int i = 0; i < nblocks; i++)
    {
       delete ess_tdofs[i];
    }
