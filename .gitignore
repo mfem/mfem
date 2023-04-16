@@ -289,8 +289,8 @@ miniapps/tools/tmop-metric-magnitude
 miniapps/tools/coeff_shift_test
 miniapps/tools/nodal_transfer
 miniapps/tools/ParaView
-miniapps/tools/grid_func_*.gf
-miniapps/tools/mesh_*.msh
+miniapps/tools/grid_func_*
+miniapps/tools/mesh_*
 
 miniapps/toys/automata
 miniapps/toys/life
