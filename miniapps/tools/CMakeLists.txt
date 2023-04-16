@@ -36,7 +36,4 @@ if (MFEM_USE_MPI)
 add_mfem_miniapp(nodal_transfer
   MAIN nodal_transfer.cpp LIBRARIES mfem)
 
-add_mfem_miniapp(coeff_shift_test
-  MAIN coeff_shift_test.cpp LIBRARIES mfem)
-
 endif()
