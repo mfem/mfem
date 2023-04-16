@@ -85,6 +85,7 @@ int main(int argc, char* argv[])
    int order = 1;
    int gen_data = 1;
    int src_num_procs = 4;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -108,6 +109,9 @@ int main(int argc, char* argv[])
                   "-snp",
                   "--src_num_procs",
                   "Number of processes for the src grid function.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable ParaView visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -228,6 +232,7 @@ int main(int argc, char* argv[])
       }
 
       //write the result into a ParaView file
+      if(visualization)
       {
          ParaViewDataCollection paraview_dc("GridFunc", &pmesh);
          paraview_dc.SetPrefixPath("ParaView");
