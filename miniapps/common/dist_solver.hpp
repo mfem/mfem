@@ -14,7 +14,12 @@
 
 #include "mfem.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
+{
+
+namespace common
 {
 
 double AvgElementSize(ParMesh &pmesh);
@@ -303,6 +308,9 @@ private:
    ScreenedPoisson* sint;
 };
 
+} // namespace common
+
 } // namespace mfem
 
+#endif // MFEM_USE_MPI
 #endif
