@@ -232,7 +232,7 @@ int main(int argc, char* argv[])
       }
 
       //write the result into a ParaView file
-      if(visualization)
+      if (visualization)
       {
          ParaViewDataCollection paraview_dc("GridFunc", &pmesh);
          paraview_dc.SetPrefixPath("ParaView");
