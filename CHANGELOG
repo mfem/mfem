@@ -20,9 +20,17 @@ Version 4.5.3 (development)
 
 New and updated examples and miniapps
 -------------------------------------
-- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary fitting to implicit domains defined using level-set functions.
+- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
+  fitting to implicit domains defined using level-set functions.
 
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
+
+- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
+  serial and parallel examples for diffusion, convection-diffusion, acoustics
+  and Maxwell equations. The miniapp also includes new classes such as
+  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and
+  ComplexBlockStaticCondensation. Three new integrators are added in support of
+  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangentTraceIntegrator
 
 Discretization improvements
 ---------------------------
