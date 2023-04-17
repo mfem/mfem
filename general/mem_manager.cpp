@@ -802,9 +802,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
                                MemoryType mt,
                                bool own, bool alias, unsigned &flags)
 {
-   MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_VERIFY(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
    const MemType h_mt = is_host_mem ? mt : GetDualMemoryType(mt);
    const MemType d_mt = is_host_mem ? MemoryType::DEFAULT : mt;
@@ -819,6 +817,8 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       MFEM_VERIFY(bytes == 0, "internal error");
       return nullptr;
    }
+
+   MFEM_VERIFY(!alias, "Cannot register an alias!");
 
    flags |= Mem::Registered | Mem::OWNS_INTERNAL;
    void *h_ptr;
@@ -876,8 +876,8 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 {
    mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset, bytes,
                   base_flags & Mem::ALIAS);
-   flags = (base_flags | Mem::ALIAS | Mem::OWNS_INTERNAL) &
-           ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+   flags = (base_flags | Mem::ALIAS) & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+   if (base_h_ptr) { flags |= Mem::OWNS_INTERNAL; }
 }
 
 void MemoryManager::SetDeviceMemoryType_(void *h_ptr, unsigned flags,
