@@ -638,6 +638,7 @@ public:
 class NURBSFECollection : public FiniteElementCollection
 {
 private:
+   PointFiniteElement   *PointFE;
    NURBS1DFiniteElement *SegmentFE;
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
