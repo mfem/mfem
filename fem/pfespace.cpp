@@ -2194,6 +2194,7 @@ void NeighborRowMessage::Decode(int rank)
                    << rows.back().index << ", edof " << rows.back().edof
                    << std::endl;
 #endif
+
          if (ent == 2 && fec->GetContType() == FiniteElementCollection::TANGENTIAL
              && !Geometry::IsTensorProduct(geom))
          {
@@ -2231,52 +2232,19 @@ void NeighborRowMessage::Decode(int rank)
             rows.back().row.read(stream, s);
 
             auto &second_row = rows.back().row;
+
             // This is the second "fundamental unit" used in the transformation.
-            auto initial_second_row = rows.back().row;
-            if (fo == 0)
-            {
-               // do nothing, the primal map is identity
-            }
-            else if (fo == 1)
-            {
-               // [-1 0; 0 1]
-               first_row.AddRow(initial_first_row, -2);
-               second_row.AddRow(initial_first_row, -1);
-            }
-            else if (fo == 2)
-            {
-               // [0 -1; 1 -1]
-               first_row.AddRow(initial_first_row, -1);
-               first_row.AddRow(initial_second_row, -1);
-               second_row.AddRow(initial_first_row, 1);
-               second_row.AddRow(initial_second_row, -2);
-            }
-            else if (fo == 3)
-            {
-               // [1 -1; 0 -1]
-               first_row.AddRow(initial_second_row, -1);
-               second_row.AddRow(initial_second_row, -2);
-            }
-            else if (fo == 4)
-            {
-               // [-1 1; -1 0]
-               first_row.AddRow(initial_first_row, -2);
-               first_row.AddRow(initial_second_row, 1);
-               second_row.AddRow(initial_first_row, -1);
-               second_row.AddRow(initial_second_row, -1);
-            }
-            else if (fo == 5)
-            {
-               // [0 1; 1 0]
-               first_row.AddRow(initial_first_row, -1);
-               first_row.AddRow(initial_second_row, 1);
-               second_row.AddRow(initial_second_row, -1);
-               second_row.AddRow(initial_first_row, 1);
-            }
-            else
-            {
-               MFEM_ABORT("Developer error: unexpected triangular face orientation.");
-            }
+            auto initial_second_row = second_row;
+
+            auto T = ND_DofTransformation::GetFaceTransform(fo);
+            T(0,0) -= 1;
+            T(1,1) -= 1;
+
+            first_row.AddRow(initial_first_row, T(0,0));
+            first_row.AddRow(initial_second_row, T(0,1));
+            second_row.AddRow(initial_first_row, T(1,0));
+            second_row.AddRow(initial_second_row, T(1,1));
+
             first_row.Collapse();
             second_row.Collapse();
          }
