@@ -132,6 +132,12 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
+   if (nc)
+   {
+      // Can set to false to use conformal refinement for simplices.
+      mesh->EnsureNCMesh(true);
+   }
+
    {
       int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
@@ -140,10 +146,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   if (nc)
-   {
-      mesh->EnsureNCMesh(true);
-   }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -152,7 +154,7 @@ int main(int argc, char *argv[])
 
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();

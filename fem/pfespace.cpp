@@ -2199,11 +2199,12 @@ void NeighborRowMessage::Decode(int rank)
              && !Geometry::IsTensorProduct(geom))
          {
             // ND face dofs need to be processed together, as the transformation
-            // is given by a 2x2 matrix, so manually extra increment the loop
-            // counter to add in a new row. Once these are placed, they
+            // is given by a 2x2 matrix, so we manually apply an extra increment
+            // to the loop counter and add in a new row. Once these rows are placed, they
             // represent the Identity transformation. To map across the
             // processor boundary, we also need to apply a Primal Transformation
-            // (see doftrans.hpp). For simplicity we perform the action of these 2x2 matrices
+            // (see doftrans.hpp) to a notional "global dof" orientation.
+            // For simplicity we perform the action of these 2x2 matrices
             // manually using the AddRow capability, followed by a Collapse.
 
             // To perform the operations, we add and subtract initial versions
@@ -2215,7 +2216,7 @@ void NeighborRowMessage::Decode(int rank)
             // there is no hidden copying that could result in a dangling reference.
             auto &first_row = rows.back().row;
             // This is the first "fundamental unit" used in the transformation.
-            auto initial_first_row = first_row;
+            const auto initial_first_row = first_row;
             // Extract the next dof too, and apply any dof order transformation expected.
             const MeshId &next_id = ids[++i];
             int fo = pncmesh->GetFaceOrientation(next_id.index);
@@ -2234,11 +2235,15 @@ void NeighborRowMessage::Decode(int rank)
             auto &second_row = rows.back().row;
 
             // This is the second "fundamental unit" used in the transformation.
-            auto initial_second_row = second_row;
+            const auto initial_second_row = second_row;
 
-            auto T = ND_DofTransformation::GetFaceTransform(fo);
-            T(0,0) -= 1;
-            T(1,1) -= 1;
+            const auto T = [&fo]()
+            {
+               auto T = ND_DofTransformation::GetFaceTransform(fo);
+               T(0,0) -= 1;
+               T(1,1) -= 1;
+               return T;
+            }();
 
             first_row.AddRow(initial_first_row, T(0,0));
             first_row.AddRow(initial_second_row, T(0,1));
@@ -2377,12 +2382,6 @@ int ParFiniteElementSpace
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
-   // TODO: general face DOF transformations in NeighborRowMessage::Decode()
-   // MFEM_VERIFY(!(fec->GetOrder() >= 2
-   //               && pmesh->HasGeometry(Geometry::TETRAHEDRON)
-   //               && fec->GetContType() == FiniteElementCollection::TANGENTIAL),
-   //             "Nedelec NC tets of order >= 2 are not supported yet.");
-
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
 #ifdef MFEM_PMATRIX_STATS
