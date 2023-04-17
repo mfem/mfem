@@ -1347,6 +1347,8 @@ public:
       auto grad_u_qp = gradient_wrt_x(u, integration_rule);
       auto grad_du_qp = gradient_wrt_x(du, integration_rule);
 
+      const int N = mesh->GetNE() * integration_rule.GetNPoints();
+
       // auto plap = [](tensor<dual<double, double>, 2> grad_u)
       // {
       //    const int p = 4;
@@ -1357,7 +1359,7 @@ public:
       // {
 
       //    return make_tensor<2>([&](int i) { return r[i].gradient; });
-      // }, mesh->GetNE() * integration_rule.GetNPoints(), grad_u_qp, grad_du_qp);
+      // }, N, grad_u_qp, grad_du_qp);
 
       ////////////
       auto plap2 = [](tensor<double, 2> &grad_u)
@@ -1367,14 +1369,16 @@ public:
          return (pow(norm(grad_u), 0.5 * (p - 2)) * grad_u);
       };
 
-      auto flux_qp = forall([&, plap2](tensor<double,2> grad_u,
-                                       tensor<double,2> grad_du)
-      {
-         tensor<double, 2> (*f)(tensor<double, 2>&) = plap2;
-         auto r = __enzyme_fwddiff<tensor<double, 2>>(f, enzyme_dup, &grad_u,
-                                                      &grad_du);
-         return r;
-      }, mesh->GetNE() * integration_rule.GetNPoints(), grad_u_qp, grad_du_qp);
+      auto flux_qp = forall(fwddiff(+plap2), N, grad_u_qp, grad_du_qp);
+      // auto plap2_diff = fwddiff(+plap2);
+
+      // auto flux_qp = forall([&, plap2](tensor<double,2> grad_u,
+      //                                  tensor<double,2> grad_du)
+      // {
+      //    auto r = __enzyme_fwddiff<tensor<double, 2>>(+plap2, enzyme_dup, &grad_u,
+      //                                                 &grad_du);
+      //    return r;
+      // }, N, grad_u_qp, grad_du_qp);
       ///////////////
 
       ///////////////
@@ -1385,13 +1389,11 @@ public:
       //    auto r = __enzyme_fwddiff<tensor<double, 2>>(f, enzyme_dup, &grad_u,
       //                                                 &grad_du);
       //    return r;
-      // }, mesh->GetNE() * integration_rule.GetNPoints(), grad_u_qp, grad_du_qp);
+      // }, N, grad_u_qp, grad_du_qp);
       ///////////////
 
       // has to be [vdim, dim, num_qp, num_el]
-      Vector flux_qp_flat((double *)flux_qp.GetData(),
-                          1 * 2 * integration_rule.GetNPoints() *
-                          mesh->GetNE());
+      Vector flux_qp_flat((double *)flux_qp.GetData(), 1 * 2 * N);
 
       Vector y = integrate_basis_gradient(flux_qp_flat, fes, integration_rule);
 

@@ -1,5 +1,33 @@
 #pragma once
 
+#include <string_view>
+
+template <typename T>
+constexpr auto get_type_name() -> std::string_view
+{
+#if defined(__clang__)
+   constexpr auto prefix = std::string_view {"[T = "};
+   constexpr auto suffix = "]";
+   constexpr auto function = std::string_view{__PRETTY_FUNCTION__};
+#elif defined(__GNUC__)
+   constexpr auto prefix = std::string_view {"with T = "};
+   constexpr auto suffix = "; ";
+   constexpr auto function = std::string_view{__PRETTY_FUNCTION__};
+#elif defined(_MSC_VER)
+   constexpr auto prefix = std::string_view {"get_type_name<"};
+   constexpr auto suffix = ">(void)";
+   constexpr auto function = std::string_view{__FUNCSIG__};
+#else
+# error Unsupported compiler
+#endif
+
+   const auto start = function.find(prefix) + prefix.size();
+   const auto end = function.find(suffix);
+   const auto size = end - start;
+
+   return function.substr(start, size);
+}
+
 #include <mfem.hpp>
 #include <linalg/dtensor.hpp>
 #include "linalg/tensor.hpp"
@@ -94,6 +122,7 @@ auto forall_impl(FunctionSignature<output_type( input_types ... )>,
 {
    Array<output_type> output(n);
    for (int i = 0; i < n; i++)
+      // MFEM_FORALL(....)
    {
       reinterpret_cast< output_type * >(output.begin())[i] =
          f(reinterpret_cast< input_types * >(args.begin())[i]...);
@@ -111,12 +140,49 @@ auto forall(const function_type& f, const int n, arg_types& ... args)
    return forall_impl(function_signature_type{}, f, n, args...);
 }
 
-template < typename output_type, typename input_type >
-auto fwddiff(output_type (*f)(input_type &))
+// template <
+//    typename output_type,
+//    typename ... input_types >
+// auto fwddiff(output_type (*f)(input_types ...))
+// {
+//    return [f](input_types ...
+//               args /*, input_types ... args for the duals is missing here */)
+//    {
+//       return __enzyme_fwddiff< output_type > (f, enzyme_dup, args...);
+//    };
+// }
+
+// template <
+//    typename output_type,
+//    typename input_type >
+// auto fwddiff(output_type (*f)(input_type &))
+// {
+//    return [f](input_type arg1, input_type arg2)
+//    {
+//       return __enzyme_fwddiff< output_type > (f, enzyme_dup, &arg1, &arg2);
+//    };
+// }
+
+template <
+   typename output_type,
+   typename ... input_types >
+auto fwddiff(output_type (*f)(input_types...))
 {
-   return [f](const input_type & x, const input_type & dx)
+   return [f](input_types... args, input_types... args2)
    {
-      return __enzyme_fwddiff< output_type > (f, enzyme_dup, &x, &dx);
+      auto input_types_tuple = std::tuple<input_types...>(args...);
+      auto shadow_input_types_tuple = std::tuple<input_types...>(args2...);
+
+      static_assert(
+         std::is_same_v<decltype(input_types_tuple), decltype(shadow_input_types_tuple)>,
+         "input and shadow not equal");
+
+      // auto concatenated_types_tuple = std::tuple_cat(input_types_tuple,
+      //                                                shadow_input_types_tuple);
+
+      // std::cout << get_type_name<decltype(concatenated_types_tuple)>() << std::endl;
+
+      return __enzyme_fwddiff< output_type > (f, &args..., &args2...);
    };
 }
 
@@ -182,20 +248,65 @@ Vector gradient_wrt_x(const GridFunction& u, const IntegrationRule& ir)
    return grad_u_qp;
 }
 
-Vector integrate_basis(Vector& s_qp, Mesh& mesh,
-                       const IntegrationRule& ir,
-                       const FiniteElementSpace &fes)
+Vector integrate(Vector& s_qp, const FiniteElementSpace &fes,
+                 const IntegrationRule& ir)
 {
    auto R = fes.GetElementRestriction(ElementDofOrdering::NATIVE);
 
-   const int dim = mesh.SpaceDimension();
-   const int num_el = mesh.GetNE();
+   auto mesh = fes.GetMesh();
+   const int dim = mesh->SpaceDimension();
+   const int num_el = mesh->GetNE();
    const int vdim = fes.GetVDim();
    const int num_qp = ir.GetNPoints();
    const int num_vdofs = R->Height() / num_el;
    const int num_dofs = num_vdofs / vdim;
 
-   const GeometricFactors *geom = mesh.GetGeometricFactors(
+   const GeometricFactors *geom = mesh->GetGeometricFactors(
+                                     ir, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
+   Vector yi_el(R->Height());
+   auto Yi = Reshape(yi_el.Write(), num_dofs, vdim, num_el);
+
+   auto C = Reshape(s_qp.ReadWrite(), vdim, num_qp, num_el);
+   auto detJ = Reshape(geom->detJ.Read(), num_qp, num_el);
+
+   for (int e = 0; e < num_el; e++)
+   {
+      const DofToQuad &maps = fes.GetFE(e)->GetDofToQuad(ir, DofToQuad::FULL);
+      const auto Bt = Reshape(maps.Bt.Read(), num_dofs, num_qp);
+
+      for (int dof = 0; dof < num_dofs; dof++)
+      {
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            double s = 0.0;
+            for (int qp = 0; qp < num_qp; qp++)
+            {
+               s += Bt(dof, qp) * C(vd, qp, e) * detJ(qp, e) * ir.GetWeights()[qp];
+            }
+            Yi(dof, vd, e) = s;
+         }
+      }
+   }
+
+   Vector yi(fes.GetVSize());
+   R->MultTranspose(yi_el, yi);
+   return yi;
+}
+
+Vector integrate_basis(Vector& s_qp, const FiniteElementSpace &fes,
+                       const IntegrationRule& ir)
+{
+   auto R = fes.GetElementRestriction(ElementDofOrdering::NATIVE);
+
+   auto mesh = fes.GetMesh();
+   const int dim = mesh->SpaceDimension();
+   const int num_el = mesh->GetNE();
+   const int vdim = fes.GetVDim();
+   const int num_qp = ir.GetNPoints();
+   const int num_vdofs = R->Height() / num_el;
+   const int num_dofs = num_vdofs / vdim;
+
+   const GeometricFactors *geom = mesh->GetGeometricFactors(
                                      ir, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
    Vector yi_el(R->Height());
    auto Yi = Reshape(yi_el.Write(), num_dofs, vdim, num_el);
