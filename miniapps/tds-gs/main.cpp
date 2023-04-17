@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
    int do_test = 0;
 
    // constants associated with plasma model
-   double alpha = 0.9;
-   double beta = 1.5;
+   double alpha = 1.0;
+   double beta = 2.0;
    double lambda = 1.0;
    double gamma = 0.9;
    double mu = 1.0;

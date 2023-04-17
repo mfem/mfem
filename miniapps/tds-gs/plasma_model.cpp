@@ -152,7 +152,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       }
     }
   }
-  
+
   double x_[3];
   Vector x(x_, 3);
   T.Transform(ip, x);
@@ -167,6 +167,14 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       return 0.0;
     }
   }
+
+  // alpha: multiplier in \bar{S}_{ff'} term
+  // beta: multiplier for S_{p'} term
+  // gamma: multiplier for S_{ff'} term
+  double alpha = model->get_alpha();
+  double beta = model->get_beta();
+  double gamma = model->get_gamma();
+  // cout << alpha << beta << gamma << endl;
  
   double psi_val;
   Mesh *gf_mesh = psi->FESpace()->GetMesh();
@@ -189,8 +197,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
     
     return
-      + ri * (model->S_p_prime(psi_N))
-      + (model->S_ff_prime(psi_N)) / (mu * ri)
+      + beta * ri * (model->S_p_prime(psi_N))
+      + gamma * (model->S_ff_prime(psi_N)) / (mu * ri)
       + coeff_u2 * pow(psi_val, 2.0);
   } else {
     // integrand of
@@ -208,8 +216,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     double coeff = 1.0;
 
     double psi_N_multiplier = \
-      + ri * (model->S_prime_p_prime(psi_N))
-      + (model->S_prime_ff_prime(psi_N)) / (mu * ri);
+      + beta * ri * (model->S_prime_p_prime(psi_N))
+      + gamma * (model->S_prime_ff_prime(psi_N)) / (mu * ri);
     if (option == 2) {
       // coefficient for phi in d_psi psi_N
       coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier;

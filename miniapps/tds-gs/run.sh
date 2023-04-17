@@ -11,8 +11,8 @@
 # more newton steps
 
 alpha=0.9
-beta=1.5
-gamma=0.9
+beta=1.0
+gamma=1.0
 lambda=-10000
 # lambda=100.0
 R0=2.4

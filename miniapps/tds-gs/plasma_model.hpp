@@ -13,6 +13,9 @@ class PlasmaModelBase
 private:
   double coeff_u2 = 0.0; // coefficient of u^2, for debugging
   double mu0;
+  double alpha;
+  double beta;
+  double gamma;
 public:
   PlasmaModelBase() {}
   virtual double S_p_prime(double & psi_N) const {return 1.0;};
@@ -21,6 +24,9 @@ public:
   virtual double S_prime_ff_prime(double & psi_N) const {return 1.0;};
   virtual double get_mu() const {return mu0;}
   virtual double get_coeff_u2() const {return coeff_u2;}
+  virtual double get_alpha() const {return alpha;}
+  virtual double get_beta() const {return beta;}
+  virtual double get_gamma() const {return gamma;}
   // ~PlasmaModel() {}
 };
 
@@ -63,12 +69,15 @@ private:
   const char *data_file;
   vector<double> ffprime_vector;
   vector<double> pprime_vector;
+  double alpha;
+  double beta;
+  double gamma;
   double mu0;
   int N;
   double dx;
 public:
-  PlasmaModelFile(double & mu0_, const char *data_file_) :
-    mu0(mu0_), data_file(data_file_)
+  PlasmaModelFile(double & mu0_, const char *data_file_, double alpha=1.0, double beta=1.0, double gamma=1.0) :
+    mu0(mu0_), data_file(data_file_), alpha(alpha), beta(beta), gamma(gamma)
   {
 
     // cout << data_file_ << endl;
@@ -102,6 +111,10 @@ public:
   double S_prime_p_prime(double & psi_N) const;
   double S_prime_ff_prime(double & psi_N) const;
   double get_mu() const {return mu0;}
+  double get_alpha() const {return alpha;}
+  double get_beta() const {return beta;}
+  double get_gamma() const {return gamma;}
+  double set_alpha(double alpha_) {alpha = alpha_;}
   ~PlasmaModelFile() { }
 };
 

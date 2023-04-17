@@ -581,9 +581,11 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    mesh.Save("mesh.mesh");
 
    // save options in model
-   // PlasmaModel model(alpha, beta, lambda, gamma, mu, r0);
+   // alpha: multiplier in \bar{S}_{ff'} term
+   // beta: multiplier for S_{p'} term
+   // gamma: multiplier for S_{ff'} term
    const char *data_file_ = "fpol_pres_ffprim_pprime.data";
-   PlasmaModelFile model(mu, data_file_);
+   PlasmaModelFile model(mu, data_file_, alpha, beta, gamma);
 
    // Define a finite element space on the mesh. Here we use H1 continuous
    // high-order Lagrange finite elements of the given order.
