@@ -100,4 +100,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -rf mesh_* grid_func_*
 	@true
