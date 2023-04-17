@@ -1681,6 +1681,11 @@ protected:
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
    double surf_fit_normal;
+   bool surf_fit_gf_bg;
+   GridFunction *surf_fit_grad, *surf_fit_hess;
+   AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
+   Array<int> surf_fit_dof_count;
+   Array<int> surf_fit_marker_dof_index;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -1799,7 +1804,7 @@ protected:
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int new_x_ordering = Ordering::byNODES);
+                                      int x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {
@@ -1878,6 +1883,8 @@ public:
         surf_fit_gf(NULL), surf_fit_marker(NULL),
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -1963,11 +1970,45 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+
+   /** @brief Fitting of certain DOFs in the current mesh to the zero level set
+       of a function defined on another (finer) source mesh.
+
+       Having a level set function s_bg(x_bg) on a source/background mesh,
+       a set of marked nodes (or DOFs) in the current mesh, we move the marked
+       nodes to the zero level set of s_bg. This functionality is used for
+       surface fitting and tangential relaxation.
+
+       @param[in] s_bg       The level set function on the background mesh.
+       @param[in] s0         The level set function (automatically) interpolated
+                             on the initial mesh.
+       @param[in] smarker    Marker for aligned DOFs in the current mesh.
+       @param[in] coeff      Coefficient c for the fitting penalty term.
+       @param[in] ae         Interpolates s(x) from s_bg(x_bg).
+       @param[in] s_bg_grad  Gradient of s_bg on the background mesh.
+       @param[in] s0_grad    Gradient of s0 on the initial mesh.
+       @param[in] age        Interpolates s_grad(x) from s_bg_grad(x_bg).
+       @param[in] s_bg_hess  Hessian of s(x) on the background mesh.
+       @param[in] s0_hess    Hessian of s0 on the initial mesh.
+       @param[in] ahe        Interpolates s_hess(x) from s_bg_hess(x_bg).
+       See the pmesh-fitting miniapp for details on usage. */
+   void EnableSurfaceFittingFromSource(const ParGridFunction &s_bg,
+                                       ParGridFunction &s0,
+                                       const Array<bool> &smarker,
+                                       Coefficient &coeff,
+                                       AdaptivityEvaluator &ae,
+                                       const ParGridFunction &s_bg_grad,
+                                       ParGridFunction &s0_grad,
+                                       AdaptivityEvaluator &age,
+                                       const ParGridFunction &s_bg_hess,
+                                       ParGridFunction &s0_hess,
+                                       AdaptivityEvaluator &ahe);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
