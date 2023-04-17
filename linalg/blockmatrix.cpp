@@ -27,8 +27,8 @@ BlockMatrix::BlockMatrix(const Array<int> & offsets):
    nColBlocks(offsets.Size()-1),
    Aij(nRowBlocks, nColBlocks)
 {
-   row_offsets.MakeRef(const_cast< Array<int>& >(offsets)),
-   col_offsets.MakeRef(const_cast< Array<int>& >(offsets)),
+   row_offsets.MakeRef(const_cast< Array<int>& >(offsets));
+   col_offsets.MakeRef(const_cast< Array<int>& >(offsets));
    Aij = (SparseMatrix *)NULL;
 }
 
@@ -40,8 +40,8 @@ BlockMatrix::BlockMatrix(const Array<int> & row_offsets_,
    nColBlocks(col_offsets_.Size()-1),
    Aij(nRowBlocks, nColBlocks)
 {
-   row_offsets.MakeRef(const_cast< Array<int>& >(row_offsets_)),
-   col_offsets.MakeRef(const_cast< Array<int>& >(col_offsets_)),
+   row_offsets.MakeRef(const_cast< Array<int>& >(row_offsets_));
+   col_offsets.MakeRef(const_cast< Array<int>& >(col_offsets_));
    Aij = (SparseMatrix *)NULL;
 }
 
