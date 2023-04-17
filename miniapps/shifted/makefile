@@ -25,9 +25,9 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-DIFFUSION_SRC = diffusion.cpp dist_solver.cpp sbm_solver.cpp marking.cpp
+DIFFUSION_SRC = diffusion.cpp sbm_solver.cpp marking.cpp
 DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
-DISTANCE_SRC = distance.cpp dist_solver.cpp
+DISTANCE_SRC = distance.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
