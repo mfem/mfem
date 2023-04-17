@@ -69,12 +69,6 @@
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
-//  Adaptive surface fitting:
-//    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
-//    mesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
-//  Surface fitting with weight adaptation and termination based on fitting error
-//    mesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
-//
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
@@ -127,7 +121,6 @@ int main(int argc, char *argv[])
    int target_id         = 1;
    double lim_const      = 0.0;
    double adapt_lim_const   = 0.0;
-   double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
@@ -151,8 +144,6 @@ int main(int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
-   bool surface_fit_adapt = false;
-   double surface_fit_threshold = -10;
    int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
@@ -220,8 +211,6 @@ int main(int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
-   args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
-                  "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -291,12 +280,6 @@ int main(int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
-   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
-                  "--no-adaptive-surface-fit",
-                  "Enable or disable adaptive surface fitting.");
-   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
-                  "Set threshold for surface fitting. TMOP solver will"
-                  "terminate when max surface fitting error is below this limit");
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
                   "Ordering of mesh nodes."
                   "0 (default): byNodes, 1: byVDIM");
@@ -868,75 +851,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Surface fitting.
-   L2_FECollection mat_coll(0, dim);
-   H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
-   FiniteElementSpace surf_fit_fes(mesh, &surf_fit_fec);
-   FiniteElementSpace mat_fes(mesh, &mat_coll);
-   GridFunction mat(&mat_fes);
-   GridFunction surf_fit_mat_gf(&surf_fit_fes);
-   GridFunction surf_fit_gf0(&surf_fit_fes);
-   Array<bool> surf_fit_marker(surf_fit_gf0.Size());
-   ConstantCoefficient surf_fit_coeff(surface_fit_const);
-   AdaptivityEvaluator *adapt_surface = NULL;
-   if (surface_fit_const > 0.0)
-   {
-      MFEM_VERIFY(hradaptivity == false,
-                  "Surface fitting with HR is not implemented yet.");
-      MFEM_VERIFY(pa == false,
-                  "Surface fitting with PA is not implemented yet.");
-
-      FunctionCoefficient ls_coeff(surface_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
-
-      for (int i = 0; i < mesh->GetNE(); i++)
-      {
-         mat(i) = material_id(i, surf_fit_gf0);
-         mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-      }
-
-      GridFunctionCoefficient mat_coeff(&mat);
-      surf_fit_mat_gf.ProjectDiscCoefficient(mat_coeff, GridFunction::ARITHMETIC);
-      for (int j = 0; j < surf_fit_marker.Size(); j++)
-      {
-         if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
-         {
-            surf_fit_marker[j] = true;
-            surf_fit_mat_gf(j) = 1.0;
-         }
-         else
-         {
-            surf_fit_marker[j] = false;
-            surf_fit_mat_gf(j) = 0.0;
-         }
-      }
-
-      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
-      else if (adapt_eval == 1)
-      {
-#ifdef MFEM_USE_GSLIB
-         adapt_surface = new InterpolatorFP;
-#else
-         MFEM_ABORT("MFEM is not built with GSLIB support!");
-#endif
-      }
-      else { MFEM_ABORT("Bad interpolation option."); }
-
-      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
-                                       surf_fit_coeff, *adapt_surface);
-      if (visualization)
-      {
-         socketstream vis1, vis2, vis3;
-         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "Level Set 0",
-                                300, 600, 300, 300);
-         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                600, 600, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-                                "Dofs to Move",
-                                900, 600, 300, 300);
-      }
-   }
-
    // Has to be after the enabling of the limiting / alignment, as it computes
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->EnableNormalization(x0); }
@@ -1033,16 +947,14 @@ int main(int argc, char *argv[])
    const double init_energy = a.GetGridFunctionEnergy(x) /
                               (hradaptivity ? mesh->GetNE() : 1);
    double init_metric_energy = init_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      surf_fit_coeff.constant   = 0.0;
       init_metric_energy = a.GetGridFunctionEnergy(x) /
                            (hradaptivity ? mesh->GetNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
-      surf_fit_coeff.constant   = surface_fit_const;
    }
 
    // Visualize the starting mesh and metric values.
@@ -1158,11 +1070,6 @@ int main(int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
-   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
-   if (surface_fit_threshold > 0)
-   {
-      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -1216,12 +1123,10 @@ int main(int argc, char *argv[])
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      surf_fit_coeff.constant  = 0.0;
       fin_metric_energy = a.GetGridFunctionEnergy(x) /
                           (hradaptivity ? mesh->GetNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
-      surf_fit_coeff.constant  = surface_fit_const;
    }
    std::cout << std::scientific << std::setprecision(4);
    cout << "Initial strain energy: " << init_energy
@@ -1247,23 +1152,6 @@ int main(int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
-   // Visualize fitting surfaces and report fitting errors.
-   if (surface_fit_const > 0.0)
-   {
-      if (visualization)
-      {
-         socketstream vis2, vis3;
-         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                600, 900, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf, "Surface dof",
-                                900, 900, 300, 300);
-      }
-      double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-      std::cout << "Avg fitting error: " << err_avg << std::endl
-                << "Max fitting error: " << err_max << std::endl;
-   }
-
    // Visualize the mesh displacement.
    if (visualization)
    {
@@ -1285,7 +1173,6 @@ int main(int argc, char *argv[])
    delete metric2;
    delete metric_coeff1;
    delete adapt_lim_eval;
-   delete adapt_surface;
    delete target_c;
    delete hr_adapt_coeff;
    delete adapt_coeff;

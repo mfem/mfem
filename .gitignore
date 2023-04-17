@@ -210,6 +210,7 @@ miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/pmesh-fitting
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc

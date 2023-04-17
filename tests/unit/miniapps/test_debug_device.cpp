@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 using namespace mfem;
 
@@ -106,6 +107,15 @@ static void Aliases(const int N = 0x1234)
    E = 3.0;
    E.SyncAliasMemory(S);
    REQUIRE(S*S == MFEM_Approx(24.0*N));
+}
+
+TEST_CASE("Array::MakeRef", "[DebugDevice]")
+{
+   Array<int> x(1);
+   Array<int> y;
+   y.MakeRef(x);
+   x.Read();
+   REQUIRE_NOTHROW(y.Read());
 }
 
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
