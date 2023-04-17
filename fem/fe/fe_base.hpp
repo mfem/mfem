@@ -591,10 +591,10 @@ public:
        (quadrilateral and hexahedral) elements. Its functionality may change
        when simplex elements are supported in the future. */
    virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
- 
+
    virtual DofTransformation * GetDofTransformation() const { return NULL; }
 
-  /// Deconstruct the FiniteElement
+   /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
    /** @brief Return true if the BasisType of @a b_type is closed
