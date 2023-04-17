@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool nc = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
@@ -77,6 +78,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-no-nc",
+                  "--no-non-conforming", "Enable Nonconforming Refinement.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -103,20 +106,24 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
+
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   // {
-   //    int ref_levels =
-   //       (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-   //    for (int l = 0; l < ref_levels; l++)
-   //    {
-   //       mesh->UniformRefinement();
-   //    }
-   // }
-   mesh->UniformRefinement();
 
+   if (nc)
+   {
+      mesh->EnsureNCMesh();
+   }
+   {
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh->UniformRefinement();
+      }
+   }
    // 5. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
