@@ -2015,6 +2015,24 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
    }
 }
 
+
+void GridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
+{
+   elem_per_vdof.SetSize(fes->GetVSize());
+   elem_per_vdof = 0;
+   Array<int> vdofs;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         elem_per_vdof[vdofs[j]]++;
+      }
+   }
+}
+
 void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
                                            AvgType type,
                                            Array<int> &zones_per_vdof)
