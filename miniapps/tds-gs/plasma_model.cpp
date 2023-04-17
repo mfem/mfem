@@ -177,28 +177,52 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double mu = model->get_mu();
   double coeff_u2 = model->get_coeff_u2();
 
+  // todo
+  //  - setting to zero out first two terms
+  //  - define alpha
+  //  - get fX, fbar, fbar'
+  
   if (option == 1) {
-    // integrand
+    // integrand of
+    // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
+    //                       + S_{ff'}(\psi_N) / (\mu r)
+    //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
+    
     return
-      + ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (mu * ri)
+      + ri * (model->S_p_prime(psi_N))
+      + (model->S_ff_prime(psi_N)) / (mu * ri)
       + coeff_u2 * pow(psi_val, 2.0);
   } else {
-    // derivative of integrand
+    // integrand of
+    // int_{\Omega_p(\psi)} ( (  r S_{p'}'(\psi_N)
+    //                         + S_{ff'}'(\psi_N) / (\mu r) ) d_{\psi} \psi_N(\psi, \phi) v
+    //                       + d_{\psi} \bar{S}_{ff'}'(\psi, \phi) v ) dr dz
+    // = 
+    // int_{\Omega_p(\psi)} ( (  r S_{p'}'(\psi_N)
+    //                         + S_{ff'}'(\psi_N) / (\mu r)
+    //                         + A                          ) d_{\psi} \psi_N(\psi, \phi) v
+    //                       + B phi_x v
+    //                       + C phi_ma v) dr dz
+    // 
+    
     double coeff = 1.0;
+
+    double psi_N_multiplier = \
+      + ri * (model->S_prime_p_prime(psi_N))
+      + (model->S_prime_ff_prime(psi_N)) / (mu * ri);
     if (option == 2) {
-      // coefficient for phi
-      coeff = 1.0 / (psi_bdp - psi_max);
+      // coefficient for phi in d_psi psi_N
+      coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier;
     } else if (option == 3) {
-      // coefficient for phi_ma
-      coeff = - 1.0 * (1 - psi_N) / (psi_bdp - psi_max);
+      // coefficient for phi_ma in d_psi psi_N
+      coeff = - 1.0 * (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier;
     } else if (option == 4) {
-      // coefficient for phi_x
-      coeff = - 1.0 * psi_N / (psi_bdp - psi_max);
+      // coefficient for phi_x in d_psi psi_N
+      coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier;
     }
 
     return
-      coeff * (ri * (model->S_prime_p_prime(psi_N))
-               + (model->S_prime_ff_prime(psi_N)) / (mu * ri))
+      + coeff
       + coeff_u2 * 2.0 * psi_val;
   }
 }
