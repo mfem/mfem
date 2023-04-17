@@ -10,6 +10,7 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+//               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -30,10 +31,20 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <list>
 
 using namespace std;
 using namespace mfem;
 
+class Data
+{
+public:
+   double x,val;
+   Data(double x_, double val_) {x=x_; val=val_;};
+};
+
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
@@ -131,6 +142,7 @@ int main(int argc, char *argv[])
    Array<int> slave(0);
    bool static_cond = false;
    bool visualization = 1;
+   int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
    double kappa = -1;
@@ -165,6 +177,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&lod, "-lod", "--level-of-detail",
+                  "Refinement level for 1D solution output (0 means no output).");
    args.Parse();
    if (!args.Good())
    {
@@ -390,6 +404,7 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+   sol_ofs.close();
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -399,6 +414,43 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
+   }
+
+   if (mesh->Dimension() == 1 && lod > 0)
+   {
+      std::list<Data> sol;
+
+      Vector      vals,coords;
+      GridFunction *nodes = mesh->GetNodes();
+      if (!nodes)
+      {
+         nodes = new GridFunction(fespace);
+         mesh->GetNodes(*nodes);
+      }
+
+      for (int i = 0; i <  mesh->GetNE(); i++)
+      {
+         int geom       = mesh->GetElementBaseGeometry(i);
+         RefinedGeometry *refined_geo = GlobGeometryRefiner.Refine(( Geometry::Type)geom,
+                                                                   lod, 1);
+
+         x.GetValues(i, refined_geo->RefPts, vals);
+         nodes->GetValues(i, refined_geo->RefPts, coords);
+
+         for (int j = 0; j < vals.Size(); j++)
+         {
+            sol.push_back(Data(coords[j],vals[j]));
+         }
+      }
+      sol.sort();
+      sol.unique();
+      ofstream sol_ofs("solution.dat");
+      for (std::list<Data>::iterator d = sol.begin(); d != sol.end(); ++d)
+      {
+         sol_ofs<<d->x <<"\t"<<d->val<<endl;
+      }
+
+      sol_ofs.close();
    }
 
    // 14. Save data in the VisIt format
