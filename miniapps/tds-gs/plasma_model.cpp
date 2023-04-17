@@ -182,9 +182,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     return
       + ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (mu * ri)
       + coeff_u2 * pow(psi_val, 2.0);
-    // return
-    //   + mu * ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (ri)
-    //   + coeff_u2 * pow(psi_val, 2.0);
   } else {
     // derivative of integrand
     double coeff = 1.0;
@@ -203,10 +200,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       coeff * (ri * (model->S_prime_p_prime(psi_N))
                + (model->S_prime_ff_prime(psi_N)) / (mu * ri))
       + coeff_u2 * 2.0 * psi_val;
-    // return
-    //   coeff * (ri * (model->S_prime_p_prime(psi_N)) * mu
-    //            + (model->S_prime_ff_prime(psi_N)) / (ri))
-    //   + coeff_u2 * 2.0 * psi_val;
   }
 }
 

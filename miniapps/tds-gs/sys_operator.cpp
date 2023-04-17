@@ -166,9 +166,6 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   // 
   Mat = new SparseMatrix(m, m);
   for (int k = 0; k < m; ++k) {
-    // if (diff_plasma_term_3[k] != 0.0) {
-    //   printf("%d, %.3e, %.3e\n", k, diff_plasma_term_3[k], diff_plasma_term_4[k]);
-    // }
     Mat->Add(k, ind_ma, -diff_plasma_term_3[k]);
     Mat->Add(k, ind_x, -diff_plasma_term_4[k]);
     // note, when no saddles are found, derivative is different?

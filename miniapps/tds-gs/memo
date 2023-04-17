@@ -78,3 +78,19 @@ total saddles found: 0
 -0.000841973 -0.000502912 -0.000244757
 i:   2, nonl_res: 6.240e+03, ratio 3.651e+01, opt_res: 5.810e+02, reg_res: 5.875e-04, obj: 5.630e+04, lst_sq: 5.630e+04, reg: 1.941e-06
   C-c C-c^C
+
+
+
+-----------------
+
+
+Divide by (\mu_0 R) on both sides
+
+(g g') is the same as my (f f')
+
+What are I_\theta^C and I_\theta^P? Are they functions of \bar{\psi}?
+
+Plasma current I_p: is this an integral over the plasma domain?
+
+
+
