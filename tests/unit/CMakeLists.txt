@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -75,6 +75,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
+  fem/test_face_restriction.cpp
   fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
@@ -353,7 +354,7 @@ if (MFEM_USE_HIP)
    set_property(SOURCE ${DEBUG_DEVICE_SRCS}
                 PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
-mfem_add_executable(debug_device_tests unit_test_main.cpp ${DEBUG_DEVICE_SRCS})
+mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
 target_link_libraries(debug_device_tests mfem)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)
