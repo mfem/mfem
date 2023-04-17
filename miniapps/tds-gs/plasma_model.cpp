@@ -231,9 +231,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double mu = model->get_mu();
   double coeff_u2 = model->get_coeff_u2();
 
-  // todo
-  //  - get fX, fbar, fbar'
-  
   if (option == 1) {
     // integrand of
     // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
