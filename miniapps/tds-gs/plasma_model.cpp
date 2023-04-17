@@ -7,6 +7,8 @@
 using namespace mfem;
 using namespace std;
 
+// ***************************************************
+// These functions involve a simplified plasma model
 double PlasmaModel::S_p_prime(double & psi_N) const
 {
   // return zero when derivative is singular
@@ -75,6 +77,8 @@ double PlasmaModel::S_prime_ff_prime(double & psi_N) const
 
 
 
+// ***************************************************
+// These functions involve a plasma model loaded from a file
 double PlasmaModelFile::S_p_prime(double & psi_N) const
 {
   // outside plasma, return 0
@@ -120,9 +124,48 @@ double PlasmaModelFile::S_prime_ff_prime(double & psi_N) const
   
   return (ffprime_vector[index+1] - ffprime_vector[index]) / dx;
 }
+double PlasmaModelFile::f_bar(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return (fpol_bar_vector[index+1] - fpol_bar_vector[index]) / dx;
+}
+double PlasmaModelFile::f_bar_prime(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return (fpol_bar_prime_vector[index+1] - fpol_bar_prime_vector[index]) / dx;
+}
+double PlasmaModelFile::f_bar_double_prime(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return (fpol_bar_double_prime_vector[index+1] - fpol_bar_double_prime_vector[index]) / dx;
+}
 
 
 
+
+
+//
 double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 {
   if (false) {
@@ -171,7 +214,10 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   // alpha: multiplier in \bar{S}_{ff'} term
   // beta: multiplier for S_{p'} term
   // gamma: multiplier for S_{ff'} term
-  double alpha = model->get_alpha();
+  double f_ma = model->get_f_ma();
+  double f_x = model->get_f_x();
+  double alpha_bar = model->get_alpha_bar();
+  double alpha = alpha_bar * (f_ma - f_x);
   double beta = model->get_beta();
   double gamma = model->get_gamma();
   // cout << alpha << beta << gamma << endl;
@@ -186,8 +232,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double coeff_u2 = model->get_coeff_u2();
 
   // todo
-  //  - setting to zero out first two terms
-  //  - define alpha
   //  - get fX, fbar, fbar'
   
   if (option == 1) {
@@ -195,10 +239,15 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
     //                       + S_{ff'}(\psi_N) / (\mu r)
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
+
+
+    double S_bar_ffprime =
+      alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max);
     
     return
       + beta * ri * (model->S_p_prime(psi_N))
       + gamma * (model->S_ff_prime(psi_N)) / (mu * ri)
+      + S_bar_ffprime
       + coeff_u2 * pow(psi_val, 2.0);
   } else {
     // integrand of
@@ -213,20 +262,28 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + C phi_ma v) dr dz
     // 
     
-    double coeff = 1.0;
+    double coeff;
 
     double psi_N_multiplier = \
       + beta * ri * (model->S_prime_p_prime(psi_N))
-      + gamma * (model->S_prime_ff_prime(psi_N)) / (mu * ri);
+      + gamma * (model->S_prime_ff_prime(psi_N)) / (mu * ri)
+      + alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max)
+      + alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max);
+
+    double other =
+      - alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))
+      / (psi_bdp - psi_max) / (psi_bdp - psi_max);
     if (option == 2) {
       // coefficient for phi in d_psi psi_N
       coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier;
     } else if (option == 3) {
       // coefficient for phi_ma in d_psi psi_N
-      coeff = - 1.0 * (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier;
+      coeff = - 1.0 * (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier
+        - other;
     } else if (option == 4) {
       // coefficient for phi_x in d_psi psi_N
-      coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier;
+      coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier
+        + other;
     }
 
     return

@@ -10,7 +10,7 @@
 # block diag PC
 # more newton steps
 
-alpha=0.9
+alpha=0.0
 beta=1.0
 gamma=1.0
 lambda=-10000

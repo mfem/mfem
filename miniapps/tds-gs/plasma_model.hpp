@@ -24,9 +24,14 @@ public:
   virtual double S_prime_ff_prime(double & psi_N) const {return 1.0;};
   virtual double get_mu() const {return mu0;}
   virtual double get_coeff_u2() const {return coeff_u2;}
-  virtual double get_alpha() const {return alpha;}
+  virtual double get_alpha_bar() const {return alpha;}
   virtual double get_beta() const {return beta;}
   virtual double get_gamma() const {return gamma;}
+  virtual double f_bar(double & psi_N) const {return 0.0;};
+  virtual double f_bar_prime(double & psi_N) const {return 0.0;};
+  virtual double f_bar_double_prime(double & psi_N) const {return 0.0;};
+  virtual double get_f_ma() const {return 0.0;}
+  virtual double get_f_x() const {return 1.0;}
   // ~PlasmaModel() {}
 };
 
@@ -67,8 +72,14 @@ class PlasmaModelFile : public PlasmaModelBase
 {
 private:
   const char *data_file;
+  vector<double> fpol_vector;
+  vector<double> fpol_bar_vector;
+  vector<double> fpol_bar_prime_vector;
+  vector<double> fpol_bar_double_prime_vector;
   vector<double> ffprime_vector;
   vector<double> pprime_vector;
+  double f_ma;
+  double f_x;
   double alpha;
   double beta;
   double gamma;
@@ -98,23 +109,77 @@ public:
       iss = new istringstream(line);
       *iss >> fpol >> pres >> ffprime >> pprime;
       // cout << fpol << " " << pres << " " << ffprime << " " << pprime << endl;
+      fpol_vector.push_back(fpol);
       ffprime_vector.push_back(ffprime);
       pprime_vector.push_back(pprime);
     }
-
     N = ffprime_vector.size();
     dx = 1.0 / (N - 1.0);
+
+    f_x = fpol_vector[N - 1];
+    f_ma = fpol_vector[0];
+
+    cout << "f_x = " << f_x << endl;
+    cout << "f_ma = " << f_ma << endl;
+
+    vector<double> f_bar(N);
+    vector<double> f_bar_prime(N);
+    vector<double> f_bar_double_prime(N);
+
+    for (int i = 0; i < N; ++i) {
+      f_bar[i] = (fpol_vector[i] - f_x) / (f_ma - f_x);
+    }
+
+    // first derivative
+    f_bar_prime[0] =
+      (- 0.5 * f_bar[2] + 2.0 * f_bar[1] - 1.5 * f_bar[0]) / (dx);
+    for (int i = 1; i < N - 1; ++i) {
+      f_bar_prime[i] = (f_bar[i + 1] - f_bar[i - 1]) / (2 * dx);
+    }
+    f_bar_prime[N - 1] =
+      (0.5 * f_bar[N - 3] - 2.0 * f_bar[N - 2] + 1.5 * f_bar[N - 1]) / (dx);
+
+    // second derivative
+    f_bar_double_prime[0] =
+      (2.0 * f_bar[3] - 5.0 * f_bar[2] + 4.0 * f_bar[1] - 1.0 * f_bar[0]) / (dx);
+    for (int i = 1; i < N - 1; ++i) {
+      f_bar_double_prime[i] = (f_bar[i + 1] - 2.0 * f_bar[i] + f_bar[i - 1]) / (dx * dx);
+    }    
+    f_bar_double_prime[N - 1] =
+      (2.0 * f_bar[N - 4] - 5.0 * f_bar[N - 3] + 4.0 * f_bar[N - 2] - 1.0 * f_bar[N - 1]) / (dx);
+
+    fpol_bar_vector = f_bar;
+    fpol_bar_prime_vector = f_bar_prime;
+    fpol_bar_double_prime_vector = f_bar_double_prime;
+
+    // for (int i = 0; i < N; ++i) {
+    //   cout << fpol_bar_vector[i] << ", ";
+    // }
+    // cout << endl;
+    // for (int i = 0; i < N; ++i) {
+    //   cout << fpol_bar_prime_vector[i] << ", ";
+    // }    
+    // cout << endl;
+    // for (int i = 0; i < N; ++i) {
+    //   cout << fpol_bar_double_prime_vector[i] << ", ";
+    // }    
+    // cout << endl;
 
   }
   double S_p_prime(double & psi_N) const;
   double S_ff_prime(double & psi_N) const;
   double S_prime_p_prime(double & psi_N) const;
   double S_prime_ff_prime(double & psi_N) const;
+  double f_bar(double & psi_N) const;
+  double f_bar_prime(double & psi_N) const;
+  double f_bar_double_prime(double & psi_N) const;
   double get_mu() const {return mu0;}
-  double get_alpha() const {return alpha;}
+  double get_alpha_bar() const {return alpha;}
   double get_beta() const {return beta;}
   double get_gamma() const {return gamma;}
-  double set_alpha(double alpha_) {alpha = alpha_;}
+  double get_f_ma() const {return f_ma;}
+  double get_f_x() const {return f_x;}
+  double set_alpha_bar(double alpha_) {alpha = alpha_;}
   ~PlasmaModelFile() { }
 };
 
