@@ -458,6 +458,10 @@ protected:
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
 public:
+   /** @brief For each vdof, counts how many elements contain the vdof,
+       as containment is determined by FiniteElementSpace::GetElementVDofs(). */
+   virtual void CountElementsPerVDof(Array<int> &elem_per_vdof) const;
+
    /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
        the boundary associated with the boundary attributes marked in the
        @a attr array. */
