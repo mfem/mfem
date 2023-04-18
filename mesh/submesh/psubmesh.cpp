@@ -255,7 +255,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    if (Dim > 1)
    {
-      el_to_edge = new Table;
+      if (!el_to_edge) { el_to_edge = new Table; }
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
 
