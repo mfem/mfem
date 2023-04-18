@@ -20,7 +20,6 @@
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
 #include "../fem/quadinterpolator.hpp"
-#include "../linalg/vector.hpp"
 
 #include <iostream>
 #include <sstream>
