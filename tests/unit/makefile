@@ -120,9 +120,9 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-$(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
+$(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
-	$(CCC) $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
+	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
 	   $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
