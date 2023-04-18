@@ -861,6 +861,36 @@ public:
    int GetNumConstraints() const;
 };
 
+/// Users can inherit this class to access to HiOp-specific functionality.
+class HiOpProblem : public OptimizationProblem
+{
+public:
+   HiOpProblem(int insize, const Operator *C_, const Operator *D_)
+      : OptimizationProblem(insize, C_, D_) { }
+
+   /// See hiopInterfaceBase::iterate_callback(...).
+   virtual bool IterateCallback(int iter,
+                                double obj_value,
+                                double logbar_obj_value,
+                                int n,
+                                const double* x,
+                                const double* z_L,
+                                const double* z_U,
+                                int m_ineq,
+                                const double* s,
+                                int m,
+                                const double* g,
+                                const double* lambda,
+                                double inf_pr,
+                                double inf_du,
+                                double onenorm_pr_,
+                                double mu,
+                                double alpha_du,
+                                double alpha_pr,
+                                int ls_trials) const
+   { return true; }
+};
+
 /// Abstract solver for OptimizationProblems.
 class OptimizationSolver : public IterativeSolver
 {
