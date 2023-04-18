@@ -32,6 +32,7 @@
 //               We recommend viewing Example 22 before viewing this example.
 
 #include "mfem.hpp"
+#include <memory>
 #include <fstream>
 #include <iostream>
 
@@ -467,16 +468,14 @@ int main(int argc, char *argv[])
       offsets[2] = fespace->GetTrueVSize();
       offsets.PartialSum();
 
-      Operator *pc_r = nullptr;
-      Operator *pc_i = nullptr;
-      int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
+      std::unique_ptr<Operator> pc_r;
+      std::unique_ptr<Operator> pc_i;
+      double s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
       if (pa)
       {
          // Jacobi Smoother
-         OperatorJacobiSmoother *d00 = new OperatorJacobiSmoother(prec, ess_tdof_list);
-         ScaledOperator *d11 = new ScaledOperator(d00, s);
-         pc_r = d00;
-         pc_i = d11;
+         pc_r.reset(new OperatorJacobiSmoother(prec, ess_tdof_list));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
       else
       {
@@ -485,15 +484,13 @@ int main(int argc, char *argv[])
          prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
          // Gauss-Seidel Smoother
-         GSSmoother *gs00 = new GSSmoother(*PCOpAh.As<SparseMatrix>());
-         ScaledOperator *gs11 = new ScaledOperator(gs00, s);
-         pc_r = gs00;
-         pc_i = gs11;
+         pc_r.reset(new GSSmoother(*PCOpAh.As<SparseMatrix>()));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
-      BlockDP.SetDiagonalBlock(0, pc_r);
-      BlockDP.SetDiagonalBlock(1, pc_i);
+      BlockDP.SetDiagonalBlock(0, pc_r.get());
+      BlockDP.SetDiagonalBlock(1, pc_i.get());
 
       GMRESSolver gmres;
       gmres.SetPrintLevel(1);

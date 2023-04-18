@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -155,7 +155,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    double t = 0.0;
    bool last_step = false;
-   for (int ti = 1; !last_step; ti++)
+   while (!last_step)
    {
       if (t + dt >= 1.0)
       {
@@ -416,11 +416,11 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    double scale = 1.0;
+   double avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      double avg_err, max_err;
-      GetSurfaceFittingError(avg_err, max_err);
-      if (max_err < surf_fit_max_threshold)
+      GetSurfaceFittingError(avg_surf_fit_err, max_surf_fit_err);
+      if (max_surf_fit_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
          {
@@ -430,6 +430,17 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale = 0.0;
          return scale;
       }
+   }
+   if (adapt_inc_count >= max_adapt_inc_count)
+   {
+      if (print_options.iterations)
+      {
+         mfem::out << "TMOPNewtonSolver converged "
+                   "based on max number of times surface fitting weight can"
+                   "be increased. \n";
+      }
+      scale = 0.0;
+      return scale;
    }
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
@@ -443,6 +454,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // reference to detect deteriorations.
       MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
                   " intermediate mesh is invalid. Contact TMOP Developers.");
+      MFEM_VERIFY(min_detJ_threshold == 0.0,
+                  "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
@@ -476,9 +489,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out < 0.0)
+      if (untangling == false && min_detT_out <= min_detJ_threshold)
       {
-         // No untangling, and detJ got negative -- no good.
+         // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
@@ -502,6 +515,20 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in total energy.
       ProcessNewState(x_out);
+
+      double avg_fit_err, max_fit_err = 0.0;
+      if (surf_fit_max_threshold > 0.0)
+      {
+         GetSurfaceFittingError(avg_fit_err, max_fit_err);
+      }
+      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+         }
+         scale *= 0.5; continue;
+      }
 
       if (serial)
       {
@@ -574,7 +601,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
    compute_metric_quantile_flag = true;
 
    return scale;
@@ -795,8 +822,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    // decrease between subsequent TMOPNewtonSolver iterations.
    if (update_surf_fit_coeff)
    {
-      double surf_fit_err_max = -10;
-      double surf_fit_err_avg = -10;
       // Get surface fitting errors.
       GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
@@ -816,9 +841,14 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
-      if (rel_change_surf_fit_err < 1.e-2)
+      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
-         UpdateSurfaceFittingWeight(10);
+         UpdateSurfaceFittingWeight(surf_fit_scale_factor);
+         adapt_inc_count += 1;
+      }
+      else
+      {
+         adapt_inc_count = 0;
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
