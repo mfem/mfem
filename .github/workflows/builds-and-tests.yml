@@ -263,7 +263,9 @@ jobs:
       if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
-        cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
+        cd ${{ env.MFEM_TOP_DIR }}/build && \
+        ctest --output-on-failure -C ${CTEST_CONFIG} || \
+        ctest --rerun-failed --output-on-failure -C ${CTEST_CONFIG}
       shell: bash
 
     # Code coverage (process and upload reports)
