@@ -2632,6 +2632,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
          ++n_partitions;
          ++elem_domain;
+         MFEM_CONTRACT_VAR(n_partitions);
+         MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
       else if (buff == "$Periodic") // Reading master/slave node pairs
