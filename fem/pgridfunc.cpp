@@ -238,7 +238,7 @@ void ParGridFunction::ExchangeFaceNbrData()
 
    auto d_data = this->Read();
    auto d_send_data = send_data.Write();
-   MFEM_FORALL(i, send_data.Size(),
+   mfem::forall(send_data.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int ldof = d_send_ldof[i];
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
