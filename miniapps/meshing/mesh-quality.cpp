@@ -25,7 +25,6 @@
 // mesh-quality -m ../../data/square-disc.mesh  -o 2 -size -aspr -skew -vis
 
 #include "mfem.hpp"
-#include <fstream>
 #include <iostream>
 #include "../common/mfem-common.hpp"
 
