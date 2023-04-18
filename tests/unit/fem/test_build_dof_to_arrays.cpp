@@ -133,6 +133,7 @@ TEST_CASE("Build Dof To Arrays",
          REQUIRE(num_rang_fails == 0);
          REQUIRE(num_ldof_fails == 0);
       }
+      delete mesh;
    }
 }
 
