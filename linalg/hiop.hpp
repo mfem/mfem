@@ -167,6 +167,26 @@ public:
    virtual bool get_vecdistrib_info(hiop::size_type global_n,
                                     hiop::index_type *cols);
 
+   virtual bool iterate_callback(int iter,
+                                 double obj_value,
+                                 double logbar_obj_value,
+                                 int n,
+                                 const double* x,
+                                 const double* z_L,
+                                 const double* z_U,
+                                 int m_ineq,
+                                 const double* s,
+                                 int m,
+                                 const double* g,
+                                 const double* lambda,
+                                 double inf_pr,
+                                 double inf_du,
+                                 double onenorm_pr_,
+                                 double mu,
+                                 double alpha_du,
+                                 double alpha_pr,
+                                 int ls_trials);
+
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)
    {
