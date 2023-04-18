@@ -233,8 +233,8 @@ int main(int argc, char *argv[])
    mesh.FinalizeTopology();
 
    // Paint elements with alternating colors
-   FiniteElementCollection *fec = new L2_FECollection(0, 3, 1);
-   FiniteElementSpace fespace(&mesh, fec);
+   L2_FECollection fec(0, 3, 1);
+   FiniteElementSpace fespace(&mesh, &fec);
    GridFunction color(&fespace);
 
    for (int i=0; i<24; i++) { color[i] = (i%2)?1.0:-1.0; }

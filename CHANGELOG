@@ -14,6 +14,25 @@ Version 4.5.3 (development)
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary fitting to implicit domains defined using level-set functions.
+
+- Moved the distance solver methods from miniapps/shifted to miniapps/common. 
+
+Discretization improvements
+---------------------------
+- Face restriction operators for Nedelec and Raviart-Thomas finite element
+  spaces are now supported through the ConformingFaceRestriction class.
+
+- VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
+
+Integrations, testing and documentation
+---------------------------------------
+- Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
+  based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
+
+
 Version 4.5.2, released on March 23, 2023
 =========================================
 
