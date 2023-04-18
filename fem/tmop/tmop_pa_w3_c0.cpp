@@ -39,7 +39,7 @@ void TMOP_EnergyPA_C0_3D(const double lim_normal,
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

@@ -30,7 +30,7 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE,
    constexpr int DIM = 3;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -61,7 +61,7 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;

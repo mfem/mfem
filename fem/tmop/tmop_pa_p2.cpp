@@ -40,7 +40,7 @@ void TMOP_AddMultPA_2D(const double metric_normal,
    constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;

@@ -62,7 +62,7 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;

@@ -79,7 +79,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+      mfem::forall_2D(NE,Q1D,Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -103,7 +103,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -123,9 +123,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal2D(const int NE,
-                                     const double *b,
-                                     const double *d,
-                                     double *y,
+                                     ConstDeviceMatrix &B,
+                                     ConstDeviceCube &D,
+                                     DeviceCube &Y,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
@@ -133,10 +133,7 @@ static void PAMassAssembleDiagonal2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto D = Reshape(d, Q1D, Q1D, NE);
-   auto Y = Reshape(y, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -184,8 +181,7 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -235,9 +231,9 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassAssembleDiagonal3D(const int NE,
-                                     const double *b,
-                                     const double *d,
-                                     double *y,
+                                     ConstDeviceMatrix &B,
+                                     DeviceTensor<4,const double> &D,
+                                     DeviceTensor<4,double> &Y,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
@@ -245,10 +241,7 @@ static void PAMassAssembleDiagonal3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b, Q1D, D1D);
-   auto D = Reshape(d, Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y, D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -316,8 +309,7 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -560,7 +552,7 @@ static void PAMassApply2D(const int NE,
    MFEM_VERIFY((T_D1D ? T_D1D : d1d) <= MAX_D1D, "");
    MFEM_VERIFY((T_Q1D ? T_Q1D : q1d) <= MAX_Q1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApply2D_Element(e,NE,B,Bt,D,X,Y,d1d,q1d);
    });
@@ -584,8 +576,7 @@ static void SmemPAMassApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e,NE,B,D,X,Y,d1d,q1d);
    });
@@ -601,10 +592,10 @@ static void PAMassApply3D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   MFEM_VERIFY((T_D1D ? T_D1D : d1d) <= MAX_D1D, "");
-   MFEM_VERIFY((T_Q1D ? T_Q1D : q1d) <= MAX_Q1D, "");
+   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
+   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApply3D_Element(e,NE,B,Bt,D,X,Y,d1d,q1d);
    });
@@ -625,8 +616,7 @@ static void SmemPAMassApply3D(const int NE,
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e,NE,b,D,x,Y,D1D,Q1D);
    });
