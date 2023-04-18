@@ -524,16 +524,14 @@ int main(int argc, char *argv[])
       offsets[2] = fespace->GetTrueVSize();
       offsets.PartialSum();
 
-      Operator *pc_r = nullptr;
-      Operator *pc_i = nullptr;
+      std::unique_ptr<Operator> pc_r;
+      std::unique_ptr<Operator> pc_i;
       int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
       if (pa)
       {
          // Jacobi Smoother
-         OperatorJacobiSmoother *d00 = new OperatorJacobiSmoother(prec, ess_tdof_list);
-         ScaledOperator *d11 = new ScaledOperator(d00, s);
-         pc_r = d00;
-         pc_i = d11;
+         pc_r.reset(new OperatorJacobiSmoother(prec, ess_tdof_list));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
       else
       {
@@ -541,15 +539,13 @@ int main(int argc, char *argv[])
          prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
          // Hypre AMS
-         HypreAMS *ams00 = new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace);
-         ScaledOperator *ams11 = new ScaledOperator(ams00, s);
-         pc_r = ams00;
-         pc_i = ams11;
+         pc_r.reset(new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
-      BlockDP.SetDiagonalBlock(0, pc_r);
-      BlockDP.SetDiagonalBlock(1, pc_i);
+      BlockDP.SetDiagonalBlock(0, pc_r.get());
+      BlockDP.SetDiagonalBlock(1, pc_i.get());
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
