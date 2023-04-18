@@ -34,9 +34,9 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
                   "libCEED interface for vector FE does not support VDim > 1!");
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
-      ctx.is_hdiv = (fes.FEColl()->GetDerivType(ctx.dim) == mfem::FiniteElement::DIV);
-      MFEM_VERIFY(ctx.is_hdiv ||
-                  fes.FEColl()->GetDerivType(ctx.dim) == mfem::FiniteElement::CURL,
+      ctx.hdiv = (fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV);
+      MFEM_VERIFY(ctx.hdiv ||
+                  fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_CURL,
                   "VectorFEMassIntegrator requires H(div) or H(curl) FE space!");
       InitCoefficient(Q);
 

@@ -386,10 +386,10 @@ CEED_QFUNCTION_HELPER void MultJtCJ22(const CeedScalar *J,
       // First compute entries of R = C J
       // c: 0 1
       //    1 2
-      const CeedScalar R11 = c[c_stride * 0] * J11 + c[c_stride * 1] * J12;
-      const CeedScalar R21 = c[c_stride * 1] * J11 + c[c_stride * 2] * J12;
-      const CeedScalar R12 = c[c_stride * 0] * J21 + c[c_stride * 1] * J22;
-      const CeedScalar R22 = c[c_stride * 1] * J21 + c[c_stride * 2] * J22;
+      const CeedScalar R11 = c[c_stride * 0] * J11 + c[c_stride * 1] * J21;
+      const CeedScalar R21 = c[c_stride * 1] * J11 + c[c_stride * 2] * J21;
+      const CeedScalar R12 = c[c_stride * 0] * J12 + c[c_stride * 1] * J22;
+      const CeedScalar R22 = c[c_stride * 1] * J12 + c[c_stride * 2] * J22;
       qd[qd_stride * 0] = w * (J11 * R11 + J21 * R21);
       qd[qd_stride * 1] = w * (J11 * R12 + J21 * R22);
       qd[qd_stride * 2] = w * (J12 * R12 + J22 * R22);

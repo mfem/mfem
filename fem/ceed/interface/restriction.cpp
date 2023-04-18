@@ -158,7 +158,7 @@ static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
       {
          dof_trans = fes.GetElementDofs(elem_index, dofs);
       }
-      MFEM_VERIFY(!dof_trans,
+      MFEM_VERIFY(!dof_trans || fes.GetMaxElementOrder() == 1,
                   "DofTransformation support for CeedElemRestriction does not exist yet.");
       for (int j = 0; j < P; j++)
       {
@@ -220,13 +220,14 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
       {
          dof_trans = fes.GetElementDofs(elem_index, dofs);
       }
-      MFEM_VERIFY(!dof_trans,
+      MFEM_VERIFY(!dof_trans || fes.GetMaxElementOrder() == 1,
                   "DofTransformation support for CeedElemRestriction does not exist yet.");
       for (int j = 0; j < P; j++)
       {
          const int sgid = dofs[j];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          tp_el_dof[j + P * i] = stride * gid;
+         tp_el_orients[j + P * i] = (sgid < 0);
          use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
@@ -256,12 +257,15 @@ static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
    const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0): fes.GetFE(0);
    const mfem::TensorBasisElement *tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if (tfe && tfe->GetDofMap().Size() > 0)  // Lexicographic ordering using dof_map
+   const bool vector = fe->GetRangeType() == mfem::FiniteElement::VECTOR;
+   if (tfe && tfe->GetDofMap().Size() > 0 && !vector)
    {
+      // Lexicographic ordering using dof_map
       InitLexicoRestr(fes, use_bdr, ceed, restr);
    }
-   else  // Native ordering
+   else
    {
+      // Native ordering
       InitNativeRestr(fes, use_bdr, ceed, restr);
    }
 }
@@ -277,12 +281,15 @@ static void InitRestrictionWithIndicesImpl(const mfem::FiniteElementSpace &fes,
                                    fes.GetFE(indices[0]);
    const mfem::TensorBasisElement *tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if (tfe && tfe->GetDofMap().Size() > 0)  // Lexicographic ordering using dof_map
+   const bool vector = fe->GetRangeType() == mfem::FiniteElement::VECTOR;
+   if (tfe && tfe->GetDofMap().Size() > 0 && !vector)
    {
+      // Lexicographic ordering using dof_map
       InitLexicoRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
    }
-   else  // Native ordering
+   else
    {
+      // Native ordering
       InitNativeRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
    }
 }

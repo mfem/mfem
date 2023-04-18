@@ -20,8 +20,8 @@
 /// f_apply_vecfemass
 struct VectorFEMassContext
 {
+   bool hdiv;
    CeedInt dim, space_dim, coeff_comp;
-   bool is_hdiv;
    CeedScalar coeff[LIBCEED_VECFEMASS_COEFF_COMP_MAX];
 };
 
@@ -38,7 +38,7 @@ CEED_QFUNCTION(f_build_vecfemass_const)(void *ctx, CeedInt Q,
    // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T (for
    // H(curl)) or qw/det(J) J^T C J (for H(div)) and store the symmetric part
    // of the result.
-   const bool is_hdiv = bc->is_hdiv;
+   const bool hdiv = bc->hdiv;
    const CeedInt coeff_comp = bc->coeff_comp;
    const CeedScalar *coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
@@ -49,35 +49,35 @@ CEED_QFUNCTION(f_build_vecfemass_const)(void *ctx, CeedInt Q,
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
-            qd[i] = qw[i] * coeff0 * (is_hdiv ? J[i] : 1.0 / J[i]);
+            qd[i] = qw[i] * coeff0 * (hdiv ? J[i] : 1.0 / J[i]);
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
    }
@@ -98,7 +98,7 @@ CEED_QFUNCTION(f_build_vecfemass_quad)(void *ctx, CeedInt Q,
    // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T (for
    // H(curl)) or qw/det(J) J^T C J (for H(div)) and store the symmetric part
    // of the result.
-   const bool is_hdiv = bc->is_hdiv;
+   const bool hdiv = bc->hdiv;
    const CeedInt coeff_comp = bc->coeff_comp;
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
@@ -107,35 +107,35 @@ CEED_QFUNCTION(f_build_vecfemass_quad)(void *ctx, CeedInt Q,
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            qd[i] = qw[i] * c[i] * (is_hdiv ? J[i] : 1.0 / J[i]);
+            qd[i] = qw[i] * c[i] * (hdiv ? J[i] : 1.0 / J[i]);
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            (is_hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], Q, qd + i);
+            (hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], Q, qd + i);
          }
          break;
    }
@@ -149,34 +149,34 @@ CEED_QFUNCTION(f_apply_vecfemass)(void *ctx, CeedInt Q,
 {
    VectorFEMassContext *bc = (VectorFEMassContext *)ctx;
    // in[0], out[0] have shape [dim, ncomp=1, Q]
-   const CeedScalar *ug = in[0], *qd = in[1];
-   CeedScalar *vg = out[0];
+   const CeedScalar *u = in[0], *qd = in[1];
+   CeedScalar *v = out[0];
    switch (bc->dim)
    {
       case 1:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            vg[i] = qd[i] * ug[i];
+            v[i] = qd[i] * u[i];
          }
          break;
       case 2:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            vg[i + Q * 0] = qd[i + Q * 0] * ug0 + qd[i + Q * 1] * ug1;
-            vg[i + Q * 1] = qd[i + Q * 1] * ug0 + qd[i + Q * 2] * ug1;
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            v[i + Q * 0] = qd[i + Q * 0] * u0 + qd[i + Q * 1] * u1;
+            v[i + Q * 1] = qd[i + Q * 1] * u0 + qd[i + Q * 2] * u1;
          }
          break;
       case 3:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            const CeedScalar ug2 = ug[i + Q * 2];
-            vg[i + Q * 0] = qd[i + Q * 0] * ug0 + qd[i + Q * 1] * ug1 + qd[i + Q * 2] * ug2;
-            vg[i + Q * 1] = qd[i + Q * 1] * ug0 + qd[i + Q * 3] * ug1 + qd[i + Q * 4] * ug2;
-            vg[i + Q * 2] = qd[i + Q * 2] * ug0 + qd[i + Q * 4] * ug1 + qd[i + Q * 5] * ug2;
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            const CeedScalar u2 = u[i + Q * 2];
+            v[i + Q * 0] = qd[i + Q * 0] * u0 + qd[i + Q * 1] * u1 + qd[i + Q * 2] * u2;
+            v[i + Q * 1] = qd[i + Q * 1] * u0 + qd[i + Q * 3] * u1 + qd[i + Q * 4] * u2;
+            v[i + Q * 2] = qd[i + Q * 2] * u0 + qd[i + Q * 4] * u1 + qd[i + Q * 5] * u2;
          }
          break;
    }
@@ -195,66 +195,66 @@ CEED_QFUNCTION(f_apply_vecfemass_mf_const)(void *ctx, CeedInt Q,
    //
    // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T (for
    // H(curl)) or qw/det(J) J^T C J (for H(div)).
-   const bool is_hdiv = bc->is_hdiv;
+   const bool hdiv = bc->hdiv;
    const CeedInt coeff_comp = bc->coeff_comp;
    const CeedScalar *coeff = bc->coeff;
-   const CeedScalar *ug = in[0], *J = in[1], *qw = in[2];
-   CeedScalar *vg = out[0];
+   const CeedScalar *u = in[0], *J = in[1], *qw = in[2];
+   CeedScalar *v = out[0];
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
-            const CeedScalar qd = qw[i] * coeff0 * (is_hdiv ? J[i] : 1.0 / J[i]);
-            vg[i] = qd * ug[i];
+            const CeedScalar qd = qw[i] * coeff0 * (hdiv ? J[i] : 1.0 / J[i]);
+            v[i] = qd * u[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd;
-            (is_hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], 1, &qd);
-            vg[i] = qd * ug[i];
+            (hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], 1, &qd);
+            v[i] = qd * u[i];
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[3];
-            (is_hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], 1, qd);
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1;
-            vg[i + Q * 1] = qd[1] * ug0 + qd[2] * ug1;
+            (hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], 1, qd);
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            v[i + Q * 0] = qd[0] * u0 + qd[1] * u1;
+            v[i + Q * 1] = qd[1] * u0 + qd[2] * u1;
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[3];
-            (is_hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], 1, qd);
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1;
-            vg[i + Q * 1] = qd[1] * ug0 + qd[2] * ug1;
+            (hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], 1, qd);
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            v[i + Q * 0] = qd[0] * u0 + qd[1] * u1;
+            v[i + Q * 1] = qd[1] * u0 + qd[2] * u1;
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
-            (is_hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, coeff, 1, coeff_comp,
-                                                      qw[i], 1, qd);
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            const CeedScalar ug2 = ug[i + Q * 2];
-            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1 + qd[2] * ug2;
-            vg[i + Q * 1] = qd[1] * ug0 + qd[3] * ug1 + qd[4] * ug2;
-            vg[i + Q * 2] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
+            (hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, coeff, 1, coeff_comp,
+                                                   qw[i], 1, qd);
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            const CeedScalar u2 = u[i + Q * 2];
+            v[i + Q * 0] = qd[0] * u0 + qd[1] * u1 + qd[2] * u2;
+            v[i + Q * 1] = qd[1] * u0 + qd[3] * u1 + qd[4] * u2;
+            v[i + Q * 2] = qd[2] * u0 + qd[4] * u1 + qd[5] * u2;
          }
          break;
    }
@@ -274,64 +274,64 @@ CEED_QFUNCTION(f_apply_vecfemass_mf_quad)(void *ctx, CeedInt Q,
    //
    // At every quadrature point, compute qw/det(J) adj(J) C adj(J)^T (for
    // H(curl)) or qw/det(J) J^T C J (for H(div)).
-   const bool is_hdiv = bc->is_hdiv;
+   const bool hdiv = bc->hdiv;
    const CeedInt coeff_comp = bc->coeff_comp;
-   const CeedScalar *ug = in[0], *c = in[1], *J = in[2], *qw = in[3];
-   CeedScalar *vg = out[0];
+   const CeedScalar *u = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   CeedScalar *v = out[0];
    switch (10 * bc->space_dim + bc->dim)
    {
       case 11:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            const CeedScalar qd = qw[i] * c[i] * (is_hdiv ? J[i] : 1.0 / J[i]);
-            vg[i] = qd * ug[i];
+            const CeedScalar qd = qw[i] * c[i] * (hdiv ? J[i] : 1.0 / J[i]);
+            v[i] = qd * u[i];
          }
          break;
       case 21:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd;
-            (is_hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], 1, &qd);
-            vg[i] = qd * ug[i];
+            (hdiv ? MultJtCJ21 : MultAdjJCAdjJt21)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], 1, &qd);
+            v[i] = qd * u[i];
          }
          break;
       case 22:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[3];
-            (is_hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], 1, qd);
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1;
-            vg[i + Q * 1] = qd[1] * ug0 + qd[2] * ug1;
+            (hdiv ? MultJtCJ22 : MultAdjJCAdjJt22)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], 1, qd);
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            v[i + Q * 0] = qd[0] * u0 + qd[1] * u1;
+            v[i + Q * 1] = qd[1] * u0 + qd[2] * u1;
          }
          break;
       case 32:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[3];
-            (is_hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], 1, qd);
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1;
-            vg[i + Q * 1] = qd[1] * ug0 + qd[2] * ug1;
+            (hdiv ? MultJtCJ32 : MultAdjJCAdjJt32)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], 1, qd);
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            v[i + Q * 0] = qd[0] * u0 + qd[1] * u1;
+            v[i + Q * 1] = qd[1] * u0 + qd[2] * u1;
          }
          break;
       case 33:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
-            (is_hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, c + i, Q, coeff_comp,
-                                                      qw[i], 1, qd);
-            const CeedScalar ug0 = ug[i + Q * 0];
-            const CeedScalar ug1 = ug[i + Q * 1];
-            const CeedScalar ug2 = ug[i + Q * 2];
-            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1 + qd[2] * ug2;
-            vg[i + Q * 1] = qd[1] * ug0 + qd[3] * ug1 + qd[4] * ug2;
-            vg[i + Q * 2] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
+            (hdiv ? MultJtCJ33 : MultAdjJCAdjJt33)(J + i, Q, c + i, Q, coeff_comp,
+                                                   qw[i], 1, qd);
+            const CeedScalar u0 = u[i + Q * 0];
+            const CeedScalar u1 = u[i + Q * 1];
+            const CeedScalar u2 = u[i + Q * 2];
+            v[i + Q * 0] = qd[0] * u0 + qd[1] * u1 + qd[2] * u2;
+            v[i + Q * 1] = qd[1] * u0 + qd[3] * u1 + qd[4] * u2;
+            v[i + Q * 2] = qd[2] * u0 + qd[4] * u1 + qd[5] * u2;
          }
          break;
    }
