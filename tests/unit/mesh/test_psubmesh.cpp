@@ -198,6 +198,8 @@ void multidomain_test_2d(FECType fec_type)
          CHECK_GLOBAL_NORM(tmp);
       }
    }
+   delete surface_fec;
+   delete fec;
 }
 
 void multidomain_test_3d(FECType fec_type)
@@ -362,6 +364,8 @@ void multidomain_test_3d(FECType fec_type)
          CHECK_GLOBAL_NORM(tmp);
       }
    }
+   delete surface_fec;
+   delete fec;
 }
 
 TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
