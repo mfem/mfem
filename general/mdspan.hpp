@@ -399,7 +399,7 @@ struct md_extend<md_sequence<T, args...>, N, 0, false>
 template <typename T, T... args, md_size_t N>
 struct md_extend<md_sequence<T, args...>, N, 1, false>
 {
-   using type = md_sequence<T,  2*N, (args + N)..., args...>;
+   using type = md_sequence<T, 2*N, (args + N)..., args...>;
 };
 
 template <typename T, md_size_t N, bool L> struct make_md_sequence

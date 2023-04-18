@@ -191,7 +191,7 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan], [MDGridFunction]")
    {
       MDGridFunction<4> gsa(NE, NG, &fes, NA);
       const int gsa_0123 = gsa.Offset(0, 1, 2, 3);
-      REQUIRE(gsa_0123 ==  0 + 1*(NE) + 2*(NE*NG) + 3*(NE*NG*ND));
+      REQUIRE(gsa_0123 == 0 + 1*(NE) + 2*(NE*NG) + 3*(NE*NG*ND));
       mfem::Array<int> vdofs(ND);
       gsa.GetVDofs(0, 1, vdofs, 3);
       REQUIRE(0 <= vdofs.Min());
@@ -215,12 +215,12 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan], [MDGridFunction]")
 
 TEST_CASE("MDGridFunction reshapes", "[MDSpan], [MDGridFunction]")
 {
-   auto is_equal = [&](const  Vector &a, const  Vector &b)
+   auto is_equal = [&](const Vector &a, const Vector &b)
    {
       REQUIRE(a.Size() == b.Size());
       for (int i = 0; i < a.Size(); i++)
       {
-         const double va = a.GetData()[i], vb =  b.GetData()[i];
+         const double va = a.GetData()[i], vb = b.GetData()[i];
          REQUIRE(va == MFEM_Approx(vb));
       };
       return true;
