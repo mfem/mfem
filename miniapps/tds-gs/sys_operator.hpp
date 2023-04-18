@@ -35,6 +35,8 @@ private:
   SparseMatrix *K;
   Vector *g;
   Vector *uv_currents;
+  mutable Vector Plasma_Vec;
+  mutable double Alpha_Term;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
               PlasmaModelBase *model_, FiniteElementSpace *fespace_,

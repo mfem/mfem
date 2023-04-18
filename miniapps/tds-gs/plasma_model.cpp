@@ -237,7 +237,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + S_{ff'}(\psi_N) / (\mu r)
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
 
-
     double S_bar_ffprime =
       alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max);
     
@@ -246,6 +245,13 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       + gamma * (model->S_ff_prime(psi_N)) / (mu * ri)
       + S_bar_ffprime
       + coeff_u2 * pow(psi_val, 2.0);
+  } else if (option == 5) {
+      // derivative with respect to alpha
+      
+    double S_bar_ffprime =
+      1.0 * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
+      + alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max);
+
   } else {
     // integrand of
     // int_{\Omega_p(\psi)} ( (  r S_{p'}'(\psi_N)
@@ -281,7 +287,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       // coefficient for phi_x in d_psi psi_N
       coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier
         + other;
-    }
+    } 
 
     return
       + coeff

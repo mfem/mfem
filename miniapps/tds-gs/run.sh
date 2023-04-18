@@ -38,7 +38,7 @@ c5=-2.848113e+03
 
 ur_coeff=1.0
 
-do_control=0
+do_control=1
 weight=1e-18
 
 ./main.o \

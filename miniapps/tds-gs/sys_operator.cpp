@@ -180,6 +180,24 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
   SparseMatrix *Final;
   Final = Add(*Mat_, *Mat);
+
+  // Ip = int ...
+  // d_\psi ...
+  SparseMatrix *Mat_Plasma;
+  Mat_Plasma = Add(-1.0, *Mat, 1.0, M2);
+  GridFunction ones(fespace);
+  
+  ones = 1.0;
+  Vector Plasma_Vec_(m);
+  Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
+  Plasma_Vec = Plasma_Vec_;
+
+  // derivative with respect to alpha
+  NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, val_ma, val_x, plasma_inds, attr_lim);
+  LinearForm diff_plasma_term_5(fespace);
+  diff_plasma_term_5.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_5));
+  diff_plasma_term_5.Assemble();
+  Alpha_Term = diff_plasma_term_5(ones);
   
   return *Final;
     

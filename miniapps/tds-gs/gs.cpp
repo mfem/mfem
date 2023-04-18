@@ -492,7 +492,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       GMRES(*Mat, dx, out_vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
       printf("gmres iters: %d, gmres err: %e\n", gmres_iter, gmres_tol);
 
-      add(dx, ur_coeff-1.0, dx, dx);
+      add(dx, ur_coeff - 1.0, dx, dx);
       x -= dx;
 
       // cout << "x" << "i" << i << endl;
