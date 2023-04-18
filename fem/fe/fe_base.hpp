@@ -576,6 +576,20 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
+   /** @brief Return the mapping from lexicographic face DOFs to lexicographic
+       element DOFs for the given local face @a face_id. */
+   /** Given the @a ith DOF (lexicographically ordered) on the face referenced
+       by @a face_id, face_map[i] gives the corresponding index of the DOF in
+       the element (also lexicographically ordered).
+
+       @note For L2 spaces, this is only well-defined for "closed" bases such as
+       the Gauss-Lobatto or Bernstein (positive) bases.
+
+       @warning GetFaceMap() is currently only implemented for tensor-product
+       (quadrilateral and hexahedral) elements. Its functionality may change
+       when simplex elements are supported in the future. */
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
@@ -1248,6 +1262,8 @@ public:
          NodalFiniteElement::GetTransferMatrix(fe, Trans, I);
       }
    }
+
+   void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 };
 
 class VectorTensorFiniteElement : public VectorFiniteElement,
