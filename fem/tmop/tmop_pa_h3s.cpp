@@ -115,9 +115,9 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                            for (int c = 0; c < DIM; c++)
                            {
                               const double dp =
-                              (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
-                              + ddi2b(r,c)*I1b
-                              + ddi1b(r,c)*I2b;
+                                 (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                                 + ddi2b(r,c)*I1b
+                                 + ddi1b(r,c)*I2b;
                               H(r,c,i,j,qx,qy,qz,e) = c1 * dp;
                            }
                         }

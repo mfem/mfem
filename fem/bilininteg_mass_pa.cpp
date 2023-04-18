@@ -592,8 +592,8 @@ static void PAMassApply3D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
+   MFEM_VERIFY((T_D1D ? T_D1D : d1d) <= MAX_D1D, "");
+   MFEM_VERIFY((T_Q1D ? T_Q1D : q1d) <= MAX_Q1D, "");
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
