@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int nev = 5;
+   bool nc = false;
    bool visualization = 1;
    const char *device_config = "cpu";
 
@@ -69,6 +70,9 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-c",
+                  "--conforming",
+                  "Mark the mesh as nonconforming before partitioning.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -105,6 +109,11 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
+   }
+
+   if (nc)
+   {
+      mesh->EnsureNCMesh(true);
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
