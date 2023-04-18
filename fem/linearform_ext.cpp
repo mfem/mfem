@@ -164,10 +164,8 @@ void LinearFormExtension::Update()
          }
       }
 
-      bdr_restrict_lex =
-         dynamic_cast<const FaceRestriction*>(
-            fes.GetFaceRestriction(ordering, FaceType::Boundary,
-                                   L2FaceValues::SingleValued));
+      bdr_restrict_lex = fes.GetFaceRestriction(ordering, FaceType::Boundary,
+                                                L2FaceValues::SingleValued);
       MFEM_VERIFY(bdr_restrict_lex, "Face restriction not available");
       bdr_b.SetSize(bdr_restrict_lex->Height(), Device::GetMemoryType());
       bdr_b.UseDevice(true);

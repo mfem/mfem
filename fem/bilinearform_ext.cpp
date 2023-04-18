@@ -70,16 +70,7 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalMF(localY);
       }
-      const ElementRestriction* H1elem_restrict =
-         dynamic_cast<const ElementRestriction*>(elem_restrict);
-      if (H1elem_restrict)
-      {
-         H1elem_restrict->MultTransposeUnsigned(localY, y);
-      }
-      else
-      {
-         elem_restrict->MultTranspose(localY, y);
-      }
+      elem_restrict->MultTransposeUnsigned(localY, y);
    }
    else
    {
@@ -328,16 +319,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalPA(localY);
       }
-      const ElementRestriction* H1elem_restrict =
-         dynamic_cast<const ElementRestriction*>(elem_restrict);
-      if (H1elem_restrict)
-      {
-         H1elem_restrict->MultTransposeUnsigned(localY, y);
-      }
-      else
-      {
-         elem_restrict->MultTranspose(localY, y);
-      }
+      elem_restrict->MultTransposeUnsigned(localY, y);
    }
    else
    {
@@ -875,9 +857,9 @@ void FABilinearFormExtension::Assemble()
    {
       if (fes.IsDGSpace())
       {
-         const L2ElementRestriction *restE =
+         const auto *restE =
             static_cast<const L2ElementRestriction*>(elem_restrict);
-         const L2FaceRestriction *restF =
+         const auto *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
          MFEM_VERIFY(
             fes.Conforming(),
@@ -897,8 +879,8 @@ void FABilinearFormExtension::Assemble()
       }
       else
       {
-         const ElementRestriction &rest =
-            static_cast<const ElementRestriction&>(*elem_restrict);
+         const auto &rest =
+            static_cast<const ConformingElementRestriction&>(*elem_restrict);
          rest.FillJAndData(ea_data, *mat);
       }
    }
@@ -908,9 +890,9 @@ void FABilinearFormExtension::Assemble()
       mat->OverrideSize(height, width);
       if (fes.IsDGSpace())
       {
-         const L2ElementRestriction *restE =
+         const auto *restE =
             static_cast<const L2ElementRestriction*>(elem_restrict);
-         const L2FaceRestriction *restF =
+         const auto *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
          MFEM_VERIFY(
             fes.Conforming(),
@@ -947,10 +929,10 @@ void FABilinearFormExtension::Assemble()
          }
          I[0] = 0;
       }
-      else // continuous Galerkin case
+      else
       {
-         const ElementRestriction &rest =
-            static_cast<const ElementRestriction&>(*elem_restrict);
+         const auto &rest =
+            static_cast<const ConformingElementRestriction&>(*elem_restrict);
          rest.FillSparseMatrix(ea_data, *mat);
       }
       a->mat = mat;
@@ -1201,8 +1183,8 @@ void PAMixedBilinearFormExtension::Update()
    width = trial_fes->GetVSize();
    elem_restrict_trial = trial_fes->GetElementRestriction(
                             ElementDofOrdering::LEXICOGRAPHIC);
-   elem_restrict_test  =  test_fes->GetElementRestriction(
-                             ElementDofOrdering::LEXICOGRAPHIC);
+   elem_restrict_test  = test_fes->GetElementRestriction(
+                            ElementDofOrdering::LEXICOGRAPHIC);
    if (elem_restrict_trial)
    {
       localTrial.UseDevice(true);
@@ -1241,10 +1223,10 @@ void PAMixedBilinearFormExtension::FormRectangularLinearSystem(
 }
 
 void PAMixedBilinearFormExtension::SetupMultInputs(
-   const Operator *elem_restrict_x,
+   const ElementRestriction *elem_restrict_x,
    const Vector &x,
    Vector &localX,
-   const Operator *elem_restrict_y,
+   const ElementRestriction *elem_restrict_y,
    Vector &y,
    Vector &localY,
    const double c) const
@@ -1352,16 +1334,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
 
    if (elem_restrict_trial)
    {
-      const ElementRestriction* H1elem_restrict_trial =
-         dynamic_cast<const ElementRestriction*>(elem_restrict_trial);
-      if (H1elem_restrict_trial)
-      {
-         H1elem_restrict_trial->MultUnsigned(D, localTrial);
-      }
-      else
-      {
-         elem_restrict_trial->Mult(D, localTrial);
-      }
+      elem_restrict_trial->MultUnsigned(D, localTrial);
    }
 
    if (elem_restrict_test)
@@ -1378,16 +1351,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
             integrators[i]->AssembleDiagonalPA_ADAt(D, localTest);
          }
       }
-      const ElementRestriction* H1elem_restrict_test =
-         dynamic_cast<const ElementRestriction*>(elem_restrict_test);
-      if (H1elem_restrict_test)
-      {
-         H1elem_restrict_test->MultTransposeUnsigned(localTest, diag);
-      }
-      else
-      {
-         elem_restrict_test->MultTranspose(localTest, diag);
-      }
+      elem_restrict_test->MultTransposeUnsigned(localTest, diag);
    }
    else
    {
@@ -1433,18 +1397,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
    test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
    Vector ones(elem_restrict_test->Height()); // e-vector
    ones = 1.0;
-
-   const ElementRestriction* elem_restrict =
-      dynamic_cast<const ElementRestriction*>(elem_restrict_test);
-   if (elem_restrict)
-   {
-      elem_restrict->MultTransposeUnsigned(ones, test_multiplicity);
-   }
-   else
-   {
-      mfem_error("A real ElementRestriction is required in this setting!");
-   }
-
+   elem_restrict_test->MultTransposeUnsigned(ones, test_multiplicity);
    auto tm = test_multiplicity.ReadWrite();
    mfem::forall(test_multiplicity.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
@@ -1471,8 +1424,8 @@ void PADiscreteLinearOperatorExtension::AddMult(
    // do a kind of "set" rather than "add" in the below
    // operation as compared to the BilinearForm case
    // * G^T operation (kind of...)
-   const ElementRestriction* elem_restrict =
-      dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+   const auto *elem_restrict =
+      dynamic_cast<const ConformingElementRestriction*>(elem_restrict_test);
    if (elem_restrict)
    {
       tempY.SetSize(y.Size());
@@ -1481,7 +1434,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
    }
    else
    {
-      mfem_error("In this setting you need a real ElementRestriction!");
+      MFEM_ABORT("MultLeftInverse requires a ConformingElementRestriction");
    }
 }
 
@@ -1520,7 +1473,7 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
    }
    else
    {
-      mfem_error("Trial ElementRestriction not defined");
+      MFEM_ABORT("Trial space ElementRestriction not defined");
    }
 }
 

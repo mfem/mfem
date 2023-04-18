@@ -145,8 +145,8 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = fes_ho.GetElementRestriction(ordering);
-   const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction*>(op);
+   const auto *el_restr =
+      dynamic_cast<const ConformingElementRestriction*>(op);
    MFEM_VERIFY(el_restr != nullptr, "Bad element restriction");
 
    const Array<int> &el_dof_lex_ = el_restr->GatherMap();
@@ -235,8 +235,8 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = fes_ho.GetElementRestriction(ordering);
-   const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction*>(op);
+   const auto *el_restr =
+      dynamic_cast<const ConformingElementRestriction*>(op);
    MFEM_VERIFY(el_restr != nullptr, "Bad element restriction");
 
    const Array<int> &el_dof_lex_ = el_restr->GatherMap();

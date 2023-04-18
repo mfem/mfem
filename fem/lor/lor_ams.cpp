@@ -163,9 +163,9 @@ void BatchedLOR_AMS::FormGradientMatrix()
    else { Form3DEdgeToVertex(edge2vertex); }
 
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const auto *R_v = dynamic_cast<const ElementRestriction*>(
+   const auto *R_v = dynamic_cast<const ConformingElementRestriction*>(
                         vert_fes.GetElementRestriction(ordering));
-   const auto *R_e = dynamic_cast<const ElementRestriction*>(
+   const auto *R_e = dynamic_cast<const ConformingElementRestriction*>(
                         edge_fes.GetElementRestriction(ordering));
    MFEM_VERIFY(R_v != NULL && R_e != NULL, "");
 
@@ -268,7 +268,7 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // Create the H1 vertex space and get the element restriction
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = vert_fes.GetElementRestriction(ordering);
-   const auto *el_restr = dynamic_cast<const ElementRestriction*>(op);
+   const auto *el_restr = dynamic_cast<const ConformingElementRestriction*>(op);
    MFEM_VERIFY(el_restr != NULL, "");
    const SparseMatrix *R = vert_fes.GetRestrictionMatrix();
 
