@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3336,7 +3336,7 @@ public:
 
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * dofquad_fe;
+   FiniteElement *dofquad_fe;
 
    bool B_id; // is the B basis operator (maps_C_C) the identity?
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
@@ -3351,6 +3351,8 @@ private:
 class IdentityInterpolator : public DiscreteInterpolator
 {
 public:
+   IdentityInterpolator(): dofquad_fe(NULL) { }
+
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
@@ -3365,9 +3367,11 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   virtual ~IdentityInterpolator() { delete dofquad_fe; }
+
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * dofquad_fe;
+   FiniteElement *dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,6 +68,11 @@ public:
                                      Vector &new_field,
                                      int new_nodes_ordering = Ordering::byNODES);
 
+   const FindPointsGSLIB *GetFindPointsGSLIB() const
+   {
+      return finder;
+   }
+
    ~InterpolatorFP()
    {
       finder->FreeData();
@@ -129,11 +134,18 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Line search step is rejected if min(detJ) <= min_detJ_threshold.
+   double min_detJ_threshold = 0.0;
+
    // Surface fitting variables.
-   bool adaptive_surf_fit = false;
    mutable double surf_fit_err_avg_prvs = 10000.0;
+   mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
    double surf_fit_max_threshold = -1.0;
+   double surf_fit_rel_change_threshold = 0.001;
+   double surf_fit_scale_factor = 0.0;
+   mutable int adapt_inc_count = 0;
+   mutable int max_adapt_inc_count = 10;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -215,15 +227,37 @@ public:
    virtual void ProcessNewState(const Vector &x) const;
 
    /** @name Methods for adaptive surface fitting weight. (Experimental) */
-   /// Enable adaptive surface fitting weight.
-   /// The weight is modified after each TMOPNewtonSolver iteration.
-   void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
-
-   /// Set the termination criterion for mesh optimization based on
-   /// the maximum surface fitting error.
+   /// Enable/Disable adaptive surface fitting weight.
+   /// The weight is modified after each TMOPNewtonSolver iteration as:
+   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if relative change in
+   /// max surface fitting error < @a surf_fit_rel_change_threshold.
+   /// The solver terminates if the maximum surface fitting error does
+   /// not sufficiently decrease for @a max_adapt_inc_count consecutive
+   /// solver iterations or if the max error falls below @a surf_fit_max_threshold.
+   void EnableAdaptiveSurfaceFitting()
+   {
+      surf_fit_scale_factor = 10.0;
+      surf_fit_rel_change_threshold = 0.001;
+   }
+   void SetAdaptiveSurfaceFittingScalingFactor(double factor)
+   {
+      surf_fit_scale_factor = factor;
+   }
+   void SetAdaptiveSurfaceFittingRelativeChangeThreshold(double threshold)
+   {
+      surf_fit_rel_change_threshold = threshold;
+   }
+   void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
+   {
+      max_adapt_inc_count = count;
+   }
    void SetTerminationWithMaxSurfaceFittingError(double max_error)
    {
       surf_fit_max_threshold = max_error;
+   }
+   void SetMinimumDeterminantThreshold(double threshold)
+   {
+      min_detJ_threshold = threshold;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const
