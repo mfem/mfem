@@ -61,10 +61,6 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   virtual DofTransformation *
-   DofTransformationForGeometry(Geometry::Type GeomType) const
-   { return NULL; }
-
    /** @brief Returns an array, say p, that maps a local permuted index i to a
        local base index: base_i = p[i].
 
@@ -470,12 +466,8 @@ public:
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
 
-   virtual DofTransformation *
-   DofTransformationForGeometry(Geometry::Type GeomType) const;
-
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
-
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;

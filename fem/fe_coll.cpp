@@ -2886,19 +2886,6 @@ ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
 }
 
-DofTransformation *
-ND_FECollection::DofTransformationForGeometry(Geometry::Type GeomType) const
-{
-   if (!Geometry::IsTensorProduct(GeomType) && this->GetOrder() > 1)
-   {
-      return FiniteElementForGeometry(GeomType)->GetDofTransformation();
-   }
-   else
-   {
-      return NULL;
-   }
-}
-
 const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
 {
