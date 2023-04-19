@@ -58,7 +58,8 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       {
          if (partitioning[i] == MyRank)
          {
-            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter, lvdofs);
+            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter,
+                                                                          lvdofs);
             const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
             if (gtrans)
@@ -278,7 +279,8 @@ const
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                   nbr_el_no, dofs);
       const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
       if (fes_vdim > 1)
       {
@@ -343,8 +345,9 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
-                                                                 dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                   nbr_el_no,
+                                                   dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
       if (doftrans)
@@ -418,7 +421,8 @@ double ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                nbr_el_no, dofs);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
