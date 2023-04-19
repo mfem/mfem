@@ -2399,7 +2399,7 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
                                      loc_mass);
             vals.SetSize(fe->GetDof());
             fe->ProjectDelta(j, vals);
-            const auto * const doftrans = fes->GetElementVDofs(i, vdofs);
+            const DofTransformation* const doftrans = fes->GetElementVDofs(i, vdofs);
             if (doftrans)
             {
                doftrans->TransformPrimal(vals);
@@ -2757,7 +2757,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
          CalcOrtho(T->Jacobian(), nor);
          lvec(j) = (vc * nor);
       }
-      const auto * const doftrans = fes->GetBdrElementDofs(i, dofs);
+      const DofTransformation* const doftrans = fes->GetBdrElementDofs(i, dofs);
       if (doftrans)
       {
          doftrans->TransformPrimal(lvec);
@@ -4037,8 +4037,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
       {
          if (with_subdomains && ufes->GetAttribute(i) != s) { continue; }
 
-         const auto * const utrans = ufes->GetElementVDofs(i, udofs);
-         const auto * const ftrans = ffes->GetElementVDofs(i, fdofs);
+         const DofTransformation* const utrans = ufes->GetElementVDofs(i, udofs);
+         const DofTransformation* const ftrans = ffes->GetElementVDofs(i, fdofs);
 
          u.GetSubVector(udofs, ul);
          flux.GetSubVector(fdofs, fla);
@@ -4344,7 +4344,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                                                     flux_order));
          int num_integration_pts = ir->GetNPoints();
 
-         const auto * const utrans = ufes->GetElementVDofs(ielem, udofs);
+         const DofTransformation* const utrans = ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
          if (utrans)
          {
