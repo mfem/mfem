@@ -302,8 +302,6 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
                                         Vector &dst,
                                         const Array<int> *sub_to_parent_map)
 {
-   const FiniteElementCollection * fec = fes.FEColl();
-
    ParSubMesh * mesh = dynamic_cast<ParSubMesh*>(fes.GetParMesh());
 
    const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
@@ -327,7 +325,7 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
                             mesh->GetElementGeometry(i);;
 
-      DofTransformation * doftrans = fec->DofTransformationForGeometry(geom);
+      DofTransformation * doftrans = fes.GetDofTransformationForGeometry(geom);
 
       if (doftrans == NULL) { continue; }
 
