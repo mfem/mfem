@@ -77,7 +77,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+      mfem::forall_2D(NE,Q1D,Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -101,7 +101,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -134,7 +134,7 @@ static void PAMassAssembleDiagonal2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -183,7 +183,7 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -246,7 +246,7 @@ static void PAMassAssembleDiagonal3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -317,7 +317,7 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -552,7 +552,7 @@ static void PAMassApply2D(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApply2D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
@@ -580,9 +580,10 @@ static void SmemPAMassApply2D(const int NE,
    const auto D = d_.Read();
    const auto x = x_.Read();
    auto Y = y_.ReadWrite();
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d, q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d,
+                                                             q1d);
    });
 }
 
@@ -605,7 +606,7 @@ static void PAMassApply3D(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
@@ -632,7 +633,7 @@ static void SmemPAMassApply3D(const int NE,
    auto d = d_.Read();
    auto x = x_.Read();
    auto y = y_.ReadWrite();
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
    });
