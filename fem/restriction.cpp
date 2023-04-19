@@ -113,7 +113,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gather_map = gather_map.Read();
-   MFEM_FORALL(i, dof*ne,
+   mfem::forall(dof*ne, [=] MFEM_HOST_DEVICE (int i)
    {
       const int gid = d_gather_map[i];
       const bool plus = gid >= 0;
@@ -136,7 +136,7 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gather_map = gather_map.Read();
 
-   MFEM_FORALL(i, dof*ne,
+   mfem::forall(dof*ne, [=] MFEM_HOST_DEVICE (int i)
    {
       const int gid = d_gather_map[i];
       const int j = gid >= 0 ? gid : -1-gid;
@@ -158,7 +158,7 @@ void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
@@ -201,7 +201,7 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
@@ -228,7 +228,7 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
@@ -237,7 +237,7 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
          const int j = next_offset - 1;
          const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
          dof_value = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
-         -d_x(idx_j % nd, c, idx_j / nd);
+                     -d_x(idx_j % nd, c, idx_j / nd);
          d_y(t?c:i,t?i:c) = dof_value;
       }
    });
@@ -329,11 +329,11 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
-   MFEM_FORALL(i_L, vd*all_dofs+1,
+   mfem::forall(vd*all_dofs+1, [=] MFEM_HOST_DEVICE (int i_L)
    {
       I[i_L] = 0;
    });
-   MFEM_FORALL(l_dof, ne*elt_dofs,
+   mfem::forall(ne*elt_dofs, [=] MFEM_HOST_DEVICE (int l_dof)
    {
       const int e = l_dof/elt_dofs;
       const int i = l_dof%elt_dofs;
@@ -410,7 +410,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   MFEM_FORALL(l_dof, ne*elt_dofs,
+   mfem::forall(ne*elt_dofs, [=] MFEM_HOST_DEVICE (int l_dof)
    {
       const int e = l_dof/elt_dofs;
       const int i = l_dof%elt_dofs;
@@ -510,7 +510,7 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int idx = i;
       const int dof = idx % nd;
@@ -530,7 +530,7 @@ void L2ElementRestriction::TAddMultTranspose(const Vector &x, Vector &y) const
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int idx = i;
       const int dof = idx % nd;
@@ -564,7 +564,7 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
    auto I = mat.WriteI();
    const int isize = mat.Height() + 1;
    const int interior_dofs = ne*elem_dofs*vd;
-   MFEM_FORALL(dof, isize,
+   mfem::forall(isize, [=] MFEM_HOST_DEVICE (int dof)
    {
       I[dof] = dof<interior_dofs ? elem_dofs : 0;
    });
@@ -585,7 +585,7 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
    auto mat_ea = Reshape(ea_data.Read(), elem_dofs, elem_dofs, ne);
-   MFEM_FORALL(iE, ne*elem_dofs*vd,
+   mfem::forall(ne*elem_dofs*vd, [=] MFEM_HOST_DEVICE (int iE)
    {
       const int offset = AddNnz(iE,I,elem_dofs);
       const int e = iE/elem_dofs;
@@ -661,7 +661,7 @@ void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
    auto d_indices = scatter_indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-   MFEM_FORALL(i, nfdofs,
+   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int s_idx = d_indices[i];
       const int sgn = (s_idx >= 0) ? 1 : -1;
@@ -688,7 +688,7 @@ void ConformingFaceRestriction::AddMultTranspose(
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nface_dofs, vd, nf);
    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
@@ -1060,7 +1060,7 @@ void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
    auto d_indices1 = scatter_indices1.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-   MFEM_FORALL(i, nfdofs,
+   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;
@@ -1086,7 +1086,7 @@ void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x,
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-   MFEM_FORALL(i, nfdofs,
+   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;
@@ -1127,7 +1127,7 @@ void L2FaceRestriction::SingleValuedConformingAddMultTranspose(
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nface_dofs, vd, nf);
    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
@@ -1156,7 +1156,7 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nface_dofs, vd, 2, nf);
    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
@@ -1169,8 +1169,8 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
             bool isE1 = idx_j < dofs;
             idx_j = isE1 ? idx_j : idx_j - dofs;
             dof_value +=  isE1 ?
-            d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
-            :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
+                          d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
+                          :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
          }
          d_y(t?c:i,t?i:c) += dof_value;
       }
@@ -1199,7 +1199,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat,
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
-   MFEM_FORALL(fdof, nf*nface_dofs,
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
    {
       const int iE1 = d_indices1[fdof];
       const int iE2 = d_indices2[fdof];
@@ -1219,7 +1219,7 @@ void L2FaceRestriction::FillJAndData(const Vector &fea_data,
    auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, 2, nf);
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   MFEM_FORALL(fdof, nf*nface_dofs,
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
    {
       const int f  = fdof/nface_dofs;
       const int iF = fdof%nface_dofs;
@@ -1251,7 +1251,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
       auto d_indices2 = scatter_indices2.Read();
       auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, 2, nf);
       auto mat_ea = Reshape(ea_data.ReadWrite(), nelem_dofs, nelem_dofs, ne);
-      MFEM_FORALL(f, nf,
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          const int e1 = d_indices1[f*nface_dofs]/nelem_dofs;
          const int e2 = d_indices2[f*nface_dofs]/nelem_dofs;
@@ -1283,7 +1283,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
       auto d_indices = scatter_indices1.Read();
       auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, nf);
       auto mat_ea = Reshape(ea_data.ReadWrite(), nelem_dofs, nelem_dofs, ne);
-      MFEM_FORALL(f, nf,
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          const int e = d_indices[f*nface_dofs]/nelem_dofs;
          for (int j = 0; j < nface_dofs; j++)
@@ -1784,7 +1784,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
                            nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
+   mfem::forall_2D(num_nc_faces, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int nc_face)
    {
       MFEM_SHARED double dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];
@@ -1864,7 +1864,7 @@ void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolationInPlace
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
+   mfem::forall_2D(num_nc_faces, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int nc_face)
    {
       MFEM_SHARED double dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];
@@ -1927,7 +1927,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolationInPlace
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
+   mfem::forall_2D(num_nc_faces, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int nc_face)
    {
       MFEM_SHARED double dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];

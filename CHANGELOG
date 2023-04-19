@@ -14,6 +14,10 @@ Version 4.5.3 (development)
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+- Improved lambda body debugging with the addition of mfem::forall functions.
+  These functions can take the place of the MFEM_FORALL macros, which have been
+  preserved for backwards compatibility.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary fitting to implicit domains defined using level-set functions.
@@ -27,6 +31,12 @@ Discretization improvements
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
+- Added support for p-refined meshes in FindPointsGSLIB.
+
+Integrations, testing and documentation
+---------------------------------------
+- Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
+  based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
 
 Version 4.5.2, released on March 23, 2023
 =========================================
