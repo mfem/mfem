@@ -117,8 +117,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;

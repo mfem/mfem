@@ -35,9 +35,8 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_ABORT("Unknown kernel.");
    }
 
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
-                                                     *mesh->GetElementTransformation(0));
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(*fel, *eltest, T);
 
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2, "");
@@ -123,9 +122,10 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(*trial_el, *test_el,
+                                                            T);
+
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
 
@@ -282,9 +282,10 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(*trial_el, *test_el,
+                                                            T);
+
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
 

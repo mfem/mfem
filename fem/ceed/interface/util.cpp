@@ -190,66 +190,6 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    return 0;
 }
 
-template <>
-const IntegrationRule & GetRule<MassIntegrator>(
-   const MassIntegrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &trans)
-{
-   return MassIntegrator::GetRule(trial_fe, test_fe, trans);
-}
-
-template <>
-const IntegrationRule & GetRule<VectorMassIntegrator>(
-   const VectorMassIntegrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &trans)
-{
-   return MassIntegrator::GetRule(trial_fe, test_fe, trans);
-}
-
-template <>
-const IntegrationRule & GetRule<ConvectionIntegrator>(
-   const ConvectionIntegrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &trans)
-{
-   return ConvectionIntegrator::GetRule(trial_fe, trans);
-}
-
-template <>
-const IntegrationRule & GetRule<VectorConvectionNLFIntegrator>(
-   const VectorConvectionNLFIntegrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &trans)
-{
-   return VectorConvectionNLFIntegrator::GetRule(trial_fe, trans);
-}
-
-template <>
-const IntegrationRule & GetRule<DiffusionIntegrator>(
-   const DiffusionIntegrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &trans)
-{
-   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
-}
-
-template <>
-const IntegrationRule & GetRule<VectorDiffusionIntegrator>(
-   const VectorDiffusionIntegrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &trans)
-{
-   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
-}
-
 std::string ceed_path;
 
 const std::string &GetCeedPath()

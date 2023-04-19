@@ -17,6 +17,7 @@
 #include "coefficient.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/operator.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {
@@ -37,23 +38,43 @@ protected:
       : IntRule(ir), ceedOp(NULL) {}
 
 public:
-   /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
-       let the integrator choose (when @a ir == NULL). */
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
-
-   /// Prescribe a fixed IntegrationRule to use.
-   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
-
    /// Set the memory type used for GeometricFactors and other large allocations
    /// in PA extensions.
    void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
 
+   /// Indicates whether this integrator can use a Ceed backend.
+   virtual bool SupportsCeed() const { return false; }
+
+   /// Access the underlying ceed::Operator for libCEED backends, after the
+   /// integrator has been assembled.
+   ceed::Operator &GetCeedOp() { return *ceedOp; }
+
+   /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
+       let the integrator choose (when @a ir == NULL). */
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
+
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }
 
+   /// Get the integration rule of the integrator as a function of the finite
+   /// element and geometry orders.
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          ElementTransformation &Trans) const;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          FaceElementTransformations &Trans) const;
+   const IntegrationRule &GetRule(const FiniteElement &el,
+                                  ElementTransformation &Trans) const
+   { return GetRule(el, el, Trans); }
+   const IntegrationRule &GetRule(const FiniteElement &el,
+                                  FaceElementTransformations &Trans) const
+   { return GetRule(el, el, Trans); }
+
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA(). */
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /** @brief Prepare the integrator for partial assembly (PA) gradient
@@ -132,11 +153,6 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Vector &elfun, DenseMatrix &elmat);
 
-   /// Indicates whether this integrator can use a Ceed backend.
-   virtual bool SupportsCeed() const { return false; }
-
-   ceed::Operator &GetCeedOp() { return *ceedOp; }
-
    virtual ~NonlinearFormIntegrator()
    {
       delete ceedOp;
@@ -149,7 +165,36 @@ public:
     for block state vectors. */
 class BlockNonlinearFormIntegrator
 {
+protected:
+   const IntegrationRule *IntRule;
+
+   BlockNonlinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : IntRule(ir) {}
+
 public:
+   /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
+       let the integrator choose (when @a ir == NULL). */
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
+
+   /// Get the integration rule of the integrator (possibly NULL).
+   const IntegrationRule *GetIntegrationRule() const { return IntRule; }
+
+   /// Get the integration rule of the integrator as a function of the finite
+   /// element and geometry orders.
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          ElementTransformation &Tr) const;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          FaceElementTransformations &Tr) const;
+   const IntegrationRule &GetRule(const FiniteElement &el,
+                                  ElementTransformation &Trans) const
+   { return GetRule(el, el, Trans); }
+   const IntegrationRule &GetRule(const FiniteElement &el,
+                                  FaceElementTransformations &Trans) const
+   { return GetRule(el, el, Trans); }
+
    /// Compute the local energy
    virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
@@ -182,8 +227,7 @@ public:
    virtual ~BlockNonlinearFormIntegrator() {}
 };
 
-
-/// Abstract class for hyperelastic models
+/// Abstract base class for hyperelastic models
 class HyperelasticModel
 {
 protected:
@@ -228,7 +272,6 @@ public:
                           const double weight, DenseMatrix &A) const = 0;
 };
 
-
 /** Inverse-harmonic hyperelastic model with a strain energy density function
     given by the formula: W(J) = (1/2) det(J) Tr((J J^t)^{-1}) where J is the
     deformation gradient. */
@@ -246,7 +289,6 @@ public:
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 };
-
 
 /** Neo-Hookean hyperelastic model with a strain energy density function given
     by the formula: \f$(\mu/2)(\bar{I}_1 - dim) + (K/2)(det(J)/g - 1)^2\f$ where
@@ -281,7 +323,6 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-
 /** Hyperelastic integrator for any given HyperelasticModel.
 
     Represents @f$ \int W(Jpt) dx @f$ over a target zone, where W is the
@@ -310,10 +351,11 @@ public:
    /** @param[in] m  HyperelasticModel that will be integrated. */
    HyperelasticNLFIntegrator(HyperelasticModel *m) : model(m) {}
 
-   /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone
-       @param[in] el     Type of FiniteElement.
-       @param[in] Ttr    Represents ref->target coordinates transformation.
-       @param[in] elfun  Physical coordinates of the zone. */
+   using NonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          ElementTransformation &Trans) const;
+
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Ttr,
                                    const Vector &elfun);
@@ -342,23 +384,25 @@ private:
 public:
    IncompressibleNeoHookeanIntegrator(Coefficient &mu_) : c_mu(&mu_) {}
 
+   using BlockNonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          ElementTransformation &Trans) const;
+
    virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
                                    const Array<const Vector *> &elfun);
 
-   /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
                                       ElementTransformation &Tr,
                                       const Array<const Vector *> &elfun,
                                       const Array<Vector *> &elvec);
 
-   /// Assemble the local gradient matrix
    virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
                                     ElementTransformation &Tr,
                                     const Array<const Vector *> &elfun,
                                     const Array2D<DenseMatrix *> &elmats);
 };
-
 
 class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
@@ -378,8 +422,12 @@ public:
 
    VectorConvectionNLFIntegrator() = default;
 
-   static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   using NonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el1,
+                                          const FiniteElement &el2,
+                                          ElementTransformation &Trans) const;
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
@@ -399,7 +447,6 @@ public:
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 };
-
 
 /** This class is used to assemble the convective form of the nonlinear term
     arising in the Navier-Stokes equations \f$(u \cdot \nabla v, w )\f$ */
@@ -421,7 +468,6 @@ public:
                                     const Vector &elfun,
                                     DenseMatrix &elmat);
 };
-
 
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations

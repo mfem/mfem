@@ -214,30 +214,28 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
-   const FiniteElement &fe = *fes.GetBE(0);
-   const int qorder = oa * fe.GetOrder() + ob;
-   const Geometry::Type gtype = fe.GetGeomType();
-   const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    Mesh &mesh = *fes.GetMesh();
+   const FiniteElement &fe = *fes.GetBE(0);
+   ElementTransformation &T = *mesh.GetBdrElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(fe, T, oa, ob);
 
-   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   FaceQuadratureSpace qs(mesh, *ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   BLFEvalAssemble(fes, ir, markers, coeff, false, b);
+   BLFEvalAssemble(fes, *ir, markers, coeff, false, b);
 }
 
 void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
-   const FiniteElement &fe = *fes.GetBE(0);
-   const int qorder = oa * fe.GetOrder() + ob;
-   const Geometry::Type gtype = fe.GetGeomType();
-   const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    Mesh &mesh = *fes.GetMesh();
+   const FiniteElement &fe = *fes.GetBE(0);
+   ElementTransformation &T = *mesh.GetBdrElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(fe, T, oa, ob);
 
-   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   FaceQuadratureSpace qs(mesh, *ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   BLFEvalAssemble(fes, ir, markers, coeff, true, b);
+   BLFEvalAssemble(fes, *ir, markers, coeff, true, b);
 }
 
 } // namespace mfem

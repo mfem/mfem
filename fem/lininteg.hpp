@@ -29,9 +29,19 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
-
    /// Method probing for assembly on device
    virtual bool SupportsDevice() const { return false; }
+
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+
+   const IntegrationRule *GetIntRule() { return IntRule; }
+
+   virtual const IntegrationRule &GetRule(const FiniteElement &el,
+                                          ElementTransformation &Tr,
+                                          int oa = 2, int ob = 0) const;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el,
+                                          FaceElementTransformations &Tr,
+                                          int oa = 2, int ob = 0) const;
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -51,12 +61,8 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
-   const IntegrationRule* GetIntRule() { return IntRule; }
-
-   virtual ~LinearFormIntegrator() { }
+   virtual ~LinearFormIntegrator() {}
 };
-
 
 /// Abstract class for integrators that support delta coefficients
 class DeltaLFIntegrator : public LinearFormIntegrator
@@ -70,7 +76,7 @@ protected:
    DeltaLFIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir),
         delta(dynamic_cast<DeltaCoefficient*>(&q)),
-        vec_delta(NULL) { }
+        vec_delta(NULL) {}
 
    /** @brief This constructor should be used by derived classes that use a
        VectorDeltaCoefficient. */
@@ -78,7 +84,7 @@ protected:
                      const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir),
         delta(NULL),
-        vec_delta(dynamic_cast<VectorDeltaCoefficient*>(&vq)) { }
+        vec_delta(dynamic_cast<VectorDeltaCoefficient*>(&vq)) {}
 
 public:
    /// Returns true if the derived class instance uses a delta coefficient.
@@ -103,23 +109,23 @@ public:
                                          Vector &elvect) = 0;
 };
 
-
 /// Class for domain integration L(v) := (f, v)
 class DomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;
    Coefficient &Q;
    int oa, ob;
+
 public:
    /// Constructs a domain integrator with a given Coefficient
+   /// the old default was a = 1, b = 1
+   /// for simple elliptic problems a = 2, b = -2 is OK
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
-   // the old default was a = 1, b = 1
-   // for simple elliptic problems a = 2, b = -2 is OK
-      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) {}
 
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) {}
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -152,7 +158,7 @@ private:
 public:
    /// Constructs the domain integrator (Q, grad v)
    DomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+      : DeltaLFIntegrator(QF), Q(QF) {}
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -174,18 +180,18 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-
 /// Class for boundary integration L(v) := (g, v)
 class BoundaryLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
    Coefficient &Q;
    int oa, ob;
+
 public:
    /** @brief Constructs a boundary integrator with a given Coefficient @a QG.
        Integration order will be @a a * basis_order + @a b. */
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) { }
+      : Q(QG), oa(a), ob(b) {}
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -212,10 +218,11 @@ class BoundaryNormalLFIntegrator : public LinearFormIntegrator
    Vector shape;
    VectorCoefficient &Q;
    int oa, ob;
+
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) { }
+      : Q(QG), oa(a), ob(b) {}
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -237,10 +244,11 @@ class BoundaryTangentialLFIntegrator : public LinearFormIntegrator
    Vector shape;
    VectorCoefficient &Q;
    int oa, ob;
+
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) { }
+      : Q(QG), oa(a), ob(b) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -260,7 +268,7 @@ private:
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
    VectorDomainLFIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+      : DeltaLFIntegrator(QF), Q(QF) {}
 
    virtual bool SupportsDevice() const { return true; }
 
@@ -294,7 +302,7 @@ private:
 public:
    /// Constructs the domain integrator (Q, grad v)
    VectorDomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+      : DeltaLFIntegrator(QF), Q(QF) {}
 
    virtual bool SupportsDevice() const override { return true; }
 
@@ -326,7 +334,7 @@ private:
 
 public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
-   VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
+   VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) {}
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
@@ -352,7 +360,9 @@ private:
 
 public:
    VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+      : DeltaLFIntegrator(F), QF(F) {}
+
+   virtual bool SupportsDevice() const { return true; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -361,8 +371,6 @@ public:
    virtual void AssembleDeltaElementVect(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          Vector &elvect);
-
-   virtual bool SupportsDevice() const { return true; }
 
    virtual void AssembleDevice(const FiniteElementSpace &fes,
                                const Array<int> &markers,
@@ -382,7 +390,7 @@ private:
 public:
    /// Constructs the domain integrator (Q, curl v)
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(&F) { }
+      : DeltaLFIntegrator(F), QF(&F) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -401,10 +409,11 @@ class VectorFEDomainLFDivIntegrator : public DeltaLFIntegrator
 private:
    Vector divshape;
    Coefficient &Q;
+
 public:
    /// Constructs the domain integrator (Q, div v)
    VectorFEDomainLFDivIntegrator(Coefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+      : DeltaLFIntegrator(QF), Q(QF) {}
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -432,7 +441,7 @@ private:
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, double s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
+      : LinearFormIntegrator(ir), Sign(s), F(&f) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -453,21 +462,21 @@ private:
 
 public:
    VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
-      : F(NULL), oa(a), ob(b) { }
+      : F(NULL), oa(a), ob(b) {}
    VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
-      : F(&f), oa(a), ob(b) { }
+      : F(&f), oa(a), ob(b) {}
+
+   virtual bool SupportsDevice() const { return true; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
 
-   using LinearFormIntegrator::AssembleRHSElementVect;
-
-   virtual bool SupportsDevice() const { return true; }
-
    virtual void AssembleDevice(const FiniteElementSpace &fes,
                                const Array<int> &markers,
                                Vector &b);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /// Class for boundary integration \f$ L(v) = (n \times f, v) \f$
@@ -480,7 +489,7 @@ private:
 public:
    VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG,
                                        int a = 2, int b = 0)
-      : f(QG), oa(a), ob(b) { }
+      : f(QG), oa(a), ob(b) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -488,7 +497,6 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
-
 
 /** Class for boundary integration of the linear form:
     (alpha/2) < (u.n) f, w > - beta < |u.n| f, w >,
@@ -512,6 +520,11 @@ public:
                           double a, double b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
 
+   using LinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el,
+                                          FaceElementTransformations &Tr,
+                                          int oa = 2, int ob = 0) const;
+
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
@@ -521,7 +534,6 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
-
 
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary
     conditions, to be used in conjunction with DGDiffusionIntegrator.
@@ -546,13 +558,13 @@ protected:
 
 public:
    DGDirichletLFIntegrator(Coefficient &u, const double s, const double k)
-      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) {}
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
                            const double s, const double k)
-      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) {}
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
                            const double s, const double k)
-      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -563,7 +575,6 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
-
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is
@@ -597,7 +608,7 @@ public:
    DGElasticityDirichletLFIntegrator(VectorCoefficient &uD_,
                                      Coefficient &lambda_, Coefficient &mu_,
                                      double alpha_, double kappa_)
-      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
+      : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -608,7 +619,6 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
-
 
 /** Class for spatial white Gaussian noise integration.
 
@@ -637,8 +647,8 @@ class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
    std::normal_distribution<double> dist;
 
    bool save_factors = false;
-public:
 
+public:
 #ifdef MFEM_USE_MPI
    /** @brief Sets the @a seed_ of the random number generator. A fixed seed
        allows for a reproducible sequence of white noise vectors. */
@@ -669,13 +679,13 @@ public:
       if (seed_ > 0) { SetSeed(seed_); }
    }
 #endif
+
    /// @brief Sets/resets the @a seed of the random number generator.
    void SetSeed(int seed)
    {
       generator.seed(seed);
    }
 
-   using LinearFormIntegrator::AssembleRHSElementVect;
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
@@ -715,8 +725,9 @@ public:
       }
       L.DeleteAll();
    }
-};
 
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
 /** Class for domain integration of L(v) := (f, v), where
     f=(f1,...,fn) and v=(v1,...,vn). that makes use of
@@ -738,18 +749,23 @@ public:
       }
    }
 
-   using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &fe,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-
    virtual void SetIntRule(const IntegrationRule *ir)
    {
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");
    }
-};
 
+   using LinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el,
+                                          ElementTransformation &Tr,
+                                          int oa = 2, int ob = 0) const;
+
+   virtual void AssembleRHSElementVect(const FiniteElement &fe,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
 /** Class for domain integration L(v) := (f, v) that makes use
     of QuadratureFunctionCoefficient. */
@@ -770,19 +786,24 @@ public:
       }
    }
 
-   using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &fe,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-
    virtual void SetIntRule(const IntegrationRule *ir)
    {
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");
    }
+
+   using LinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &el,
+                                          ElementTransformation &Tr,
+                                          int oa = 2, int ob = 0) const;
+
+   virtual void AssembleRHSElementVect(const FiniteElement &fe,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 }
-
 
 #endif

@@ -325,10 +325,10 @@ void VectorFEDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
+   Mesh &mesh = *fes.GetMesh();
    const FiniteElement &fe = *fes.GetFE(0);
-   const int qorder = 2 * fe.GetOrder();
-   const Geometry::Type gtype = fe.GetGeomType();
-   const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
+   ElementTransformation &T = *mesh.GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(fe, T);
 
    QuadratureSpace qs(*fes.GetMesh(), *ir);
    CoefficientVector coeff(QF, qs, CoefficientStorage::COMPRESSED);

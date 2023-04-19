@@ -59,7 +59,8 @@ const IntegrationRule &GetMassIntRule(FiniteElementSpace &fes_l2)
 {
    Mesh *mesh = fes_l2.GetMesh();
    const FiniteElement *fe = fes_l2.GetFE(0);
-   return MassIntegrator::GetRule(*fe, *fe, *mesh->GetElementTransformation(0));
+   return MassIntegrator::GetRuleStatic(*fe, *fe,
+                                        *mesh->GetElementTransformation(0));
 }
 
 HdivSaddlePointSolver::HdivSaddlePointSolver(

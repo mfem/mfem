@@ -530,8 +530,8 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                         if (spaceType == Hcurl)
                         {
                            const FiniteElement *fel = fespace.GetFE(0);
-                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                     *mesh.GetElementTransformation(0));
+                           ElementTransformation *T = mesh.GetElementTransformation(0);
+                           const IntegrationRule *intRule = &MassIntegrator::GetRuleStatic(*fel, *fel, *T);
 
                            if (coeffType >= 3 && dimension == 3)
                            {

@@ -94,14 +94,6 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
-
-template <typename Integrator>
-const IntegrationRule & GetRule(
-   const Integrator &integ,
-   const FiniteElement &trial_fe,
-   const FiniteElement &test_fe,
-   ElementTransformation &Trans);
-
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
 

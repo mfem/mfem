@@ -152,20 +152,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
    elmat.SetSize(ndofs);
    elmat = 0.0;
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order;
-      if (ndof2)
-      {
-         order = 2*std::max(el1.GetOrder(), el2.GetOrder());
-      }
-      else
-      {
-         order = 2*el1.GetOrder();
-      }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el1, el2, Trans);
 
    for (int p = 0; p < ir->GetNPoints(); p++)
    {

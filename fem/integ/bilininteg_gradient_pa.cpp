@@ -167,9 +167,8 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    Mesh *mesh = trial_fes.GetMesh();
    const FiniteElement &trial_fe = *trial_fes.GetFE(0);
    const FiniteElement &test_fe = *test_fes.GetFE(0);
-   ElementTransformation *trans = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
-                                                            *trans);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, T);
    const int dims = trial_fe.GetDim();
    const int dimsToStore = dims * dims;
    nq = ir->GetNPoints();

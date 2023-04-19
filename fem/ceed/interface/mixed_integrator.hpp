@@ -96,7 +96,7 @@ public:
          MFEM_ASSERT(!integ.GetIntegrationRule(),
                      "Mixed mesh integrators should not have an"
                      " IntegrationRule.");
-         const IntegrationRule &ir = GetRule(integ, el, el, T);
+         const IntegrationRule &ir = integ.GetRule(el, el, T);
          auto sub_op = new CeedInteg();
          int nelem = *count[value.first];
          sub_op->Assemble(info, fes, ir, nelem, indices, Q);
