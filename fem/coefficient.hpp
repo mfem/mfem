@@ -106,7 +106,6 @@ private:
    Vector constants;
 
 public:
-
    /// Constructs a piecewise constant coefficient in NumOfSubD subdomains
    explicit PWConstCoefficient(int NumOfSubD = 0) : constants(NumOfSubD)
    { constants = 0.0; }
@@ -177,7 +176,6 @@ private:
                 const Array<Coefficient*> & coefs);
 
 public:
-
    /// Constructs a piecewise coefficient
    explicit PWCoefficient() {}
 
@@ -458,7 +456,6 @@ protected:
    double (*tdf)(double);
 
 public:
-
    /// Construct a unit delta function centered at (0.0,0.0,0.0)
    DeltaCoefficient()
    {
@@ -621,15 +618,16 @@ class VectorConstantCoefficient : public VectorCoefficient
 {
 private:
    Vector vec;
+
 public:
    /// Construct the coefficient with constant vector @a v.
    VectorConstantCoefficient(const Vector &v)
       : VectorCoefficient(v.Size()), vec(v) { }
-   using VectorCoefficient::Eval;
 
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+   using VectorCoefficient::Eval;
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() const { return vec; }
@@ -679,7 +677,6 @@ private:
                 const Array<VectorCoefficient*> & coefs);
 
 public:
-
    /// Constructs a piecewise vector coefficient of dimension vd
    explicit PWVectorCoefficient(int vd): VectorCoefficient(vd) {}
 
@@ -763,10 +760,10 @@ public:
       : VectorCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
-   using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 
    virtual ~VectorFunctionCoefficient() { }
 };
@@ -803,11 +800,11 @@ public:
    double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i] ? Coeff[i]->Eval(T, ip, GetTime()) : 0.0; }
 
-   using VectorCoefficient::Eval;
    /** @brief Evaluate the coefficient. Each element of vector V comes from the
        associated array of scalar coefficients. */
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 
    /// Destroys vector coefficient.
    virtual ~VectorArrayCoefficient();
@@ -862,7 +859,6 @@ protected:
    const GridFunction *GridFunc;
 
 public:
-
    /** @brief Construct the coefficient with a scalar grid function @a gf. The
        grid function is not owned by the coefficient. */
    GradientGridFunctionCoefficient(const GridFunction *gf);
@@ -903,10 +899,10 @@ public:
    /// Get the vector grid function.
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
-   using VectorCoefficient::Eval;
    /// Evaluate the vector curl coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 
    virtual ~CurlGridFunctionCoefficient() { }
 };
@@ -995,12 +991,13 @@ public:
    virtual void EvalDelta(Vector &V, ElementTransformation &T,
                           const IntegrationPoint &ip);
 
-   using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
    { mfem_error("VectorDeltaCoefficient::Eval"); }
+   using VectorCoefficient::Eval;
+
    virtual ~VectorDeltaCoefficient() { }
 };
 
@@ -1042,16 +1039,15 @@ class MatrixCoefficient
 protected:
    int height, width;
    double time;
-   bool symmetric;  // deprecated
 
 public:
    /// Construct a dim x dim matrix coefficient.
-   explicit MatrixCoefficient(int dim, bool symm=false)
-   { height = width = dim; time = 0.; symmetric = symm; }
+   explicit MatrixCoefficient(int dim)
+   { height = width = dim; time = 0.; }
 
    /// Construct a h x w matrix coefficient.
-   MatrixCoefficient(int h, int w, bool symm=false) :
-      height(h), width(w), time(0.), symmetric(symm) { }
+   MatrixCoefficient(int h, int w) :
+      height(h), width(w), time(0.) { }
 
    /// Set the time for time dependent coefficients
    virtual void SetTime(double t) { time = t; }
@@ -1067,9 +1063,6 @@ public:
 
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
-
-   /** @deprecated Use SymmetricMatrixCoefficient instead */
-   bool IsSymmetric() const { return symmetric; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result in @a K. */
@@ -1087,17 +1080,6 @@ public:
    /// the width of the matrix.
    virtual void Project(QuadratureFunction &qf, bool transpose=false);
 
-   /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
-   /** @brief Evaluate the upper triangular entries of the matrix coefficient
-       in the symmetric case, similarly to Eval. Matrix entry (i,j) is stored
-       in K[j - i + os_i] for 0 <= i <= j < width, os_0 = 0,
-       os_{i+1} = os_i + width - i. That is, K = {M(0,0), ..., M(0,w-1),
-       M(1,1), ..., M(1,w-1), ..., M(w-1,w-1) with w = width.
-       @deprecated Use Eval() instead. */
-   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
-                              const IntegrationPoint &ip)
-   { mfem_error("MatrixCoefficient::EvalSymmetric"); }
-
    virtual ~MatrixCoefficient() { }
 };
 
@@ -1107,14 +1089,17 @@ class MatrixConstantCoefficient : public MatrixCoefficient
 {
 private:
    DenseMatrix mat;
+
 public:
    ///Construct using matrix @a m for the constant.
    MatrixConstantCoefficient(const DenseMatrix &m)
       : MatrixCoefficient(m.Height(), m.Width()), mat(m) { }
-   using MatrixCoefficient::Eval;
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+   using MatrixCoefficient::Eval;
+
    /// Return a reference to the constant matrix.
    const DenseMatrix& GetMatrix() { return mat; }
 };
@@ -1164,20 +1149,18 @@ private:
                 const Array<MatrixCoefficient*> & coefs);
 
 public:
-
    /// Constructs a piecewise matrix coefficient of dimension dim by dim
-   explicit PWMatrixCoefficient(int dim, bool symm = false)
-      : MatrixCoefficient(dim, symm) {}
+   explicit PWMatrixCoefficient(int dim)
+      : MatrixCoefficient(dim) {}
 
    /// Constructs a piecewise matrix coefficient of dimension h by w
-   explicit PWMatrixCoefficient(int h, int w, bool symm = false)
-      : MatrixCoefficient(h, w, symm) {}
+   explicit PWMatrixCoefficient(int h, int w)
+      : MatrixCoefficient(h, w) {}
 
    /// Construct the coefficient using arrays describing the pieces
    /** \param dim - size of the square matrix-valued result
        \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of MatrixCoefficient pointers
-       \param symm - true if the result will be symmetric, false otherwise
        Any missing attributes or NULL coefficient pointers will result in a
        zero matrix being returned.
 
@@ -1185,16 +1168,14 @@ public:
        transferred to this object.
    */
    PWMatrixCoefficient(int dim, const Array<int> & attr,
-                       const Array<MatrixCoefficient*> & coefs,
-                       bool symm=false)
-      : MatrixCoefficient(dim, symm) { InitMap(attr, coefs); }
+                       const Array<MatrixCoefficient*> & coefs)
+      : MatrixCoefficient(dim) { InitMap(attr, coefs); }
 
    /// Construct the coefficient using arrays describing the pieces
    /** \param h - height of the matrix-valued result
        \param w - width of the matrix-valued result
        \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of MatrixCoefficient pointers
-       \param symm - true if the result will be symmetric, false otherwise
        Any missing attributes or NULL coefficient pointers will result in a
        zero matrix being returned for that attribute.
 
@@ -1202,9 +1183,8 @@ public:
        transferred to this object.
    */
    PWMatrixCoefficient(int h, int w, const Array<int> & attr,
-                       const Array<MatrixCoefficient*> & coefs,
-                       bool symm=false)
-      : MatrixCoefficient(h, w, symm) { InitMap(attr, coefs); }
+                       const Array<MatrixCoefficient*> & coefs)
+      : MatrixCoefficient(h, w) { InitMap(attr, coefs); }
 
    /// Set the time for time dependent coefficients
    virtual void SetTime(double t);
@@ -1233,7 +1213,6 @@ class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
    std::function<void(const Vector &, DenseMatrix &)> Function;
-   std::function<void(const Vector &, Vector &)> SymmFunction;  // deprecated
    std::function<void(const Vector &, double, DenseMatrix &)> TDFunction;
 
    Coefficient *Q;
@@ -1257,39 +1236,12 @@ public:
       : MatrixCoefficient(m.Height(), m.Width()), Q(&q), mat(m)
    { }
 
-   /** @brief Define a time-independent symmetric square matrix coefficient from
-       a std function */
-   /** \param dim - the size of the matrix
-       \param SymmF - function used in EvalSymmetric
-       \param q - optional scalar Coefficient to scale the matrix coefficient
-       @deprecated Use another constructor without setting SymmFunction. */
-   MatrixFunctionCoefficient(int dim,
-                             std::function<void(const Vector &, Vector &)> SymmF,
-                             Coefficient *q = NULL)
-      : MatrixCoefficient(dim, true), SymmFunction(std::move(SymmF)), Q(q), mat(0)
-   { }
-
-   /// Define a time-dependent square matrix coefficient from a std function
-   /** \param dim - the size of the matrix
-       \param TDF - time-dependent function
-       \param q - optional scalar Coefficient to scale the matrix coefficient */
-   MatrixFunctionCoefficient(int dim,
-                             std::function<void(const Vector &, double, DenseMatrix &)> TDF,
-                             Coefficient *q = nullptr)
-      : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
-   { }
-
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
-
-   /// (DEPRECATED) Evaluate the symmetric matrix coefficient at @a ip.
-   /** @deprecated Use Eval() instead. */
-   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
-                              const IntegrationPoint &ip);
 
    virtual ~MatrixFunctionCoefficient() { }
 };
@@ -1320,12 +1272,11 @@ public:
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
-   using MatrixCoefficient::Eval;
-
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
+   using MatrixCoefficient::Eval;
 
    /// Evaluate the matrix coefficient @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
@@ -1428,10 +1379,11 @@ class SymmetricMatrixCoefficient : public MatrixCoefficient
 protected:
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
    DenseSymmetricMatrix mat;
+
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
-      : MatrixCoefficient(dimension, true) { }
+      : MatrixCoefficient(dimension) { }
 
    /// Get the size of the matrix.
    int GetSize() const { return height; }
@@ -1481,10 +1433,11 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
-   using SymmetricMatrixCoefficient::Eval;
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+   using SymmetricMatrixCoefficient::Eval;
 };
 
 
@@ -1532,10 +1485,10 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
-   using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using SymmetricMatrixCoefficient::Eval;
 
    virtual ~SymmetricMatrixFunctionCoefficient() { }
 };
@@ -1682,6 +1635,7 @@ private:
 
    mutable Vector va;
    mutable Vector vb;
+
 public:
    /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
@@ -2254,9 +2208,9 @@ public:
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
-   using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 
    virtual void Project(QuadratureFunction &qf);
 
@@ -2320,6 +2274,7 @@ protected:
    int vdim; ///< Number of values per quadrature point.
    QuadratureSpaceBase &qs; ///< Associated QuadratureSpaceBase.
    QuadratureFunction *qf; ///< Internal QuadratureFunction (owned, may be NULL).
+
 public:
    /// Create an empty CoefficientVector.
    CoefficientVector(QuadratureSpaceBase &qs_,
@@ -2421,3 +2376,4 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 }
 
 #endif
+

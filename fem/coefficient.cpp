@@ -187,8 +187,8 @@ double SphericalPolarCoefficient::Eval(ElementTransformation & T,
                 transip[2]);
 }
 
-double GridFunctionCoefficient::Eval (ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+double GridFunctionCoefficient::Eval(ElementTransformation &T,
+                                     const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridF->FESpace()->GetMesh();
    if (T.mesh->GetNE() == gf_mesh->GetNE())
@@ -673,12 +673,6 @@ void PWMatrixCoefficient::UpdateCoefficient(int attr, MatrixCoefficient & coef)
    MFEM_VERIFY(coef.GetWidth() == width,
                "PWMatrixCoefficient::UpdateCoefficient:  "
                "MatrixCoefficient has incompatible width.");
-   if (symmetric)
-   {
-      MFEM_VERIFY(coef.IsSymmetric(),
-                  "PWMatrixCoefficient::UpdateCoefficient:  "
-                  "MatrixCoefficient has incompatible symmetry.");
-   }
    pieces[attr] = &coef;
 }
 
@@ -730,68 +724,17 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    K.SetSize(height, width);
 
-   if (symmetric) // Use SymmFunction (deprecated version)
+   if (Function)
    {
-      MFEM_VERIFY(height == width && SymmFunction,
-                  "MatrixFunctionCoefficient is not symmetric");
-
-      Vector Ksym((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
-
-      SymmFunction(transip, Ksym);
-
-      // Copy upper triangular values from Ksym to the full matrix K
-      int os = 0;
-      for (int i=0; i<height; ++i)
-      {
-         for (int j=i; j<width; ++j)
-         {
-            const double Kij = Ksym[j - i + os];
-            K(i,j) = Kij;
-            if (j != i) { K(j,i) = Kij; }
-         }
-
-         os += width - i;
-      }
+      Function(transip, K);
+   }
+   else if (TDFunction)
+   {
+      TDFunction(transip, GetTime(), K);
    }
    else
    {
-      if (Function)
-      {
-         Function(transip, K);
-      }
-      else if (TDFunction)
-      {
-         TDFunction(transip, GetTime(), K);
-      }
-      else
-      {
-         K = mat;
-      }
-   }
-
-   if (Q)
-   {
-      K *= Q->Eval(T, ip, GetTime());
-   }
-}
-
-void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
-                                              ElementTransformation &T,
-                                              const IntegrationPoint &ip)
-{
-   MFEM_VERIFY(symmetric && height == width && SymmFunction,
-               "MatrixFunctionCoefficient is not symmetric");
-
-   double x[3];
-   Vector transip(x, 3);
-
-   T.Transform(ip, transip);
-
-   K.SetSize((width * (width + 1)) / 2); // 1x1: 1, 2x2: 3, 3x3: 6
-
-   if (SymmFunction)
-   {
-      SymmFunction(transip, K);
+      K = mat;
    }
 
    if (Q)
@@ -832,7 +775,7 @@ void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    Eval(mat, T, ip);
    for (int j = 0; j < width; ++j)
    {
-      for (int i = 0; i < height; ++ i)
+      for (int i = 0; i < height; ++i)
       {
          K(i, j) = mat(i, j);
       }
@@ -1832,3 +1775,4 @@ CoefficientVector::~CoefficientVector()
 }
 
 }
+
