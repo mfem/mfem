@@ -222,6 +222,9 @@ void test_2d(Element::Type element_type,
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
    }
+   delete submesh;
+   delete sub_fec;
+   delete fec;
 }
 
 void test_3d(Element::Type element_type,
@@ -399,6 +402,9 @@ void test_3d(Element::Type element_type,
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
    }
+   delete submesh;
+   delete sub_fec;
+   delete fec;
 }
 
 TEST_CASE("SubMesh", "[SubMesh]")
