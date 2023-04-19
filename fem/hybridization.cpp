@@ -120,10 +120,10 @@ void Hybridization::ConstructC()
             vdofs[s1+j] = o2 + j;
          }
          c_fes->GetFaceVDofs(i, c_vdofs);
-         c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(i),
-                                   *fes->GetFE(FTr->Elem1No),
-                                   *fes->GetFE(FTr->Elem2No),
-                                   *FTr, elmat);
+         c_bfi->AssembleFaceMatrix2(*c_fes->GetFaceElement(i),
+                                    *fes->GetFE(FTr->Elem1No),
+                                    *fes->GetFE(FTr->Elem2No),
+                                    *FTr, elmat);
          // zero-out small elements in elmat
          elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
@@ -165,7 +165,7 @@ void Hybridization::ConstructC()
                vdofs[j] = o1 + j;
             }
             fe = fes->GetFE(FTr->Elem1No);
-            c_bfi->AssembleFaceMatrix(*face_fe, *fe, *fe, *FTr, elmat);
+            c_bfi->AssembleFaceMatrix2(*face_fe, *fe, *fe, *FTr, elmat);
             // zero-out small elements in elmat
             elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
             Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);

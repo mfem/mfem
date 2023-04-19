@@ -155,11 +155,11 @@ public:
 
    /** Abstract method used for assembling TraceFaceIntegrators in a
        MixedBilinearForm. */
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix2(const FiniteElement &trial_face_fe,
+                                    const FiniteElement &test_fe1,
+                                    const FiniteElement &test_fe2,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat);
 
    /** Abstract method used for assembling TraceFaceIntegrators for
        DPG weak formulations. */
@@ -293,7 +293,6 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -433,11 +432,11 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix2(const FiniteElement &trial_face_fe,
+                                    const FiniteElement &test_fe1,
+                                    const FiniteElement &test_fe2,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat);
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2303,7 +2302,6 @@ public:
                                           const FiniteElement &el2,
                                           FaceElementTransformations &Trans) const;
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -3154,7 +3152,6 @@ public:
                                           const FiniteElement &el2,
                                           FaceElementTransformations &Trans) const;
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -3244,7 +3241,6 @@ public:
                                           FaceElementTransformations &Trans) const
    { return GetRuleStatic(el1, el2, Trans); }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -3310,7 +3306,6 @@ public:
                                           FaceElementTransformations &Trans) const
    { return DGDiffusionIntegrator::GetRuleStatic(el1, el2, Trans); }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -3393,7 +3388,6 @@ public:
                                           FaceElementTransformations &Trans) const
    { return DGDiffusionIntegrator::GetRuleStatic(el1, el2, Trans); }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -3444,12 +3438,11 @@ private:
 public:
    TraceJumpIntegrator() {}
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix2(const FiniteElement &trial_face_fe,
+                                    const FiniteElement &test_fe1,
+                                    const FiniteElement &test_fe2,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat);
 };
 
 /** Integrator for the form: < v, [w.n] > over all faces (the interface) where
@@ -3464,12 +3457,11 @@ private:
 public:
    NormalTraceJumpIntegrator() {}
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
-                                   const FiniteElement &test_fe1,
-                                   const FiniteElement &test_fe2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix2(const FiniteElement &trial_face_fe,
+                                    const FiniteElement &test_fe1,
+                                    const FiniteElement &test_fe2,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat);
 };
 
 /** Integrator for the DPG form: < v, w > over a face (the interface) where

@@ -182,13 +182,13 @@ void BilinearFormIntegrator::AssembleFaceMatrix(const FiniteElement&,
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrix(const FiniteElement&,
-                                                const FiniteElement&,
-                                                const FiniteElement&,
-                                                FaceElementTransformations&,
-                                                DenseMatrix&)
+void BilinearFormIntegrator::AssembleFaceMatrix2(const FiniteElement&,
+                                                 const FiniteElement&,
+                                                 const FiniteElement&,
+                                                 FaceElementTransformations&,
+                                                 DenseMatrix&)
 {
-   MFEM_ABORT("BilinearFormIntegrator::AssembleFaceMatrix(...)\n"
+   MFEM_ABORT("BilinearFormIntegrator::AssembleFaceMatrix2(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -320,17 +320,17 @@ void SumIntegrator::AssembleFaceMatrix(
    }
 }
 
-void SumIntegrator::AssembleFaceMatrix(
+void SumIntegrator::AssembleFaceMatrix2(
    const FiniteElement &tr_fe, const FiniteElement &te_fe1,
-   const FiniteElement &te_fe2,
-   FaceElementTransformations &Trans, DenseMatrix &elmat)
+   const FiniteElement &te_fe2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
 {
    MFEM_ASSERT(bfis.Size() > 0, "empty SumIntegrator.");
 
-   bfis[0]->AssembleFaceMatrix(tr_fe, te_fe1, te_fe2, Trans, elmat);
+   bfis[0]->AssembleFaceMatrix2(tr_fe, te_fe1, te_fe2, Trans, elmat);
    for (int i = 1; i < bfis.Size(); i++)
    {
-      bfis[i]->AssembleFaceMatrix(tr_fe, te_fe1, te_fe2, Trans, bfi_elmat);
+      bfis[i]->AssembleFaceMatrix2(tr_fe, te_fe1, te_fe2, Trans, bfi_elmat);
       elmat += bfi_elmat;
    }
 }
@@ -3833,7 +3833,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    }
 }
 
-void TraceJumpIntegrator::AssembleFaceMatrix(
+void TraceJumpIntegrator::AssembleFaceMatrix2(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
@@ -3925,7 +3925,7 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
    }
 }
 
-void NormalTraceJumpIntegrator::AssembleFaceMatrix(
+void NormalTraceJumpIntegrator::AssembleFaceMatrix2(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)

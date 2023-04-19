@@ -1298,8 +1298,8 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             }
             for (int k = 0; k < trace_face_integs.Size(); k++)
             {
-               trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
-                                                        *test_fe2, *ftr, elemmat);
+               trace_face_integs[k]->AssembleFaceMatrix2(*trial_face_fe, *test_fe1,
+                                                         *test_fe2, *ftr, elemmat);
                mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
          }
@@ -1327,10 +1327,10 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                if (boundary_trace_face_integs_marker[k] == NULL ||
                    (*boundary_trace_face_integs_marker[k])[bdr_attr-1] == 1)
                {
-                  boundary_trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe,
-                                                                    *test_fe1,
-                                                                    *test_fe2,
-                                                                    *ftr, elemmat);
+                  boundary_trace_face_integs[k]->AssembleFaceMatrix2(*trial_face_fe,
+                                                                     *test_fe1,
+                                                                     *test_fe2,
+                                                                     *ftr, elemmat);
                   mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
                }
             }

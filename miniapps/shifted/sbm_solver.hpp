@@ -121,7 +121,6 @@ public:
         par_shared_face_count(0),
         cut_marker(cut_marker_) { }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -241,7 +240,6 @@ public:
         par_shared_face_count(0),
         cut_marker(cut_marker_) { }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
