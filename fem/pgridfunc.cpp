@@ -58,8 +58,8 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       {
          if (partitioning[i] == MyRank)
          {
-            const auto * const ltrans = pfes->GetElementVDofs(element_counter, lvdofs);
-            const auto * const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
+            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter, lvdofs);
+            const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
             if (gtrans)
             {
@@ -278,7 +278,7 @@ const
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      const auto * const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
       const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
       if (fes_vdim > 1)
       {
@@ -312,7 +312,7 @@ const
    }
    else
    {
-      const auto * const doftrans = fes->GetElementDofs(i, dofs);
+      const DofTransformation* const doftrans = fes->GetElementDofs(i, dofs);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -343,7 +343,7 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      const auto * const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
                                                                  dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
@@ -418,7 +418,7 @@ double ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   const auto * const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -1183,7 +1183,7 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      const auto * const xtrans = xfes->GetElementVDofs(i, xdofs);
+      const DofTransformation* const xtrans = xfes->GetElementVDofs(i, xdofs);
       x.GetSubVector(xdofs, el_x);
       if (xtrans)
       {
@@ -1194,7 +1194,7 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      const auto * const ftrans = flux_fes.GetElementVDofs(i, fdofs);
+      const DofTransformation* const ftrans = flux_fes.GetElementVDofs(i, fdofs);
       if (ftrans)
       {
          ftrans->TransformPrimal(el_f);
