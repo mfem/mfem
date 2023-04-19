@@ -985,8 +985,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    std::map<int, int> vert_map;
    for (int i = 0; i < fnbr.Size(); i++)
    {
-      auto* elem = fnbr[i];
-      auto* fne = NewMeshElement(elem->geom);
+      NCMesh::Element* elem = fnbr[i];
+      mfem::Element* fne = NewMeshElement(elem->geom);
       fne->SetAttribute(elem->attribute);
       pmesh.face_nbr_elements.Append(fne);
 
@@ -1050,7 +1050,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       Element* e[2] = { &elements[face->elem[0]], &elements[face->elem[1]] };
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
 
-      auto &fi = pmesh.faces_info[cf.index];
+      Mesh::FaceInfo &fi = pmesh.faces_info[cf.index];
       fi.Elem2No = -1 - fnbr_index[e[0]->index - NElements];
 
       if (Dim == 3)
