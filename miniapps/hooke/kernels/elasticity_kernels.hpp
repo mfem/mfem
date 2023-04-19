@@ -70,7 +70,7 @@ void Apply3D(const int ne,
    const auto U = Reshape(X_.Read(), d1d, d1d, d1d, dim, ne);
    auto force = Reshape(Y_.ReadWrite(), d1d, d1d, d1d, dim, ne);
 
-   MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
+   mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
    {
       // shared memory placeholders for temporary contraction results
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
@@ -166,7 +166,7 @@ void ApplyGradient3D(const int ne,
    auto dsigma_cache = Reshape(dsigma_cache_.ReadWrite(), ne, q1d, q1d, q1d,
                                dim, dim, dim, dim);
 
-   MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
+   mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
    {
       // shared memory placeholders for temporary contraction results
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
@@ -293,7 +293,7 @@ void AssembleGradientDiagonal3D(const int ne,
    auto Ke_diag_m =
       Reshape(Ke_diag_memory.ReadWrite(), d1d, d1d, d1d, dim, ne, dim);
 
-   MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
+   mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE (int e)
    {
       // shared memory placeholders for temporary contraction results
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
