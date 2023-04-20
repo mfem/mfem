@@ -9,10 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-#include <fstream>
-#include <iostream>
 #include "mesh-optimizer.hpp"
+#include "../common/mfem-common.hpp"
+
 using namespace std;
 using namespace mfem;
 using namespace common;
@@ -459,12 +458,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
 
    //Now determine distance
    const double dx = AvgElementSize(pmesh);
-   DistanceSolver *dist_solver = NULL;
-
-   const int p = pLapOrder;
-   const int newton_iter = pLapNewton;
-   auto ds = new PLapDistanceSolver(p, newton_iter);
-   dist_solver = ds;
+   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
 
@@ -475,7 +469,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    filter.Filter(ls_coeff, filt_gf);
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
-   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+   dist_solver.ComputeScalarDistance(ls_filt_coeff, distance_s);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
