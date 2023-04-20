@@ -96,14 +96,39 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
+void VectorFEDivergenceIntegrator::AssembleDiagonalPA_ADAt(const Vector &D,
+                                                           Vector &diag)
+{
+   if (dim == 3)
+   {
+      internal::PAHdivL2AssembleDiagonal_ADAt_3D(dofs1D, quad1D, L2dofs1D, ne,
+                                                 L2mapsO->B,
+                                                 mapsC->Gt, mapsO->Bt, pa_data, D, diag);
+   }
+   else if (dim == 2)
+   {
+      internal::PAHdivL2AssembleDiagonal_ADAt_2D(dofs1D, quad1D, L2dofs1D, ne,
+                                                 L2mapsO->B,
+                                                 mapsC->Gt, mapsO->Bt, pa_data, D, diag);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
 void VectorFEDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
+   {
       internal::PAHdivL2Apply3D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
                                 L2mapsO->Bt, pa_data, x, y);
+   }
    else if (dim == 2)
+   {
       internal::PAHdivL2Apply2D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
                                 L2mapsO->Bt, pa_data, x, y);
+   }
    else
    {
       MFEM_ABORT("Unsupported dimension!");
@@ -114,28 +139,15 @@ void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                       Vector &y) const
 {
    if (dim == 3)
+   {
       internal::PAHdivL2ApplyTranspose3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
                                          mapsC->Gt, mapsO->Bt, pa_data, x, y);
+   }
    else if (dim == 2)
+   {
       internal::PAHdivL2ApplyTranspose2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
                                          mapsC->Gt, mapsO->Bt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
    }
-}
-
-void VectorFEDivergenceIntegrator::AssembleDiagonalPA_ADAt(const Vector &D,
-                                                           Vector &diag)
-{
-   if (dim == 3)
-      internal::PAHdivL2AssembleDiagonal_ADAt_3D(dofs1D, quad1D, L2dofs1D, ne,
-                                                 L2mapsO->B,
-                                                 mapsC->Gt, mapsO->Bt, pa_data, D, diag);
-   else if (dim == 2)
-      internal::PAHdivL2AssembleDiagonal_ADAt_2D(dofs1D, quad1D, L2dofs1D, ne,
-                                                 L2mapsO->B,
-                                                 mapsC->Gt, mapsO->Bt, pa_data, D, diag);
    else
    {
       MFEM_ABORT("Unsupported dimension!");

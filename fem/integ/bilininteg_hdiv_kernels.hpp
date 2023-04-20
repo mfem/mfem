@@ -43,7 +43,7 @@ void PAHdivMassSetup2D(const int Q1D,
    auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 3 : 4, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -107,7 +107,7 @@ void PAHdivMassSetup3D(const int Q1D,
    auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -121,8 +121,8 @@ void PAHdivMassSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
          const double c_detJ = W[q] / detJ;
 
          // (1/detJ) J^T C J
@@ -180,6 +180,133 @@ void PAHdivMassSetup3D(const int Q1D,
 }
 
 MFEM_HOST_DEVICE inline
+void PAHdivMassAssembleDiagonal2D(const int D1D,
+                                  const int Q1D,
+                                  const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Vector &op_,
+                                  Vector &diag_)
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
+
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dx = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double mass[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               mass[qx] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
+               }
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               double val = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
+                  val += mass[qx] * wx * wx;
+               }
+               diag(dx + (dy * D1Dx) + osc, e) += val;
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+   }); // end of element loop
+}
+
+MFEM_HOST_DEVICE inline
+void PAHdivMassAssembleDiagonal3D(const int D1D,
+                                  const int Q1D,
+                                  const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Vector &op_,
+                                  Vector &diag_)
+{
+   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D : D1D - 1;
+         const int D1Dy = (c == 1) ? D1D : D1D - 1;
+         const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                         (symmetric ? 5 : 8));
+
+         double mass[HDIV_MAX_Q1D];
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  mass[qx] = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                     for (int qz = 0; qz < Q1D; ++qz)
+                     {
+                        const double wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+                        mass[qx] += wy * wy * wz * wz * op(qx,qy,qz,opc,e);
+                     }
+                  }
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  double val = 0.0;
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
+                     val += mass[qx] * wx * wx;
+                  }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop c
+   }); // end of element loop
+}
+
+MFEM_HOST_DEVICE inline
 void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -204,7 +331,7 @@ void PAHdivMassApply2D(const int D1D,
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -339,7 +466,7 @@ void SmemPAHdivMassApply2D(const int NE,
    const auto x = Reshape(x_.Read(), D1D*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
+   mfem::forall_3D(NE, Q1D, Q1D, VDIM, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
 
@@ -482,133 +609,6 @@ void SmemPAHdivMassApply2D(const int NE,
 }
 
 MFEM_HOST_DEVICE inline
-void PAHdivMassAssembleDiagonal2D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
-                                  const Vector &op_,
-                                  Vector &diag_)
-{
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
-   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
-   auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      int osc = 0;
-
-      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
-      {
-         const int D1Dx = (c == 1) ? D1D - 1 : D1D;
-         const int D1Dy = (c == 0) ? D1D - 1 : D1D;
-
-         for (int dy = 0; dy < D1Dy; ++dy)
-         {
-            double mass[MAX_Q1D];
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               mass[qx] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
-                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
-               }
-            }
-
-            for (int dx = 0; dx < D1Dx; ++dx)
-            {
-               double val = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
-                  val += mass[qx] * wx * wx;
-               }
-               diag(dx + (dy * D1Dx) + osc, e) += val;
-            }
-         }
-
-         osc += D1Dx * D1Dy;
-      }  // loop (c) over components
-   }); // end of element loop
-}
-
-MFEM_HOST_DEVICE inline
-void PAHdivMassAssembleDiagonal3D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
-                                  const Vector &op_,
-                                  Vector &diag_)
-{
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
-   constexpr static int VDIM = 3;
-
-   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      int osc = 0;
-
-      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-      {
-         const int D1Dz = (c == 2) ? D1D : D1D - 1;
-         const int D1Dy = (c == 1) ? D1D : D1D - 1;
-         const int D1Dx = (c == 0) ? D1D : D1D - 1;
-
-         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
-                                         (symmetric ? 5 : 8));
-
-         double mass[HDIV_MAX_Q1D];
-
-         for (int dz = 0; dz < D1Dz; ++dz)
-         {
-            for (int dy = 0; dy < D1Dy; ++dy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  mass[qx] = 0.0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        const double wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
-                        mass[qx] += wy * wy * wz * wz * op(qx,qy,qz,opc,e);
-                     }
-                  }
-               }
-
-               for (int dx = 0; dx < D1Dx; ++dx)
-               {
-                  double val = 0.0;
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
-                     val += mass[qx] * wx * wx;
-                  }
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
-               }
-            }
-         }
-
-         osc += D1Dx * D1Dy * D1Dz;
-      }  // loop c
-   }); // end of element loop
-}
-
-MFEM_HOST_DEVICE inline
 void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -633,7 +633,7 @@ void PAHdivMassApply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D][VDIM];
 
@@ -832,7 +832,7 @@ void SmemPAHdivMassApply3D(const int NE,
    const auto x = Reshape(x_.Read(), D1D*(D1D-1)*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
+   mfem::forall_3D(NE, Q1D, Q1D, VDIM, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
 
@@ -1152,7 +1152,7 @@ void PADivDivSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1180,7 +1180,7 @@ void PADivDivSetup3D(const int Q1D,
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1194,11 +1194,135 @@ void PADivDivSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
          y(q,e) = W[q] * coeff(q, e) / detJ;
       }
    });
+}
+
+MFEM_HOST_DEVICE inline
+void PADivDivAssembleDiagonal2D(const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const Array<double> &Bo_,
+                                const Array<double> &Gc_,
+                                const Vector &op_,
+                                Vector &diag_)
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
+
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dx = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 0) ? D1D - 1 : D1D;
+
+         double div[MAX_Q1D];
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               div[qx] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
+                  div[qx] += wy * wy * op(qx,qy,e);
+               }
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               double val = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
+                  val += div[qx] * wx * wx;
+               }
+               diag(dx + (dy * D1Dx) + osc, e) += val;
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop c
+   });
+}
+
+MFEM_HOST_DEVICE inline
+void PADivDivAssembleDiagonal3D(const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const Array<double> &Bo_,
+                                const Array<double> &Gc_,
+                                const Vector &op_,
+                                Vector &diag_)
+{
+   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D : D1D - 1;
+         const int D1Dy = (c == 1) ? D1D : D1D - 1;
+         const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               double a[HDIV_MAX_Q1D];
+
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  a[qx] = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const double wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+
+                     for (int qz = 0; qz < Q1D; ++qz)
+                     {
+                        const double wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+                        a[qx] += wy * wy * wz * wz * op(qx,qy,qz,e);
+                     }
+                  }
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  double val = 0.0;
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
+                     val += a[qx] * wx * wx;
+                  }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop c
+   }); // end of element loop
 }
 
 MFEM_HOST_DEVICE inline
@@ -1225,7 +1349,7 @@ void PADivDivApply2D(const int D1D,
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[MAX_Q1D][MAX_Q1D];
 
@@ -1345,7 +1469,7 @@ void PADivDivApply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
 
@@ -1498,130 +1622,6 @@ void PADivDivApply3D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PADivDivAssembleDiagonal2D(const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
-                                const Vector &op_,
-                                Vector &diag_)
-{
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
-   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
-   auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      int osc = 0;
-
-      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
-      {
-         const int D1Dx = (c == 1) ? D1D - 1 : D1D;
-         const int D1Dy = (c == 0) ? D1D - 1 : D1D;
-
-         double div[MAX_Q1D];
-
-         for (int dy = 0; dy < D1Dy; ++dy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               div[qx] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
-                  div[qx] += wy * wy * op(qx,qy,e);
-               }
-            }
-
-            for (int dx = 0; dx < D1Dx; ++dx)
-            {
-               double val = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                  val += div[qx] * wx * wx;
-               }
-               diag(dx + (dy * D1Dx) + osc, e) += val;
-            }
-         }
-
-         osc += D1Dx * D1Dy;
-      }  // loop c
-   });
-}
-
-MFEM_HOST_DEVICE inline
-void PADivDivAssembleDiagonal3D(const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
-                                const Vector &op_,
-                                Vector &diag_)
-{
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
-   constexpr static int VDIM = 3;
-
-   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
-   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
-   auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      int osc = 0;
-
-      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-      {
-         const int D1Dz = (c == 2) ? D1D : D1D - 1;
-         const int D1Dy = (c == 1) ? D1D : D1D - 1;
-         const int D1Dx = (c == 0) ? D1D : D1D - 1;
-
-         for (int dz = 0; dz < D1Dz; ++dz)
-         {
-            for (int dy = 0; dy < D1Dy; ++dy)
-            {
-               double a[HDIV_MAX_Q1D];
-
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  a[qx] = 0.0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const double wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
-
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        const double wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
-                        a[qx] += wy * wy * wz * wz * op(qx,qy,qz,e);
-                     }
-                  }
-               }
-
-               for (int dx = 0; dx < D1Dx; ++dx)
-               {
-                  double val = 0.0;
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                     val += a[qx] * wx * wx;
-                  }
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
-               }
-            }
-         }
-
-         osc += D1Dx * D1Dy * D1Dz;
-      }  // loop c
-   }); // end of element loop
-}
-
 // PA H(div)-L2 (div u, p) assemble 2D kernel
 MFEM_HOST_DEVICE inline
 void PAHdivL2Setup2D(const int Q1D,
@@ -1634,7 +1634,7 @@ void PAHdivL2Setup2D(const int Q1D,
    auto W = w.Read();
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1655,13 +1655,232 @@ void PAHdivL2Setup3D(const int Q1D,
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
          y(q,e) = W[q] * coeff(q, e);
       }
    });
+}
+
+MFEM_HOST_DEVICE inline
+void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
+                                      const int Q1D,
+                                      const int L2D1D,
+                                      const int NE,
+                                      const Array<double> &L2Bo_,
+                                      const Array<double> &Gct_,
+                                      const Array<double> &Bot_,
+                                      const Vector &op_,
+                                      const Vector &D_,
+                                      Vector &diag_)
+{
+   constexpr static int VDIM = 2;
+
+   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto D = Reshape(D_.Read(), 2*(D1D-1)*D1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int ry = 0; ry < L2D1D; ++ry)
+      {
+         for (int rx = 0; rx < L2D1D; ++rx)
+         {
+            // Compute row (rx,ry), assuming all contributions are from
+            // a single element.
+
+            double row[2*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)];
+            double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+
+            for (int i=0; i<2*D1D*(D1D - 1); ++i)
+            {
+               row[i] = 0;
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  div[qy][qx] = op(qx,qy,e) * L2Bo(qx,rx) * L2Bo(qy,ry);
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               int osc = 0;
+               for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+               {
+                  const int D1Dy = (c == 1) ? D1D : D1D - 1;
+                  const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+                  double aX[HDIV_MAX_D1D];
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     aX[dx] = 0;
+                  }
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     for (int dx = 0; dx < D1Dx; ++dx)
+                     {
+                        aX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) :
+                                                 Bot(dx,qx));
+                     }
+                  }
+
+                  for (int dy = 0; dy < D1Dy; ++dy)
+                  {
+                     const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+
+                     for (int dx = 0; dx < D1Dx; ++dx)
+                     {
+                        row[dx + (dy * D1Dx) + osc] += aX[dx] * wy;
+                     }
+                  }
+
+                  osc += D1Dx * D1Dy;
+               }  // loop c
+            }  // loop qy
+
+            double val = 0.0;
+            for (int i=0; i<2*D1D*(D1D - 1); ++i)
+            {
+               val += row[i] * row[i] * D(i,e);
+            }
+            diag(rx,ry,e) += val;
+         }  // loop rx
+      }  // loop ry
+   }); // end of element loop
+}
+
+MFEM_HOST_DEVICE inline
+void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
+                                      const int Q1D,
+                                      const int L2D1D,
+                                      const int NE,
+                                      const Array<double> &L2Bo_,
+                                      const Array<double> &Gct_,
+                                      const Array<double> &Bot_,
+                                      const Vector &op_,
+                                      const Vector &D_,
+                                      Vector &diag_)
+{
+   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto D = Reshape(D_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int rz = 0; rz < L2D1D; ++rz)
+      {
+         for (int ry = 0; ry < L2D1D; ++ry)
+         {
+            for (int rx = 0; rx < L2D1D; ++rx)
+            {
+               // Compute row (rx,ry,rz), assuming all contributions are from
+               // a single element.
+
+               double row[3*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)*(HDIV_MAX_D1D-1)];
+               double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+
+               for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
+               {
+                  row[i] = 0;
+               }
+
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        div[qz][qy][qx] = op(qx,qy,qz,e) * L2Bo(qx,rx) *
+                                          L2Bo(qy,ry) * L2Bo(qz,rz);
+                     }
+                  }
+               }
+
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+
+                  int osc = 0;
+                  for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+                  {
+                     const int D1Dz = (c == 2) ? D1D : D1D - 1;
+                     const int D1Dy = (c == 1) ? D1D : D1D - 1;
+                     const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+                     for (int dy = 0; dy < D1Dy; ++dy)
+                     {
+                        for (int dx = 0; dx < D1Dx; ++dx)
+                        {
+                           aXY[dy][dx] = 0;
+                        }
+                     }
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        double aX[HDIV_MAX_D1D];
+                        for (int dx = 0; dx < D1Dx; ++dx)
+                        {
+                           aX[dx] = 0;
+                        }
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx)
+                                                           : Bot(dx,qx));
+                           }
+                        }
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              aXY[dy][dx] += aX[dx] * wy;
+                           }
+                        }
+                     }
+
+                     for (int dz = 0; dz < D1Dz; ++dz)
+                     {
+                        const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              row[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] +=
+                                 aXY[dy][dx] * wz;
+                           }
+                        }
+                     }
+
+                     osc += D1Dx * D1Dy * D1Dz;
+                  }  // loop c
+               }  // loop qz
+
+               double val = 0.0;
+               for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
+               {
+                  val += row[i] * row[i] * D(i,e);
+               }
+               diag(rx,ry,rz,e) += val;
+            }  // loop rx
+         }  // loop ry
+      }  // loop rz
+   }); // end of element loop
 }
 
 // Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
@@ -1689,7 +1908,7 @@ void PAHdivL2Apply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
 
@@ -1853,7 +2072,7 @@ void PAHdivL2Apply2D(const int D1D,
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), L2D1D, L2D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[MAX_Q1D][MAX_Q1D];
 
@@ -1960,7 +2179,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
    auto x = Reshape(x_.Read(), L2D1D, L2D1D, L2D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
 
@@ -2123,7 +2342,7 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
    auto x = Reshape(x_.Read(), L2D1D, L2D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[MAX_Q1D][MAX_Q1D];
 
@@ -2204,225 +2423,6 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
             osc += D1Dx * D1Dy;
          }  // loop c
       }  // loop qy
-   }); // end of element loop
-}
-
-MFEM_HOST_DEVICE inline
-void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
-                                      const int Q1D,
-                                      const int L2D1D,
-                                      const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
-                                      const Vector &op_,
-                                      const Vector &D_,
-                                      Vector &diag_)
-{
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
-   constexpr static int VDIM = 3;
-
-   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
-   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
-   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
-   auto D = Reshape(D_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-   auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      for (int rz = 0; rz < L2D1D; ++rz)
-      {
-         for (int ry = 0; ry < L2D1D; ++ry)
-         {
-            for (int rx = 0; rx < L2D1D; ++rx)
-            {
-               // Compute row (rx,ry,rz), assuming all contributions are from
-               // a single element.
-
-               double row[3*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)*(HDIV_MAX_D1D-1)];
-               double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
-
-               for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
-               {
-                  row[i] = 0;
-               }
-
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     for (int qx = 0; qx < Q1D; ++qx)
-                     {
-                        div[qz][qy][qx] = op(qx,qy,qz,e) * L2Bo(qx,rx) *
-                                          L2Bo(qy,ry) * L2Bo(qz,rz);
-                     }
-                  }
-               }
-
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
-
-                  int osc = 0;
-                  for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-                  {
-                     const int D1Dz = (c == 2) ? D1D : D1D - 1;
-                     const int D1Dy = (c == 1) ? D1D : D1D - 1;
-                     const int D1Dx = (c == 0) ? D1D : D1D - 1;
-
-                     for (int dy = 0; dy < D1Dy; ++dy)
-                     {
-                        for (int dx = 0; dx < D1Dx; ++dx)
-                        {
-                           aXY[dy][dx] = 0;
-                        }
-                     }
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        double aX[HDIV_MAX_D1D];
-                        for (int dx = 0; dx < D1Dx; ++dx)
-                        {
-                           aX[dx] = 0;
-                        }
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           for (int dx = 0; dx < D1Dx; ++dx)
-                           {
-                              aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx)
-                                                           : Bot(dx,qx));
-                           }
-                        }
-                        for (int dy = 0; dy < D1Dy; ++dy)
-                        {
-                           const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
-                           for (int dx = 0; dx < D1Dx; ++dx)
-                           {
-                              aXY[dy][dx] += aX[dx] * wy;
-                           }
-                        }
-                     }
-
-                     for (int dz = 0; dz < D1Dz; ++dz)
-                     {
-                        const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
-                        for (int dy = 0; dy < D1Dy; ++dy)
-                        {
-                           for (int dx = 0; dx < D1Dx; ++dx)
-                           {
-                              row[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] +=
-                                 aXY[dy][dx] * wz;
-                           }
-                        }
-                     }
-
-                     osc += D1Dx * D1Dy * D1Dz;
-                  }  // loop c
-               }  // loop qz
-
-               double val = 0.0;
-               for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
-               {
-                  val += row[i] * row[i] * D(i,e);
-               }
-               diag(rx,ry,rz,e) += val;
-            }  // loop rx
-         }  // loop ry
-      }  // loop rz
-   }); // end of element loop
-}
-
-MFEM_HOST_DEVICE inline
-void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
-                                      const int Q1D,
-                                      const int L2D1D,
-                                      const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
-                                      const Vector &op_,
-                                      const Vector &D_,
-                                      Vector &diag_)
-{
-   constexpr static int VDIM = 2;
-
-   auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
-   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
-   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
-   auto D = Reshape(D_.Read(), 2*(D1D-1)*D1D, NE);
-   auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, NE);
-
-   MFEM_FORALL(e, NE,
-   {
-      for (int ry = 0; ry < L2D1D; ++ry)
-      {
-         for (int rx = 0; rx < L2D1D; ++rx)
-         {
-            // Compute row (rx,ry), assuming all contributions are from
-            // a single element.
-
-            double row[2*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)];
-            double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
-
-            for (int i=0; i<2*D1D*(D1D - 1); ++i)
-            {
-               row[i] = 0;
-            }
-
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  div[qy][qx] = op(qx,qy,e) * L2Bo(qx,rx) * L2Bo(qy,ry);
-               }
-            }
-
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               int osc = 0;
-               for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-               {
-                  const int D1Dy = (c == 1) ? D1D : D1D - 1;
-                  const int D1Dx = (c == 0) ? D1D : D1D - 1;
-
-                  double aX[HDIV_MAX_D1D];
-                  for (int dx = 0; dx < D1Dx; ++dx)
-                  {
-                     aX[dx] = 0;
-                  }
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     for (int dx = 0; dx < D1Dx; ++dx)
-                     {
-                        aX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) :
-                                                 Bot(dx,qx));
-                     }
-                  }
-
-                  for (int dy = 0; dy < D1Dy; ++dy)
-                  {
-                     const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
-
-                     for (int dx = 0; dx < D1Dx; ++dx)
-                     {
-                        row[dx + (dy * D1Dx) + osc] += aX[dx] * wy;
-                     }
-                  }
-
-                  osc += D1Dx * D1Dy;
-               }  // loop c
-            }  // loop qy
-
-            double val = 0.0;
-            for (int i=0; i<2*D1D*(D1D - 1); ++i)
-            {
-               val += row[i] * row[i] * D(i,e);
-            }
-            diag(rx,ry,e) += val;
-         }  // loop rx
-      }  // loop ry
    }); // end of element loop
 }
 

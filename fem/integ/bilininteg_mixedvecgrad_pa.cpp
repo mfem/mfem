@@ -43,7 +43,7 @@ static void PAHcurlH1Apply2D(const int D1D,
    auto X = Reshape(x.Read(), D1D, D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -167,7 +167,7 @@ static void PAHcurlH1ApplyTranspose2D(const int D1D,
    auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -296,7 +296,7 @@ static void PAHcurlH1Apply3D(const int D1D,
    auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -486,7 +486,7 @@ static void PAHcurlH1ApplyTranspose3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 

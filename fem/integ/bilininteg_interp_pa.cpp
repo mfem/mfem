@@ -39,7 +39,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -115,7 +115,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -183,7 +183,7 @@ static void PAHcurlApplyGradientTranspose2D(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -258,7 +258,7 @@ static void PAHcurlApplyGradientTranspose2DBId(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -329,7 +329,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -500,7 +500,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
    });
 }
 
-// Specialization of PAHcurlApplyGradient3D to the case where B is identity
+// Specialization of PAHcurlApplyGradient3D to the case where
 static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
                                       const int o_dofs1D,
                                       const int NE,
@@ -516,7 +516,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -683,7 +683,7 @@ static void PAHcurlApplyGradientTranspose3D(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -854,7 +854,6 @@ static void PAHcurlApplyGradientTranspose3D(
 }
 
 // Specialization of PAHcurlApplyGradientTranspose3D to the case where
-// B is identity
 static void PAHcurlApplyGradientTranspose3DBId(
    const int c_dofs1D, const int o_dofs1D, const int NE,
    const Array<double> &G_,
@@ -868,7 +867,7 @@ static void PAHcurlApplyGradientTranspose3DBId(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -1158,7 +1157,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[2][MAX_D1D][MAX_D1D];
 
@@ -1258,7 +1257,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[2][MAX_D1D][MAX_D1D];
 
@@ -1366,7 +1365,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
@@ -1580,7 +1579,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];

@@ -34,7 +34,7 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
    const auto C = cst ? Reshape(F,cvdim,1,1) : Reshape(F,cvdim,q,nbe);
    auto Y = Reshape(y, d, vdim, nbe);
 
-   MFEM_FORALL(e, nbe,
+   mfem::forall(nbe, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -88,7 +88,7 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    const auto C = cst ? Reshape(F,cvdim,1,1,1) : Reshape(F,cvdim,q,q,nbe);
    auto Y = Reshape(y, d, d, vdim, nbe);
 
-   MFEM_FORALL_2D(e, nbe, q, q, 1,
+   mfem::forall_2D(nbe, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 

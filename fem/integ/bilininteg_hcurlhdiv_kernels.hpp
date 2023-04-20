@@ -46,7 +46,7 @@ void PAHcurlHdivMassSetup2D(const int Q1D,
    const int i21 = transpose ? 1 : 2;
    const int i22 = 3;
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -125,7 +125,7 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
    const int i32 = transpose ? 5 : 7;
    const int i33 = 8;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -143,8 +143,8 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
                const double J23 = J(qx,qy,qz,1,2,e);
                const double J33 = J(qx,qy,qz,2,2,e);
                const double detJ = J11 * (J22 * J33 - J32 * J23) -
-               /* */               J21 * (J12 * J33 - J32 * J13) +
-               /* */               J31 * (J12 * J23 - J22 * J13);
+                                   J21 * (J12 * J33 - J32 * J13) +
+                                   J31 * (J12 * J23 - J22 * J13);
                const double w_detJ = W(qx,qy,qz) / detJ;
                // adj(J)
                const double A11 = (J22 * J33) - (J23 * J32);
@@ -250,7 +250,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
    const int i12 = transpose ? 2 : 1;
    const int i21 = transpose ? 1 : 2;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -402,7 +402,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
    const int i31 = transpose ? 2 : 6;
    const int i32 = transpose ? 5 : 7;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -586,18 +586,18 @@ void PAHcurlHdivMassApply3D(const int D1D,
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 MFEM_HOST_DEVICE inline
-static void PAHcurlHdivApply3D(const int D1D,
-                               const int D1Dtest,
-                               const int Q1D,
-                               const int NE,
-                               const Array<double> &bo,
-                               const Array<double> &bc,
-                               const Array<double> &bot,
-                               const Array<double> &bct,
-                               const Array<double> &gc,
-                               const Vector &pa_data,
-                               const Vector &x,
-                               Vector &y)
+void PAHcurlHdivApply3D(const int D1D,
+                        const int D1Dtest,
+                        const int Q1D,
+                        const int NE,
+                        const Array<double> &bo,
+                        const Array<double> &bc,
+                        const Array<double> &bot,
+                        const Array<double> &bct,
+                        const Array<double> &gc,
+                        const Vector &pa_data,
+                        const Vector &x,
+                        Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -619,7 +619,7 @@ static void PAHcurlHdivApply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
@@ -976,7 +976,7 @@ void PAHcurlHdivApply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];  // Assuming HDIV_MAX_D1D <= HCURL_MAX_D1D
 

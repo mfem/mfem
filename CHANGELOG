@@ -14,6 +14,10 @@ Version 4.5.3 (development)
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+- Improved lambda body debugging with the addition of mfem::forall functions.
+  These functions can take the place of the MFEM_FORALL macros, which have been
+  preserved for backwards compatibility.
+
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
 
@@ -29,6 +33,8 @@ Discretization improvements
   spaces are now supported through the ConformingFaceRestriction class.
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
+
+- Added support for p-refined meshes in FindPointsGSLIB.
 
 Integrations, testing and documentation
 ---------------------------------------

@@ -73,11 +73,23 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    pa_data.SetSize(pa_size * nq * ne, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
-                              ir->GetWeights(),
-                              geom->J, coeff, pa_data);
+                              ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
-// PA Diffusion Apply kernel
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      if (pa_data.Size()==0) { AssemblePA(*fespace); }
+      internal::PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
+                                            maps->B, maps->G, pa_data, diag);
+   }
+}
+
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
@@ -102,20 +114,6 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
                  "the symmetric case.")
-   }
-}
-
-void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
-      internal::PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
-                                            maps->B, maps->G, pa_data, diag);
    }
 }
 
