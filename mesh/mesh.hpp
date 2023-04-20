@@ -1514,13 +1514,13 @@ public:
 
    /** Return all elements adjacent to the given Face
     *  Returns local (to the processor element no)
-    *  if local_no >= num_elems it num_elements + ghost element index 
+    *  if local_no >= num_elems it num_elements + ghost element index
     *  (This can be used in pmesh.GetFaceNbrElementTransformation)
     */
    void GetFaceAdjacentElements(int Face, Array<int> & elems) const;
 
-//    Returns global (unique) element numbers
-//    void GetFaceAdjacentElementsGlobal(int Face, Array<int> & elems) const;
+   //    Returns global (unique) element numbers
+   //    void GetFaceAdjacentElementsGlobal(int Face, Array<int> & elems) const;
 
    /// Deprecated in favor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const

@@ -95,6 +95,7 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    }
 
    Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
+   CopySpaceElementOrders(orig);
 }
 
 void FiniteElementSpace::CopyProlongationAndRestriction(
@@ -190,6 +191,18 @@ int FiniteElementSpace::GetElementOrderImpl(int i) const
 {
    // (this is an internal version of GetElementOrder without asserts and checks)
    return elem_order.Size() ? elem_order[i] : fec->GetOrder();
+}
+
+void FiniteElementSpace::CopySpaceElementOrders(const FiniteElementSpace &src)
+{
+   if (src.IsVariableOrder())
+   {
+      for (int e = 0; e < src.GetMesh()->GetNE(); e++)
+      {
+         (this)->SetElementOrder(e, src.GetElementOrder(e));
+      }
+      (this)->Update(false);
+   }
 }
 
 void FiniteElementSpace::GetVDofs(int vd, Array<int>& dofs, int ndofs_) const

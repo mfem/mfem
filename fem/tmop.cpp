@@ -2724,6 +2724,14 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
    mesh = new Mesh(m, true);
    fes = new FiniteElementSpace(mesh, f.FEColl(),
                                 f.GetVDim(), f.GetOrdering());
+   if (f.IsVariableOrder())
+   {
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         fes->SetElementOrder(e, f.GetElementOrder(e));
+      }
+      fes->Update(false);
+   }
 }
 
 #ifdef MFEM_USE_MPI

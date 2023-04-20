@@ -462,6 +462,9 @@ public:
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
 
+   /// Copies the element order from src to this.
+   void CopySpaceElementOrders(const FiniteElementSpace &src);
+
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
 
