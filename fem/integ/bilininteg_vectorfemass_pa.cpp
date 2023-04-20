@@ -103,8 +103,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    else if (trial_curl && test_curl && dim == 2)
    {
       internal::PADiffusionSetup2D<2>(quad1D, coeff_dim, ne, ir->GetWeights(),
-                                      geom->J,
-                                      coeff, pa_data);
+                                      geom->J, coeff, pa_data);
    }
    else if (trial_div && test_div && dim == 3)
    {
@@ -127,11 +126,15 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       {
          const bool tr = (trial_div && test_curl);
          if (dim == 3)
+         {
             internal::PAHcurlHdivMassSetup3D(quad1D, coeff_dim, ne, tr, ir->GetWeights(),
                                              geom->J, coeff, pa_data);
+         }
          else
+         {
             internal::PAHcurlHdivMassSetup2D(quad1D, coeff_dim, ne, tr, ir->GetWeights(),
                                              geom->J, coeff, pa_data);
+         }
       }
    }
    else
@@ -228,50 +231,41 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
             {
                case 0x23:
                   return internal::SmemPAHcurlMassApply3D<2,3>(
-                            dofs1D, quad1D, ne,
-                            symmetric,
-                            mapsO->B,
-                            mapsC->B, mapsO->Bt,
+                            dofs1D, quad1D, ne, symmetric,
+                            mapsO->B, mapsC->B, mapsO->Bt,
                             mapsC->Bt, pa_data, x, y);
                case 0x34:
                   return internal::SmemPAHcurlMassApply3D<3,4>(
-                            dofs1D, quad1D, ne,
-                            symmetric,
-                            mapsO->B,
-                            mapsC->B, mapsO->Bt,
+                            dofs1D, quad1D, ne, symmetric,
+                            mapsO->B, mapsC->B, mapsO->Bt,
                             mapsC->Bt, pa_data, x, y);
                case 0x45:
                   return internal::SmemPAHcurlMassApply3D<4,5>(
-                            dofs1D, quad1D, ne,
-                            symmetric,
-                            mapsO->B,
-                            mapsC->B, mapsO->Bt,
+                            dofs1D, quad1D, ne, symmetric,
+                            mapsO->B, mapsC->B, mapsO->Bt,
                             mapsC->Bt, pa_data, x, y);
                case 0x56:
                   return internal::SmemPAHcurlMassApply3D<5,6>(
-                            dofs1D, quad1D, ne,
-                            symmetric,
-                            mapsO->B,
-                            mapsC->B, mapsO->Bt,
+                            dofs1D, quad1D, ne, symmetric,
+                            mapsO->B, mapsC->B, mapsO->Bt,
                             mapsC->Bt, pa_data, x, y);
                default:
                   return internal::SmemPAHcurlMassApply3D(
                             dofs1D, quad1D, ne, symmetric,
-                            mapsO->B,
-                            mapsC->B,
-                            mapsO->Bt, mapsC->Bt, pa_data, x, y);
+                            mapsO->B, mapsC->B, mapsO->Bt,
+                            mapsC->Bt, pa_data, x, y);
             }
          }
          else
+         {
             internal::PAHcurlMassApply3D(dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
-                                         mapsO->Bt,
-                                         mapsC->Bt, pa_data, x, y);
+                                         mapsO->Bt, mapsC->Bt, pa_data, x, y);
+         }
       }
       else if (trial_div && test_div)
       {
          internal::PAHdivMassApply(3, dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B,
-                                   mapsO->Bt,
-                                   mapsC->Bt, pa_data, x, y);
+                                   mapsO->Bt, mapsC->Bt, pa_data, x, y);
       }
       else if (trial_curl && test_div)
       {
@@ -332,16 +326,16 @@ void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
    {
       const bool scalarCoeff = !(DQ || MQ);
       internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                       trial_div, true, mapsO->B, mapsC->B, mapsOtest->Bt,
-                                       mapsCtest->Bt, pa_data, x, y);
+                                       trial_div, true, mapsO->B, mapsC->B,
+                                       mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y);
       symmetricSpaces = false;
    }
    else if (dim == 2 && ((trial_curl && test_div) || (trial_div && test_curl)))
    {
       const bool scalarCoeff = !(DQ || MQ);
       internal::PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                       !trial_curl, true, mapsO->B, mapsC->B, mapsOtest->Bt,
-                                       mapsCtest->Bt, pa_data, x, y);
+                                       !trial_curl, true, mapsO->B, mapsC->B,
+                                       mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y);
       symmetricSpaces = false;
    }
    if (symmetricSpaces)
@@ -350,7 +344,7 @@ void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
       {
          MFEM_ABORT("VectorFEMassIntegrator transpose not implemented for asymmetric MatrixCoefficient");
       }
-      this->AddMultPA(x, y);
+      AddMultPA(x, y);
    }
 }
 

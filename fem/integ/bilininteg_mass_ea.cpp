@@ -32,7 +32,7 @@ static void EAMassAssemble1D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
    auto M = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -82,7 +82,7 @@ static void EAMassAssemble2D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
    auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -154,7 +154,7 @@ static void EAMassAssemble3D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
    auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

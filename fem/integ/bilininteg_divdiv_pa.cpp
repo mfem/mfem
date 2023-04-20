@@ -70,20 +70,6 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (dim == 3)
-      internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else if (dim == 2)
-      internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
-}
-
 void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
@@ -95,6 +81,20 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
    {
       internal::PADivDivAssembleDiagonal2D(dofs1D, quad1D, ne,
                                            mapsO->B, mapsC->G, pa_data, diag);
+   }
+}
+
+void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 3)
+      internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
+                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
+   else if (dim == 2)
+      internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
+                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
    }
 }
 

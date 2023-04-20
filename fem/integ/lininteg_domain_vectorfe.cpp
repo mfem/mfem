@@ -36,7 +36,7 @@ static void HdivDLFAssemble2D(
    const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
    auto Y = Reshape(y, 2*(d-1)*d, ne);
 
-   MFEM_FORALL_3D(e, ne, q, q, vdim,
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -135,7 +135,7 @@ static void HdivDLFAssemble3D(
    const auto C = cst ? Reshape(F,vdim,1,1,1,1) : Reshape(F,vdim,q,q,q,ne);
    auto Y = Reshape(y, 2*(d-1)*(d-1)*d, ne);
 
-   MFEM_FORALL_3D(e, ne, q, q, vdim,
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 

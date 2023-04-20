@@ -38,7 +38,7 @@ static void PAConvectionSetup2D(const int NQ,
                   Reshape(vel.Read(), DIM,NQ,NE);
    auto y = Reshape(op.Write(), NQ,DIM,NE);
 
-   MFEM_FORALL(q_global, NE*NQ,
+   mfem::forall(NE*NQ, [=] MFEM_HOST_DEVICE (int q_global)
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
@@ -75,7 +75,7 @@ static void PAConvectionSetup3D(const int NQ,
                   Reshape(vel.Read(), 3,1,1) :
                   Reshape(vel.Read(), 3,NQ,NE);
    auto y = Reshape(op.Write(), NQ,3,NE);
-   MFEM_FORALL(q_global, NE*NQ,
+   mfem::forall(NE*NQ, [=] MFEM_HOST_DEVICE (int q_global)
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
@@ -132,6 +132,61 @@ static void PAConvectionSetup(const int dim,
    }
 }
 
+void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+   // Assumes tensor-product elements
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &Trans = *fes.GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAConvectionIntegrator(*this, fes, Q, alpha);
+      }
+      else
+      {
+         ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      }
+      return;
+   }
+   const int dims = el.GetDim();
+   const int symmDims = dims;
+   nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   ne = fes.GetNE();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_data.SetSize(symmDims * nq * ne, mt);
+
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
+
+   PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,
+                     vel, alpha, pa_data);
+}
+
+void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      MFEM_ABORT("AssembleDiagonalPA not yet implemented for"
+                 " ConvectionIntegrator.");
+   }
+}
+
 // PA Convection Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PAConvectionApply2D(const int ne,
@@ -156,7 +211,7 @@ void PAConvectionApply2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -276,7 +331,7 @@ void SmemPAConvectionApply2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -403,7 +458,7 @@ void PAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -584,7 +639,7 @@ void SmemPAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -788,7 +843,7 @@ void PAConvectionApplyT2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -904,7 +959,7 @@ void SmemPAConvectionApplyT2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1026,7 +1081,7 @@ void PAConvectionApplyT3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1202,7 +1257,7 @@ void SmemPAConvectionApplyT3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1372,48 +1427,6 @@ void SmemPAConvectionApplyT3D(const int ne,
    });
 }
 
-void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
-   // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &Trans = *fes.GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
-   if (DeviceCanUseCeed())
-   {
-      delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedPAConvectionIntegrator(*this, fes, Q, alpha);
-      }
-      else
-      {
-         ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
-      }
-      return;
-   }
-   const int dims = el.GetDim();
-   const int symmDims = dims;
-   nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, mt);
-
-   QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
-
-   PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,
-                     vel, alpha, pa_data);
-}
-
 static void PAConvectionApply(const int dim,
                               const int D1D,
                               const int Q1D,
@@ -1518,7 +1531,6 @@ static void PAConvectionApplyT(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-// PA Convection Apply kernel
 void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
@@ -1533,7 +1545,6 @@ void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
-// PA Convection Apply transpose kernel
 void ConvectionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
@@ -1546,19 +1557,6 @@ void ConvectionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
       PAConvectionApplyT(dim, dofs1D, quad1D, ne,
                          maps->B, maps->G, maps->Bt, maps->Gt,
                          pa_data, x, y);
-   }
-}
-
-void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      MFEM_ABORT("AssembleDiagonalPA not yet implemented for"
-                 " ConvectionIntegrator.");
    }
 }
 

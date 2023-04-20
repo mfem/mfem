@@ -73,7 +73,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+      mfem::forall_2D(NE,Q1D,Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -97,7 +97,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -112,6 +112,19 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             }
          }
       });
+   }
+}
+
+void MassIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      internal::PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data,
+                                       diag);
    }
 }
 
@@ -132,19 +145,6 @@ void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddMultPA(x, y);
-}
-
-void MassIntegrator::AssembleDiagonalPA(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      internal::PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data,
-                                       diag);
-   }
 }
 
 } // namespace mfem

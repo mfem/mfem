@@ -29,7 +29,7 @@ void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
    const auto C = const_coeff ? Reshape(F,1,1) : Reshape(F,q,nbe);
    auto Y = Reshape(y, d, nbe);
 
-   MFEM_FORALL(e, nbe,
+   mfem::forall(nbe, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore (in a lambda return acts as continue)
 
@@ -63,7 +63,7 @@ void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
    const auto C = const_coeff ? Reshape(F,1,1,1) : Reshape(F,q,q,nbe);
    auto Y = Reshape(y, d, d, nbe);
 
-   MFEM_FORALL_2D(e, nbe, q, q, 1,
+   mfem::forall_2D(nbe, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
