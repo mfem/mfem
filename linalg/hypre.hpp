@@ -1586,6 +1586,39 @@ public:
 };
 #endif
 
+class HyprePILUT : public HypreSolver
+{
+private:
+   HYPRE_Solver ilut_precond;
+
+   /// Default, generally robust, PILUT options
+   void SetDefaultOptions();
+
+   // If ilut_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from ilut_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetPILUTPrecond(MPI_Comm comm);
+
+public:
+   HyprePILUT(MPI_Comm comm);
+
+   HyprePILUT(HypreParMatrix &A);
+
+   void SetUserOptions(HYPRE_Int lfil, HYPRE_Real tol);
+
+   virtual void SetOperator(const Operator &op);
+
+   /// The typecast to HYPRE_Solver returns the internal ilut_precond
+   virtual operator HYPRE_Solver() const { return ilut_precond; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPilutSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPilutSolve; }
+
+   virtual ~HyprePILUT();
+};
+
 /// The BoomerAMG solver in hypre
 class HypreBoomerAMG : public HypreSolver
 {

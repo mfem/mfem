@@ -4802,6 +4802,72 @@ HypreILU::~HypreILU()
 }
 #endif
 
+HyprePILUT::HyprePILUT(MPI_Comm comm)
+{
+   HYPRE_ParCSRPilutCreate(comm, &ilut_precond);
+   SetDefaultOptions();
+}
+
+HyprePILUT::HyprePILUT(HypreParMatrix &A) : HypreSolver(&A)
+{
+   MPI_Comm comm;
+
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+
+   HYPRE_ParCSRPilutCreate(comm, &ilut_precond);
+   SetDefaultOptions();
+}
+
+void HyprePILUT::SetDefaultOptions()
+{
+   HYPRE_Int lfil = 20;
+   HYPRE_ParCSRPilutSetFactorRowSize(ilut_precond, lfil);
+   HYPRE_Real tol = 1.0e-4;
+   HYPRE_ParCSRPilutSetDropTolerance(ilut_precond, tol);
+}
+
+void HyprePILUT::SetUserOptions(HYPRE_Int lfil, HYPRE_Real tol)
+{
+   HYPRE_ParCSRPilutSetFactorRowSize(ilut_precond, lfil);
+   HYPRE_ParCSRPilutSetDropTolerance(ilut_precond, tol);
+}
+
+void HyprePILUT::ResetPILUTPrecond(MPI_Comm comm)
+{
+   // PILUT does not seem to offer access to its current configuration, so we
+   // simply reset it to its default options.
+   HYPRE_ParCSRPilutDestroy(ilut_precond);
+   HYPRE_ParCSRPilutCreate(comm, &ilut_precond);
+
+   SetDefaultOptions();
+}
+
+void HyprePILUT::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   if (A)
+   {
+      MPI_Comm comm;
+      HYPRE_ParCSRMatrixGetComm(*new_A, &comm);
+      ResetPILUTPrecond(comm);
+   }
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
+HyprePILUT::~HyprePILUT()
+{
+   HYPRE_ParCSRPilutDestroy(ilut_precond);
+}
 
 HypreBoomerAMG::HypreBoomerAMG()
 {
