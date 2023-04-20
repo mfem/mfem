@@ -22,7 +22,6 @@ static void EAConvectionAssemble1D(const int NE,
                                    const Array<double> &g,
                                    const Vector &padata,
                                    Vector &eadata,
-                                   const bool add,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
@@ -55,14 +54,7 @@ static void EAConvectionAssemble1D(const int NE,
             {
                val += r_Bj[k1] * D(k1, e) * r_Gi[k1];
             }
-            if (add)
-            {
-               A(i1, j1, e) += val;
-            }
-            else
-            {
-               A(i1, j1, e) = val;
-            }
+            A(i1, j1, e) += val;
          }
       }
    });
@@ -74,7 +66,6 @@ static void EAConvectionAssemble2D(const int NE,
                                    const Array<double> &g,
                                    const Vector &padata,
                                    Vector &eadata,
-                                   const bool add,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
@@ -130,14 +121,7 @@ static void EAConvectionAssemble2D(const int NE,
                                * r_B[k1][j1]* r_B[k2][j2];
                      }
                   }
-                  if (add)
-                  {
-                     A(i1, i2, j1, j2, e) += val;
-                  }
-                  else
-                  {
-                     A(i1, i2, j1, j2, e) = val;
-                  }
+                  A(i1, i2, j1, j2, e) += val;
                }
             }
          }
@@ -151,7 +135,6 @@ static void EAConvectionAssemble3D(const int NE,
                                    const Array<double> &g,
                                    const Vector &padata,
                                    Vector &eadata,
-                                   const bool add,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
@@ -208,14 +191,7 @@ static void EAConvectionAssemble3D(const int NE,
                               }
                            }
                         }
-                        if (add)
-                        {
-                           A(i1, i2, i3, j1, j2, j3, e) += val;
-                        }
-                        else
-                        {
-                           A(i1, i2, i3, j1, j2, j3, e) = val;
-                        }
+                        A(i1, i2, i3, j1, j2, j3, e) += val;
                      }
                   }
                }
@@ -226,8 +202,7 @@ static void EAConvectionAssemble3D(const int NE,
 }
 
 void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                      Vector &ea_data,
-                                      const bool add)
+                                      Vector &ea_data)
 {
    AssemblePA(fes);
    ne = fes.GetMesh()->GetNE();
@@ -237,15 +212,15 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EAConvectionAssemble1D<2,2>(ne,B,G,pa_data,ea_data,add);
-         case 0x33: return EAConvectionAssemble1D<3,3>(ne,B,G,pa_data,ea_data,add);
-         case 0x44: return EAConvectionAssemble1D<4,4>(ne,B,G,pa_data,ea_data,add);
-         case 0x55: return EAConvectionAssemble1D<5,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x66: return EAConvectionAssemble1D<6,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x77: return EAConvectionAssemble1D<7,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x88: return EAConvectionAssemble1D<8,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x99: return EAConvectionAssemble1D<9,9>(ne,B,G,pa_data,ea_data,add);
-         default:   return EAConvectionAssemble1D(ne,B,G,pa_data,ea_data,add,
+         case 0x22: return EAConvectionAssemble1D<2,2>(ne,B,G,pa_data,ea_data);
+         case 0x33: return EAConvectionAssemble1D<3,3>(ne,B,G,pa_data,ea_data);
+         case 0x44: return EAConvectionAssemble1D<4,4>(ne,B,G,pa_data,ea_data);
+         case 0x55: return EAConvectionAssemble1D<5,5>(ne,B,G,pa_data,ea_data);
+         case 0x66: return EAConvectionAssemble1D<6,6>(ne,B,G,pa_data,ea_data);
+         case 0x77: return EAConvectionAssemble1D<7,7>(ne,B,G,pa_data,ea_data);
+         case 0x88: return EAConvectionAssemble1D<8,8>(ne,B,G,pa_data,ea_data);
+         case 0x99: return EAConvectionAssemble1D<9,9>(ne,B,G,pa_data,ea_data);
+         default:   return EAConvectionAssemble1D(ne,B,G,pa_data,ea_data,
                                                      dofs1D,quad1D);
       }
    }
@@ -253,15 +228,15 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EAConvectionAssemble2D<2,2>(ne,B,G,pa_data,ea_data,add);
-         case 0x33: return EAConvectionAssemble2D<3,3>(ne,B,G,pa_data,ea_data,add);
-         case 0x44: return EAConvectionAssemble2D<4,4>(ne,B,G,pa_data,ea_data,add);
-         case 0x55: return EAConvectionAssemble2D<5,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x66: return EAConvectionAssemble2D<6,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x77: return EAConvectionAssemble2D<7,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x88: return EAConvectionAssemble2D<8,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x99: return EAConvectionAssemble2D<9,9>(ne,B,G,pa_data,ea_data,add);
-         default:   return EAConvectionAssemble2D(ne,B,G,pa_data,ea_data,add,
+         case 0x22: return EAConvectionAssemble2D<2,2>(ne,B,G,pa_data,ea_data);
+         case 0x33: return EAConvectionAssemble2D<3,3>(ne,B,G,pa_data,ea_data);
+         case 0x44: return EAConvectionAssemble2D<4,4>(ne,B,G,pa_data,ea_data);
+         case 0x55: return EAConvectionAssemble2D<5,5>(ne,B,G,pa_data,ea_data);
+         case 0x66: return EAConvectionAssemble2D<6,6>(ne,B,G,pa_data,ea_data);
+         case 0x77: return EAConvectionAssemble2D<7,7>(ne,B,G,pa_data,ea_data);
+         case 0x88: return EAConvectionAssemble2D<8,8>(ne,B,G,pa_data,ea_data);
+         case 0x99: return EAConvectionAssemble2D<9,9>(ne,B,G,pa_data,ea_data);
+         default:   return EAConvectionAssemble2D(ne,B,G,pa_data,ea_data,
                                                      dofs1D,quad1D);
       }
    }
@@ -269,14 +244,14 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x23: return EAConvectionAssemble3D<2,3>(ne,B,G,pa_data,ea_data,add);
-         case 0x34: return EAConvectionAssemble3D<3,4>(ne,B,G,pa_data,ea_data,add);
-         case 0x45: return EAConvectionAssemble3D<4,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x56: return EAConvectionAssemble3D<5,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x67: return EAConvectionAssemble3D<6,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x78: return EAConvectionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x89: return EAConvectionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
-         default:   return EAConvectionAssemble3D(ne,B,G,pa_data,ea_data,add,
+         case 0x23: return EAConvectionAssemble3D<2,3>(ne,B,G,pa_data,ea_data);
+         case 0x34: return EAConvectionAssemble3D<3,4>(ne,B,G,pa_data,ea_data);
+         case 0x45: return EAConvectionAssemble3D<4,5>(ne,B,G,pa_data,ea_data);
+         case 0x56: return EAConvectionAssemble3D<5,6>(ne,B,G,pa_data,ea_data);
+         case 0x67: return EAConvectionAssemble3D<6,7>(ne,B,G,pa_data,ea_data);
+         case 0x78: return EAConvectionAssemble3D<7,8>(ne,B,G,pa_data,ea_data);
+         case 0x89: return EAConvectionAssemble3D<8,9>(ne,B,G,pa_data,ea_data);
+         default:   return EAConvectionAssemble3D(ne,B,G,pa_data,ea_data,
                                                      dofs1D,quad1D);
       }
    }

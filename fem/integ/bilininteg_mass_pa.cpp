@@ -25,7 +25,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                          Device::GetDeviceMemoryType() : pa_mt;
 
    // Assuming the same element type
-   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
@@ -79,7 +78,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             {
                const double detJ = J(qx,qy,e);
                const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
+               v(qx,qy,e) = W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
       });
@@ -119,7 +118,6 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
                          Device::GetDeviceMemoryType() : pa_mt;
 
    // Assuming the same element type
-   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNBE() == 0) { return; }
    const FiniteElement &el = *fes.GetBE(0);
@@ -157,7 +155,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
          {
             const double detJ = J(qx,e);
             const double coeff = const_c ? C(0,0) : C(qx,e);
-            v(qx,e) =  W(qx) * coeff * (by_val ? detJ : 1.0/detJ);
+            v(qx,e) = W(qx) * coeff * (by_val ? detJ : 1.0/detJ);
          }
       });
    }
@@ -176,7 +174,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
             {
                const double detJ = J(qx,qy,e);
                const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
+               v(qx,qy,e) = W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
       });

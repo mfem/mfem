@@ -23,7 +23,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
-   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
@@ -82,7 +81,6 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
       internal::PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
                                             maps->B, maps->G, pa_data, diag);
    }

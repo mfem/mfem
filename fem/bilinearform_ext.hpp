@@ -56,10 +56,12 @@ public:
 
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
+
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
                                  OperatorHandle &A, Vector &X, Vector &B,
                                  int copy_interior = 0) = 0;
+
    virtual void Update() = 0;
 };
 
@@ -67,7 +69,7 @@ public:
 class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
+   const FiniteElementSpace *fes; // Not owned
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;
    mutable Vector bdr_face_X, bdr_face_Y;
@@ -97,12 +99,9 @@ protected:
 class EABilinearFormExtension : public PABilinearFormExtension
 {
 protected:
-   int ne;
-   int elemDofs;
-   // The element matrices are stored row major
-   Vector ea_data;
-   int nf_int, nf_bdr;
-   int faceDofs;
+   int ne, elem_dofs;
+   Vector ea_data;  // The element matrices are stored row major
+   int nf_int, nf_bdr, face_dofs;
    Vector ea_data_int, ea_data_ext, ea_data_bdr;
    bool factorize_face_terms;
 
@@ -125,10 +124,6 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    void Assemble();
-   void RAP(OperatorHandle &A);
-   /** @note Always does `DIAG_ONE` policy to be consistent with
-       `Operator::FormConstrainedSystemOperator`. */
-   void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
@@ -136,6 +131,11 @@ public:
                          int copy_interior = 0);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /** @note Always does `DIAG_ONE` policy to be consistent with
+       `Operator::FormConstrainedSystemOperator`. */
+   void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
+   void RAP(OperatorHandle &A);
 
    /** DGMult and DGMultTranspose use the extended L-vector to perform the
        computation. */
@@ -147,7 +147,7 @@ public:
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
+   const FiniteElementSpace *fes; // Not owned
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;
    mutable Vector bdr_face_X, bdr_face_Y;
@@ -200,15 +200,17 @@ public:
    virtual const Operator *GetOutputRestriction() const;
 
    virtual void Assemble() = 0;
+
+   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
+
    virtual void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                               const Array<int> &test_tdof_list,
                                               OperatorHandle &A) = 0;
+
    virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                             const Array<int> &test_tdof_list,
                                             Vector &x, Vector &b,
                                             OperatorHandle &A, Vector &X, Vector &B) = 0;
-
-   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
 
    virtual void Update() = 0;
 };
@@ -231,69 +233,39 @@ protected:
 public:
    PAMixedBilinearFormExtension(MixedBilinearForm *form);
 
-   /// Partial assembly of all internal integrators
    void Assemble();
-   /**
-      @brief Setup OperatorHandle A to contain constrained linear operator
-
-      OperatorHandle A contains matrix-free constrained operator formed for RAP
-      system where ess_tdof_list are in trial space and eliminated from
-      "columns" of A.
-   */
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,
                                       OperatorHandle &A);
-   /**
-      Setup OperatorHandle A to contain constrained linear operator and
-      eliminate columns corresponding to essential dofs from system,
-      updating RHS B vector with the results.
-   */
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list,
                                     Vector &x, Vector &b,
                                     OperatorHandle &A, Vector &X, Vector &B);
-   /// y = A*x
    void Mult(const Vector &x, Vector &y) const;
-   /// y += c*A*x
    void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
-   /// y = A^T*x
    void MultTranspose(const Vector &x, Vector &y) const;
-   /// y += c*A^T*x
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
-   /// Assemble the diagonal of ADA^T for a diagonal vector D.
-   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
-
-   /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
 };
 
-
-/**
-   @brief Partial assembly extension for DiscreteLinearOperator
-
-   This acts very much like PAMixedBilinearFormExtension, but its
-   FormRectangularSystemOperator implementation emulates 'Set' rather than
-   'Add' in the assembly case.
-*/
+/// Data and methods for partially-assembled discrete linear operators
 class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
 {
+private:
+   Vector test_multiplicity;
+
 public:
    PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
 
-   /// Partial assembly of all internal integrators
+   const Operator *GetOutputRestrictionTranspose() const;
+
    void Assemble();
-
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
-
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
-
-   void FormRectangularSystemOperator(const Array<int>&, const Array<int>&,
+   void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
+                                      const Array<int> &test_tdof_list,
                                       OperatorHandle& A);
-
-   const Operator * GetOutputRestrictionTranspose() const;
-
-private:
-   Vector test_multiplicity;
+   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
 };
 
 }

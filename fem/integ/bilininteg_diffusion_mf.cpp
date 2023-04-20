@@ -19,7 +19,6 @@ namespace mfem
 void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
-   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
