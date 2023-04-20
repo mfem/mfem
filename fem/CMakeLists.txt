@@ -31,7 +31,9 @@ set(SRCS
   integ/bilininteg_mass_mf.cpp
   integ/bilininteg_mass_pa.cpp
   integ/bilininteg_mass_ea.cpp
+  integ/bilininteg_mixedcurl_mf.cpp
   integ/bilininteg_mixedcurl_pa.cpp
+  integ/bilininteg_mixedvecgrad_mf.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
@@ -90,6 +92,8 @@ set(SRCS
   ceed/integrators/vecfemass/vecfemass.cpp
   ceed/integrators/divdiv/divdiv.cpp
   ceed/integrators/curlcurl/curlcurl.cpp
+  ceed/integrators/mixedvecgrad/mixedvecgrad.cpp
+  ceed/integrators/mixedveccurl/mixedveccurl.cpp
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
@@ -213,6 +217,8 @@ set(HDRS
   ceed/integrators/divdiv/divdiv_qf.h
   ceed/integrators/curlcurl/curlcurl.hpp
   ceed/integrators/curlcurl/curlcurl_qf.h
+  ceed/integrators/mixedvecgrad/mixedvecgrad.hpp
+  ceed/integrators/mixedveccurl/mixedveccurl.hpp
   ceed/integrators/util/util_qf.h
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp

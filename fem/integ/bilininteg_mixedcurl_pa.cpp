@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
+#include "../ceed/integrators/mixedveccurl/mixedveccurl.hpp"
 #include "bilininteg_hcurl_kernels.hpp"
 #include "bilininteg_hcurlhdiv_kernels.hpp"
 
@@ -109,8 +110,30 @@ void MixedScalarCurlIntegrator::AddMultTransposePA(const Vector &x,
 void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                            const FiniteElementSpace &test_fes)
 {
-   // Assumes tensor-product elements, with vector test and trial spaces.
    Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ)
+      {
+         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
+                                                        test_fes, MQ);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
+                                                        test_fes, VQ);
+      }
+      else
+      {
+         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
+                                                        test_fes, Q);
+      }
+      return;
+   }
+
+   // Assumes tensor-product elements, with vector test and trial spaces.
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
    const FiniteElement *test_fel = test_fes.GetFE(0);
 
@@ -191,86 +214,155 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void MixedVectorCurlIntegrator::AssemblePABoundary(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
 {
-   if (testType == mfem::FiniteElement::CURL &&
-       trialType == mfem::FiniteElement::CURL && dim == 3)
+   Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
    {
-      const int ndata = coeffDim == 1 ? 1 : 9;
-
-      if (Device::Allows(Backend::DEVICE_MASK))
+      delete ceedOp;
+      if (MQ)
       {
-         const int ID = (dofs1D << 4) | quad1D;
-         switch (ID)
-         {
-            case 0x23:
-               return internal::SmemPAHcurlL2Apply3D<2,3>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            case 0x34:
-               return internal::SmemPAHcurlL2Apply3D<3,4>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            case 0x45:
-               return internal::SmemPAHcurlL2Apply3D<4,5>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            case 0x56:
-               return internal::SmemPAHcurlL2Apply3D<5,6>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            default:
-               return internal::SmemPAHcurlL2Apply3D(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-         }
+         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
+                                                        test_fes, MQ, true);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
+                                                        test_fes, VQ, true);
       }
       else
       {
-         internal::PAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne, mapsO->B, mapsC->B,
-                                    mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
+         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
+                                                        test_fes, Q, true);
       }
+      return;
    }
-   else if (testType == mfem::FiniteElement::DIV &&
-            trialType == mfem::FiniteElement::CURL && dim == 3)
+
+   // Assuming the same element type
+   MFEM_ABORT("Error: MixedVectorCurlIntegrator::AssemblePABoundary only"
+              " implemented with libCEED");
+}
+
+void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
    {
-      internal::PAHcurlHdivApply3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
-                                   mapsC->B, mapsOtest->Bt, mapsCtest->Bt, mapsC->G,
-                                   pa_data, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension or space!");
+      if (testType == mfem::FiniteElement::CURL &&
+          trialType == mfem::FiniteElement::CURL && dim == 3)
+      {
+         const int ndata = coeffDim == 1 ? 1 : 9;
+
+         if (Device::Allows(Backend::DEVICE_MASK))
+         {
+            const int ID = (dofs1D << 4) | quad1D;
+            switch (ID)
+            {
+               case 0x23:
+                  return internal::SmemPAHcurlL2Apply3D<2,3>(
+                            dofs1D, quad1D, ndata, ne,
+                            mapsO->B, mapsC->B, mapsC->G,
+                            pa_data, x, y);
+               case 0x34:
+                  return internal::SmemPAHcurlL2Apply3D<3,4>(
+                            dofs1D, quad1D, ndata, ne,
+                            mapsO->B, mapsC->B, mapsC->G,
+                            pa_data, x, y);
+               case 0x45:
+                  return internal::SmemPAHcurlL2Apply3D<4,5>(
+                            dofs1D, quad1D, ndata, ne,
+                            mapsO->B, mapsC->B, mapsC->G,
+                            pa_data, x, y);
+               case 0x56:
+                  return internal::SmemPAHcurlL2Apply3D<5,6>(
+                            dofs1D, quad1D, ndata, ne,
+                            mapsO->B, mapsC->B, mapsC->G,
+                            pa_data, x, y);
+               default:
+                  return internal::SmemPAHcurlL2Apply3D(
+                            dofs1D, quad1D, ndata, ne,
+                            mapsO->B, mapsC->B, mapsC->G,
+                            pa_data, x, y);
+            }
+         }
+         else
+         {
+            internal::PAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne, mapsO->B, mapsC->B,
+                                       mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
+         }
+      }
+      else if (testType == mfem::FiniteElement::DIV &&
+               trialType == mfem::FiniteElement::CURL && dim == 3)
+      {
+         internal::PAHcurlHdivApply3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
+                                      mapsC->B, mapsOtest->Bt, mapsCtest->Bt, mapsC->G,
+                                      pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported dimension or space!");
+      }
    }
 }
 
 void MixedVectorCurlIntegrator::AddMultTransposePA(const Vector &x,
                                                    Vector &y) const
 {
-   if (testType == mfem::FiniteElement::DIV &&
-       trialType == mfem::FiniteElement::CURL && dim == 3)
+   if (DeviceCanUseCeed())
    {
-      internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
-                                            mapsC->B, mapsOtest->Bt, mapsCtest->Bt,
-                                            mapsC->Gt, pa_data, x, y);
+      MFEM_ABORT("AddMultTransposePA not yet implemented with libCEED for"
+                 " MixedVectorCurlIntegrator.");
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension or space!");
+      if (testType == mfem::FiniteElement::DIV &&
+          trialType == mfem::FiniteElement::CURL && dim == 3)
+      {
+         internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
+                                               mapsC->B, mapsOtest->Bt, mapsCtest->Bt,
+                                               mapsC->Gt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported dimension or space!");
+      }
    }
 }
 
-void MixedVectorWeakCurlIntegrator::AssemblePA(
-   const FiniteElementSpace &trial_fes,
-   const FiniteElementSpace &test_fes)
+void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
+                                               &trial_fes,
+                                               const FiniteElementSpace &test_fes)
 {
-   // Assumes tensor-product elements, with vector test and trial spaces.
    Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
+                                                            test_fes, MQ);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
+                                                            test_fes, VQ);
+      }
+      else
+      {
+         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
+                                                            test_fes, Q);
+      }
+      return;
+   }
+
+   // Assumes tensor-product elements, with vector test and trial spaces.
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
    const FiniteElement *test_fel = test_fes.GetFE(0);
 
@@ -347,77 +439,124 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(
    }
 }
 
-void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void MixedVectorWeakCurlIntegrator::AssemblePABoundary(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
 {
-   if (testType == mfem::FiniteElement::CURL &&
-       trialType == mfem::FiniteElement::CURL && dim == 3)
+   Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
    {
-      const int ndata = coeffDim == 1 ? 1 : 9;
-      if (Device::Allows(Backend::DEVICE_MASK))
+      delete ceedOp;
+      if (MQ)
       {
-         const int ID = (dofs1D << 4) | quad1D;
-         switch (ID)
-         {
-            case 0x23:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<2,3>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            case 0x34:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<3,4>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            case 0x45:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<4,5>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            case 0x56:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<5,6>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            default:
-               return internal::SmemPAHcurlL2ApplyTranspose3D(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-         }
+         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
+                                                            test_fes, MQ, true);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
+                                                            test_fes, VQ, true);
       }
       else
       {
-         internal::PAHcurlL2ApplyTranspose3D(dofs1D, quad1D, ndata, ne, mapsO->B,
-                                             mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt,
-                                             pa_data, x, y);
+         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
+                                                            test_fes, Q, true);
       }
+      return;
    }
-   else if (testType == mfem::FiniteElement::CURL &&
-            trialType == mfem::FiniteElement::DIV && dim == 3)
+
+   // Assuming the same element type
+   MFEM_ABORT("Error: MixedVectorWeakCurlIntegrator::AssemblePABoundary only"
+              " implemented with libCEED");
+}
+
+void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
    {
-      internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
-                                            mapsC->B, mapsO->Bt, mapsC->Bt,
-                                            mapsC->Gt, pa_data, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension or space!");
+      if (testType == mfem::FiniteElement::CURL &&
+          trialType == mfem::FiniteElement::CURL && dim == 3)
+      {
+         const int ndata = coeffDim == 1 ? 1 : 9;
+         if (Device::Allows(Backend::DEVICE_MASK))
+         {
+            const int ID = (dofs1D << 4) | quad1D;
+            switch (ID)
+            {
+               case 0x23:
+                  return internal::SmemPAHcurlL2ApplyTranspose3D<2,3>(
+                            dofs1D, quad1D, ndata,
+                            ne, mapsO->B, mapsC->B,
+                            mapsC->G, pa_data, x, y);
+               case 0x34:
+                  return internal::SmemPAHcurlL2ApplyTranspose3D<3,4>(
+                            dofs1D, quad1D, ndata,
+                            ne, mapsO->B, mapsC->B,
+                            mapsC->G, pa_data, x, y);
+               case 0x45:
+                  return internal::SmemPAHcurlL2ApplyTranspose3D<4,5>(
+                            dofs1D, quad1D, ndata,
+                            ne, mapsO->B, mapsC->B,
+                            mapsC->G, pa_data, x, y);
+               case 0x56:
+                  return internal::SmemPAHcurlL2ApplyTranspose3D<5,6>(
+                            dofs1D, quad1D, ndata,
+                            ne, mapsO->B, mapsC->B,
+                            mapsC->G, pa_data, x, y);
+               default:
+                  return internal::SmemPAHcurlL2ApplyTranspose3D(
+                            dofs1D, quad1D, ndata, ne,
+                            mapsO->B, mapsC->B,
+                            mapsC->G, pa_data, x, y);
+            }
+         }
+         else
+         {
+            internal::PAHcurlL2ApplyTranspose3D(dofs1D, quad1D, ndata, ne, mapsO->B,
+                                                mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt,
+                                                pa_data, x, y);
+         }
+      }
+      else if (testType == mfem::FiniteElement::CURL &&
+               trialType == mfem::FiniteElement::DIV && dim == 3)
+      {
+         internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+                                               mapsC->B, mapsO->Bt, mapsC->Bt,
+                                               mapsC->Gt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported dimension or space!");
+      }
    }
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultTransposePA(const Vector &x,
                                                        Vector &y) const
 {
-   if (testType == mfem::FiniteElement::CURL &&
-       trialType == mfem::FiniteElement::DIV && dim == 3)
+   if (DeviceCanUseCeed())
    {
-      internal::PAHcurlHdivApply3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
-                                   mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
-                                   pa_data, x, y);
+      MFEM_ABORT("AddMultTransposePA not yet implemented with libCEED for"
+                 " MixedVectorWeakCurlIntegrator.");
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension or space!");
+      if (testType == mfem::FiniteElement::CURL &&
+          trialType == mfem::FiniteElement::DIV && dim == 3)
+      {
+         internal::PAHcurlHdivApply3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+                                      mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
+                                      pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported dimension or space!");
+      }
    }
 }
 

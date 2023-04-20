@@ -13,6 +13,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
+#include "../ceed/integrators/mixedvecgrad/mixedvecgrad.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 
 namespace mfem
@@ -22,8 +23,30 @@ void MixedVectorGradientIntegrator::AssemblePA(
    const FiniteElementSpace &trial_fes,
    const FiniteElementSpace &test_fes)
 {
-   // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ)
+      {
+         ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
+                                                            test_fes, MQ);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
+                                                            test_fes, VQ);
+      }
+      else
+      {
+         ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
+                                                            test_fes, Q);
+      }
+      return;
+   }
+
+   // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
    const FiniteElement *test_fel = test_fes.GetFE(0);
 
@@ -78,6 +101,38 @@ void MixedVectorGradientIntegrator::AssemblePA(
    {
       MFEM_ABORT("Unknown kernel.");
    }
+}
+
+void MixedVectorGradientIntegrator::AssemblePABoundary(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
+{
+   Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ)
+      {
+         ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
+                                                            test_fes, MQ, true);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
+                                                            test_fes, VQ, true);
+      }
+      else
+      {
+         ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
+                                                            test_fes, Q, true);
+      }
+      return;
+   }
+
+   // Assuming the same element type
+   MFEM_ABORT("Error: MixedVectorGradientIntegrator::AssemblePABoundary only"
+              " implemented with libCEED");
 }
 
 // Apply to x corresponding to DOFs in H^1 (trial), whose gradients are
@@ -720,38 +775,131 @@ static void PAHcurlH1ApplyTranspose3D(const int D1D,
 
 void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (dim == 3)
+   if (DeviceCanUseCeed())
    {
-      PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
-                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
-   }
-   else if (dim == 2)
-   {
-      PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
-                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension!");
+      if (dim == 3)
+      {
+         PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+                          mapsO->Bt, mapsC->Bt, pa_data, x, y);
+      }
+      else if (dim == 2)
+      {
+         PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+                          mapsO->Bt, mapsC->Bt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported dimension!");
+      }
    }
 }
 
 void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
                                                        Vector &y) const
 {
-   if (dim == 3)
+   if (DeviceCanUseCeed())
    {
-      PAHcurlH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
-                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
-   }
-   else if (dim == 2)
-   {
-      PAHcurlH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
-                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
+      MFEM_ABORT("AddMultTransposePA not yet implemented with libCEED for"
+                 " MixedVectorGradientIntegrator.");
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension!");
+      if (dim == 3)
+      {
+         PAHcurlH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                   mapsC->Bt, mapsC->Gt, pa_data, x, y);
+      }
+      else if (dim == 2)
+      {
+         PAHcurlH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                   mapsC->Bt, mapsC->Gt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported dimension!");
+      }
+   }
+}
+
+void MixedVectorWeakDivergenceIntegrator::AssemblePA(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
+{
+   Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
+                                                                  test_fes, MQ);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
+                                                                  test_fes, VQ);
+      }
+      else
+      {
+         ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
+                                                                  test_fes, Q);
+      }
+      return;
+   }
+
+   // Assuming the same element type
+   MFEM_ABORT("Error: MixedVectorWeakDivergenceIntegrator::AssemblePA only"
+              " implemented with libCEED");
+}
+
+void MixedVectorWeakDivergenceIntegrator::AssemblePABoundary(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
+{
+   Mesh *mesh = trial_fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
+                                                                  test_fes, MQ, true);
+      }
+      else if (VQ)
+      {
+         ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
+                                                                  test_fes, VQ, true);
+      }
+      else
+      {
+         ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
+                                                                  test_fes, Q, true);
+      }
+      return;
+   }
+
+   // Assuming the same element type
+   MFEM_ABORT("Error: MixedVectorWeakDivergenceIntegrator::AssemblePABoundary only"
+              " implemented with libCEED");
+}
+
+void MixedVectorWeakDivergenceIntegrator::AddMultPA(const Vector &x,
+                                                    Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Error: MixedVectorWeakDivergenceIntegrator::AddMultMF only"
+                 " implemented with libCEED");
    }
 }
 

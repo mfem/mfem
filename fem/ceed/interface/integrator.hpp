@@ -118,7 +118,8 @@ public:
                  const bool use_bdr = false,
                  const bool use_mf = false)
    {
-      Assemble(info, fes, ir, use_bdr ? fes.GetNBE() : fes.GetNE(),
+      Assemble(info, fes, fes, ir,
+               use_bdr ? fes.GetNBE() : fes.GetNE(),
                nullptr, Q, use_bdr, use_mf);
    }
 
