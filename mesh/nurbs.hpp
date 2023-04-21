@@ -253,7 +253,6 @@ protected:
 
    // periodic BC helper functions
    void InitDofMap();
-   void ConnectBoundaries();
    void ConnectBoundaries1D(int bnd0, int bnd1);
    void ConnectBoundaries2D(int bnd0, int bnd1);
    void ConnectBoundaries3D(int bnd0, int bnd1);
