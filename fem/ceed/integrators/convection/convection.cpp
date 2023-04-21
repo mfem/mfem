@@ -27,26 +27,12 @@ struct ConvectionOperatorInfo : public OperatorInfo
 {
    ConvectionContext ctx;
    ConvectionOperatorInfo(const mfem::FiniteElementSpace &fes,
-                          mfem::VectorCoefficient *VQ, double alpha)
+                          mfem::VectorCoefficient *VQ, double alpha,
+                          bool use_bdr)
    {
-      header = "/integrators/convection/convection_qf.h";
-      build_func_const = ":f_build_conv_const";
-      build_qf_const = &f_build_conv_const;
-      build_func_quad = ":f_build_conv_quad";
-      build_qf_quad = &f_build_conv_quad;
-      apply_func = ":f_apply_conv";
-      apply_qf = &f_apply_conv;
-      apply_func_mf_const = ":f_apply_conv_mf_const";
-      apply_qf_mf_const = &f_apply_conv_mf_const;
-      apply_func_mf_quad = ":f_apply_conv_mf_quad";
-      apply_qf_mf_quad = &f_apply_conv_mf_quad;
-      trial_op = EvalMode::Grad;
-      test_op = EvalMode::Interp;
-      qdatasize = fes.GetMesh()->Dimension();
-
       MFEM_VERIFY(VQ && VQ->GetVDim() == fes.GetMesh()->SpaceDimension(),
                   "Incorrect coefficient dimensions in ceed::ConvectionOperatorInfo!");
-      ctx.dim = fes.GetMesh()->Dimension();
+      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       if (VectorConstantCoefficient *const_coeff =
              dynamic_cast<VectorConstantCoefficient *>(VQ))
@@ -61,63 +47,50 @@ struct ConvectionOperatorInfo : public OperatorInfo
          }
       }
       ctx.alpha = alpha;
+
+      header = "/integrators/convection/convection_qf.h";
+      build_func_const = ":f_build_conv_const";
+      build_qf_const = &f_build_conv_const;
+      build_func_quad = ":f_build_conv_quad";
+      build_qf_quad = &f_build_conv_quad;
+      apply_func = ":f_apply_conv";
+      apply_qf = &f_apply_conv;
+      apply_func_mf_const = ":f_apply_conv_mf_const";
+      apply_qf_mf_const = &f_apply_conv_mf_const;
+      apply_func_mf_quad = ":f_apply_conv_mf_quad";
+      apply_qf_mf_quad = &f_apply_conv_mf_quad;
+      trial_op = EvalMode::Grad;
+      test_op = EvalMode::Interp;
+      qdatasize = ctx.dim;
    }
 };
 #endif
 
 PAConvectionIntegrator::PAConvectionIntegrator(
-   const mfem::FiniteElementSpace &fes,
-   const mfem::IntegrationRule &irm,
-   mfem::VectorCoefficient *VQ,
-   const double alpha)
-   : PAIntegrator()
-{
-#ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes, VQ, alpha);
-   Assemble(info, fes, irm, VQ);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-MixedPAConvectionIntegrator::MixedPAConvectionIntegrator(
-   const ConvectionIntegrator &integ,
+   const mfem::ConvectionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
    mfem::VectorCoefficient *VQ,
-   const double alpha)
+   const double alpha,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes, VQ, alpha);
-   Assemble(integ, info, fes, VQ);
+   ConvectionOperatorInfo info(fes, VQ, alpha, use_bdr);
+   Assemble(integ, info, fes, VQ, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
 MFConvectionIntegrator::MFConvectionIntegrator(
-   const mfem::FiniteElementSpace &fes,
-   const mfem::IntegrationRule &irm,
-   mfem::VectorCoefficient *VQ,
-   const double alpha)
-   : MFIntegrator()
-{
-#ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes, VQ, alpha);
-   Assemble(info, fes, irm, VQ);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-MixedMFConvectionIntegrator::MixedMFConvectionIntegrator(
-   const ConvectionIntegrator &integ,
+   const mfem::ConvectionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
    mfem::VectorCoefficient *VQ,
-   const double alpha)
+   const double alpha,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes, VQ, alpha);
-   Assemble(integ, info, fes, VQ);
+   ConvectionOperatorInfo info(fes, VQ, alpha, use_bdr);
+   Assemble(integ, info, fes, VQ, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

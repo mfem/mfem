@@ -27,8 +27,14 @@ struct DiffusionOperatorInfo : public OperatorInfo
 {
    DiffusionContext ctx;
    template <typename CoeffType>
-   DiffusionOperatorInfo(const mfem::FiniteElementSpace &fes, CoeffType *Q)
+   DiffusionOperatorInfo(const mfem::FiniteElementSpace &fes, CoeffType *Q,
+                         bool use_bdr)
    {
+      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      ctx.vdim = fes.GetVDim();
+      InitCoefficient(Q);
+
       header = "/integrators/diffusion/diffusion_qf.h";
       build_func_const = ":f_build_diff_const";
       build_qf_const = &f_build_diff_const;
@@ -42,13 +48,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       apply_qf_mf_quad = &f_apply_diff_mf_quad;
       trial_op = EvalMode::Grad;
       test_op = EvalMode::Grad;
-      qdatasize =
-         fes.GetMesh()->Dimension() * (fes.GetMesh()->Dimension() + 1) / 2;
-
-      ctx.dim = fes.GetMesh()->Dimension();
-      ctx.space_dim = fes.GetMesh()->SpaceDimension();
-      ctx.vdim = fes.GetVDim();
-      InitCoefficient(Q);
+      qdatasize = ctx.dim * (ctx.dim + 1) / 2;
    }
    void InitCoefficient(mfem::Coefficient *Q)
    {
@@ -117,42 +117,29 @@ struct DiffusionOperatorInfo : public OperatorInfo
 
 template <typename CoeffType>
 PADiffusionIntegrator::PADiffusionIntegrator(
+   const mfem::DiffusionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   const mfem::IntegrationRule &irm,
-   CoeffType *Q)
-   : PAIntegrator()
+   CoeffType *Q,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   DiffusionOperatorInfo info(fes, Q);
-   Assemble(info, fes, irm, Q);
+   DiffusionOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
 template <typename CoeffType>
-MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const DiffusionIntegrator &integ,
+PADiffusionIntegrator::PADiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   CoeffType *Q)
+   CoeffType *Q,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   DiffusionOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-template <typename CoeffType>
-MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const VectorDiffusionIntegrator &integ,
-   const mfem::FiniteElementSpace &fes,
-   CoeffType *Q)
-{
-#ifdef MFEM_USE_CEED
-   DiffusionOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
+   DiffusionOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -160,106 +147,73 @@ MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
 
 template <typename CoeffType>
 MFDiffusionIntegrator::MFDiffusionIntegrator(
+   const mfem::DiffusionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   const mfem::IntegrationRule &irm,
-   CoeffType *Q)
-   : MFIntegrator()
+   CoeffType *Q,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   DiffusionOperatorInfo info(fes, Q);
-   Assemble(info, fes, irm, Q);
+   DiffusionOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
 template <typename CoeffType>
-MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const DiffusionIntegrator &integ,
+MFDiffusionIntegrator::MFDiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   CoeffType *Q)
+   CoeffType *Q,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   DiffusionOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-template <typename CoeffType>
-MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const VectorDiffusionIntegrator &integ,
-   const mfem::FiniteElementSpace &fes,
-   CoeffType *Q)
-{
-#ifdef MFEM_USE_CEED
-   DiffusionOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
+   DiffusionOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
 template PADiffusionIntegrator::PADiffusionIntegrator(
-   const mfem::FiniteElementSpace &, const mfem::IntegrationRule &,
-   mfem::Coefficient *);
+   const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::Coefficient *, const bool);
 template PADiffusionIntegrator::PADiffusionIntegrator(
-   const mfem::FiniteElementSpace &, const mfem::IntegrationRule &,
-   mfem::VectorCoefficient *);
+   const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::VectorCoefficient *, const bool);
 template PADiffusionIntegrator::PADiffusionIntegrator(
-   const mfem::FiniteElementSpace &, const mfem::IntegrationRule &,
-   mfem::MatrixCoefficient *);
+   const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::MatrixCoefficient *, const bool);
 
-template MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const DiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::Coefficient *);
-template MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const DiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *);
-template MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const DiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *);
-
-template MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::Coefficient *);
-template MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *);
-template MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
-   const VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *);
+template PADiffusionIntegrator::PADiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::Coefficient *, const bool);
+template PADiffusionIntegrator::PADiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::VectorCoefficient *, const bool);
+template PADiffusionIntegrator::PADiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::MatrixCoefficient *, const bool);
 
 template MFDiffusionIntegrator::MFDiffusionIntegrator(
-   const mfem::FiniteElementSpace &, const mfem::IntegrationRule &,
-   mfem::Coefficient *);
+   const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::Coefficient *, const bool);
 template MFDiffusionIntegrator::MFDiffusionIntegrator(
-   const mfem::FiniteElementSpace &, const mfem::IntegrationRule &,
-   mfem::VectorCoefficient *);
+   const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::VectorCoefficient *, const bool);
 template MFDiffusionIntegrator::MFDiffusionIntegrator(
-   const mfem::FiniteElementSpace &, const mfem::IntegrationRule &,
-   mfem::MatrixCoefficient *);
+   const mfem::DiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::MatrixCoefficient *, const bool);
 
-template MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const DiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::Coefficient *);
-template MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const DiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *);
-template MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const DiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *);
-
-template MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::Coefficient *);
-template MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *);
-template MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
-   const VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *);
+template MFDiffusionIntegrator::MFDiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::Coefficient *, const bool);
+template MFDiffusionIntegrator::MFDiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::VectorCoefficient *, const bool);
+template MFDiffusionIntegrator::MFDiffusionIntegrator(
+   const mfem::VectorDiffusionIntegrator &, const mfem::FiniteElementSpace &,
+   mfem::MatrixCoefficient *, const bool);
 
 } // namespace ceed
 

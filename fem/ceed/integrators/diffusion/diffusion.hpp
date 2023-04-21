@@ -12,7 +12,6 @@
 #ifndef MFEM_LIBCEED_DIFF_HPP
 #define MFEM_LIBCEED_DIFF_HPP
 
-#include "../../interface/integrator.hpp"
 #include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
@@ -23,51 +22,37 @@ namespace ceed
 {
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::Partial using libCEED.
-class PADiffusionIntegrator : public PAIntegrator
+class PADiffusionIntegrator : public MixedIntegrator
 {
 public:
    template <typename CoeffType>
-   PADiffusionIntegrator(const mfem::FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &ir,
-                         CoeffType *Q);
-};
-
-class MixedPADiffusionIntegrator : public MixedIntegrator<PAIntegrator>
-{
-public:
-   template <typename CoeffType>
-   MixedPADiffusionIntegrator(const DiffusionIntegrator &integ,
-                              const mfem::FiniteElementSpace &fes,
-                              CoeffType *Q);
+   PADiffusionIntegrator(const mfem::DiffusionIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         CoeffType *Q,
+                         const bool use_bdr = false);
 
    template <typename CoeffType>
-   MixedPADiffusionIntegrator(const VectorDiffusionIntegrator &integ,
-                              const mfem::FiniteElementSpace &fes,
-                              CoeffType *Q);
+   PADiffusionIntegrator(const mfem::VectorDiffusionIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         CoeffType *Q,
+                         const bool use_bdr = false);
 };
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
-class MFDiffusionIntegrator : public MFIntegrator
+class MFDiffusionIntegrator : public MixedIntegrator
 {
 public:
    template <typename CoeffType>
-   MFDiffusionIntegrator(const mfem::FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &ir,
-                         CoeffType *Q);
-};
-
-class MixedMFDiffusionIntegrator : public MixedIntegrator<MFIntegrator>
-{
-public:
-   template <typename CoeffType>
-   MixedMFDiffusionIntegrator(const DiffusionIntegrator &integ,
-                              const mfem::FiniteElementSpace &fes,
-                              CoeffType *Q);
+   MFDiffusionIntegrator(const mfem::DiffusionIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         CoeffType *Q,
+                         const bool use_bdr = false);
 
    template <typename CoeffType>
-   MixedMFDiffusionIntegrator(const VectorDiffusionIntegrator &integ,
-                              const mfem::FiniteElementSpace &fes,
-                              CoeffType *Q);
+   MFDiffusionIntegrator(const mfem::VectorDiffusionIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         CoeffType *Q,
+                         const bool use_bdr = false);
 };
 
 }

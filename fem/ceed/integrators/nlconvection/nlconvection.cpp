@@ -27,8 +27,22 @@ struct NLConvectionOperatorInfo : public OperatorInfo
 {
    NLConvectionContext ctx;
    NLConvectionOperatorInfo(const mfem::FiniteElementSpace &fes,
-                            mfem::Coefficient *Q)
+                            mfem::Coefficient *Q, bool use_bdr)
    {
+      MFEM_VERIFY(fes.GetVDim() == fes.GetMesh()->SpaceDimension(),
+                  "Missing coefficient in ceed::NLConvectionOperatorInfo!");
+      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      if (Q == nullptr)
+      {
+         ctx.coeff = 1.0;
+      }
+      else if (ConstantCoefficient *const_coeff =
+                  dynamic_cast<ConstantCoefficient *>(Q))
+      {
+         ctx.coeff = const_coeff->constant;
+      }
+
       header = "/integrators/nlconvection/nlconvection_qf.h";
       build_func_const = ":f_build_conv_const";
       build_qf_const = &f_build_conv_const;
@@ -42,74 +56,34 @@ struct NLConvectionOperatorInfo : public OperatorInfo
       apply_qf_mf_quad = &f_apply_conv_mf_quad;
       trial_op = EvalMode::InterpAndGrad;
       test_op = EvalMode::Interp;
-      qdatasize = fes.GetMesh()->Dimension() * fes.GetMesh()->SpaceDimension();
-
-      MFEM_VERIFY(fes.GetVDim() == fes.GetMesh()->SpaceDimension(),
-                  "Missing coefficient in ceed::ConvectionOperatorInfo!");
-      ctx.dim = fes.GetMesh()->Dimension();
-      ctx.space_dim = fes.GetMesh()->SpaceDimension();
-      if (Q == nullptr)
-      {
-         ctx.coeff = 1.0;
-      }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
-      {
-         ctx.coeff = const_coeff->constant;
-      }
+      qdatasize = ctx.dim * ctx.space_dim;
    }
 };
 #endif
 
-PAVectorConvectionNLFIntegrator::PAVectorConvectionNLFIntegrator(
+PAVectorConvectionNLIntegrator::PAVectorConvectionNLIntegrator(
+   const mfem::VectorConvectionNLFIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   const mfem::IntegrationRule &irm,
-   mfem::Coefficient *Q)
-   : PAIntegrator()
+   mfem::Coefficient *Q,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes, Q);
-   Assemble(info, fes, irm, Q);
+   NLConvectionOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-MixedPAVectorConvectionNLIntegrator::MixedPAVectorConvectionNLIntegrator(
-   const VectorConvectionNLFIntegrator &integ,
+MFVectorConvectionNLIntegrator::MFVectorConvectionNLIntegrator(
+   const mfem::VectorConvectionNLFIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
-   mfem::Coefficient *Q)
+   mfem::Coefficient *Q,
+   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-MFVectorConvectionNLFIntegrator::MFVectorConvectionNLFIntegrator(
-   const mfem::FiniteElementSpace &fes,
-   const mfem::IntegrationRule &irm,
-   mfem::Coefficient *Q)
-   : MFIntegrator()
-{
-#ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes, Q);
-   Assemble(info, fes, irm, Q);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-MixedMFVectorConvectionNLIntegrator::MixedMFVectorConvectionNLIntegrator(
-   const VectorConvectionNLFIntegrator &integ,
-   const mfem::FiniteElementSpace &fes,
-   mfem::Coefficient *Q)
-{
-#ifdef MFEM_USE_CEED
-   NLConvectionOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
+   NLConvectionOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

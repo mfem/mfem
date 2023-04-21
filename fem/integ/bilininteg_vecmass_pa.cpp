@@ -19,32 +19,23 @@ namespace mfem
 
 void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedPAMassIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
-      }
+      ceedOp = new ceed::PAMassIntegrator(*this, fes, Q);
       return;
    }
+
+   // Assuming the same element type
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -103,6 +94,25 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       });
    }
+}
+
+void VectorMassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
+{
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      ceedOp = new ceed::PAMassIntegrator(*this, fes, Q, true);
+      return;
+   }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *mesh->GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: VectorMassIntegrator::AssemblePABoundary only implemented with"
+              " libCEED");
 }
 
 template<const int T_D1D = 0, const int T_Q1D = 0>

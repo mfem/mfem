@@ -18,45 +18,45 @@ namespace mfem
 
 void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      MFEM_VERIFY(!VQ && !MQ,
-                  "Only scalar coefficient supported for DiffusionIntegrator"
-                  " with libCEED");
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedMFDiffusionIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
-      }
+      if (MQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, MQ); }
+      else if (VQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, VQ); }
+      else { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q); }
       return;
    }
+
+   // Assumes tensor-product elements
+   // const FiniteElement &el = *fes.GetFE(0);
+   // ElementTransformation &T = *mesh->GetElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleMF only implemented"
               " with libCEED");
 }
 
-void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
+void VectorDiffusionIntegrator::AssembleMFBoundary(
+   const FiniteElementSpace &fes)
 {
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMult(x, y);
+      delete ceedOp;
+      if (MQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, MQ, true); }
+      else if (VQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, VQ, true); }
+      else { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q, true); }
+      return;
    }
-   else
-   {
-      MFEM_ABORT("Error: VectorDiffusionIntegrator::AddMultMF only implemented"
-                 " with libCEED");
-   }
+
+   // Assumes tensor-product elements
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *mesh->GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleMFBoundary only implemented"
+              " with libCEED");
 }
 
 void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
@@ -69,6 +69,19 @@ void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
    {
       MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleDiagonalMF only"
                  " implemented with libCEED");
+   }
+}
+
+void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Error: VectorDiffusionIntegrator::AddMultMF only implemented"
+                 " with libCEED");
    }
 }
 

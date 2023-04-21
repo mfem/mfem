@@ -18,31 +18,43 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-   // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      MFEM_VERIFY(!VQ && !MQ,
-                  "Only scalar coefficient supported for DiffusionIntegrator"
-                  " with libCEED");
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedMFDiffusionIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
-      }
+      if (MQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, MQ); }
+      else if (VQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, VQ); }
+      else { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q); }
       return;
    }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetFE(0);
+   // ElementTransformation &T = *mesh->GetElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with"
+              " libCEED");
+}
+
+void DiffusionIntegrator::AssembleMFBoundary(const FiniteElementSpace &fes)
+{
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, MQ, true); }
+      else if (VQ) { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, VQ, true); }
+      else { ceedOp = new ceed::MFDiffusionIntegrator(*this, fes, Q, true); }
+      return;
+   }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *mesh->GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: DiffusionIntegrator::AssembleMFBoundary only implemented with"
               " libCEED");
 }
 

@@ -2196,6 +2196,8 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
@@ -2204,6 +2206,8 @@ public:
 
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 
@@ -2281,6 +2285,8 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalMF(Vector &diag);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
@@ -2345,6 +2351,8 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
@@ -2353,6 +2361,8 @@ public:
 
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 
@@ -2496,12 +2506,16 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 
@@ -2573,12 +2587,16 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
+
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 

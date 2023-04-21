@@ -12,7 +12,6 @@
 #ifndef MFEM_LIBCEED_MASS_HPP
 #define MFEM_LIBCEED_MASS_HPP
 
-#include "../../interface/integrator.hpp"
 #include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
@@ -23,45 +22,33 @@ namespace ceed
 {
 
 /// Represent a MassIntegrator with AssemblyLevel::Partial using libCEED.
-class PAMassIntegrator : public PAIntegrator
+class PAMassIntegrator : public MixedIntegrator
 {
 public:
-   PAMassIntegrator(const mfem::FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &ir,
-                    mfem::Coefficient *Q);
-};
+   PAMassIntegrator(const mfem::MassIntegrator &integ,
+                    const mfem::FiniteElementSpace &fes,
+                    mfem::Coefficient *Q,
+                    const bool use_bdr = false);
 
-class MixedPAMassIntegrator : public MixedIntegrator<PAIntegrator>
-{
-public:
-   MixedPAMassIntegrator(const MassIntegrator &integ,
-                         const mfem::FiniteElementSpace &fes,
-                         mfem::Coefficient *Q);
-
-   MixedPAMassIntegrator(const VectorMassIntegrator &integ,
-                         const mfem::FiniteElementSpace &fes,
-                         mfem::Coefficient *Q);
+   PAMassIntegrator(const mfem::VectorMassIntegrator &integ,
+                    const mfem::FiniteElementSpace &fes,
+                    mfem::Coefficient *Q,
+                    const bool use_bdr = false);
 };
 
 /// Represent a MassIntegrator with AssemblyLevel::None using libCEED.
-class MFMassIntegrator : public MFIntegrator
+class MFMassIntegrator : public MixedIntegrator
 {
 public:
-   MFMassIntegrator(const mfem::FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &ir,
-                    mfem::Coefficient *Q);
-};
+   MFMassIntegrator(const mfem::MassIntegrator &integ,
+                    const mfem::FiniteElementSpace &fes,
+                    mfem::Coefficient *Q,
+                    const bool use_bdr = false);
 
-class MixedMFMassIntegrator : public MixedIntegrator<MFIntegrator>
-{
-public:
-   MixedMFMassIntegrator(const MassIntegrator &integ,
-                         const mfem::FiniteElementSpace &fes,
-                         mfem::Coefficient *Q);
-
-   MixedMFMassIntegrator(const VectorMassIntegrator &integ,
-                         const mfem::FiniteElementSpace &fes,
-                         mfem::Coefficient *Q);
+   MFMassIntegrator(const mfem::VectorMassIntegrator &integ,
+                    const mfem::FiniteElementSpace &fes,
+                    mfem::Coefficient *Q,
+                    const bool use_bdr = false);
 };
 
 }

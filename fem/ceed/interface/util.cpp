@@ -9,14 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../../general/device.hpp"
-#include "../../../fem/gridfunc.hpp"
-#include "../../../linalg/dtensor.hpp"
+#include "util.hpp"
 
+#include "../../../general/device.hpp"
+#include "../../../linalg/dtensor.hpp"
+#include "../../gridfunc.hpp"
 #include "basis.hpp"
 #include "restriction.hpp"
-#include "ceed.hpp"
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #if !defined(_WIN32) || !defined(_MSC_VER)
@@ -44,7 +43,7 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
    auto itb = mfem::internal::ceed_basis_map.begin();
    while (itb != mfem::internal::ceed_basis_map.end())
    {
-      if (std::get<0>(itb->first)==fes)
+      if (std::get<0>(itb->first) == fes)
       {
          CeedBasisDestroy(&itb->second);
          itb = mfem::internal::ceed_basis_map.erase(itb);
@@ -57,7 +56,7 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
    auto itr = mfem::internal::ceed_restr_map.begin();
    while (itr != mfem::internal::ceed_restr_map.end())
    {
-      if (std::get<0>(itr->first)==fes)
+      if (std::get<0>(itr->first) == fes)
       {
          CeedElemRestrictionDestroy(&itr->second);
          itr = mfem::internal::ceed_restr_map.erase(itr);
@@ -78,52 +77,59 @@ void InitVector(const mfem::Vector &v, CeedVector &cv)
    CeedScalar *cv_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(mfem::internal::ceed, &mem);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
-      cv_ptr = const_cast<CeedScalar*>(v.Read());
+      cv_ptr = const_cast<CeedScalar *>(v.Read());
    }
    else
    {
-      cv_ptr = const_cast<CeedScalar*>(v.HostRead());
+      cv_ptr = const_cast<CeedScalar *>(v.HostRead());
       mem = CEED_MEM_HOST;
    }
    CeedVectorSetArray(cv, mem, CEED_USE_POINTER, cv_ptr);
 }
 
 void InitBasisAndRestriction(const FiniteElementSpace &fes,
-                             const IntegrationRule &irm,
-                             Ceed ceed, CeedBasis *basis,
+                             const IntegrationRule &ir,
+                             bool use_bdr,
+                             Ceed ceed,
+                             CeedBasis *basis,
                              CeedElemRestriction *restr)
 {
-   InitBasis(fes, irm, ceed, basis);
-   InitRestriction(fes, ceed, restr);
+   InitBasis(fes, ir, use_bdr, ceed, basis);
+   InitRestriction(fes, use_bdr, ceed, restr);
 }
 
 void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
-                                        const IntegrationRule &irm,
+                                        const IntegrationRule &ir,
+                                        bool use_bdr,
                                         int nelem,
-                                        const int* indices,
-                                        Ceed ceed, CeedBasis *basis,
+                                        const int *indices,
+                                        Ceed ceed,
+                                        CeedBasis *basis,
                                         CeedElemRestriction *restr)
 {
-   InitBasisWithIndices(fes, irm, nelem, indices, ceed, basis);
-   InitRestrictionWithIndices(fes, nelem, indices, ceed, restr);
+   InitBasisWithIndices(fes, ir, use_bdr, nelem, indices, ceed, basis);
+   InitRestrictionWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
 }
 
 void InitBasisAndRestriction(const FiniteElementSpace &fes,
-                             const IntegrationRule &irm,
+                             const IntegrationRule &ir,
+                             bool use_bdr,
                              int nelem,
-                             const int* indices,
-                             Ceed ceed, CeedBasis *basis,
+                             const int *indices,
+                             Ceed ceed,
+                             CeedBasis *basis,
                              CeedElemRestriction *restr)
 {
    if (indices)
    {
-      InitBasisAndRestrictionWithIndices(fes,irm,nelem,indices,ceed,basis,restr);
+      InitBasisAndRestrictionWithIndices(fes, ir, use_bdr, nelem, indices, ceed,
+                                         basis, restr);
    }
    else
    {
-      InitBasisAndRestriction(fes,irm,ceed,basis,restr);
+      InitBasisAndRestriction(fes, ir, use_bdr, ceed, basis, restr);
    }
 }
 

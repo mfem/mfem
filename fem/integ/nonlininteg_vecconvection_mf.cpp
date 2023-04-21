@@ -18,27 +18,22 @@ namespace mfem
 void VectorConvectionNLFIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
-               "PA Only supports Ordering::byNODES!");
+               "MF only supports Ordering::byNODES!");
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   if (mesh->GetNE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedMFVectorConvectionNLIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::MFVectorConvectionNLFIntegrator(fes, *ir, Q);
-      }
+      ceedOp = new ceed::MFVectorConvectionNLIntegrator(*this, fes, Q);
       return;
    }
-   MFEM_ABORT("Not yet implemented.");
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetFE(0);
+   // ElementTransformation &T = *mesh->GetElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: VectorConvectionNLFIntegrator::AssembleMF only"
+              " implemented with libCEED");
 }
 
 void VectorConvectionNLFIntegrator::AddMultMF(const Vector &x, Vector &y) const

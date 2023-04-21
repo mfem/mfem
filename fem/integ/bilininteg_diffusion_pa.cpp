@@ -22,30 +22,21 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
-   // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      MFEM_VERIFY(!VQ && !MQ,
-                  "Only scalar coefficient supported for DiffusionIntegrator"
-                  " with libCEED");
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
-      }
+      if (MQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, MQ); }
+      else if (VQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, VQ); }
+      else { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q); }
       return;
    }
+
+   // Assuming the same element type
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -72,6 +63,27 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_data.SetSize(pa_size * nq * ne, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);
+}
+
+void DiffusionIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
+{
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, MQ, true); }
+      else if (VQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, VQ, true); }
+      else { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q, true); }
+      return;
+   }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *mesh->GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: DiffusionIntegrator::AssemblePABoundary only implemented with"
+              " libCEED");
 }
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)

@@ -26,8 +26,22 @@ namespace ceed
 struct MassOperatorInfo : public OperatorInfo
 {
    MassContext ctx;
-   MassOperatorInfo(const mfem::FiniteElementSpace &fes, mfem::Coefficient *Q)
+   MassOperatorInfo(const mfem::FiniteElementSpace &fes, mfem::Coefficient *Q,
+                    bool use_bdr)
    {
+      ctx.dim = fes.GetMesh()->Dimension() - (use_bdr * 1);
+      ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      ctx.vdim = fes.GetVDim();
+      if (Q == nullptr)
+      {
+         ctx.coeff = 1.0;
+      }
+      else if (ConstantCoefficient *const_coeff =
+                  dynamic_cast<ConstantCoefficient *>(Q))
+      {
+         ctx.coeff = const_coeff->constant;
+      }
+
       header = "/integrators/mass/mass_qf.h";
       build_func_const = ":f_build_mass_const";
       build_qf_const = &f_build_mass_const;
@@ -42,92 +56,57 @@ struct MassOperatorInfo : public OperatorInfo
       trial_op = EvalMode::Interp;
       test_op = EvalMode::Interp;
       qdatasize = 1;
-
-      ctx.dim = fes.GetMesh()->Dimension();
-      ctx.space_dim = fes.GetMesh()->SpaceDimension();
-      ctx.vdim = fes.GetVDim();
-      if (Q == nullptr)
-      {
-         ctx.coeff = 1.0;
-      }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
-      {
-         ctx.coeff = const_coeff->constant;
-      }
    }
 };
 #endif
 
-PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
-                                   const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *Q)
-   : PAIntegrator()
+PAMassIntegrator::PAMassIntegrator(const mfem::MassIntegrator &integ,
+                                   const mfem::FiniteElementSpace &fes,
+                                   mfem::Coefficient *Q,
+                                   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q);
-   Assemble(info, fes, irm, Q);
+   MassOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-MixedPAMassIntegrator::MixedPAMassIntegrator(const MassIntegrator &integ,
-                                             const mfem::FiniteElementSpace &fes,
-                                             mfem::Coefficient *Q)
+PAMassIntegrator::PAMassIntegrator(const mfem::VectorMassIntegrator &integ,
+                                   const mfem::FiniteElementSpace &fes,
+                                   mfem::Coefficient *Q,
+                                   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
+   MassOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-MixedPAMassIntegrator::MixedPAMassIntegrator(const VectorMassIntegrator &integ,
-                                             const mfem::FiniteElementSpace &fes,
-                                             mfem::Coefficient *Q)
+MFMassIntegrator::MFMassIntegrator(const mfem::MassIntegrator &integ,
+                                   const mfem::FiniteElementSpace &fes,
+                                   mfem::Coefficient *Q,
+                                   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
+   MassOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
-                                   const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *Q)
-   : MFIntegrator()
+MFMassIntegrator::MFMassIntegrator(const mfem::VectorMassIntegrator &integ,
+                                   const mfem::FiniteElementSpace &fes,
+                                   mfem::Coefficient *Q,
+                                   const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q);
-   Assemble(info, fes, irm, Q);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-MixedMFMassIntegrator::MixedMFMassIntegrator(const MassIntegrator &integ,
-                                             const mfem::FiniteElementSpace &fes,
-                                             mfem::Coefficient *Q)
-{
-#ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
-#else
-   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
-#endif
-}
-
-MixedMFMassIntegrator::MixedMFMassIntegrator(const VectorMassIntegrator &integ,
-                                             const mfem::FiniteElementSpace &fes,
-                                             mfem::Coefficient *Q)
-{
-#ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q);
-   Assemble(integ, info, fes, Q);
+   MassOperatorInfo info(fes, Q, use_bdr);
+   Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

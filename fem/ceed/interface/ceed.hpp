@@ -12,6 +12,7 @@
 #ifndef MFEM_LIBCEED_CEED
 #define MFEM_LIBCEED_CEED
 
+#include "../../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #if !CEED_VERSION_GE(0,10,0)
@@ -24,6 +25,7 @@ namespace mfem
 namespace internal
 {
 
+// Definition in general/device.cpp.
 extern Ceed ceed;
 
 } // namespace internal

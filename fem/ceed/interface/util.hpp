@@ -12,15 +12,13 @@
 #ifndef MFEM_LIBCEED_UTIL
 #define MFEM_LIBCEED_UTIL
 
-#include "../../../config/config.hpp"
 #include <functional>
 #include <string>
 #include <tuple>
 #include <unordered_map>
-
 #include "ceed.hpp"
 #ifdef MFEM_USE_CEED
-#include <ceed/backend.h>  // for CeedOperatorField
+#include <ceed/backend.h>
 #endif
 
 namespace mfem
@@ -40,7 +38,7 @@ namespace ceed
 {
 
 /** @brief Remove from ceed_basis_map and ceed_restr_map the entries associated
-    with the given @a fes. */
+    with the given @a fes when @a fes gets destroyed. */
 void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 
 #ifdef MFEM_USE_CEED
@@ -48,7 +46,7 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 #define PCeedChk(err) do {                                                     \
      if ((err))                                                                \
      {                                                                         \
-        const char * errmsg;                                                   \
+        const char *errmsg;                                                    \
         CeedGetErrorMessage(internal::ceed, &errmsg);                          \
         MFEM_ABORT(errmsg);                                                    \
      }                                                                         \
@@ -58,26 +56,12 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 void InitVector(const mfem::Vector &v, CeedVector &cv);
 
 /** @brief Initialize a CeedBasis and a CeedElemRestriction based on an
-    mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir.
-
-    @param[in] fes The finite element space.
-    @param[in] ir The integration rule.
-    @param[in] ceed The Ceed object.
-    @param[out] basis The `CeedBasis` to initialize.
-    @param[out] restr The `CeedElemRestriction` to initialize.
-
-    @warning Only for non-mixed finite element spaces. */
-void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
-                             const mfem::IntegrationRule &ir,
-                             Ceed ceed, CeedBasis *basis,
-                             CeedElemRestriction *restr);
-
-/** @brief Initialize a CeedBasis and a CeedElemRestriction based on an
     mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir,
     and a list of @a nelem elements of indices @a indices.
 
     @param[in] fes The finite element space.
     @param[in] ir The integration rule.
+    @param[in] use_bdr Create the basis and restriction for boundary elements.
     @param[in] nelem The number of elements.
     @param[in] indices The indices of the elements of same type in the
                        `FiniteElementSpace`. If `indices == nullptr`, assumes
@@ -87,9 +71,11 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
     @param[out] restr The `CeedElemRestriction` to initialize. */
 void InitBasisAndRestriction(const FiniteElementSpace &fes,
                              const IntegrationRule &ir,
+                             bool use_bdr,
                              int nelem,
-                             const int* indices,
-                             Ceed ceed, CeedBasis *basis,
+                             const int *indices,
+                             Ceed ceed,
+                             CeedBasis *basis,
                              CeedElemRestriction *restr);
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
@@ -113,12 +99,12 @@ inline std::size_t CeedHashCombine(std::size_t seed, std::size_t hash)
 }
 
 // Hash table for CeedBasis
-using BasisKey = std::tuple<const mfem::FiniteElementSpace*,
-      const mfem::IntegrationRule*,
-      int, int, int>;
+using BasisKey =
+   std::tuple<const mfem::FiniteElementSpace *, const mfem::IntegrationRule *,
+   int, int, int>;
 struct BasisHash
 {
-   std::size_t operator()(const BasisKey& k) const
+   std::size_t operator()(const BasisKey &k) const
    {
       return CeedHashCombine(
                 CeedHashCombine(
@@ -132,14 +118,14 @@ struct BasisHash
 };
 using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 
-enum restr_type {Standard, Strided, Coeff};
+enum restr_type {Standard, Strided};
 
 // Hash table for CeedElemRestriction
 using RestrKey =
-   std::tuple<const mfem::FiniteElementSpace*, int, int, int, int>;
+   std::tuple<const mfem::FiniteElementSpace *, int, int, int, int>;
 struct RestrHash
 {
-   std::size_t operator()(const RestrKey& k) const
+   std::size_t operator()(const RestrKey &k) const
    {
       return CeedHashCombine(
                 CeedHashCombine(
@@ -163,7 +149,7 @@ namespace internal
 
 #ifdef MFEM_USE_CEED
 /** @warning These maps have a tendency to create bugs when adding new "types"
-    of CeedBasis and CeedElemRestriction. */
+    of CeedBasis and CeedElemRestriction. Definitions in general/device.cpp. */
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
 #endif

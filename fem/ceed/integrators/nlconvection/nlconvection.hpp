@@ -12,7 +12,6 @@
 #ifndef MFEM_LIBCEED_NLCONV_HPP
 #define MFEM_LIBCEED_NLCONV_HPP
 
-#include "../../interface/integrator.hpp"
 #include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
@@ -24,40 +23,26 @@ namespace ceed
 
 /** Represent a VectorConvectionNLFIntegrator with AssemblyLevel::Partial
     using libCEED. */
-class PAVectorConvectionNLFIntegrator : public PAIntegrator
+class PAVectorConvectionNLIntegrator : public MixedIntegrator
 {
 public:
-   PAVectorConvectionNLFIntegrator(const mfem::FiniteElementSpace &fes,
-                                   const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *Q);
-};
-
-class MixedPAVectorConvectionNLIntegrator : public MixedIntegrator<PAIntegrator>
-{
-public:
-   MixedPAVectorConvectionNLIntegrator(
-      const VectorConvectionNLFIntegrator &integ,
+   PAVectorConvectionNLIntegrator(
+      const mfem::VectorConvectionNLFIntegrator &integ,
       const mfem::FiniteElementSpace &fes,
-      mfem::Coefficient *Q);
+      mfem::Coefficient *Q,
+      const bool use_bdr = false);
 };
 
 /** Represent a VectorConvectionNLFIntegrator with AssemblyLevel::None
     using libCEED. */
-class MFVectorConvectionNLFIntegrator : public MFIntegrator
+class MFVectorConvectionNLIntegrator : public MixedIntegrator
 {
 public:
-   MFVectorConvectionNLFIntegrator(const mfem::FiniteElementSpace &fes,
-                                   const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *Q);
-};
-
-class MixedMFVectorConvectionNLIntegrator : public MixedIntegrator<MFIntegrator>
-{
-public:
-   MixedMFVectorConvectionNLIntegrator(
-      const VectorConvectionNLFIntegrator &integ,
+   MFVectorConvectionNLIntegrator(
+      const mfem::VectorConvectionNLFIntegrator &integ,
       const mfem::FiniteElementSpace &fes,
-      mfem::Coefficient *Q);
+      mfem::Coefficient *Q,
+      const bool use_bdr = false);
 };
 
 }

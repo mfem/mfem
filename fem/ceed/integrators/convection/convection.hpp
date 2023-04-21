@@ -12,7 +12,6 @@
 #ifndef MFEM_LIBCEED_CONV_HPP
 #define MFEM_LIBCEED_CONV_HPP
 
-#include "../../interface/integrator.hpp"
 #include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
@@ -23,41 +22,25 @@ namespace ceed
 {
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::Partial using libCEED.
-class PAConvectionIntegrator : public PAIntegrator
+class PAConvectionIntegrator : public MixedIntegrator
 {
 public:
-   PAConvectionIntegrator(const mfem::FiniteElementSpace &fes,
-                          const mfem::IntegrationRule &ir,
+   PAConvectionIntegrator(const mfem::ConvectionIntegrator &integ,
+                          const mfem::FiniteElementSpace &fes,
                           mfem::VectorCoefficient *VQ,
-                          const double alpha);
-};
-
-class MixedPAConvectionIntegrator : public MixedIntegrator<PAIntegrator>
-{
-public:
-   MixedPAConvectionIntegrator(const ConvectionIntegrator &integ,
-                               const mfem::FiniteElementSpace &fes,
-                               mfem::VectorCoefficient *VQ,
-                               const double alpha);
+                          const double alpha,
+                          const bool use_bdr = false);
 };
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::None using libCEED.
-class MFConvectionIntegrator : public MFIntegrator
+class MFConvectionIntegrator : public MixedIntegrator
 {
 public:
-   MFConvectionIntegrator(const mfem::FiniteElementSpace &fes,
-                          const mfem::IntegrationRule &ir,
+   MFConvectionIntegrator(const mfem::ConvectionIntegrator &integ,
+                          const mfem::FiniteElementSpace &fes,
                           mfem::VectorCoefficient *VQ,
-                          const double alpha);
-};
-
-class MixedMFConvectionIntegrator : public MixedIntegrator<MFIntegrator>
-{
-public:
-   MixedMFConvectionIntegrator(const ConvectionIntegrator &integ,
-                               const mfem::FiniteElementSpace &fes,
-                               mfem::VectorCoefficient *VQ,
-                               const double alpha);
+                          const double alpha,
+                          const bool use_bdr = false);
 };
 
 }

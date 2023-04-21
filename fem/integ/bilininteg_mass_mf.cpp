@@ -18,42 +18,40 @@ namespace mfem
 
 void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-   // Assuming the same element type
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedMFMassIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::MFMassIntegrator(fes, *ir, Q);
-      }
+      ceedOp = new ceed::MFMassIntegrator(*this, fes, Q);
       return;
    }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetFE(0);
+   // ElementTransformation &T = *mesh->GetElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    MFEM_ABORT("Error: MassIntegrator::AssembleMF only implemented with"
               " libCEED");
 }
 
-void MassIntegrator::AddMultMF(const Vector &x, Vector &y) const
+void MassIntegrator::AssembleMFBoundary(const FiniteElementSpace &fes)
 {
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMult(x, y);
+      delete ceedOp;
+      ceedOp = new ceed::MFMassIntegrator(*this, fes, Q, true);
+      return;
    }
-   else
-   {
-      MFEM_ABORT("Error: MassIntegrator::AddMultMF only implemented with"
-                 " libCEED");
-   }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *mesh->GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: MassIntegrator::AssembleMFBoundary only implemented with"
+              " libCEED");
 }
 
 void MassIntegrator::AssembleDiagonalMF(Vector &diag)
@@ -66,6 +64,19 @@ void MassIntegrator::AssembleDiagonalMF(Vector &diag)
    {
       MFEM_ABORT("Error: MassIntegrator::AssembleDiagonalMF only implemented"
                  " with libCEED");
+   }
+}
+
+void MassIntegrator::AddMultMF(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Error: MassIntegrator::AddMultMF only implemented with"
+                 " libCEED");
    }
 }
 

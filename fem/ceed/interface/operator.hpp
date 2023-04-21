@@ -29,13 +29,17 @@ protected:
    CeedOperator oper;
    CeedVector u, v;
 
-   Operator() : oper(nullptr), u(nullptr), v(nullptr) { }
+   Operator() : oper(nullptr), u(nullptr), v(nullptr) {}
 #endif
 
 public:
 #ifdef MFEM_USE_CEED
    /// This class takes ownership of op and will delete it
    Operator(CeedOperator op);
+
+   CeedOperator &GetCeedOperator() { return oper; }
+   CeedVector &GetCeedVectorU() { return u; }
+   CeedVector &GetCeedVectorV() { return v; }
 #endif
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
    void AddMult(const mfem::Vector &x, mfem::Vector &y,
@@ -50,10 +54,6 @@ public:
       CeedVectorDestroy(&v);
 #endif
    }
-
-#ifdef MFEM_USE_CEED
-   CeedOperator& GetCeedOperator() { return oper; }
-#endif
 };
 
 } // namespace ceed

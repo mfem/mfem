@@ -11,11 +11,9 @@
 
 #include "operator.hpp"
 
-#include "../../../config/config.hpp"
 #include "../../../linalg/vector.hpp"
 #include "../../fespace.hpp"
 #include "util.hpp"
-#include "ceed.hpp"
 
 namespace mfem
 {

@@ -114,26 +114,21 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   if (mesh->GetNE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
-      }
-      else
-      {
-         ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
-      }
+      if (MQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, MQ); }
+      else if (VQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, VQ); }
+      else { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q); }
       return;
    }
+
+   // Assumes tensor-product elements
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -207,6 +202,28 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       MFEM_ABORT("Dimension not supported.");
    }
+}
+
+void VectorDiffusionIntegrator::AssemblePABoundary(
+   const FiniteElementSpace &fes)
+{
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      if (MQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, MQ, true); }
+      else if (VQ) { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, VQ, true); }
+      else { ceedOp = new ceed::PADiffusionIntegrator(*this, fes, Q, true); }
+      return;
+   }
+
+   // Assumes tensor-product elements
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *mesh->GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: VectorDiffusionIntegrator::AssemblePABoundary only implemented"
+              " with libCEED");
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>

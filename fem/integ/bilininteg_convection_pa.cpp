@@ -116,26 +116,19 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
-   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *fes.GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   if (mesh->GetNE() == 0) { return; }
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
-                         fes.IsVariableOrder();
-      if (mixed)
-      {
-         ceedOp = new ceed::MixedPAConvectionIntegrator(*this, fes, Q, alpha);
-      }
-      else
-      {
-         ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
-      }
+      ceedOp = new ceed::PAConvectionIntegrator(*this, fes, Q, alpha);
       return;
    }
+
+   // Assumes tensor-product elements
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &T = *fes.GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    const int dims = el.GetDim();
    const int symmDims = dims;
    nq = ir->GetNPoints();
@@ -164,6 +157,25 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       PAConvectionSetup3D(nq, ne, ir->GetWeights(), geom->J,
                           vel, alpha, pa_data);
    }
+}
+
+void ConvectionIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
+{
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNBE() == 0) { return; }
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      ceedOp = new ceed::PAConvectionIntegrator(*this, fes, Q, alpha, true);
+      return;
+   }
+
+   // Assuming the same element type
+   // const FiniteElement &el = *fes.GetBE(0);
+   // ElementTransformation &T = *fes.GetBdrElementTransformation(0);
+   // const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   MFEM_ABORT("Error: ConvectionIntegrator::AssemblePABoundary only implemented with"
+              " libCEED");
 }
 
 void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)

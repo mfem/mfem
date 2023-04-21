@@ -12,6 +12,7 @@
 #ifndef MFEM_LIBCEED_BASIS
 #define MFEM_LIBCEED_BASIS
 
+#include "../../fespace.hpp"
 #include "ceed.hpp"
 
 namespace mfem
@@ -24,19 +25,23 @@ namespace ceed
 
 /** @brief Initialize a CeedBasis for non-mixed meshes.
 
-   @param[in] fes Input finite element space.
-   @param[in] ir Input integration rule.
-   @param[in] ceed Input Ceed object.
-   @param[out] basis The address of the initialized CeedBasis object.
+    @param[in] fes Input finite element space.
+    @param[in] ir Input integration rule.
+    @param[in] use_bdr Create the basis for boundary elements.
+    @param[in] ceed Input Ceed object.
+    @param[out] basis The address of the initialized CeedBasis object.
 */
 void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &ir,
-               Ceed ceed, CeedBasis *basis);
+               bool use_bdr,
+               Ceed ceed,
+               CeedBasis *basis);
 
 /** @brief Initialize a CeedBasis for mixed meshes.
 
     @param[in] fes The finite element space.
     @param[in] ir is the integration rule for the operator.
+    @param[in] use_bdr Create the basis for boundary elements.
     @param[in] nelem The number of elements.
     @param[in] indices The indices of the elements of same type in the
                        `FiniteElementSpace`.
@@ -44,9 +49,11 @@ void InitBasis(const FiniteElementSpace &fes,
     @param[out] basis The `CeedBasis` to initialize. */
 void InitBasisWithIndices(const FiniteElementSpace &fes,
                           const IntegrationRule &ir,
+                          bool use_bdr,
                           int nelem,
-                          const int* indices,
-                          Ceed ceed, CeedBasis *basis);
+                          const int *indices,
+                          Ceed ceed,
+                          CeedBasis *basis);
 
 #endif
 
