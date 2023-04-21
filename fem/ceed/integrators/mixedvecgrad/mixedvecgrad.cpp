@@ -51,7 +51,15 @@ struct MixedVectorGradientOperatorInfo : public OperatorInfo
          "H(curl) domain and H^1 range FE spaces!");
       ctx.space_dim = trial_fes.GetMesh()->SpaceDimension();
       ctx.vdim = 1;
-      InitCoefficient(Q, mixed_vector_grad ? 1 : -1);
+      if (Q == nullptr)
+      {
+         ctx.coeff_comp = 1;
+         ctx.coeff[0] = mixed_vector_grad ? 1.0 : -1.0;
+      }
+      else
+      {
+         InitCoefficient(*Q, mixed_vector_grad ? 1.0 : -1.0);
+      }
 
       // Reuse H(curl) quadrature functions for DiffusionIntegrator
       header = "/integrators/diffusion/diffusion_qf.h";
@@ -69,54 +77,38 @@ struct MixedVectorGradientOperatorInfo : public OperatorInfo
       test_op = mixed_vector_grad ? EvalMode::Interp : EvalMode::Grad;
       qdatasize = (ctx.dim * (ctx.dim + 1)) / 2;
    }
-   void InitCoefficient(mfem::Coefficient *Q, int sign)
+   void InitCoefficient(mfem::Coefficient &Q, double sign)
    {
       ctx.coeff_comp = 1;
-      if (Q == nullptr)
+      if (ConstantCoefficient *const_coeff =
+             dynamic_cast<ConstantCoefficient *>(&Q))
       {
-         ctx.coeff[0] = sign * 1.0;
-      }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
-      {
-         ctx.coeff[0] = const_coeff->constant;
+         ctx.coeff[0] = sign * const_coeff->constant;
       }
    }
-   void InitCoefficient(mfem::VectorCoefficient *VQ, int sign)
+   void InitCoefficient(mfem::VectorCoefficient &VQ, double sign)
    {
-      if (VQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = sign * 1.0;
-         return;
-      }
-      const int vdim = VQ->GetVDim();
+      const int vdim = VQ.GetVDim();
       ctx.coeff_comp = vdim;
       if (VectorConstantCoefficient *const_coeff =
-             dynamic_cast<VectorConstantCoefficient *>(VQ))
+             dynamic_cast<VectorConstantCoefficient *>(&VQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "VectorCoefficient dimension exceeds context storage!");
          const mfem::Vector &val = const_coeff->GetVec();
          for (int i = 0; i < vdim; i++)
          {
-            ctx.coeff[i] = val[i];
+            ctx.coeff[i] = sign * val[i];
          }
       }
    }
-   void InitCoefficient(mfem::MatrixCoefficient *MQ, int sign)
+   void InitCoefficient(mfem::MatrixCoefficient &MQ, double sign)
    {
-      if (MQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = sign * 1.0;
-         return;
-      }
       // Assumes matrix coefficient is symmetric
-      const int vdim = MQ->GetVDim();
+      const int vdim = MQ.GetVDim();
       ctx.coeff_comp = (vdim * (vdim + 1)) / 2;
       if (MatrixConstantCoefficient *const_coeff =
-             dynamic_cast<MatrixConstantCoefficient *>(MQ))
+             dynamic_cast<MatrixConstantCoefficient *>(&MQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "MatrixCoefficient dimensions exceed context storage!");
@@ -126,7 +118,7 @@ struct MixedVectorGradientOperatorInfo : public OperatorInfo
             for (int i = j; i < vdim; i++)
             {
                const int idx = (j * vdim) - (((j - 1) * j) / 2) + i - j;
-               ctx.coeff[idx] = val(i, j);
+               ctx.coeff[idx] = sign * val(i, j);
             }
          }
       }
@@ -175,12 +167,12 @@ PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
+   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    if (Q)
    {
       // Does not inherit ownership of old Q
       Q = new ProductCoefficient(-1.0, *Q);
    }
-   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr);
    delete Q;
 #else
@@ -197,12 +189,12 @@ PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
+   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    if (Q)
    {
       // Does not inherit ownership of old Q
       Q = new ScalarVectorProductCoefficient(-1.0, *Q);
    }
-   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr);
    delete Q;
 #else
@@ -219,12 +211,12 @@ PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
+   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    if (Q)
    {
       // Does not inherit ownership of old Q
       Q = new ScalarMatrixProductCoefficient(-1.0, *Q);
    }
-   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr);
    delete Q;
 #else
@@ -241,12 +233,12 @@ MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
+   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    if (Q)
    {
       // Does not inherit ownership of old Q
       Q = new ProductCoefficient(-1.0, *Q);
    }
-   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr, true);
    delete Q;
 #else
@@ -263,12 +255,12 @@ MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
+   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    if (Q)
    {
       // Does not inherit ownership of old Q
       Q = new ScalarVectorProductCoefficient(-1.0, *Q);
    }
-   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr, true);
    delete Q;
 #else
@@ -285,12 +277,12 @@ MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
+   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    if (Q)
    {
       // Does not inherit ownership of old Q
       Q = new ScalarMatrixProductCoefficient(-1.0, *Q);
    }
-   MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr, true);
    delete Q;
 #else
@@ -317,32 +309,6 @@ template MFMixedVectorGradientIntegrator::MFMixedVectorGradientIntegrator(
 template MFMixedVectorGradientIntegrator::MFMixedVectorGradientIntegrator(
    const mfem::MixedVectorGradientIntegrator &, const mfem::FiniteElementSpace &,
    const mfem::FiniteElementSpace &, mfem::MatrixCoefficient *, const bool);
-
-template PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
-   const mfem::MixedVectorWeakDivergenceIntegrator &,
-   const mfem::FiniteElementSpace &, const mfem::FiniteElementSpace &,
-   mfem::Coefficient *, const bool);
-template PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
-   const mfem::MixedVectorWeakDivergenceIntegrator &,
-   const mfem::FiniteElementSpace &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *, const bool);
-template PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
-   const mfem::MixedVectorWeakDivergenceIntegrator &,
-   const mfem::FiniteElementSpace &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *, const bool);
-
-template MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
-   const mfem::MixedVectorWeakDivergenceIntegrator &,
-   const mfem::FiniteElementSpace &, const mfem::FiniteElementSpace &,
-   mfem::Coefficient *, const bool);
-template MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
-   const mfem::MixedVectorWeakDivergenceIntegrator &,
-   const mfem::FiniteElementSpace &, const mfem::FiniteElementSpace &,
-   mfem::VectorCoefficient *, const bool);
-template MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
-   const mfem::MixedVectorWeakDivergenceIntegrator &,
-   const mfem::FiniteElementSpace &, const mfem::FiniteElementSpace &,
-   mfem::MatrixCoefficient *, const bool);
 
 } // namespace ceed
 

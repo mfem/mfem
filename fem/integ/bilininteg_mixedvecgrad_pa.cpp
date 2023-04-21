@@ -33,10 +33,10 @@ void MixedVectorGradientIntegrator::AssemblePA(
          ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
                                                             test_fes, MQ);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
-                                                            test_fes, VQ);
+                                                            test_fes, DQ);
       }
       else
       {
@@ -117,10 +117,10 @@ void MixedVectorGradientIntegrator::AssemblePABoundary(
          ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
                                                             test_fes, MQ, true);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::PAMixedVectorGradientIntegrator(*this, trial_fes,
-                                                            test_fes, VQ, true);
+                                                            test_fes, DQ, true);
       }
       else
       {
@@ -839,10 +839,10 @@ void MixedVectorWeakDivergenceIntegrator::AssemblePA(
          ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
                                                                   test_fes, MQ);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
-                                                                  test_fes, VQ);
+                                                                  test_fes, DQ);
       }
       else
       {
@@ -871,10 +871,10 @@ void MixedVectorWeakDivergenceIntegrator::AssemblePABoundary(
          ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
                                                                   test_fes, MQ, true);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::PAMixedVectorWeakDivergenceIntegrator(*this, trial_fes,
-                                                                  test_fes, VQ, true);
+                                                                  test_fes, DQ, true);
       }
       else
       {

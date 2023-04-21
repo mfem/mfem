@@ -29,10 +29,10 @@ void MixedVectorCurlIntegrator::AssembleMF(const FiniteElementSpace &trial_fes,
          ceedOp = new ceed::MFMixedVectorCurlIntegrator(*this, trial_fes,
                                                         test_fes, MQ);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::MFMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, VQ);
+                                                        test_fes, DQ);
       }
       else
       {
@@ -44,38 +44,6 @@ void MixedVectorCurlIntegrator::AssembleMF(const FiniteElementSpace &trial_fes,
 
    // Assuming the same element type
    MFEM_ABORT("Error: MixedVectorCurlIntegrator::AssembleMF only implemented with"
-              " libCEED");
-}
-
-void MixedVectorCurlIntegrator::AssembleMFBoundary(
-   const FiniteElementSpace &trial_fes,
-   const FiniteElementSpace &test_fes)
-{
-   Mesh *mesh = trial_fes.GetMesh();
-   if (mesh->GetNBE() == 0) { return; }
-   if (DeviceCanUseCeed())
-   {
-      delete ceedOp;
-      if (MQ)
-      {
-         ceedOp = new ceed::MFMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, MQ, true);
-      }
-      else if (VQ)
-      {
-         ceedOp = new ceed::MFMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, VQ, true);
-      }
-      else
-      {
-         ceedOp = new ceed::MFMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, Q, true);
-      }
-      return;
-   }
-
-   // Assuming the same element type
-   MFEM_ABORT("Error: MixedVectorCurlIntegrator::AssembleMFBoundary only implemented with"
               " libCEED");
 }
 
@@ -106,10 +74,10 @@ void MixedVectorWeakCurlIntegrator::AssembleMF(
          ceedOp = new ceed::MFMixedVectorWeakCurlIntegrator(*this, trial_fes,
                                                             test_fes, MQ);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::MFMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, VQ);
+                                                            test_fes, DQ);
       }
       else
       {
@@ -121,38 +89,6 @@ void MixedVectorWeakCurlIntegrator::AssembleMF(
 
    // Assuming the same element type
    MFEM_ABORT("Error: MixedVectorWeakCurlIntegrator::AssembleMF only"
-              " implemented with libCEED");
-}
-
-void MixedVectorWeakCurlIntegrator::AssembleMFBoundary(
-   const FiniteElementSpace &trial_fes,
-   const FiniteElementSpace &test_fes)
-{
-   Mesh *mesh = trial_fes.GetMesh();
-   if (mesh->GetNBE() == 0) { return; }
-   if (DeviceCanUseCeed())
-   {
-      delete ceedOp;
-      if (MQ)
-      {
-         ceedOp = new ceed::MFMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, MQ, true);
-      }
-      else if (VQ)
-      {
-         ceedOp = new ceed::MFMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, VQ, true);
-      }
-      else
-      {
-         ceedOp = new ceed::MFMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, Q, true);
-      }
-      return;
-   }
-
-   // Assuming the same element type
-   MFEM_ABORT("Error: MixedVectorWeakCurlIntegrator::AssembleMFBoundary only"
               " implemented with libCEED");
 }
 

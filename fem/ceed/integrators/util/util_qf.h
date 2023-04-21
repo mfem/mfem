@@ -496,7 +496,7 @@ CEED_QFUNCTION_HELPER void MultJtCJ33(const CeedScalar *J,
                              c[c_stride * 4] * J31;
       const CeedScalar R22 = c[c_stride * 1] * J12 +
                              c[c_stride * 3] * J22 +
-                             c[c_stride * 4] * J31;
+                             c[c_stride * 4] * J32;
       const CeedScalar R23 = c[c_stride * 1] * J13 +
                              c[c_stride * 3] * J23 +
                              c[c_stride * 4] * J33;

@@ -33,12 +33,20 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
       MFEM_VERIFY(fes.GetVDim() == 1,
                   "libCEED interface for vector FE does not support VDim > 1!");
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
-      ctx.space_dim = fes.GetMesh()->SpaceDimension();
       ctx.hdiv = (fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV);
       MFEM_VERIFY(ctx.hdiv ||
                   fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_CURL,
                   "VectorFEMassIntegrator requires H(div) or H(curl) FE space!");
-      InitCoefficient(Q);
+      ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      if (Q == nullptr)
+      {
+         ctx.coeff_comp = 1;
+         ctx.coeff[0] = 1.0;
+      }
+      else
+      {
+         InitCoefficient(*Q);
+      }
 
       header = "/integrators/vecfemass/vecfemass_qf.h";
       build_func_const = ":f_build_vecfemass_const";
@@ -55,31 +63,21 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
       test_op = EvalMode::Interp;
       qdatasize = (ctx.dim * (ctx.dim + 1)) / 2;
    }
-   void InitCoefficient(mfem::Coefficient *Q)
+   void InitCoefficient(mfem::Coefficient &Q)
    {
       ctx.coeff_comp = 1;
-      if (Q == nullptr)
-      {
-         ctx.coeff[0] = 1.0;
-      }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
+      if (ConstantCoefficient *const_coeff =
+             dynamic_cast<ConstantCoefficient *>(&Q))
       {
          ctx.coeff[0] = const_coeff->constant;
       }
    }
-   void InitCoefficient(mfem::VectorCoefficient *VQ)
+   void InitCoefficient(mfem::VectorCoefficient &VQ)
    {
-      if (VQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = 1.0;
-         return;
-      }
-      const int vdim = VQ->GetVDim();
+      const int vdim = VQ.GetVDim();
       ctx.coeff_comp = vdim;
       if (VectorConstantCoefficient *const_coeff =
-             dynamic_cast<VectorConstantCoefficient *>(VQ))
+             dynamic_cast<VectorConstantCoefficient *>(&VQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_VECFEMASS_COEFF_COMP_MAX,
                      "VectorCoefficient dimension exceeds context storage!");
@@ -90,19 +88,13 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
          }
       }
    }
-   void InitCoefficient(mfem::MatrixCoefficient *MQ)
+   void InitCoefficient(mfem::MatrixCoefficient &MQ)
    {
-      if (MQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = 1.0;
-         return;
-      }
       // Assumes matrix coefficient is symmetric
-      const int vdim = MQ->GetVDim();
+      const int vdim = MQ.GetVDim();
       ctx.coeff_comp = (vdim * (vdim + 1)) / 2;
       if (MatrixConstantCoefficient *const_coeff =
-             dynamic_cast<MatrixConstantCoefficient *>(MQ))
+             dynamic_cast<MatrixConstantCoefficient *>(&MQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_VECFEMASS_COEFF_COMP_MAX,
                      "MatrixCoefficient dimensions exceed context storage!");

@@ -1928,10 +1928,6 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
-   using BilinearFormIntegrator::AssemblePABoundary;
-   virtual void AssemblePABoundary(const FiniteElementSpace &trial_fes,
-                                   const FiniteElementSpace &test_fes);
-
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
@@ -1939,10 +1935,6 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
-
-   using BilinearFormIntegrator::AssembleMFBoundary;
-   virtual void AssembleMFBoundary(const FiniteElementSpace &trial_fes,
-                                   const FiniteElementSpace &test_fes);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 
@@ -2004,10 +1996,6 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
-   using BilinearFormIntegrator::AssemblePABoundary;
-   virtual void AssemblePABoundary(const FiniteElementSpace &trial_fes,
-                                   const FiniteElementSpace &test_fes);
-
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
@@ -2015,10 +2003,6 @@ public:
    using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
-
-   using BilinearFormIntegrator::AssembleMFBoundary;
-   virtual void AssembleMFBoundary(const FiniteElementSpace &trial_fes,
-                                   const FiniteElementSpace &test_fes);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 

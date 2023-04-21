@@ -33,7 +33,15 @@ struct DiffusionOperatorInfo : public OperatorInfo
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       ctx.vdim = fes.GetVDim();
-      InitCoefficient(Q);
+      if (Q == nullptr)
+      {
+         ctx.coeff_comp = 1;
+         ctx.coeff[0] = 1.0;
+      }
+      else
+      {
+         InitCoefficient(*Q);
+      }
 
       header = "/integrators/diffusion/diffusion_qf.h";
       build_func_const = ":f_build_diff_const";
@@ -50,31 +58,21 @@ struct DiffusionOperatorInfo : public OperatorInfo
       test_op = EvalMode::Grad;
       qdatasize = (ctx.dim * (ctx.dim + 1)) / 2;
    }
-   void InitCoefficient(mfem::Coefficient *Q)
+   void InitCoefficient(mfem::Coefficient &Q)
    {
       ctx.coeff_comp = 1;
-      if (Q == nullptr)
-      {
-         ctx.coeff[0] = 1.0;
-      }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
+      if (ConstantCoefficient *const_coeff =
+             dynamic_cast<ConstantCoefficient *>(&Q))
       {
          ctx.coeff[0] = const_coeff->constant;
       }
    }
-   void InitCoefficient(mfem::VectorCoefficient *VQ)
+   void InitCoefficient(mfem::VectorCoefficient &VQ)
    {
-      if (VQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = 1.0;
-         return;
-      }
-      const int vdim = VQ->GetVDim();
+      const int vdim = VQ.GetVDim();
       ctx.coeff_comp = vdim;
       if (VectorConstantCoefficient *const_coeff =
-             dynamic_cast<VectorConstantCoefficient *>(VQ))
+             dynamic_cast<VectorConstantCoefficient *>(&VQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "VectorCoefficient dimension exceeds context storage!");
@@ -85,19 +83,13 @@ struct DiffusionOperatorInfo : public OperatorInfo
          }
       }
    }
-   void InitCoefficient(mfem::MatrixCoefficient *MQ)
+   void InitCoefficient(mfem::MatrixCoefficient &MQ)
    {
-      if (MQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = 1.0;
-         return;
-      }
       // Assumes matrix coefficient is symmetric
-      const int vdim = MQ->GetVDim();
+      const int vdim = MQ.GetVDim();
       ctx.coeff_comp = (vdim * (vdim + 1)) / 2;
       if (MatrixConstantCoefficient *const_coeff =
-             dynamic_cast<MatrixConstantCoefficient *>(MQ))
+             dynamic_cast<MatrixConstantCoefficient *>(&MQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "MatrixCoefficient dimensions exceed context storage!");

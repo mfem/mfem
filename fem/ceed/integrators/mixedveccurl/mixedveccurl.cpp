@@ -38,16 +38,28 @@ struct MixedVectorCurlOperatorInfo : public OperatorInfo
                   "MixedVectorCurlIntegrator and MixedVectorWeakCurlIntegrator "
                   "require dim == 3!");
       MFEM_VERIFY(
+         weak_curl ||
          (trial_fes.FEColl()->GetDerivMapType(ctx.dim) == mfem::FiniteElement::H_DIV &&
-          test_fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV) ||
+          test_fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV),
+         "libCEED interface for MixedVectorCurlIntegrator requires "
+         "H(curl) domain and H(div) range FE spaces!");
+      MFEM_VERIFY(
+         !weak_curl ||
          (trial_fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV &&
           test_fes.FEColl()->GetDerivMapType(ctx.dim) == mfem::FiniteElement::H_DIV),
-         "libCEED interface for MixedVectorCurlIntegrator and "
-         "MixedVectorWeakCurlIntegrator requires H(curl) domain and H(div) "
-         "range FE spaces or vice versa!");
+         "libCEED interface for MixedVectorWeakCurlIntegrator requires "
+         "H(div) domain and H(curl) range FE spaces!");
       ctx.space_dim = trial_fes.GetMesh()->SpaceDimension();
-      ctx.curl_dim = 3;
-      InitCoefficient(Q);
+      ctx.curl_dim = (ctx.dim < 3) ? 1 : ctx.dim;
+      if (Q == nullptr)
+      {
+         ctx.coeff_comp = 1;
+         ctx.coeff[0] = 1.0;
+      }
+      else
+      {
+         InitCoefficient(*Q);
+      }
 
       // Reuse H(div) quadrature functions for CurlCurlIntegrator
       header = "/integrators/curlcurl/curlcurl_qf.h";
@@ -65,31 +77,21 @@ struct MixedVectorCurlOperatorInfo : public OperatorInfo
       test_op = weak_curl ? EvalMode::Curl : EvalMode::Interp;
       qdatasize = (ctx.curl_dim * (ctx.curl_dim + 1)) / 2;
    }
-   void InitCoefficient(mfem::Coefficient *Q)
+   void InitCoefficient(mfem::Coefficient &Q)
    {
       ctx.coeff_comp = 1;
-      if (Q == nullptr)
-      {
-         ctx.coeff[0] = 1.0;
-      }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
+      if (ConstantCoefficient *const_coeff =
+             dynamic_cast<ConstantCoefficient *>(&Q))
       {
          ctx.coeff[0] = const_coeff->constant;
       }
    }
-   void InitCoefficient(mfem::VectorCoefficient *VQ)
+   void InitCoefficient(mfem::VectorCoefficient &VQ)
    {
-      if (VQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = 1.0;
-         return;
-      }
-      const int vdim = VQ->GetVDim();
+      const int vdim = VQ.GetVDim();
       ctx.coeff_comp = vdim;
       if (VectorConstantCoefficient *const_coeff =
-             dynamic_cast<VectorConstantCoefficient *>(VQ))
+             dynamic_cast<VectorConstantCoefficient *>(&VQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_CURLCURL_COEFF_COMP_MAX,
                      "VectorCoefficient dimension exceeds context storage!");
@@ -100,19 +102,13 @@ struct MixedVectorCurlOperatorInfo : public OperatorInfo
          }
       }
    }
-   void InitCoefficient(mfem::MatrixCoefficient *MQ)
+   void InitCoefficient(mfem::MatrixCoefficient &MQ)
    {
-      if (MQ == nullptr)
-      {
-         ctx.coeff_comp = 1;
-         ctx.coeff[0] = 1.0;
-         return;
-      }
       // Assumes matrix coefficient is symmetric
-      const int vdim = MQ->GetVDim();
+      const int vdim = MQ.GetVDim();
       ctx.coeff_comp = (vdim * (vdim + 1)) / 2;
       if (MatrixConstantCoefficient *const_coeff =
-             dynamic_cast<MatrixConstantCoefficient *>(MQ))
+             dynamic_cast<MatrixConstantCoefficient *>(&MQ))
       {
          MFEM_VERIFY(ctx.coeff_comp <= LIBCEED_CURLCURL_COEFF_COMP_MAX,
                      "MatrixCoefficient dimensions exceed context storage!");
@@ -139,7 +135,7 @@ PAMixedVectorCurlIntegrator::PAMixedVectorCurlIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MixedVectorCurlOperatorInfo info(trial_fes, test_fes, Q, use_bdr, true);
+   MixedVectorCurlOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -155,7 +151,7 @@ MFMixedVectorCurlIntegrator::MFMixedVectorCurlIntegrator(
    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MixedVectorCurlOperatorInfo info(trial_fes, test_fes, Q, use_bdr, true);
+   MixedVectorCurlOperatorInfo info(trial_fes, test_fes, Q, use_bdr, false);
    Assemble(integ, info, trial_fes, test_fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");

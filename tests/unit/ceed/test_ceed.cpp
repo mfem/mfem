@@ -55,7 +55,12 @@ void matrix_velocity_function(const Vector &x, DenseMatrix &m)
    int dim = x.Size();
    Vector v(dim);
    velocity_function(x, v);
-   m.Diag(v.GetData(), dim);
+   m.SetSize(dim);
+   m = 0.5;
+   for (int i = 0; i < dim; i++)
+   {
+      m(i, i) = 1.0 + v(i);
+   }
 }
 
 // Vector valued quantity to convect
@@ -161,7 +166,9 @@ enum class Problem { Mass,
                      VectorDiffusion,
                      MassDiffusion,
                      VectorFEMassDivDiv,
-                     VectorFEMassCurlCurl
+                     VectorFEMassCurlCurl,
+                     MixedVectorGradient,
+                     MixedVectorCurl
                    };
 
 std::string GetString(Problem pb)
@@ -191,6 +198,12 @@ std::string GetString(Problem pb)
          break;
       case Problem::VectorFEMassCurlCurl:
          return "VectorFEMassCurlCurl";
+         break;
+      case Problem::MixedVectorGradient:
+         return "MixedVectorGradient";
+         break;
+      case Problem::MixedVectorCurl:
+         return "MixedVectorCurl";
          break;
    }
    MFEM_ABORT("Unknown Problem.");
@@ -259,7 +272,7 @@ void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
       case CeedCoeffType::MatConst:
       {
          DenseMatrix val(dim);
-         val = 0.0;
+         val = 0.5;
          for (int i = 0; i < dim; i++)
          {
             val(i, i) = 1.0 + i;
@@ -332,8 +345,8 @@ void test_ceed_operator(const char *input, int order,
       fes.Update(false);
    }
 
-   BilinearForm k_test(&fes);
    BilinearForm k_ref(&fes);
+   BilinearForm k_test(&fes);
    auto AddIntegrator = [&bdr_integ](BilinearForm &k, BilinearFormIntegrator *blfi)
    {
       if (bdr_integ)
@@ -413,9 +426,9 @@ void test_ceed_operator(const char *input, int order,
    delete mcoeff;
 }
 
-void test_ceed_operator_2(const char *input, int order,
-                          const CeedCoeffType coeff_type, const Problem pb,
-                          const AssemblyLevel assembly, bool bdr_integ)
+void test_ceed_sum_operator(const char *input, int order,
+                            const CeedCoeffType coeff_type, const Problem pb,
+                            const AssemblyLevel assembly, bool bdr_integ)
 {
    std::string section = "assembly: " + GetString(assembly) + "\n" +
                          "coeff_type: " + GetString(coeff_type) + "\n" +
@@ -427,7 +440,7 @@ void test_ceed_operator_2(const char *input, int order,
    Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec = nullptr;
    if (pb == Problem::VectorFEMassDivDiv && bdr_integ)
    {
       // Boundary RT elements in 2D and 3D are actually L2
@@ -472,8 +485,8 @@ void test_ceed_operator_2(const char *input, int order,
    // Build the BilinearForm
    FiniteElementSpace fes(&mesh, fec);
 
-   BilinearForm k_test(&fes);
    BilinearForm k_ref(&fes);
+   BilinearForm k_test(&fes);
    auto AddIntegrator = [&bdr_integ](BilinearForm &k, BilinearFormIntegrator *blfi)
    {
       if (bdr_integ)
@@ -610,6 +623,158 @@ void test_ceed_operator_2(const char *input, int order,
    delete fec;
 }
 
+void test_ceed_mixed_operator(const char *input, int order,
+                              const CeedCoeffType coeff_type, const Problem pb,
+                              const AssemblyLevel assembly, bool bdr_integ)
+{
+   std::string section = "assembly: " + GetString(assembly) + "\n" +
+                         "coeff_type: " + GetString(coeff_type) + "\n" +
+                         "pb: " + GetString(pb) + "\n" +
+                         "order: " + std::to_string(order) + "\n" +
+                         (bdr_integ ? "bdr_integ: true\n" : "") +
+                         "mesh: " + input;
+   INFO(section);
+   Mesh mesh(input, 1, 1);
+   mesh.EnsureNodes();
+   int dim = mesh.Dimension();
+   FiniteElementCollection *trial_fec = nullptr, *test_fec = nullptr;
+   if (pb == Problem::MixedVectorGradient && dim - bdr_integ < 2)
+   {
+      // MixedVectorGradient is only supported in 2D or 3D
+      return;
+   }
+   if (pb == Problem::MixedVectorCurl && dim - bdr_integ < 3)
+   {
+      // MixedVectorCurl is only supported in 3D
+      return;
+   }
+   switch (pb)
+   {
+      case Problem::MixedVectorGradient:
+         trial_fec = new H1_FECollection(order, dim);
+         test_fec = new ND_FECollection(order, dim);
+         break;
+      case Problem::MixedVectorCurl:
+         trial_fec = new ND_FECollection(order, dim);
+         test_fec = new RT_FECollection(order-1, dim);
+         break;
+      default:
+         MFEM_ABORT("Unexpected problem type.");
+   }
+
+   // Coefficient Initialization
+   GridFunction *gf = nullptr;
+   FiniteElementSpace *coeff_fes = nullptr;
+   Coefficient *coeff = nullptr;
+   VectorCoefficient *vcoeff = nullptr;
+   MatrixCoefficient *mcoeff = nullptr;
+   InitCoeff(mesh, *trial_fec, dim, coeff_type, gf, coeff_fes, coeff, vcoeff,
+             mcoeff);
+
+   // Build the BilinearForm
+   FiniteElementSpace trial_fes(&mesh, trial_fec);
+   FiniteElementSpace test_fes(&mesh, test_fec);
+
+   MixedBilinearForm k_ref(&trial_fes, &test_fes);
+   MixedBilinearForm k_test(&trial_fes, &test_fes);
+   MixedBilinearForm k_test_t(&test_fes, &trial_fes);
+   auto AddIntegrator = [&bdr_integ](MixedBilinearForm &k,
+                                     BilinearFormIntegrator *blfi)
+   {
+      if (bdr_integ)
+      {
+         k.AddBoundaryIntegrator(blfi);
+      }
+      else
+      {
+         k.AddDomainIntegrator(blfi);
+      }
+   };
+   switch (pb)
+   {
+      case Problem::MixedVectorGradient:
+         if (coeff)
+         {
+            AddIntegrator(k_ref, new MixedVectorGradientIntegrator(*coeff));
+            AddIntegrator(k_test, new MixedVectorGradientIntegrator(*coeff));
+            AddIntegrator(k_test_t, new MixedVectorWeakDivergenceIntegrator(*coeff));
+         }
+         else if (vcoeff)
+         {
+            AddIntegrator(k_ref, new MixedVectorGradientIntegrator(*vcoeff));
+            AddIntegrator(k_test, new MixedVectorGradientIntegrator(*vcoeff));
+            AddIntegrator(k_test_t, new MixedVectorWeakDivergenceIntegrator(*vcoeff));
+         }
+         else if (mcoeff)
+         {
+            AddIntegrator(k_ref, new MixedVectorGradientIntegrator(*mcoeff));
+            AddIntegrator(k_test, new MixedVectorGradientIntegrator(*mcoeff));
+            AddIntegrator(k_test_t, new MixedVectorWeakDivergenceIntegrator(*mcoeff));
+         }
+         break;
+      case Problem::MixedVectorCurl:
+         if (coeff)
+         {
+            AddIntegrator(k_ref, new MixedVectorCurlIntegrator(*coeff));
+            AddIntegrator(k_test, new MixedVectorCurlIntegrator(*coeff));
+            AddIntegrator(k_test_t, new MixedVectorWeakCurlIntegrator(*coeff));
+         }
+         else if (vcoeff)
+         {
+            AddIntegrator(k_ref, new MixedVectorCurlIntegrator(*vcoeff));
+            AddIntegrator(k_test, new MixedVectorCurlIntegrator(*vcoeff));
+            AddIntegrator(k_test_t, new MixedVectorWeakCurlIntegrator(*vcoeff));
+         }
+         else if (mcoeff)
+         {
+            AddIntegrator(k_ref, new MixedVectorCurlIntegrator(*mcoeff));
+            AddIntegrator(k_test, new MixedVectorCurlIntegrator(*mcoeff));
+            AddIntegrator(k_test_t, new MixedVectorWeakCurlIntegrator(*mcoeff));
+         }
+         break;
+      default:
+         MFEM_ABORT("Unexpected problem type.");
+   }
+
+   k_ref.Assemble();
+   k_ref.Finalize();
+
+   k_test.SetAssemblyLevel(assembly);
+   k_test.Assemble();
+
+   k_test_t.SetAssemblyLevel(assembly);
+   k_test_t.Assemble();
+
+   // Compare ceed with mfem.
+   GridFunction x(&trial_fes), y_ref(&test_fes), y_test(&test_fes);
+   GridFunction x_t(&test_fes), y_t_ref(&trial_fes), y_t_test(&trial_fes);
+
+   x.Randomize(1);
+
+   k_ref.Mult(x, y_ref);
+   k_test.Mult(x, y_test);
+
+   y_test -= y_ref;
+
+   REQUIRE(y_test.Norml2() < (mesh.Nonconforming() ? 1.e-9 : 1.e-12));
+
+   x_t.Randomize(1);
+
+   k_ref.MultTranspose(x_t, y_t_ref);
+   k_test_t.Mult(x_t, y_t_test);
+
+   y_t_test.Add((pb == Problem::MixedVectorCurl) ? -1.0 : 1.0, y_t_ref);
+
+   REQUIRE(y_t_test.Norml2() < (mesh.Nonconforming() ? 1.e-9 : 1.e-12));
+   delete gf;
+   delete coeff_fes;
+   delete coeff;
+   delete vcoeff;
+   delete mcoeff;
+   delete trial_fec;
+   delete test_fec;
+}
+
 void test_ceed_nloperator(const char *input, int order,
                           const CeedCoeffType coeff_type,
                           const NLProblem pb, const AssemblyLevel assembly)
@@ -640,8 +805,8 @@ void test_ceed_nloperator(const char *input, int order,
    const int vdim = vecOp ? dim : 1;
    FiniteElementSpace fes(&mesh, &fec, vdim);
 
-   NonlinearForm k_test(&fes);
    NonlinearForm k_ref(&fes);
+   NonlinearForm k_test(&fes);
    switch (pb)
    {
       case NLProblem::Convection:
@@ -650,9 +815,9 @@ void test_ceed_nloperator(const char *input, int order,
          break;
    }
 
+   k_ref.Setup();
    k_test.SetAssemblyLevel(assembly);
    k_test.Setup();
-   k_ref.Setup();
 
    // Compare ceed with mfem.
    GridFunction x(&fes), y_ref(&fes), y_test(&fes);
@@ -814,7 +979,7 @@ TEST_CASE("CEED p-adaptivity", "[CEED]")
 } // test case
 
 TEST_CASE("CEED vector and matrix coefficients and vector FE operators",
-          "[CEED]")
+          "[CEED], [VectorFE]")
 {
 
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
@@ -835,7 +1000,30 @@ TEST_CASE("CEED vector and matrix coefficients and vector FE operators",
                         "../../data/fichera-amr.mesh",
                         "../../data/square-mixed.mesh",
                         "../../data/fichera-mixed.mesh");
-   test_ceed_operator_2(mesh, order, coeff_type, pb, assembly, bdr_integ);
+   test_ceed_sum_operator(mesh, order, coeff_type, pb, assembly, bdr_integ);
+} // test case
+
+TEST_CASE("CEED mixed integrators",
+          "[CEED], [MixedVectorIntegrator], [VectorFE]")
+{
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
+   auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Quad,
+                              CeedCoeffType::VecConst,CeedCoeffType::VecQuad,
+                              CeedCoeffType::MatConst,CeedCoeffType::MatQuad);
+   auto pb = GENERATE(Problem::MixedVectorGradient,Problem::MixedVectorCurl);
+   auto order = GENERATE(1);  // TODO p=2 curl-curl on tet mesh is not supported
+   auto bdr_integ = GENERATE(false,true);
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/inline-tri.mesh",
+                        "../../data/inline-tet.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
+   test_ceed_mixed_operator(mesh, order, coeff_type, pb, assembly, bdr_integ);
 } // test case
 
 TEST_CASE("CEED convection low", "[CEED], [Convection]")

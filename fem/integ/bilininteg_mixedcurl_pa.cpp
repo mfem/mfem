@@ -120,10 +120,10 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
          ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
                                                         test_fes, MQ);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, VQ);
+                                                        test_fes, DQ);
       }
       else
       {
@@ -212,38 +212,6 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    {
       MFEM_ABORT("Unknown kernel.");
    }
-}
-
-void MixedVectorCurlIntegrator::AssemblePABoundary(
-   const FiniteElementSpace &trial_fes,
-   const FiniteElementSpace &test_fes)
-{
-   Mesh *mesh = trial_fes.GetMesh();
-   if (mesh->GetNBE() == 0) { return; }
-   if (DeviceCanUseCeed())
-   {
-      delete ceedOp;
-      if (MQ)
-      {
-         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, MQ, true);
-      }
-      else if (VQ)
-      {
-         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, VQ, true);
-      }
-      else
-      {
-         ceedOp = new ceed::PAMixedVectorCurlIntegrator(*this, trial_fes,
-                                                        test_fes, Q, true);
-      }
-      return;
-   }
-
-   // Assuming the same element type
-   MFEM_ABORT("Error: MixedVectorCurlIntegrator::AssemblePABoundary only"
-              " implemented with libCEED");
 }
 
 void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -349,10 +317,10 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
          ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
                                                             test_fes, MQ);
       }
-      else if (VQ)
+      else if (DQ)
       {
          ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, VQ);
+                                                            test_fes, DQ);
       }
       else
       {
@@ -437,38 +405,6 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    {
       MFEM_ABORT("Unknown kernel.");
    }
-}
-
-void MixedVectorWeakCurlIntegrator::AssemblePABoundary(
-   const FiniteElementSpace &trial_fes,
-   const FiniteElementSpace &test_fes)
-{
-   Mesh *mesh = trial_fes.GetMesh();
-   if (mesh->GetNBE() == 0) { return; }
-   if (DeviceCanUseCeed())
-   {
-      delete ceedOp;
-      if (MQ)
-      {
-         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, MQ, true);
-      }
-      else if (VQ)
-      {
-         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, VQ, true);
-      }
-      else
-      {
-         ceedOp = new ceed::PAMixedVectorWeakCurlIntegrator(*this, trial_fes,
-                                                            test_fes, Q, true);
-      }
-      return;
-   }
-
-   // Assuming the same element type
-   MFEM_ABORT("Error: MixedVectorWeakCurlIntegrator::AssemblePABoundary only"
-              " implemented with libCEED");
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
