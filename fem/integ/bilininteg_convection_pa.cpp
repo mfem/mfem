@@ -112,26 +112,6 @@ static void PAConvectionSetup3D(const int NQ,
    });
 }
 
-static void PAConvectionSetup(const int dim,
-                              const int NQ,
-                              const int NE,
-                              const Array<double> &W,
-                              const Vector &J,
-                              const Vector &coeff,
-                              const double alpha,
-                              Vector &op)
-{
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAConvectionSetup"); }
-   if (dim == 2)
-   {
-      PAConvectionSetup2D(NQ, NE, W, J, coeff, alpha, op);
-   }
-   if (dim == 3)
-   {
-      PAConvectionSetup3D(NQ, NE, W, J, coeff, alpha, op);
-   }
-}
-
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -170,8 +150,20 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
 
-   PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,
-                     vel, alpha, pa_data);
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in ConvectionIntegrator::AssemblePA");
+   }
+   else if (dim == 2)
+   {
+      PAConvectionSetup2D(nq, ne, ir->GetWeights(), geom->J,
+                          vel, alpha, pa_data);
+   }
+   else if (dim == 3)
+   {
+      PAConvectionSetup3D(nq, ne, ir->GetWeights(), geom->J,
+                          vel, alpha, pa_data);
+   }
 }
 
 void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
@@ -188,17 +180,17 @@ void ConvectionIntegrator::AssembleDiagonalPA(Vector &diag)
 }
 
 // PA Convection Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PAConvectionApply2D(const int ne,
-                         const Array<double> &b,
-                         const Array<double> &g,
-                         const Array<double> &bt,
-                         const Array<double> &gt,
-                         const Vector &op_,
-                         const Vector &x_,
-                         Vector &y_,
-                         const int d1d = 0,
-                         const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAConvectionApply2D(const int ne,
+                                const Array<double> &b,
+                                const Array<double> &g,
+                                const Array<double> &bt,
+                                const Array<double> &gt,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_,
+                                const int d1d = 0,
+                                const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -307,17 +299,17 @@ void PAConvectionApply2D(const int ne,
 }
 
 // Optimized PA Convection Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
-void SmemPAConvectionApply2D(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &g,
-                             const Array<double> &bt,
-                             const Array<double> &gt,
-                             const Vector &op_,
-                             const Vector &x_,
-                             Vector &y_,
-                             const int d1d = 0,
-                             const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPAConvectionApply2D(const int ne,
+                                    const Array<double> &b,
+                                    const Array<double> &g,
+                                    const Array<double> &bt,
+                                    const Array<double> &gt,
+                                    const Vector &op_,
+                                    const Vector &x_,
+                                    Vector &y_,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -435,17 +427,17 @@ void SmemPAConvectionApply2D(const int ne,
 }
 
 // PA Convection Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PAConvectionApply3D(const int ne,
-                         const Array<double> &b,
-                         const Array<double> &g,
-                         const Array<double> &bt,
-                         const Array<double> &gt,
-                         const Vector &op_,
-                         const Vector &x_,
-                         Vector &y_,
-                         const int d1d = 0,
-                         const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAConvectionApply3D(const int ne,
+                                const Array<double> &b,
+                                const Array<double> &g,
+                                const Array<double> &bt,
+                                const Array<double> &gt,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_,
+                                const int d1d = 0,
+                                const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -616,17 +608,17 @@ void PAConvectionApply3D(const int ne,
 }
 
 // Optimized PA Convection Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void SmemPAConvectionApply3D(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &g,
-                             const Array<double> &bt,
-                             const Array<double> &gt,
-                             const Vector &op_,
-                             const Vector &x_,
-                             Vector &y_,
-                             const int d1d = 0,
-                             const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void SmemPAConvectionApply3D(const int ne,
+                                    const Array<double> &b,
+                                    const Array<double> &g,
+                                    const Array<double> &bt,
+                                    const Array<double> &gt,
+                                    const Vector &op_,
+                                    const Vector &x_,
+                                    Vector &y_,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -820,17 +812,17 @@ void SmemPAConvectionApply3D(const int ne,
 }
 
 // PA Convection Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PAConvectionApplyT2D(const int ne,
-                          const Array<double> &b,
-                          const Array<double> &g,
-                          const Array<double> &bt,
-                          const Array<double> &gt,
-                          const Vector &op_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAConvectionApplyT2D(const int ne,
+                                 const Array<double> &b,
+                                 const Array<double> &g,
+                                 const Array<double> &bt,
+                                 const Array<double> &gt,
+                                 const Vector &op_,
+                                 const Vector &x_,
+                                 Vector &y_,
+                                 const int d1d = 0,
+                                 const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -935,17 +927,17 @@ void PAConvectionApplyT2D(const int ne,
 }
 
 // Optimized PA Convection Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
-void SmemPAConvectionApplyT2D(const int ne,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPAConvectionApplyT2D(const int ne,
+                                     const Array<double> &b,
+                                     const Array<double> &g,
+                                     const Array<double> &bt,
+                                     const Array<double> &gt,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -1058,17 +1050,17 @@ void SmemPAConvectionApplyT2D(const int ne,
 }
 
 // PA Convection Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PAConvectionApplyT3D(const int ne,
-                          const Array<double> &b,
-                          const Array<double> &g,
-                          const Array<double> &bt,
-                          const Array<double> &gt,
-                          const Vector &op_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAConvectionApplyT3D(const int ne,
+                                 const Array<double> &b,
+                                 const Array<double> &g,
+                                 const Array<double> &bt,
+                                 const Array<double> &gt,
+                                 const Vector &op_,
+                                 const Vector &x_,
+                                 Vector &y_,
+                                 const int d1d = 0,
+                                 const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -1234,17 +1226,17 @@ void PAConvectionApplyT3D(const int ne,
 }
 
 // Optimized PA Convection Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
-void SmemPAConvectionApplyT3D(const int ne,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void SmemPAConvectionApplyT3D(const int ne,
+                                     const Array<double> &b,
+                                     const Array<double> &g,
+                                     const Array<double> &bt,
+                                     const Array<double> &gt,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
 {
    const int NE = ne;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -1549,7 +1541,7 @@ void ConvectionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      MFEM_ABORT("AddMultPA not yet implemented with libCEED for"
+      MFEM_ABORT("AddMultTransposePA not yet implemented with libCEED for"
                  " ConvectionIntegrator.");
    }
    else

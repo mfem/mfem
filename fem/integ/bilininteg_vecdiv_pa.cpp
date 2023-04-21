@@ -96,27 +96,6 @@ static void PADivergenceSetup3D(const int Q1D,
    });
 }
 
-static void PADivergenceSetup(const int dim,
-                              const int TR_D1D,
-                              const int TE_D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<double> &W,
-                              const Vector &J,
-                              const double COEFF,
-                              Vector &op)
-{
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADivergenceSetup"); }
-   if (dim == 2)
-   {
-      PADivergenceSetup2D(Q1D, NE, W, J, COEFF, op);
-   }
-   if (dim == 3)
-   {
-      PADivergenceSetup3D(Q1D, NE, W, J, COEFF, op);
-   }
-}
-
 void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                             const FiniteElementSpace &test_fes)
 {
@@ -143,6 +122,7 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
+
    double coeff = 1.0;
    if (Q)
    {
@@ -150,8 +130,19 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
       coeff = cQ->constant;
    }
-   PADivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
-                     ne, ir->GetWeights(), geom->J, coeff, pa_data);
+
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in VectorDivergenceIntegrator::AssemblePA");
+   }
+   else if (dim == 2)
+   {
+      PADivergenceSetup2D(quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   }
+   else if (dim == 3)
+   {
+      PADivergenceSetup3D(quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   }
 }
 
 // PA Divergence Apply 2D kernel
@@ -1021,59 +1012,37 @@ static void SmemPADivergenceApply3D(const int NE,
    });
 }
 
-static void PADivergenceApply(const int dim,
-                              const int TR_D1D,
-                              const int TE_D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<double> &B,
-                              const Array<double> &G,
-                              const Array<double> &Bt,
-                              const Vector &op,
-                              const Vector &x,
-                              Vector &y,
-                              bool transpose=false)
+void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 2)
    {
-      if (transpose)
-      {
-         return PADivergenceApplyTranspose2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
-      else
-      {
-         return PADivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
+      return PADivergenceApply2D(ne, trial_maps->B, trial_maps->G, test_maps->Bt,
+                                 pa_data, x, y, trial_dofs1D, test_dofs1D, quad1D);
    }
    if (dim == 3)
    {
-      if (transpose)
-      {
-         return PADivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
-      else
-      {
-         return PADivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-      }
+      return PADivergenceApply3D(ne, trial_maps->B, trial_maps->G, test_maps->Bt,
+                                 pa_data, x, y, trial_dofs1D, test_dofs1D, quad1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
 
-// PA Divergence Apply kernel
-void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                     trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
-                     false);
-}
-
-// PA Divergence Apply kernel
 void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                     Vector &y) const
 {
-   PADivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                     trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
-                     true);
+   if (dim == 2)
+   {
+      return PADivergenceApplyTranspose2D(ne, trial_maps->Bt, trial_maps->Gt,
+                                          test_maps->B, pa_data, x, y,
+                                          trial_dofs1D, test_dofs1D, quad1D);
+   }
+   if (dim == 3)
+   {
+      return PADivergenceApplyTranspose3D(ne, trial_maps->Bt, trial_maps->Gt,
+                                          test_maps->B, pa_data, x, y,
+                                          trial_dofs1D, test_dofs1D, quad1D);
+   }
+   MFEM_ABORT("Unknown kernel.");
 }
 
 } // namespace mfem

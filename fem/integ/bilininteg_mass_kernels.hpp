@@ -468,7 +468,6 @@ void SmemPAMassApply2D_Element(const int e,
    double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + tidz);
    double (*QD)[MD1] = (double (*)[MD1]) (sm1 + tidz);
 
-
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)

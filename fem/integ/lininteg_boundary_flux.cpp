@@ -16,10 +16,10 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
-                        const int *markers, const double *b,
-                        const double *weights, const Vector &coeff, double *y)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
+                               const int *markers, const double *b,
+                               const double *weights, const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
@@ -50,10 +50,10 @@ void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
-                        const int *markers, const double *b,
-                        const double *weights, const Vector &coeff, double *y)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
+                               const int *markers, const double *b,
+                               const double *weights, const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);

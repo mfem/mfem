@@ -656,9 +656,9 @@ static void PAHcurlH1ApplyTranspose3D(const int D1D,
    }); // end of element loop
 }
 
-void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
-                                               &trial_fes,
-                                               const FiniteElementSpace &test_fes)
+void MixedVectorGradientIntegrator::AssemblePA(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();

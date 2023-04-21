@@ -110,30 +110,6 @@ static void PADGTraceSetup3D(const int Q1D,
    });
 }
 
-static void PADGTraceSetup(const int dim,
-                           const int D1D,
-                           const int Q1D,
-                           const int NF,
-                           const Array<double> &W,
-                           const Vector &det,
-                           const Vector &nor,
-                           const Vector &rho,
-                           const Vector &u,
-                           const double alpha,
-                           const double beta,
-                           Vector &op)
-{
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGTraceSetup"); }
-   if (dim == 2)
-   {
-      PADGTraceSetup2D(Q1D, NF, W, det, nor, rho, u, alpha, beta, op);
-   }
-   if (dim == 3)
-   {
-      PADGTraceSetup3D(Q1D, NF, W, det, nor, rho, u, alpha, beta, op);
-   }
-}
-
 void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -229,9 +205,21 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       }
       MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
-   PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
-                  geom->detJ, geom->normal, r, vel,
-                  alpha, beta, pa_data);
+
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in DGTraceIntegrator::SetupPA");
+   }
+   else if (dim == 2)
+   {
+      PADGTraceSetup2D(quad1D, nf, ir->GetWeights(), geom->detJ, geom->normal,
+                       r, vel, alpha, beta, pa_data);
+   }
+   else if (dim == 3)
+   {
+      PADGTraceSetup3D(quad1D, nf, ir->GetWeights(), geom->detJ, geom->normal,
+                       r, vel, alpha, beta, pa_data);
+   }
 }
 
 void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
@@ -245,15 +233,15 @@ void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
 }
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADGTraceApply2D(const int NF,
-                      const Array<double> &b,
-                      const Array<double> &bt,
-                      const Vector &op_,
-                      const Vector &x_,
-                      Vector &y_,
-                      const int d1d = 0,
-                      const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PADGTraceApply2D(const int NF,
+                             const Array<double> &b,
+                             const Array<double> &bt,
+                             const Vector &op_,
+                             const Vector &x_,
+                             Vector &y_,
+                             const int d1d = 0,
+                             const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -336,15 +324,15 @@ void PADGTraceApply2D(const int NF,
 }
 
 // PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADGTraceApply3D(const int NF,
-                      const Array<double> &b,
-                      const Array<double> &bt,
-                      const Vector &op_,
-                      const Vector &x_,
-                      Vector &y_,
-                      const int d1d = 0,
-                      const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PADGTraceApply3D(const int NF,
+                             const Array<double> &b,
+                             const Array<double> &bt,
+                             const Vector &op_,
+                             const Vector &x_,
+                             Vector &y_,
+                             const int d1d = 0,
+                             const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -481,15 +469,15 @@ void PADGTraceApply3D(const int NF,
 }
 
 // Optimized PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
-void SmemPADGTraceApply3D(const int NF,
-                          const Array<double> &b,
-                          const Array<double> &bt,
-                          const Vector &op_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPADGTraceApply3D(const int NF,
+                                 const Array<double> &b,
+                                 const Array<double> &bt,
+                                 const Vector &op_,
+                                 const Vector &x_,
+                                 Vector &y_,
+                                 const int d1d = 0,
+                                 const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -646,15 +634,15 @@ static void PADGTraceApply(const int dim,
 }
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADGTraceApplyTranspose2D(const int NF,
-                               const Array<double> &b,
-                               const Array<double> &bt,
-                               const Vector &op_,
-                               const Vector &x_,
-                               Vector &y_,
-                               const int d1d = 0,
-                               const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PADGTraceApplyTranspose2D(const int NF,
+                                      const Array<double> &b,
+                                      const Array<double> &bt,
+                                      const Vector &op_,
+                                      const Vector &x_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -742,15 +730,15 @@ void PADGTraceApplyTranspose2D(const int NF,
 }
 
 // PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PADGTraceApplyTranspose3D(const int NF,
-                               const Array<double> &b,
-                               const Array<double> &bt,
-                               const Vector &op_,
-                               const Vector &x_,
-                               Vector &y_,
-                               const int d1d = 0,
-                               const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PADGTraceApplyTranspose3D(const int NF,
+                                      const Array<double> &b,
+                                      const Array<double> &bt,
+                                      const Vector &op_,
+                                      const Vector &x_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -898,15 +886,15 @@ void PADGTraceApplyTranspose3D(const int NF,
 }
 
 // Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
-void SmemPADGTraceApplyTranspose3D(const int NF,
-                                   const Array<double> &b,
-                                   const Array<double> &bt,
-                                   const Vector &op_,
-                                   const Vector &x_,
-                                   Vector &y_,
-                                   const int d1d = 0,
-                                   const int q1d = 0)
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPADGTraceApplyTranspose3D(const int NF,
+                                          const Array<double> &b,
+                                          const Array<double> &bt,
+                                          const Vector &op_,
+                                          const Vector &x_,
+                                          Vector &y_,
+                                          const int d1d = 0,
+                                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1075,7 +1063,6 @@ static void PADGTraceApplyTranspose(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-// PA DGTraceIntegrator Apply kernel
 void DGTraceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PADGTraceApply(dim, dofs1D, quad1D, nf,

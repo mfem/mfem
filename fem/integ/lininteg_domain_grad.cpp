@@ -16,11 +16,12 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
-                       const int *markers, const double *b, const double *g,
-                       const double *jacobians,
-                       const double *weights, const Vector &coeff, double *y)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void DLFGradAssemble2D(const int vdim, const int ne, const int d,
+                              const int q,
+                              const int *markers, const double *b, const double *g,
+                              const double *jacobians,
+                              const double *weights, const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
@@ -108,12 +109,13 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
-                       const int *markers, const double *b, const double *g,
-                       const double *jacobians,
-                       const double *weights, const Vector &coeff,
-                       double *output)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void DLFGradAssemble3D(const int vdim, const int ne, const int d,
+                              const int q,
+                              const int *markers, const double *b, const double *g,
+                              const double *jacobians,
+                              const double *weights, const Vector &coeff,
+                              double *output)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);

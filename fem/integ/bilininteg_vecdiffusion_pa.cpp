@@ -36,7 +36,6 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
                   Reshape(c.Read(), NQ, NE);
 
-
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
@@ -71,7 +70,6 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
    const bool const_c = c.Size() == 1;
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
                   Reshape(c.Read(), NQ,NE);
-
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -112,28 +110,6 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
          y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
       }
    });
-}
-
-static void PAVectorDiffusionSetup(const int dim,
-                                   const int Q1D,
-                                   const int NE,
-                                   const Array<double> &W,
-                                   const Vector &J,
-                                   const Vector &C,
-                                   Vector &op)
-{
-   if (!(dim == 2 || dim == 3))
-   {
-      MFEM_ABORT("Dimension not supported.");
-   }
-   if (dim == 2)
-   {
-      PAVectorDiffusionSetup2D(Q1D, NE, W, J, C, op);
-   }
-   if (dim == 3)
-   {
-      PAVectorDiffusionSetup3D(Q1D, NE, W, J, C, op);
-   }
 }
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
@@ -179,7 +155,10 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const Array<double> &w = ir->GetWeights();
    const Vector &j = geom->J;
    Vector &d = pa_data;
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAVectorDiffusionSetup"); }
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in VectorDiffusionIntegrator::AssemblePA");
+   }
    if (dim == 2 && sdim == 3)
    {
       constexpr int DIM = 2;
@@ -218,7 +197,15 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else
    {
-      PAVectorDiffusionSetup(dim, quad1D, ne, w, j, coeff, d);
+      if (dim == 2)
+      {
+         return PAVectorDiffusionSetup2D(quad1D, ne, w, j, coeff, d);
+      }
+      if (dim == 3)
+      {
+         return PAVectorDiffusionSetup3D(quad1D, ne, w, j, coeff, d);
+      }
+      MFEM_ABORT("Dimension not supported.");
    }
 }
 
@@ -391,26 +378,6 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
    });
 }
 
-static void PAVectorDiffusionAssembleDiagonal(const int dim,
-                                              const int D1D,
-                                              const int Q1D,
-                                              const int NE,
-                                              const Array<double> &B,
-                                              const Array<double> &G,
-                                              const Vector &op,
-                                              Vector &y)
-{
-   if (dim == 2)
-   {
-      return PAVectorDiffusionDiagonal2D(NE, B, G, op, y, D1D, Q1D);
-   }
-   else if (dim == 3)
-   {
-      return PAVectorDiffusionDiagonal3D(NE, B, G, op, y, D1D, Q1D);
-   }
-   MFEM_ABORT("Dimension not implemented.");
-}
-
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
@@ -419,25 +386,35 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      PAVectorDiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
-                                        maps->B, maps->G,
-                                        pa_data, diag);
+      if (dim == 2)
+      {
+         return PAVectorDiffusionDiagonal2D(ne, maps->B, maps->G,
+                                            pa_data, diag,
+                                            dofs1D, quad1D);
+      }
+      else if (dim == 3)
+      {
+         return PAVectorDiffusionDiagonal3D(ne, maps->B, maps->G,
+                                            pa_data, diag,
+                                            dofs1D, quad1D);
+      }
+      MFEM_ABORT("Dimension not implemented.");
    }
 }
 
 // PA Diffusion Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0> static
-void PAVectorDiffusionApply2D(const int NE,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0,
-                              const int vdim = 0)
+template<int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
+static void PAVectorDiffusionApply2D(const int NE,
+                                     const Array<double> &b,
+                                     const Array<double> &g,
+                                     const Array<double> &bt,
+                                     const Array<double> &gt,
+                                     const Vector &d_,
+                                     const Vector &x_,
+                                     Vector &y_,
+                                     const int d1d = 0,
+                                     const int q1d = 0,
+                                     const int vdim = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -548,17 +525,16 @@ void PAVectorDiffusionApply2D(const int NE,
 }
 
 // PA Diffusion Apply 3D kernel
-template<const int T_D1D = 0,
-         const int T_Q1D = 0> static
-void PAVectorDiffusionApply3D(const int NE,
-                              const Array<double> &b,
-                              const Array<double> &g,
-                              const Array<double> &bt,
-                              const Array<double> &gt,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_,
-                              int d1d = 0, int q1d = 0)
+template<const int T_D1D = 0, const int T_Q1D = 0>
+static void PAVectorDiffusionApply3D(const int NE,
+                                     const Array<double> &b,
+                                     const Array<double> &g,
+                                     const Array<double> &bt,
+                                     const Array<double> &gt,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_,
+                                     int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -741,7 +717,6 @@ void PAVectorDiffusionApply3D(const int NE,
    });
 }
 
-// PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
@@ -771,11 +746,13 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
          }
       }
       if (dim == 2 && sdim == 2)
-      { return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim); }
-
+      {
+         return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
+      }
       if (dim == 3 && sdim == 3)
-      { return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }
-
+      {
+         return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D);
+      }
       MFEM_ABORT("Unknown kernel.");
    }
 }

@@ -234,26 +234,6 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    });
 }
 
-static void PAVectorMassAssembleDiagonal(const int dim,
-                                         const int D1D,
-                                         const int Q1D,
-                                         const int NE,
-                                         const Array<double> &B,
-                                         const Array<double> &Bt,
-                                         const Vector &op,
-                                         Vector &y)
-{
-   if (dim == 2)
-   {
-      return PAVectorMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
-   }
-   else if (dim == 3)
-   {
-      return PAVectorMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
-   }
-   MFEM_ABORT("Dimension not implemented.");
-}
-
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
@@ -262,9 +242,19 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      PAVectorMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
-                                   maps->B, maps->Bt,
-                                   pa_data, diag);
+      if (dim == 2)
+      {
+         return PAVectorMassAssembleDiagonal2D(ne, maps->B, maps->Bt,
+                                               pa_data, diag,
+                                               dofs1D, quad1D);
+      }
+      else if (dim == 3)
+      {
+         return PAVectorMassAssembleDiagonal3D(ne, maps->B, maps->Bt,
+                                               pa_data, diag,
+                                               dofs1D, quad1D);
+      }
+      MFEM_ABORT("Dimension not implemented.");
    }
 }
 
@@ -509,27 +499,6 @@ static void PAVectorMassApply3D(const int NE,
    });
 }
 
-static void PAVectorMassApply(const int dim,
-                              const int D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<double> &B,
-                              const Array<double> &Bt,
-                              const Vector &op,
-                              const Vector &x,
-                              Vector &y)
-{
-   if (dim == 2)
-   {
-      return PAVectorMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
-   }
-   if (dim == 3)
-   {
-      return PAVectorMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
-   }
-   MFEM_ABORT("Unknown kernel.");
-}
-
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
@@ -538,7 +507,17 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      PAVectorMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+      if (dim == 2)
+      {
+         return PAVectorMassApply2D(ne, maps->B, maps->Bt, pa_data, x, y,
+                                    dofs1D, quad1D);
+      }
+      if (dim == 3)
+      {
+         return PAVectorMassApply3D(ne, maps->B, maps->Bt, pa_data, x, y,
+                                    dofs1D, quad1D);
+      }
+      MFEM_ABORT("Unknown kernel.");
    }
 }
 

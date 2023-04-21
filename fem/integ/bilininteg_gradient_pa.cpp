@@ -158,27 +158,6 @@ static void PAGradientSetup3D(const int Q1D,
    });
 }
 
-static void PAGradientSetup(const int dim,
-                            const int TR_D1D,
-                            const int TE_D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &W,
-                            const Vector &J,
-                            const Vector &COEFF,
-                            Vector &op)
-{
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAGradientSetup"); }
-   if (dim == 2)
-   {
-      PAGradientSetup2D(Q1D, NE, W, J, COEFF, op);
-   }
-   if (dim == 3)
-   {
-      PAGradientSetup3D(Q1D, NE, W, J, COEFF, op);
-   }
-}
-
 void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                     const FiniteElementSpace &test_fes)
 {
@@ -209,8 +188,18 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
-   PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
-                   ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in GradientIntegrator::AssemblePA");
+   }
+   else if (dim == 2)
+   {
+      PAGradientSetup2D(quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   }
+   else if (dim == 3)
+   {
+      PAGradientSetup3D(quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
+   }
 }
 
 // PA Gradient Apply 2D kernel
@@ -787,40 +776,21 @@ static void SmemPAGradientApply3D(const int NE,
    });
 }
 
-static void PAGradientApply(const int dim,
-                            const int TR_D1D,
-                            const int TE_D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &B,
-                            const Array<double> &G,
-                            const Array<double> &Bt,
-                            const Vector &op,
-                            const Vector &x,
-                            Vector &y,
-                            bool transpose=false)
+void GradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-
    if (dim == 2)
    {
-      return PAGradientApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      return PAGradientApply2D(ne, trial_maps->B, trial_maps->G, test_maps->Bt,
+                               pa_data, x, y, trial_dofs1D, test_dofs1D, quad1D);
    }
    if (dim == 3)
    {
-      return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      return PAGradientApply3D(ne, trial_maps->B, trial_maps->G, test_maps->Bt,
+                               pa_data, x, y, trial_dofs1D, test_dofs1D, quad1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
 
-// PA Gradient Apply kernel
-void GradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   PAGradientApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                   trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y,
-                   false);
-}
-
-// PA Gradient Apply kernel
 void GradientIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    MFEM_ABORT("PA Gradient AddMultTransposePA not implemented.");

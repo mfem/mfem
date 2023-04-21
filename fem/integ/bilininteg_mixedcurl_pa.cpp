@@ -265,9 +265,9 @@ void MixedVectorCurlIntegrator::AddMultTransposePA(const Vector &x,
    }
 }
 
-void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
-                                               &trial_fes,
-                                               const FiniteElementSpace &test_fes)
+void MixedVectorWeakCurlIntegrator::AssemblePA(
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements, with vector test and trial spaces.
    Mesh *mesh = trial_fes.GetMesh();

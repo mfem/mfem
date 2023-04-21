@@ -102,14 +102,22 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   if (symmetric)
+   if (DeviceCanUseCeed())
    {
-      AddMultPA(x, y);
+      MFEM_ABORT("AddMultTransposePA not yet implemented with libCEED for"
+                 " DiffusionIntegrator.");
    }
    else
    {
-      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
-                 "the symmetric case.")
+      if (symmetric)
+      {
+         AddMultPA(x, y);
+      }
+      else
+      {
+         MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                    "the symmetric case.")
+      }
    }
 }
 
