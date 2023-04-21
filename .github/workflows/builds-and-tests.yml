@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -84,6 +84,9 @@ jobs:
             mpi: par
             build-system: cmake
             hypre-target: int32
+            # This option can be set to pass additional configuration options to
+            # the MFEM configuration command.
+            # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -260,7 +263,9 @@ jobs:
       if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
-        cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
+        cd ${{ env.MFEM_TOP_DIR }}/build && \
+        ctest --output-on-failure -C ${CTEST_CONFIG} || \
+        ctest --rerun-failed --output-on-failure -C ${CTEST_CONFIG}
       shell: bash
 
     # Code coverage (process and upload reports)

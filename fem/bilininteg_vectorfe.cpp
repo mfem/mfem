@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -216,7 +216,7 @@ void PAHcurlHdivSetup3D(const int Q1D,
    const int i32 = transpose ? 5 : 7;
    const int i33 = 8;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -234,8 +234,8 @@ void PAHcurlHdivSetup3D(const int Q1D,
                const double J23 = J(qx,qy,qz,1,2,e);
                const double J33 = J(qx,qy,qz,2,2,e);
                const double detJ = J11 * (J22 * J33 - J32 * J23) -
-               /* */               J21 * (J12 * J33 - J32 * J13) +
-               /* */               J31 * (J12 * J23 - J22 * J13);
+                                   J21 * (J12 * J33 - J32 * J13) +
+                                   J31 * (J12 * J23 - J22 * J13);
                const double w_detJ = W(qx,qy,qz) / detJ;
                // adj(J)
                const double A11 = (J22 * J33) - (J23 * J32);
@@ -328,7 +328,7 @@ void PAHcurlHdivSetup2D(const int Q1D,
    const int i21 = transpose ? 1 : 2;
    const int i22 = 3;
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -418,7 +418,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
    const int i31 = transpose ? 2 : 6;
    const int i32 = transpose ? 5 : 7;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -633,7 +633,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
    const int i12 = transpose ? 2 : 1;
    const int i21 = transpose ? 1 : 2;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 

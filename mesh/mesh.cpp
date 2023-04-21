@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1319,6 +1319,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
+   os << '\n';
    os << "element[0].location=";
    switch (info.element[0].location)
    {
@@ -1332,7 +1333,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[1].location=";
    switch (info.element[1].location)
    {
@@ -1346,7 +1347,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[0].conformity=";
    switch (info.element[0].conformity)
    {
@@ -1363,7 +1364,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[1].conformity=";
    switch (info.element[1].conformity)
    {
@@ -1380,13 +1381,13 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
-   os << "element[0].index=" << info.element[0].index << std::endl
-      << "element[1].index=" << info.element[1].index << std::endl
-      << "element[0].local_face_id=" << info.element[0].local_face_id << std::endl
-      << "element[1].local_face_id=" << info.element[1].local_face_id << std::endl
-      << "element[0].orientation=" << info.element[0].orientation << std::endl
-      << "element[1].orientation=" << info.element[1].orientation << std::endl
+   os << '\n';
+   os << "element[0].index=" << info.element[0].index << '\n'
+      << "element[1].index=" << info.element[1].index << '\n'
+      << "element[0].local_face_id=" << info.element[0].local_face_id << '\n'
+      << "element[1].local_face_id=" << info.element[1].local_face_id << '\n'
+      << "element[0].orientation=" << info.element[0].orientation << '\n'
+      << "element[1].orientation=" << info.element[1].orientation << '\n'
       << "ncface=" << info.ncface << std::endl;
    return os;
 }
@@ -2784,6 +2785,41 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    last_operation = Mesh::NONE;
    fes->Update(false); // want_transform = false
    Nodes->Update(); // just needed to update Nodes->sequence
+}
+
+void Mesh::SetPatchAttribute(int i, int attr)
+{
+   MFEM_ASSERT(NURBSext, "SetPatchAttribute is only for NURBS meshes");
+   NURBSext->SetPatchAttribute(i, attr);
+   const Array<int>& elems = NURBSext->GetPatchElements(i);
+   for (auto e : elems)
+   {
+      SetAttribute(e, attr);
+   }
+}
+
+int Mesh::GetPatchAttribute(int i) const
+{
+   MFEM_ASSERT(NURBSext, "GetPatchAttribute is only for NURBS meshes");
+   return NURBSext->GetPatchAttribute(i);
+}
+
+void Mesh::SetPatchBdrAttribute(int i, int attr)
+{
+   MFEM_ASSERT(NURBSext, "SetPatchBdrAttribute is only for NURBS meshes");
+   NURBSext->SetPatchBdrAttribute(i, attr);
+
+   const Array<int>& bdryelems = NURBSext->GetPatchBdrElements(i);
+   for (auto be : bdryelems)
+   {
+      SetBdrAttribute(be, attr);
+   }
+}
+
+int Mesh::GetPatchBdrAttribute(int i) const
+{
+   MFEM_ASSERT(NURBSext, "GetBdrPatchBdrAttribute is only for NURBS meshes");
+   return NURBSext->GetPatchBdrAttribute(i);
 }
 
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
@@ -5186,17 +5222,13 @@ void Mesh::UpdateNURBS()
    if (el_to_edge)
    {
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces();
-      }
    }
 
    if (el_to_face)
    {
       GetElementToFaceTable();
-      GenerateFaces();
    }
+   GenerateFaces();
 }
 
 void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
@@ -5574,6 +5606,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
    }
+#else
+   MFEM_CONTRACT_VAR(fo);
 #endif
    return wo;
 }
@@ -8642,6 +8676,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                new Pyramid(oedge+e[7], oedge+e[6], oedge+e[5],
                            oedge+e[4], oface+qf0, attr);
 
+#ifndef MFEM_USE_MEMALLOC
             new_elements[j++] =
                new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
                                oface+qf0, attr);
@@ -8657,6 +8692,24 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             new_elements[j++] =
                new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
                                oface+qf0, attr);
+#else
+            Tetrahedron *tet;
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[0], oedge+e[4], oedge+e[5],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[1], oedge+e[5], oedge+e[6],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[2], oedge+e[6], oedge+e[7],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
+                      oface+qf0, attr);
+#endif
          }
          break;
 

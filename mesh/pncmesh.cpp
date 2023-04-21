@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2012,6 +2012,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                   "(glob_sent, glob_recv) = ("
                   << glob_sent << ", " << glob_recv << ")");
    }
+#else
+   MFEM_CONTRACT_VAR(nsent);
+   MFEM_CONTRACT_VAR(nrecv);
 #endif
 }
 

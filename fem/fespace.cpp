@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1290,12 +1290,12 @@ const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering f_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   key_face key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
@@ -1308,16 +1308,16 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       {
          if (Conforming())
          {
-            res = new L2FaceRestriction(*this, e_ordering, type, m);
+            res = new L2FaceRestriction(*this, f_ordering, type, m);
          }
          else
          {
-            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+            res = new NCL2FaceRestriction(*this, f_ordering, type, m);
          }
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         res = new ConformingFaceRestriction(*this, f_ordering, type);
       }
       L2F[key] = res;
       return res;
@@ -1542,6 +1542,10 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
    delete old_elem_dof;
    delete old_elem_fos;
+   for (int i=0; i<old_DoFTrans.Size(); i++)
+   {
+      delete old_DoFTrans[i];
+   }
 }
 
 void FiniteElementSpace::RefinementOperator

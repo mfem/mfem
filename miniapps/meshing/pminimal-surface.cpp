@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -473,7 +473,10 @@ public:
          auto d_Xi = Xi.Read();
          auto d_nodes  = S.fes->GetMesh()->GetNodes()->Write();
          const int ndof = S.fes->GetNDofs();
-         MFEM_FORALL(i, ndof, d_nodes[c*ndof + i] = d_Xi[i]; );
+         mfem::forall(ndof, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_nodes[c*ndof + i] = d_Xi[i];
+         });
       }
 
       void GetNodes(GridFunction &Xi, const int c)
@@ -481,7 +484,10 @@ public:
          auto d_Xi = Xi.Write();
          const int ndof = S.fes->GetNDofs();
          auto d_nodes  = S.fes->GetMesh()->GetNodes()->Read();
-         MFEM_FORALL(i, ndof, d_Xi[i] = d_nodes[c*ndof + i]; );
+         mfem::forall(ndof, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_Xi[i] = d_nodes[c*ndof + i];
+         });
       }
 
       ByVDim(Surface &S, Opt &opt): Solver(S, opt)
@@ -1201,7 +1207,7 @@ static double qf(const int order, const int ker, Mesh &m,
    auto grdU = Reshape(grad_u.Read(), DIM, Q1D, Q1D, NE);
    auto S = Reshape(sum.Write(), Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -1220,7 +1226,7 @@ static double qf(const int order, const int ker, Mesh &m,
             const double tgu1 = (J11*gu1 - J21*gu0)/det;
             const double ngu = tgu0*tgu0 + tgu1*tgu1;
             const double s = (ker == AREA) ? sqrt(1.0 + ngu) :
-            (ker == NORM) ? ngu : 0.0;
+                             (ker == NORM) ? ngu : 0.0;
             S(qx, qy, e) = area * s;
          }
       }

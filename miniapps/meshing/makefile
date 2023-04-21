@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -27,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -65,7 +65,7 @@ MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh icf.mesh jagged.mesh\
  square01.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer pmesh-fitting: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif
@@ -87,6 +87,8 @@ mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+pmesh-fitting-test-par: pmesh-fitting
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel mesh fitting miniapp)
 minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
 pminimal-surface-test-par: pminimal-surface
@@ -111,7 +113,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer reflector
-	rm -f mesh-optimizer pmesh-optimizer polar-nc
+	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc
 	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -213,6 +213,9 @@ void test_2d(Element::Type element_type,
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
    }
+   delete submesh;
+   delete sub_fec;
+   delete fec;
 }
 
 void test_3d(Element::Type element_type,
@@ -389,6 +392,9 @@ void test_3d(Element::Type element_type,
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
    }
+   delete submesh;
+   delete sub_fec;
+   delete fec;
 }
 
 TEST_CASE("SubMesh", "[SubMesh]")
