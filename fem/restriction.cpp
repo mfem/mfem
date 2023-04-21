@@ -32,7 +32,6 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
      dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
-     nedofs(ne*dof),
      offsets(ndofs+1),
      indices(ne*dof),
      gather_map(ne*dof)
@@ -609,7 +608,6 @@ ConformingFaceRestriction::ConformingFaceRestriction(
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      face_dofs(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
      elem_dofs(fes.GetFE(0)->GetDof()),
-     nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
      scatter_indices(nf*face_dofs),
      gather_offsets(ndofs+1),
@@ -651,28 +649,45 @@ ConformingFaceRestriction::ConformingFaceRestriction(
    : ConformingFaceRestriction(fes, f_ordering, type, true)
 { }
 
-void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
+static void ConformingFaceRestriction_Mult(
+   const int ndofs,
+   const int face_dofs,
+   const int nf,
+   const int vdim,
+   const bool by_vdim,
+   const Array<int> &scatter_indices,
+   const Vector &x,
+   Vector &y,
+   bool use_signs)
 {
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
-   const int nface_dofs = face_dofs;
-   const int vd = vdim;
-   const bool t = byvdim;
    auto d_indices = scatter_indices.Read();
-   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
+   auto d_x = Reshape(x.Read(), by_vdim?vdim:ndofs, by_vdim?ndofs:vdim);
+   auto d_y = Reshape(y.Write(), face_dofs, vdim, nf);
+   mfem::forall(face_dofs*nf, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int s_idx = d_indices[i];
-      const int sgn = (s_idx >= 0) ? 1 : -1;
-      const int idx = (s_idx >= 0) ? s_idx : -1 - s_idx;
-      const int dof = i % nface_dofs;
-      const int face = i / nface_dofs;
-      for (int c = 0; c < vd; ++c)
+      const int s_idx_j = d_indices[i];
+      const double sgn = (s_idx_j >= 0 || !use_signs) ? 1.0 : -1.0;
+      const int idx_j = (s_idx_j >= 0) ? s_idx_j : -1 - s_idx_j;
+      for (int c = 0; c < vdim; ++c)
       {
-         d_y(dof, c, face) = sgn*d_x(t?c:idx, t?idx:c);
+         d_y(i % face_dofs, c, i / face_dofs) =
+            sgn*d_x(by_vdim?c:idx_j, by_vdim?idx_j:c);
       }
    });
+}
+
+void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   ConformingFaceRestriction_Mult(
+      ndofs, face_dofs, nf, vdim, byvdim, scatter_indices, x, y, true);
+}
+
+void ConformingFaceRestriction::MultUnsigned(const Vector& x, Vector& y) const
+{
+   ConformingFaceRestriction_Mult(
+      ndofs, face_dofs, nf, vdim, byvdim, scatter_indices, x, y, false);
 }
 
 static void ConformingFaceRestriction_AddMultTranspose(
@@ -1042,7 +1057,6 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
                : 0),
      elem_dofs(fes.GetFE(0)->GetDof()),
-     nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
      type(type),
      m(m),
@@ -1084,7 +1098,7 @@ void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
    auto d_indices1 = scatter_indices1.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(face_dofs*nf, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;
@@ -1110,7 +1124,7 @@ void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x,
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(face_dofs*nf, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;
@@ -1175,7 +1189,7 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
    const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
-   const int dofs = nfdofs;
+   const int dofs = face_dofs*nf;
    auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nface_dofs, vd, 2, nf);
@@ -1589,7 +1603,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
       const int global_dof_elem2 = elem_map[elem_index*elem_dofs + volume_dof_elem2];
       const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
       // We shift restriction_dof_elem2 to express that it's elem2 of the face
-      gather_indices[gather_offsets[global_dof_elem2]++] = nfdofs +
+      gather_indices[gather_offsets[global_dof_elem2]++] = face_dofs*nf +
                                                            restriction_dof_elem2;
    }
 }

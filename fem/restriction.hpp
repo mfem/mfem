@@ -48,7 +48,6 @@ protected:
    const bool byvdim;
    const int ndofs;
    const int dof;
-   const int nedofs;
    Array<int> offsets;
    Array<int> indices;
    Array<int> gather_map;
@@ -173,6 +172,13 @@ public:
    */
    void Mult(const Vector &x, Vector &y) const override = 0;
 
+   /** @brief Extract the face degrees of freedom from @a x into @a y ignoring
+       the signs from DOF orientation. */
+   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   {
+      Mult(x, y);
+   }
+
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y.
 
@@ -196,7 +202,7 @@ public:
        freedom @a y. Perform the same computation as AddMultTranspose, but
        @a x is invalid after calling this method.
 
-       @param[in,out]     x The face degrees of freedom on the face.
+       @param[in,out] x The face degrees of freedom on the face.
        @param[in,out] y The L-vector of degrees of freedom to which we add the
                         face degrees of freedom.
 
@@ -236,7 +242,6 @@ protected:
    const bool byvdim;
    const int face_dofs; // Number of dofs on each face
    const int elem_dofs; // Number of dofs in each element
-   const int nfdofs; // Total number of face E-vector dofs
    const int ndofs; // Total number of dofs
    Array<int> scatter_indices; // Scattering indices for element 1 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
@@ -278,19 +283,25 @@ public:
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
+   /** @brief Extract the face degrees of freedom from @a x into @a y ignoring
+       the signs from DOF orientation.
+
+       @sa Mult(). */
+   void MultUnsigned(const Vector &x, Vector &y) const override;
+
    using FaceRestriction::AddMultTransposeInPlace;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
 
-       @param[in]  x The face E-Vector degrees of freedom with the given format:
-                     face_dofs x vdim x nf
-                     where nf is the number of interior or boundary faces
-                     requested by @a type in the constructor.
-                     The face_dofs should be ordered according to the given
-                     ElementDofOrdering
+       @param[in]     x The face E-Vector degrees of freedom with the given format:
+                        face_dofs x vdim x nf
+                        where nf is the number of interior or boundary faces
+                        requested by @a type in the constructor.
+                        The face_dofs should be ordered according to the given
+                        ElementDofOrdering
        @param[in,out] y The L-vector degrees of freedom.
-       @param[in]  a Scalar coefficient for addition. */
+       @param[in]     a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
 
@@ -371,7 +382,6 @@ protected:
    const bool byvdim;
    const int face_dofs; // Number of dofs on each face
    const int elem_dofs; // Number of dofs in each element
-   const int nfdofs; // Total number of dofs on the faces
    const int ndofs; // Total number of dofs
    const FaceType type;
    const L2FaceValues m;

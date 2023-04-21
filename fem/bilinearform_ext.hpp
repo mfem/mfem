@@ -25,8 +25,8 @@ class DiscreteLinearOperator;
 
 /// Class extending the BilinearForm class to support different AssemblyLevels.
 /**  FA - Full Assembly
-     PA - Partial Assembly
      EA - Element Assembly
+     PA - Partial Assembly
      MF - Matrix Free
 */
 class BilinearFormExtension : public Operator
@@ -65,20 +65,20 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for partially-assembled bilinear forms
-class PABilinearFormExtension : public BilinearFormExtension
+/// Data and methods for matrix-free bilinear forms
+class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
    const FiniteElementSpace *fes; // Not owned
-   mutable Vector localX, localY;
-   mutable Vector int_face_X, int_face_Y;
-   mutable Vector bdr_face_X, bdr_face_Y;
+   mutable Vector local_x, local_y;
+   mutable Vector int_face_x, int_face_y;
+   mutable Vector bdr_face_x, bdr_face_y;
    const Operator *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
 public:
-   PABilinearFormExtension(BilinearForm*);
+   MFBilinearFormExtension(BilinearForm *form);
 
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
@@ -95,15 +95,27 @@ protected:
    void SetupRestrictionOperators(const L2FaceValues m);
 };
 
+/// Data and methods for partially-assembled bilinear forms
+class PABilinearFormExtension : public MFBilinearFormExtension
+{
+public:
+   PABilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void AssembleDiagonal(Vector &diag) const;
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
+
 /// Data and methods for element-assembled bilinear forms
 class EABilinearFormExtension : public PABilinearFormExtension
 {
 protected:
+   const bool factorize_face_terms;
    int ne, elem_dofs;
    Vector ea_data;  // The element matrices are stored row major
    int nf_int, nf_bdr, face_dofs;
    Vector ea_data_int, ea_data_ext, ea_data_bdr;
-   bool factorize_face_terms;
 
 public:
    EABilinearFormExtension(BilinearForm *form);
@@ -143,37 +155,10 @@ public:
    void DGMultTranspose(const Vector &x, Vector &y) const;
 };
 
-/// Data and methods for matrix-free bilinear forms
-class MFBilinearFormExtension : public BilinearFormExtension
-{
-protected:
-   const FiniteElementSpace *fes; // Not owned
-   mutable Vector localX, localY;
-   mutable Vector int_face_X, int_face_Y;
-   mutable Vector bdr_face_X, bdr_face_Y;
-   const Operator *elem_restrict; // Not owned
-   const FaceRestriction *int_face_restrict_lex; // Not owned
-   const FaceRestriction *bdr_face_restrict_lex; // Not owned
-
-public:
-   MFBilinearFormExtension(BilinearForm *form);
-
-   void Assemble();
-   void AssembleDiagonal(Vector &diag) const;
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void Update();
-};
-
 /// Class extending the MixedBilinearForm class to support different AssemblyLevels.
 /**  FA - Full Assembly
-     PA - Partial Assembly
      EA - Element Assembly
+     PA - Partial Assembly
      MF - Matrix Free
 */
 class MixedBilinearFormExtension : public Operator
@@ -185,7 +170,7 @@ public:
    MixedBilinearFormExtension(MixedBilinearForm *form);
 
    virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
+   { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;
@@ -199,9 +184,13 @@ public:
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const;
 
+   /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
 
-   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
+   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const
+   {
+      MFEM_ABORT("AssembleDiagonal_ADAt not implemented for this assembly level!");
+   }
 
    virtual void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                               const Array<int> &test_tdof_list,
@@ -215,26 +204,25 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for partially-assembled mixed bilinear forms
-class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
+/// Data and methods for matrix-free mixed bilinear forms
+class MFMixedBilinearFormExtension : public MixedBilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
-   mutable Vector localTrial, localTest, tempY;
+   mutable Vector local_trial, local_test, temp_trial, temp_test;
+   mutable Vector int_face_trial, int_face_test, int_face_y;
+   mutable Vector bdr_face_trial, bdr_face_test, bdr_face_y;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
-
-   /// Helper function to set up inputs/outputs for Mult or MultTranspose
-   void SetupMultInputs(const Operator *elem_restrict_x,
-                        const Vector &x, Vector &localX,
-                        const Operator *elem_restrict_y,
-                        Vector &y, Vector &localY, const double c) const;
+   const FaceRestriction *int_face_restrict_lex_trial; // Not owned
+   const FaceRestriction *int_face_restrict_lex_test;  // Not owned
+   const FaceRestriction *bdr_face_restrict_lex_trial; // Not owned
+   const FaceRestriction *bdr_face_restrict_lex_test;  // Not owned
 
 public:
-   PAMixedBilinearFormExtension(MixedBilinearForm *form);
+   MFMixedBilinearFormExtension(MixedBilinearForm *form);
 
    void Assemble();
-   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,
                                       OperatorHandle &A);
@@ -243,10 +231,25 @@ public:
                                     Vector &x, Vector &b,
                                     OperatorHandle &A, Vector &X, Vector &B);
    void Mult(const Vector &x, Vector &y) const;
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const double c = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c = 1.0) const;
    void Update();
+
+protected:
+   void SetupRestrictionOperators(const L2FaceValues m);
+};
+
+/// Data and methods for partially-assembled mixed bilinear forms
+class PAMixedBilinearFormExtension : public MFMixedBilinearFormExtension
+{
+public:
+   PAMixedBilinearFormExtension(MixedBilinearForm *form);
+
+   void Assemble();
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+   void AddMult(const Vector &x, Vector &y, const double c = 1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c = 1.0) const;
 };
 
 /// Data and methods for partially-assembled discrete linear operators
@@ -264,8 +267,8 @@ public:
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,
                                       OperatorHandle& A);
-   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
-   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   void AddMult(const Vector &x, Vector &y, const double c = 1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c = 1.0) const;
 };
 
 }

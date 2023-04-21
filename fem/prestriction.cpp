@@ -331,7 +331,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
                              t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(face_dofs*nf, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;

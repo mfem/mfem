@@ -20,11 +20,6 @@
 namespace mfem
 {
 
-void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   AssemblePA(fes, fes);
-}
-
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes)
 {

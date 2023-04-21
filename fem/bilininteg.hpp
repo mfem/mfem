@@ -59,6 +59,9 @@ public:
                            const FiniteElementSpace &test_fes);
 
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssemblePABoundary(const FiniteElementSpace &trial_fes,
+                                   const FiniteElementSpace &test_fes);
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
@@ -88,27 +91,18 @@ public:
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
-   /// Method defining element assembly.
-   /** The result of the element assembly is added to the @a emat Vector. */
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
-   /** Used with BilinearFormIntegrators that have different spaces. */
-   virtual void AssembleEA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes,
-                           Vector &emat);
-
-   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext);
-
-   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_bdr);
-
    /// Method defining matrix-free assembly.
    /** The result of fully matrix-free assembly is stored internally so that it
        can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
    virtual void AssembleMF(const FiniteElementSpace &fes);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssembleMF(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
 
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssembleMFBoundary(const FiniteElementSpace &trial_fes,
+                                   const FiniteElementSpace &test_fes);
 
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -128,6 +122,21 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   /// Method defining element assembly.
+   /** The result of the element assembly is added to the @a emat Vector. */
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssembleEA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes,
+                           Vector &emat);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -290,16 +299,24 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes)
    {
       bfi->AssemblePA(fes);
    }
-
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes)
    {
-      bfi->AssemblePA(test_fes, trial_fes); // Reverse test and trial
+      bfi->AssemblePA(trial_fes, test_fes);
+   }
+
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePABoundary(fes);
+   }
+   virtual void AssemblePABoundary(const FiniteElementSpace &trial_fes,
+                                   const FiniteElementSpace &test_fes)
+   {
+      bfi->AssemblePABoundary(trial_fes, test_fes);
    }
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
@@ -322,6 +339,7 @@ public:
       bfi->AddMultTransposePA(x, y);
    }
 
+   using BilinearFormIntegrator::AssembleEA;
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
@@ -409,8 +427,9 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace& fes);
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -422,6 +441,17 @@ public:
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   virtual void AssembleMF(const FiniteElementSpace &fes);
+   virtual void AssembleMF(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AssembleDiagonalMF(Vector &diag);
+
+   virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleEA;
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
@@ -430,14 +460,6 @@ public:
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
                                         Vector &ea_data_bdr);
-
-   virtual void AssembleMF(const FiniteElementSpace &fes);
-
-   virtual void AssembleDiagonalMF(Vector &diag);
-
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
-
-   virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
 
    virtual ~SumIntegrator();
 };
@@ -923,6 +945,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    // PA extension
@@ -1801,6 +1824,14 @@ public:
    MixedVectorGradientIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
 
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
 protected:
    inline virtual bool VerifyFiniteElementTypes(
       const FiniteElement &trial_fe,
@@ -1827,14 +1858,6 @@ protected:
       trial_fe.CalcPhysDShape(Trans, shape);
    }
 
-   using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-
-private:
    DenseMatrix Jinv;
 
    // PA extension
@@ -1858,6 +1881,14 @@ public:
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 protected:
    inline virtual bool VerifyFiniteElementTypes(
@@ -1886,14 +1917,6 @@ protected:
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
 
-   using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-
 private:
    // PA extension
    Vector pa_data;
@@ -1918,6 +1941,14 @@ public:
       : MixedVectorIntegrator(dq, true) {}
    MixedVectorWeakCurlIntegrator(MatrixCoefficient &mq)
       : MixedVectorIntegrator(mq) {}
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 protected:
    inline virtual bool VerifyFiniteElementTypes(
@@ -1945,14 +1976,6 @@ protected:
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
-
-   using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
 private:
    // PA extension
@@ -2142,13 +2165,15 @@ public:
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
-
+   using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleEA;
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
@@ -2199,6 +2224,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePABoundary;
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2207,13 +2233,15 @@ public:
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
-
+   using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleEA;
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -2274,13 +2302,15 @@ public:
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
-
+   using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
 
    virtual void AddMultMF(const Vector &x, Vector &y) const;
+
+   using BilinearFormIntegrator::AssembleEA;
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    static const IntegrationRule &GetRule(const FiniteElement &fe,
                                          ElementTransformation &Trans);
@@ -2380,6 +2410,7 @@ public:
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2695,17 +2726,15 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-
+   virtual void AssemblePA(const FiniteElementSpace &fes) { AssemblePA(fes, fes); }
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-
-   virtual void AssembleDiagonalPA(Vector &diag);
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2901,6 +2930,7 @@ public:
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   using BilinearFormIntegrator::AssembleMF;
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalMF(Vector &diag);
