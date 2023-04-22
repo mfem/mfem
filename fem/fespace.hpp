@@ -1157,11 +1157,6 @@ public:
    static void ListToMarker(const Array<int> &list, int marker_size,
                             Array<int> &marker, int mark_val = -1);
 
-   /** @brief Return the DofTransformation object for the specified geometry */
-   DofTransformation *
-   GetDofTransformationForGeometry(Geometry::Type geom) const
-   { return DoFTrans[geom]; }
-
    /** @brief For a partially conforming FE space, convert a marker array (nonzero
        entries are true) on the partially conforming dofs to a marker array on
        the conforming dofs. A conforming dofs is marked iff at least one of its
