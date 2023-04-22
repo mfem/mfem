@@ -226,6 +226,8 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
                                           Vector &dst,
                                           const Array<int> *sub_to_parent_map)
 {
+   const FiniteElementCollection * fec = fes.FEColl();
+
    SubMesh * mesh = dynamic_cast<SubMesh*>(fes.GetMesh());
 
    const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
@@ -249,7 +251,7 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
                             mesh->GetElementGeometry(i);;
 
-      DofTransformation * doftrans = fes.GetDofTransformationForGeometry(geom);
+      DofTransformation * doftrans = fec->DofTransformationForGeometry(geom);
 
       if (doftrans == NULL) { continue; }
 
