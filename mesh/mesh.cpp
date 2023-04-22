@@ -5695,7 +5695,7 @@ int Mesh::ComposeTriOrientations(int ori_a_b, int ori_b_c)
    return ori_a_c;
 }
 
-int Mesh::InverseTriOrientation(int ori)
+int Mesh::InvertTriOrientation(int ori)
 {
    const int inv_ori[6] = {0, 1, 4, 3, 2, 5};
    return inv_ori[ori];
@@ -5774,7 +5774,7 @@ int Mesh::ComposeQuadOrientations(int ori_a_b, int ori_b_c)
    return ori_a_c;
 }
 
-int Mesh::InverseQuadOrientation(int ori)
+int Mesh::InvertQuadOrientation(int ori)
 {
    const int inv_ori[8] = {0, 1, 6, 3, 4, 5, 2, 7};
    return inv_ori[ori];
