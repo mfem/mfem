@@ -19,10 +19,10 @@ class TestMesh : public Mesh
 public:
    using Mesh::GetTriOrientation;
    using Mesh::ComposeTriOrientations;
-   using Mesh::InverseTriOrientation;
+   using Mesh::InvertTriOrientation;
    using Mesh::GetQuadOrientation;
    using Mesh::ComposeQuadOrientations;
-   using Mesh::InverseQuadOrientation;
+   using Mesh::InvertQuadOrientation;
 };
 
 void TriPerm(int i, int *v)
@@ -67,7 +67,7 @@ TEST_CASE("Face Orientation", "[FaceOrientation]")
          int ori_a_b = TestMesh::GetTriOrientation(va, vb);
          int ori_b_a = TestMesh::GetTriOrientation(vb, va);
 
-         int inv_ori_a_b = TestMesh::InverseTriOrientation(ori_a_b);
+         int inv_ori_a_b = TestMesh::InvertTriOrientation(ori_a_b);
 
          REQUIRE(inv_ori_a_b == ori_b_a);
 
@@ -98,7 +98,7 @@ TEST_CASE("Face Orientation", "[FaceOrientation]")
          int ori_a_b = TestMesh::GetQuadOrientation(va, vb);
          int ori_b_a = TestMesh::GetQuadOrientation(vb, va);
 
-         int inv_ori_a_b = TestMesh::InverseQuadOrientation(ori_a_b);
+         int inv_ori_a_b = TestMesh::InvertQuadOrientation(ori_a_b);
 
          REQUIRE(inv_ori_a_b == ori_b_a);
 

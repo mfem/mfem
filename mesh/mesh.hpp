@@ -475,8 +475,8 @@ protected:
 
    /// Returns the orientation of "base" relative to "test"
    /// In other words: GetTriOrientation(test, base) should equal
-   /// InverseTriOrientation(GetTriOrientation(base, test))
-   static int InverseTriOrientation(int ori);
+   /// InvertTriOrientation(GetTriOrientation(base, test))
+   static int InvertTriOrientation(int ori);
 
    /// Returns the orientation of "c" relative to "a" by composing
    /// previously computed orientations relative to an intermediate
@@ -488,8 +488,8 @@ protected:
 
    /// Returns the orientation of "base" relative to "test"
    /// In other words: GetQuadOrientation(test, base) should equal
-   /// InverseQuadOrientation(GetQuadOrientation(base, test))
-   static int InverseQuadOrientation(int ori);
+   /// InvertQuadOrientation(GetQuadOrientation(base, test))
+   static int InvertQuadOrientation(int ori);
 
    /// Returns the orientation of "c" relative to "a" by composing
    /// previously computed orientations relative to an intermediate
