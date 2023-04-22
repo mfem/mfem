@@ -5739,6 +5739,8 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
+
+   MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
    int p = face_fec->GetOrder();
 
    // define the nodal and edge finite element spaces associated with face_fespace

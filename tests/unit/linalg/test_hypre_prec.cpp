@@ -24,6 +24,13 @@ double sin3d(const Vector &x)
    return sin(x[0]) * sin(x[1]) * sin(x[2]);
 }
 
+void sin2d_vec(const Vector &x, Vector &v)
+{
+   v.SetSize(2);
+   v[0] = cos(x[0]) * sin(x[1]);
+   v[1] = sin(x[0]) * cos(x[1]);
+}
+
 void sin3d_vec(const Vector &x, Vector &v)
 {
    v.SetSize(3);
@@ -150,10 +157,12 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
    int n = 3;
-   int dim = 3;
+   int dim = GENERATE(2, 3);
    int order = 2;
 
-   Mesh mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL):
+               Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
 
    int nelems = mesh.GetNE();
    int *partitioning = new int[nelems];
@@ -174,9 +183,10 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
       a.Assemble();
 
       ParGridFunction x(&fespace);
-      VectorFunctionCoefficient sin3dCoef(3, sin3d_vec);
-      x.ProjectCoefficient(sin3dCoef);
-      double err0 = x.ComputeL2Error(sin3dCoef);
+      VectorFunctionCoefficient sinCoef(dim,
+                                        (dim == 2) ? sin2d_vec : sin3d_vec);
+      x.ProjectCoefficient(sinCoef);
+      double err0 = x.ComputeL2Error(sinCoef);
 
       ParLinearForm b(&fespace);
       a.Mult(x, b);
@@ -203,7 +213,7 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
 
       a.RecoverFEMSolution(X, b, x);
 
-      double err = x.ComputeL2Error(sin3dCoef);
+      double err = x.ComputeL2Error(sinCoef);
       REQUIRE(fabs(err - err0) < 1e-6 * err0);
    }
 }
