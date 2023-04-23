@@ -134,7 +134,7 @@ public:
  *  tanh(sum(x_i_min)) <= tanh(sum(x_i)) <= tanh(sum(x_i_max)),
  *  x_i_min <= x_i <= x_i_max,
  */
-class OptimizedTransportProblem : public OptimizationProblem
+class OptimizedTransportProblem : public HiOpProblem
 {
 private:
    const Vector &x_HO;
@@ -145,7 +145,7 @@ private:
 public:
    OptimizedTransportProblem(const Vector &xho, const Vector &w, double mass,
                              const Vector &xmin, const Vector &xmax)
-      : OptimizationProblem(xho.Size(), NULL, NULL),
+      : HiOpProblem(xho.Size(), NULL, NULL),
         x_HO(xho), massvec(1), d_lo(1), d_hi(1),
         LSoper(w), TSoper(w.Size())
    {
@@ -177,6 +177,30 @@ public:
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    {
       for (int i = 0; i < input_size; i++) { grad(i) = x(i) - x_HO(i); }
+   }
+
+   virtual bool IterateCallback(int iter,
+                                double obj_value,
+                                double logbar_obj_value,
+                                int n,
+                                const double* x,
+                                const double* z_L,
+                                const double* z_U,
+                                int m_ineq,
+                                const double* s,
+                                int m,
+                                const double* g,
+                                const double* lambda,
+                                double inf_pr,
+                                double inf_du,
+                                double onenorm_pr_,
+                                double mu,
+                                double alpha_du,
+                                double alpha_pr,
+                                int ls_trials) const
+   {
+      cout << "Called here" << endl;
+      return true;
    }
 };
 
