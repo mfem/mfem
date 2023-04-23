@@ -51,6 +51,8 @@ cleanup:
   script:
     - echo "BUILD_ROOT=${BUILD_ROOT}"
     - rm -rf "${BUILD_ROOT}" || true
+    - echo "CI_PROJECT_DIR=${CI_PROJECT_DIR}"
+    - make -C "${CI_PROJECT_DIR}" distclean
 
 report_baseline:
   extends: [.on_quartz]
