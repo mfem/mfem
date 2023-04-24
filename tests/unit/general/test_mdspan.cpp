@@ -47,10 +47,10 @@ TEST_CASE("MDArray", "[MDSpan][MDArray]")
       {
 
          const int A = 7;
-      MDArray<int,3> abc;
-      abc.SetSize(NA, NB, NC);
+         MDArray<int,3> abc;
+         abc.SetSize(NA, NB, NC);
          abc = 7;
-      REQUIRE(abc.Size() == NA*NB*NC);
+         REQUIRE(abc.Size() == NA*NB*NC);
          REQUIRE(abc.Read());
          REQUIRE(abc.Write());
          REQUIRE(abc.HostRead());
@@ -131,9 +131,9 @@ TEST_CASE("MDVector", "[MDSpan][MDVector]")
    {
       constexpr int NA = 11, NB = 22, NC = 33;
       {
-      MDVector<3> abc;
-      abc.SetSize(NA, NB, NC);
-      REQUIRE(abc.Size() == NA*NB*NC);
+         MDVector<3> abc;
+         abc.SetSize(NA, NB, NC);
+         REQUIRE(abc.Size() == NA*NB*NC);
          abc.HostRead();
          abc.MDHostRead();
       }
@@ -223,10 +223,10 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan][MDGridFunction]")
       MDGridFunction<4, MDLayoutRight<4>> gsa(NE, NG, &fes, NA);
       const int gsa_0123 = gsa.Offset(0,1,2,3);
       REQUIRE(gsa_0123 == 0*(NG*ND*NA) + 1*(ND*NA) + 2*(NA) + 3);
-}
+   }
 
    SECTION("Set/Get ScalarGridFunction")
-{
+   {
       MDGridFunction<3> egda(NG, &fes, NA);
 
       GridFunction gf, rho(&fes);
@@ -237,7 +237,7 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan][MDGridFunction]")
       M_ho.Finalize();
 
       auto compute_mass = [](GridFunction &gf)
-   {
+      {
          FiniteElementSpace *fes = gf.FESpace();
          ConstantCoefficient one(1.0);
          BilinearForm ML2(fes);
@@ -246,7 +246,7 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan][MDGridFunction]")
          GridFunction ones(fes);
          ones = 1.0;
          return ML2.InnerProduct(gf, ones);
-   };
+      };
 
       FunctionCoefficient rho_cft([](const Vector &x)
       {
