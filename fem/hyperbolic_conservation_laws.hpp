@@ -99,7 +99,8 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype=1)
    {
       fecInt = new L2_FECollection(max_order, mesh->Dimension());
    }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt, fespace->GetVDim());
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
+                                                         fespace->GetVDim());
 
    IsoparametricTransformation T;
    DenseMatrix I;
@@ -199,11 +200,11 @@ public:
    /**
     * @brief Compute flux ∂F(u, x) / ∂u for given state u and physical point x.
     * @a flux: vdim x vdim x sdim and @a eigs: vdim x sdim should be provided with correct size
-    * 
-    * @param state 
-    * @param Tr 
-    * @param Jacobian 
-    * @param eigs 
+    *
+    * @param state
+    * @param Tr
+    * @param Jacobian
+    * @param eigs
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
@@ -432,6 +433,12 @@ public:
    }
 
    virtual ~DGHyperbolicConservationLaws() {}
+
+   void addBdrFaceIntegrator(HyperbolicFormIntegrator *nlfi,
+                             Array<int> &bdr_marker)
+   {
+      nonlinearForm->AddBdrFaceIntegrator(nlfi, bdr_marker);
+   }
 };
 
 //////////////////////////////////////////////////////////////////
@@ -839,7 +846,8 @@ public:
             Jacobian(j + 1, i + 1, i) += momentum[j]/density; // (ρu * e_i^T)/ρ, column
             Jacobian(j + 1, j + 1, i) += momentum[i]/density; // (ρu_i / ρ) I, diagonal
             Jacobian(i + 1, j + 1, i) += dpdmom[j]; // e_i * dp/d(ρu)^T, row
-            Jacobian(dim + 1, j + 1, i) = momentum[i]/density*dpdmom[j]; // ((ρu)⋅e_i)*dp/d(ρu)^T, entry
+            Jacobian(dim + 1, j + 1,
+                     i) = momentum[i]/density*dpdmom[j]; // ((ρu)⋅e_i)*dp/d(ρu)^T, entry
          }
          Jacobian(dim + 1, i + 1, i) += (energy + pressure)/density; // (E + p)/ρ e_i^T
 
@@ -931,6 +939,37 @@ public:
                        const IntegrationRule *ir)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, ir),
         specific_heat_ratio(specific_heat_ratio_) {}
+};
+
+class EulerDirichletBC : public EulerFormIntegrator
+{
+   const VectorFunctionCoefficient &dirichletData;
+public:
+   EulerDirichletBC(RiemannSolver *rsolver_, const int dim,
+                    const double specific_heat_ratio_,
+                    const VectorFunctionCoefficient &dirichletData_,
+                    const int IntOrderOffset_)
+      : EulerFormIntegrator(rsolver_, dim, specific_heat_ratio_, IntOrderOffset_),
+        dirichletData(dirichletData_) {}
+
+   /**
+    * @brief Assemble Dirichlet BC, <F̂(u, g, n), v>_e
+    *
+    * @param el1 The neighboring element's FE of a boundary edge
+    * @param el2 Dummy element
+    * @param Tr Face transformation
+    * @param elfun value of u
+    * @param elvect resulting vector, elvect[i] = <F̂(u, g, n), ϕ_i>_e
+    */
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect)
+   {
+      // TODO: Implement <F̂(u, g, n), v>_e
+      // NOTE: See, HyperbolicFormIntegrator::AssembleFaceVector.
+      //       Note that we have to replace state2 by g and there is NO second neighboring element.
+   }
 };
 
 DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
@@ -1067,8 +1106,8 @@ public:
    {
       const int dim = Tr.GetDimension();
       b.Eval(bval, Tr, Tr.GetIntPoint());
-      for(int i=0; i<dim; i++) Jacobian(0, 0, i) = bval(i);
-      for(int i=0; i<dim; i++) eigs(0,i) = bval(i);
+      for (int i=0; i<dim; i++) { Jacobian(0, 0, i) = bval(i); }
+      for (int i=0; i<dim; i++) { eigs(0,i) = bval(i); }
    }
    /**
     * @brief Compute normal flux, F(u)n
