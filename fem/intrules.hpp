@@ -313,7 +313,7 @@ public:
    }
 
    /// Set 1D integration rules to be used as a tensor product rule on the patch
-   /// with index @a patch.
+   /// with index @a patch. This class takes ownership of these rules
    void SetPatchRules1D(const int patch,
                         std::vector<const IntegrationRule*> & ir1D);
 

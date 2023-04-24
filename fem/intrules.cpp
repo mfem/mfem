@@ -2014,6 +2014,11 @@ void NURBSPatchRule::SetPatchRules1D(const int patch,
 NURBSPatchRule::~NURBSPatchRule()
 {
    delete ir;
+   for (int i=0; i<patchRules1D.NumRows(); ++i)
+      for (int j=0; j<patchRules1D.NumCols(); ++j)
+      {
+         delete patchRules1D(i, j);
+      }
 }
 
 }
