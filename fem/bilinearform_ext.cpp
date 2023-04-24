@@ -629,7 +629,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
       auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
       auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
-      MFEM_FORALL(glob_j, ne*NDOFS,
+      mfem::forall(ne*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
       {
          const int e = glob_j/NDOFS;
          const int j = glob_j%NDOFS;
@@ -664,7 +664,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          if (!factorize_face_terms)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
-            MFEM_FORALL(glob_j, nf_int*NDOFS,
+            mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
             {
                const int f = glob_j/NDOFS;
                const int j = glob_j%NDOFS;
@@ -683,7 +683,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             });
          }
          auto A_ext = Reshape(ea_data_ext.Read(), NDOFS, NDOFS, 2, nf_int);
-         MFEM_FORALL(glob_j, nf_int*NDOFS,
+         mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
@@ -720,7 +720,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
          auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
          auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
-         MFEM_FORALL(glob_j, nf_bdr*NDOFS,
+         mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
@@ -757,7 +757,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
       auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
       auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
-      MFEM_FORALL(glob_j, ne*NDOFS,
+      mfem::forall(ne*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
       {
          const int e = glob_j/NDOFS;
          const int j = glob_j%NDOFS;
@@ -792,7 +792,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          if (!factorize_face_terms)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
-            MFEM_FORALL(glob_j, nf_int*NDOFS,
+            mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
             {
                const int f = glob_j/NDOFS;
                const int j = glob_j%NDOFS;
@@ -811,7 +811,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             });
          }
          auto A_ext = Reshape(ea_data_ext.Read(), NDOFS, NDOFS, 2, nf_int);
-         MFEM_FORALL(glob_j, nf_int*NDOFS,
+         mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
@@ -848,7 +848,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
          auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
          auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
-         MFEM_FORALL(glob_j, nf_bdr*NDOFS,
+         mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
@@ -1063,13 +1063,13 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
       const int local_size = a->FESpace()->GetVSize();
       auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
-      MFEM_FORALL(i,local_size,
+      mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
       {
          dg_x_ptr[i] = x_ptr[i];
       });
       const int shared_size = shared_x.Size();
       auto shared_x_ptr = shared_x.Read();
-      MFEM_FORALL(i,shared_size,
+      mfem::forall(shared_size, [=] MFEM_HOST_DEVICE (int i)
       {
          dg_x_ptr[local_size+i] = shared_x_ptr[i];
       });
@@ -1080,7 +1080,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
          // DG Restriction
          auto dg_y_ptr = dg_y.Read();
          auto y_ptr = y.ReadWrite();
-         MFEM_FORALL(i,local_size,
+         mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
          {
             y_ptr[i] += dg_y_ptr[i];
          });
@@ -1124,13 +1124,13 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
       const int local_size = a->FESpace()->GetVSize();
       auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
-      MFEM_FORALL(i,local_size,
+      mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
       {
          dg_x_ptr[i] = x_ptr[i];
       });
       const int shared_size = shared_x.Size();
       auto shared_x_ptr = shared_x.Read();
-      MFEM_FORALL(i,shared_size,
+      mfem::forall(shared_size, [=] MFEM_HOST_DEVICE (int i)
       {
          dg_x_ptr[local_size+i] = shared_x_ptr[i];
       });
@@ -1141,7 +1141,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
          // DG Restriction
          auto dg_y_ptr = dg_y.Read();
          auto y_ptr = y.ReadWrite();
-         MFEM_FORALL(i,local_size,
+         mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
          {
             y_ptr[i] += dg_y_ptr[i];
          });
@@ -1479,7 +1479,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
    }
 
    auto tm = test_multiplicity.ReadWrite();
-   MFEM_FORALL(i, test_multiplicity.Size(),
+   mfem::forall(test_multiplicity.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       tm[i] = 1.0 / tm[i];
    });
@@ -1531,7 +1531,7 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
    MFEM_VERIFY(x.Size() == test_multiplicity.Size(), "Input vector of wrong size");
    auto xs = xscaled.ReadWrite();
    auto tm = test_multiplicity.Read();
-   MFEM_FORALL(i, x.Size(),
+   mfem::forall(x.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       xs[i] *= tm[i];
    });
