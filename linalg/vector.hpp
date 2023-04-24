@@ -60,6 +60,7 @@ using ::infinity;
 class Vector
 {
 protected:
+   template<typename mfem_type, int N, typename L> friend class MDSpan;
 
    Memory<double> data;
    int size;

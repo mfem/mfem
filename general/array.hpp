@@ -45,6 +45,8 @@ template <class T>
 class Array
 {
 protected:
+   template<typename mfem_type, int N, typename L> friend class MDSpan;
+
    /// Pointer to data
    Memory<T> data;
    /// Size of the array
