@@ -61,6 +61,9 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
+   /** @brief Returns a DoF transformation object compatible with this basis
+       and geometry type.
+   */
    virtual StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const
    { return NULL; }

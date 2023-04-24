@@ -592,6 +592,9 @@ public:
        when simplex elements are supported in the future. */
    virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
+   /** @brief Return a DoF transformation object for this particular type of
+       basis.
+   */
    virtual StatelessDofTransformation * GetDofTransformation() const
    { return NULL; }
 
