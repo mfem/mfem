@@ -493,6 +493,21 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       sttmp.GeneralRefinement(serial_refines);
       REQUIRE(sttmp.GetNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
 
+      // Loop over interior faces, fill and check face transform on the serial.
+      for (int iface = 0; iface < sttmp.GetNumFaces(); ++iface)
+      {
+         const auto face_transform = sttmp.GetFaceElementTransformations(iface);
+
+         CHECK(std::abs(face_transform->CheckConsistency(0)) < 1e-12);
+      }
+
+      for (int iface = 0; iface < ttmp.GetNumFacesWithGhost(); ++iface)
+      {
+         const auto face_transform = ttmp.GetFaceElementTransformations(iface);
+
+         CHECK(std::abs(face_transform->CheckConsistency(0)) < 1e-12);
+      }
+
       // Use P4 to ensure there's a few fully interior DOF.
       check_l2_projection(ttmp, sttmp, 4);
 
