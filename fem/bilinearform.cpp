@@ -519,6 +519,8 @@ void BilinearForm::Assemble(int skip_zeros)
                      }
                      mat->AddRow(vdofs[r], cols, srow);
                   }
+
+                  delete spmat;
                }
             }
          }
