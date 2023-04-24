@@ -287,7 +287,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
 
    const double *metric_data = metric_param.Read();
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

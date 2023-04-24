@@ -230,7 +230,7 @@ void ParGridFunction::ExchangeFaceNbrData()
 
    auto d_data = this->Read();
    auto d_send_data = send_data.Write();
-   MFEM_FORALL(i, send_data.Size(),
+   mfem::forall(send_data.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int ldof = d_send_ldof[i];
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
@@ -480,6 +480,15 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
+}
+
+void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
+{
+   GridFunction::CountElementsPerVDof(elem_per_vdof);
+   // Count the zones globally.
+   GroupCommunicator &gcomm = this->ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(elem_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(elem_per_vdof);
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
