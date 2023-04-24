@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <ctime>
 
-#include "examples/ex33.hpp"
+#include "../../examples/ex33.hpp"
 #include "spde_solver.hpp"
 
 namespace mfem
