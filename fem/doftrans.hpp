@@ -19,54 +19,15 @@
 namespace mfem
 {
 
-class StatelessDofTransformation
-{
-protected:
-   int size_;
-
-   StatelessDofTransformation(int size)
-      : size_(size) {}
-
-public:
-   inline int Size() const { return size_; }
-   inline int Height() const { return size_; }
-   inline int NumRows() const { return size_; }
-   inline int Width() const { return size_; }
-   inline int NumCols() const { return size_; }
-
-   virtual void TransformPrimal(const Array<int> & face_orientation,
-                                double *v) const = 0;
-   virtual void TransformPrimal(const Array<int> & face_orientation,
-                                Vector &v) const
-   { TransformPrimal(face_orientation, v.GetData()); }
-
-   virtual void InvTransformPrimal(const Array<int> & face_orientation,
-                                   double *v) const = 0;
-   virtual void InvTransformPrimal(const Array<int> & face_orientation,
-                                   Vector &v) const
-   { InvTransformPrimal(face_orientation, v.GetData()); }
-
-   virtual void TransformDual(const Array<int> & face_orientation,
-                              double *v) const = 0;
-   virtual void TransformDual(const Array<int> & face_orientation,
-                              Vector &v) const
-   { TransformDual(face_orientation, v.GetData()); }
-
-   virtual void InvTransformDual(const Array<int> & face_orientation,
-                                 double *v) const = 0;
-   virtual void InvTransformDual(const Array<int> & face_orientation,
-                                 Vector &v) const
-   { InvTransformDual(face_orientation, v.GetData()); }
-};
-
-/** The DofTransformation class is an abstract base class for a family of
-    transformations that map local degrees of freedom (DoFs), contained within
-    individual elements, to global degrees of freedom, stored within
+/** The StatelessDofTransformation class is an abstract base class for a family
+    of transformations that map local degrees of freedom (DoFs), contained
+    within individual elements, to global degrees of freedom, stored within
     GridFunction objects. These transformations are necessary to ensure that
     basis functions in neighboring elements align correctly. Closely related but
     complementary transformations are required for the entries stored in
-    LinearForm and BilinearForm objects. The DofTransformation class is designed
-    to apply the action of both of these types of DoF transformations.
+    LinearForm and BilinearForm objects. The StatelessDofTransformation class
+    is designed to apply the action of both of these types of DoF
+    transformations.
 
     Let the "primal transformation" be given by the operator T. This means that
     given a local element vector v the data that must be placed into a
@@ -92,6 +53,74 @@ public:
     D_t = T * D * T^{-1}. This can be accomplished by using a primal
     transformation on the columns of D and a dual transformation on its rows.
 */
+class StatelessDofTransformation
+{
+protected:
+   int size_;
+
+   StatelessDofTransformation(int size)
+      : size_(size) {}
+
+public:
+   inline int Size() const { return size_; }
+   inline int Height() const { return size_; }
+   inline int NumRows() const { return size_; }
+   inline int Width() const { return size_; }
+   inline int NumCols() const { return size_; }
+
+   /** Transform local DoFs to align with the global DoFs. For example, this
+       transformation can be used to map the local vector computed by
+       FiniteElement::Project() to the transformed vector stored within a
+       GridFunction object. */
+   virtual void TransformPrimal(const Array<int> & face_orientation,
+                                double *v) const = 0;
+   virtual void TransformPrimal(const Array<int> & face_orientation,
+                                Vector &v) const
+   { TransformPrimal(face_orientation, v.GetData()); }
+
+   /** Inverse transform local DoFs. Used to transform DoFs from a global vector
+       back to their element-local form. For example, this must be used to
+       transform the vector obtained using GridFunction::GetSubVector before it
+       can be used to compute a local interpolation.
+   */
+   virtual void InvTransformPrimal(const Array<int> & face_orientation,
+                                   double *v) const = 0;
+   virtual void InvTransformPrimal(const Array<int> & face_orientation,
+                                   Vector &v) const
+   { InvTransformPrimal(face_orientation, v.GetData()); }
+
+   /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
+       into a LinearForm object. */
+   virtual void TransformDual(const Array<int> & face_orientation,
+                              double *v) const = 0;
+   virtual void TransformDual(const Array<int> & face_orientation,
+                              Vector &v) const
+   { TransformDual(face_orientation, v.GetData()); }
+
+   /** Inverse Transform dual DoFs */
+   virtual void InvTransformDual(const Array<int> & face_orientation,
+                                 double *v) const = 0;
+   virtual void InvTransformDual(const Array<int> & face_orientation,
+                                 Vector &v) const
+   { InvTransformDual(face_orientation, v.GetData()); }
+};
+
+/** The DofTransformation class is an extension of the
+    StatelessDofTransformation which stores the face orientations used to
+    select the necessary transformations which allows it to offer a collection
+    of convenience methods.
+
+    DofTransformation objects are provided by the FiniteElementSpace which has
+    access to the mesh and can therefore provide the face orientations. This is
+    convenient when working with GridFunction, LinearForm, or BilinearForm
+    obejcts or their parallel counterparts.
+
+    StatelessDofTransformation objects are provided by FiniteElement or
+    FiniteElementCollection objects which do not have access to face
+    orientation information. This can be useful in non-standard contexts such as
+    transferring finite element degrees of freedom between different meshes.
+    For examples of its use see the TransferMap used by the SubMesh class.
+   */
 class DofTransformation : virtual public StatelessDofTransformation
 {
 protected:
@@ -177,6 +206,10 @@ void TransformDual(const DofTransformation *ran_dof_trans,
                    const DofTransformation *dom_dof_trans,
                    DenseMatrix &elmat);
 
+/** The StatelessVDofTransformation class implements a nested transformation
+    where an arbitrary StatelessDofTransformation is replicated with a
+    vdim >= 1.
+*/
 class StatelessVDofTransformation : virtual public StatelessDofTransformation
 {
 protected:
@@ -233,6 +266,9 @@ public:
    using StatelessDofTransformation::TransformDual;
    using StatelessDofTransformation::InvTransformDual;
 
+   /** Specializations of these base class methods which account for the vdim
+       and ordering of the full set of DoFs.
+   */
    void TransformPrimal(const Array<int> & face_ori, double *v) const;
    void InvTransformPrimal(const Array<int> & face_ori, double *v) const;
    void TransformDual(const Array<int> & face_ori, double *v) const;
@@ -286,6 +322,8 @@ public:
    /// Return the nested DofTransformation object
    inline DofTransformation * GetDofTransformation() const { return doftrans_; }
 
+   /// Set new face orientations in both the VDofTransformation and the
+   /// DofTransformation contained within (if there is one).
    inline void SetFaceOrientations(const Array<int> & face_orientation)
    {
       DofTransformation::SetFaceOrientations(face_orientation);
@@ -343,12 +381,7 @@ public:
    // Return the 2x2 inverse transformation operator
    static const DenseMatrix & GetFaceInverseTransform(int ori)
    { return TInv(ori); }
-   /*
-    using StatelessDofTransformation::TransformPrimal;
-    using StatelessDofTransformation::InvTransformPrimal;
-    using StatelessDofTransformation::TransformDual;
-    using StatelessDofTransformation::InvTransformDual;
-   */
+
    void TransformPrimal(const Array<int> & face_orientation,
                         double *v) const;
 
