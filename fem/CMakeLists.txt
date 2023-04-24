@@ -86,7 +86,7 @@ set(SRCS
   lor/lor_h1.cpp
   lor/lor_nd.cpp
   lor/lor_rt.cpp
-  mdgridfunction.hpp
+  mdgridfunc.hpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
