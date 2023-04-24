@@ -2886,7 +2886,7 @@ ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
 }
 
-DofTransformation *
+StatelessDofTransformation *
 ND_FECollection::DofTransformationForGeometry(Geometry::Type GeomType) const
 {
    if (!Geometry::IsTensorProduct(GeomType) && this->GetOrder() > 1)
