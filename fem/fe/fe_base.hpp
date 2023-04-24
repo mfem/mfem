@@ -592,7 +592,8 @@ public:
        when simplex elements are supported in the future. */
    virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
-   virtual DofTransformation * GetDofTransformation() const { return NULL; }
+   virtual StatelessDofTransformation * GetDofTransformation() const
+   { return NULL; }
 
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();

@@ -61,7 +61,7 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   virtual DofTransformation *
+   virtual StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const
    { return NULL; }
 
@@ -470,7 +470,7 @@ public:
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
 
-   virtual DofTransformation *
+   virtual StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const;
 
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,

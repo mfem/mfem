@@ -251,7 +251,8 @@ void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
                             mesh->GetElementGeometry(i);;
 
-      DofTransformation * doftrans = fec->DofTransformationForGeometry(geom);
+      StatelessDofTransformation * doftrans =
+         fec->DofTransformationForGeometry(geom);
 
       if (doftrans == NULL) { continue; }
 
