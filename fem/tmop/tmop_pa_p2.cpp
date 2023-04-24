@@ -129,7 +129,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
 
    const double *metric_data = metric_param.Read();
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
