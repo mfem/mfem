@@ -85,7 +85,7 @@ void ConstructSizeGF(GridFunction &size)
    NE = (ncmesh) ? ncmesh->GetNumRootElements() : NE;
    const double size_ratio = (mesh.Dimension() == 2) ? 9 : 27;
    const double small_el_size = volume_ind / NE +
-                               (volume - volume_ind) / (size_ratio * NE);
+                                (volume - volume_ind) / (size_ratio * NE);
    const double big_el_size   = size_ratio * small_el_size;
    for (int i = 0; i < size.Size(); i++)
    {
