@@ -11,6 +11,7 @@
 
 # Sets the following variables:
 #   - SLEPC_FOUND
+#   - SLEPc_FOUND
 #   - SLEPC_INCLUDE_DIRS
 #   - SLEPC_LIBRARIES
 
@@ -42,3 +43,6 @@ int main()
 }
 "
   )
+
+# We need to set SLEPc_FOUND for the 3rd parties importing MFEM package.
+set(SLEPc_FOUND ${SLEPC_FOUND} CACHE STRING "SLEPc is available" FORCE)
