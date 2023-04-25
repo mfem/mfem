@@ -19,7 +19,7 @@ double ParticleTopology::ComputeMetric(const Vector &x)
    std::vector<double> dist_vector;
    dist_vector.resize(particle_positions_.size());
    // 1. Compute the distance to each particle.
-   for (int i = 0; i < particle_positions_.size(); i++)
+   for (size_t i = 0; i < particle_positions_.size(); i++)
    {
       Vector y(3);
       particle_orientations_[i].Mult(x, y);
