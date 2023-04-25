@@ -1788,8 +1788,11 @@ NURBSPatchRule::NURBSPatchRule(IntegrationRule *irx,
 
 IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
                                                 const int patch, int *ijk,
-                                                Array<const KnotVector*> const& kv) const
+                                                Array<const KnotVector*> const& kv,
+                                                bool & deleteRule) const
 {
+   deleteRule = false;
+
    // First check whether a rule has been assigned to element index elem.
    auto search = elementToRule.find(elem);
    if (search != elementToRule.end())
@@ -1832,6 +1835,7 @@ IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
       }
 
       IntegrationRule *irp = new IntegrationRule(np);
+      deleteRule = true;
 
       // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
       //     (el[0][2*i], el[1][2*j], el[2][2*k])
