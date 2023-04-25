@@ -45,7 +45,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
 //
 //   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //     (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
