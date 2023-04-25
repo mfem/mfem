@@ -95,7 +95,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
                mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
@@ -160,7 +160,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                   mid == 302 ? EvalW_302(Jpt) :
                   mid == 303 ? EvalW_303(Jpt) :
                   mid == 315 ? EvalW_315(Jpt) :
-                  mid == 315 ? EvalW_318(Jpt) :
+                  mid == 318 ? EvalW_318(Jpt) :
                   mid == 321 ? EvalW_321(Jpt) :
                   mid == 332 ? EvalW_332(Jpt, metric_data) :
                   mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
