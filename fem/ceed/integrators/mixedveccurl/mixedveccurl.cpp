@@ -190,6 +190,8 @@ MFMixedVectorWeakCurlIntegrator::MFMixedVectorWeakCurlIntegrator(
 #endif
 }
 
+// @cond DOXYGEN_SKIP
+
 template PAMixedVectorCurlIntegrator::PAMixedVectorCurlIntegrator(
    const mfem::MixedVectorCurlIntegrator &, const mfem::FiniteElementSpace &,
    const mfem::FiniteElementSpace &, mfem::Coefficient *, const bool);
@@ -229,6 +231,8 @@ template MFMixedVectorWeakCurlIntegrator::MFMixedVectorWeakCurlIntegrator(
 template MFMixedVectorWeakCurlIntegrator::MFMixedVectorWeakCurlIntegrator(
    const mfem::MixedVectorWeakCurlIntegrator &, const mfem::FiniteElementSpace &,
    const mfem::FiniteElementSpace &, mfem::MatrixCoefficient *, const bool);
+
+// @endcond
 
 } // namespace ceed
 

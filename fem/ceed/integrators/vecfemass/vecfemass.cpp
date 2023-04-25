@@ -142,6 +142,8 @@ MFVectorFEMassIntegrator::MFVectorFEMassIntegrator(
 #endif
 }
 
+// @cond DOXYGEN_SKIP
+
 template PAVectorFEMassIntegrator::PAVectorFEMassIntegrator(
    const mfem::VectorFEMassIntegrator &, const mfem::FiniteElementSpace &,
    mfem::Coefficient *, const bool);
@@ -161,6 +163,8 @@ template MFVectorFEMassIntegrator::MFVectorFEMassIntegrator(
 template MFVectorFEMassIntegrator::MFVectorFEMassIntegrator(
    const mfem::VectorFEMassIntegrator &, const mfem::FiniteElementSpace &,
    mfem::MatrixCoefficient *, const bool);
+
+// @endcond
 
 } // namespace ceed
 

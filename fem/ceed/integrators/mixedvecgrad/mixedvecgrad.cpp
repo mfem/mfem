@@ -290,6 +290,8 @@ MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
 #endif
 }
 
+// @cond DOXYGEN_SKIP
+
 template PAMixedVectorGradientIntegrator::PAMixedVectorGradientIntegrator(
    const mfem::MixedVectorGradientIntegrator &, const mfem::FiniteElementSpace &,
    const mfem::FiniteElementSpace &, mfem::Coefficient *, const bool);
@@ -309,6 +311,8 @@ template MFMixedVectorGradientIntegrator::MFMixedVectorGradientIntegrator(
 template MFMixedVectorGradientIntegrator::MFMixedVectorGradientIntegrator(
    const mfem::MixedVectorGradientIntegrator &, const mfem::FiniteElementSpace &,
    const mfem::FiniteElementSpace &, mfem::MatrixCoefficient *, const bool);
+
+// @endcond
 
 } // namespace ceed
 

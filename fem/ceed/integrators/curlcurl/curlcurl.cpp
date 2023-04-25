@@ -141,6 +141,8 @@ MFCurlCurlIntegrator::MFCurlCurlIntegrator(
 #endif
 }
 
+// @cond DOXYGEN_SKIP
+
 template PACurlCurlIntegrator::PACurlCurlIntegrator(
    const mfem::CurlCurlIntegrator &, const mfem::FiniteElementSpace &,
    mfem::Coefficient *, const bool);
@@ -160,6 +162,8 @@ template MFCurlCurlIntegrator::MFCurlCurlIntegrator(
 template MFCurlCurlIntegrator::MFCurlCurlIntegrator(
    const mfem::CurlCurlIntegrator &, const mfem::FiniteElementSpace &,
    mfem::MatrixCoefficient *, const bool);
+
+// @endcond
 
 } // namespace ceed
 
