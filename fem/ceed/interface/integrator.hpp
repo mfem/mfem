@@ -328,6 +328,11 @@ public:
 
          CeedOperatorDestroy(&build_oper);
          CeedQFunctionDestroy(&build_qfunc);
+
+         CeedVectorDestroy(&node_coords);
+         node_coords = nullptr;
+         delete coeff;
+         coeff = nullptr;
       }
 
       std::string apply_func = !use_mf ? info.apply_func :
