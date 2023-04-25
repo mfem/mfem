@@ -835,6 +835,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 318; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (invex).

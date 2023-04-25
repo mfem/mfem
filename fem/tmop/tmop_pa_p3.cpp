@@ -143,7 +143,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
                mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
