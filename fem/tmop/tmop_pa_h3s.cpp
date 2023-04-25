@@ -405,6 +405,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                {
                   EvalH_315(e,qx,qy,qz,weight,Jpt,H, dI3b,ddI3b);
                }
+               if (mid == 315)
+               {
+                  EvalH_318(e,qx,qy,qz,weight,Jpt,H, dI3b,ddI3b);
+               }
                if (mid == 321)
                {
                   EvalH_321(e,qx,qy,qz,weight,Jpt,H,
