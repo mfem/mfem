@@ -854,13 +854,15 @@ void DiffusionIntegrator::AssembleElementMatrix
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(&el);
 
+   bool deleteRule = false;
    if (NURBSFE && patchRule)
    {
       const int patch = NURBSFE->GetPatch();
       int ijk[3];
       NURBSFE->GetIJK(ijk);
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
-      ir = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
+      ir = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
+                                      deleteRule);
    }
 
    elmat = 0.0;
@@ -896,6 +898,11 @@ void DiffusionIntegrator::AssembleElementMatrix
          }
          AddMult_a_AAt(w, dshapedxt, elmat);
       }
+   }
+
+   if (deleteRule)
+   {
+      delete ir;
    }
 }
 

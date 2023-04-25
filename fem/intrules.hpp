@@ -289,7 +289,8 @@ public:
 
    /// Returns a rule for the element.
    IntegrationRule &GetElementRule(const int elem, const int patch, int *ijk,
-                                   Array<const KnotVector*> const& kv) const;
+                                   Array<const KnotVector*> const& kv,
+                                   bool & deleteRule) const;
 
    /// Set the integration rule for the NURBS patch of the given index.
    void SetPatchRule(const int patch, IntegrationRule *ir_patch)
