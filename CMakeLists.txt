@@ -911,7 +911,7 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
 
 # Install the modules directory, so it can be used to find the dependencies
-install(DIRECTORY config/cmake/modules
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/config/cmake/modules
   DESTINATION ${INSTALL_CMAKE_DIR}
   FILES_MATCHING PATTERN "*.cmake")
 

@@ -43,10 +43,46 @@ int main()
 }
 ")
 
+set(_HYPRE_VERSION_SOURCE "
+#include \"HYPRE_config.h\"
+#include <cstdio>
+
+#ifdef HYPRE_RELEASE_VERSION
+#define HYPRE_VERSION_STRING HYPRE_RELEASE_VERSION
+#elif defined(HYPRE_PACKAGE_VERSION)
+#define HYPRE_VERSION_STRING HYPRE_PACKAGE_VERSION
+#endif
+
+#define STR_EXPAND(s) #s
+#define STR(s) STR_EXPAND(s)
+
+int main()
+{
+#ifdef HYPRE_VERSION_STRING
+   const char *ptr = STR(HYPRE_VERSION_STRING);
+   if (*ptr == '\"') { ptr++; }
+   int version = 0;
+   for (int i = 0; i < 3; i++, ptr++)
+   {
+      int pv = 0;
+      for (char d; d = *ptr, '0' <= d && d <= '9'; ptr++)
+      {
+         pv = 10*pv + (d - '0');
+         if (pv >= 100) { return 1; }
+      }
+      version = 100*version + pv;
+   }
+   printf(\"%i\\n\", version);
+   return 0;
+#else
+   return 2;
+#endif
+}
+")
+
 if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   try_run(HYPRE_VERSION_RUN_RESULT HYPRE_VERSION_COMPILE_RESULT
-          ${CMAKE_CURRENT_BINARY_DIR}/config
-          ${CMAKE_CURRENT_SOURCE_DIR}/config/get_hypre_version.cpp
+          SOURCE_FROM_CONTENT "main.cpp" "${_HYPRE_VERSION_SOURCE}"
           CMAKE_FLAGS -DINCLUDE_DIRECTORIES:STRING=${HYPRE_INCLUDE_DIRS}
           RUN_OUTPUT_VARIABLE HYPRE_VERSION_OUTPUT)
   if ((HYPRE_VERSION_RUN_RESULT EQUAL 0) AND HYPRE_VERSION_OUTPUT)
