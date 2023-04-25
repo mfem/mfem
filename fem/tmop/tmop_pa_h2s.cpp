@@ -331,6 +331,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
             if (mid ==  2) { EvalH_002(e,qx,qy,weight,Jpt,H); }
             if (mid ==  7) { EvalH_007(e,qx,qy,weight,Jpt,H); }
             if (mid == 77) { EvalH_077(e,qx,qy,weight,Jpt,H); }
+            if (mid == 56) { EvalH_056(e,qx,qy,weight,Jpt,H); }
             if (mid == 80) { EvalH_080(e,qx,qy,weight,metric_data,Jpt,H); }
             if (mid == 94) { EvalH_094(e,qx,qy,weight,metric_data,Jpt,H); }
          } // qx

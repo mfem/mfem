@@ -173,6 +173,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
             if (mid ==  1) { EvalP_001(Jpt, P); }
             if (mid ==  2) { EvalP_002(Jpt, P); }
             if (mid ==  7) { EvalP_007(Jpt, P); }
+            if (mid == 56) { EvalP_056(Jpt, P); }
             if (mid == 77) { EvalP_077(Jpt, P); }
             if (mid == 80) { EvalP_080(Jpt, metric_data, P); }
             if (mid == 94) { EvalP_094(Jpt, metric_data, P); }

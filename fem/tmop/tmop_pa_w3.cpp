@@ -160,6 +160,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                   mid == 302 ? EvalW_302(Jpt) :
                   mid == 303 ? EvalW_303(Jpt) :
                   mid == 315 ? EvalW_315(Jpt) :
+                  mid == 315 ? EvalW_318(Jpt) :
                   mid == 321 ? EvalW_321(Jpt) :
                   mid == 332 ? EvalW_332(Jpt, metric_data) :
                   mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
