@@ -981,14 +981,13 @@ TEST_CASE("CEED p-adaptivity", "[CEED]")
 TEST_CASE("CEED vector and matrix coefficients and vector FE operators",
           "[CEED], [VectorFE]")
 {
-
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Quad,
                               CeedCoeffType::VecConst,CeedCoeffType::VecQuad,
                               CeedCoeffType::MatConst,CeedCoeffType::MatQuad);
    auto pb = GENERATE(Problem::MassDiffusion,Problem::VectorFEMassDivDiv,
                       Problem::VectorFEMassCurlCurl);
-   auto order = GENERATE(1);  // TODO p=2 curl-curl on tet mesh is not supported
+   auto order = GENERATE(1,3);
    auto bdr_integ = GENERATE(false,true);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
@@ -1011,7 +1010,7 @@ TEST_CASE("CEED mixed integrators",
                               CeedCoeffType::VecConst,CeedCoeffType::VecQuad,
                               CeedCoeffType::MatConst,CeedCoeffType::MatQuad);
    auto pb = GENERATE(Problem::MixedVectorGradient,Problem::MixedVectorCurl);
-   auto order = GENERATE(1);  // TODO p=2 curl-curl on tet mesh is not supported
+   auto order = GENERATE(2);
    auto bdr_integ = GENERATE(false,true);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
