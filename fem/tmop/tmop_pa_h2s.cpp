@@ -212,7 +212,7 @@ void EvalH_080(const int e, const int qx, const int qy,
                H(r,c,i,j,qx,qy,e) =
                   w[0] * 0.5 * weight * ddi1b(r,c) +
                   w[1] * ( weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c) +
-                            weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
+                           weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
             }
          }
       }

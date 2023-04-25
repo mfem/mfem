@@ -2170,7 +2170,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                double min_size = par_vals.Min();
                if (lim_min_size > 0.) { min_size = lim_min_size; }
                MFEM_VERIFY(min_size > 0.0,
-                  "Non-positive size propagated in the target definition.");
+                           "Non-positive size propagated in the target definition.");
 
                double size = fmax(shape * par_vals, min_size);
                NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
