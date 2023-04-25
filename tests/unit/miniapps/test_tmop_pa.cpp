@@ -790,14 +790,7 @@ static void tmop_tests(int id = 0, bool all = false)
           NORMALIZATION(true).
           POR({1,2}).QOR({4,6}).
           LINEAR_ITERATIONS(150).
-          TID({5}).MID({80,94}).LS({3})).Run(id,true);
-
-   Launch(Launch::Args("NE mesh + Adapted discrete size").
-          MESH("../../miniapps/meshing/amr-quad-q2.mesh").REFINE(1).
-          NORMALIZATION(true).
-          POR({1,2}).QOR({4,6}).
-          LINEAR_ITERATIONS(150).
-          TID({5}).MID({80}).LS({3})).Run(id,all);
+          TID({5}).MID({80,94}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
