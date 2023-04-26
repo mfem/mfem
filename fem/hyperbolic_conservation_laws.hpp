@@ -99,7 +99,8 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype=1)
    {
       fecInt = new L2_FECollection(max_order, mesh->Dimension());
    }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt, fespace->GetVDim());
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
+                                                         fespace->GetVDim());
 
    IsoparametricTransformation T;
    DenseMatrix I;
@@ -199,11 +200,11 @@ public:
    /**
     * @brief Compute flux ∂F(u, x) / ∂u for given state u and physical point x.
     * @a flux: vdim x vdim x sdim and @a eigs: vdim x sdim should be provided with correct size
-    * 
-    * @param state 
-    * @param Tr 
-    * @param Jacobian 
-    * @param eigs 
+    *
+    * @param state
+    * @param Tr
+    * @param Jacobian
+    * @param eigs
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
@@ -839,7 +840,8 @@ public:
             Jacobian(j + 1, i + 1, i) += momentum[j]/density; // (ρu * e_i^T)/ρ, column
             Jacobian(j + 1, j + 1, i) += momentum[i]/density; // (ρu_i / ρ) I, diagonal
             Jacobian(i + 1, j + 1, i) += dpdmom[j]; // e_i * dp/d(ρu)^T, row
-            Jacobian(dim + 1, j + 1, i) = momentum[i]/density*dpdmom[j]; // ((ρu)⋅e_i)*dp/d(ρu)^T, entry
+            Jacobian(dim + 1, j + 1,
+                     i) = momentum[i]/density*dpdmom[j]; // ((ρu)⋅e_i)*dp/d(ρu)^T, entry
          }
          Jacobian(dim + 1, i + 1, i) += (energy + pressure)/density; // (E + p)/ρ e_i^T
 
@@ -1067,8 +1069,8 @@ public:
    {
       const int dim = Tr.GetDimension();
       b.Eval(bval, Tr, Tr.GetIntPoint());
-      for(int i=0; i<dim; i++) Jacobian(0, 0, i) = bval(i);
-      for(int i=0; i<dim; i++) eigs(0,i) = bval(i);
+      for (int i=0; i<dim; i++) { Jacobian(0, 0, i) = bval(i); }
+      for (int i=0; i<dim; i++) { eigs(0,i) = bval(i); }
    }
    /**
     * @brief Compute normal flux, F(u)n
@@ -1249,6 +1251,28 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
 
    return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
 }
+
+void weno(const GridFunction &u, FiniteElementSpace &fespace,
+          const HyperbolicFormIntegrator &form)
+{
+   Mesh *mesh = fespace.GetMesh();
+   DG_FECollection fec(0, mesh->Dimension());
+   FiniteElementSpace p0_space(mesh, &fec, u.VectorDim(), Ordering::byNODES);
+   GridFunction avg_u(&p0_space);
+   u.GetElementAverages(avg_u);
+   for (int i=0; i<mesh->GetNFaces(); i++)
+   {
+      auto face = mesh->GetFace(i);
+      int e1, e2;
+      mesh->GetFaceElements(i, &e1, &e2);
+      if (e2)
+      {
+         
+      }
+   }
 }
+
+}
+
 
 #endif
