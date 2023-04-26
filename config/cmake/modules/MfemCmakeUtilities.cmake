@@ -716,8 +716,6 @@ function(mfem_library_to_package Target Includes Libraries)
     string(TOUPPER ${_CONF} _CONF)
     set_property(TARGET ${Target} APPEND PROPERTY IMPORTED_CONFIGURATIONS ${_CONF})
     if(WIN32)
-      include(ImplibUtils)
-      set(_IMPLIB "${_LIB}")
       set_target_properties(${Target} PROPERTIES
         IMPORTED_LOCATION_${_CONF} "${_LIB}"
       )
