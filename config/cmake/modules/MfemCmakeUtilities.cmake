@@ -695,11 +695,7 @@ endfunction(mfem_find_library)
 #   paths, when MFEM is imported on 3rd parties
 #
 function(mfem_library_to_package Target Includes Libraries)
-  if(WIN32)
-    add_library(${Target} UNKNOWN IMPORTED)
-  else()
-    add_library(${Target} SHARED IMPORTED)
-  endif()
+  add_library(${Target} UNKNOWN IMPORTED)
 
   set_target_properties(${Target} PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${Includes}"
@@ -707,7 +703,6 @@ function(mfem_library_to_package Target Includes Libraries)
   )
 
   list(GET Libraries 0 _LIB)
-  get_filename_component(_LIB_NAME ${_LIB} NAME)
   set(_CONFS "Debug;Release;RelWithDebInfo;MinSizeRel")
   foreach(_EXTRACONF IN LISTS CMAKE_CONFIGURATION_TYPES)
     list(APPEND _CONFS ${_EXTRACONF})
@@ -715,16 +710,9 @@ function(mfem_library_to_package Target Includes Libraries)
   foreach(_CONF IN LISTS _CONFS)
     string(TOUPPER ${_CONF} _CONF)
     set_property(TARGET ${Target} APPEND PROPERTY IMPORTED_CONFIGURATIONS ${_CONF})
-    if(WIN32)
-      set_target_properties(${Target} PROPERTIES
-        IMPORTED_LOCATION_${_CONF} "${_LIB}"
-      )
-    else()
-      set_target_properties(${Target} PROPERTIES
-        IMPORTED_LOCATION_${_CONF} "${_LIB}"
-        IMPORTED_SONAME_${_CONF} "${_LIB_NAME}"
-      )
-    endif()
+    set_target_properties(${Target} PROPERTIES
+      IMPORTED_LOCATION_${_CONF} "${_LIB}"
+    )
   endforeach()
 endfunction(mfem_library_to_package)
 
