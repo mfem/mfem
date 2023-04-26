@@ -270,18 +270,18 @@ if (MFEM_USE_MPI)
   else ()
     set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
   endif()
-  if (NOT HYPRE_LIBRARIES)
-    list(APPEND TPL_PACKAGES HYPRE::HYPRE)
-  endif()
+  list(APPEND TPL_PACKAGES HYPRE::HYPRE)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
     if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.8.0))
       message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
+    list(APPEND TPL_PACKAGES PETSc::PETSc)
     if (MFEM_USE_SLEPC)
       find_package(SLEPc REQUIRED config)
       message(STATUS "Found SLEPc version ${SLEPC_VERSION}")
+      list(APPEND TPL_PACKAGES SLEPc::SLEPc)
     endif()
   endif()
 else()
@@ -566,15 +566,11 @@ endforeach(TPL)
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS PETSC SLEPC
-    MUMPS Scotch AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE
-    MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE
-    MOONOLITH BLITZ ALGOIM ENZYME)
-# We need to add HYPRE as a config if it was not already added as a package
-if (HYPRE_LIBRARIES)
-  list(APPEND MFEM_TPLS HYPRE)
-endif()
+set(MFEM_TPLS SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS MUMPS Scotch
+    AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP POSIXCLOCKS
+    MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE MKL_CPARDISO AMGX
+    CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE MOONOLITH BLITZ ALGOIM
+    ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_PACKAGES.
 set(TPL_LIBRARIES "")

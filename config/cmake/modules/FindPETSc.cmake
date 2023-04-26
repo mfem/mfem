@@ -44,6 +44,8 @@
 #  PETSC_DIR - directory in which PETSc resides
 #  PETSC_ARCH - build architecture
 
+include(MfemCmakeUtilities)
+
 set(PETSC_VALID_COMPONENTS
   C
   CXX)
@@ -349,3 +351,7 @@ include (FindPackageHandleStandardArgs)
 find_package_handle_standard_args (PETSc
   "PETSc could not be found.  Be sure to set PETSC_DIR and PETSC_ARCH."
   PETSC_INCLUDE_DIRS PETSC_LIBRARIES PETSC_EXECUTABLE_RUNS)
+
+if (PETSc_FOUND)
+  mfem_library_to_package(PETSc::PETSc "${PETSC_INCLUDE_DIRS}" "${PETSC_LIBRARIES}")
+endif()

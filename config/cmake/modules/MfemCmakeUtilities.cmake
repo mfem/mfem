@@ -684,6 +684,39 @@ function(mfem_find_library Name Prefix Lib LibDoc CheckVar CheckSrc)
 
 endfunction(mfem_find_library)
 
+#
+#   Function to convert traditional libraries found with CMake modules (e.g.
+#   FindHYPRE.cmake) into a package with the linking target ${Target}
+#
+#   ${Target} can be built from the name of the library as ${Name}::${Name}
+#   (e.g. HYPRE::HYPRE)
+#
+#   Doing this we can solve the problem of libraries installed on non-standard
+#   paths, when MFEM is imported on 3rd parties
+#
+function(mfem_library_to_package Target Includes Libraries)
+  add_library(${Target} SHARED IMPORTED)
+
+  set_target_properties(${Target} PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${Includes}"
+    INTERFACE_LINK_LIBRARIES "${Libraries}"
+  )
+
+  list(GET Libraries 0 _LIB)
+  get_filename_component(_LIB_NAME ${_LIB} NAME)
+  set(_CONFS "Debug;Release;RelWithDebInfo;MinSizeRel")
+  foreach(_EXTRACONF IN LISTS CMAKE_CONFIGURATION_TYPES)
+    list(APPEND _CONFS ${_EXTRACONF})
+  endforeach()
+  foreach(_CONF IN LISTS _CONFS)
+    string(TOUPPER ${_CONF} _CONF)
+    set_property(TARGET ${Target} APPEND PROPERTY IMPORTED_CONFIGURATIONS ${_CONF})
+    set_target_properties(${Target} PROPERTIES
+      IMPORTED_LOCATION_${_CONF} "${_LIB}"
+      IMPORTED_SONAME_${_CONF} "${_LIB_NAME}"
+    )
+  endforeach()
+endfunction(mfem_library_to_package)
 
 #
 # Extract compile and link options needed by the given target.

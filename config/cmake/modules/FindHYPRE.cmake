@@ -16,15 +16,19 @@
 #   - HYPRE_VERSION
 #   - HYPRE_USING_HIP (internal)
 
+# It also creates the target (CMake package style) HYPRE::HYPRE
+
+include(MfemCmakeUtilities)
+
 if (HYPRE_FOUND)
   if (HYPRE_USING_HIP)
     find_package(rocsparse REQUIRED)
     find_package(rocrand REQUIRED)
   endif()
+  mfem_library_to_package(HYPRE::HYPRE "${HYPRE_INCLUDE_DIRS}" "${HYPRE_LIBRARIES}")
   return()
 endif()
 
-include(MfemCmakeUtilities)
 mfem_find_package(HYPRE HYPRE HYPRE_DIR
   "include;include/hypre" "HYPRE.h" "lib" "HYPRE"
   "Paths to headers required by HYPRE." "Libraries required by HYPRE."
@@ -101,4 +105,8 @@ if (HYPRE_FOUND AND HYPRE_USING_HIP)
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
+endif()
+
+if (HYPRE_FOUND)
+  mfem_library_to_package(HYPRE::HYPRE "${HYPRE_INCLUDE_DIRS}" "${HYPRE_LIBRARIES}")
 endif()
