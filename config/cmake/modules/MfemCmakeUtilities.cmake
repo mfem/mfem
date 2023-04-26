@@ -695,7 +695,11 @@ endfunction(mfem_find_library)
 #   paths, when MFEM is imported on 3rd parties
 #
 function(mfem_library_to_package Target Includes Libraries)
-  add_library(${Target} SHARED IMPORTED)
+  if(WIN32)
+    add_library(${Target} UNKNOWN IMPORTED)
+  else()
+    add_library(${Target} SHARED IMPORTED)
+  endif()
 
   set_target_properties(${Target} PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${Includes}"
@@ -714,10 +718,8 @@ function(mfem_library_to_package Target Includes Libraries)
     if(WIN32)
       include(ImplibUtils)
       set(_IMPLIB "${_LIB}")
-      implib_to_dll(_IMPLIB)
       set_target_properties(${Target} PROPERTIES
         IMPORTED_LOCATION_${_CONF} "${_LIB}"
-        IMPORTED_IMPLIB_${_CONF} "${_IMPLIB}"
       )
     else()
       set_target_properties(${Target} PROPERTIES
