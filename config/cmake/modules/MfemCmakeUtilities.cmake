@@ -711,10 +711,20 @@ function(mfem_library_to_package Target Includes Libraries)
   foreach(_CONF IN LISTS _CONFS)
     string(TOUPPER ${_CONF} _CONF)
     set_property(TARGET ${Target} APPEND PROPERTY IMPORTED_CONFIGURATIONS ${_CONF})
-    set_target_properties(${Target} PROPERTIES
-      IMPORTED_LOCATION_${_CONF} "${_LIB}"
-      IMPORTED_SONAME_${_CONF} "${_LIB_NAME}"
-    )
+    if(WIN32)
+      include(ImplibUtils)
+      set(_IMPLIB "${_LIB}")
+      implib_to_dll(_IMPLIB)
+      set_target_properties(${Target} PROPERTIES
+        IMPORTED_LOCATION_${_CONF} "${_LIB}"
+        IMPORTED_IMPLIB_${_CONF} "${_IMPLIB}"
+      )
+    else()
+      set_target_properties(${Target} PROPERTIES
+        IMPORTED_LOCATION_${_CONF} "${_LIB}"
+        IMPORTED_SONAME_${_CONF} "${_LIB_NAME}"
+      )
+    endif()
   endforeach()
 endfunction(mfem_library_to_package)
 
