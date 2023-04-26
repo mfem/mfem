@@ -359,7 +359,7 @@ TEST_CASE("MDGridFunction reshapes", "[MDSpan][MDReshapes]")
 
          const double exp_m08 = exp(-0.8);
 
-         MFEM_FORALL_3D(ega, ne*ng*na, D1D,D1D,D1D,
+         mfem::forall_3D(ne*ng*na, D1D,D1D,D1D, [=] MFEM_HOST_DEVICE(int ega)
          {
             const int e = ega/(ng*na), ga = ega%(ng*na), g = ga/na, a = ga%na;
             MFEM_FOREACH_THREAD(dz,z,D1D)
