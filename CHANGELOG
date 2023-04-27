@@ -33,6 +33,16 @@ Discretization improvements
 
 - Added support for p-refined meshes in FindPointsGSLIB.
 
+New and updated examples and miniapps
+-------------------------------------
+
+- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
+  serial and parallel examples for diffusion, convection-diffusion, acoustics
+  and Maxwell equations. The miniapp also includes new classes such as 
+  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and 
+  ComplexBlockStaticCondensation. Three new integrators are added in support of 
+  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangentTraceIntegrator
+
 Integrations, testing and documentation
 ---------------------------------------
 - Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
