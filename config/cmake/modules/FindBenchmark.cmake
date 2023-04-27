@@ -14,9 +14,15 @@
 #   - BENCHMARK_LIBRARIES
 #   - BENCHMARK_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) Benchmark::Benchmark
+
 include(MfemCmakeUtilities)
 mfem_find_package(Benchmark BENCHMARK BENCHMARK_DIR
         "include" "benchmark/benchmark.h"
         "lib" "benchmark"
         "Paths to headers required by Google Benchmark."
         "Libraries required by Google Benchmark.")
+
+if(BENCHMARK_FOUND)
+  mfem_library_to_package(Benchmark::Benchmark "${BENCHMARK_INCLUDE_DIRS}" "${BENCHMARK_LIBRARIES}")
+endif()

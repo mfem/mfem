@@ -20,6 +20,8 @@
 #       making it use the CMake provided version by default and apply the logic
 #       below only when specifically requested by a user.  -V. Dobrev
 
+# It also creates the target (CMake package style) HDF5::HDF5
+
 # First Check for HDF5_DIR
 if(NOT HDF5_DIR)
   message(FATAL_ERROR
@@ -68,3 +70,7 @@ find_package_handle_standard_args(HDF5
                                   HDF5_INCLUDE_DIRS
                                   __HDF5_LIBRARY
                                   __HDF5_HL_LIBRARY)
+
+if(HDF5_FOUND)
+  mfem_library_to_package(HDF5::HDF5 "${HDF5_INCLUDE_DIRS}" "${HDF5_LIBRARIES}")
+endif()

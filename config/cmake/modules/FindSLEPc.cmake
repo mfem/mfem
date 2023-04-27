@@ -15,6 +15,8 @@
 #   - SLEPC_INCLUDE_DIRS
 #   - SLEPC_LIBRARIES
 
+# It also creates the target (CMake package style) SLEPc::SLEPc
+
 set(SLEPc_REQUIRED_PACKAGES "PETSC" CACHE STRING
   "Additional packages required by SLEPc")
 

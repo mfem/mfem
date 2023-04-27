@@ -14,6 +14,8 @@
 #   - Scotch_INCLUDE_DIRS
 #   - Scotch_LIBRARIES
 
+# It also creates the target (CMake package style) Scotch::Scotch
+
 include(MfemCmakeUtilities)
 mfem_find_package(Scotch Scotch Scotch_DIR "" "" "" ""
   "Paths to headers required by Scotch."
@@ -29,3 +31,7 @@ mfem_find_package(Scotch Scotch Scotch_DIR "" "" "" ""
   ADD_COMPONENT "esmumps" "" "" "lib" esmumps
   ADD_COMPONENT "ptesmumps" "" "" "lib" esmumps
   )
+
+if(Scotch_FOUND)
+  mfem_library_to_package(Scotch::Scotch "${Scotch_INCLUDE_DIRS}" "${Scotch_LIBRARIES}")
+endif()

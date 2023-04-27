@@ -15,6 +15,8 @@
 #    GNUTLS_INCLUDE_DIRS
 #    GNUTLS_LIBRARIES
 
+# It also creates the target (CMake package style) GnuTLS::GnuTLS
+
 include(MfemCmakeUtilities)
 set(_GnuTLS_REQUIRED_PACKAGES "ALT:" "GnuTLS")
 mfem_find_package(_GnuTLS GNUTLS GNUTLS_DIR "include" gnutls/gnutls.h
@@ -23,4 +25,5 @@ mfem_find_package(_GnuTLS GNUTLS GNUTLS_DIR "include" gnutls/gnutls.h
 if(GNUTLS_FOUND)
   # Set also _GnuTLS_FOUND, so find_dependency does not get twisted
   set(_GnuTLS_FOUND TRUE CACHE BOOL "_GnuTLS was found." FORCE)
+  mfem_library_to_package(GnuTLS::GnuTLS ${GNUTLS_INCLUDE_DIRS} ${GNUTLS_LIBRARIES})
 endif()

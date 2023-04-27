@@ -14,6 +14,8 @@
 #   - MUMPS_INCLUDE_DIRS
 #   - MUMPS_LIBRARIES
 
+# It also creates the target (CMake package style) MUMPS::MUMPS
+
 include(MfemCmakeUtilities)
 mfem_find_package(MUMPS MUMPS MUMPS_DIR
   "include" dmumps_c.h "lib" dmumps
@@ -21,3 +23,7 @@ mfem_find_package(MUMPS MUMPS MUMPS_DIR
   "Libraries required by MUMPS."
   ADD_COMPONENT mumps_common "include" dmumps_c.h "lib" mumps_common
   ADD_COMPONENT pord "include" dmumps_c.h "lib" pord)
+
+if(MUMPS_FOUND)
+  mfem_library_to_package(MUMPS::MUMPS "${MUMPS_INCLUDE_DIRS}" "${MUMPS_LIBRARIES}")
+endif()

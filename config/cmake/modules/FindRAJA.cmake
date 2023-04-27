@@ -14,6 +14,8 @@
 #   - RAJA_LIBRARIES
 #   - RAJA_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) RAJA::RAJA
+
 if (RAJA_FOUND)
    return()
 endif()
@@ -37,4 +39,8 @@ else()
       set(msg FATAL_ERROR)
    endif()
    message(${msg} "RAJA not found. Please set RAJA_DIR to the RAJA prefix.")
+endif()
+
+if(RAJA_FOUND)
+  mfem_library_to_package(RAJA::RAJA "${RAJA_INCLUDE_DIRS}" "${RAJA_LIBRARIES}")
 endif()

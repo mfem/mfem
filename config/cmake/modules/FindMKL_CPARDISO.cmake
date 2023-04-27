@@ -14,6 +14,8 @@
 #   - MKL_CPARDISO_LIBRARIES
 #   - MKL_CPARDISO_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) MKL_CPARDISO::MKL_CPARDISO
+
 if(NOT MKL_MPI_WRAPPER_LIB)
   message(FATAL_ERROR "MKL CPardiso enabled but no MKL MPI Wrapper lib specified")
 endif()
@@ -30,3 +32,7 @@ mfem_find_package(MKL_CPARDISO MKL_CPARDISO
   ADD_COMPONENT MKL_LP64 "include" "" ${MKL_LIBRARY_DIR} mkl_intel_lp64
   ADD_COMPONENT MKL_SEQUENTIAL "include" "" ${MKL_LIBRARY_DIR} mkl_sequential
   ADD_COMPONENT MKL_MPI_WRAPPER "include" "" ${MKL_LIBRARY_DIR} ${MKL_MPI_WRAPPER_LIB})
+
+if(MKL_CPARDISO_FOUND)
+  mfem_library_to_package(MKL_CPARDISO::MKL_CPARDISO "${MKL_CPARDISO_INCLUDE_DIRS}" "${MKL_CPARDISO_LIBRARIES}")
+endif()

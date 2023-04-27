@@ -14,6 +14,8 @@
 #   - CALIPER_LIBRARIES
 #   - CALIPER_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) Caliper::Caliper
+
 include(MfemCmakeUtilities)
 mfem_find_package(Caliper CALIPER CALIPER_DIR
       "include" "caliper/cali.h"
@@ -35,3 +37,6 @@ if(GOTCHA_DIR AND EXISTS ${GOTCHA_DIR})
     list(APPEND CALIPER_LIBRARIES ${gotcha_LIBRARIES})
 endif()
 
+if(CALIPER_FOUND)
+  mfem_library_to_package(Caliper::Caliper "${CALIPER_INCLUDE_DIRS}" "${CALIPER_LIBRARIES}")
+endif()

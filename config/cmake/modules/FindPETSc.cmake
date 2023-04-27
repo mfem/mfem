@@ -44,6 +44,8 @@
 #  PETSC_DIR - directory in which PETSc resides
 #  PETSC_ARCH - build architecture
 
+# It also creates the target (CMake package style) PETSc::PETSc
+
 include(MfemCmakeUtilities)
 
 set(PETSC_VALID_COMPONENTS

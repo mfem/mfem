@@ -14,6 +14,12 @@
 #   - OCCA_LIBRARIES
 #   - OCCA_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) OCCA::OCCA
+
 include(MfemCmakeUtilities)
 mfem_find_package(OCCA OCCA OCCA_DIR "include" "occa.hpp" "lib" "occa"
   "Paths to headers required by OCCA." "Libraries required by OCCA.")
+
+if(OCCA_FOUND)
+  mfem_library_to_package(OCCA::OCCA "${OCCA_INCLUDE_DIRS}" "${OCCA_LIBRARIES}")
+endif()

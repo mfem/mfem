@@ -14,6 +14,8 @@
 #   - SUNDIALS_LIBRARIES
 #   - SUNDIALS_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) SUNDIALS::SUNDIALS
+
 include(MfemCmakeUtilities)
 mfem_find_package(SUNDIALS SUNDIALS SUNDIALS_DIR
   "include" sundials/sundials_config.h "lib" ""
@@ -32,3 +34,7 @@ mfem_find_package(SUNDIALS SUNDIALS SUNDIALS_DIR
   ADD_COMPONENT CVODES "include" cvodes/cvodes.h "lib" sundials_cvodes
   ADD_COMPONENT ARKODE "include" arkode/arkode.h "lib" sundials_arkode
   ADD_COMPONENT KINSOL "include" kinsol/kinsol.h "lib" sundials_kinsol)
+
+if(SUNDIALS_FOUND)
+  mfem_library_to_package(SUNDIALS::SUNDIALS "${SUNDIALS_INCLUDE_DIRS}" "${SUNDIALS_LIBRARIES}")
+endif()

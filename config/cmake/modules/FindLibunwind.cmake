@@ -15,6 +15,8 @@
 #   - LIBUNWIND_LIBRARIES    (if needed)
 #   - LIBUNWIND_INCLUDE_DIRS (if needed)
 
+# It also creates the target (CMake package style) Libunwind::Libunwind
+
 include(MfemCmakeUtilities)
 set(Libunwind_SKIP_FPHSA TRUE)
 mfem_find_library(Libunwind LIBUNWIND "unwind" "The libunwind library."
@@ -36,3 +38,7 @@ mfem_find_package(Libunwind LIBUNWIND LIBUNWIND_DIR "include" libunwind.h
   "lib" unwind
   "Paths to headers required by libunwind." "Libraries required by libunwind.")
 unset(Libunwind_SKIP_LOOKING_MSG)
+
+if(LIBUNWIND_FOUND)
+  mfem_library_to_package(Libunwind::Libunwind "${LIBUNWIND_INCLUDE_DIRS}" "${LIBUNWIND_LIBRARIES}")
+endif()

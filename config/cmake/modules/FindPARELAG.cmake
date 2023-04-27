@@ -14,6 +14,12 @@
 #   - PARELAG_LIBRARIES
 #   - PARELAG_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) PARELAG::PARELAG
+
 include(MfemCmakeUtilities)
 mfem_find_package(PARELAG PARELAG PARELAG_DIR "" "" "" ""
   "Paths to headers required by ParELAG." "Libraries required by ParELAG.")
+
+if(PARELAG_FOUND)
+  mfem_library_to_package(PARELAG::PARELAG "${PARELAG_INCLUDE_DIRS}" "${PARELAG_LIBRARIES}")
+endif()

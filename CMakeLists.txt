@@ -296,6 +296,7 @@ endif()
 
 if (MFEM_USE_METIS)
   find_package(METIS REQUIRED)
+  list(APPEND TPL_PACKAGES METIS::METIS)
 endif()
 
 if (MFEM_USE_GINKGO)
@@ -316,6 +317,7 @@ endif()
 if (MFEM_USE_LIBUNWIND)
   set(MFEMBacktrace_REQUIRED_PACKAGES "Libunwind" "LIBDL" "CXXABIDemangle")
   find_package(MFEMBacktrace REQUIRED)
+  list(APPEND TPL_PACKAGES MFEMBacktrace::MFEMBacktrace)
 endif()
 
 # BLAS, LAPACK
@@ -344,6 +346,7 @@ endif()
 if (MFEM_USE_SUITESPARSE)
   find_package(SuiteSparse REQUIRED
     UMFPACK KLU AMD BTF CHOLMOD COLAMD CAMD CCOLAMD config)
+  list(APPEND TPL_PACKAGES SuiteSparse::SuiteSparse)
 endif()
 
 # SUNDIALS
@@ -356,12 +359,14 @@ if (MFEM_USE_SUNDIALS)
     list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
   endif()
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
+  list(APPEND TPL_PACKAGES SUNDIALS::SUNDIALS)
 endif()
 
 # SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
+    list(APPEND TPL_PACKAGES SuperLUDist::SuperLUDist)
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
   endif()
@@ -372,6 +377,10 @@ if (MFEM_USE_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
     find_package(Scotch OPTIONAL_COMPONENTS scotch scotcherr esmumps)
+    list(APPEND TPL_PACKAGES MUMPS::MUMPS)
+    if(Scotch_FOUND)
+      list(APPEND TPL_PACKAGES Scotch::Scotch)
+    endif()
   else()
     message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
@@ -381,6 +390,7 @@ endif()
 if (MFEM_USE_STRUMPACK)
   if (MFEM_USE_MPI)
     find_package(STRUMPACK REQUIRED)
+    list(APPEND TPL_PACKAGES STRUMPACK::STRUMPACK)
   else()
     message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
@@ -389,11 +399,13 @@ endif()
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
+  list(APPEND TPL_PACKAGES GnuTLS::GnuTLS)
 endif()
 
 # GSLIB
 if (MFEM_USE_GSLIB)
   find_package(GSLIB REQUIRED)
+  list(APPEND TPL_PACKAGES GSLIB::GSLIB)
 endif()
 
 # NetCDF
@@ -405,27 +417,33 @@ endif()
 # MPFR
 if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
+  list(APPEND TPL_PACKAGES MPFR::MPFR)
 endif()
 
 if (MFEM_USE_CEED)
   find_package(libCEED REQUIRED)
+  list(APPEND TPL_PACKAGES libCEED::libCEED)
 endif()
 
 if (MFEM_USE_AMGX)
   find_package(AMGX REQUIRED)
+  list(APPEND TPL_PACKAGES AMGX::AMGX)
 endif()
 
 if (MFEM_USE_CONDUIT)
-    find_package(Conduit REQUIRED conduit relay blueprint)
+  find_package(Conduit REQUIRED conduit relay blueprint)
+  list(APPEND TPL_PACKAGES Conduit::Conduit)
 endif()
 
 if (MFEM_USE_FMS)
-    find_package(FMS REQUIRED fms)
+  find_package(FMS REQUIRED fms)
+  list(APPEND TPL_PACKAGES FMS::FMS)
 endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Axom)
+  list(APPEND TPL_PACKAGES Axom::Axom)
 endif()
 
 # PUMI
@@ -462,43 +480,49 @@ endif()
 # HiOp optimizer
 if (MFEM_USE_HIOP)
   find_package(HIOP REQUIRED)
-  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
+  list(APPEND TPL_PACKAGES HIOP::HIOP)
 endif()
 
 # CoDiPack package
 if (MFEM_USE_CODIPACK)
   find_package(CODIPACK REQUIRED)
-  # find_package updates CODIPACK_FOUND, CODIPACK_INCLUDE_DIRS, CODIPACK_LIBRARIES
+  list(APPEND TPL_PACKAGES CODIPACK::CODIPACK)
 endif()
 
 # OCCA
 if (MFEM_USE_OCCA)
-   find_package(OCCA REQUIRED)
+  find_package(OCCA REQUIRED)
+  list(APPEND TPL_PACKAGES OCCA::OCCA)
 endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
-   find_package(RAJA REQUIRED)
+  find_package(RAJA REQUIRED)
+  list(APPEND TPL_PACKAGES RAJA::RAJA)
 endif()
 
 # UMPIRE
 if (MFEM_USE_UMPIRE)
-   find_package(UMPIRE REQUIRED)
+  find_package(UMPIRE REQUIRED)
+  list(APPEND TPL_PACKAGES UMPIRE::UMPIRE)
 endif()
 
 # GOOGLE-BENCHMARK
 if (MFEM_USE_BENCHMARK)
-   find_package(Benchmark REQUIRED)
+  find_package(Benchmark REQUIRED)
+  list(APPEND TPL_PACKAGES Benchmark::Benchmark)
 endif()
 
 # Caliper
 if (MFEM_USE_CALIPER)
   find_package(Caliper REQUIRED)
+  list(APPEND TPL_PACKAGES Caliper::Caliper)
 endif()
 
 # Algoim
 if (MFEM_USE_ALGOIM)
   find_package(Algoim REQUIRED)
+  list(APPEND TPL_PACKAGES Algoim::Algoim)
 endif()
 
 # ADIOS2 for parallel I/O
@@ -509,13 +533,15 @@ endif()
 
 if (MFEM_USE_MKL_CPARDISO)
   if (MFEM_USE_MPI)
-   find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+    find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+    list(APPEND TPL_PACKAGES MKL_CPARDISO::MKL_CPARDISO)
   endif()
 endif()
 
 # PARELAG
 if (MFEM_USE_PARELAG)
-   find_package(PARELAG REQUIRED)
+  find_package(PARELAG REQUIRED)
+  list(APPEND TPL_PACKAGES PARELAG::PARELAG)
 endif()
 
 # Enzyme
@@ -566,11 +592,8 @@ endforeach(TPL)
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS MUMPS Scotch
-    AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP POSIXCLOCKS
-    MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE MKL_CPARDISO AMGX
-    CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE MOONOLITH BLITZ ALGOIM
-    ENZYME)
+set(MFEM_TPLS Ginkgo PUMI POSIXCLOCKS ZLIB CUBLAS CUSPARSE HIP HIPSPARSE
+    MOONOLITH ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_PACKAGES.
 set(TPL_LIBRARIES "")

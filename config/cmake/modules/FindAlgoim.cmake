@@ -14,9 +14,14 @@
 #   - ALGOIM_LIBRARIES
 #   - ALGOIM_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) Algoim::Algoim
+
 include(MfemCmakeUtilities)
 mfem_find_package(Algoim ALGOIM ALGOIM_DIR
         "include;src" "algoim_quad.hpp"
        	"" ""
         "Paths to headers required by Algoim."
         "Libraries required by Algoim.")
+if(ALGOIM_FOUND)
+  mfem_library_to_package(Algoim::Algoim ${ALGOIM_INCLUDE_DIRS} ${ALGOIM_LIBRARIES})
+endif()

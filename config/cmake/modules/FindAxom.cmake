@@ -14,8 +14,14 @@
 #   - AXOM_LIBRARIES
 #   - AXOM_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) Axom::Axom
+
 include(MfemCmakeUtilities)
 # Note: components are enabled based on the find_package() parameters.
 mfem_find_package(Axom AXOM AXOM_DIR "include" "" "lib" ""
   "Paths to headers required by Axom." "Libraries required by Axom."
   ADD_COMPONENT Axom "include" axom/config.hpp "lib" axom)
+
+if(AXOM_FOUND)
+  mfem_library_to_package(Axom::Axom "${AXOM_INCLUDE_DIRS}" "${AXOM_LIBRARIES}")
+endif()
