@@ -94,14 +94,15 @@ int main(int argc, char *argv[])
    // constants associated with plasma model
    double alpha = 1.0;
    double beta = 2.0;
-   double lambda = 1.0;
    double gamma = 0.9;
+   double Ip = 1.5e+7;
    double mu = 1.0;
    double r0 = 1.0;
    // boundary of far-field
    double rho_gamma = 2.5;
    int do_manufactured_solution = 0;
 
+   int N_control = 10;
    int max_krylov_iter = 1000;
    int max_newton_iter = 5;
    double krylov_tol = 1e-12;
@@ -133,8 +134,9 @@ int main(int argc, char *argv[])
 
    args.AddOption(&alpha, "-al", "--alpha", "alpha");
    args.AddOption(&beta, "-be", "--beta", "beta");
-   args.AddOption(&lambda, "-la", "--lambda", "lambda");
    args.AddOption(&gamma, "-ga", "--gamma", "gamma");
+   args.AddOption(&Ip, "-Ip", "--plasma_current", "Ip");
+   args.AddOption(&N_control, "-Nc", "--N_control", "N_control");
    args.AddOption(&mu, "-mu", "--mu", "mu");
    args.AddOption(&r0, "-rz", "--r_zero", "r0");
    args.AddOption(&rho_gamma, "-rg", "--rho_gamma", "rho_gamma");
@@ -166,10 +168,13 @@ int main(int argc, char *argv[])
      // unit tests
      test();
    } else {
-     gs(mesh_file, data_file, order, d_refine, alpha, beta, lambda, gamma, mu, r0, rho_gamma,
-        max_krylov_iter, max_newton_iter, krylov_tol, newton_tol,
+     gs(mesh_file, data_file, order, d_refine,
+        alpha, beta, gamma, mu,
+        Ip, r0, rho_gamma, max_krylov_iter, max_newton_iter,
+        krylov_tol, newton_tol,
         c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
-        ur_coeff, do_control, weight,
+        ur_coeff,
+        do_control, N_control, weight,
         do_manufactured_solution);
    }
    

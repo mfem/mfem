@@ -134,7 +134,7 @@ double PlasmaModelFile::f_bar(double & psi_N) const
   int index = (int) psi_N / dx;
   double alpha = (psi_N - index * dx) / dx;
   
-  return (fpol_bar_vector[index+1] - fpol_bar_vector[index]) / dx;
+  return alpha * fpol_bar_vector[index+1] + (1 - alpha) * fpol_bar_vector[index];
 }
 double PlasmaModelFile::f_bar_prime(double & psi_N) const
 {
@@ -146,7 +146,8 @@ double PlasmaModelFile::f_bar_prime(double & psi_N) const
   int index = (int) psi_N / dx;
   double alpha = (psi_N - index * dx) / dx;
   
-  return (fpol_bar_prime_vector[index+1] - fpol_bar_prime_vector[index]) / dx;
+  return (fpol_bar_vector[index+1] - fpol_bar_vector[index]) / dx;
+  // return alpha * fpol_bar_prime_vector[index+1] + (1 - alpha) * fpol_bar_prime_vector[index];
 }
 double PlasmaModelFile::f_bar_double_prime(double & psi_N) const
 {
@@ -157,8 +158,9 @@ double PlasmaModelFile::f_bar_double_prime(double & psi_N) const
 
   int index = (int) psi_N / dx;
   double alpha = (psi_N - index * dx) / dx;
-  
-  return (fpol_bar_double_prime_vector[index+1] - fpol_bar_double_prime_vector[index]) / dx;
+
+  return 0.0;
+  // return alpha * fpol_bar_double_prime_vector[index+1] + (1 - alpha) * fpol_bar_double_prime_vector[index];
 }
 
 
@@ -217,7 +219,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double f_ma = model->get_f_ma();
   double f_x = model->get_f_x();
   double alpha_bar = model->get_alpha_bar();
-  double alpha = alpha_bar * (f_ma - f_x);
+  // double alpha = alpha_bar * (f_ma - f_x);
+  double alpha = alpha_bar;
   double beta = model->get_beta();
   double gamma = model->get_gamma();
   // cout << alpha << beta << gamma << endl;
@@ -239,18 +242,19 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
 
     double S_bar_ffprime =
       alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max);
+    // double S_bar_ffprime = model->f_bar(psi_N);
     
     return
       + beta * ri * (model->S_p_prime(psi_N))
       + gamma * (model->S_ff_prime(psi_N)) / (mu * ri)
-      + S_bar_ffprime
+      + S_bar_ffprime / (mu * ri)
       + coeff_u2 * pow(psi_val, 2.0);
   } else if (option == 5) {
-      // derivative with respect to alpha
+    // derivative with respect to alpha
       
-    double S_bar_ffprime =
-      1.0 * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
-      + alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max);
+    return
+      + (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
+      + alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri);
 
   } else {
     // integrand of
@@ -268,14 +272,16 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     double coeff;
 
     double psi_N_multiplier = \
-      + beta * ri * (model->S_prime_p_prime(psi_N))
+    //   + beta * ri * (model->S_prime_p_prime(psi_N))
       + gamma * (model->S_prime_ff_prime(psi_N)) / (mu * ri)
-      + alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max)
-      + alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max);
-
+      + alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max) / (mu * ri)
+      + alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri);
+    // double psi_N_multiplier = 1.0 * model->f_bar_prime(psi_N) / (mu * ri);
+      
     double other =
       - alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))
-      / (psi_bdp - psi_max) / (psi_bdp - psi_max);
+      / (psi_bdp - psi_max) / (psi_bdp - psi_max) / (mu * ri);
+    // double other = 0.0;
     if (option == 2) {
       // coefficient for phi in d_psi psi_N
       coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier;

@@ -7,7 +7,8 @@
 alpha=1.0
 beta=0.0
 gamma=0.0
-lambda=-10000
+Ip=1.5e+7
+N_control=20
 # lambda=100.0
 R0=2.4
 rho_gamma=16
@@ -19,7 +20,7 @@ refinement_factor=2
 do_test=0
 do_manufactured_solution=0
 max_krylov_iter=10000
-max_newton_iter=7
+max_newton_iter=20
 krylov_tol=1e-9 # check this...
 newton_tol=1e-12
 # center solenoids
@@ -39,7 +40,8 @@ c5=-2.848113e+03
 ur_coeff=1.0
 
 do_control=1
-weight=1e-18
+weight=1e-14
+# weight=1e-4
 
 ./main.o \
     -m $mesh_file \
@@ -49,8 +51,9 @@ weight=1e-18
     -t $do_test \
     --alpha $alpha \
     --beta $beta \
-    --lambda $lambda \
     --gamma $gamma \
+    --plasma_current $Ip \
+    --N_control $N_control \
     --mu $mu \
     --r_zero $R0 \
     --rho_gamma $rho_gamma \

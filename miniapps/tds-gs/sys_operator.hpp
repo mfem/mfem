@@ -37,17 +37,22 @@ private:
   Vector *uv_currents;
   mutable Vector Plasma_Vec;
   mutable double Alpha_Term;
+  mutable double Plasma_Current;
+  mutable Vector B_alpha;
+  double *alpha_bar;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
               PlasmaModelBase *model_, FiniteElementSpace *fespace_,
               Mesh *mesh_, int attr_lim_, 
               GridFunction *u_boundary_, SparseMatrix *F_, Vector *uv_currents_,
-              SparseMatrix *H_, SparseMatrix *K_, Vector * g_) :
+              SparseMatrix *H_, SparseMatrix *K_, Vector * g_,
+              double *alpha_bar_) :
     Operator(fespace_->GetTrueVSize()), diff_operator(diff_operator_),
     coil_term(coil_term_), model(model_), fespace(fespace_),
     mesh(mesh_), Mat(NULL), attr_lim(attr_lim_),
     u_boundary(u_boundary_),
-    F(F_), uv_currents(uv_currents_), H(H_), K(K_), g(g_)
+    F(F_), uv_currents(uv_currents_), H(H_), K(K_), g(g_),
+    alpha_bar(alpha_bar_)
   {
     vertex_map = compute_vertex_map(*mesh, attr_lim);
 
@@ -81,6 +86,22 @@ public:
   Vector * get_uv() {
     return uv_currents;
   }
+  double *get_alpha_bar() {
+    return alpha_bar;
+  }
+  double get_Alpha_Term() {
+    return Alpha_Term;
+  }
+  Vector get_B_alpha() {
+    return B_alpha;
+  }
+  double get_Plasma_Current() {
+    return Plasma_Current;
+  }
+  Vector get_Plasma_Vec() {
+    return Plasma_Vec;
+  }
+    
 };
 
 

@@ -32,6 +32,7 @@ public:
   virtual double f_bar_double_prime(double & psi_N) const {return 0.0;};
   virtual double get_f_ma() const {return 0.0;}
   virtual double get_f_x() const {return 1.0;}
+  virtual double set_alpha_bar(double alpha_) {}
   // ~PlasmaModel() {}
 };
 
@@ -121,6 +122,7 @@ public:
 
     cout << "f_x = " << f_x << endl;
     cout << "f_ma = " << f_ma << endl;
+    alpha = f_ma - f_x;
 
     vector<double> f_bar(N);
     vector<double> f_bar_prime(N);
@@ -134,7 +136,7 @@ public:
     f_bar_prime[0] =
       (- 0.5 * f_bar[2] + 2.0 * f_bar[1] - 1.5 * f_bar[0]) / (dx);
     for (int i = 1; i < N - 1; ++i) {
-      f_bar_prime[i] = (f_bar[i + 1] - f_bar[i - 1]) / (2 * dx);
+      f_bar_prime[i] = (f_bar[i + 1] - f_bar[i - 1]) / (2.0 * dx);
     }
     f_bar_prime[N - 1] =
       (0.5 * f_bar[N - 3] - 2.0 * f_bar[N - 2] + 1.5 * f_bar[N - 1]) / (dx);

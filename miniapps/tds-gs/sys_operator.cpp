@@ -62,7 +62,7 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
 
   GridFunction x(fespace);
   x = psi;
-
+  model->set_alpha_bar(*alpha_bar);
   // cout << "x:" << endl;
   // x.Print();
 
@@ -82,6 +82,10 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
 
+  GridFunction ones(fespace);
+  ones = 1.0;
+  Plasma_Current = plasma_term(ones);
+  
   // note: coil term no longer includes current contributions
   // that is included in F matrix below...
   diff_operator->Mult(psi, y);
@@ -92,11 +96,10 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   // cout << uv_currents->Size() << endl;
   
   if (true) {
-    // TODO: change currents!
     double weight = 1.0;
     F->AddMult(*uv_currents, y, -1.0 / weight);
-    cout << "uv_currents" << endl;
-    uv_currents->Print();
+    // cout << "uv_currents" << endl;
+    // uv_currents->Print();
   }
   // F->PrintMatlab();
 
@@ -122,6 +125,7 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   delete Mat;
   GridFunction x(fespace);
   x = psi;
+  model->set_alpha_bar(*alpha_bar);
 
   int ind_ma, ind_x;
   double val_ma, val_x;
@@ -186,7 +190,6 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   SparseMatrix *Mat_Plasma;
   Mat_Plasma = Add(-1.0, *Mat, 1.0, M2);
   GridFunction ones(fespace);
-  
   ones = 1.0;
   Vector Plasma_Vec_(m);
   Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
@@ -194,9 +197,16 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
   // derivative with respect to alpha
   NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, val_ma, val_x, plasma_inds, attr_lim);
+
+  // int_{Omega} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} v dr dz
   LinearForm diff_plasma_term_5(fespace);
   diff_plasma_term_5.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_5));
   diff_plasma_term_5.Assemble();
+
+  B_alpha = diff_plasma_term_5;
+  B_alpha *= -1.0;
+
+  // int_{Omega_p} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} dr dz
   Alpha_Term = diff_plasma_term_5(ones);
   
   return *Final;
