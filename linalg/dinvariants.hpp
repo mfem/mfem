@@ -100,7 +100,7 @@ public:
       return dI1;
    }
 
-   // Requires on dI2b.
+   // Requires dI2b.
    MFEM_HOST_DEVICE inline double *Get_dI1b()
    {
       // I1b = I1/I2b
@@ -115,7 +115,7 @@ public:
       return dI1b;
    }
 
-   // Requires on dI2b.
+   // Requires dI2b.
    MFEM_HOST_DEVICE inline double *Get_dI2()
    {
       // I2 = I2b^2
@@ -157,7 +157,7 @@ public:
       return ddI1;
    }
 
-   // Requires on dI2b + ddI1.
+   // Requires dI2b + ddI1.
    // ddI1b = X1 + X2 + X3, where
    // X1_ijkl = (I1b/I2) [ dI2b_ij dI2b_kl + dI2b_kj dI2b_il ]
    // X2_ijkl = (1/I2b) ddI1_ijkl
