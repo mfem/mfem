@@ -50,6 +50,10 @@ void TensorPhysDerivatives<QVectorLayout::byVDIM>(const int NE,
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      return Derivatives1D<L,P>(NE,G,J,X,Y,vdim,D1D,Q1D);
+   }
    if (dim == 2)
    {
       switch (id)
