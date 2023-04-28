@@ -10,7 +10,8 @@
 // CONTRIBUTING.md for details.
 //
 // Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics. Serial.
-//   ./tmop-metric-magnitude -mid 2 -p 2.0
+//   ./tmop-metric-magnitude -mid 7   -pv 2.0 -par 0.5 -ps 4.0
+//   ./tmop-metric-magnitude -mid 321 -pv 2.0 -par 0.5 -ps 4.0
 //
 
 #include "mfem.hpp"
@@ -43,6 +44,9 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
+
+   MFEM_VERIFY(perturb_v > 0.0 && perturb_ar > 0.0 && perturb_s >= 1.0,
+               "Invalid input");
 
    // Setup metric.
    TMOP_QualityMetric *metric = NULL;
@@ -175,8 +179,8 @@ void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
 
    // Skew - only in one direction, the others are pi/2.
    const double skew_angle_12 = M_PI / 2.0 / perturb_s,
-                skew_angle_13 = M_PI / 2.0 / perturb_s,
-                skew_angle_23 = M_PI / 2.0 / perturb_s;
+                skew_angle_13 = M_PI / 2.0,
+                skew_angle_23 = M_PI / 2.0;
 
    // Rotation - not done yet.
 
