@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,7 +94,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -138,11 +138,11 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
                // metric->EvalW(Jpt);
                const double EvalW =
-               mid == 302 ? EvalW_302(Jpt) :
-               mid == 303 ? EvalW_303(Jpt) :
-               mid == 315 ? EvalW_315(Jpt) :
-               mid == 321 ? EvalW_321(Jpt) :
-               mid == 332 ? EvalW_332(Jpt, metric_param) : 0.0;
+                  mid == 302 ? EvalW_302(Jpt) :
+                  mid == 303 ? EvalW_303(Jpt) :
+                  mid == 315 ? EvalW_315(Jpt) :
+                  mid == 321 ? EvalW_321(Jpt) :
+                  mid == 332 ? EvalW_332(Jpt, metric_param) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
             }

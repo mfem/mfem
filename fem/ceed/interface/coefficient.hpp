@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -288,7 +288,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
       auto in = Reshape(qFun.Read(), nq, ne);
       auto d_indices = Read(m_indices, nelem);
       auto out = Reshape(ceedCoeff->coeff.Write(), nq, nelem);
-      MFEM_FORALL(i, nelem * nq,
+      mfem::forall(nelem * nq, [=] MFEM_HOST_DEVICE (int i)
       {
          const int q = i%nq;
          const int sub_e = i/nq;
@@ -378,7 +378,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       auto in = Reshape(qFun.Read(), dim, nq, ne);
       auto d_indices = Read(m_indices, nelem);
       auto out = Reshape(ceedCoeff->coeff.Write(), dim, nq, nelem);
-      MFEM_FORALL(i, nelem * nq,
+      mfem::forall(nelem * nq, [=] MFEM_HOST_DEVICE (int i)
       {
          const int q = i%nq;
          const int sub_e = i/nq;

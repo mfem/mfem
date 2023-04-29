@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -58,7 +58,7 @@ HIP_CXX = hipcc
 # example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
-HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_FLAGS = --offload-arch=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
 
@@ -506,20 +506,29 @@ CEED_OPT = -I$(CEED_DIR)/include
 CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+   BASE_FLAGS = -std=c++14
+endif
 RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
+
+CAMP_LIB = -lcamp
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
+   CAMP_LIB = $(XLINKER)-rpath,$(CAMP_DIR)/lib -L$(CAMP_DIR)/lib -lcamp
 endif
-RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 
 # UMPIRE library configuration
+ifeq ($(MFEM_USE_UMPIRE),YES)
+   BASE_FLAGS = -std=c++14
+endif
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire $(CAMP_LIB)
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
