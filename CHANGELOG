@@ -18,6 +18,10 @@ Version 4.5.3 (development)
   These functions can take the place of the MFEM_FORALL macros, which have been
   preserved for backwards compatibility.
 
+- TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
+  338. Added the tmop-metric-magnitude tool for tracking how metrics change
+  under geometric perturbations.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
