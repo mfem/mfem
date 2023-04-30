@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -127,7 +127,7 @@ void FaceQuadratureInterpolator::Eval2D(
    MFEM_VERIFY(eval_flags | DERIVATIVES,
                "Derivatives on the faces are not yet supported.");
    // If Gauss-Lobatto
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       const int ND1D = T_ND1D ? T_ND1D : nd1d;
       const int NQ1D = T_NQ1D ? T_NQ1D : nq1d;
@@ -239,7 +239,7 @@ void FaceQuadratureInterpolator::Eval3D(
               Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
    MFEM_VERIFY(eval_flags | DERIVATIVES,
                "Derivatives on the faces are not yet supported.");
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
@@ -425,7 +425,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
    MFEM_VERIFY(eval_flags | DERIVATIVES,
                "Derivatives on the faces are not yet supported.");
 
-   MFEM_FORALL_3D(f, NF, NQ1D, NQ1D, VDIM,
+   mfem::forall_3D(NF, NQ1D, NQ1D, VDIM, [=] MFEM_HOST_DEVICE (int f)
    {
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;

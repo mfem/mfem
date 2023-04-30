@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,7 +46,7 @@ void ElasticityDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
    if (type_ == Type::Diagonal)
    {
       // Assuming Y and X are ordered byNODES. K_diag is ordered byVDIM.
-      MFEM_FORALL(si, nsh,
+      mfem::forall(nsh, [=] MFEM_HOST_DEVICE (int si)
       {
          const int s = si / sh;
          const int i = si % sh;
@@ -55,7 +55,7 @@ void ElasticityDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
    }
    else if (type_ == Type::BlockDiagonal)
    {
-      MFEM_FORALL(s, ns,
+      mfem::forall(ns, [=] MFEM_HOST_DEVICE (int s)
       {
          const auto submat = make_tensor<dim, dim>(
          [&](int i, int j) { return K_diag_submats(s, i, j); });

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 // H1 Finite Element classes utilizing the Bernstein basis
 
 #include "fe_pos.hpp"
+#include "face_map_utils.hpp"
 #include "../bilininteg.hpp"
 #include "../lininteg.hpp"
 #include "../coefficient.hpp"
@@ -83,6 +84,12 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
                            Pow(p + 1, dims), p,
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
+
+void PositiveTensorFiniteElement::GetFaceMap(const int face_id,
+                                             Array<int> &face_map) const
+{
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
+}
 
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
