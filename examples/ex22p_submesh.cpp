@@ -17,6 +17,9 @@
 //               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
+//   mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 1 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 2
+//   mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 1 -rp 1 -pbc '7 8 11 12' -p 2 -em 1 -f 0.4 -o 2
+//
 // Device sample runs:
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa -d cuda
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa -d cuda
@@ -97,8 +100,8 @@
 // mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 2 -em 1 -f 0.5 -o 2
 //
 // Vector H(Curl) works in serial fails in parallel
-// mpirun -np 2 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 1
-//
+// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 1
+// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 1 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 2
 //
 //  mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 3 -rp 0 -pbc '21 22 24' -o 2 -em 5 -p 0 -f .25
 // mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7' -o 2 -em 2 -p 2 -f .7
@@ -114,7 +117,7 @@ static double mu_ = 1.0;
 static double epsilon_ = 1.0;
 static double sigma_ = 2.0;
 
-void SetPortBC(int prob, int mode, ParGridFunction &port_bc);
+void SetPortBC(int prob, int dim, int mode, ParGridFunction &port_bc);
 
 int main(int argc, char *argv[])
 {
@@ -125,7 +128,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../data/fichera-mixed.mesh";
    int ser_ref_levels = 1;
    int par_ref_levels = 1;
    int order = 1;
@@ -279,7 +282,18 @@ int main(int argc, char *argv[])
    switch (prob)
    {
       case 0:  fec_port = new H1_FECollection(order, dim-1);      break;
-      case 1:  fec_port = new ND_FECollection(order, dim-1);      break;
+      case 1:
+         if (dim == 3)
+         {
+            fec_port = new ND_FECollection(order, dim-1);
+         }
+         else
+         {
+            fec_port = new L2_FECollection(order - 1, dim-1,
+                                           BasisType::GaussLegendre,
+                                           FiniteElement::INTEGRAL);
+         }
+         break;
       case 2:  fec_port = new L2_FECollection(order - 1, dim-1,
                                                  BasisType::GaussLegendre,
                                                  FiniteElement::INTEGRAL); break;
@@ -297,7 +311,7 @@ int main(int argc, char *argv[])
    ParGridFunction port_bc(fespace_port);
    port_bc = 0.0;
 
-   SetPortBC(prob, mode, port_bc);
+   SetPortBC(prob, dim, mode, port_bc);
 
    {
       ostringstream mesh_name, port_name;
@@ -312,7 +326,7 @@ int main(int argc, char *argv[])
       port_ofs.precision(8);
       port_bc.Save(port_ofs);
    }
-   if (visualization)
+   if (visualization && dim == 3)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -363,7 +377,8 @@ int main(int argc, char *argv[])
          full_sock << "parallel " << num_procs << " " << myid << "\n";
          full_sock.precision(8);
          full_sock << "solution\n" << *pmesh << full_bc
-                   << "window_title 'Full BC'" << flush;
+                   << "window_title 'Transferred BC'"
+                   << "window_geometry 400 0 400 350"<< flush;
       }
    }
 
@@ -586,7 +601,7 @@ int main(int argc, char *argv[])
       sol_sock_r.precision(8);
       sol_sock_r << "solution\n" << *pmesh << u.real()
                  << "window_title 'Solution: Real Part'"
-                 << "window_geometry 400 0 400 350" << flush;
+                 << "window_geometry 800 0 400 350" << flush;
 
       MPI_Barrier(MPI_COMM_WORLD);
 
@@ -595,7 +610,7 @@ int main(int argc, char *argv[])
       sol_sock_i.precision(8);
       sol_sock_i << "solution\n" << *pmesh << u.imag()
                  << "window_title 'Solution: Imaginary Part'"
-                 << "window_geometry 800 0 400 350" << flush;
+                 << "window_geometry 1200 0 400 350" << flush;
    }
    if (visualization)
    {
@@ -825,7 +840,7 @@ void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
    delete M;
 }
 
-void SetPortBC(int prob, int mode, ParGridFunction &port_bc)
+void SetPortBC(int prob, int dim, int mode, ParGridFunction &port_bc)
 {
    switch (prob)
    {
@@ -833,7 +848,14 @@ void SetPortBC(int prob, int mode, ParGridFunction &port_bc)
          ScalarWaveGuide(mode, port_bc);
          break;
       case 1:
-         VectorWaveGuide(mode, port_bc);
+         if (dim == 3)
+         {
+            VectorWaveGuide(mode, port_bc);
+         }
+         else
+         {
+            PseudoScalarWaveGuide(mode, port_bc);
+         }
          break;
       case 2:
          PseudoScalarWaveGuide(mode, port_bc);
