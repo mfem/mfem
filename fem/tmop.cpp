@@ -2020,16 +2020,16 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
-                                                bool use_flag,
+                                                bool reuse_flag,
                                                 int new_x_ordering)
 {
-   if (use_flag && good_tspec) { return; }
+   if (reuse_flag && good_tspec) { return; }
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
    tspec_sav = tspec;
 
-   good_tspec = use_flag;
+   good_tspec = reuse_flag;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
@@ -2668,10 +2668,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
 void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
                                                          const double dx,
-                                                         bool use_flag,
+                                                         bool reuse_flag,
                                                          int x_ordering)
 {
-   if (use_flag && good_tspec_grad) { return; }
+   if (reuse_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fesv->GetFE(0)->GetDim(),
              cnt = x.Size()/dim;
@@ -2698,15 +2698,15 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
       }
    }
 
-   good_tspec_grad = use_flag;
+   good_tspec_grad = reuse_flag;
 }
 
-void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       double dx, bool use_flag,
-                                                       int x_ordering)
+void DiscreteAdaptTC::
+UpdateHessianTargetSpecification(const Vector &x,double dx,
+                                 bool reuse_flag, int x_ordering)
 {
 
-   if (use_flag && good_tspec_hess) { return; }
+   if (reuse_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fesv->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
@@ -2765,7 +2765,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
       }
    }
 
-   good_tspec_hess = use_flag;
+   good_tspec_hess = reuse_flag;
 }
 
 DiscreteAdaptTC::~DiscreteAdaptTC()
