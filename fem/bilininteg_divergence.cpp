@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@ static void PADivergenceSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -62,7 +62,7 @@ static void PADivergenceSetup3D(const int Q1D,
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto y = Reshape(op.Write(), NQ, 3, 3, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -183,7 +183,7 @@ static void PADivergenceApply2D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, 2, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -321,7 +321,7 @@ static void PADivergenceApplyTranspose2D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
    auto x  = Reshape(x_.Read(), TE_D1D, TE_D1D, NE);
    auto y  = Reshape(y_.ReadWrite(), TR_D1D, TR_D1D, 2, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -437,7 +437,7 @@ static void PADivergenceApply3D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -620,7 +620,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
    auto x  = Reshape(x_.Read(), TE_D1D, TE_D1D, TE_D1D, NE);
    auto y  = Reshape(y_.ReadWrite(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -801,7 +801,7 @@ static void SmemPADivergenceApply3D(const int NE,
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       const int tidz = MFEM_THREAD_ID(z);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,7 +74,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto w = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
-      MFEM_FORALL(e, NE,
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
          {
@@ -95,7 +95,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto W = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
-      MFEM_FORALL(e, NE,
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
          {
@@ -103,8 +103,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
             const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
-            /* */               J21 * (J12 * J33 - J32 * J13) +
-            /* */               J31 * (J12 * J23 - J22 * J13);
+                                J21 * (J12 * J33 - J32 * J13) +
+                                J31 * (J12 * J23 - J22 * J13);
             v(q,e) = W[q] * constant * detJ;
          }
       });
@@ -132,7 +132,7 @@ static void PAVectorMassApply2D(const int NE,
    auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -229,7 +229,7 @@ static void PAVectorMassApply3D(const int NE,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -404,7 +404,7 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    auto B = Reshape(B_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
    auto y = Reshape(diag_.ReadWrite(), D1D, D1D, VDIM, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -456,7 +456,7 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    auto B = Reshape(B_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
    auto y = Reshape(diag_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;

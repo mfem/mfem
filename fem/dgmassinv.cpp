@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -168,7 +168,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    constexpr int NB = Q1D ? Q1D : 1; // block size
 
-   MFEM_FORALL_2D(e, NE, NB, NB, 1,
+   mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int NB = Q1D ? Q1D : 1; // redefine here for some compilers
 
