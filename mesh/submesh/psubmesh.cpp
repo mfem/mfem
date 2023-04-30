@@ -212,7 +212,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
       BuildFaceGroup(ngroups, rht, nstrias, rhq, nsquads);
    }
-   else
+   else if (Dim == 2)
    {
       group_stria.MakeI(ngroups);
       group_stria.MakeJ();
@@ -234,7 +234,9 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    // Add boundaries
    {
-      int num_of_faces_or_edges = (Dim == 2) ? NumOfEdges : NumOfFaces;
+      int num_of_faces_or_edges =
+         (Dim == 3) ? NumOfFaces :
+         ((Dim == 2) ? NumOfEdges : NumOfVertices);
       Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
 
       if (Dim == 3)
