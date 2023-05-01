@@ -98,6 +98,12 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
+  add_mfem_miniapp(pmesh-fitting
+    MAIN pmesh-fitting.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
+
   add_mfem_miniapp(pminimal-surface
     MAIN pminimal-surface.cpp
     LIBRARIES mfem)
