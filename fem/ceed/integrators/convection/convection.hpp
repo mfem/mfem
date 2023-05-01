@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_CONV_HPP
 #define MFEM_LIBCEED_CONV_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -22,7 +23,7 @@ namespace ceed
 {
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::Partial using libCEED.
-class PAConvectionIntegrator : public MixedIntegrator
+class PAConvectionIntegrator : public MixedOperator<Integrator>
 {
 public:
    PAConvectionIntegrator(const mfem::ConvectionIntegrator &integ,
@@ -33,7 +34,7 @@ public:
 };
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::None using libCEED.
-class MFConvectionIntegrator : public MixedIntegrator
+class MFConvectionIntegrator : public MixedOperator<Integrator>
 {
 public:
    MFConvectionIntegrator(const mfem::ConvectionIntegrator &integ,

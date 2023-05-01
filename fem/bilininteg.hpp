@@ -3676,7 +3676,19 @@ public:
 
 /** Abstract class to serve as a base for local interpolators to be used in the
     DiscreteLinearOperator class. */
-class DiscreteInterpolator : public BilinearFormIntegrator {};
+class DiscreteInterpolator : public BilinearFormIntegrator
+{
+public:
+   // This avoids an error when GetRule is called with an interpolator even if
+   // it is never used.
+   using NonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                          const FiniteElement &test_fe,
+                                          ElementTransformation &Trans) const
+   {
+      return IntRules.Get(0, 0);
+   }
+};
 
 /** Class for constructing the gradient as a DiscreteLinearOperator from an
     H1-conforming space to an H(curl)-conforming space. The range space can be
@@ -3687,17 +3699,14 @@ public:
    GradientInterpolator() : dofquad_fe(NULL) {}
    virtual ~GradientInterpolator() { delete dofquad_fe; }
 
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
                                        const FiniteElement &nd_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
-   /** @brief Setup method for PA data.
-
-       @param[in] trial_fes   H1 Lagrange space
-       @param[in] test_fes    H(curl) Nedelec space
-    */
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -3722,6 +3731,8 @@ class IdentityInterpolator : public DiscreteInterpolator
 {
 public:
    IdentityInterpolator(): dofquad_fe(NULL) {}
+
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
@@ -3754,11 +3765,21 @@ private:
 class CurlInterpolator : public DiscreteInterpolator
 {
 public:
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { ran_fe.ProjectCurl(dom_fe, Trans, elmat); }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 };
 
 /** Class for constructing the (local) discrete divergence matrix which can

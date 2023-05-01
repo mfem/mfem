@@ -9,13 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_INTEG
-#define MFEM_LIBCEED_INTEG
+#ifndef MFEM_LIBCEED_INTEGRATOR
+#define MFEM_LIBCEED_INTEGRATOR
 
 #include "../../fespace.hpp"
 #include "../../gridfunc.hpp"
-#include "operator.hpp"
+#include "basis.hpp"
 #include "coefficient.hpp"
+#include "operator.hpp"
 #include "restriction.hpp"
 #include "util.hpp"
 #include "ceed.hpp"
@@ -57,8 +58,8 @@ struct OperatorInfo
 };
 #endif
 
-/** This class represents a matrix-free or partially assembled operator using
-    libCEED. */
+/** This class represents a matrix-free or partially assembled bilinear,
+    mixed bilinear, or nonlinear form operator using libCEED. */
 class Integrator : public Operator
 {
 #ifdef MFEM_USE_CEED
@@ -86,13 +87,13 @@ public:
        The `CeedOperatorInfo` type is expected to inherit from `OperatorInfo`,
        and contain a `Context` type relevant to the QFunctions.
 
-       @param[in] info is the structure describing the CeedOperator to assemble.
-       @param[in] fes is the finite element space.
-       @param[in] ir is the integration rule for the operator.
-       @param[in] Q is the coefficient from the `Integrator`.
-       @param[in] use_bdr controls whether to construct the operator for the domain
+       @param[in] info The structure describing the CeedOperator to assemble.
+       @param[in] fes The finite element space.
+       @param[in] ir The integration rule for the operator.
+       @param[in] Q The coefficient from the `Integrator`.
+       @param[in] use_bdr Controls whether to construct the operator for the domain
                           or domain boundary.
-       @param[in] use_mf controls whether to construct a matrix-free or partially
+       @param[in] use_mf Controls whether to construct a matrix-free or partially
                          assembled operator. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
@@ -115,17 +116,17 @@ public:
        The `CeedOperatorInfo` type is expected to inherit from `OperatorInfo`,
        and contain a `Context` type relevant to the QFunctions.
 
-       @param[in] info is the structure describing the CeedOperator to assemble.
-       @param[in] fes is the finite element space.
-       @param[in] ir is the integration rule for the operator.
+       @param[in] info The structure describing the CeedOperator to assemble.
+       @param[in] fes The finite element space.
+       @param[in] ir The integration rule for the operator.
        @param[in] nelem The number of elements.
        @param[in] indices The indices of the elements of same type in the
                           `FiniteElementSpace`. If `indices == nullptr`, assumes
                           that the `FiniteElementSpace` is not mixed.
-       @param[in] Q is the coefficient from the `Integrator`.
-       @param[in] use_bdr controls whether to construct the operator for the domain
+       @param[in] Q The coefficient from the `Integrator`.
+       @param[in] use_bdr Controls whether to construct the operator for the domain
                           or domain boundary.
-       @param[in] use_mf controls whether to construct a matrix-free or partially
+       @param[in] use_mf Controls whether to construct a matrix-free or partially
                          assembled operator. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
@@ -142,18 +143,18 @@ public:
 
    /** This method assembles the `Integrator` for mixed forms.
 
-       @param[in] info the `CeedOperatorInfo` describing the `CeedOperator`,
+       @param[in] info The `CeedOperatorInfo` describing the `CeedOperator`,
                        the `CeedOperatorInfo` type is expected to inherit from
                        `OperatorInfo` and contain a `Context` type relevant to
                        the QFunctions.
-       @param[in] trial_fes the trial `FiniteElementSpace` for the form,
-       @param[in] test_fes the test `FiniteElementSpace` for the form,
-       @param[in] ir the `IntegrationRule` for the numerical integration,
+       @param[in] trial_fes The trial `FiniteElementSpace` for the form.
+       @param[in] test_fes The test `FiniteElementSpace` for the form.
+       @param[in] ir The `IntegrationRule` for the numerical integration.
        @param[in] Q `Coefficient`, `VectorCoefficient`, or
                     `MatrixCoefficient`.
-       @param[in] use_bdr controls whether to construct the operator for the domain
+       @param[in] use_bdr Controls whether to construct the operator for the domain
                           or domain boundary.
-       @param[in] use_mf controls whether to construct a matrix-free or partially
+       @param[in] use_mf Controls whether to construct a matrix-free or partially
                          assembled operator. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
@@ -171,22 +172,22 @@ public:
 
    /** This method assembles the `Integrator` for mixed forms on mixed meshes.
 
-       @param[in] info the `CeedOperatorInfo` describing the `CeedOperator`,
+       @param[in] info The `CeedOperatorInfo` describing the `CeedOperator`,
                        the `CeedOperatorInfo` type is expected to inherit from
                        `OperatorInfo` and contain a `Context` type relevant to
                        the QFunctions.
-       @param[in] trial_fes the trial `FiniteElementSpace` for the form,
-       @param[in] test_fes the test `FiniteElementSpace` for the form,
-       @param[in] ir the `IntegrationRule` for the numerical integration,
-       @param[in] nelem The number of elements,
+       @param[in] trial_fes The trial `FiniteElementSpace` for the form.
+       @param[in] test_fes The test `FiniteElementSpace` for the form.
+       @param[in] ir The `IntegrationRule` for the numerical integration.
+       @param[in] nelem The number of elements.
        @param[in] indices The indices of the elements of same type in the
                           `FiniteElementSpace`. If `indices == nullptr`, assumes
-                          that the `FiniteElementSpace` is not mixed,
+                          that the `FiniteElementSpace` is not mixed.
        @param[in] Q `Coefficient`, `VectorCoefficient`, or
                     `MatrixCoefficient`.
-       @param[in] use_bdr controls whether to construct the operator for the domain
+       @param[in] use_bdr Controls whether to construct the operator for the domain
                           or domain boundary.
-       @param[in] use_mf controls whether to construct a matrix-free or partially
+       @param[in] use_mf Controls whether to construct a matrix-free or partially
                          assembled operator. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
@@ -211,22 +212,28 @@ public:
       bool test_vectorfe =
          (test_fes.FEColl()->GetRangeType(dim) == mfem::FiniteElement::VECTOR);
       MFEM_VERIFY(!(!indices && mesh.GetNumGeometries(dim) > 1),
-                  "Use ceed::MixedIntegrator on mixed meshes.");
+                  "Use ceed::MixedOperator<ceed::Integrator> on mixed meshes.");
       InitCoefficient(Q, mesh, ir, use_bdr, nelem, indices, coeff);
 
       if (&trial_fes == &test_fes)
       {
-         InitBasisAndRestriction(trial_fes, ir, use_bdr, nelem, indices, ceed,
-                                 &trial_basis, &trial_restr);
+         InitBasis(trial_fes, ir, use_bdr, indices, ceed,
+                   &trial_basis);
+         InitRestriction(trial_fes, use_bdr, nelem, indices, ceed,
+                         &trial_restr);
          CeedBasisReferenceCopy(trial_basis, &test_basis);
          CeedElemRestrictionReferenceCopy(trial_restr, &test_restr);
       }
       else
       {
-         InitBasisAndRestriction(trial_fes, ir, use_bdr, nelem, indices, ceed,
-                                 &trial_basis, &trial_restr);
-         InitBasisAndRestriction(test_fes, ir, use_bdr, nelem, indices, ceed,
-                                 &test_basis, &test_restr);
+         InitBasis(trial_fes, ir, use_bdr, indices, ceed,
+                   &trial_basis);
+         InitBasis(test_fes, ir, use_bdr, indices, ceed,
+                   &test_basis);
+         InitRestriction(trial_fes, use_bdr, nelem, indices, ceed,
+                         &trial_restr);
+         InitRestriction(test_fes, use_bdr, nelem, indices, ceed,
+                         &test_restr);
       }
 
       CeedInt trial_nqpts, test_nqpts;
@@ -240,8 +247,8 @@ public:
       mesh.EnsureNodes();
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "The mesh has no nodal FE space.");
-      InitBasisAndRestriction(*mesh_fes, ir, use_bdr, nelem, indices, ceed,
-                              &mesh_basis, &mesh_restr);
+      InitBasis(*mesh_fes, ir, use_bdr, indices, ceed, &mesh_basis);
+      InitRestriction(*mesh_fes, use_bdr, nelem, indices, ceed, &mesh_restr);
       InitVector(*mesh.GetNodes(), node_coords);
 
       CeedQFunctionContextCreate(ceed, &apply_ctx);
@@ -278,9 +285,11 @@ public:
          CeedOperatorCreate(ceed, build_qfunc, NULL, NULL, &build_oper);
          if (GridCoefficient *grid_coeff = dynamic_cast<GridCoefficient *>(coeff))
          {
-            InitBasisAndRestriction(*grid_coeff->gf.FESpace(), ir,
-                                    use_bdr, nelem, indices, ceed,
-                                    &grid_coeff->basis, &grid_coeff->restr);
+            const mfem::FiniteElementSpace *coeff_fes = grid_coeff->gf.FESpace();
+            InitBasis(*coeff_fes, ir, use_bdr, indices, ceed,
+                      &grid_coeff->basis);
+            InitRestriction(*coeff_fes, use_bdr, nelem, indices, ceed,
+                            &grid_coeff->restr);
             CeedOperatorSetField(build_oper, "coeff", grid_coeff->restr,
                                  grid_coeff->basis, grid_coeff->coeff_vector);
          }
@@ -288,8 +297,7 @@ public:
          {
             const int ncomp = quad_coeff->ncomp;
             CeedInt strides[3] = {ncomp, 1, ncomp * nqpts};
-            InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp,
-                                   strides, ceed,
+            InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides, ceed,
                                    &quad_coeff->restr);
             CeedOperatorSetField(build_oper, "coeff", quad_coeff->restr,
                                  CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
@@ -300,6 +308,7 @@ public:
                               mesh_basis, CEED_VECTOR_NONE);
          CeedOperatorSetField(build_oper, "qdata", qdata_restr,
                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+         CeedOperatorCheckReady(build_oper);
 
          // Compute the quadrature data for the operator.
          CeedOperatorApply(build_oper, node_coords, qdata, CEED_REQUEST_IMMEDIATE);
@@ -417,9 +426,11 @@ public:
          // coefficient
          if (GridCoefficient *grid_coeff = dynamic_cast<GridCoefficient *>(coeff))
          {
-            InitBasisAndRestriction(*grid_coeff->gf.FESpace(), ir,
-                                    use_bdr, nelem, indices, ceed,
-                                    &grid_coeff->basis, &grid_coeff->restr);
+            const mfem::FiniteElementSpace *coeff_fes = grid_coeff->gf.FESpace();
+            InitBasis(*coeff_fes, ir, use_bdr, indices, ceed,
+                      &grid_coeff->basis);
+            InitRestriction(*coeff_fes, use_bdr, nelem, indices, ceed,
+                            &grid_coeff->restr);
             CeedOperatorSetField(oper, "coeff", grid_coeff->restr,
                                  grid_coeff->basis, grid_coeff->coeff_vector);
          }
@@ -427,8 +438,7 @@ public:
          {
             const int ncomp = quad_coeff->ncomp;
             CeedInt strides[3] = {ncomp, 1, ncomp * nqpts};
-            InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp,
-                                   strides, ceed,
+            InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides, ceed,
                                    &quad_coeff->restr);
             CeedOperatorSetField(oper, "coeff", quad_coeff->restr,
                                  CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
@@ -466,6 +476,7 @@ public:
             CeedOperatorSetField(oper, "cv", test_restr, test_basis, CEED_VECTOR_ACTIVE);
             break;
       }
+      CeedOperatorCheckReady(oper);
 
       CeedVectorCreate(ceed, trial_vdim * trial_fes.GetNDofs(), &u);
       CeedVectorCreate(ceed, test_vdim * test_fes.GetNDofs(), &v);
@@ -483,8 +494,134 @@ public:
 #endif
 };
 
+/** This class represents a matrix-free or partially assembled discrete linear
+    operator using libCEED. */
+class Interpolator : public Operator
+{
+#ifdef MFEM_USE_CEED
+protected:
+   CeedBasis basis_ctof;
+   CeedElemRestriction trial_restr, test_restr;
+   CeedQFunction apply_qfunc, apply_qfunc_t;
+
+public:
+   Interpolator()
+      : Operator(),
+        basis_ctof(nullptr),
+        trial_restr(nullptr), test_restr(nullptr),
+        apply_qfunc(nullptr), apply_qfunc_t(nullptr) {}
+
+   /** This method assembles the `Interpolator`.
+
+       @param[in] info The `CeedOperatorInfo` describing the `CeedOperator`,
+                       the `CeedOperatorInfo` type is expected to inherit from
+                       `OperatorInfo` and contain a `Context` type relevant to
+                       the QFunctions.
+       @param[in] trial_fes The trial `FiniteElementSpace` for the form.
+       @param[in] test_fes The test `FiniteElementSpace` for the form.
+       @param[in] ir Not supported by `Interpolator`.
+       @param[in] Q Not supported by `Interpolator`.
+       @param[in] use_bdr Not supported by `Interpolator`.
+       @param[in] use_mf Controls whether to construct a matrix-free or partially
+                         assembled operator. */
+   template <typename CeedOperatorInfo, typename CoeffType>
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &trial_fes,
+                 const mfem::FiniteElementSpace &test_fes,
+                 const mfem::IntegrationRule &ir,
+                 CoeffType *Q,
+                 const bool use_bdr = false,
+                 const bool use_mf = false)
+   {
+      Assemble(info, trial_fes, test_fes, ir,
+               use_bdr ? trial_fes.GetNBE() : trial_fes.GetNE(),
+               nullptr, Q, use_bdr, use_mf);
+   }
+
+   /** This method assembles the `Interpolator` on mixed meshes. Its signature
+       matches that for `Integrator`.
+
+       @param[in] info The `CeedOperatorInfo` describing the `CeedOperator`,
+                       the `CeedOperatorInfo` type is expected to inherit from
+                       `OperatorInfo` and contain a `Context` type relevant to
+                       the QFunctions.
+       @param[in] trial_fes The trial `FiniteElementSpace` for the form.
+       @param[in] test_fes The test `FiniteElementSpace` for the form.
+       @param[in] ir Not supported by `Interpolator`.
+       @param[in] nelem The number of elements.
+       @param[in] indices The indices of the elements of same type in the
+                          `FiniteElementSpace`. If `indices == nullptr`, assumes
+                          that the `FiniteElementSpace` is not mixed.
+       @param[in] Q Not supported by `Interpolator`.
+       @param[in] use_bdr Not supported by `Interpolator`.
+       @param[in] use_mf Controls whether to construct a matrix-free or partially
+                         assembled operator. */
+   template <typename CeedOperatorInfo, typename CoeffType>
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &trial_fes,
+                 const mfem::FiniteElementSpace &test_fes,
+                 const mfem::IntegrationRule &ir,
+                 int nelem,
+                 const int *indices,
+                 CoeffType *Q,
+                 const bool use_bdr = false,
+                 const bool use_mf = false)
+   {
+      Ceed ceed(internal::ceed);
+      CeedInt trial_vdim = trial_fes.GetVDim();
+      CeedInt test_vdim = test_fes.GetVDim();
+      MFEM_VERIFY(!Q, "ceed:Interpolator does not support coefficients.");
+      MFEM_VERIFY(!use_bdr,
+                  "ceed:Interpolator does not support boundary interpolators.");
+      MFEM_VERIFY(trial_vdim == 1 && test_vdim == 1,
+                  "ceed:Interpolator does not support spaces with vdim > 1.");
+
+      InitInterpolatorBasis(trial_fes, test_fes, indices, ceed, &basis_ctof);
+      InitInterpolatorRestrictions(trial_fes, test_fes, nelem, indices, ceed,
+                                   &trial_restr, &test_restr);
+      MFEM_VERIFY(info.trial_op == EvalMode::Interp,
+                  "ceed:Interpolator only supports trial_op == Interp.");
+      MFEM_VERIFY(info.test_op == EvalMode::None,
+                  "ceed:Interpolator only supports test_op == None.");
+
+      // Create the QFunction that defines the action of the operator
+      // (only an identity as element dof multiplicity is handled outside of libCEED)
+      CeedQFunctionCreateIdentity(ceed, trial_vdim, CEED_EVAL_INTERP, CEED_EVAL_NONE,
+                                  &apply_qfunc);
+      CeedQFunctionCreateIdentity(ceed, trial_vdim, CEED_EVAL_NONE, CEED_EVAL_INTERP,
+                                  &apply_qfunc_t);
+
+      // Create the operator
+      CeedOperatorCreate(ceed, apply_qfunc, NULL, NULL, &oper);
+      CeedOperatorSetField(oper, "input", trial_restr, basis_ctof,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorSetField(oper, "output", test_restr, CEED_BASIS_COLLOCATED,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorCheckReady(oper);
+
+      // Create the transpose operator
+      CeedOperatorCreate(ceed, apply_qfunc_t, NULL, NULL, &oper_t);
+      CeedOperatorSetField(oper_t, "input", test_restr, CEED_BASIS_COLLOCATED,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorSetField(oper_t, "output", trial_restr, basis_ctof,
+                           CEED_VECTOR_ACTIVE);
+      CeedOperatorCheckReady(oper_t);
+
+      CeedVectorCreate(ceed, trial_vdim * trial_fes.GetNDofs(), &u);
+      CeedVectorCreate(ceed, test_vdim * test_fes.GetNDofs(), &v);
+   }
+
+   virtual ~Interpolator()
+   {
+      // All basis and restriction objects are destroyed by fes destructor
+      CeedQFunctionDestroy(&apply_qfunc);
+      CeedQFunctionDestroy(&apply_qfunc_t);
+   }
+#endif
+};
+
 } // namespace ceed
 
 } // namespace mfem
 
-#endif // MFEM_LIBCEED_INTEG
+#endif // MFEM_LIBCEED_INTEGRATOR

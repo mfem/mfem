@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_MASS_HPP
 #define MFEM_LIBCEED_MASS_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -22,7 +23,7 @@ namespace ceed
 {
 
 /// Represent a MassIntegrator with AssemblyLevel::Partial using libCEED.
-class PAMassIntegrator : public MixedIntegrator
+class PAMassIntegrator : public MixedOperator<Integrator>
 {
 public:
    PAMassIntegrator(const mfem::MassIntegrator &integ,
@@ -37,7 +38,7 @@ public:
 };
 
 /// Represent a MassIntegrator with AssemblyLevel::None using libCEED.
-class MFMassIntegrator : public MixedIntegrator
+class MFMassIntegrator : public MixedOperator<Integrator>
 {
 public:
    MFMassIntegrator(const mfem::MassIntegrator &integ,

@@ -27,7 +27,9 @@ set(SRCS
   integ/bilininteg_divdiv_mf.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_gradient_pa.cpp
-  integ/bilininteg_interp_pa.cpp
+  integ/bilininteg_interp_id_pa.cpp
+  integ/bilininteg_interp_grad_pa.cpp
+  integ/bilininteg_interp_curl_pa.cpp
   integ/bilininteg_mass_mf.cpp
   integ/bilininteg_mass_pa.cpp
   integ/bilininteg_mass_ea.cpp
@@ -94,6 +96,7 @@ set(SRCS
   ceed/integrators/curlcurl/curlcurl.cpp
   ceed/integrators/mixedvecgrad/mixedvecgrad.cpp
   ceed/integrators/mixedveccurl/mixedveccurl.cpp
+  ceed/integrators/interp/interp.cpp
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
@@ -199,7 +202,7 @@ set(HDRS
   ceed/interface/coefficient.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
-  ceed/interface/mixed_integrator.hpp
+  ceed/interface/mixed_operator.hpp
   ceed/interface/operator.hpp
   ceed/interface/restriction.hpp
   ceed/interface/util.hpp
@@ -219,6 +222,7 @@ set(HDRS
   ceed/integrators/curlcurl/curlcurl_qf.h
   ceed/integrators/mixedvecgrad/mixedvecgrad.hpp
   ceed/integrators/mixedveccurl/mixedveccurl.hpp
+  ceed/integrators/interp/interp.hpp
   ceed/integrators/util/util_qf.h
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp

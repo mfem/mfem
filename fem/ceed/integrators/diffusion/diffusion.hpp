@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_DIFF_HPP
 #define MFEM_LIBCEED_DIFF_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -22,7 +23,7 @@ namespace ceed
 {
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::Partial using libCEED.
-class PADiffusionIntegrator : public MixedIntegrator
+class PADiffusionIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -39,7 +40,7 @@ public:
 };
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
-class MFDiffusionIntegrator : public MixedIntegrator
+class MFDiffusionIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>

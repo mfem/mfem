@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_CURLCURL_HPP
 #define MFEM_LIBCEED_CURLCURL_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -22,7 +23,7 @@ namespace ceed
 {
 
 /// Represent a CurlCurlIntegrator with AssemblyLevel::Partial using libCEED.
-class PACurlCurlIntegrator : public MixedIntegrator
+class PACurlCurlIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -33,7 +34,7 @@ public:
 };
 
 /// Represent a CurlCurlIntegrator with AssemblyLevel::None using libCEED.
-class MFCurlCurlIntegrator : public MixedIntegrator
+class MFCurlCurlIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>

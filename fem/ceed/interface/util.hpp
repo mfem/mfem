@@ -12,6 +12,7 @@
 #ifndef MFEM_LIBCEED_UTIL
 #define MFEM_LIBCEED_UTIL
 
+#include <array>
 #include <functional>
 #include <string>
 #include <tuple>
@@ -55,29 +56,6 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 /// Initialize a CeedVector from an mfem::Vector
 void InitVector(const mfem::Vector &v, CeedVector &cv);
 
-/** @brief Initialize a CeedBasis and a CeedElemRestriction based on an
-    mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir,
-    and a list of @a nelem elements of indices @a indices.
-
-    @param[in] fes The finite element space.
-    @param[in] ir The integration rule.
-    @param[in] use_bdr Create the basis and restriction for boundary elements.
-    @param[in] nelem The number of elements.
-    @param[in] indices The indices of the elements of same type in the
-                       `FiniteElementSpace`. If `indices == nullptr`, assumes
-                       that the `FiniteElementSpace` is not mixed.
-    @param[in] ceed The Ceed object.
-    @param[out] basis The `CeedBasis` to initialize.
-    @param[out] restr The `CeedElemRestriction` to initialize. */
-void InitBasisAndRestriction(const FiniteElementSpace &fes,
-                             const IntegrationRule &ir,
-                             bool use_bdr,
-                             int nelem,
-                             const int *indices,
-                             Ceed ceed,
-                             CeedBasis *basis,
-                             CeedElemRestriction *restr);
-
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
 /// Return the path to the libCEED QFunction headers.
@@ -100,42 +78,47 @@ inline std::size_t CeedHashCombine(std::size_t seed, std::size_t hash)
 
 // Hash table for CeedBasis
 using BasisKey =
-   std::tuple<const mfem::FiniteElementSpace *, const mfem::IntegrationRule *,
-   int, int, int>;
+   std::tuple<const mfem::FiniteElementSpace *, const mfem::FiniteElementSpace *,
+   const mfem::IntegrationRule *, std::array<int, 3>>;
 struct BasisHash
 {
    std::size_t operator()(const BasisKey &k) const
    {
       return CeedHashCombine(
                 CeedHashCombine(
-                   CeedHash(std::get<0>(k)),
-                   CeedHash(std::get<1>(k))),
+                   CeedHashCombine(
+                      CeedHash(std::get<0>(k)),
+                      CeedHash(std::get<1>(k))),
+                   CeedHash(std::get<2>(k))),
                 CeedHashCombine(
-                   CeedHashCombine(CeedHash(std::get<2>(k)),
-                                   CeedHash(std::get<3>(k))),
-                   CeedHash(std::get<4>(k))));
+                   CeedHashCombine(CeedHash(std::get<3>(k)[0]),
+                                   CeedHash(std::get<3>(k)[1])),
+                   CeedHash(std::get<3>(k)[2])));
    }
 };
 using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 
 // Hash table for CeedElemRestriction
 using RestrKey =
-   std::tuple<const mfem::FiniteElementSpace *, int, int, int, int, int, int>;
+   std::tuple<const mfem::FiniteElementSpace *, std::array<int, 3>,
+   std::array<int, 3>, int>;
 struct RestrHash
 {
    std::size_t operator()(const RestrKey &k) const
    {
       return CeedHashCombine(
+                CeedHash(std::get<0>(k)),
                 CeedHashCombine(
                    CeedHashCombine(
-                      CeedHash(std::get<0>(k)),
-                      CeedHash(std::get<1>(k))),
-                   CeedHashCombine(CeedHash(std::get<2>(k)),
-                                   CeedHash(std::get<3>(k)))),
-                CeedHashCombine(
-                   CeedHashCombine(CeedHash(std::get<4>(k)),
-                                   CeedHash(std::get<5>(k))),
-                   CeedHash(std::get<6>(k))));
+                      CeedHashCombine(
+                         CeedHashCombine(CeedHash(std::get<1>(k)[0]),
+                                         CeedHash(std::get<1>(k)[1])),
+                         CeedHash(std::get<1>(k)[2])),
+                      CeedHashCombine(
+                         CeedHashCombine(CeedHash(std::get<2>(k)[0]),
+                                         CeedHash(std::get<2>(k)[1])),
+                         CeedHash(std::get<2>(k)[2]))),
+                   CeedHash(std::get<3>(k))));
    }
 };
 using RestrMap =

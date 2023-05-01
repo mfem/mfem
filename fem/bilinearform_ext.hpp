@@ -227,6 +227,7 @@ public:
    PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
 
    void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
    void AddMult(const Vector &x, Vector &y, const double c = 1.0) const;
    void AddMultTranspose(const Vector &x, Vector &y, const double c = 1.0) const;
 };

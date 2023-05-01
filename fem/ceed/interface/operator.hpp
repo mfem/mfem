@@ -26,10 +26,10 @@ class Operator : public mfem::Operator
 {
 protected:
 #ifdef MFEM_USE_CEED
-   CeedOperator oper;
+   CeedOperator oper, oper_t;
    CeedVector u, v;
 
-   Operator() : oper(nullptr), u(nullptr), v(nullptr) {}
+   Operator() : oper(nullptr), oper_t(nullptr), u(nullptr), v(nullptr) {}
 #endif
 
 public:
@@ -38,6 +38,7 @@ public:
    Operator(CeedOperator op);
 
    CeedOperator &GetCeedOperator() { return oper; }
+   CeedOperator &GetCeedOperatorTranspose() { return oper_t; }
    CeedVector &GetCeedVectorU() { return u; }
    CeedVector &GetCeedVectorV() { return v; }
 #endif
@@ -45,12 +46,16 @@ public:
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
    void AddMult(const mfem::Vector &x, mfem::Vector &y,
                 const double a = 1.0) const override;
+   void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
+   void AddMultTranspose(const mfem::Vector &x, mfem::Vector &y,
+                         const double a = 1.0) const override;
    void GetDiagonal(mfem::Vector &diag) const;
 
    virtual ~Operator()
    {
 #ifdef MFEM_USE_CEED
       CeedOperatorDestroy(&oper);
+      CeedOperatorDestroy(&oper_t);
       CeedVectorDestroy(&u);
       CeedVectorDestroy(&v);
 #endif

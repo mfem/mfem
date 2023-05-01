@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_DIVDIV_HPP
 #define MFEM_LIBCEED_DIVDIV_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -22,7 +23,7 @@ namespace ceed
 {
 
 /// Represent a DivDivIntegrator with AssemblyLevel::Partial using libCEED.
-class PADivDivIntegrator : public MixedIntegrator
+class PADivDivIntegrator : public MixedOperator<Integrator>
 {
 public:
    PADivDivIntegrator(const mfem::DivDivIntegrator &integ,
@@ -32,7 +33,7 @@ public:
 };
 
 /// Represent a DivDivIntegrator with AssemblyLevel::None using libCEED.
-class MFDivDivIntegrator : public MixedIntegrator
+class MFDivDivIntegrator : public MixedOperator<Integrator>
 {
 public:
    MFDivDivIntegrator(const mfem::DivDivIntegrator &integ,

@@ -34,7 +34,7 @@ struct MixedVectorGradientOperatorInfoBase : public OperatorInfo
    {
       // Reuse H(curl) quadrature functions for DiffusionIntegrator
       MFEM_VERIFY(trial_fes.GetVDim() == 1 && test_fes.GetVDim() == 1,
-                  "libCEED interface for vector FE does not support VDim > 1!");
+                  "libCEED interface for vector FE does not support vdim > 1!");
       ctx.dim = trial_fes.GetMesh()->Dimension() - use_bdr;
       MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
                   "MixedVectorGradientIntegrator and MixedVectorWeakDivergenceIntegrator "

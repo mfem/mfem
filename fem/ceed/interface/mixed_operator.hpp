@@ -9,12 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_MIXED_INTEGRATOR
-#define MFEM_LIBCEED_MIXED_INTEGRATOR
+#ifndef MFEM_LIBCEED_MIXED_OPERATOR
+#define MFEM_LIBCEED_MIXED_OPERATOR
 
 #include <array>
 #include <unordered_map>
-#include "integrator.hpp"
+#include "../../fespace.hpp"
+#include "operator.hpp"
 #include "util.hpp"
 #include "ceed.hpp"
 
@@ -24,9 +25,10 @@ namespace mfem
 namespace ceed
 {
 
-/** @brief This class wraps one or more `ceed::Integrator` objects to support
+/** @brief This class wraps one or more `OpType` objects to support
     finite element spaces on mixed meshes. */
-class MixedIntegrator : public Operator
+template <typename OpType>
+class MixedOperator : public Operator
 {
 #ifdef MFEM_USE_CEED
    using ElementKey =
@@ -41,7 +43,7 @@ class MixedIntegrator : public Operator
       }
    };
    using ElementsMap = std::unordered_map<const ElementKey, int *, ElementHash>;
-   std::vector<Integrator *> sub_ops;
+   std::vector<OpType *> sub_ops;
 
 public:
    template <typename IntegratorType, typename CeedOperatorInfo, typename CoeffType>
@@ -82,11 +84,15 @@ public:
             integ.GetIntegrationRule() ? *integ.GetIntegrationRule() :
             integ.GetRule(trial_fe, test_fe, T);
          sub_ops.reserve(1);
-         auto *sub_op = new Integrator();
+         auto *sub_op = new OpType();
          sub_op->Assemble(info, trial_fes, test_fes, ir, Q, use_bdr, use_mf);
          sub_ops.push_back(sub_op);
 
          CeedOperatorReferenceCopy(sub_op->GetCeedOperator(), &oper);
+         if (sub_op->GetCeedOperatorTranspose())
+         {
+            CeedOperatorReferenceCopy(sub_op->GetCeedOperatorTranspose(), &oper_t);
+         }
          CeedVectorReferenceCopy(sub_op->GetCeedVectorU(), &u);
          CeedVectorReferenceCopy(sub_op->GetCeedVectorV(), &v);
          return;
@@ -159,19 +165,26 @@ public:
          MFEM_VERIFY(!integ.GetIntegrationRule(),
                      "Mixed mesh integrators should not have an IntegrationRule.");
          const IntegrationRule &ir = integ.GetRule(trial_fe, test_fe, T);
-         auto *sub_op = new Integrator();
+         auto *sub_op = new OpType();
          sub_op->Assemble(info, trial_fes, test_fes, ir, *count[value.first], indices, Q,
                           use_bdr, use_mf);
          sub_ops.push_back(sub_op);
          CeedCompositeOperatorAddSub(oper, sub_op->GetCeedOperator());
+         if (sub_op->GetCeedOperatorTranspose())
+         {
+            if (!oper_t) { CeedCompositeOperatorCreate(internal::ceed, &oper_t); }
+            CeedCompositeOperatorAddSub(oper_t, sub_op->GetCeedOperatorTranspose());
+         }
       }
+      CeedOperatorCheckReady(oper);
+      if (oper_t) { CeedOperatorCheckReady(oper_t); }
 
       CeedVectorCreate(internal::ceed, trial_fes.GetVDim() * trial_fes.GetNDofs(),
                        &u);
       CeedVectorCreate(internal::ceed, test_fes.GetVDim() * test_fes.GetNDofs(), &v);
    }
 
-   virtual ~MixedIntegrator()
+   virtual ~MixedOperator()
    {
       for (auto *sub_op : sub_ops)
       {
@@ -185,4 +198,4 @@ public:
 
 } // namespace mfem
 
-#endif // MFEM_LIBCEED_MIXED_INTEGRATOR
+#endif // MFEM_LIBCEED_MIXED_OPERATOR

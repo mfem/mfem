@@ -410,8 +410,9 @@ DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/integrators/vecfemass fem/ceed/integrators/divdiv \
        fem/ceed/integrators/curlcurl fem/ceed/integrators/mixedvecgrad \
-       fem/ceed/integrators/mixedveccurl fem/ceed/integrators/util \
-       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop
+       fem/ceed/integrators/mixedveccurl fem/ceed/integrators/interp \
+       fem/ceed/integrators/util fem/ceed/solvers \
+       fem/fe fem/lor fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -611,10 +612,6 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/divdiv/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/divdiv
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurl
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/curlcurl/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurl
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mixedvecgrad
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mixedvecgrad/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mixedvecgrad
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mixedveccurl
-	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mixedveccurl/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mixedveccurl
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/util/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 # install config.mk in $(PREFIX_SHARE)

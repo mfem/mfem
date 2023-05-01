@@ -14,6 +14,8 @@
 
 // Object wrapping a CeedOperator in a mfem::Operator.
 #include "operator.hpp"
+// Operator supporting mixed finite element spaces.
+#include "mixed_operator.hpp"
 // Functions to initialize CeedBasis objects.
 #include "basis.hpp"
 // Functions to initialize CeedRestriction objects.
@@ -22,8 +24,6 @@
 #include "coefficient.hpp"
 // PA or MF Operator using libCEED.
 #include "integrator.hpp"
-// PA Operator supporting mixed finite element spaces.
-#include "mixed_integrator.hpp"
 // Utility functions
 #include "util.hpp"
 // Wrapper to include <ceed.h>

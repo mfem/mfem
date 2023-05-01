@@ -34,7 +34,7 @@ struct MixedVectorCurlOperatorInfoBase : public OperatorInfo
    {
       // Reuse H(div) quadrature functions for CurlCurlIntegrator
       MFEM_VERIFY(trial_fes.GetVDim() == 1 && test_fes.GetVDim() == 1,
-                  "libCEED interface for vector FE does not support VDim > 1!");
+                  "libCEED interface for vector FE does not support vdim > 1!");
       ctx.dim = trial_fes.GetMesh()->Dimension() - use_bdr;
       MFEM_VERIFY(ctx.dim == 3,
                   "MixedVectorCurlIntegrator and MixedVectorWeakCurlIntegrator "

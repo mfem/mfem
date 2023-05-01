@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_MIXEDVECGRAD_HPP
 #define MFEM_LIBCEED_MIXEDVECGRAD_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -23,7 +24,7 @@ namespace ceed
 
 /** Represent a MixedVectorGradientIntegrator with AssemblyLevel::Partial
     using libCEED. */
-class PAMixedVectorGradientIntegrator : public MixedIntegrator
+class PAMixedVectorGradientIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -37,7 +38,7 @@ public:
 
 /** Represent a MixedVectorGradientIntegrator with AssemblyLevel::None
     using libCEED. */
-class MFMixedVectorGradientIntegrator : public MixedIntegrator
+class MFMixedVectorGradientIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -51,7 +52,7 @@ public:
 
 /** Represent a MixedVectorWeakDivergenceIntegrator with AssemblyLevel::Partial
     using libCEED. */
-class PAMixedVectorWeakDivergenceIntegrator : public MixedIntegrator
+class PAMixedVectorWeakDivergenceIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -65,7 +66,7 @@ public:
 
 /** Represent a MixedVectorWeakDivergenceIntegrator with AssemblyLevel::None
     using libCEED. */
-class MFMixedVectorWeakDivergenceIntegrator : public MixedIntegrator
+class MFMixedVectorWeakDivergenceIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>

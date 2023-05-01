@@ -25,6 +25,7 @@ namespace ceed
 Operator::Operator(CeedOperator op)
 {
    oper = op;
+   oper_t = nullptr;
    CeedSize in_len, out_len;
    int ierr = CeedOperatorGetActiveVectorLengths(oper, &in_len, &out_len);
    PCeedChk(ierr);
@@ -37,9 +38,15 @@ Operator::Operator(CeedOperator op)
 }
 #endif
 
-void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
+namespace
 {
+
 #ifdef MFEM_USE_CEED
+void CeedAddMult(CeedOperator oper, CeedVector u, CeedVector v,
+                 const mfem::Vector &x, mfem::Vector &y, double a)
+{
+   MFEM_VERIFY(a == 0.0 || a == 1.0,
+               "General coefficient case is not yet supported!");
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;
@@ -47,21 +54,51 @@ void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
    if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       x_ptr = x.Read();
-      y_ptr = y.Write();
+      y_ptr = (a == 0.0) ? y.Write() : y.ReadWrite();
    }
    else
    {
       x_ptr = x.HostRead();
-      y_ptr = y.HostWrite();
+      y_ptr = (a == 0.0) ? y.HostWrite() : y.HostReadWrite();
       mem = CEED_MEM_HOST;
    }
    CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
    CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
 
-   CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
+
+   // //XX DEBUG
+   // std::cout << "\nStart CEED Mult u:\n";
+   // CeedVectorView(u, "%12.8f", stdout);
+   // std::cout << "\nStart CEED Mult v:\n";
+   // CeedVectorView(v, "%12.8f", stdout);
+
+
+   if (a == 0.0)
+   {
+      CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   }
+   else
+   {
+      CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
+   }
+
+
+   // //XX DEBUG
+   // std::cout << "\nEnd CEED Mult v:\n";
+   // CeedVectorView(v, "%12.8f", stdout);
+
 
    CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
    CeedVectorTakeArray(v, mem, &y_ptr);
+}
+#endif
+
+} // namespace
+
+void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
+{
+#ifdef MFEM_USE_CEED
+   CeedAddMult(oper, u, v, x, y, 0.0);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -71,29 +108,30 @@ void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y,
                        const double a) const
 {
 #ifdef MFEM_USE_CEED
-   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
-   const CeedScalar *x_ptr;
-   CeedScalar *y_ptr;
-   CeedMemType mem;
-   CeedGetPreferredMemType(mfem::internal::ceed, &mem);
-   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
-   {
-      x_ptr = x.Read();
-      y_ptr = y.ReadWrite();
-   }
-   else
-   {
-      x_ptr = x.HostRead();
-      y_ptr = y.HostReadWrite();
-      mem = CEED_MEM_HOST;
-   }
-   CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
-   CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
+   CeedAddMult(oper, u, v, x, y, 1.0);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
 
-   CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
+void Operator::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
+{
+#ifdef MFEM_USE_CEED
+   MFEM_ASSERT(oper_t,
+               "No transpose operator defined for ceed::Operator::MultTranspose.");
+   CeedAddMult(oper_t, v, u, x, y, 0.0);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
 
-   CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
-   CeedVectorTakeArray(v, mem, &y_ptr);
+void Operator::AddMultTranspose(const mfem::Vector &x, mfem::Vector &y,
+                                const double a) const
+{
+#ifdef MFEM_USE_CEED
+   MFEM_ASSERT(oper_t,
+               "No transpose operator defined for ceed::Operator::AddMultTranspose.");
+   CeedAddMult(oper_t, v, u, x, y, 1.0);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

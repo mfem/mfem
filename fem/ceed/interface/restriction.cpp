@@ -21,12 +21,14 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
+enum RestrType {Strided = 0, Lexico, Native, NativeRange};
+
 static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
                             bool use_bdr,
+                            int nelem,
                             Ceed ceed,
                             CeedElemRestriction *restr)
 {
-   const int nelem = use_bdr ? fes.GetNBE() : fes.GetNE();
    const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0) :
                                    fes.GetFE(0);
    const int P = fe->GetDof();
@@ -59,6 +61,14 @@ static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
       }
    }
 
+
+   // //XX TODO DEBUG
+   // std::cout << "\nLEXICO RESTRICTION OFFSETS:\n\n";
+   // tp_el_dof.Print();
+   // std::cout << "\nLEXICO RESTRICTION ORIENTS:\n\n";
+   // tp_el_orients.Print();
+
+
    if (use_orients)
    {
       CeedElemRestrictionCreateOriented(ceed, nelem, P, fes.GetVDim(),
@@ -78,10 +88,10 @@ static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
 
 static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
                             bool use_bdr,
+                            int nelem,
                             Ceed ceed,
                             CeedElemRestriction *restr)
 {
-   const int nelem = use_bdr ? fes.GetNBE() : fes.GetNE();
    const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0) :
                                    fes.GetFE(0);
    const int P = fe->GetDof();
@@ -107,6 +117,14 @@ static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
          use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
+
+
+   // //XX TODO DEBUG
+   // std::cout << "\nNATIVE RESTRICTION OFFSETS:\n\n";
+   // tp_el_dof.Print();
+   // std::cout << "\nNATIVE RESTRICTION ORIENTS:\n\n";
+   // tp_el_orients.Print();
+
 
    if (use_orients)
    {
@@ -158,8 +176,9 @@ static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
       {
          dof_trans = fes.GetElementDofs(elem_index, dofs);
       }
-      MFEM_VERIFY(!dof_trans || fes.GetMaxElementOrder() == 1,
-                  "DofTransformation support for CeedElemRestriction does not exist yet.");
+      MFEM_VERIFY(!dof_trans,
+                  "Unexpected DofTransformation for lexicographic element "
+                  "restriction.");
       for (int j = 0; j < P; j++)
       {
          const int sdid = dof_map[j];  // signed
@@ -172,6 +191,14 @@ static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
          use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
+
+
+   // //XX TODO DEBUG
+   // std::cout << "\nINDICES LEXICO RESTRICTION OFFSETS:\n\n";
+   // tp_el_dof.Print();
+   // std::cout << "\nINDICES LEXICO RESTRICTION ORIENTS:\n\n";
+   // tp_el_orients.Print();
+
 
    if (use_orients)
    {
@@ -192,6 +219,7 @@ static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
 
 static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
                                        bool use_bdr,
+                                       bool is_interp_range,
                                        int nelem,
                                        const int *indices,
                                        Ceed ceed,
@@ -251,7 +279,14 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
             // Fill column j of element tridiagonal matrix tp_el_curl_orients
             el_trans_j = 0.0;
             el_trans_j(j) = 1.0;
-            dof_trans->InvTransformPrimal(el_trans_j);
+            if (is_interp_range)
+            {
+               dof_trans->InvTransformDual(el_trans_j);
+            }
+            else
+            {
+               dof_trans->InvTransformPrimal(el_trans_j);
+            }
             el_trans_j *= (sgid < 0) ? -1.0 : 1.0;
             tp_el_curl_orients[3 * (j + 0 + P * i) + 1] = el_trans_j(j + 0);
             if (j > 0)
@@ -275,6 +310,16 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
          }
       }
    }
+
+
+   // //XX TODO DEBUG
+   // std::cout << "\nINDICES NATIVE RESTRICTION OFFSETS:\n\n";
+   // tp_el_dof.Print();
+   // std::cout << "\nINDICES NATIVE RESTRICTION ORIENTS:\n\n";
+   // tp_el_orients.Print();
+   // std::cout << "\nINDICES NATIVE RESTRICTION CURL ORIENTS:\n\n";
+   // tp_el_curl_orients.Print();
+
 
    if (tp_el_curl_orients.Size())
    {
@@ -301,80 +346,77 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
    }
 }
 
-static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
-                                bool use_bdr,
-                                Ceed ceed,
-                                CeedElemRestriction *restr)
-{
-   const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0) : fes.GetFE(0);
-   const mfem::TensorBasisElement *tfe =
-      dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   const bool vector = fe->GetRangeType() == mfem::FiniteElement::VECTOR;
-   mfem::Array<int> dofs;
-   mfem::DofTransformation *dof_trans = use_bdr ? fes.GetBdrElementDofs(0, dofs) :
-                                        fes.GetElementDofs(0, dofs);
-   if (tfe && tfe->GetDofMap().Size() > 0 && !vector)
-   {
-      // Lexicographic ordering using dof_map
-      InitLexicoRestr(fes, use_bdr, ceed, restr);
-   }
-   else
-   {
-      // Native ordering
-      if (!dof_trans)
-      {
-         InitNativeRestr(fes, use_bdr, ceed, restr);
-      }
-      else
-      {
-         InitNativeRestrWithIndices(fes, use_bdr, use_bdr ? fes.GetNBE() : fes.GetNE(),
-                                    nullptr, ceed, restr);
-      }
-   }
-}
-
-static void InitRestrictionWithIndicesImpl(const mfem::FiniteElementSpace &fes,
-                                           bool use_bdr,
-                                           int nelem,
-                                           const int *indices,
-                                           Ceed ceed,
-                                           CeedElemRestriction *restr)
-{
-   const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(indices[0]) :
-                                   fes.GetFE(indices[0]);
-   const mfem::TensorBasisElement *tfe =
-      dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   const bool vector = fe->GetRangeType() == mfem::FiniteElement::VECTOR;
-   if (tfe && tfe->GetDofMap().Size() > 0 && !vector)
-   {
-      // Lexicographic ordering using dof_map
-      InitLexicoRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
-   }
-   else
-   {
-      // Native ordering
-      InitNativeRestrWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
-   }
-}
-
 void InitRestriction(const FiniteElementSpace &fes,
                      bool use_bdr,
+                     int nelem,
+                     const int *indices,
                      Ceed ceed,
                      CeedElemRestriction *restr)
 {
    // Check for fes -> restriction in hash table
-   // {-1, -1, -1} is unique from CEED_STRIDES_BACKEND for non-strided restrictions
-   const int nelem = use_bdr ? fes.GetNBE() : fes.GetNE();
-   const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(0) : fes.GetFE(0);
+   // {-1, -1, -1} is unique from CEED_STRIDES_BACKEND for strided restrictions
+   const mfem::FiniteElement *fe;
+   if (indices)
+   {
+      fe = use_bdr ? fes.GetBE(indices[0]) : fes.GetFE(indices[0]);
+   }
+   else
+   {
+      fe = use_bdr ? fes.GetBE(0) : fes.GetFE(0);
+   }
    const int P = fe->GetDof();
    const int ncomp = fes.GetVDim();
-   RestrKey restr_key(&fes, nelem, P, ncomp, -1, -1, -1);
+   const mfem::TensorBasisElement *tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   const bool vector = fe->GetRangeType() == mfem::FiniteElement::VECTOR;
+   const RestrType type = (tfe && tfe->GetDofMap().Size() > 0 && !vector) ?
+                          RestrType::Lexico : RestrType::Native;
+   RestrKey restr_key(&fes, {nelem, P, ncomp}, {-1, -1, -1}, type);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
    // Init or retrieve key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
-      InitRestrictionImpl(fes, use_bdr, ceed, restr);
+      if (indices)
+      {
+         if (type == RestrType::Lexico)
+         {
+            // Lexicographic ordering using dof_map
+            InitLexicoRestrWithIndices(fes, use_bdr, nelem, indices,
+                                       ceed, restr);
+         }
+         else
+         {
+            // Native ordering
+            InitNativeRestrWithIndices(fes, use_bdr, false, nelem, indices,
+                                       ceed, restr);
+         }
+      }
+      else
+      {
+         mfem::Array<int> dofs;
+         mfem::DofTransformation *dof_trans = use_bdr ? fes.GetBdrElementDofs(0, dofs) :
+                                              fes.GetElementDofs(0, dofs);
+         if (type == RestrType::Lexico)
+         {
+            // Lexicographic ordering using dof_map
+            MFEM_VERIFY(!dof_trans,
+                        "Unexpected DofTransformation for lexicographic element "
+                        "restriction.");
+            InitLexicoRestr(fes, use_bdr, nelem, ceed, restr);
+         }
+         else if (dof_trans)
+         {
+            // Native ordering with dof_trans
+            InitNativeRestrWithIndices(fes, use_bdr, false, nelem, nullptr,
+                                       ceed, restr);
+         }
+         else
+         {
+            // Native ordering without dof_trans
+            InitNativeRestr(fes, use_bdr, nelem, ceed, restr);
+         }
+      }
       mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
@@ -383,31 +425,109 @@ void InitRestriction(const FiniteElementSpace &fes,
    }
 }
 
-void InitRestrictionWithIndices(const FiniteElementSpace &fes,
-                                bool use_bdr,
-                                int nelem,
-                                const int *indices,
-                                Ceed ceed,
-                                CeedElemRestriction *restr)
+void InitInterpolatorRestrictions(const FiniteElementSpace &trial_fes,
+                                  const FiniteElementSpace &test_fes,
+                                  int nelem,
+                                  const int *indices,
+                                  Ceed ceed,
+                                  CeedElemRestriction *trial_restr,
+                                  CeedElemRestriction *test_restr)
 {
    // Check for fes -> restriction in hash table
-   // {-1, -1, -1} is unique from CEED_STRIDES_BACKEND for non-strided restrictions
-   const mfem::FiniteElement *fe = use_bdr ? fes.GetBE(indices[0]) :
-                                   fes.GetFE(indices[0]);
-   const int P = fe->GetDof();
-   const int ncomp = fes.GetVDim();
-   RestrKey restr_key(&fes, nelem, P, ncomp, -1, -1, -1);
-   auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
-
-   // Init or retrieve key values
-   if (restr_itr == mfem::internal::ceed_restr_map.end())
+   // {-1, -1, -1} is unique from CEED_STRIDES_BACKEND for strided restrictions
+   const mfem::FiniteElement *trial_fe, *test_fe;
+   if (indices)
    {
-      InitRestrictionWithIndicesImpl(fes, use_bdr, nelem, indices, ceed, restr);
-      mfem::internal::ceed_restr_map[restr_key] = *restr;
+      trial_fe = trial_fes.GetFE(indices[0]);
+      test_fe = test_fes.GetFE(indices[0]);
    }
    else
    {
-      *restr = restr_itr->second;
+      trial_fe = trial_fes.GetFE(0);
+      test_fe = test_fes.GetFE(0);
+   }
+   // const mfem::TensorBasisElement *trial_tfe =
+   //    dynamic_cast<const mfem::TensorBasisElement *>(trial_fe);
+   // const mfem::TensorBasisElement *test_tfe =
+   //    dynamic_cast<const mfem::TensorBasisElement *>(test_fe);
+   // const bool trial_vector =
+   //    trial_fe->GetRangeType() == mfem::FiniteElement::VECTOR;
+   // const bool test_vector =
+   //    test_fe->GetRangeType() == mfem::FiniteElement::VECTOR;
+
+   for (int s = 0; s < 2; s++)
+   {
+      // The restriction for the test space is slightly different as the output
+      // is a primal vector instead of a dual vector
+      CeedElemRestriction *restr = (s == 0) ? trial_restr : test_restr;
+      const FiniteElementSpace &fes = (s == 0) ? trial_fes : test_fes;
+      const mfem::FiniteElement *fe = (s == 0) ? trial_fe : test_fe;
+      const int P = fe->GetDof();
+      const int ncomp = fes.GetVDim();
+
+      mfem::Array<int> dofs;
+      mfem::DofTransformation *dof_trans =
+         indices ? fes.GetElementDofs(indices[0], dofs) :
+         fes.GetElementDofs(0, dofs);
+      // const RestrType type =
+      //    (trial_tfe && trial_tfe->GetDofMap().Size() > 0 && !trial_vector &&
+      //     test_tfe && test_tfe->GetDofMap().Size() > 0 && !test_vector) ?
+      //    RestrType::Lexico :
+      //    ((dof_trans && s > 0) ? RestrType::NativeRange : RestrType::Native);
+      const RestrType type = (dof_trans && s > 0) ? RestrType::NativeRange :
+                             RestrType::Native;
+      RestrKey restr_key(&fes, {nelem, P, ncomp}, {-1, -1, -1}, type);
+      auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
+
+      // Init or retrieve key values
+      if (restr_itr == mfem::internal::ceed_restr_map.end())
+      {
+         if (indices)
+         {
+            if (type == RestrType::Lexico)
+            {
+               // Lexicographic ordering using dof_map
+               MFEM_VERIFY(!dof_trans,
+                           "Unexpected DofTransformation for lexicographic element "
+                           "restriction.");
+               InitLexicoRestrWithIndices(fes, false, nelem, indices,
+                                          ceed, restr);
+            }
+            else
+            {
+               // Native ordering
+               InitNativeRestrWithIndices(fes, false, (s > 0), nelem, indices,
+                                          ceed, restr);
+            }
+         }
+         else
+         {
+            if (type == RestrType::Lexico)
+            {
+               // Lexicographic ordering using dof_map
+               MFEM_VERIFY(!dof_trans,
+                           "Unexpected DofTransformation for lexicographic element "
+                           "restriction.");
+               InitLexicoRestr(fes, false, nelem, ceed, restr);
+            }
+            else if (dof_trans)
+            {
+               // Native ordering with dof_trans
+               InitNativeRestrWithIndices(fes, false, (s > 0), nelem, nullptr,
+                                          ceed, restr);
+            }
+            else
+            {
+               // Native ordering without dof_trans
+               InitNativeRestr(fes, false, nelem, ceed, restr);
+            }
+         }
+         mfem::internal::ceed_restr_map[restr_key] = *restr;
+      }
+      else
+      {
+         *restr = restr_itr->second;
+      }
    }
 }
 
@@ -420,8 +540,8 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             CeedElemRestriction *restr)
 {
    // Check for fes -> restriction in hash table
-   RestrKey restr_key(&fes, nelem, nqpts, qdatasize,
-                      strides[0], strides[1], strides[2]);
+   RestrKey restr_key(&fes, {nelem, nqpts, qdatasize},
+   {strides[0], strides[1], strides[2]}, RestrType::Strided);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
    // Init or retrieve key values

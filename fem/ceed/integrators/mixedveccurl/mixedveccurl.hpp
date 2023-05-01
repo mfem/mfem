@@ -12,7 +12,8 @@
 #ifndef MFEM_LIBCEED_MIXEDVECCURL_HPP
 #define MFEM_LIBCEED_MIXEDVECCURL_HPP
 
-#include "../../interface/mixed_integrator.hpp"
+#include "../../interface/integrator.hpp"
+#include "../../interface/mixed_operator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -23,7 +24,7 @@ namespace ceed
 
 /** Represent a MixedVectorCurlIntegrator with AssemblyLevel::Partial
     using libCEED. */
-class PAMixedVectorCurlIntegrator : public MixedIntegrator
+class PAMixedVectorCurlIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -37,7 +38,7 @@ public:
 
 /** Represent a MixedVectorCurlIntegrator with AssemblyLevel::None
     using libCEED. */
-class MFMixedVectorCurlIntegrator : public MixedIntegrator
+class MFMixedVectorCurlIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -51,7 +52,7 @@ public:
 
 /** Represent a MixedVectorWeakCurlIntegrator with AssemblyLevel::Partial
     using libCEED. */
-class PAMixedVectorWeakCurlIntegrator : public MixedIntegrator
+class PAMixedVectorWeakCurlIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>
@@ -65,7 +66,7 @@ public:
 
 /** Represent a MixedVectorWeakCurlIntegrator with AssemblyLevel::None
     using libCEED. */
-class MFMixedVectorWeakCurlIntegrator : public MixedIntegrator
+class MFMixedVectorWeakCurlIntegrator : public MixedOperator<Integrator>
 {
 public:
    template <typename CoeffType>

@@ -23,37 +23,117 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
-/** @brief Initialize a CeedBasis for non-mixed meshes.
+/** @brief Initialize a CeedBasis based on an mfem::FiniteElementSpace @a fes,
+    an mfem::FiniteElement @a fe, and an mfem::IntegrationRule @a ir.
 
-    @param[in] fes Input finite element space.
-    @param[in] ir Input integration rule.
-    @param[in] use_bdr Create the basis for boundary elements.
-    @param[in] ceed Input Ceed object.
-    @param[out] basis The address of the initialized CeedBasis object.
-*/
+    @param[in] fes The finite element space.
+    @param[in] fe The finite element.
+    @param[in] ir The integration rule.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize. */
 void InitBasis(const FiniteElementSpace &fes,
+               const FiniteElement &fe,
                const IntegrationRule &ir,
-               bool use_bdr,
                Ceed ceed,
                CeedBasis *basis);
 
-/** @brief Initialize a CeedBasis for mixed meshes.
+/** @brief Initialize a CeedBasis based on an mfem::FiniteElementSpace @a fes,
+    an mfem::IntegrationRule @a ir, and an optional list of element indices
+    @a indices.
 
     @param[in] fes The finite element space.
-    @param[in] ir is the integration rule for the operator.
-    @param[in] use_bdr Create the basis for boundary elements.
-    @param[in] nelem The number of elements.
+    @param[in] ir The integration rule.
+    @param[in] use_bdr Create the basis and restriction for boundary elements.
     @param[in] indices The indices of the elements of same type in the
-                       `FiniteElementSpace`.
+                       `FiniteElementSpace`. If `indices == nullptr`, assumes
+                       that the `FiniteElementSpace` is not mixed.
     @param[in] ceed The Ceed object.
     @param[out] basis The `CeedBasis` to initialize. */
-void InitBasisWithIndices(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir,
-                          bool use_bdr,
-                          int nelem,
-                          const int *indices,
-                          Ceed ceed,
-                          CeedBasis *basis);
+inline void InitBasis(const FiniteElementSpace &fes,
+                      const IntegrationRule &ir,
+                      bool use_bdr,
+                      const int *indices,
+                      Ceed ceed,
+                      CeedBasis *basis)
+{
+   const mfem::FiniteElement *fe;
+   if (indices)
+   {
+      fe = use_bdr ? fes.GetBE(indices[0]) : fes.GetFE(indices[0]);
+   }
+   else
+   {
+      fe = use_bdr ? fes.GetBE(0) : fes.GetFE(0);
+   }
+   InitBasis(fes, *fe, ir, ceed, basis);
+}
+
+inline void InitBasis(const FiniteElementSpace &fes,
+                      const IntegrationRule &ir,
+                      bool use_bdr,
+                      Ceed ceed,
+                      CeedBasis *basis)
+{
+   InitBasis(fes, ir, use_bdr, nullptr, ceed, basis);
+}
+
+/** @brief Initialize a CeedBasis based on an interpolation from
+    mfem::FiniteElementSpace @a trial_fes to @a test_fes. The type of
+    interpolation will be chosen based on the map type of the provided
+    mfem::FiniteElement objects.
+
+    @param[in] trial_fes The trial finite element space.
+    @param[in] test_fes The test finite element space.
+    @param[in] trial_fe The trial finite element.
+    @param[in] test_fe The test finite element.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize. */
+void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes,
+                           const FiniteElement &trial_fe,
+                           const FiniteElement &test_fe,
+                           Ceed ceed,
+                           CeedBasis *basis);
+
+/** @brief Initialize a CeedBasis based on an interpolation from
+    mfem::FiniteElementSpace @a trial_fes to @a test_fes, with an optional list
+    of element indices @a indices. The type of interpolation will be chosen
+    based on the map type of the provided spaces.
+
+    @param[in] trial_fes The trial finite element space.
+    @param[in] test_fes The test finite element space.
+    @param[in] indices The indices of the elements of same type in the
+                       `FiniteElementSpace`. If `indices == nullptr`, assumes
+                       that the `FiniteElementSpace` is not mixed.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize. */
+inline void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
+                                  const FiniteElementSpace &test_fes,
+                                  const int *indices,
+                                  Ceed ceed,
+                                  CeedBasis *basis)
+{
+   const mfem::FiniteElement *trial_fe, *test_fe;
+   if (indices)
+   {
+      trial_fe = trial_fes.GetFE(indices[0]);
+      test_fe = test_fes.GetFE(indices[0]);
+   }
+   else
+   {
+      trial_fe = trial_fes.GetFE(0);
+      test_fe = test_fes.GetFE(0);
+   }
+   InitInterpolatorBasis(trial_fes, test_fes, *trial_fe, *test_fe, ceed, basis);
+}
+
+inline void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
+                                  const FiniteElementSpace &test_fes,
+                                  Ceed ceed,
+                                  CeedBasis *basis)
+{
+   InitInterpolatorBasis(trial_fes, test_fes, nullptr, ceed, basis);
+}
 
 #endif
 

@@ -14,8 +14,6 @@
 #include "../../../general/device.hpp"
 #include "../../../linalg/dtensor.hpp"
 #include "../../gridfunc.hpp"
-#include "basis.hpp"
-#include "restriction.hpp"
 #include <sys/types.h>
 #include <sys/stat.h>
 #if !defined(_WIN32) || !defined(_MSC_VER)
@@ -87,50 +85,6 @@ void InitVector(const mfem::Vector &v, CeedVector &cv)
       mem = CEED_MEM_HOST;
    }
    CeedVectorSetArray(cv, mem, CEED_USE_POINTER, cv_ptr);
-}
-
-void InitBasisAndRestriction(const FiniteElementSpace &fes,
-                             const IntegrationRule &ir,
-                             bool use_bdr,
-                             Ceed ceed,
-                             CeedBasis *basis,
-                             CeedElemRestriction *restr)
-{
-   InitBasis(fes, ir, use_bdr, ceed, basis);
-   InitRestriction(fes, use_bdr, ceed, restr);
-}
-
-void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
-                                        const IntegrationRule &ir,
-                                        bool use_bdr,
-                                        int nelem,
-                                        const int *indices,
-                                        Ceed ceed,
-                                        CeedBasis *basis,
-                                        CeedElemRestriction *restr)
-{
-   InitBasisWithIndices(fes, ir, use_bdr, nelem, indices, ceed, basis);
-   InitRestrictionWithIndices(fes, use_bdr, nelem, indices, ceed, restr);
-}
-
-void InitBasisAndRestriction(const FiniteElementSpace &fes,
-                             const IntegrationRule &ir,
-                             bool use_bdr,
-                             int nelem,
-                             const int *indices,
-                             Ceed ceed,
-                             CeedBasis *basis,
-                             CeedElemRestriction *restr)
-{
-   if (indices)
-   {
-      InitBasisAndRestrictionWithIndices(fes, ir, use_bdr, nelem, indices, ceed,
-                                         basis, restr);
-   }
-   else
-   {
-      InitBasisAndRestriction(fes, ir, use_bdr, ceed, basis, restr);
-   }
 }
 
 // Assumes a tensor-product operator with one active field

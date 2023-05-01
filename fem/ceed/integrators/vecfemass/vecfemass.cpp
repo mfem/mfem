@@ -31,7 +31,7 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
                             bool use_bdr = false, bool use_mf = false)
    {
       MFEM_VERIFY(fes.GetVDim() == 1,
-                  "libCEED interface for vector FE does not support VDim > 1!");
+                  "libCEED interface for vector FE does not support vdim > 1!");
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       bool is_hdiv = (fes.FEColl()->GetMapType(ctx.dim) ==

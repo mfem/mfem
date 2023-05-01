@@ -2184,6 +2184,39 @@ void PADiscreteLinearOperatorExtension::Assemble()
       }
    }
    test_multiplicity.Reciprocal();
+
+
+   // //XX TODO DEBUG
+   // std::cout << "\nINV MULTIPLICITY:\n\n";
+   // test_multiplicity.Print();
+
+}
+
+void PADiscreteLinearOperatorExtension::Mult(const Vector &x, Vector &y) const
+{
+   Array<BilinearFormIntegrator *> &interpolators = *a->GetDBFI();
+   if (elem_restrict_trial)
+   {
+      elem_restrict_trial->Mult(x, local_trial);
+   }
+   if (elem_restrict_test)
+   {
+      local_test = 0.0;
+      for (BilinearFormIntegrator *interp : interpolators)
+      {
+         interp->AddMultPA(elem_restrict_trial ? local_trial : x, local_test);
+      }
+      elem_restrict_test->MultTranspose(local_test, y);
+   }
+   else
+   {
+      y = 0.0;
+      for (BilinearFormIntegrator *interp : interpolators)
+      {
+         interp->AddMultPA(elem_restrict_trial ? local_trial : x, y);
+      }
+   }
+   y *= test_multiplicity;
 }
 
 void PADiscreteLinearOperatorExtension::AddMult(const Vector &x, Vector &y,
@@ -2207,6 +2240,7 @@ void PADiscreteLinearOperatorExtension::AddMult(const Vector &x, Vector &y,
    }
    else
    {
+      temp_test = 0.0;
       for (BilinearFormIntegrator *interp : interpolators)
       {
          interp->AddMultPA(elem_restrict_trial ? local_trial : x, temp_test);
@@ -2220,6 +2254,9 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(const Vector &x,
                                                          Vector &y,
                                                          const double c) const
 {
+   MFEM_VERIFY(c == 1.0,
+               "General coefficient case for PADiscreteLinearOperatorExtension::"
+               "AddMultTranspose is not yet supported!");
    Array<BilinearFormIntegrator *> &interpolators = *a->GetDBFI();
    temp_test = x;
    temp_test *= test_multiplicity;
@@ -2235,26 +2272,14 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(const Vector &x,
          interp->AddMultTransposePA(elem_restrict_test ? local_test : temp_test,
                                     local_trial);
       }
-      if (c != 1.0)
-      {
-         local_trial *= c;
-      }
       elem_restrict_trial->AddMultTranspose(local_trial, y);
    }
    else
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      if (c != 1.0)
+      for (BilinearFormIntegrator *interp : interpolators)
       {
-         MFEM_ABORT("General coefficient case for PADiscreteLinearOperatorExtension::"
-                    "AddMultTranspose is not yet supported!");
-      }
-      else
-      {
-         for (BilinearFormIntegrator *interp : interpolators)
-         {
-            interp->AddMultTransposePA(elem_restrict_test ? local_test : temp_test, y);
-         }
+         interp->AddMultTransposePA(elem_restrict_test ? local_test : temp_test, y);
       }
    }
 }

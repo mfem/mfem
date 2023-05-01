@@ -31,7 +31,7 @@ struct CurlCurlOperatorInfo : public OperatorInfo
                         bool use_bdr = false, bool use_mf = false)
    {
       MFEM_VERIFY(fes.GetVDim() == 1,
-                  "libCEED interface for vector FE does not support VDim > 1!");
+                  "libCEED interface for vector FE does not support vdim > 1!");
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
                   "CurlCurlIntegrator requires dim == 2 or dim == 3!");
