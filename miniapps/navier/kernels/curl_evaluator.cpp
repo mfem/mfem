@@ -88,9 +88,6 @@ void CurlEvaluator::CountElementsPerDof()
          d_els_per_dof(j, e) = d_lvec[gid];
       }
    });
-
-   std::cout << "new " << els_per_dof.Size() << std::endl;
-   els_per_dof.Print(std::cout, els_per_dof.Size());
 }
 
 void CurlEvaluator::ComputeCurlPA(
@@ -312,9 +309,6 @@ void CurlEvaluator::ComputeCurlLegacy(
    const GroupCommunicator &gcomm = ran_fes.GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-
-   std::cout << "legacy " << zones_per_vdof.Size() << std::endl;
-   zones_per_vdof.Print(std::cout, zones_per_vdof.Size());
 
    // Accumulate for all vdofs.
    gcomm.Reduce<double>(ran_gf.GetData(), GroupCommunicator::Sum);

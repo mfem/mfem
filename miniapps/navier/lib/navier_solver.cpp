@@ -447,9 +447,9 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       curlcurlu_gf.SetFromTrueDofs(tmp1);
       ParGridFunction curlcurlu_gf_pa(curlcurlu_gf);
 
-      curlcurlu_gf_legacy -= curlcurlu_gf_pa;
-      std::cout << "|cc(u)_LEGACY - cc(u)_PA| = "
-                << curlcurlu_gf_legacy.Norml2() << "\n";
+      // curlcurlu_gf_legacy -= curlcurlu_gf_pa;
+      // std::cout << "|cc(u)_LEGACY - cc(u)_PA| = "
+      //           << curlcurlu_gf_legacy.Norml2() << "\n";
    }
 
    // (curl curl u)_i *= nu
