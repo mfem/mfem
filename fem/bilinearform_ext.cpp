@@ -628,6 +628,8 @@ void EABilinearFormExtension::Assemble()
                           Device::GetMemoryType());
       ea_data_ext.SetSize(2 * nf_int * face_dofs * face_dofs,
                           Device::GetMemoryType());
+      ea_data_int = 0.0;
+      ea_data_ext = 0.0;
       for (BilinearFormIntegrator *integ : int_face_integrators)
       {
          integ->AssembleEAInteriorFaces(*fes, ea_data_int, ea_data_ext);
@@ -662,13 +664,13 @@ void EABilinearFormExtension::Assemble()
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   auto Apply = [](const int ne, const int ndofs, const Vector &data,
+   auto Apply = [](const int nelem, const int ndofs, const Vector &data,
                    const Vector &x, Vector &y)
    {
-      auto X = Reshape(x.Read(), ndofs, ne);
-      auto Y = Reshape(y.ReadWrite(), ndofs, ne);
-      auto A = Reshape(data.Read(), ndofs, ndofs, ne);
-      mfem::forall(ne * ndofs, [=] MFEM_HOST_DEVICE (int k)
+      auto X = Reshape(x.Read(), ndofs, nelem);
+      auto Y = Reshape(y.ReadWrite(), ndofs, nelem);
+      auto A = Reshape(data.Read(), ndofs, ndofs, nelem);
+      mfem::forall(nelem * ndofs, [=] MFEM_HOST_DEVICE (int k)
       {
          const int e = k / ndofs;
          const int j = k % ndofs;
@@ -706,52 +708,52 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
    // Treatment of interior faces
    Array<BilinearFormIntegrator *> &int_face_integrators = *a->GetFBFI();
-   auto ApplyIntFace = [](const int ne, const int ndofs, const Vector &data,
+   auto ApplyIntFace = [](const int nface, const int ndofs, const Vector &data,
                           const Vector &x, Vector &y)
    {
-      auto X = Reshape(x.Read(), ndofs, 2, ne);
-      auto Y = Reshape(y.ReadWrite(), ndofs, 2, ne);
-      auto A = Reshape(data.Read(), ndofs, ndofs, 2, ne);
-      mfem::forall(ne * ndofs, [=] MFEM_HOST_DEVICE (int k)
+      auto X = Reshape(x.Read(), ndofs, 2, nface);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nface);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nface);
+      mfem::forall(nface * ndofs, [=] MFEM_HOST_DEVICE (int k)
       {
-         const int e = k / ndofs;
+         const int f = k / ndofs;
          const int j = k % ndofs;
          double res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(i, j, 0, e) * X(i, 0, e);
+            res += A(i, j, 0, f) * X(i, 0, f);
          }
-         Y(j, 0, e) += res;
+         Y(j, 0, f) += res;
          res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(i, j, 1, e) * X(i, 1, e);
+            res += A(i, j, 1, f) * X(i, 1, f);
          }
-         Y(j, 1, e) += res;
+         Y(j, 1, f) += res;
       });
    };
-   auto ApplyExtFace = [](const int ne, const int ndofs, const Vector &data,
+   auto ApplyExtFace = [](const int nface, const int ndofs, const Vector &data,
                           const Vector &x, Vector &y)
    {
-      auto X = Reshape(x.Read(), ndofs, 2, ne);
-      auto Y = Reshape(y.ReadWrite(), ndofs, 2, ne);
-      auto A = Reshape(data.Read(), ndofs, ndofs, 2, ne);
-      mfem::forall(ne * ndofs, [=] MFEM_HOST_DEVICE (int k)
+      auto X = Reshape(x.Read(), ndofs, 2, nface);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nface);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nface);
+      mfem::forall(nface * ndofs, [=] MFEM_HOST_DEVICE (int k)
       {
-         const int e = k / ndofs;
+         const int f = k / ndofs;
          const int j = k % ndofs;
          double res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(i, j, 1, e) * X(i, 0, e);
+            res += A(i, j, 0, f) * X(i, 0, f);
          }
-         Y(j, 1, e) += res;
+         Y(j, 1, f) += res;
          res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(i, j, 0, e) * X(i, 1, e);
+            res += A(i, j, 1, f) * X(i, 1, f);
          }
-         Y(j, 0, e) += res;
+         Y(j, 0, f) += res;
       });
    };
    if (int_face_restrict_lex && int_face_integrators.Size() > 0)
@@ -787,13 +789,13 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   auto ApplyTranspose = [](const int ne, const int ndofs, const Vector &data,
+   auto ApplyTranspose = [](const int nelem, const int ndofs, const Vector &data,
                             const Vector &x, Vector &y)
    {
-      auto X = Reshape(x.Read(), ndofs, ne);
-      auto Y = Reshape(y.ReadWrite(), ndofs, ne);
-      auto A = Reshape(data.Read(), ndofs, ndofs, ne);
-      mfem::forall(ne * ndofs, [=] MFEM_HOST_DEVICE (int k)
+      auto X = Reshape(x.Read(), ndofs, nelem);
+      auto Y = Reshape(y.ReadWrite(), ndofs, nelem);
+      auto A = Reshape(data.Read(), ndofs, ndofs, nelem);
+      mfem::forall(nelem * ndofs, [=] MFEM_HOST_DEVICE (int k)
       {
          const int e = k / ndofs;
          const int j = k % ndofs;
@@ -831,52 +833,52 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 
    // Treatment of interior faces
    Array<BilinearFormIntegrator *> &int_face_integrators = *a->GetFBFI();
-   auto ApplyIntFaceTranspose = [](const int ne, const int ndofs,
+   auto ApplyIntFaceTranspose = [](const int nface, const int ndofs,
                                    const Vector &data, const Vector &x, Vector &y)
    {
-      auto X = Reshape(x.Read(), ndofs, 2, ne);
-      auto Y = Reshape(y.ReadWrite(), ndofs, 2, ne);
-      auto A = Reshape(data.Read(), ndofs, ndofs, 2, ne);
-      mfem::forall(ne * ndofs, [=] MFEM_HOST_DEVICE (int k)
+      auto X = Reshape(x.Read(), ndofs, 2, nface);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nface);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nface);
+      mfem::forall(nface * ndofs, [=] MFEM_HOST_DEVICE (int k)
       {
-         const int e = k / ndofs;
+         const int f = k / ndofs;
          const int j = k % ndofs;
          double res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(j, i, 0, e) * X(i, 0, e);
+            res += A(j, i, 0, f) * X(i, 0, f);
          }
-         Y(j, 0, e) += res;
+         Y(j, 0, f) += res;
          res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(j, i, 1, e) * X(i, 1, e);
+            res += A(j, i, 1, f) * X(i, 1, f);
          }
-         Y(j, 1, e) += res;
+         Y(j, 1, f) += res;
       });
    };
-   auto ApplyExtFaceTranspose = [](const int ne, const int ndofs,
+   auto ApplyExtFaceTranspose = [](const int nface, const int ndofs,
                                    const Vector &data, const Vector &x, Vector &y)
    {
-      auto X = Reshape(x.Read(), ndofs, 2, ne);
-      auto Y = Reshape(y.ReadWrite(), ndofs, 2, ne);
-      auto A = Reshape(data.Read(), ndofs, ndofs, 2, ne);
-      mfem::forall(ne * ndofs, [=] MFEM_HOST_DEVICE (int k)
+      auto X = Reshape(x.Read(), ndofs, 2, nface);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nface);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nface);
+      mfem::forall(nface * ndofs, [=] MFEM_HOST_DEVICE (int k)
       {
-         const int e = k / ndofs;
+         const int f = k / ndofs;
          const int j = k % ndofs;
          double res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(j, i, 1, e) * X(i, 0, e);
+            res += A(j, i, 1, f) * X(i, 0, f);
          }
-         Y(j, 1, e) += res;
+         Y(j, 1, f) += res;
          res = 0.0;
          for (int i = 0; i < ndofs; i++)
          {
-            res += A(j, i, 0, e) * X(i, 1, e);
+            res += A(j, i, 0, f) * X(i, 1, f);
          }
-         Y(j, 0, e) += res;
+         Y(j, 0, f) += res;
       });
    };
    if (int_face_restrict_lex && int_face_integrators.Size() > 0)
