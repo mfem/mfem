@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 # Include defaults.mk to get XLINKER
@@ -54,8 +54,17 @@ MAXWELL_OBJ = $(MAXWELL_SRC:.cpp=.o)
 PMAXWELL_SRC = pmaxwell.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_OBJ = $(PMAXWELL_SRC:.cpp=.o)
 
+PMAXWELL_TOKAMAK_SRC = pmaxwell-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_TOKAMAK_OBJ = $(PMAXWELL_TOKAMAK_SRC:.cpp=.o)
+
+PMAXWELL_FEM_TOKAMAK_SRC = pmaxwell-fem-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_FEM_TOKAMAK_OBJ = $(PMAXWELL_FEM_TOKAMAK_SRC:.cpp=.o)
+
+PMAXWELL_PRIMAL_TOKAMAK_SRC = pmaxwell-primal-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_PRIMAL_TOKAMAK_OBJ = $(PMAXWELL_PRIMAL_TOKAMAK_SRC:.cpp=.o)
+
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
-PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell
+PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-tokamak pmaxwell-fem-tokamak pmaxwell-primal-tokamak
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -80,11 +89,6 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
  $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
-
-util/%.o: $(SRC)util/%.cpp $(wildcard $(SRC)util/%.hpp) $(MFEM_LIB_FILE)\
- $(CONFIG_MK) | lib-common
-	mkdir -p $(@D)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
@@ -113,6 +117,14 @@ pacoustics: $(PACOUSTICS_OBJ)
 pmaxwell: $(PMAXWELL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+pmaxwell-tokamak: $(PMAXWELL_TOKAMAK_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+pmaxwell-fem-tokamak: $(PMAXWELL_FEM_TOKAMAK_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_FEM_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)	
+
+pmaxwell-primal-tokamak: $(PMAXWELL_PRIMAL_TOKAMAK_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_PRIMAL_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)	
 
 # Rule for building lib-common
 lib-common:
