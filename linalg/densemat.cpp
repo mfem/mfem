@@ -251,22 +251,43 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 {
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+
+   AddMult(x.GetData(), y.GetData(), a);
+}
+
+void DenseMatrix::AddMult(const Vector &x, double *y, const double a) const
+{
+   MFEM_ASSERT(width == x.Size(),
+               "incompatible dimension");
+
+   AddMult(x.GetData(), y, a);
+}
+
+void DenseMatrix::AddMult(const double *x, Vector &y, const double a) const
+{
+   MFEM_ASSERT(height == y.Size(),
+               "incompatible dimension");
+
+   AddMult(x, y.GetData(), a);
+}
+
+void DenseMatrix::AddMult(const double *x, double *y, const double a) const
+{
    if (a != 1.0)
    {
       AddMult_a(a, x, y);
       return;
    }
-   MFEM_ASSERT(height == y.Size() && width == x.Size(),
-               "incompatible dimensions");
 
-   const double *xp = x.GetData(), *d_col = data;
-   double *yp = y.GetData();
+   const double *d_col = data;
    for (int col = 0; col < width; col++)
    {
-      double x_col = xp[col];
+      double x_col = x[col];
       for (int row = 0; row < height; row++)
       {
-         yp[row] += x_col*d_col[row];
+         y[row] += x_col*d_col[row];
       }
       d_col += height;
    }
@@ -300,15 +321,32 @@ void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
+   AddMult_a(a, x.GetData(), y.GetData());
+}
 
-   const double *xp = x.GetData(), *d_col = data;
-   double *yp = y.GetData();
+void DenseMatrix::AddMult_a(double a, const double *x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size(),
+               "incompatible dimension");
+   AddMult_a(a, x, y.GetData());
+}
+
+void DenseMatrix::AddMult_a(double a, const Vector &x, double *y) const
+{
+   MFEM_ASSERT(width == x.Size(),
+               "incompatible dimension");
+   AddMult_a(a, x.GetData(), y);
+}
+
+void DenseMatrix::AddMult_a(double a, const double *x, double *y) const
+{
+   const double *d_col = data;
    for (int col = 0; col < width; col++)
    {
-      const double x_col = a*xp[col];
+      const double x_col = a*x[col];
       for (int row = 0; row < height; row++)
       {
-         yp[row] += x_col*d_col[row];
+         y[row] += x_col*d_col[row];
       }
       d_col += height;
    }

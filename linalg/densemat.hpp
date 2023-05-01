@@ -167,6 +167,9 @@ public:
 
    /// y += a * A.x
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const double *x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, double *y, const double a = 1.0) const;
+   virtual void AddMult(const double *x, double *y, const double a = 1.0) const;
 
    /// y += a * A^t x
    virtual void AddMultTranspose(const Vector &x, Vector &y,
@@ -174,6 +177,9 @@ public:
 
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
+   void AddMult_a(double a, const double *x, Vector &y) const;
+   void AddMult_a(double a, const Vector &x, double *y) const;
+   void AddMult_a(double a, const double *x, double *y) const;
 
    /// y += a * A^t x
    void AddMultTranspose_a(double a, const Vector &x, Vector &y) const;
