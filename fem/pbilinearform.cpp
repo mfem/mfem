@@ -151,7 +151,8 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
    }
 }
 
-void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
+void ParBilinearForm::ParallelAssemble(OperatorHandle &A,
+                                       SparseMatrix *A_local) const
 {
    A.Clear();
 
@@ -201,6 +202,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
    // TODO - assemble the Dof_TrueDof_Matrix directly in the required format?
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+
    // TODO: When Ph.Type() == Operator::ANY_TYPE we want to use the Operator
    // returned by pfes->GetProlongationMatrix(), however that Operator is a
    // const Operator, so we cannot store it in OperatorHandle. We need a const
@@ -209,7 +211,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    A.MakePtAP(dA, Ph);
 }
 
-HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
+HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m) const
 {
    OperatorHandle Mh(Operator::Hypre_ParCSR);
    ParallelAssemble(Mh, m);
@@ -246,10 +248,9 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
       vdofs_all.Append(vdofs2);
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         interior_face_integs[k]->
-         AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
-                            *pfes->GetFaceNbrFE(Elem2NbrNo),
-                            *T, elemmat);
+         interior_face_integs[k]->AssembleFaceMatrix(*pfes->GetFE(T->Elem1No),
+                                                     *pfes->GetFaceNbrFE(Elem2NbrNo),
+                                                     *T, elemmat);
          if (keep_nbr_block)
          {
             mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
@@ -320,10 +321,10 @@ void ParBilinearForm::AssembleDiagonal(Vector &diag) const
    }
 }
 
-void ParBilinearForm
-::ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                               HypreParMatrix &A, const HypreParVector &X,
-                               HypreParVector &B) const
+void ParBilinearForm::ParallelEliminateEssentialBC(
+   const Array<int> &bdr_attr_is_ess,
+   HypreParMatrix &A, const HypreParVector &X,
+   HypreParVector &B) const
 {
    Array<int> dof_list;
 
@@ -333,9 +334,9 @@ void ParBilinearForm
    A.EliminateRowsCols(dof_list, X, B);
 }
 
-HypreParMatrix *ParBilinearForm::
-ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                             HypreParMatrix &A) const
+HypreParMatrix *ParBilinearForm::ParallelEliminateEssentialBC(
+   const Array<int> &bdr_attr_is_ess,
+   HypreParMatrix &A) const
 {
    Array<int> dof_list;
 
@@ -374,7 +375,17 @@ void ParBilinearForm::FormLinearSystem(
 {
    if (ext)
    {
-      ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      Operator *oper;
+      ext->FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+      if (assembly == AssemblyLevel::FULL)
+      {
+         delete oper;
+         FormSystemMatrix(ess_tdof_list, A);
+      }
+      else
+      {
+         A.Reset(oper);
+      }
       return;
    }
 
@@ -418,18 +429,28 @@ void ParBilinearForm::FormLinearSystem(
    }
 }
 
-void ParBilinearForm::EliminateVDofsInRHS(
-   const Array<int> &vdofs, const Vector &x, Vector &b)
-{
-   p_mat.EliminateBC(p_mat_e, vdofs, x, b);
-}
-
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
    if (ext)
    {
-      ext->FormSystemMatrix(ess_tdof_list, A);
+      if (assembly == AssemblyLevel::FULL)
+      {
+         // Always does `DIAG_ONE` policy to be consistent with
+         // `Operator::FormConstrainedSystemOperator`.
+         MFEM_VERIFY(diag_policy == DiagonalPolicy::DIAG_ONE,
+                     "Only DiagonalPolicy::DIAG_ONE supported with"
+                     " FABilinearFormExtension.");
+         ParallelRAP(*mat, A);
+         A.As<HypreParMatrix>()->EliminateBC(ess_tdof_list,
+                                             DiagonalPolicy::DIAG_ONE);
+      }
+      else
+      {
+         Operator *oper;
+         ext->FormSystemOperator(ess_tdof_list, oper);
+         A.Reset(oper);
+      }
       return;
    }
 
@@ -460,6 +481,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          delete mat_e;
          mat_e = NULL;
          p_mat_e.EliminateRowsCols(p_mat, ess_tdof_list);
+         A = p_mat;
       }
       if (hybridization)
       {
@@ -521,30 +543,22 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
    p_mat_e.Clear();
 }
 
-
-HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
+void ParBilinearForm::EliminateVDofsInRHS(
+   const Array<int> &vdofs, const Vector &x, Vector &b)
 {
-   // construct the block-diagonal matrix A
-   HypreParMatrix *A =
-      new HypreParMatrix(trial_pfes->GetComm(),
-                         test_pfes->GlobalVSize(),
-                         trial_pfes->GlobalVSize(),
-                         test_pfes->GetDofOffsets(),
-                         trial_pfes->GetDofOffsets(),
-                         mat);
-
-   HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A,
-                             trial_pfes->Dof_TrueDof_Matrix());
-
-   delete A;
-
-   return rap;
+   p_mat.EliminateBC(p_mat_e, vdofs, x, b);
 }
 
-void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
+void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A) const
 {
+   A.Clear();
+
+   if (mat == NULL) { return; }
+   MFEM_VERIFY(mat->Finalized(), "the local matrix must be finalized");
+
+   OperatorHandle dA(A.Type()), P_test(A.Type()), P_trial(A.Type());
+
    // construct the rectangular block-diagonal matrix dA
-   OperatorHandle dA(A.Type());
    dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),
                                test_pfes->GlobalVSize(),
                                trial_pfes->GlobalVSize(),
@@ -552,13 +566,19 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
                                trial_pfes->GetDofOffsets(),
                                mat);
 
-   OperatorHandle P_test(A.Type()), P_trial(A.Type());
-
    // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
    P_test.ConvertFrom(test_pfes->Dof_TrueDof_Matrix());
    P_trial.ConvertFrom(trial_pfes->Dof_TrueDof_Matrix());
 
    A.MakeRAP(P_test, dA, P_trial);
+}
+
+HypreParMatrix *ParMixedBilinearForm::ParallelAssemble() const
+{
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
+   ParallelAssemble(Mh);
+   Mh.SetOperatorOwner(false);
+   return Mh.As<HypreParMatrix>();
 }
 
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
@@ -576,46 +596,18 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
    test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Yaux, 1.0, y);
 }
 
-void ParMixedBilinearForm::FormRectangularSystemMatrix(
-   const Array<int>
-   &trial_tdof_list,
-   const Array<int> &test_tdof_list,
-   OperatorHandle &A)
-{
-   if (ext)
-   {
-      ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
-      return;
-   }
-
-   if (mat)
-   {
-      Finalize();
-      ParallelAssemble(p_mat);
-      delete mat;
-      mat = NULL;
-      delete mat_e;
-      mat_e = NULL;
-      HypreParMatrix *temp =
-         p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
-      p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
-      p_mat_e.Reset(temp, true);
-   }
-
-   A = p_mat;
-}
-
 void ParMixedBilinearForm::FormRectangularLinearSystem(
-   const Array<int>
-   &trial_tdof_list,
+   const Array<int> &trial_tdof_list,
    const Array<int> &test_tdof_list, Vector &x,
    Vector &b, OperatorHandle &A, Vector &X,
    Vector &B)
 {
    if (ext)
    {
+      Operator *oper;
       ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list,
-                                       x, b, A, X, B);
+                                       x, b, oper, X, B);
+      A.Reset(oper);
       return;
    }
 
@@ -633,64 +625,118 @@ void ParMixedBilinearForm::FormRectangularLinearSystem(
    B.SetSubVector(test_tdof_list, 0.0);
 }
 
-HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
-{
-   MFEM_ASSERT(mat, "Matrix is not assembled");
-   MFEM_ASSERT(mat->Finalized(), "Matrix is not finalized");
-   SparseMatrix* RA = mfem::Mult(*range_fes->GetRestrictionMatrix(), *mat);
-   HypreParMatrix* P = domain_fes->Dof_TrueDof_Matrix();
-   HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
-   delete RA;
-   return RAP;
-}
-
-void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
-{
-   // construct the rectangular block-diagonal matrix dA
-   OperatorHandle dA(A.Type());
-   dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
-                               range_fes->GlobalVSize(),
-                               domain_fes->GlobalVSize(),
-                               range_fes->GetDofOffsets(),
-                               domain_fes->GetDofOffsets(),
-                               mat);
-
-   SparseMatrix *Rt = Transpose(*range_fes->GetRestrictionMatrix());
-   OperatorHandle R_test_transpose(A.Type());
-   R_test_transpose.MakeRectangularBlockDiag(range_fes->GetComm(),
-                                             range_fes->GlobalVSize(),
-                                             range_fes->GlobalTrueVSize(),
-                                             range_fes->GetDofOffsets(),
-                                             range_fes->GetTrueDofOffsets(),
-                                             Rt);
-
-   // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
-   OperatorHandle P_trial(A.Type());
-   P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
-
-   A.MakeRAP(R_test_transpose, dA, P_trial);
-   delete Rt;
-}
-
-void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)
+void ParMixedBilinearForm::FormRectangularSystemMatrix(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   OperatorHandle &A)
 {
    if (ext)
    {
-      Array<int> empty;
-      ext->FormRectangularSystemOperator(empty, empty, A);
+      Operator *oper;
+      ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, oper);
+      A.Reset(oper);
       return;
    }
 
-   mfem_error("not implemented!");
+   if (mat)
+   {
+      const int remove_zeros = 0;
+      Finalize(remove_zeros);
+      MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
+                  "The ParMixedBilinearFormBilinearForm must be updated "
+                  "with Update() before re-assembling the ParMixedBilinearFormBilinearForm.");
+      ParallelAssemble(p_mat);
+      delete mat;
+      mat = NULL;
+      delete mat_e;
+      mat_e = NULL;
+      HypreParMatrix *temp =
+         p_mat.As<HypreParMatrix>()->EliminateCols(trial_tdof_list);
+      p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
+      p_mat_e.Reset(temp, true);
+      A = p_mat;
+   }
 }
 
-void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
-const
+void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A) const
+{
+   A.Clear();
+
+   if (mat == NULL) { return; }
+   MFEM_VERIFY(mat->Finalized(), "the local matrix must be finalized");
+
+   if (A.Type() == Operator::Hypre_ParCSR)
+   {
+      const SparseMatrix *R = range_fes->GetRestrictionMatrix();
+      const HypreParMatrix *P = domain_fes->Dof_TrueDof_Matrix();
+      SparseMatrix *RA = mfem::Mult(*R, *mat);
+      A.Reset(P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets()));
+      delete RA;
+   }
+   else
+   {
+      OperatorHandle dA(A.Type()), P_trial(A.Type()), Rt_test(A.Type());
+
+      // construct the rectangular block-diagonal matrix dA
+      dA.MakeRectangularBlockDiag(domain_fes->GetComm(),
+                                  range_fes->GlobalVSize(),
+                                  domain_fes->GlobalVSize(),
+                                  range_fes->GetDofOffsets(),
+                                  domain_fes->GetDofOffsets(),
+                                  mat);
+
+      SparseMatrix *Rt = Transpose(*range_fes->GetRestrictionMatrix());
+      Rt_test.MakeRectangularBlockDiag(range_fes->GetComm(),
+                                       range_fes->GlobalVSize(),
+                                       range_fes->GlobalTrueVSize(),
+                                       range_fes->GetDofOffsets(),
+                                       range_fes->GetTrueDofOffsets(),
+                                       Rt);
+
+      // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+      P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
+
+      A.MakeRAP(Rt_test, dA, P_trial);
+      delete Rt;
+   }
+}
+
+HypreParMatrix *ParDiscreteLinearOperator::ParallelAssemble() const
+{
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
+   ParallelAssemble(Mh);
+   Mh.SetOperatorOwner(false);
+   return Mh.As<HypreParMatrix>();
+}
+
+void ParDiscreteLinearOperator::FormDiscreteOperatorMatrix(OperatorHandle &A)
+{
+   if (ext)
+   {
+      Operator *oper;
+      ext->FormDiscreteOperator(oper);
+      A.Reset(oper);
+      return;
+   }
+
+   if (mat)
+   {
+      Finalize();
+      ParallelAssemble(A);
+      delete mat;
+      mat = NULL;
+      delete mat_e;
+      mat_e = NULL;
+   }
+}
+
+void ParDiscreteLinearOperator::GetParBlocks(
+   Array2D<HypreParMatrix *> &blocks)
 {
    MFEM_VERIFY(mat->Finalized(), "Local matrix needs to be finalized for "
                "GetParBlocks");
 
-   HypreParMatrix* RLP = ParallelAssemble();
+   HypreParMatrix *RLP = ParallelAssemble();
 
    blocks.SetSize(range_fes->GetVDim(), domain_fes->GetVDim());
 

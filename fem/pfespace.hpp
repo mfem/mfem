@@ -70,6 +70,7 @@ private:
 
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
+
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
 
@@ -80,12 +81,6 @@ private:
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
-   /// Optimized action-only restriction operator for conforming meshes. Owned.
-   mutable Operator *Rconf;
-   /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
-       (Device)ConformingProlongationOperator, for a non-conforming mesh
-       this is a TransposeOperator wrapping R. */
-   mutable Operator *R_transpose;
 
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
@@ -328,6 +323,13 @@ public:
    HypreParMatrix *Dof_TrueDof_Matrix() const
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
+   /// Get the P matrix which prolongates a true dof vector to local dof vector.
+   virtual const Operator *GetProlongationMatrix() const;
+
+   /// Get the R matrix which restricts a local dof vector to true dof vector.
+   virtual const SparseMatrix *GetRestrictionMatrix() const
+   { Dof_TrueDof_Matrix(); return R; }
+
    /** @brief For a non-conforming mesh, construct and return the interpolation
        matrix from the partially conforming true dofs to the local dofs. */
    /** @note The returned pointer must be deleted by the caller. */
@@ -381,21 +383,6 @@ public:
    HYPRE_BigInt GetMyDofOffset() const;
    HYPRE_BigInt GetMyTDofOffset() const;
 
-   virtual const Operator *GetProlongationMatrix() const;
-   /** @brief Return logical transpose of restriction matrix, but in
-       non-assembled optimized matrix-free form.
-
-       The implementation is like GetProlongationMatrix, but it sets local
-       DOFs to the true DOF values if owned locally, otherwise zero. */
-   virtual const Operator *GetRestrictionTransposeOperator() const;
-   /** Get an Operator that performs the action of GetRestrictionMatrix(),
-       but potentially with a non-assembled optimized matrix-free
-       implementation. */
-   virtual const Operator *GetRestrictionOperator() const;
-   /// Get the R matrix which restricts a local dof vector to true dof vector.
-   virtual const SparseMatrix *GetRestrictionMatrix() const
-   { Dof_TrueDof_Matrix(); return R; }
-
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
@@ -441,21 +428,17 @@ public:
    int TrueVSize() const { return ltdof_size; }
 };
 
-
 /// Auxiliary class used by ParFiniteElementSpace.
 class ConformingProlongationOperator : public Operator
 {
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
-   bool local;
 
 public:
-   ConformingProlongationOperator(int lsize, const GroupCommunicator &gc_,
-                                  bool local_=false);
+   ConformingProlongationOperator(int lsize, const GroupCommunicator &gc_);
 
-   ConformingProlongationOperator(const ParFiniteElementSpace &pfes,
-                                  bool local_=false);
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
 
    const GroupCommunicator &GetGroupCommunicator() const;
 
@@ -465,8 +448,8 @@ public:
 };
 
 /// Auxiliary device class used by ParFiniteElementSpace.
-class DeviceConformingProlongationOperator: public
-   ConformingProlongationOperator
+class DeviceConformingProlongationOperator :
+   public ConformingProlongationOperator
 {
 protected:
    bool mpi_gpu_aware;
@@ -502,11 +485,10 @@ protected:
    void ReduceEndAssemble(Vector &dst) const;
 
 public:
-   DeviceConformingProlongationOperator(
-      const GroupCommunicator &gc_, const SparseMatrix *R, bool local_=false);
+   DeviceConformingProlongationOperator(const GroupCommunicator &gc_,
+                                        const SparseMatrix *R);
 
-   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
-                                        bool local_=false);
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
 
    virtual ~DeviceConformingProlongationOperator();
 

@@ -171,25 +171,6 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &diag) const
    }
 }
 
-void MFBilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                               OperatorHandle &A)
-{
-   Operator *oper;
-   Operator::FormSystemOperator(ess_tdof_list, oper);
-   A.Reset(oper); // A will own oper
-}
-
-void MFBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                               Vector &x, Vector &b,
-                                               OperatorHandle &A,
-                                               Vector &X, Vector &B,
-                                               int copy_interior)
-{
-   Operator *oper;
-   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
-   A.Reset(oper); // A will own oper
-}
-
 void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
@@ -598,7 +579,7 @@ void EABilinearFormExtension::Assemble()
 {
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
-   ne = fes->GetMesh()->GetNE();
+   ne = fes->GetNE();
    elem_dofs = fes->GetFE(0)->GetDof();
 
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
@@ -1038,59 +1019,6 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
-void FABilinearFormExtension::RAP(OperatorHandle &A)
-{
-#ifdef MFEM_USE_MPI
-   if (auto pa = dynamic_cast<ParBilinearForm* >(a))
-   {
-      pa->ParallelRAP(*pa->mat, A);
-   }
-   else
-#endif
-   {
-      a->SerialRAP(A);
-   }
-}
-
-void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
-                                          OperatorHandle &A)
-{
-   MFEM_VERIFY(a->diag_policy == DiagonalPolicy::DIAG_ONE,
-               "Only DiagonalPolicy::DIAG_ONE supported with"
-               " FABilinearFormExtension.");
-#ifdef MFEM_USE_MPI
-   if (dynamic_cast<ParBilinearForm *>(a))
-   {
-      A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
-                                          DiagonalPolicy::DIAG_ONE);
-   }
-   else
-#endif
-   {
-      A.As<SparseMatrix>()->EliminateBC(ess_dofs,
-                                        DiagonalPolicy::DIAG_ONE);
-   }
-}
-
-void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
-                                               OperatorHandle &A)
-{
-   RAP(A);
-   EliminateBC(ess_dofs, A);
-}
-
-void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                               Vector &x, Vector &b,
-                                               OperatorHandle &A,
-                                               Vector &X, Vector &B,
-                                               int copy_interior)
-{
-   Operator *A_out;
-   Operator::FormLinearSystem(ess_tdof_list, x, b, A_out, X, B, copy_interior);
-   delete A_out;
-   FormSystemMatrix(ess_tdof_list, A);
-}
-
 void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
@@ -1238,7 +1166,6 @@ const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
    return a->GetOutputRestriction();
 }
 
-
 /// Data and methods for matrix-free mixed bilinear forms
 MFMixedBilinearFormExtension::MFMixedBilinearFormExtension(
    MixedBilinearForm *form)
@@ -1345,29 +1272,6 @@ void MFMixedBilinearFormExtension::Assemble()
 
    MFEM_VERIFY(a->GetBTFBFI()->Size() == 0, "AddBdrFaceIntegrator is not "
                "currently supported in MFMixedBilinearFormExtension");
-}
-
-void MFMixedBilinearFormExtension::FormRectangularSystemOperator(
-   const Array<int> &trial_tdof_list,
-   const Array<int> &test_tdof_list,
-   OperatorHandle &A)
-{
-   Operator *oper;
-   Operator::FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, oper);
-   A.Reset(oper); // A will own oper
-}
-
-void MFMixedBilinearFormExtension::FormRectangularLinearSystem(
-   const Array<int> &trial_tdof_list,
-   const Array<int> &test_tdof_list,
-   Vector &x, Vector &b,
-   OperatorHandle &A,
-   Vector &X, Vector &B)
-{
-   Operator *oper;
-   Operator::FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b,
-                                         oper, X, B);
-   A.Reset(oper); // A will own oper
 }
 
 void MFMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
@@ -1874,51 +1778,37 @@ PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(
 {
 }
 
-const Operator *
-PADiscreteLinearOperatorExtension::GetOutputRestrictionTranspose() const
-{
-   return a->GetOutputRestrictionTranspose();
-}
-
 void PADiscreteLinearOperatorExtension::Assemble()
 {
    PAMixedBilinearFormExtension::Assemble();
 
-   MFEM_VERIFY(elem_restrict_test,
-               "PADiscreteLinearOperatorExtension requires an element restriction operator!");
+   // Construct element vdof multiplicity (avoid use of elem_restrict_test
+   // because it might not exist for libCEED)
+   test_multiplicity.SetSize(height);
    test_multiplicity.UseDevice(true);
-   test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
-   Vector ones(elem_restrict_test->Height()); // e-vector
-   ones = 1.0;
-
-   const ElementRestriction *H1elem_restrict_test =
-      dynamic_cast<const ElementRestriction *>(elem_restrict_test);
-   MFEM_VERIFY(H1elem_restrict_test,
-               "A real ElementRestriction is required for PADiscreteLinearOperatorExtension!");
-   H1elem_restrict_test->MultTransposeUnsigned(ones, test_multiplicity);
+   test_multiplicity = 0.0;
+   Array<int> dofs;
+   for (int i = 0; i < test_fes->GetNE(); i++)
+   {
+      test_fes->GetElementVDofs(i, dofs);
+      const int ndofs = dofs.Size();
+      auto d_mult = test_multiplicity.HostReadWrite();
+      auto d_dofs = dofs.HostRead();
+      mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int j = d_dofs[i];
+         d_mult[(j >= 0) ? j : -1 - j] += 1.0;
+      });
+   }
    test_multiplicity.Reciprocal();
-}
-
-void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
-   const Array<int> &trial_tdof_list,
-   const Array<int> &test_tdof_list,
-   OperatorHandle &A)
-{
-   // This acts very much like PAMixedBilinearFormExtension, but emulates 'Set'
-   // rather than 'Add' in the assembly case.
-   const Operator *Pi = GetProlongation();
-   const Operator *RoT = GetOutputRestrictionTranspose();
-   Operator *rap = SetupRAP(Pi, RoT);
-   RectangularConstrainedOperator *Arco =
-      new RectangularConstrainedOperator(rap, trial_tdof_list, test_tdof_list,
-                                         rap != this);
-   A.Reset(Arco);
 }
 
 void PADiscreteLinearOperatorExtension::AddMult(const Vector &x, Vector &y,
                                                 const double c) const
 {
-   Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
+   Array<BilinearFormIntegrator *> &interpolators = *a->GetDBFI();
+   temp_test.SetSize(y.Size());
+   temp_test.UseDevice(true);
    if (elem_restrict_trial)
    {
       elem_restrict_trial->Mult(x, local_trial);
@@ -1926,55 +1816,64 @@ void PADiscreteLinearOperatorExtension::AddMult(const Vector &x, Vector &y,
    if (elem_restrict_test)
    {
       local_test = 0.0;
-      for (BilinearFormIntegrator *integ : integrators)
+      for (BilinearFormIntegrator *interp : interpolators)
       {
-         integ->AddMultPA(elem_restrict_trial ? local_trial : x, local_test);
+         interp->AddMultPA(elem_restrict_trial ? local_trial : x, local_test);
       }
-      const ElementRestriction *H1elem_restrict_test =
-         dynamic_cast<const ElementRestriction *>(elem_restrict_test);
-      MFEM_VERIFY(H1elem_restrict_test,
-                  "A real ElementRestriction is required for PADiscreteLinearOperatorExtension!");
-      temp_test.SetSize(y.Size());
-      temp_test.UseDevice(true);
-      H1elem_restrict_test->MultLeftInverse(local_test, temp_test);
-      y.Add(c, temp_test);
+      elem_restrict_test->MultTranspose(local_test, temp_test);
    }
    else
    {
-      MFEM_ABORT("PADiscreteLinearOperatorExtension requires an element restriction operator!");
+      for (BilinearFormIntegrator *interp : interpolators)
+      {
+         interp->AddMultPA(elem_restrict_trial ? local_trial : x, temp_test);
+      }
    }
+   temp_test *= test_multiplicity;
+   y.Add(c, temp_test);
 }
 
 void PADiscreteLinearOperatorExtension::AddMultTranspose(const Vector &x,
                                                          Vector &y,
                                                          const double c) const
 {
-   Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
+   Array<BilinearFormIntegrator *> &interpolators = *a->GetDBFI();
+   temp_test.SetSize(y.Size());
+   temp_test.UseDevice(true);
    temp_test = x;
    temp_test *= test_multiplicity;
    if (elem_restrict_test)
    {
       elem_restrict_test->Mult(temp_test, local_test);
    }
-   else
-   {
-      MFEM_ABORT("PADiscreteLinearOperatorExtension requires an element restriction operator!");
-   }
    if (elem_restrict_trial)
    {
       local_trial = 0.0;
-      for (BilinearFormIntegrator *integ : integrators)
+      for (BilinearFormIntegrator *interp : interpolators)
       {
-         integ->AddMultTransposePA(local_test, local_trial);
+         interp->AddMultTransposePA(elem_restrict_test ? local_test : temp_test,
+                                    local_trial);
+      }
+      if (c != 1.0)
+      {
+         local_trial *= c;
       }
       elem_restrict_trial->AddMultTranspose(local_trial, y);
    }
    else
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      for (BilinearFormIntegrator *integ : integrators)
+      if (c != 1.0)
       {
-         integ->AddMultTransposePA(local_test, y);
+         MFEM_ABORT("General coefficient case for PADiscreteLinearOperatorExtension::"
+                    "AddMultTranspose is not yet supported!");
+      }
+      else
+      {
+         for (BilinearFormIntegrator *interp : interpolators)
+         {
+            interp->AddMultTransposePA(elem_restrict_test ? local_test : temp_test, y);
+         }
       }
    }
 }

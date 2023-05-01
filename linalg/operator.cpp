@@ -165,7 +165,7 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
-Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
+Operator *Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 {
    Operator *rap;
    if (!IsIdentityProlongation(Pi))
@@ -176,15 +176,15 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
       }
       else
       {
-         rap = new ProductOperator(this, Pi, false,false);
+         rap = new ProductOperator(this, Pi, false, false);
       }
    }
    else
    {
       if (!IsIdentityProlongation(Po))
       {
-         TransposeOperator * PoT = new TransposeOperator(Po);
-         rap = new ProductOperator(PoT, this, true,false);
+         TransposeOperator *PoT = new TransposeOperator(Po);
+         rap = new ProductOperator(PoT, this, true, false);
       }
       else
       {
@@ -245,10 +245,10 @@ void Operator::FormDiscreteOperator(Operator* &Aout)
 {
    const Operator *Pin  = this->GetProlongation();
    const Operator *Rout = this->GetOutputRestriction();
-   Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
+   Aout = new TripleProductOperator(Rout, this, Pin, false, false, false);
 }
 
-void Operator::PrintMatlab(std::ostream & os, int n, int m) const
+void Operator::PrintMatlab(std::ostream &os, int n, int m) const
 {
    using namespace std;
    if (n == 0) { n = width; }

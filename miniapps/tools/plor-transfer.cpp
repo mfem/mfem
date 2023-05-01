@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
    {
       Vector M_rho_true(fespace.GetTrueVSize());
       M_ho_tdof->Mult(rho.GetTrueVector(), M_rho_true);
-      fespace.GetRestrictionOperator()->MultTranspose(M_rho_true, M_rho);
+      fespace.GetRestrictionMatrix()->MultTranspose(M_rho_true, M_rho);
       const Operator &P = gt->BackwardOperator();
       P.MultTranspose(M_rho, M_rho_lor);
       double ho_dual_mass = global_sum(M_rho);
@@ -275,8 +275,8 @@ int main(int argc, char *argv[])
    {
       Vector M_rho_lor_true(fespace_lor.GetTrueVSize());
       M_lor_tdof->Mult(rho_lor.GetTrueVector(), M_rho_lor_true);
-      fespace_lor.GetRestrictionOperator()->MultTranspose(M_rho_lor_true,
-                                                          M_rho_lor);
+      fespace_lor.GetRestrictionMatrix()->MultTranspose(M_rho_lor_true,
+                                                        M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
       double ho_dual_mass = global_sum(M_rho);
       double lor_dual_mass = global_sum(M_rho_lor);

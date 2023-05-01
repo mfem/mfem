@@ -101,8 +101,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    P = NULL;
    Pconf = NULL;
    nonconf_P = false;
-   Rconf = NULL;
-   R_transpose = NULL;
    R = NULL;
 
    num_face_nbr_dofs = -1;
@@ -973,6 +971,37 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    R = Transpose(Pdiag);
 }
 
+const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
+{
+   if (Conforming())
+   {
+      if (Pconf) { return Pconf; }
+
+      if (nd_strias) { return Dof_TrueDof_Matrix(); }
+
+      if (NRanks == 1)
+      {
+         Pconf = new IdentityOperator(GetTrueVSize());
+      }
+      else
+      {
+         if (!Device::Allows(Backend::DEVICE_MASK))
+         {
+            Pconf = new ConformingProlongationOperator(*this);
+         }
+         else
+         {
+            Pconf = new DeviceConformingProlongationOperator(*this);
+         }
+      }
+      return Pconf;
+   }
+   else
+   {
+      return Dof_TrueDof_Matrix();
+   }
+}
+
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 {
    HypreParMatrix *P_pc;
@@ -1160,76 +1189,6 @@ HYPRE_BigInt ParFiniteElementSpace::GetMyDofOffset() const
 HYPRE_BigInt ParFiniteElementSpace::GetMyTDofOffset() const
 {
    return HYPRE_AssumedPartitionCheck()? tdof_offsets[0] : tdof_offsets[MyRank];
-}
-
-const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
-{
-   if (Conforming())
-   {
-      if (Pconf) { return Pconf; }
-
-      if (nd_strias) { return Dof_TrueDof_Matrix(); }
-
-      if (NRanks == 1)
-      {
-         Pconf = new IdentityOperator(GetTrueVSize());
-      }
-      else
-      {
-         if (!Device::Allows(Backend::DEVICE_MASK))
-         {
-            Pconf = new ConformingProlongationOperator(*this);
-         }
-         else
-         {
-            Pconf = new DeviceConformingProlongationOperator(*this);
-         }
-      }
-      return Pconf;
-   }
-   else
-   {
-      return Dof_TrueDof_Matrix();
-   }
-}
-
-const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
-{
-   if (Conforming())
-   {
-      if (Rconf) { return Rconf; }
-
-      if (NRanks == 1)
-      {
-         R_transpose = new IdentityOperator(GetTrueVSize());
-      }
-      else
-      {
-         if (!Device::Allows(Backend::DEVICE_MASK))
-         {
-            R_transpose = new ConformingProlongationOperator(*this, true);
-         }
-         else
-         {
-            R_transpose =
-               new DeviceConformingProlongationOperator(*this, true);
-         }
-      }
-      Rconf = new TransposeOperator(R_transpose);
-      return Rconf;
-   }
-   else
-   {
-      Dof_TrueDof_Matrix();
-      R_transpose = new TransposeOperator(R);
-      return R;
-   }
-}
-
-const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
-{
-   GetRestrictionOperator();
-   return R_transpose;
 }
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
@@ -3241,8 +3200,6 @@ void ParFiniteElementSpace::Destroy()
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
-   delete Rconf; Rconf = NULL;
-   delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
@@ -3448,8 +3405,8 @@ void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 }
 
 ConformingProlongationOperator::ConformingProlongationOperator(
-   int lsize, const GroupCommunicator &gc_, bool local_)
-   : gc(gc_), local(local_)
+   int lsize, const GroupCommunicator &gc_)
+   : gc(gc_)
 {
    const Table &group_ldof = gc.GroupLDofTable();
 
@@ -3484,11 +3441,10 @@ const
 }
 
 ConformingProlongationOperator::ConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes, bool local_)
+   const ParFiniteElementSpace &pfes)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
-     gc(pfes.GroupComm()),
-     local(local_)
+     gc(pfes.GroupComm())
 {
    MFEM_VERIFY(pfes.Conforming(), "");
    const Table &group_ldof = gc.GroupLDofTable();
@@ -3537,14 +3493,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
-   if (local)
-   {
-      y = 0.0;
-   }
-   else
-   {
-      gc.BcastBegin(const_cast<double*>(xdata), in_layout);
-   }
+   gc.BcastBegin(const_cast<double*>(xdata), in_layout);
 
    int j = 0;
    for (int i = 0; i < m; i++)
@@ -3556,10 +3505,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    std::copy(xdata+j-m, xdata+Width(), ydata+j);
 
    const int out_layout = 0; // 0 - output is ldofs array
-   if (!local)
-   {
-      gc.BcastEnd(ydata, out_layout);
-   }
+   gc.BcastEnd(ydata, out_layout);
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -3572,10 +3518,7 @@ void ConformingProlongationOperator::MultTranspose(
    double *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
-   if (!local)
-   {
-      gc.ReduceBegin(xdata);
-   }
+   gc.ReduceBegin(xdata);
 
    int j = 0;
    for (int i = 0; i < m; i++)
@@ -3587,15 +3530,12 @@ void ConformingProlongationOperator::MultTranspose(
    std::copy(xdata+j, xdata+Height(), ydata+j-m);
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
-   if (!local)
-   {
-      gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
-   }
+   gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
-   : ConformingProlongationOperator(R->Width(), gc_, local_),
+   const GroupCommunicator &gc_, const SparseMatrix *R)
+   : ConformingProlongationOperator(R->Width(), gc_),
      mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
    MFEM_ASSERT(R->Finalized(), "");
@@ -3660,10 +3600,9 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const ParFiniteElementSpace &pfes, bool local_)
+   const ParFiniteElementSpace &pfes)
    : DeviceConformingProlongationOperator(pfes.GroupComm(),
-                                          pfes.GetRestrictionMatrix(),
-                                          local_)
+                                          pfes.GetRestrictionMatrix())
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
@@ -3727,48 +3666,36 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
    // Make sure 'y' is marked as valid on device and for use on device.
    // This ensures that there is no unnecessary host to device copy when the
-   // input 'y' is valid on host (in 'y.SetSubVector(ext_ldof, 0.0)' when local
-   // is true) or BcastLocalCopy (when local is false).
+   // input 'y' is valid on host.
    y.Write();
-   if (local)
+   BcastBeginCopy(x); // copy to 'shr_buf'
+   int req_counter = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
-      // done on device since we've marked ext_ldof for use on device:
-      y.SetSubVector(ext_ldof, 0.0);
-   }
-   else
-   {
-      BcastBeginCopy(x); // copy to 'shr_buf'
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+      const int send_offset = shr_buf_offsets[nbr];
+      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
+      if (send_size > 0)
       {
-         const int send_offset = shr_buf_offsets[nbr];
-         const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = ext_buf_offsets[nbr];
-         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
+         auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
+         MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41822,
+                   gtopo.GetComm(), &requests[req_counter++]);
+      }
+      const int recv_offset = ext_buf_offsets[nbr];
+      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0)
+      {
+         auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
+         MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41822,
+                   gtopo.GetComm(), &requests[req_counter++]);
       }
    }
    BcastLocalCopy(x, y);
-   if (!local)
-   {
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-      BcastEndCopy(y); // copy from 'ext_buf'
-   }
+   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+   BcastEndCopy(y); // copy from 'ext_buf'
 }
 
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
@@ -3829,38 +3756,32 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
+   ReduceBeginCopy(x); // copy to 'ext_buf'
    int req_counter = 0;
-   if (!local)
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
-      ReduceBeginCopy(x); // copy to 'ext_buf'
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+      const int send_offset = ext_buf_offsets[nbr];
+      const int send_size = ext_buf_offsets[nbr+1] - send_offset;
+      if (send_size > 0)
       {
-         const int send_offset = ext_buf_offsets[nbr];
-         const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = shr_buf_offsets[nbr];
-         const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
+         auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
+         MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41823,
+                   gtopo.GetComm(), &requests[req_counter++]);
+      }
+      const int recv_offset = shr_buf_offsets[nbr];
+      const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0)
+      {
+         auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
+         MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                   gtopo.GetNeighborRank(nbr), 41823,
+                   gtopo.GetComm(), &requests[req_counter++]);
       }
    }
    ReduceLocalCopy(x, y);
-   if (!local)
-   {
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-      ReduceEndAssemble(y); // assemble from 'shr_buf'
-   }
+   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+   ReduceEndAssemble(y); // assemble from 'shr_buf'
 }
 
 } // namespace mfem

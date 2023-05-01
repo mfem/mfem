@@ -46,7 +46,7 @@ void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
    CeedScalar *y_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(mfem::internal::ceed, &mem);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       x_ptr = x.Read();
       y_ptr = y.Write();
@@ -78,7 +78,7 @@ void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y,
    CeedScalar *y_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(mfem::internal::ceed, &mem);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       x_ptr = x.Read();
       y_ptr = y.ReadWrite();
@@ -107,7 +107,7 @@ void Operator::GetDiagonal(mfem::Vector &diag) const
    CeedScalar *d_ptr;
    CeedMemType mem;
    CeedGetPreferredMemType(mfem::internal::ceed, &mem);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       d_ptr = diag.ReadWrite();
    }

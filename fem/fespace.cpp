@@ -447,15 +447,6 @@ void FiniteElementSpace::BuildFaceToDofTable() const
    face_dof = fc_dof;
 }
 
-void FiniteElementSpace::RebuildElementToDofTable()
-{
-   delete elem_dof;
-   delete elem_fos;
-   elem_dof = NULL;
-   elem_fos = NULL;
-   BuildElementToDofTable();
-}
-
 void FiniteElementSpace::ReorderElementToDofTable()
 {
    Array<int> dof_marker(ndofs);

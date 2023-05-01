@@ -207,7 +207,6 @@ public:
                     const Vector &X, Vector &B) const;
 };
 
-
 /// Add an alternative name for OperatorHandle -- OperatorPtr.
 typedef OperatorHandle OperatorPtr;
 

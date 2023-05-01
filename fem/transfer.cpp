@@ -92,9 +92,9 @@ const Operator &GridTransfer::MakeTrueOperator(
    else // Parallel() == true
    {
 #ifdef MFEM_USE_MPI
+      const SparseMatrix *out_R = fes_out.GetRestrictionMatrix();
       if (oper_type == Operator::Hypre_ParCSR)
       {
-         const SparseMatrix *out_R = fes_out.GetRestrictionMatrix();
          const ParFiniteElementSpace *pfes_in =
             dynamic_cast<const ParFiniteElementSpace *>(&fes_in);
          const ParFiniteElementSpace *pfes_out =
@@ -122,7 +122,6 @@ const Operator &GridTransfer::MakeTrueOperator(
       }
       else if (oper_type == Operator::ANY_TYPE)
       {
-         const Operator *out_R = fes_out.GetRestrictionOperator();
          t_oper.Reset(new TripleProductOperator(
                          out_R, &oper, fes_in.GetProlongationMatrix(),
                          false, false, false));
@@ -914,7 +913,7 @@ std::unique_ptr<SparseMatrix>>
 void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofs(
    const FiniteElementSpace& fes, const Vector& x, Vector& X) const
 {
-   const Operator* res = fes.GetRestrictionOperator();
+   const Operator* res = fes.GetRestrictionMatrix();
    if (res)
    {
       res->Mult(x, X);
@@ -956,7 +955,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofsTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromTDofsTranspose(
    const FiniteElementSpace& fes, const Vector &X, Vector& x) const
 {
-   const Operator *R_op = fes.GetRestrictionOperator();
+   const Operator *R_op = fes.GetRestrictionMatrix();
    if (R_op)
    {
       R_op->MultTranspose(X, x);

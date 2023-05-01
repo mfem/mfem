@@ -127,13 +127,12 @@ protected:
    DiagonalPolicy diag_policy;
 
    int precompute_sparsity;
+
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
 
-   void ConformingAssemble();
-
    // may be used in the construction of derived classes
-   BilinearForm() : Matrix (0)
+   BilinearForm() : Matrix(0)
    {
       fes = NULL; sequence = -1;
       mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
@@ -292,7 +291,7 @@ public:
 
    /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
-   { mat -> AddMult (x, y, a); }
+   { mat -> AddMult(x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
        The original matrix is \f$ M + Me \f$ so we have:
@@ -316,7 +315,7 @@ public:
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
-   { return mat->InnerProduct (x, y); }
+   { return mat->InnerProduct(x, y); }
 
    /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
    virtual MatrixInverse *Inverse() const;
@@ -349,7 +348,6 @@ public:
    {
       return mat != nullptr;
    }
-
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
         to it.  Used for transferring ownership. */
@@ -426,6 +424,12 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /** For a partially conforming FE space, complete the assembly process by
+       performing A := P^t A P where A is the internal sparse matrix; P is the
+       conforming prolongation matrices of the FE space. After this call the
+       BilinearForm becomes an operator on the conforming FE spaces. */
+   void ConformingAssemble();
+
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
@@ -439,31 +443,19 @@ public:
 
    /// Get the finite element space prolongation operator.
    virtual const Operator *GetProlongation() const
-   { return fes->GetConformingProlongation(); }
+   { return fes->GetProlongationMatrix(); }
+
    /// Get the finite element space restriction operator
    virtual const Operator *GetRestriction() const
-   { return fes->GetConformingRestriction(); }
+   { return fes->GetRestrictionMatrix(); }
+
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
-   /** @brief Returns the output fe space restriction matrix, transposed
 
-       Logically, this is the transpose of GetOutputRestriction, but in
-       practice it is convenient to have it in transposed form for
-       construction of RAP operators in matrix-free methods. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
-   { return GetOutputProlongation(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
-
-   /// @brief Compute serial RAP operator and store it in @a A as a SparseMatrix.
-   void SerialRAP(OperatorHandle &A)
-   {
-      MFEM_ASSERT(mat, "SerialRAP requires the SparseMatrix to be assembled.");
-      ConformingAssemble();
-      A.Reset(mat, false);
-   }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -652,10 +644,6 @@ public:
    /// Update the @a FiniteElementSpace and delete all data associated with the old one.
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-   /// (DEPRECATED) Return the FE space associated with the BilinearForm.
-   /** @deprecated Use FESpace() instead. */
-   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
-
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
    /// Read-only access to the associated FiniteElementSpace.
@@ -803,8 +791,8 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
-   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
-                               Array<int> &bdr_marker);
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
+                              Array<int> &bdr_marker);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
@@ -814,11 +802,11 @@ public:
    void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
-   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi);
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
-   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
-                                   Array<int> &bdr_marker);
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
+                                  Array<int> &bdr_marker);
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
@@ -851,6 +839,13 @@ public:
 
    void Assemble(int skip_zeros = 1);
 
+   /** For partially conforming trial and/or test FE spaces, complete the
+       assembly process by performing A := P2^t A P1 where A is the internal
+       sparse matrix; P1 and P2 are the conforming prolongation matrices of the
+       trial and test FE spaces, respectively. After this call the
+       MixedBilinearForm becomes an operator on the conforming FE spaces. */
+   void ConformingAssemble();
+
    /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
        bilinear form and D is a diagonal. */
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
@@ -870,13 +865,6 @@ public:
    /// Get the test finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return test_fes->GetRestrictionMatrix(); }
-
-   /** For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing A := P2^t A P1 where A is the internal
-       sparse matrix; P1 and P2 are the conforming prolongation matrices of the
-       trial and test FE spaces, respectively. After this call the
-       MixedBilinearForm becomes an operator on the conforming FE spaces. */
-   void ConformingAssemble();
 
    /// Compute the element matrix of the given element
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
@@ -932,33 +920,6 @@ public:
 
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
-   /** @brief Return in @a A that is column-constrained.
-
-      This returns the same operator as FormRectangularLinearSystem(), but does
-      without the transformations of the right-hand side. */
-   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                            const Array<int> &test_tdof_list,
-                                            OperatorHandle &A);
-
-   /** @brief Form the column-constrained linear system matrix A.
-       See FormRectangularSystemMatrix() for details.
-
-       Version of the method FormRectangularSystemMatrix() where the system matrix is
-       returned in the variable @a A, of type OpType, holding a *reference* to
-       the system matrix (created with the method OpType::MakeRef()). The
-       reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. */
-   template <typename OpType>
-   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                    const Array<int> &test_tdof_list, OpType &A)
-   {
-      OperatorHandle Ah;
-      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, Ah);
-      OpType *A_ptr = Ah.Is<OpType>();
-      MFEM_VERIFY(A_ptr, "invalid OpType used");
-      A.MakeRef(*A_ptr);
-   }
-
    /** @brief Form the linear system A X = B, corresponding to this mixed bilinear
        form and the linear form @a b(.).
 
@@ -987,6 +948,33 @@ public:
    {
       OperatorHandle Ah;
       FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, Ah, X, B);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   /** @brief Return in @a A that is column-constrained.
+
+      This returns the same operator as FormRectangularLinearSystem(), but does
+      without the transformations of the right-hand side. */
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
+
+   /** @brief Form the column-constrained linear system matrix A.
+       See FormRectangularSystemMatrix() for details.
+
+       Version of the method FormRectangularSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   template <typename OpType>
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list, OpType &A)
+   {
+      OperatorHandle Ah;
+      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, Ah);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
@@ -1065,7 +1053,10 @@ public:
    { AddTraceFaceIntegrator(di); }
 
    /// Access all interpolators added with AddDomainInterpolator().
-   Array<BilinearFormIntegrator*> *GetDI() { return &domain_integs; }
+   Array<BilinearFormIntegrator*> *GetDI() { return GetDBFI(); }
+
+   /// Access all interpolators added with AddTraceFaceInterpolator().
+   Array<BilinearFormIntegrator*> *GetTFI() { return GetTFBFI(); }
 
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */
@@ -1075,10 +1066,26 @@ public:
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
 
-   /** @brief Get the output finite element space restriction matrix in
-       transposed form. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
-   { return test_fes->GetRestrictionTransposeOperator(); }
+   /** @brief Return in @a A that is column-constrained. */
+   virtual void FormDiscreteOperatorMatrix(OperatorHandle &A);
+
+   /** @brief Form the column-constrained discrete linear operator matrix A.
+       See FormDiscreteOperatorMatrix() for details.
+
+       Version of the method FormDiscreteOperatorMatrix() where the discrete
+       operator matrix is returned in the variable @a A, of type OpType,
+       holding a *reference* to the discrete operator  matrix (created with the
+       method OpType::MakeRef()). The reference will be invalidated when
+       SetOperatorType(), Update(), or the destructor is called. */
+   template <typename OpType>
+   void FormDiscreteOperatorMatrix(OpType &A)
+   {
+      OperatorHandle Ah;
+      FormDiscreteOperatorMatrix(Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
 };
 
 }

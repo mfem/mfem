@@ -28,6 +28,7 @@ namespace mfem
 class ParBilinearForm : public BilinearForm
 {
    friend FABilinearFormExtension;
+
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
@@ -103,15 +104,29 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
+   HypreParMatrix *ParallelAssemble() const { return ParallelAssemble(mat); }
 
    /// Returns the eliminated matrix assembled on the true dofs, i.e. P^t A_e P.
    /** The returned matrix has to be deleted by the caller. */
-   HypreParMatrix *ParallelAssembleElim() { return ParallelAssemble(mat_e); }
+   HypreParMatrix *ParallelAssembleElim() const { return ParallelAssemble(mat_e); }
 
    /// Return the matrix @a m assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+   HypreParMatrix *ParallelAssemble(SparseMatrix *m) const;
+
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = P^t A_local P, in the format (type id) specified by @a A. */
+   void ParallelAssemble(OperatorHandle &A) const { ParallelAssemble(A, mat); }
+
+   /** Returns the eliminated matrix assembled on the true dofs, i.e.
+       @a A_elim = P^t A_elim_local P in the format (type id) specified by @a A.
+    */
+   void ParallelAssembleElim(OperatorHandle &A_elim) const
+   { ParallelAssemble(A_elim, mat_e); }
+
+   /** Returns the matrix @a A_local assembled on the true dofs, i.e.
+       @a A = P^t A_local P in the format (type id) specified by @a A. */
+   void ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local) const;
 
    /** @brief Compute parallel RAP operator and store it in @a A as a HypreParMatrix.
 
@@ -123,20 +138,6 @@ public:
    void ParallelRAP(SparseMatrix &loc_A,
                     OperatorHandle &A,
                     bool steal_loc_A = false);
-
-   /** @brief Returns the matrix assembled on the true dofs, i.e.
-       @a A = P^t A_local P, in the format (type id) specified by @a A. */
-   void ParallelAssemble(OperatorHandle &A) { ParallelAssemble(A, mat); }
-
-   /** Returns the eliminated matrix assembled on the true dofs, i.e.
-       @a A_elim = P^t A_elim_local P in the format (type id) specified by @a A.
-    */
-   void ParallelAssembleElim(OperatorHandle &A_elim)
-   { ParallelAssemble(A_elim, mat_e); }
-
-   /** Returns the matrix @a A_local assembled on the true dofs, i.e.
-       @a A = P^t A_local P in the format (type id) specified by @a A. */
-   void ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local);
 
    /// Eliminate essential boundary DOFs from a parallel assembled system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
@@ -183,9 +184,7 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
-   /// Get the transpose of GetRestriction, useful for matrix-free RAP
-   virtual const Operator *GetRestrictionTranspose() const
-   { return pfes->GetRestrictionTransposeOperator(); }
+
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
@@ -209,7 +208,7 @@ public:
 
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
-   virtual ~ParBilinearForm() { }
+   virtual ~ParBilinearForm() {}
 };
 
 /// Class for parallel bilinear form using different test and trial FE spaces.
@@ -258,7 +257,7 @@ public:
        by the newly constructed ParMixedBilinearForm. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes,
-                        ParMixedBilinearForm * mbf)
+                        ParMixedBilinearForm *mbf)
       : MixedBilinearForm(trial_fes, test_fes, mbf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
@@ -267,23 +266,15 @@ public:
    }
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
-   HypreParMatrix *ParallelAssemble();
+   HypreParMatrix *ParallelAssemble() const;
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
-   void ParallelAssemble(OperatorHandle &A);
+   void ParallelAssemble(OperatorHandle &A) const;
 
    using MixedBilinearForm::FormRectangularSystemMatrix;
    using MixedBilinearForm::FormRectangularLinearSystem;
-
-   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
-
-       This returns the same operator as FormRectangularLinearSystem(), but does
-       without the transformations of the right-hand side. */
-   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                            const Array<int> &test_tdof_list,
-                                            OperatorHandle &A);
 
    /** @brief Form the parallel linear system A X = B, corresponding to this mixed
        bilinear form and the linear form @a b(.).
@@ -296,10 +287,18 @@ public:
                                             Vector &b, OperatorHandle &A, Vector &X,
                                             Vector &B);
 
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
+
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   virtual ~ParMixedBilinearForm() { }
+   virtual ~ParMixedBilinearForm() {}
 };
 
 /** The parallel matrix representation a linear operator between parallel finite
@@ -335,18 +334,18 @@ public:
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = R_test A_local P_trial, in the format (type id) specified by
        @a A. */
-   void ParallelAssemble(OperatorHandle &A);
+   void ParallelAssemble(OperatorHandle &A) const;
+
+   using DiscreteLinearOperator::FormDiscreteOperatorMatrix;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormDiscreteOperatorMatrix(OperatorHandle &A);
 
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
-   void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+   void GetParBlocks(Array2D<HypreParMatrix *> &blocks);
 
-   using MixedBilinearForm::FormRectangularSystemMatrix;
-
-   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
-   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
-
-   virtual ~ParDiscreteLinearOperator() { }
+   virtual ~ParDiscreteLinearOperator() {}
 };
 
 }

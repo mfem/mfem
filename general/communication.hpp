@@ -230,7 +230,6 @@ protected:
    int group_buf_size;
    mutable Array<char> group_buf;
    MPI_Request *requests;
-   // MPI_Status  *statuses;
    // comm_lock: 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
    mutable int comm_lock;
    mutable int num_requests;

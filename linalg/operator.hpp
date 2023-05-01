@@ -29,18 +29,14 @@ protected:
 
    /// see FormSystemOperator()
    /** @note Uses DiagonalPolicy::DIAG_ONE. */
-   void FormConstrainedSystemOperator(
-      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
+   void FormConstrainedSystemOperator(const Array<int> &ess_tdof_list,
+                                      ConstrainedOperator* &Aout);
 
    /// see FormRectangularSystemOperator()
    void FormRectangularConstrainedSystemOperator(
       const Array<int> &trial_tdof_list,
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
-
-   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
-       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
-   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
    /// Defines operator diagonal policy upon elimination of rows and/or columns.
@@ -149,12 +145,6 @@ public:
       return GetProlongation(); // Assume square unless specialized
    }
 
-   /** @brief Transpose of GetOutputRestriction, directly available in this
-       form to facilitate matrix-free RAP-type operators.
-
-       `NULL` means identity. */
-   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
-
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
@@ -239,6 +229,10 @@ public:
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
+   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
+
    /** @brief Return in @a A a parallel (on truedofs) version of this square
        operator.
 
@@ -270,10 +264,10 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
-   void PrintMatlab(std::ostream & out, int n, int m = 0) const;
+   void PrintMatlab(std::ostream &out, int n, int m = 0) const;
 
    /// Prints operator in Matlab format.
-   virtual void PrintMatlab(std::ostream & out) const;
+   virtual void PrintMatlab(std::ostream &out) const;
 
    /// Virtual destructor.
    virtual ~Operator() { }
@@ -722,6 +716,7 @@ inline bool IsIdentityProlongation(const Operator *P)
    return !P || dynamic_cast<const IdentityOperator*>(P);
 }
 
+
 /// Scaled Operator B: x -> a A(x).
 class ScaledOperator : public Operator
 {
@@ -928,6 +923,7 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+
 /** @brief Rectangular Operator for imposing essential boundary conditions on
     the input space using only the action, Mult(), of a given unconstrained
     Operator.
@@ -980,6 +976,7 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
+
 
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an
            operator using the iterative power method. */

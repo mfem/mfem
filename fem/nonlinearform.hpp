@@ -330,7 +330,6 @@ public:
    virtual ~BlockNonlinearForm();
 };
 
-
 }
 
 #endif

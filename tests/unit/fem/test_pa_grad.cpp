@@ -154,7 +154,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    pa_grad.AddDomainInterpolator(new GradientInterpolator);
    pa_grad.Assemble();
    OperatorPtr pa_grad_oper;
-   pa_grad.FormRectangularSystemMatrix(pa_grad_oper);
+   pa_grad.FormDiscreteOperatorMatrix(pa_grad_oper);
 
    int insize, outsize;
    if (transpose)

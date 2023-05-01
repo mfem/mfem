@@ -121,10 +121,6 @@ public:
    LinearForm &operator=(const LinearForm &rhs)
    { return operator=((const Vector &)rhs); }
 
-   /// (DEPRECATED) Return the FE space associated with the LinearForm.
-   /** @deprecated Use FESpace() instead. */
-   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
-
    /// Read+write access to the associated FiniteElementSpace.
    FiniteElementSpace *FESpace() { return fes; }
    /// Read-only access to the associated FiniteElementSpace.

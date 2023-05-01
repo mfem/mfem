@@ -460,14 +460,14 @@ MatrixFreeAMS::MatrixFreeAMS(
    pa_grad->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa_grad->AddDomainInterpolator(new GradientInterpolator);
    pa_grad->Assemble();
-   pa_grad->FormRectangularSystemMatrix(Gradient);
+   pa_grad->FormDiscreteOperatorMatrix(Gradient);
 
    // build Pi operator
    pa_interp = new ParDiscreteLinearOperator(h1_fespace_d, &nd_fespace);
    pa_interp->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa_interp->AddDomainInterpolator(new IdentityInterpolator);
    pa_interp->Assemble();
-   pa_interp->FormRectangularSystemMatrix(Pi);
+   pa_interp->FormDiscreteOperatorMatrix(Pi);
 
    // build LOR space
    ParMesh mesh_lor = ParMesh::MakeRefined(*mesh, order, BasisType::GaussLobatto);
