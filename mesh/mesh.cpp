@@ -20,7 +20,6 @@
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
 #include "../fem/quadinterpolator.hpp"
-#include "../linalg/vector.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -5230,17 +5229,13 @@ void Mesh::UpdateNURBS()
    if (el_to_edge)
    {
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces();
-      }
    }
 
    if (el_to_face)
    {
       GetElementToFaceTable();
-      GenerateFaces();
    }
+   GenerateFaces();
 }
 
 void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
@@ -5618,6 +5613,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
    }
+#else
+   MFEM_CONTRACT_VAR(fo);
 #endif
    return wo;
 }
