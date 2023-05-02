@@ -1036,6 +1036,312 @@ void test_ceed_full_assembly(const char *input, int order,
    delete mat_test;
 }
 
+void test_ceed_linear_interpolator(const char *input, int order)
+{
+   std::string section = "order: " + std::to_string(order) + "\n" +
+                         "mesh: " + input;
+   INFO(section);
+   Mesh mesh(input, 1, 1);
+   mesh.EnsureNodes();
+   int dim = mesh.Dimension();
+   H1_FECollection h1_fec(order, dim);
+   ND_FECollection nd_fec(order, dim);
+   RT_FECollection rt_fec(order - 1, dim);
+
+   // Build the DiscreteLinearOperator
+   FiniteElementSpace h1_fes(&mesh, &h1_fec);
+   FiniteElementSpace nd_fes(&mesh, &nd_fec);
+   FiniteElementSpace rt_fes(&mesh, &rt_fec);
+
+   // Discrete gradient
+   DiscreteLinearOperator grad_ref(&h1_fes, &nd_fes);
+   DiscreteLinearOperator grad_test(&h1_fes, &nd_fes);
+   grad_ref.AddDomainInterpolator(new GradientInterpolator);
+   grad_test.AddDomainInterpolator(new GradientInterpolator);
+
+   // Timer for profiling
+   const int trials = 1;
+   const bool debug = false;
+   StopWatch chrono_setup_grad_ref, chrono_setup_grad_test;
+   StopWatch chrono_apply_grad_ref, chrono_apply_grad_test;
+   StopWatch chrono_apply_id_ref, chrono_apply_id_test;
+   chrono_setup_grad_ref.Clear();
+   chrono_setup_grad_ref.Start();
+
+   grad_ref.Assemble();
+   grad_ref.Finalize();
+
+   chrono_setup_grad_ref.Stop();
+   chrono_setup_grad_test.Clear();
+   chrono_setup_grad_test.Start();
+
+   grad_test.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   grad_test.Assemble();
+
+   chrono_setup_grad_test.Stop();
+
+   // Compare ceed with mfem
+   {
+      GridFunction x(&h1_fes), y_ref(&nd_fes), y_test(&nd_fes);
+      GridFunction x_t(&nd_fes), y_t_ref(&h1_fes), y_t_test(&h1_fes);
+
+      x.Randomize(1);
+
+      chrono_apply_grad_ref.Clear();
+      chrono_apply_grad_ref.Start();
+
+      for (int trial = 0; trial < trials; trial++)
+      {
+         grad_ref.Mult(x, y_ref);
+      }
+
+      chrono_apply_grad_ref.Stop();
+      chrono_apply_grad_test.Clear();
+      chrono_apply_grad_test.Start();
+
+      for (int trial = 0; trial < trials; trial++)
+      {
+         grad_test.Mult(x, y_test);
+      }
+
+      chrono_apply_grad_test.Stop();
+
+      y_test -= y_ref;
+
+      REQUIRE(y_test.Norml2() < 1.e-12);
+
+      x_t.Randomize(1);
+
+      chrono_apply_grad_ref.Start();
+
+      for (int trial = 0; trial < trials; trial++)
+      {
+         grad_ref.MultTranspose(x_t, y_t_ref);
+      }
+
+      chrono_apply_grad_ref.Stop();
+      chrono_apply_grad_test.Start();
+
+      for (int trial = 0; trial < trials; trial++)
+      {
+         grad_test.MultTranspose(x_t, y_t_test);
+      }
+
+      chrono_apply_grad_test.Stop();
+
+      y_t_test -= y_t_ref;
+
+      REQUIRE(y_t_test.Norml2() < 1.e-12);
+   }
+
+   // Discrete curl
+   if (dim == 3)
+   {
+      DiscreteLinearOperator curl_ref(&nd_fes, &rt_fes);
+      DiscreteLinearOperator curl_test(&nd_fes, &rt_fes);
+      curl_ref.AddDomainInterpolator(new CurlInterpolator);
+      curl_test.AddDomainInterpolator(new CurlInterpolator);
+
+      curl_ref.Assemble();
+      curl_ref.Finalize();
+
+      curl_test.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      curl_test.Assemble();
+
+      // Compare ceed with mfem
+      {
+         GridFunction x(&nd_fes), y_ref(&rt_fes), y_test(&rt_fes);
+         GridFunction x_t(&rt_fes), y_t_ref(&nd_fes), y_t_test(&nd_fes);
+
+         x.Randomize(1);
+
+         curl_ref.Mult(x, y_ref);
+         curl_test.Mult(x, y_test);
+
+         y_test -= y_ref;
+
+         REQUIRE(y_test.Norml2() < 1.e-10);
+
+         x_t.Randomize(1);
+
+         curl_ref.MultTranspose(x_t, y_t_ref);
+         curl_test.MultTranspose(x_t, y_t_test);
+
+         y_t_test -= y_t_ref;
+
+         REQUIRE(y_t_test.Norml2() < 1.e-10);
+      }
+   }
+
+   // Prolongation and restriction
+   H1_FECollection fine_h1_fec(order + 1, dim);
+   ND_FECollection fine_nd_fec(order + 1, dim);
+   RT_FECollection fine_rt_fec(order, dim);
+
+   FiniteElementSpace fine_h1_fes(&mesh, &fine_h1_fec);
+   FiniteElementSpace fine_nd_fes(&mesh, &fine_nd_fec);
+   FiniteElementSpace fine_rt_fes(&mesh, &fine_rt_fec);
+
+   DiscreteLinearOperator id_h1_test(&h1_fes, &fine_h1_fes);
+   DiscreteLinearOperator id_nd_test(&nd_fes, &fine_nd_fes);
+   DiscreteLinearOperator id_rt_test(&rt_fes, &fine_rt_fes);
+   id_h1_test.AddDomainInterpolator(new IdentityInterpolator);
+   id_nd_test.AddDomainInterpolator(new IdentityInterpolator);
+   id_rt_test.AddDomainInterpolator(new IdentityInterpolator);
+
+   id_h1_test.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   id_h1_test.Assemble();
+
+   id_nd_test.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   id_nd_test.Assemble();
+
+   id_rt_test.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   id_rt_test.Assemble();
+
+   TransferOperator id_h1_ref(h1_fes, fine_h1_fes);
+   TransferOperator id_nd_ref(nd_fes, fine_nd_fes);
+   TransferOperator id_rt_ref(rt_fes, fine_rt_fes);
+
+   // Compare ceed with mfem
+   for (int t = 0; t < 3; t++)
+   {
+      GridFunction *x = nullptr, *y_t_ref = nullptr, *y_t_test = nullptr;
+      GridFunction *y_exact = nullptr, *y_ref = nullptr, *y_test = nullptr;
+      switch (t)
+      {
+         case 0:
+            x = new GridFunction(&h1_fes);
+            y_t_ref = new GridFunction(&h1_fes);
+            y_t_test = new GridFunction(&h1_fes);
+            y_exact = new GridFunction(&fine_h1_fes);
+            y_ref = new GridFunction(&fine_h1_fes);
+            y_test = new GridFunction(&fine_h1_fes);
+            break;
+         case 1:
+            x = new GridFunction(&nd_fes);
+            y_t_ref = new GridFunction(&nd_fes);
+            y_t_test = new GridFunction(&nd_fes);
+            y_exact = new GridFunction(&fine_nd_fes);
+            y_ref = new GridFunction(&fine_nd_fes);
+            y_test = new GridFunction(&fine_nd_fes);
+            break;
+         case 2:
+            x = new GridFunction(&rt_fes);
+            y_t_ref = new GridFunction(&rt_fes);
+            y_t_test = new GridFunction(&rt_fes);
+            y_exact = new GridFunction(&fine_rt_fes);
+            y_ref = new GridFunction(&fine_rt_fes);
+            y_test = new GridFunction(&fine_rt_fes);
+            break;
+         default:
+            MFEM_ABORT("Unexpected problem type.");
+      }
+
+      if (t == 0)
+      {
+         FunctionCoefficient f_coeff(coeff_function);
+         x->ProjectCoefficient(f_coeff);
+         y_exact->ProjectCoefficient(f_coeff);
+      }
+      else
+      {
+         VectorFunctionCoefficient vf_coeff(dim, velocity_function);
+         x->ProjectCoefficient(vf_coeff);
+         y_exact->ProjectCoefficient(vf_coeff);
+      }
+
+      chrono_apply_id_ref.Clear();
+      chrono_apply_id_ref.Start();
+
+      for (int trial = 0; trial < trials; trial++)
+      {
+         switch (t)
+         {
+            case 0:
+               id_h1_ref.Mult(*x, *y_ref);
+               id_h1_ref.MultTranspose(*y_exact, *y_t_ref);
+               break;
+            case 1:
+               id_nd_ref.Mult(*x, *y_ref);
+               id_nd_ref.MultTranspose(*y_exact, *y_t_ref);
+               break;
+            case 2:
+               id_rt_ref.Mult(*x, *y_ref);
+               id_rt_ref.MultTranspose(*y_exact, *y_t_ref);
+               break;
+            default:
+               MFEM_ABORT("Unexpected problem type.");
+         }
+      }
+
+      chrono_apply_id_ref.Stop();
+      chrono_apply_id_test.Clear();
+      chrono_apply_id_test.Start();
+
+      for (int trial = 0; trial < trials; trial++)
+      {
+         switch (t)
+         {
+            case 0:
+               id_h1_test.Mult(*x, *y_test);
+               id_h1_test.MultTranspose(*y_exact, *y_t_test);
+               break;
+            case 1:
+               id_nd_test.Mult(*x, *y_test);
+               id_nd_test.MultTranspose(*y_exact, *y_t_test);
+               break;
+            case 2:
+               id_rt_test.Mult(*x, *y_test);
+               id_rt_test.MultTranspose(*y_exact, *y_t_test);
+               break;
+            default:
+               MFEM_ABORT("Unexpected problem type.");
+         }
+      }
+
+      chrono_apply_id_test.Stop();
+
+      *y_test -= *y_ref;
+
+      REQUIRE(y_test->Norml2() < 1.e-10);
+
+      *y_t_test -= *y_t_ref;
+
+      REQUIRE(y_t_test->Norml2() < 1.e-10);
+      delete x;
+      delete y_t_ref;
+      delete y_t_test;
+      delete y_exact;
+      delete y_ref;
+      delete y_test;
+   }
+
+   if (debug)
+   {
+      out << "\n" << section << "\n";
+      out << "benchmark (unknowns: H1: " << h1_fes.GetTrueVSize()
+          << ", ND: " << nd_fes.GetTrueVSize()
+          << ", RT: " << rt_fes.GetTrueVSize() << ",\n"
+          << "                     fine H1: " << fine_h1_fes.GetTrueVSize()
+          << ", fine ND: " << fine_nd_fes.GetTrueVSize()
+          << ", fine RT: " << fine_rt_fes.GetTrueVSize() << ")\n"
+          << "    discrete gradient interpolator\n"
+          << "    setup: ref = "
+          << chrono_setup_grad_ref.RealTime() * 1e3 << " ms\n"
+          << "           test = "
+          << chrono_setup_grad_test.RealTime() * 1e3 << " ms\n"
+          << "    apply: ref = "
+          << chrono_apply_grad_ref.RealTime() * 1e3 / trials << " ms\n"
+          << "           test = "
+          << chrono_apply_grad_test.RealTime() * 1e3 / trials << " ms\n"
+          << "    identity interpolator\n"
+          << "    apply: ref = "
+          << chrono_apply_id_ref.RealTime() * 1e3 / trials << " ms\n"
+          << "           test = "
+          << chrono_apply_id_test.RealTime() * 1e3 / trials << " ms\n";
+   }
+}
+
 TEST_CASE("CEED mass & diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
@@ -1196,6 +1502,20 @@ TEST_CASE("CEED full assembly", "[CEED]")
                         "../../data/fichera-mixed.mesh");
    int order = 1;
    test_ceed_full_assembly(mesh, order, assembly);
+} // test case
+
+TEST_CASE("CEED linear interpolators", "[CEED]")
+{
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
+   int order = 2;
+   test_ceed_linear_interpolator(mesh, order);
 } // test case
 
 #endif
