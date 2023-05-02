@@ -83,9 +83,9 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "tokamak_100k.msh";
    // const char *mesh_file = "tokamak_200k.msh";
    // const char *mesh_file = "meshes/tokamak_100k.msh";
-   const char *mesh_file = "meshes/tokamak_300k.msh";
-   const char * eps_r_file = "data/eps_r_300k.gf";
-   const char * eps_i_file = "data/eps_i_300k.gf";
+   const char *mesh_file = "data/mesh_300k.mesh";
+   const char * eps_r_file = "data/eps_r_100k.gf";
+   const char * eps_i_file = "data/eps_i_100k.gf";
 
    // const char *mesh_file = "data/mesh_300k.mesh";
    // const char * eps_r_file = "data/eps_r_300k.gf";
@@ -141,6 +141,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   socketstream E_out_r;
+
 
    double omega = 2.*M_PI*rnum;
 
@@ -254,27 +257,30 @@ int main(int argc, char *argv[])
    E_gf.ProjectBdrCoefficientTangent(z_one_cf,zero_cf, one_bdr);
    E_gf.ProjectBdrCoefficientTangent(z_negone_cf,zero_cf, negone_bdr);
 
-   if (myid == 0)
-   {
-      std::cout << "Assembly started" << endl;
-   }
-   b->Assemble();
-   a->Assemble();
+//    if (myid == 0)
+//    {
+//       std::cout << "Assembly started" << endl;
+//    }
+//    b->Assemble();
+//    a->Assemble();
 
-   OperatorPtr Ah;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
+//    OperatorPtr Ah;
+//    Vector B, X;
+//    a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
 
+#ifdef MFEM_USE_MUMPS
 //    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-//    auto cpardiso = new CPardisoSolver(A->GetComm());
-//    cpardiso->SetPrintLevel(1);
-//    cpardiso->SetOperator(*A);
+//     MUMPSSolver mumps;
+//     mumps.SetPrintLevel(0);
+//     mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+//     mumps.SetOperator(*A);
+//     mumps.Mult(B,X);
+//     delete A;
+#else
+    MFEM_ABORT("MFEM compiled without mumps");
+#endif
 
-
-//    cpardiso->Mult(B,X);
-//    delete cpardiso;
-
-   a->RecoverFEMSolution(X, *b, E_gf);
+//    a->RecoverFEMSolution(X, *b, E_gf);
 
 
    if (myid == 0)
@@ -282,6 +288,15 @@ int main(int argc, char *argv[])
       std::cout << "Assembly finished" << endl;
    }
 
+
+    if (visualization)
+    {
+        const char * keys = nullptr;
+        char vishost[] = "localhost";
+        int  visport   = 19916;
+        common::VisualizeField(E_out_r,vishost, visport, E_gf.real(),
+                            "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+    }
 
    if (paraview)
    {

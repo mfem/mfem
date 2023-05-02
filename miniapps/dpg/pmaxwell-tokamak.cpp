@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    double sigma = 0.01*factor;
    double epsilon_scale = 8.8541878128e-12*factor;
    bool graph_norm = true;
-   bool cpardiso = false;
+   bool mumps_solver = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -162,8 +162,10 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&graph_norm, "-graph", "--graph-norm", "-no-gn",
                   "--no-graph-norm", "Enable adjoint graph norm.");
-   args.AddOption(&cpardiso, "-pardiso", "--pardiso", "-no-pardiso",
-                  "--no-pardiso", "Enable/disable pardiso direct solver.");
+#ifdef MFEM_USE_MUMPS
+   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
+                  "--no-mumps-solver", "Use the MUMPS Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -625,47 +627,54 @@ int main(int argc, char *argv[])
 
       X = 0.;
 
-      if (cpardiso)
+#ifdef MFEM_USE_MUMPS
+      if (mumps_solver)
       {
          // Monolithic real part
-         // Array2D <HypreParMatrix * > Ab_r(num_blocks,num_blocks);
-         // // Monolithic imag part
-         // Array2D <HypreParMatrix * > Ab_i(num_blocks,num_blocks);
-         // for (int i = 0; i<num_blocks; i++)
-         // {
-         //    for (int j = 0; j<num_blocks; j++)
-         //    {
-         //       Ab_r(i,j) = &(HypreParMatrix &)BlockA_r->GetBlock(i,j);
-         //       Ab_i(i,j) = &(HypreParMatrix &)BlockA_i->GetBlock(i,j);
-         //    }
-         // }
-         // HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
-         // HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
+         Array2D <HypreParMatrix * > Ab_r(num_blocks,num_blocks);
+         // Monolithic imag part
+         Array2D <HypreParMatrix * > Ab_i(num_blocks,num_blocks);
+         for (int i = 0; i<num_blocks; i++)
+         {
+            for (int j = 0; j<num_blocks; j++)
+            {
+               Ab_r(i,j) = &(HypreParMatrix &)BlockA_r->GetBlock(i,j);
+               Ab_i(i,j) = &(HypreParMatrix &)BlockA_i->GetBlock(i,j);
+            }
+         }
+         HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
+         HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
 
-         // ComplexHypreParMatrix Acomplex(A_r, A_i,true,true);
+         ComplexHypreParMatrix Acomplex(A_r, A_i,true,true);
 
-         // HypreParMatrix * A = Acomplex.GetSystemMatrix();
+         HypreParMatrix * A = Acomplex.GetSystemMatrix();
 
-         // auto cpardiso = new CPardisoSolver(A->GetComm());
-         // cpardiso->SetPrintLevel(1);
-         // cpardiso->SetOperator(*A);
-
-         // cpardiso->Mult(B,X);
-         // delete cpardiso;
-
+         MUMPSSolver mumps;
+         mumps.SetPrintLevel(0);
+         mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+         mumps.SetOperator(*A);
+         mumps.Mult(B,X);
+         delete A;
       }
-      else
+#else
+      if (mumps_solver)
+      {
+         MFEM_WARNING("MFEM compiled without mumps. Switching to an iterative solver");
+      }
+      mumps_solver = false;
+#endif
+      if (!mumps_solver)
       {
          BlockDiagonalPreconditioner M(tdof_offsets);
 
          if (!static_cond)
          {
             HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                           BlockA_r->GetBlock(0,0));
+                                                         BlockA_r->GetBlock(0,0));
             solver_E->SetPrintLevel(0);
             solver_E->SetSystemsOptions(dim);
             HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                           BlockA_r->GetBlock(1,1));
+                                                            BlockA_r->GetBlock(1,1));
             solver_H->SetPrintLevel(0);
             solver_H->SetSystemsOptions(dim);
             M.SetDiagonalBlock(0,solver_E);
@@ -673,11 +682,10 @@ int main(int argc, char *argv[])
             M.SetDiagonalBlock(num_blocks,solver_E);
             M.SetDiagonalBlock(num_blocks+1,solver_H);
          }
-
          HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                                    skip), hatE_fes);
+                                                                        skip), hatE_fes);
          HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
-                                                  skip+1,skip+1), hatH_fes);
+                                                   skip+1,skip+1), hatH_fes);
          solver_hatE->SetPrintLevel(0);
          solver_hatH->SetPrintLevel(0);
 
@@ -690,8 +698,6 @@ int main(int argc, char *argv[])
          {
             std::cout << "PCG iterations" << endl;
          }
-
-
          CGSolver cg(MPI_COMM_WORLD);
          // GMRESSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-8);
@@ -707,7 +713,6 @@ int main(int argc, char *argv[])
          }
 
          int num_iter = cg.GetNumIterations();
-
       }
       a->RecoverFEMSolution(X,x);
 
