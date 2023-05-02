@@ -39,7 +39,8 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     with_coeff,
                                     tichonov_coeff);
 
-   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   // current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   solution.FESpace()->GetSequence();
 }
 
 #ifdef MFEM_USE_MPI
