@@ -33,10 +33,6 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
       MFEM_VERIFY(fes.GetVDim() == 1,
                   "libCEED interface for vector FE does not support VDim > 1!");
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
-      ctx.hdiv = (fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV);
-      MFEM_VERIFY(ctx.hdiv ||
-                  fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_CURL,
-                  "VectorFEMassIntegrator requires H(div) or H(curl) FE space!");
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       if (Q == nullptr)
       {
@@ -49,16 +45,34 @@ struct VectorFEMassOperatorInfo : public OperatorInfo
       }
 
       header = "/integrators/vecfemass/vecfemass_qf.h";
-      build_func_const = ":f_build_vecfemass_const";
-      build_qf_const = &f_build_vecfemass_const;
-      build_func_quad = ":f_build_vecfemass_quad";
-      build_qf_quad = &f_build_vecfemass_quad;
-      apply_func = ":f_apply_vecfemass";
-      apply_qf = &f_apply_vecfemass;
-      apply_func_mf_const = ":f_apply_vecfemass_mf_const";
-      apply_qf_mf_const = &f_apply_vecfemass_mf_const;
-      apply_func_mf_quad = ":f_apply_vecfemass_mf_quad";
-      apply_qf_mf_quad = &f_apply_vecfemass_mf_quad;
+      if (fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_DIV)
+      {
+         build_func_const = ":f_build_hdivmass_const";
+         build_qf_const = &f_build_hdivmass_const;
+         build_func_quad = ":f_build_hdivmass_quad";
+         build_qf_quad = &f_build_hdivmass_quad;
+         apply_func = ":f_apply_vecfemass";
+         apply_qf = &f_apply_vecfemass;
+         apply_func_mf_const = ":f_apply_hdivmass_mf_const";
+         apply_qf_mf_const = &f_apply_hdivmass_mf_const;
+         apply_func_mf_quad = ":f_apply_hdivmass_mf_quad";
+         apply_qf_mf_quad = &f_apply_hdivmass_mf_quad;
+      }
+      else
+      {
+         MFEM_VERIFY(fes.FEColl()->GetMapType(ctx.dim) == mfem::FiniteElement::H_CURL,
+                     "VectorFEMassIntegrator requires H(div) or H(curl) FE space!");
+         build_func_const = ":f_build_hcurlmass_const";
+         build_qf_const = &f_build_hcurlmass_const;
+         build_func_quad = ":f_build_hcurlmass_quad";
+         build_qf_quad = &f_build_hcurlmass_quad;
+         apply_func = ":f_apply_vecfemass";
+         apply_qf = &f_apply_vecfemass;
+         apply_func_mf_const = ":f_apply_hcurlmass_mf_const";
+         apply_qf_mf_const = &f_apply_hcurlmass_mf_const;
+         apply_func_mf_quad = ":f_apply_hcurlmass_mf_quad";
+         apply_qf_mf_quad = &f_apply_hcurlmass_mf_quad;
+      }
       trial_op = EvalMode::Interp;
       test_op = EvalMode::Interp;
       qdatasize = (ctx.dim * (ctx.dim + 1)) / 2;
