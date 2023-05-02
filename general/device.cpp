@@ -404,14 +404,14 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
-static void CeedDeviceSetup(const char* ceed_spec)
+static void CeedDeviceSetup(const char *ceed_spec)
 {
 #ifdef MFEM_USE_CEED
    CeedInit(ceed_spec, &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self") &&
-       strcmp(ceed_spec, "/gpu/hip"))
+   size_t ceed_spec_len = strlen(ceed_spec);
+   if (strncmp(ceed_spec, ceed_backend, ceed_spec_len))
    {
       mfem::out << std::endl << "WARNING!!!\n"
                 "libCEED is not using the requested backend!!!\n"
