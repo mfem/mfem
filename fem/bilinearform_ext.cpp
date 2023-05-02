@@ -2184,12 +2184,6 @@ void PADiscreteLinearOperatorExtension::Assemble()
       }
    }
    test_multiplicity.Reciprocal();
-
-
-   // //XX TODO DEBUG
-   // std::cout << "\nINV MULTIPLICITY:\n\n";
-   // test_multiplicity.Print();
-
 }
 
 void PADiscreteLinearOperatorExtension::Mult(const Vector &x, Vector &y) const

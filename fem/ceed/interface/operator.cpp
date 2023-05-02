@@ -65,14 +65,6 @@ void CeedAddMult(CeedOperator oper, CeedVector u, CeedVector v,
    CeedVectorSetArray(u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
    CeedVectorSetArray(v, mem, CEED_USE_POINTER, y_ptr);
 
-
-   // //XX DEBUG
-   // std::cout << "\nStart CEED Mult u:\n";
-   // CeedVectorView(u, "%12.8f", stdout);
-   // std::cout << "\nStart CEED Mult v:\n";
-   // CeedVectorView(v, "%12.8f", stdout);
-
-
    if (a == 0.0)
    {
       CeedOperatorApply(oper, u, v, CEED_REQUEST_IMMEDIATE);
@@ -81,12 +73,6 @@ void CeedAddMult(CeedOperator oper, CeedVector u, CeedVector v,
    {
       CeedOperatorApplyAdd(oper, u, v, CEED_REQUEST_IMMEDIATE);
    }
-
-
-   // //XX DEBUG
-   // std::cout << "\nEnd CEED Mult v:\n";
-   // CeedVectorView(v, "%12.8f", stdout);
-
 
    CeedVectorTakeArray(u, mem, const_cast<CeedScalar**>(&x_ptr));
    CeedVectorTakeArray(v, mem, &y_ptr);

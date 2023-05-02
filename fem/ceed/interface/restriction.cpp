@@ -61,14 +61,6 @@ static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
       }
    }
 
-
-   // //XX TODO DEBUG
-   // std::cout << "\nLEXICO RESTRICTION OFFSETS:\n\n";
-   // tp_el_dof.Print();
-   // std::cout << "\nLEXICO RESTRICTION ORIENTS:\n\n";
-   // tp_el_orients.Print();
-
-
    if (use_orients)
    {
       CeedElemRestrictionCreateOriented(ceed, nelem, P, fes.GetVDim(),
@@ -117,14 +109,6 @@ static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
          use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
-
-
-   // //XX TODO DEBUG
-   // std::cout << "\nNATIVE RESTRICTION OFFSETS:\n\n";
-   // tp_el_dof.Print();
-   // std::cout << "\nNATIVE RESTRICTION ORIENTS:\n\n";
-   // tp_el_orients.Print();
-
 
    if (use_orients)
    {
@@ -191,14 +175,6 @@ static void InitLexicoRestrWithIndices(const mfem::FiniteElementSpace &fes,
          use_orients = use_orients || tp_el_orients[j + P * i];
       }
    }
-
-
-   // //XX TODO DEBUG
-   // std::cout << "\nINDICES LEXICO RESTRICTION OFFSETS:\n\n";
-   // tp_el_dof.Print();
-   // std::cout << "\nINDICES LEXICO RESTRICTION ORIENTS:\n\n";
-   // tp_el_orients.Print();
-
 
    if (use_orients)
    {
@@ -310,16 +286,6 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
          }
       }
    }
-
-
-   // //XX TODO DEBUG
-   // std::cout << "\nINDICES NATIVE RESTRICTION OFFSETS:\n\n";
-   // tp_el_dof.Print();
-   // std::cout << "\nINDICES NATIVE RESTRICTION ORIENTS:\n\n";
-   // tp_el_orients.Print();
-   // std::cout << "\nINDICES NATIVE RESTRICTION CURL ORIENTS:\n\n";
-   // tp_el_curl_orients.Print();
-
 
    if (tp_el_curl_orients.Size())
    {
@@ -446,34 +412,19 @@ void InitInterpolatorRestrictions(const FiniteElementSpace &trial_fes,
       trial_fe = trial_fes.GetFE(0);
       test_fe = test_fes.GetFE(0);
    }
-   // const mfem::TensorBasisElement *trial_tfe =
-   //    dynamic_cast<const mfem::TensorBasisElement *>(trial_fe);
-   // const mfem::TensorBasisElement *test_tfe =
-   //    dynamic_cast<const mfem::TensorBasisElement *>(test_fe);
-   // const bool trial_vector =
-   //    trial_fe->GetRangeType() == mfem::FiniteElement::VECTOR;
-   // const bool test_vector =
-   //    test_fe->GetRangeType() == mfem::FiniteElement::VECTOR;
-
    for (int s = 0; s < 2; s++)
    {
       // The restriction for the test space is slightly different as the output
-      // is a primal vector instead of a dual vector
+      // is a primal vector instead of a dual vector, and lexicographic ordering
+      // is never used (no use of tensor-product basis)
       CeedElemRestriction *restr = (s == 0) ? trial_restr : test_restr;
       const FiniteElementSpace &fes = (s == 0) ? trial_fes : test_fes;
       const mfem::FiniteElement *fe = (s == 0) ? trial_fe : test_fe;
       const int P = fe->GetDof();
       const int ncomp = fes.GetVDim();
-
       mfem::Array<int> dofs;
       mfem::DofTransformation *dof_trans =
-         indices ? fes.GetElementDofs(indices[0], dofs) :
-         fes.GetElementDofs(0, dofs);
-      // const RestrType type =
-      //    (trial_tfe && trial_tfe->GetDofMap().Size() > 0 && !trial_vector &&
-      //     test_tfe && test_tfe->GetDofMap().Size() > 0 && !test_vector) ?
-      //    RestrType::Lexico :
-      //    ((dof_trans && s > 0) ? RestrType::NativeRange : RestrType::Native);
+         indices ? fes.GetElementDofs(indices[0], dofs) : fes.GetElementDofs(0, dofs);
       const RestrType type = (dof_trans && s > 0) ? RestrType::NativeRange :
                              RestrType::Native;
       RestrKey restr_key(&fes, {nelem, P, ncomp}, {-1, -1, -1}, type);

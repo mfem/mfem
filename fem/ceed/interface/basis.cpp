@@ -132,33 +132,9 @@ static void InitCeedInterpolatorBasis(const FiniteElementSpace &trial_fes,
       if (IntRules.Get(trial_fe.GetGeomType(), ir_order).GetNPoints() >= P) { break; }
    }
    const IntegrationRule &ir = IntRules.Get(trial_fe.GetGeomType(), ir_order);
-
-
-   // //XX TODO DEBUG
-   // std::cout << "\nlibCEED Basis projection:\n" <<
-   //              "    Q = " << ir.GetNPoints() << "\n" <<
-   //              "    P = " << test_fe.GetDof() << " and " << trial_fe.GetDof() << "\n";
-
-
    InitBasis(trial_fes, trial_fe, ir, ceed, &trial_basis);
    InitBasis(test_fes, test_fe, ir, ceed, &test_basis);
-
-
-   // //XX TODO TESTING
-   // std::cout << "\nBASIS C:\n\n";
-   // CeedBasisView(trial_basis, stdout);
-   // std::cout << "\nBASIS F:\n\n";
-   // CeedBasisView(test_basis, stdout);
-
-
    CeedBasisCreateProjection(trial_basis, test_basis, basis);
-
-
-   // //XX TODO TESTING
-   // std::cout << "\nBASIS C TO F:\n\n";
-   // CeedBasisView(*basis, stdout);
-
-
 }
 #endif
 
@@ -212,13 +188,6 @@ static void InitMfemInterpolatorBasis(const FiniteElementSpace &trial_fes,
    Gt = 0.0;
    qX = 0.0;
    qW = 0.0;
-
-
-   // //XX TODO TESTING
-   // std::cout << "\nBASIS C TO F:\n\n";
-   // Bt.Print();
-
-
    CeedBasisCreateH1(ceed, GetCeedTopology(trial_fe.GetGeomType()), ncomp,
                      trial_P, test_P, Bt.GetData(), Gt.GetData(),
                      qX.GetData(), qW.GetData(), basis);

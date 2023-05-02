@@ -1168,17 +1168,13 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
       P.SetOperatorOwner(false);
       opr = P.Ptr();
    }
-   else if (lFESpace_.GetMesh()->GetNE() > 0
-            && hFESpace_.GetMesh()->GetNE() > 0
-            && lFESpace_.GetVDim() == 1
-            && hFESpace_.GetVDim() == 1
-            && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetFE(0))
-            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0))
-            && !isvar_order
-            && (hFESpace_.FEColl()->GetContType() ==
-                mfem::FiniteElementCollection::CONTINUOUS ||
-                hFESpace_.FEColl()->GetContType() ==
-                mfem::FiniteElementCollection::DISCONTINUOUS))
+   else if (UsesTensorBasis(lFESpace_) && UsesTensorBasis(hFESpace_) &&
+            lFESpace_.GetVDim() == 1 && hFESpace_.GetVDim() == 1 &&
+            !isvar_order &&
+            (hFESpace_.FEColl()->GetContType() ==
+             mfem::FiniteElementCollection::CONTINUOUS ||
+             hFESpace_.FEColl()->GetContType() ==
+             mfem::FiniteElementCollection::DISCONTINUOUS))
    {
       opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }
