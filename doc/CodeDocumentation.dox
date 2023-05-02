@@ -39,7 +39,7 @@ namespace mfem {
  * - Device
  * - Memory
  * - MemoryManager
- * - MFEM_FORALL macro in forall.hpp
+ * - mfem::forall functions in forall.hpp
  *
  * <H3>Example codes</H3>
  * - <a class="el" href="ex0_8cpp_source.html">Example 0</a>: simplest example, nodal H1 FEM for the Laplace problem
