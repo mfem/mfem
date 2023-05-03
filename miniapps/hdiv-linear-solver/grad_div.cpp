@@ -99,7 +99,8 @@ int main(int argc, char *argv[])
    Array<int> ess_rt_dofs;
    fes_rt.GetBoundaryTrueDofs(ess_rt_dofs);
 
-   VectorFunctionCoefficient f_vec_coeff(dim, f_vec(true)), u_vec_coeff(dim, u_vec);
+   VectorFunctionCoefficient f_vec_coeff(dim, f_vec(true)), u_vec_coeff(dim,
+                                                                        u_vec);
 
    ParLinearForm b(&fes_rt);
    b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff));
@@ -275,6 +276,6 @@ void SolveCG(Operator &A, Solver &P, const Vector &B, Vector &X)
    if (Mpi::Root())
    {
       cout << "Done.\nIterations: " << cg.GetNumIterations()
-            << "\nElapsed: " << tic_toc.RealTime() << endl;
+           << "\nElapsed: " << tic_toc.RealTime() << endl;
    }
 };
