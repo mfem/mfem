@@ -27,7 +27,7 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
                                   flux_averaging,
                                   with_coeff);
 
-   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetSequence();
 }
 
 void LSZienkiewiczZhuEstimator::ComputeEstimates()
@@ -39,8 +39,7 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     with_coeff,
                                     tichonov_coeff);
 
-   // current_sequence = solution.FESpace()->GetMesh()->GetSequence();
-   solution.FESpace()->GetSequence();
+   current_sequence = solution.FESpace()->GetSequence();
 }
 
 #ifdef MFEM_USE_MPI
@@ -57,7 +56,7 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
                                     *flux_space, error_estimates,
                                     local_norm_p, solver_tol, solver_max_it);
 
-   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetSequence();
 }
 
 #endif // MFEM_USE_MPI
@@ -219,13 +218,18 @@ void KellyErrorEstimator::ComputeEstimates()
    {
       auto FT = mesh->GetFaceElementTransformations(f);
 
-      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
-      const auto nip = int_rule.GetNPoints();
+      // auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
+      // const auto nip = int_rule.GetNPoints();
 
       if (mesh->FaceIsInterior(f))
       {
          int Inf1, Inf2, NCFace;
          mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
+         int el1, el2;
+         mesh->GetFaceElements(f, &el1, &el2);
+         auto &int_rule = IntRules.Get(FT->FaceGeom, xfes->GetElementOrder(el1) + xfes->GetElementOrder(el2));
+         const auto nip = int_rule.GetNPoints();
+         // auto &int_rule = IntRules.Get(FT->FaceGeom, xfes->GetElementOrder(Inf1))
 
          // Convention
          // * Conforming face: Face side with smaller element id handles
@@ -327,7 +331,7 @@ void KellyErrorEstimator::ComputeEstimates()
       }
    }
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution->FESpace()->GetSequence();
 
 #ifdef MFEM_USE_MPI
    if (!isParallel)
@@ -496,7 +500,7 @@ void LpErrorEstimator::ComputeEstimates()
    }
 #endif // MFEM_USE_MPI
    total_error = pow(total_error, 1.0/local_norm_p);
-   current_sequence = sol->FESpace()->GetMesh()->GetSequence();
+   current_sequence = sol->FESpace()->GetSequence();
 }
 
 } // namespace mfem

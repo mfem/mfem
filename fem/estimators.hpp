@@ -104,11 +104,11 @@ protected:
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
+   bool FESpaceIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long fe_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence, "");
+      return (fe_sequence > current_sequence);
    }
 
    /// Compute the element error estimates.
@@ -177,7 +177,7 @@ public:
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
    {
-      if (MeshIsModified()) { ComputeEstimates(); }
+      if (FESpaceIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
@@ -186,7 +186,7 @@ public:
        enabled. */
    virtual const Array<int> &GetAnisotropicFlags() override
    {
-      if (MeshIsModified()) { ComputeEstimates(); }
+      if (FESpaceIsModified()) { ComputeEstimates(); }
       return aniso_flags;
    }
 
@@ -252,11 +252,11 @@ protected:
    bool with_coeff;
 
    /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
+   bool FESpaceIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long fe_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence, "");
+      return (fe_sequence > current_sequence);
    }
 
    /// Compute the element error estimates.
@@ -303,7 +303,7 @@ public:
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
    {
-      if (MeshIsModified()) { ComputeEstimates(); }
+      if (FESpaceIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
@@ -345,11 +345,11 @@ protected:
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
    /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
+   bool FESpaceIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long fe_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence, "");
+      return (fe_sequence > current_sequence);
    }
 
    /// Compute the element error estimates.
@@ -416,7 +416,7 @@ public:
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
    {
-      if (MeshIsModified()) { ComputeEstimates(); }
+      if (FESpaceIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
@@ -459,11 +459,12 @@ protected:
    GridFunction * sol;
 
    /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
+   bool FESpaceIsModified()
    {
-      long mesh_sequence = sol->FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      // long fe_sequence = sol->FESpace()->GetMesh()->GetSequence();
+      long fe_sequence = sol->FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence, "");
+      return (fe_sequence > current_sequence);
    }
 
    /// Compute the element error estimates.
@@ -510,7 +511,7 @@ public:
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
    {
-      if (MeshIsModified()) { ComputeEstimates(); }
+      if (FESpaceIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
@@ -603,12 +604,12 @@ private:
 #endif
 
    /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
+   bool FESpaceIsModified()
    {
-      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence,
+      long fe_sequence = solution->FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence,
                   "improper mesh update sequence");
-      return (mesh_sequence > current_sequence);
+      return (fe_sequence > current_sequence);
    }
 
    /** @brief Compute the element error estimates.
@@ -651,7 +652,7 @@ public:
    /// Get a Vector with all element errors.
    const Vector& GetLocalErrors() override
    {
-      if (MeshIsModified())
+      if (FESpaceIsModified())
       {
          ComputeEstimates();
       }
