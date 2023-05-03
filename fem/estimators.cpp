@@ -17,37 +17,27 @@ namespace mfem
 
 void ProjectionErrorEstimator::ComputeEstimates()
 {
+   const int nelem = solution.FESpace()->GetNE();
+   error_estimates.SetSize(nelem);
+
    FiniteElementSpace *fespace = solution.FESpace();
-   Mesh *mesh = fespace->GetMesh();
-   // Construct 
-   FiniteElementSpace lower_fespace(*fespace);
-   for (int i=0; i<mesh->GetNE(); i++)
+   FiniteElementSpace projectionSpace = FiniteElementSpace(*(solution.FESpace()));
+
+   for (int e = 0; e < nelem; e++)
    {
-      lower_fespace.SetElementOrder(i, std::max(0, fespace->GetElementOrder(i) - offset));
+      projectionSpace.SetElementOrder(e, std::max(0, solution.FESpace()->GetElementOrder(e) - offset));
    }
-   lower_fespace.Update(false);
-   PRefinementTransferOperator op(lower_fespace, *fespace);
-   GridFunction lower_solution(&lower_fespace);
-   op.Mult(solution, lower_solution);
-   GridFunctionCoefficient solution_gf(&solution);
-   lower_solution.ComputeElementL2Errors(solution_gf, error_estimates);
+   projectionSpace.Update(false);
+
+   GridFunction projectedSolution(&projectionSpace);
+
+   PRefinementTransferOperator Transfer(*fespace, projectionSpace);
+   Transfer.Mult(solution, projectedSolution);
+
+   GridFunctionCoefficient projectedSolutionCoeff(&projectedSolution);
+   solution.ComputeElementL2Errors(projectedSolutionCoeff, error_estimates);
+
    total_error = error_estimates.Norml2();
-}
-
-void ZienkiewiczZhuEstimator::ComputeEstimates()
-{
-   flux_space->Update(false);
-   // In parallel, 'flux' can be a GridFunction, as long as 'flux_space' is a
-   // ParFiniteElementSpace and 'solution' is a ParGridFunction.
-   GridFunction flux(flux_space);
-
-   if (!anisotropic) { aniso_flags.SetSize(0); }
-   total_error = ZZErrorEstimator(integ, solution, flux, error_estimates,
-                                  anisotropic ? &aniso_flags : NULL,
-                                  flux_averaging,
-                                  with_coeff);
-
-   current_sequence = solution.FESpace()->GetSequence();
 }
 
 void LSZienkiewiczZhuEstimator::ComputeEstimates()
