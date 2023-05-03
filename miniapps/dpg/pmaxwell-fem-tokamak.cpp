@@ -257,30 +257,30 @@ int main(int argc, char *argv[])
    E_gf.ProjectBdrCoefficientTangent(z_one_cf,zero_cf, one_bdr);
    E_gf.ProjectBdrCoefficientTangent(z_negone_cf,zero_cf, negone_bdr);
 
-//    if (myid == 0)
-//    {
-//       std::cout << "Assembly started" << endl;
-//    }
-//    b->Assemble();
-//    a->Assemble();
+   if (myid == 0)
+   {
+      std::cout << "Assembly started" << endl;
+   }
+   b->Assemble();
+   a->Assemble();
 
-//    OperatorPtr Ah;
-//    Vector B, X;
-//    a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
+   OperatorPtr Ah;
+   Vector B, X;
+   a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
 
 #ifdef MFEM_USE_MUMPS
-//    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-//     MUMPSSolver mumps;
-//     mumps.SetPrintLevel(0);
-//     mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-//     mumps.SetOperator(*A);
-//     mumps.Mult(B,X);
-//     delete A;
+   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+   MUMPSSolver mumps;
+   mumps.SetPrintLevel(0);
+   mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+   mumps.SetOperator(*A);
+   mumps.Mult(B,X);
+   delete A;
 #else
     MFEM_ABORT("MFEM compiled without mumps");
 #endif
 
-//    a->RecoverFEMSolution(X, *b, E_gf);
+   a->RecoverFEMSolution(X, *b, E_gf);
 
 
    if (myid == 0)
