@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
          a10.Finalize();
          SparseMatrix &A10 = a10.SpMat();
 
-         SparseMatrix &A01 = *Transpose(A10);
+         SparseMatrix *A01 = Transpose(A10);
 
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
          BlockOperator A(offsets);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
-         A.SetBlock(0,1,&A01);
+         A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
          BlockDiagonalPreconditioner prec(offsets);
@@ -320,6 +320,8 @@ int main(int argc, char *argv[])
                      << flush;
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
+
+         delete A01;
 
          if (Newton_update_size < increment_u)
          {
@@ -373,6 +375,8 @@ int main(int argc, char *argv[])
       error_gf.ProjectCoefficient(exact_coef);
       error_gf -= u_alt_gf;
       error_gf *= -1.0;
+
+      mfem::out << psi_gf.ComputeL2Error(zero);
 
       double L2_error = u_gf.ComputeL2Error(exact_coef);
       double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
