@@ -322,6 +322,16 @@ miniapps/parelag/*.mesh
 miniapps/multidomain/multidomain
 miniapps/hooke/hooke
 
+miniapps/dpg/diffusion
+miniapps/dpg/pdiffusion
+miniapps/dpg/convection-diffusion
+miniapps/dpg/pconvection-diffusion
+miniapps/dpg/acoustics
+miniapps/dpg/pacoustics
+miniapps/dpg/maxwell
+miniapps/dpg/pmaxwell
+miniapps/dpg/ParaView
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
