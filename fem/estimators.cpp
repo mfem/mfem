@@ -10,9 +10,29 @@
 // CONTRIBUTING.md for details.
 
 #include "estimators.hpp"
+#include "transfer.hpp"
 
 namespace mfem
 {
+
+void ProjectionErrorEstimator::ComputeEstimates()
+{
+   FiniteElementSpace *fespace = solution.FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   // Construct 
+   FiniteElementSpace lower_fespace(*fespace);
+   for (int i=0; i<mesh->GetNE(); i++)
+   {
+      lower_fespace.SetElementOrder(i, std::max(0, fespace->GetElementOrder(i) - offset));
+   }
+   lower_fespace.Update(false);
+   PRefinementTransferOperator op(lower_fespace, *fespace);
+   GridFunction lower_solution(&lower_fespace);
+   op.Mult(solution, lower_solution);
+   GridFunctionCoefficient solution_gf(&solution);
+   lower_solution.ComputeElementL2Errors(solution_gf, error_estimates);
+   total_error = error_estimates.Norml2();
+}
 
 void ZienkiewiczZhuEstimator::ComputeEstimates()
 {

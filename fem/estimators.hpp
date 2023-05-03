@@ -70,7 +70,58 @@ public:
    virtual const Array<int> &GetAnisotropicFlags() = 0;
 };
 
+/**
+ * @brief Highest
+ *
+ */
+class ProjectionErrorEstimator : public ErrorEstimator
+{
+protected:
+   long current_sequence;
+   Vector error_estimates;
+   double total_error;
+   int offset;
 
+   GridFunction &solution;
+
+   /// Check if the mesh of the solution was modified.
+   bool FESpaceIsModified()
+   {
+      long fe_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence, "");
+      return (fe_sequence > current_sequence);
+   }
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new ProjectionErrorEstimator object. ||π_{k-s}u_h - u_h||
+       @param sol      The solution field whose error is to be estimated.
+       @param degree_offset The degree offset (s) for the projected space. Default=1
+   */
+   ProjectionErrorEstimator(GridFunction &sol, const int degree_offset=1)
+      : current_sequence(-1),
+        total_error(-1.0),
+        offset(degree_offset),
+        solution(sol)
+   { }
+
+   /// Return the total error from the last error estimate.
+   virtual double GetTotalError() const override { return total_error; }
+
+   /// Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors() override
+   {
+      if (FESpaceIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   virtual void Reset() override { current_sequence = -1; }
+
+   virtual ~ProjectionErrorEstimator() { }
+};
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
 
@@ -461,7 +512,6 @@ protected:
    /// Check if the mesh of the solution was modified.
    bool FESpaceIsModified()
    {
-      // long fe_sequence = sol->FESpace()->GetMesh()->GetSequence();
       long fe_sequence = sol->FESpace()->GetSequence();
       MFEM_ASSERT(fe_sequence >= current_sequence, "");
       return (fe_sequence > current_sequence);
