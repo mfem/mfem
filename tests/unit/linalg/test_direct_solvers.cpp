@@ -166,8 +166,8 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   const int ne = 2;
-   for (int dim = 1; dim < 4; ++dim)
+   const int ne = 8;
+   for (int dim = 1; dim <= 3; ++dim)
    {
       Mesh mesh;
       if (dim == 1)
