@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "discrete_divergence.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
