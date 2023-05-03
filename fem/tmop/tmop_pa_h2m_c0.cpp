@@ -39,7 +39,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;

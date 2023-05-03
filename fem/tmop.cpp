@@ -1715,12 +1715,12 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 namespace internal
 {
 
-// MFEM_FORALL-based copy kernel -- used by protected methods below.
-// Needed as a workaround for the nvcc restriction that methods with MFEM_FORALL
+// mfem::forall-based copy kernel -- used by protected methods below.
+// Needed as a workaround for the nvcc restriction that methods with mfem::forall
 // in them must to be public.
 static inline void device_copy(double *d_dest, const double *d_src, int size)
 {
-   MFEM_FORALL(i, size, d_dest[i] = d_src[i];);
+   mfem::forall(size, [=] MFEM_HOST_DEVICE (int i) { d_dest[i] = d_src[i]; });
 }
 
 } // namespace internal
