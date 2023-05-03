@@ -125,11 +125,11 @@ EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
  toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke \
- hdiv-linear-solver multidomain
+ multidomain dpg hdiv-linear-solver
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted)
+ toys shifted dpg)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -740,7 +740,9 @@ ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
 FORMAT_FILES += tests/unit/*.?pp
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
+FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
 FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
