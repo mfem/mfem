@@ -520,7 +520,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    // the nullspace after every application.
    if (pres_dbcs.empty())
    {
-      mean_evaluator->MakeMeanZero(pn);
+      MeanZero(pn_gf);
    }
 
    pn_gf.GetTrueDofs(pn);
