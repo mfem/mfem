@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "change_basis.hpp"
-#include "fem/qinterp/dispatch.hpp"
-#include "general/forall.hpp"
-#include "linalg/dtensor.hpp"
+#include "../../fem/qinterp/dispatch.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
 
 namespace mfem
 {
