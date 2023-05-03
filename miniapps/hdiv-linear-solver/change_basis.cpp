@@ -63,7 +63,7 @@ void Transpose(const Array<double> &B, Array<double> &Bt)
 {
    const int n = sqrt(B.Size());
    Bt.SetSize(n*n);
-   for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) Bt[i+j*n] = B[j+i*n];
+   for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) { Bt[i+j*n] = B[j+i*n]; }
 }
 
 ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
@@ -135,7 +135,8 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
    const int cb_type = rt_fec->GetClosedBasisType();
    const int ob_type = rt_fec->GetOpenBasisType();
 
-   no_op = (cb_type == BasisType::GaussLobatto && ob_type == BasisType::IntegratedGLL);
+   no_op = (cb_type == BasisType::GaussLobatto &&
+            ob_type == BasisType::IntegratedGLL);
    if (no_op) { return; }
 
    const int pp1 = p + 1;
@@ -313,16 +314,16 @@ void ChangeOfBasis_RT::Mult(const Vector &x, Vector &y, Mode mode) const
 
    const Operator *P = fes.GetProlongationMatrix();
 
-   if (P)
+   if (IsIdentityProlongation(P))
+   {
+      x_l.MakeRef(const_cast<Vector&>(x), 0, fes.GetVSize());
+      y_l.MakeRef(y, 0, fes.GetVSize());
+   }
+   else
    {
       x_l.SetSize(fes.GetVSize());
       y_l.SetSize(fes.GetVSize());
       P->Mult(x, x_l);
-   }
-   else
-   {
-      x_l.MakeRef(const_cast<Vector&>(x), 0);
-      y_l.MakeRef(y, 0);
    }
 
    x_e.SetSize(elem_restr->Height());
