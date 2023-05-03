@@ -55,6 +55,9 @@ private:
    ChangeOfBasis_L2 basis_l2;
    ChangeOfBasis_RT basis_rt;
 
+   /// Whether conversion from map type VALUE to INTEGRAL is required.
+   const bool convert_map_type;
+
    ParBilinearForm mass_l2, mass_rt;
 
    // Components needed for the block operator
@@ -84,8 +87,8 @@ private:
    const Mode mode;
    bool zero_l2_block = false;
    QuadratureSpace qs;
-   QuadratureFunction qf;
-   QuadratureFunctionCoefficient l2_qf_coeff;
+   QuadratureFunction W_coeff_qf, W_mix_coeff_qf;
+   QuadratureFunctionCoefficient W_coeff, W_mix_coeff;
 
    ConstantCoefficient zero = ConstantCoefficient(0.0);
 
@@ -130,12 +133,12 @@ public:
    /// ParFiniteElementSpace&, Coefficient&, const Array<int>&) the zero-block
    /// HdivSaddlePointSolver constructor@endlink).
    HdivSaddlePointSolver(ParMesh &mesh_,
-                               ParFiniteElementSpace &fes_rt_,
-                               ParFiniteElementSpace &fes_l2_,
-                               Coefficient &L_coeff_,
-                               Coefficient &R_coeff_,
-                               const Array<int> &ess_rt_dofs_,
-                               Mode mode_);
+                         ParFiniteElementSpace &fes_rt_,
+                         ParFiniteElementSpace &fes_l2_,
+                         Coefficient &L_coeff_,
+                         Coefficient &R_coeff_,
+                         const Array<int> &ess_rt_dofs_,
+                         Mode mode_);
 
    /// @brief Creates a linear solver for the case when the L2 diagonal block is
    /// zero (for Darcy problems).
@@ -145,10 +148,10 @@ public:
    /// ParFiniteElementSpace&, ParFiniteElementSpace&, Coefficient &,
    /// Coefficient&, const Array<int>&, Mode) the primary constructor@endlink.
    HdivSaddlePointSolver(ParMesh &mesh_,
-                               ParFiniteElementSpace &fes_rt_,
-                               ParFiniteElementSpace &fes_l2_,
-                               Coefficient &R_coeff_,
-                               const Array<int> &ess_rt_dofs_);
+                         ParFiniteElementSpace &fes_rt_,
+                         ParFiniteElementSpace &fes_l2_,
+                         Coefficient &R_coeff_,
+                         const Array<int> &ess_rt_dofs_);
 
    /// @brief Build the linear operator and solver. Must be called when the
    /// coefficients change.
