@@ -128,10 +128,7 @@ public:
    ///     alpha p - div ( beta grad ( p )) = f,
    ///
    /// where alpha is @a L_coeff and beta is @a R_coeff_. In this case, the
-   /// coefficient alpha is allowed to be zero (see also @link
-   /// HdivSaddlePointSolver(ParMesh&, ParFiniteElementSpace&,
-   /// ParFiniteElementSpace&, Coefficient&, const Array<int>&) the zero-block
-   /// HdivSaddlePointSolver constructor@endlink).
+   /// coefficient alpha is allowed to be zero.
    HdivSaddlePointSolver(ParMesh &mesh_,
                          ParFiniteElementSpace &fes_rt_,
                          ParFiniteElementSpace &fes_l2_,
@@ -144,9 +141,7 @@ public:
    /// zero (for Darcy problems).
    ///
    /// Equivalent to passing ConstantCoefficient(0.0) as @a L_coeff_ and
-   /// Mode::DARCY as @a mode_ to the @link HdivSaddlePointSolver(ParMesh&,
-   /// ParFiniteElementSpace&, ParFiniteElementSpace&, Coefficient &,
-   /// Coefficient&, const Array<int>&, Mode) the primary constructor@endlink.
+   /// Mode::DARCY as @a mode_ to the primary constructor (see above).
    HdivSaddlePointSolver(ParMesh &mesh_,
                          ParFiniteElementSpace &fes_rt_,
                          ParFiniteElementSpace &fes_l2_,
