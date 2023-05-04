@@ -756,7 +756,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    EF.UseExternalData(elfun.GetData(), nd, dim);
    ELV.UseExternalData(elvect.GetData(), nd, dim);
 
-   Vector vec1(dim), vec2(dim);
+   Vector vec1(dim), vec2(dim), z(dim);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -770,6 +770,13 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
 
       MultAtB(EF, dshape, gradEF);
       EF.MultTranspose(shape, vec1);
+
+      if (Z)
+      {
+         Z->Eval(z, T, ip);
+         vec1 -= z;
+      }
+
       gradEF.Mult(vec1, vec2);
       vec2 *= w;
       AddMultVWt(shape, vec2, ELV);
