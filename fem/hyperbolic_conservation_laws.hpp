@@ -1046,7 +1046,7 @@ public:
          );
       
       /// Calculate the Fhat using Reimann solver
-      rsolver->Eval(state1,dirichletData,fluxN1,fluxN2,mcs,nor,fluxN);   //get Fhat for the reimann solver 
+      rsolver->Eval(state1,state2,fluxN1,fluxN2,mcs,nor,fluxN);   //get Fhat for the reimann solver 
 
 		// Update max char speed
 		max_char_speed=std::max(mcs,max_char_speed);
