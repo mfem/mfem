@@ -62,7 +62,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int problem = 1;
+   int problem = 6;
    const double specific_heat_ratio = 1.4;
    const double gas_constant = 1.0;
 
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
-   if (problem == 5)
+   if (problem == 6)
    {
       mesh.Transform([](const Vector &x, Vector &y)
       {
@@ -177,6 +177,7 @@ int main(int argc, char *argv[])
 
    out << "Number of unknowns: " << vfes.GetVSize() << endl;
 
+
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
@@ -185,6 +186,12 @@ int main(int argc, char *argv[])
    u0.SetTime(0.0);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
+
+   //Direchetlet Data
+
+   
+
+
 
    // Output the initial solution.
    {
@@ -205,12 +212,22 @@ int main(int argc, char *argv[])
       }
    }
 
+
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
    DGHyperbolicConservationLaws euler = getEulerSystem(
                                            &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
-   // euler.addBdrFaceIntegrator(new EulerDirichletBC(u0), bdrymarker);
+   // euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
+
+
+
+   // 8.Set Boundary Marker
+   Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
+   ess_bdr = 1;
+   euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
+
+
 
    // Visualize the density
    socketstream sout;
@@ -275,7 +292,7 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done;)
    {
       double dt_real = min(dt, t_final - t);
-
+      u0.SetTime(t);
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
       {
@@ -332,6 +349,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+
 void EulerMesh(const int problem, const char **mesh_file)
 {
    switch (problem)
@@ -350,6 +368,9 @@ void EulerMesh(const int problem, const char **mesh_file)
          break;
       case 5:
          *mesh_file = "../data/periodic-square-4x4.mesh";
+         break;
+      case 6:
+         *mesh_file='../data/dirichlet-square.mesh';                 // Load Mesh 
          break;
       default:
          throw invalid_argument("Default mesh is undefined");
@@ -513,21 +534,19 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
    case 6:
       return VectorFunctionCoefficient(4, [](const Vector &x, double t, Vector &y)
                                        {
-            MFEM_ASSERT(x.Size() == 2, "");
-            const double L = 1.0;
-            const double density = abs(x(1)) < 0.25 ? 2 : 1;
-            const double velocity_x = abs(x(1)) < 0.25 ? -0.5 : 0.5;
-            const double velocity_y = abs(x(1)) < 0.25 ? 0.01 * sin(M_PI*x(0) / L)
-                                      : 0.01 * sin(M_PI*x(0) / L);
-            const double pressure = abs(x(1)) < 0.25 ? 2.5 : 2.5;
-            const double energy =
-               pressure / (1.4 - 1.0) +
-               density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y);
+            MFEM_ASSERT(x.Size() == 2, "");        // 2D Euler system 
 
-            y(0) = density;
-            y(1) = density * velocity_x;
-            y(2) = density * velocity_y;
-            y(3) = energy; });
+            while t<t_final:
+               const double density = 1+0.2*sin(M_PI*(x(0)+x(1)-t));
+               const double velocity_x = 0.7;
+               const double velocity_y = 0.3;
+               const double pressure =1.0;
+               const double energy =pressure/(1.4-1.0)+0.5*density*(velocity_x*velocity_x+velocity_y*velocity_y);
+
+               y(0) = density;
+               y(1) = density*velocity_x;
+               y(2) = density*velocity_y;
+               y(3) = energy; });
       default:
          throw invalid_argument("Problem Undefined");
    }

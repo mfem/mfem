@@ -954,9 +954,6 @@ public:
                     const int IntOrderOffset_)
       : EulerFormIntegrator(rsolver_, dim, specific_heat_ratio_, IntOrderOffset_),
         dirichletData(dirichletData_) {
-
-
-
         }
 
    /**
@@ -976,10 +973,6 @@ public:
       // TODO: Implement <F̂(u, g, n), v>_e
       // NOTE: See, HyperbolicFormIntegrator::AssembleFaceVector.
       //       Note that we have to replace state2 by g and there is NO second neighboring element.
-
-
-
-
 
       const int dof1 = el1.GetDof();         //creating a vairable dof1 to get the DOF of interior element 
       // const int dof2 = el2.GetDof();         //creating a variable dof1 to get the DOF of exterior element 
