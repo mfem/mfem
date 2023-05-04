@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 
 
    // 8.Set Boundary Marker
-   Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
+   Array<int>  ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
    euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
 
