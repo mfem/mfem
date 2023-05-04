@@ -33,26 +33,35 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
 
 void ProjectionErrorEstimator::ComputeEstimates()
 {
-   const int nelem = solution.FESpace()->GetNE();
-   error_estimates.SetSize(nelem);
-
-   FiniteElementSpace *fespace = solution.FESpace();
-   FiniteElementSpace projectionSpace = FiniteElementSpace(*(solution.FESpace()));
-
-   for (int e = 0; e < nelem; e++)
+   // Gather information and make projection space
+   const int nelem = solution.FESpace()->GetNE(); // number of elements
+   FiniteElementSpace *fespace = solution.FESpace(); // solution fespace
+   FiniteElementSpace projectionSpace = FiniteElementSpace(*fespace); // projection fespace, k-1
+   for (int i=0; i<nelem; i++)
    {
-      projectionSpace.SetElementOrder(e, std::max(0, solution.FESpace()->GetElementOrder(e) - offset));
+      projectionSpace.SetElementOrder(i, std::max(0, fespace->GetElementOrder(i) - offset)); // update polynomial order
    }
    projectionSpace.Update(false);
 
-   GridFunction projectedSolution(&projectionSpace);
+   // M⁻¹
+   InverseIntegrator elemInvMass(new MassIntegrator());
+   BilinearForm InvMass(&projectionSpace);
+   InvMass.SetAssemblyLevel(AssemblyLevel::NONE); // matrix-free assembly to avoid memory usage
+   InvMass.AddDomainIntegrator(&elemInvMass);
 
-   PRefinementTransferOperator Transfer(*fespace, projectionSpace);
-   Transfer.Mult(solution, projectedSolution);
+   // (u_h, v)
+   LinearForm intSol(&projectionSpace);
+   GridFunctionCoefficient sol_gf(&solution);
+   intSol.AddDomainIntegrator(new DomainLFIntegrator(sol_gf, 2, -1));
+   intSol.Assemble();
 
-   GridFunctionCoefficient projectedSolutionCoeff(&projectedSolution);
-   solution.ComputeElementL2Errors(projectedSolutionCoeff, error_estimates);
+   // Apply projection
+   Vector projectedSol_vec(InvMass.Height());
+   InvMass.Mult(intSol, projectedSol_vec);
+   GridFunction projectedSol(&projectionSpace, projectedSol_vec);
 
+   // Compute errors
+   projectedSol.ComputeElementL2Errors(sol_gf, error_estimates);
    total_error = error_estimates.Norml2();
 }
 
