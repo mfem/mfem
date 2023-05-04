@@ -159,7 +159,7 @@ public:
  */
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
-private:
+protected:
    const int num_equations;  // the number of equations
    // The maximum characterstic speed, updated during element/face vector assembly
    double max_char_speed;
