@@ -1029,19 +1029,18 @@ public:
 
 		// Calculate basis functions on both elements at the face
 		el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
-		el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+		// el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
 		// Interpolate e
 		elfun1_mat.MultTranspose(shape1, state1);
-		elfun2_mat.MultTranspose(shape2, dirichletData);
+		// elfun2_mat.MultTranspose(shape2, dirichletData);
 
 		// Get the normal vector and the flux on the face
 		CalcOrtho(Tr.Jacobian(), nor);
 
       // Calculates F(u+,g) F(u-,g) with the maximum characteristic speed 
 		const double mcs=std::max(
-         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1);
-         ComputeFluxDotN(dirichletData,nor,Tr.GetElement2Transformation,fluxN2););
+         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1));
       
       /// Calculate the Fhat using Reimann solver
       rsolver->Eval(state1,dirichletData,fluxN1,fluxN2,mcs,nor,fluxN);   //get Fhat for the reimann solver 
