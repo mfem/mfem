@@ -994,12 +994,12 @@ public:
    Vector nor(el1.GetDim());     // normal vector (usually not a unit vector)
    Vector state1(
       num_equations);  // state value at an integration point - first elem
-   // Vector state2(
-   //    num_equations);  // state value at an integration point - second elem
+   Vector state2(
+      num_equations);  // state value at an integration point - second elem
    Vector fluxN1(
       num_equations);  // flux dot n value at an integration point - first elem
-   // Vector fluxN2(
-      // num_equations);  // flux dot n value at an integration point - second elem
+   Vector fluxN2(
+      num_equations);  // flux dot n value at an integration point - second elem
    Vector fluxN(num_equations);   // hat(F)(u,x)
 #else
    shape1.SetSize(dof1);            
