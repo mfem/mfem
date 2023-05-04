@@ -1039,8 +1039,7 @@ public:
 		CalcOrtho(Tr.Jacobian(), nor);
 
       // Calculates F(u+,g) F(u-,g) with the maximum characteristic speed 
-		const double mcs=std::max(
-         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1));
+		const double mcs=ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1);
       
       /// Calculate the Fhat using Reimann solver
       rsolver->Eval(state1,dirichletData,fluxN1,fluxN2,mcs,nor,fluxN);   //get Fhat for the reimann solver 
