@@ -31,7 +31,11 @@ Hypre::Hypre()
 {
 #if MFEM_HYPRE_VERSION >= 21900
    // Initializing hypre
+#if defined(HYPRE_Init)
+   HYPRE_Initialize();
+#else
    HYPRE_Init();
+#endif
 #endif
 
    // Global hypre options that we set by default
