@@ -20,7 +20,7 @@ namespace mfem
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_SetupGradPA_3D(const double metric_normal,
-                         const double metric_param,
+                         const double *w,
                          const int mid,
                          const int NE,
                          const ConstDeviceCube &W,
@@ -34,8 +34,9 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                          const int max)
 {
    using Args = kernels::InvariantsEvaluator3D::Buffers;
-   MFEM_VERIFY(mid==302 || mid==303 || mid==315 ||
-               mid==321 || mid==332, "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
+               mid == 318 || mid == 321 || mid == 332,
+               "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -90,15 +91,13 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                double        *dI3b=Jrt,        *ddI3b=Jpr;
 
                // metric->AssembleH
-               if (mid==302)
+               if (mid == 302)
                {
                   // (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
                   kernels::InvariantsEvaluator3D ie
-                  (Args()
-                   .J(Jpt).B(B)
-                   .dI1b(dI1b).ddI1b(ddI1b)
-                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
-                   .dI3b(dI3b));
+                  (Args().J(Jpt).B(B).dI1b(dI1b).ddI1b(ddI1b)
+                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b).dI3b(dI3b));
+
                   const double c1 = weight/9.;
                   const double I1b = ie.Get_I1b();
                   const double I2b = ie.Get_I2b();
@@ -125,15 +124,15 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                   }
                }
 
-               if (mid==303)
+               if (mid == 303)
                {
                   // ddI1b/3
                   kernels::InvariantsEvaluator3D ie
-                  (Args()
-                   .J(Jpt).B(B)
+                  (Args().J(Jpt).B(B)
                    .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
                    .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                    .dI3b(dI3b).ddI3b(ddI3b));
+
                   const double c1 = weight/3.;
                   for (int i = 0; i < DIM; i++)
                   {
@@ -152,12 +151,11 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                   }
                }
 
-               if (mid==315)
+               if (mid == 315)
                {
                   // 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
-                  kernels::InvariantsEvaluator3D ie(Args().
-                                                    J(Jpt).
-                                                    dI3b(dI3b).ddI3b(ddI3b));
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).dI3b(dI3b).ddI3b(ddI3b));
 
                   double sign_detJ;
                   const double I3b = ie.Get_I3b(sign_detJ);
@@ -181,7 +179,38 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                   }
                }
 
-               if (mid==321)
+               if (mid == 318)
+               {
+                  // dP_318 = (I3b - 1/I3b^3)*ddI3b + (1 + 3/I3b^4)*(dI3b x dI3b)
+                  // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
+                  constexpr int DIM = 3;
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).dI3b(dI3b).ddI3b(ddI3b));
+
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+
+                  for (int i = 0; i < DIM; i++)
+                  {
+                     for (int j = 0; j < DIM; j++)
+                     {
+                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+                        for (int r = 0; r < DIM; r++)
+                        {
+                           for (int c = 0; c < DIM; c++)
+                           {
+                              const double dp =
+                                 weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
+                                 weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
+                              H(r,c,i,j,qx,qy,qz,e) = dp;
+                           }
+                        }
+                     }
+                  }
+               }
+
+               if (mid == 321)
                {
                   // ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2)
                   //      + (1/I3)*ddI2
@@ -226,7 +255,7 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                   }
                }
 
-               if (mid==332)
+               if (mid == 332)
                {
                   // (1-gamma) H_302 + gamma H_315
                   kernels::InvariantsEvaluator3D ie
@@ -262,8 +291,7 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                                  2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
                                  2.0 * weight * di3b(r,c) * di3b(i,j);
                               H(r,c,i,j,qx,qy,qz,e) =
-                                 (1.0 - metric_param) * c1 * dp_302 +
-                                 metric_param * dp_315;
+                                 w[0] * c1 * dp_302 + w[1] * dp_315;
                            }
                         }
                      }
@@ -284,8 +312,12 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &x) const
    const int M = metric->Id();
    const double mn = metric_normal;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+   const double *w = mp.Read();
 
    const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
    const auto G = Reshape(PA.maps->G.Read(), Q1D, D1D);
@@ -315,7 +347,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &x) const
    if (d==5 && q==5) { ker = TMOP_SetupGradPA_3D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_SetupGradPA_3D<5,6>; }
 #endif
-   ker(mn,mp,M,NE,W,B,G,J,X,H,D1D,Q1D,4);
+   ker(mn,w,M,NE,W,B,G,J,X,H,D1D,Q1D,4);
 }
 
 } // namespace mfem

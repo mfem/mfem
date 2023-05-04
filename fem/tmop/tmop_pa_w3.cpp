@@ -21,7 +21,7 @@ namespace mfem
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_3D(const double metric_normal,
-                      const double gamma,
+                      const double *w,
                       const int mid,
                       const int NE,
                       const DeviceTensor<6, const double> &J,
@@ -35,8 +35,9 @@ void TMOP_EnergyPA_3D(const double metric_normal,
                       const int max)
 {
    using Args = kernels::InvariantsEvaluator3D::Buffers;
-   MFEM_VERIFY(mid==302 || mid==303 || mid==315 ||
-               mid==321 || mid==332, "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
+               mid == 321 || mid == 332 || mid == 338,
+               "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -102,6 +103,11 @@ void TMOP_EnergyPA_3D(const double metric_normal,
                   return a*a;
                };
 
+               auto EvalW_318 = [&]() //  0.5 * (I3 + 1/I3) - 1.
+               {
+                  const double I3 = ie.Get_I3();
+                  return 0.5*(I3 + 1.0/I3) - 1.0;
+               };
 
                auto EvalW_321 = [&]() // I1 + I2/I3 - 6
                {
@@ -110,15 +116,22 @@ void TMOP_EnergyPA_3D(const double metric_normal,
 
                auto EvalW_332 = [&]()
                {
-                  return (1.0 - gamma) * EvalW_302() + gamma * EvalW_315();
+                  return w[0] * EvalW_302() + w[1] * EvalW_315();
+               };
+
+               auto EvalW_338 = [&]()
+               {
+                  return w[0] * EvalW_302() + w[1] * EvalW_318();
                };
 
                const double EvalW =
-                  mid==302 ? EvalW_302() :
-                  mid==303 ? EvalW_303() :
-                  mid==315 ? EvalW_315() :
-                  mid==321 ? EvalW_321() :
-                  mid==332 ? EvalW_332() : 0.0;
+                  mid == 302 ? EvalW_302() :
+                  mid == 303 ? EvalW_303() :
+                  mid == 315 ? EvalW_315() :
+                  mid == 318 ? EvalW_318() :
+                  mid == 321 ? EvalW_321() :
+                  mid == 332 ? EvalW_332() :
+                  mid == 338 ? EvalW_338() : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
             }
@@ -136,8 +149,12 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
    const int Q1D = PA.maps->nqpt;
    const double mn = metric_normal;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+   const double *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
@@ -167,7 +184,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
    if (d==5 && q==5) { ker = TMOP_EnergyPA_3D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_EnergyPA_3D<5,6>; }
 #endif
-   ker(mn,mp,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
+   ker(mn,w,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
    return PA.E * PA.O;
 }
 

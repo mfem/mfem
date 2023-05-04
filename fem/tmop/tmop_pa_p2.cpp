@@ -20,7 +20,7 @@ namespace mfem
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_AddMultPA_2D(const double metric_normal,
-                       const double gamma,
+                       const double *w,
                        const int mid,
                        const int NE,
                        const DeviceTensor<5, const double> &J,
@@ -34,8 +34,9 @@ void TMOP_AddMultPA_2D(const double metric_normal,
                        const int max)
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
-   MFEM_VERIFY(mid==1 || mid==2 || mid==7 || mid==77 || mid==80,
-               "Metric not yet implemented!");
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 ||
+               mid == 56 || mid == 77 || mid == 80 || mid == 94,
+               "2D metric not yet implemented!");
 
    constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -81,48 +82,72 @@ void TMOP_AddMultPA_2D(const double metric_normal,
 
             // metric->EvalP(Jpt, P);
             double P[4];
-            if (mid==1)
+
+            if (mid == 1)
             {
                double dI1[4];
                kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1(dI1));
                kernels::Set(2,2, 1.0, ie.Get_dI1(), P);
             }
-            if (mid==2)
+
+            if (mid == 2)
             {
                double dI1b[4], dI2b[4];
-               kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1b(dI1b).dI2b(dI2b));
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).dI1b(dI1b).dI2b(dI2b));
                kernels::Set(2,2, 1./2., ie.Get_dI1b(), P);
             }
-            if (mid==7)
+
+            if (mid == 7)
             {
                double dI1[4], dI2[4], dI2b[4];
-               kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1(dI1)
-                                                 .dI2(dI2).dI2b(dI2b));
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).dI1(dI1).dI2(dI2).dI2b(dI2b));
                const double I2 = ie.Get_I2();
                kernels::Add(2,2, 1.0 + 1.0 / I2, ie.Get_dI1(),
                             -ie.Get_I1() / (I2*I2), ie.Get_dI2(), P);
             }
-            if (mid==77)
+
+            if (mid == 56)
+            {
+               // 0.5*(1 - 1/I2b^2)*dI2b
+               double dI2b[4];
+               kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI2b(dI2b));
+               const double I2b = ie.Get_I2b();
+               kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2b * I2b)), ie.Get_dI2b(), P);
+            }
+
+            if (mid == 77)
             {
                double dI2[4], dI2b[4];
-               kernels::InvariantsEvaluator2D ie(Args().
-                                                 J(Jpt).
-                                                 dI2(dI2).dI2b(dI2b));
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).dI2(dI2).dI2b(dI2b));
                const double I2 = ie.Get_I2();
                kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
             }
-            if (mid==80)
+
+            if (mid == 80)
             {
-               // p_80 = (1-gamma) p_2 + gamma p_77
+               // w0 P_2 + w1 P_77
                double dI1b[4], dI2[4], dI2b[4];
                kernels::InvariantsEvaluator2D ie
                (Args().J(Jpt).dI1b(dI1b).dI2(dI2).dI2b(dI2b));
-
-               kernels::Set(2,2, (1.0 - gamma) * 1./2., ie.Get_dI1b(), P);
-
+               kernels::Set(2,2, w[0] * 0.5, ie.Get_dI1b(), P);
                const double I2 = ie.Get_I2();
-               kernels::Add(2,2, gamma*0.5*(1.0-1.0/(I2*I2)), ie.Get_dI2(), P);
+               kernels::Add(2,2, w[1] * 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
             }
+
+            if (mid == 94)
+            {
+               // w0 P_2 + w1 P_56
+               double dI1b[4], dI2b[4];
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).dI1b(dI1b).dI2b(dI2b));
+               kernels::Set(2,2, w[0] * 0.5, ie.Get_dI1b(), P);
+               const double I2b = ie.Get_I2b();
+               kernels::Add(2,2, w[1] * 0.5 * (1.0 - 1.0 / (I2b * I2b)), ie.Get_dI2b(), P);
+            }
+
             for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
             // PMatO += DS . P^t += DSh . (Jrt . P^t)
@@ -148,8 +173,12 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const
 
    const double mn = metric_normal;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+   const double *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D);
@@ -179,7 +208,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const
    if (d==5 && q==5) { ker = TMOP_AddMultPA_2D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_AddMultPA_2D<5,6>; }
 #endif
-   ker(mn,mp,M,NE,J,W,B,G,X,Y,D1D,Q1D,4);
+   ker(mn,w,M,NE,J,W,B,G,X,Y,D1D,Q1D,4);
 }
 
 } // namespace mfem

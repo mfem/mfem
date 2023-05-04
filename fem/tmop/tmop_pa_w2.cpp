@@ -20,7 +20,7 @@ namespace mfem
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_2D(const double metric_normal,
-                      const double gamma,
+                      const double *w,
                       const int mid,
                       const int NE,
                       const DeviceTensor<5, const double> &J,
@@ -34,7 +34,8 @@ void TMOP_EnergyPA_2D(const double metric_normal,
                       const int max)
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
-   MFEM_VERIFY(mid==1 || mid==2 || mid==7 || mid==77 || mid==80,
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 ||
+               mid == 56 || mid == 77 || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
    constexpr int NBZ = 1;
@@ -81,27 +82,46 @@ void TMOP_EnergyPA_2D(const double metric_normal,
 
             // metric->EvalW(Jpt);
             kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
-            auto EvalW_001 = [&]() { return ie.Get_I1(); };
-            auto EvalW_002 = [&]() { return 0.5 * ie.Get_I1b() - 1.0; };
-            auto EvalW_007 = [&]()
+
+            auto EvalW_01 = [&]() { return ie.Get_I1(); };
+
+            auto EvalW_02 = [&]() { return 0.5 * ie.Get_I1b() - 1.0; };
+
+            auto EvalW_07 = [&]()
             {
                return ie.Get_I1() * (1.0 + 1.0/ie.Get_I2()) - 4.0;
             };
-            auto EvalW_077 = [&] ()
+
+            auto EvalW_56 = [&]()
+            {
+               const double I2b = ie.Get_I2b();
+               return 0.5*(I2b + 1.0/I2b) - 1.0;
+            };
+
+            auto EvalW_77 = [&] ()
             {
                const double I2b = ie.Get_I2b();
                return 0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
             };
-            auto EvalW_080 = [&]()
+
+            auto EvalW_80 = [&]()
             {
-               return (1.0 - gamma) * EvalW_002() + gamma * EvalW_077();
+               return w[0] * EvalW_02() + w[1] * EvalW_77();
             };
+
+            auto EvalW_94 = [&]()
+            {
+               return w[0] * EvalW_02() + w[1] * EvalW_56();
+            };
+
             const double EvalW =
-               mid== 1 ? EvalW_001() :
-               mid== 2 ? EvalW_002() :
-               mid== 7 ? EvalW_007() :
-               mid==77 ? EvalW_077() :
-               mid==80 ? EvalW_080() : 0.0;
+               mid ==  1 ? EvalW_01() :
+               mid ==  2 ? EvalW_02() :
+               mid ==  7 ? EvalW_07() :
+               mid == 56 ? EvalW_56() :
+               mid == 77 ? EvalW_77() :
+               mid == 80 ? EvalW_80() :
+               mid == 94 ? EvalW_94() : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
          }
@@ -118,8 +138,12 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
    const int Q1D = PA.maps->nqpt;
    const double mn = metric_normal;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+   const double *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
@@ -150,7 +174,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
    if (d==5 && q==5) { ker = TMOP_EnergyPA_2D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_EnergyPA_2D<5,6>; }
 #endif
-   ker(mn,mp,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
+   ker(mn,w,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
    return PA.E * PA.O;
 }
 

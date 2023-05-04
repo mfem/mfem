@@ -22,6 +22,7 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void DatcSize(const int NE,
               const int ncomp,
               const int sizeidx,
+              const double *nc_red,
               const ConstDeviceMatrix &W,
               const ConstDeviceMatrix &B,
               const DeviceTensor<5, const double> &X,
@@ -30,14 +31,14 @@ void DatcSize(const int NE,
               const int q1d = 0,
               const int max = 4)
 {
-   MFEM_VERIFY(ncomp==1,"");
+   MFEM_VERIFY(ncomp == 1,"");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= Q1D, "");
 
    const double infinity = std::numeric_limits<double>::infinity();
    MFEM_VERIFY(sizeidx == 0,"");
-   MFEM_VERIFY(MFEM_CUDA_BLOCKS==256,"");
+   MFEM_VERIFY(MFEM_CUDA_BLOCKS == 256, "Wrong CUDA block size used!");
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -104,7 +105,7 @@ void DatcSize(const int NE,
                double T;
                kernels::internal::PullEval(qx,qy,qz,QQQ,T);
                const double shape_par_vals = T;
-               const double size = fmax(shape_par_vals, min);
+               const double size = fmax(shape_par_vals, min) / nc_red[e];
                const double alpha = std::pow(size, 1.0/DIM);
                for (int i = 0; i < DIM; i++)
                {
@@ -156,6 +157,15 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
+   Vector nc_size_red(NE, Device::GetDeviceMemoryType());
+   nc_size_red.HostWrite();
+   NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+   for (int e = 0; e < NE; e++)
+   {
+      nc_size_red(e) = (ncmesh) ? ncmesh->GetElementSizeReduction(e) : 1.0;
+   }
+   const double *nc_red = nc_size_red.Read();
+
    Vector tspec_e;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
@@ -193,7 +203,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    if (d==5 && q==5) { ker = DatcSize<5,5>; }
    if (d==5 && q==6) { ker = DatcSize<5,6>; }
 #endif
-   ker(NE,ncomp,sizeidx,W,B,X,J,D1D,Q1D,4);
+   ker(NE,ncomp,sizeidx,nc_red,W,B,X,J,D1D,Q1D,4);
 }
 
 } // namespace mfem

@@ -21,7 +21,7 @@ namespace mfem
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_AddMultPA_3D(const double metric_normal,
-                       const double gamma,
+                       const double *w,
                        const int mid,
                        const int NE,
                        const DeviceTensor<6, const double> &J,
@@ -35,8 +35,9 @@ void TMOP_AddMultPA_3D(const double metric_normal,
                        const int max)
 {
    using Args = kernels::InvariantsEvaluator3D::Buffers;
-   MFEM_VERIFY(mid==302 || mid==303 || mid==315 ||
-               mid==321 || mid==332, "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
+               mid == 321 || mid == 332 || mid == 338,
+               "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -84,20 +85,20 @@ void TMOP_AddMultPA_3D(const double metric_normal,
 
                // metric->EvalP(Jpt, P);
                double P[9];
-               if (mid==302)
+
+               if (mid == 302)
                {
                   // (I1b/9)*dI2b + (I2b/9)*dI1b
                   double B[9];
                   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
                   kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).B(B).dI1b(dI1b)
-                   .dI2(dI2).dI2b(dI2b) .dI3b(dI3b));
+                  (Args().J(Jpt).B(B).dI1b(dI1b).dI2(dI2).dI2b(dI2b) .dI3b(dI3b));
                   const double alpha = ie.Get_I1b()/9.;
                   const double beta = ie.Get_I2b()/9.;
                   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
                }
 
-               if (mid==303)
+               if (mid == 303)
                {
                   // dI1b/3
                   double B[9];
@@ -107,7 +108,7 @@ void TMOP_AddMultPA_3D(const double metric_normal,
                   kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
                }
 
-               if (mid==315)
+               if (mid == 315)
                {
                   // 2*(I3b - 1)*dI3b
                   double dI3b[9];
@@ -117,7 +118,20 @@ void TMOP_AddMultPA_3D(const double metric_normal,
                   kernels::Set(3,3, 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
                }
 
-               if (mid==321)
+               // P_318 = (I3b - 1/I3b^3)*dI3b.
+               // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
+               if (mid == 318)
+               {
+                  MFEM_ABORT("J Jpt");
+                  double dI3b[9];
+                  kernels::InvariantsEvaluator3D ie(Args().J(Jpt).dI3b(dI3b));
+
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  kernels::Set(3,3, I3b - 1.0/(I3b * I3b * I3b), ie.Get_dI3b(sign_detJ), P);
+               }
+
+               if (mid == 321)
                {
                   // dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
                   double B[9];
@@ -132,19 +146,38 @@ void TMOP_AddMultPA_3D(const double metric_normal,
                   kernels::Add(3,3, ie.Get_dI1(), P);
                }
 
-               if (mid==332)
+               if (mid == 332)
                {
-                  // (1-gamma) P_302 + gamma P_315.
+                  // w0 P_302 + w1 P_315
                   double B[9];
                   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
                   kernels::InvariantsEvaluator3D ie
                   (Args().J(Jpt).B(B).dI1b(dI1b).dI2(dI2).dI2b(dI2b).dI3b(dI3b));
-                  const double alpha = (1.0 - gamma) * ie.Get_I1b()/9.;
-                  const double beta = (1.0 - gamma) * ie.Get_I2b()/9.;
+                  const double alpha = w[0] * ie.Get_I1b()/9.;
+                  const double beta = w[0] * ie.Get_I2b()/9.;
                   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
                   double sign_detJ;
                   const double I3b = ie.Get_I3b(sign_detJ);
-                  kernels::Add(3,3, gamma*2.0*(I3b-1.0), ie.Get_dI3b(sign_detJ), P);
+                  kernels::Add(3,3, w[1] * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
+               }
+
+               if (mid == 338)
+               {
+                  // w0 P_302 + w1 P_318
+                  double B[9];
+                  double dI1b[9], dI2[9], dI2b[9], dI3b[9];
+                  kernels::InvariantsEvaluator3D ie(Args()
+                                                    .J(Jpt).B(B)
+                                                    .dI1b(dI1b)
+                                                    .dI2(dI2).dI2b(dI2b)
+                                                    .dI3b(dI3b));
+                  const double alpha = w[0] * ie.Get_I1b()/9.;
+                  const double beta = w[0]* ie.Get_I2b()/9.;
+                  kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  kernels::Add(3,3, w[1] * (I3b - 1.0/(I3b * I3b * I3b)),
+                               ie.Get_dI3b(sign_detJ), P);
                }
 
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
@@ -174,8 +207,12 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &x, Vector &y) const
 
    const double mn = metric_normal;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
+   const double *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
@@ -205,7 +242,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &x, Vector &y) const
    if (d==5 && q==5) { ker = TMOP_AddMultPA_3D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_AddMultPA_3D<5,6>; }
 #endif
-   ker(mn,mp,M,NE,J,W,B,G,X,Y,D1D,Q1D,4);
+   ker(mn,w,M,NE,J,W,B,G,X,Y,D1D,Q1D,4);
 }
 
 } // namespace mfem
