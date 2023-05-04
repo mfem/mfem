@@ -73,7 +73,7 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt22(const CeedScalar *J,
                                             const CeedInt qd_stride,
                                             CeedScalar *qd)
 {
-   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result.
+   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result
    // J: 0 2   adj(J):  J22 -J12   qd: 0 1
    //    1 3           -J21  J11       1 2
    const CeedScalar J11 = J[J_stride * 0];
@@ -122,7 +122,7 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt21(const CeedScalar *J,
                                             const CeedInt qd_stride,
                                             CeedScalar *qd)
 {
-   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result.
+   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result
    // J: 0   adj(J): 1/sqrt(J^T J) J^T   qd: 0
    //    1
    const CeedScalar J11 = J[J_stride * 0];
@@ -160,7 +160,7 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt33(const CeedScalar *J,
                                             const CeedInt qd_stride,
                                             CeedScalar *qd)
 {
-   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result.
+   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result
    // J: 0 3 6   qd: 0 1 2
    //    1 4 7       1 3 4
    //    2 5 8       2 4 5
@@ -273,7 +273,7 @@ CEED_QFUNCTION_HELPER void MultAdjJCAdjJt32(const CeedScalar *J,
                                             const CeedInt qd_stride,
                                             CeedScalar *qd)
 {
-   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result.
+   // compute qw/det(J) adj(J) C adj(J)^T and store the symmetric part of the result
    // J: 0 3   qd: 0 1
    //    1 4       1 2
    //    2 5
@@ -373,7 +373,7 @@ CEED_QFUNCTION_HELPER void MultJtCJ22(const CeedScalar *J,
                                       const CeedInt qd_stride,
                                       CeedScalar *qd)
 {
-   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // compute qw/det(J) J^T C J and store the symmetric part of the result
    // J: 0 2   qd: 0 1
    //    1 3       1 2
    const CeedScalar J11 = J[J_stride * 0];
@@ -422,7 +422,7 @@ CEED_QFUNCTION_HELPER void MultJtCJ21(const CeedScalar *J,
                                       const CeedInt qd_stride,
                                       CeedScalar *qd)
 {
-   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // compute qw/det(J) J^T C J and store the symmetric part of the result
    // J: 0   qd: 0
    //    1
    const CeedScalar J11 = J[J_stride * 0];
@@ -460,7 +460,7 @@ CEED_QFUNCTION_HELPER void MultJtCJ33(const CeedScalar *J,
                                       const CeedInt qd_stride,
                                       CeedScalar *qd)
 {
-   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // compute qw/det(J) J^T C J and store the symmetric part of the result
    // J: 0 3 6   qd: 0 1 2
    //    1 4 7       1 3 4
    //    2 5 8       2 4 5
@@ -566,7 +566,7 @@ CEED_QFUNCTION_HELPER void MultJtCJ32(const CeedScalar *J,
                                       const CeedInt qd_stride,
                                       CeedScalar *qd)
 {
-   // compute qw/det(J) J^T C J and store the symmetric part of the result.
+   // compute qw/det(J) J^T C J and store the symmetric part of the result
    // J: 0 3   qd: 0 1
    //    1 4       1 2
    //    2 5
@@ -639,7 +639,7 @@ CEED_QFUNCTION_HELPER void MultCtAdjJt22(const CeedScalar *J,
                                          const CeedInt qd_stride,
                                          CeedScalar *qd)
 {
-   // compute qw c^T adj(J)^T and store the result vector.
+   // compute qw c^T adj(J)^T and store the result vector
    // J: 0 2   adj(J):  J22 -J12
    //    1 3           -J21  J11
    const CeedScalar J11 = J[J_stride * 0];
@@ -660,7 +660,7 @@ CEED_QFUNCTION_HELPER void MultCtAdjJt21(const CeedScalar *J,
                                          const CeedInt qd_stride,
                                          CeedScalar *qd)
 {
-   // compute qw c^T adj(J)^T and store the result vector.
+   // compute qw c^T adj(J)^T and store the result vector
    // J: 0   adj(J): 1/sqrt(J^T J) J^T
    //    1
    const CeedScalar J11 = J[J_stride * 0];
@@ -679,7 +679,7 @@ CEED_QFUNCTION_HELPER void MultCtAdjJt33(const CeedScalar *J,
                                          const CeedInt qd_stride,
                                          CeedScalar *qd)
 {
-   // compute qw c^T adj(J)^T and store the result vector.
+   // compute qw c^T adj(J)^T and store the result vector
    // J: 0 3 6
    //    1 4 7
    //    2 5 8
@@ -717,7 +717,7 @@ CEED_QFUNCTION_HELPER void MultCtAdjJt32(const CeedScalar *J,
                                          const CeedInt qd_stride,
                                          CeedScalar *qd)
 {
-   // compute qw c^T adj(J)^T and store the result vector.
+   // compute qw c^T adj(J)^T and store the result vector
    // J: 0 3
    //    1 4
    //    2 5
@@ -750,7 +750,7 @@ CEED_QFUNCTION_HELPER void MultAdjJt22(const CeedScalar *J,
                                        const CeedInt qd_stride,
                                        CeedScalar *qd)
 {
-   // compute qw adj(J)^T and store the result matrix.
+   // compute qw adj(J)^T and store the result matrix
    // J: 0 2   adj(J):  J22 -J12   qd: 0 2
    //    1 3           -J21  J11       1 3
    const CeedScalar J11 = J[J_stride * 0];
@@ -769,7 +769,7 @@ CEED_QFUNCTION_HELPER void MultAdjJt21(const CeedScalar *J,
                                        const CeedInt qd_stride,
                                        CeedScalar *qd)
 {
-   // compute qw adj(J)^T and store the result matrix.
+   // compute qw adj(J)^T and store the result matrix
    // J: 0   adj(J):  1/sqrt(J^T J) J^T   qd: 0
    //    1                                    1
    const CeedScalar J11 = J[J_stride * 0];
@@ -785,7 +785,7 @@ CEED_QFUNCTION_HELPER void MultAdjJt33(const CeedScalar *J,
                                        const CeedInt qd_stride,
                                        CeedScalar *qd)
 {
-   // compute qw adj(J)^T and store the result matrix.
+   // compute qw adj(J)^T and store the result matrix
    // J: 0 3 6   qd: 0 3 6
    //    1 4 7       1 4 7
    //    2 5 8       2 5 8
@@ -824,7 +824,7 @@ CEED_QFUNCTION_HELPER void MultAdjJt32(const CeedScalar *J,
                                        const CeedInt qd_stride,
                                        CeedScalar *qd)
 {
-   // compute qw adj(J)^T and store the result matrix.
+   // compute qw adj(J)^T and store the result matrix
    // J: 0 3   qd: 0 3
    //    1 4       1 4
    //    2 5       2 5

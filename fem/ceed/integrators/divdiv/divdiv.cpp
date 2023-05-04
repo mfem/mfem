@@ -25,35 +25,67 @@ namespace ceed
 #ifdef MFEM_USE_CEED
 struct DivDivOperatorInfo : public OperatorInfo
 {
-   DivDivContext ctx;
+   DivDivContext ctx = {0};
    DivDivOperatorInfo(const mfem::FiniteElementSpace &fes, mfem::Coefficient *Q,
-                      bool use_bdr)
+                      bool use_bdr = false, bool use_mf = false)
    {
       MFEM_VERIFY(fes.GetVDim() == 1,
                   "libCEED interface for vector FE does not support VDim > 1!");
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
+      if (!use_mf)
+      {
+         apply_func = ":f_apply_divdiv";
+         apply_qf = &f_apply_divdiv;
+      }
+      else
+      {
+         build_func = "";
+         build_qf = nullptr;
+      }
       if (Q == nullptr)
       {
          ctx.coeff = 1.0;
+         if (!use_mf)
+         {
+            build_func = ":f_build_divdiv_const";
+            build_qf = &f_build_divdiv_const;
+         }
+         else
+         {
+            apply_func = ":f_apply_divdiv_mf_const";
+            apply_qf = &f_apply_divdiv_mf_const;
+         }
       }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
+      else if (mfem::ConstantCoefficient *const_coeff =
+                  dynamic_cast<mfem::ConstantCoefficient *>(Q))
       {
          ctx.coeff = const_coeff->constant;
+         if (!use_mf)
+         {
+            build_func = ":f_build_divdiv_const";
+            build_qf = &f_build_divdiv_const;
+         }
+         else
+         {
+            apply_func = ":f_apply_divdiv_mf_const";
+            apply_qf = &f_apply_divdiv_mf_const;
+         }
       }
-
+      else
+      {
+         if (!use_mf)
+         {
+            build_func = ":f_build_divdiv_quad";
+            build_qf = &f_build_divdiv_quad;
+         }
+         else
+         {
+            apply_func = ":f_apply_divdiv_mf_quad";
+            apply_qf = &f_apply_divdiv_mf_quad;
+         }
+      }
       header = "/integrators/divdiv/divdiv_qf.h";
-      build_func_const = ":f_build_divdiv_const";
-      build_qf_const = &f_build_divdiv_const;
-      build_func_quad = ":f_build_divdiv_quad";
-      build_qf_quad = &f_build_divdiv_quad;
-      apply_func = ":f_apply_divdiv";
-      apply_qf = &f_apply_divdiv;
-      apply_func_mf_const = ":f_apply_divdiv_mf_const";
-      apply_qf_mf_const = &f_apply_divdiv_mf_const;
-      apply_func_mf_quad = ":f_apply_divdiv_mf_quad";
-      apply_qf_mf_quad = &f_apply_divdiv_mf_quad;
       trial_op = EvalMode::Div;
       test_op = EvalMode::Div;
       qdatasize = 1;
@@ -80,7 +112,7 @@ MFDivDivIntegrator::MFDivDivIntegrator(const mfem::DivDivIntegrator &integ,
                                        const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   DivDivOperatorInfo info(fes, Q, use_bdr);
+   DivDivOperatorInfo info(fes, Q, use_bdr, true);
    Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");

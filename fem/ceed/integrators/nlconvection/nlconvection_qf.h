@@ -14,15 +14,14 @@
 
 #include "../util/util_qf.h"
 
-/// A structure used to pass additional data to f_build_conv and f_apply_conv
 struct NLConvectionContext
 {
    CeedInt dim, space_dim;
    CeedScalar coeff;
 };
 
-/// libCEED QFunction for building quadrature data for a convection operator
-/// with a constant coefficient
+/// libCEED QFunction for building quadrature data for a convection
+/// operator with a constant coefficient
 CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
                                    CeedScalar *const *out)
@@ -31,7 +30,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
    // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * c * adj(J)^T.
+   // At every quadrature point, compute and store qw * c * adj(J)^T
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
@@ -71,8 +70,8 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for building quadrature data for a convection operator
-/// with a coefficient evaluated at quadrature points.
+/// libCEED QFunction for building quadrature data for a convection
+/// operator with a coefficient evaluated at quadrature points
 CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
@@ -82,7 +81,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * c * adj(J)^T.
+   // At every quadrature point, compute and store qw * c * adj(J)^T
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
    switch (10 * bc->space_dim + bc->dim)
@@ -121,7 +120,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a conv operator
+/// libCEED QFunction for applying a convection operator
 CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
                              const CeedScalar *const *in,
                              CeedScalar *const *out)
@@ -251,7 +250,8 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a conv operator
+/// libCEED QFunction for applying a convection operator with a constant
+/// coefficient
 CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
                                       const CeedScalar *const *in,
                                       CeedScalar *const *out)
@@ -263,7 +263,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    // in[3] is quadrature weights, size (Q)
    // out[0] has shape [ncomp=space_dim, Q]
    //
-   // At every quadrature point, compute qw * c * adj(J)^T.
+   // At every quadrature point, compute qw * c * adj(J)^T
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *ug = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vg = out[0];
@@ -375,7 +375,8 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a conv operator
+/// libCEED QFunction for applying a convection operator with a coefficient
+/// evaluated at quadrature points
 CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
@@ -388,7 +389,7 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
    // in[4] is quadrature weights, size (Q)
    // out[0] has shape [ncomp=space_dim, Q]
    //
-   // At every quadrature point, compute qw * c * adj(J)^T.
+   // At every quadrature point, compute qw * c * adj(J)^T
    const CeedScalar *u = in[0], *ug = in[1], *c = in[2], *J = in[3], *qw = in[4];
    CeedScalar *vg = out[0];
    switch (10 * bc->space_dim + bc->dim)

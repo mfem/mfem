@@ -16,59 +16,44 @@
 
 #define LIBCEED_CURLCURL_COEFF_COMP_MAX 6
 
-/// A structure used to pass additional data to f_build_curlcurl and
-/// f_apply_curlcurl
 struct CurlCurlContext
 {
-   CeedInt dim, space_dim, curl_dim, coeff_comp;
+   CeedInt dim, space_dim, curl_dim;
    CeedScalar coeff[LIBCEED_CURLCURL_COEFF_COMP_MAX];
 };
 
-/// libCEED QFunction for building quadrature data for a curl-curl
-/// operator with a constant coefficient
-CEED_QFUNCTION(f_build_curlcurl_const)(void *ctx, CeedInt Q,
-                                       const CeedScalar *const *in,
-                                       CeedScalar *const *out)
+/// libCEED QFunction for building quadrature data for a curl-curl operator
+/// with a scalar constant coefficient
+CEED_QFUNCTION(f_build_curlcurl_const_scalar)(void *ctx, CeedInt Q,
+                                              const CeedScalar *const *in,
+                                              CeedScalar *const *out)
 {
    CurlCurlContext *bc = (CurlCurlContext *)ctx;
    // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
    // At every quadrature point, compute qw/det(J) J^T C J and store the
-   // symmetric part of the result. In 2D, compute and store qw * c / det(J).
+   // symmetric part of the result. In 2D, compute and store qw * c / det(J)
    const CeedScalar *coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
-   switch (1000 * bc->space_dim + 100 * bc->dim + 10 * bc->curl_dim +
-           bc->coeff_comp)
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
    {
-      case 2211:
+      case 221:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
             qd[i] = qw[i] * coeff0 / DetJ22(J + i, Q);
          }
          break;
-      case 3211:
+      case 321:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
             qd[i] = qw[i] * coeff0 / DetJ32(J + i, Q);
          }
          break;
-      case 3336:
-         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
-         {
-            MultJtCJ33(J + i, Q, coeff, 1, 6, qw[i], Q, qd + i);
-         }
-         break;
-      case 3333:
-         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
-         {
-            MultJtCJ33(J + i, Q, coeff, 1, 3, qw[i], Q, qd + i);
-         }
-         break;
-      case 3331:
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultJtCJ33(J + i, Q, coeff, 1, 1, qw[i], Q, qd + i);
@@ -78,52 +63,147 @@ CEED_QFUNCTION(f_build_curlcurl_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for building quadrature data for a curl-curl
-/// operator with a coefficient evaluated at quadrature points.
-CEED_QFUNCTION(f_build_curlcurl_quad)(void *ctx, CeedInt Q,
-                                      const CeedScalar *const *in,
-                                      CeedScalar *const *out)
+/// libCEED QFunction for building quadrature data for a curl-curl operator
+/// with a vector constant coefficient
+CEED_QFUNCTION(f_build_curlcurl_const_vector)(void *ctx, CeedInt Q,
+                                              const CeedScalar *const *in,
+                                              CeedScalar *const *out)
 {
    CurlCurlContext *bc = (CurlCurlContext *)ctx;
-   // in[0] is coefficients with shape [ncomp=coeff_comp, Q]
+   // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[1] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J and store the
+   // symmetric part of the result. In 2D, compute and store qw * c / det(J)
+   const CeedScalar *coeff = bc->coeff;
+   const CeedScalar *J = in[0], *qw = in[1];
+   CeedScalar *qd = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            MultJtCJ33(J + i, Q, coeff, 1, 3, qw[i], Q, qd + i);
+         }
+         break;
+   }
+   return 0;
+}
+
+/// libCEED QFunction for building quadrature data for a curl-curl operator
+/// with a matrix constant coefficient
+CEED_QFUNCTION(f_build_curlcurl_const_matrix)(void *ctx, CeedInt Q,
+                                              const CeedScalar *const *in,
+                                              CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[1] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J and store the
+   // symmetric part of the result. In 2D, compute and store qw * c / det(J)
+   const CeedScalar *coeff = bc->coeff;
+   const CeedScalar *J = in[0], *qw = in[1];
+   CeedScalar *qd = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            MultJtCJ33(J + i, Q, coeff, 1, 6, qw[i], Q, qd + i);
+         }
+         break;
+   }
+   return 0;
+}
+
+/// libCEED QFunction for building quadrature data for a curl-curl operator
+/// with a scalar coefficient evaluated at quadrature points
+CEED_QFUNCTION(f_build_curlcurl_quad_scalar)(void *ctx, CeedInt Q,
+                                             const CeedScalar *const *in,
+                                             CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0] is coefficients with shape [ncomp=1, Q]
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
    // At every quadrature point, compute qw/det(J) J^T C J and store the
-   // symmetric part of the result. In 2D, compute and store qw * c / det(J).
+   // symmetric part of the result. In 2D, compute and store qw * c / det(J)
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
-   switch (1000 * bc->space_dim + 100 * bc->dim + 10 * bc->curl_dim +
-           bc->coeff_comp)
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
    {
-      case 2211:
+      case 221:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = qw[i] * c[i] / DetJ22(J + i, Q);
          }
          break;
-      case 3211:
+      case 321:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             qd[i] = qw[i] * c[i] / DetJ32(J + i, Q);
          }
          break;
-      case 3336:
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultJtCJ33(J + i, Q, c + i, Q, 6, qw[i], Q, qd + i);
+            MultJtCJ33(J + i, Q, c + i, Q, 1, qw[i], Q, qd + i);
          }
          break;
-      case 3333:
+   }
+   return 0;
+}
+
+/// libCEED QFunction for building quadrature data for a curl-curl operator
+/// with a vector coefficient evaluated at quadrature points
+CEED_QFUNCTION(f_build_curlcurl_quad_vector)(void *ctx, CeedInt Q,
+                                             const CeedScalar *const *in,
+                                             CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0] is coefficients with shape [ncomp=space_dim, Q]
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J and store the
+   // symmetric part of the result. In 2D, compute and store qw * c / det(J)
+   const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
+   CeedScalar *qd = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             MultJtCJ33(J + i, Q, c + i, Q, 3, qw[i], Q, qd + i);
          }
          break;
-      case 3331:
+   }
+   return 0;
+}
+
+/// libCEED QFunction for building quadrature data for a curl-curl operator
+/// with a matrix coefficient evaluated at quadrature points
+CEED_QFUNCTION(f_build_curlcurl_quad_matrix)(void *ctx, CeedInt Q,
+                                             const CeedScalar *const *in,
+                                             CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0] is coefficients with shape [ncomp=space_dim*(space_dim+1)/2, Q]
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J and store the
+   // symmetric part of the result. In 2D, compute and store qw * c / det(J)
+   const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
+   CeedScalar *qd = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
-            MultJtCJ33(J + i, Q, c + i, Q, 1, qw[i], Q, qd + i);
+            MultJtCJ33(J + i, Q, c + i, Q, 6, qw[i], Q, qd + i);
          }
          break;
    }
@@ -162,24 +242,24 @@ CEED_QFUNCTION(f_apply_curlcurl)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a curl-curl operator
-CEED_QFUNCTION(f_apply_curlcurl_mf_const)(void *ctx, CeedInt Q,
-                                          const CeedScalar *const *in,
-                                          CeedScalar *const *out)
+/// libCEED QFunction for applying a curl-curl operator with a scalar constant
+/// coefficient
+CEED_QFUNCTION(f_apply_curlcurl_mf_const_scalar)(void *ctx, CeedInt Q,
+                                                 const CeedScalar *const *in,
+                                                 CeedScalar *const *out)
 {
    CurlCurlContext *bc = (CurlCurlContext *)ctx;
    // in[0], out[0] have shape [curl_dim, ncomp=1, Q]
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J) J^T C J.
+   // At every quadrature point, compute qw/det(J) J^T C J
    const CeedScalar *coeff = bc->coeff;
    const CeedScalar *uc = in[0], *J = in[1], *qw = in[2];
    CeedScalar *vc = out[0];
-   switch (1000 * bc->space_dim + 100 * bc->dim + 10 * bc->curl_dim +
-           bc->coeff_comp)
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
    {
-      case 2211:
+      case 221:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
@@ -187,7 +267,7 @@ CEED_QFUNCTION(f_apply_curlcurl_mf_const)(void *ctx, CeedInt Q,
             vc[i] = qd * uc[i];
          }
          break;
-      case 3211:
+      case 321:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             const CeedScalar coeff0 = coeff[0];
@@ -195,33 +275,7 @@ CEED_QFUNCTION(f_apply_curlcurl_mf_const)(void *ctx, CeedInt Q,
             vc[i] = qd * uc[i];
          }
          break;
-      case 3336:
-         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
-         {
-            CeedScalar qd[6];
-            MultJtCJ33(J + i, Q, coeff, 1, 6, qw[i], 1, qd);
-            const CeedScalar uc0 = uc[i + Q * 0];
-            const CeedScalar uc1 = uc[i + Q * 1];
-            const CeedScalar uc2 = uc[i + Q * 2];
-            vc[i + Q * 0] = qd[0] * uc0 + qd[1] * uc1 + qd[2] * uc2;
-            vc[i + Q * 1] = qd[1] * uc0 + qd[3] * uc1 + qd[4] * uc2;
-            vc[i + Q * 2] = qd[2] * uc0 + qd[4] * uc1 + qd[5] * uc2;
-         }
-         break;
-      case 3333:
-         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
-         {
-            CeedScalar qd[6];
-            MultJtCJ33(J + i, Q, coeff, 1, 3, qw[i], 1, qd);
-            const CeedScalar uc0 = uc[i + Q * 0];
-            const CeedScalar uc1 = uc[i + Q * 1];
-            const CeedScalar uc2 = uc[i + Q * 2];
-            vc[i + Q * 0] = qd[0] * uc0 + qd[1] * uc1 + qd[2] * uc2;
-            vc[i + Q * 1] = qd[1] * uc0 + qd[3] * uc1 + qd[4] * uc2;
-            vc[i + Q * 2] = qd[2] * uc0 + qd[4] * uc1 + qd[5] * uc2;
-         }
-         break;
-      case 3331:
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
@@ -238,42 +292,28 @@ CEED_QFUNCTION(f_apply_curlcurl_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a curl-curl operator
-CEED_QFUNCTION(f_apply_curlcurl_mf_quad)(void *ctx, CeedInt Q,
-                                         const CeedScalar *const *in,
-                                         CeedScalar *const *out)
+/// libCEED QFunction for applying a curl-curl operator with a vector constant
+/// coefficient
+CEED_QFUNCTION(f_apply_curlcurl_mf_const_vector)(void *ctx, CeedInt Q,
+                                                 const CeedScalar *const *in,
+                                                 CeedScalar *const *out)
 {
    CurlCurlContext *bc = (CurlCurlContext *)ctx;
    // in[0], out[0] have shape [curl_dim, ncomp=1, Q]
-   // in[1] is coefficients with shape [ncomp=coeff_comp, Q]
-   // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
-   // in[3] is quadrature weights, size (Q)
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw/det(J) J^T C J.
-   const CeedScalar *uc = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   // At every quadrature point, compute qw/det(J) J^T C J
+   const CeedScalar *coeff = bc->coeff;
+   const CeedScalar *uc = in[0], *J = in[1], *qw = in[2];
    CeedScalar *vc = out[0];
-   switch (1000 * bc->space_dim + 100 * bc->dim + 10 * bc->curl_dim +
-           bc->coeff_comp)
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
    {
-      case 2211:
-         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
-         {
-            const CeedScalar qd = qw[i] * c[i] / DetJ22(J + i, Q);
-            vc[i] = qd * uc[i];
-         }
-         break;
-      case 3211:
-         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
-         {
-            const CeedScalar qd = qw[i] * c[i] / DetJ32(J + i, Q);
-            vc[i] = qd * uc[i];
-         }
-         break;
-      case 3336:
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
-            MultJtCJ33(J + i, Q, c + i, Q, 6, qw[i], 1, qd);
+            MultJtCJ33(J + i, Q, coeff, 1, 3, qw[i], 1, qd);
             const CeedScalar uc0 = uc[i + Q * 0];
             const CeedScalar uc1 = uc[i + Q * 1];
             const CeedScalar uc2 = uc[i + Q * 2];
@@ -282,7 +322,110 @@ CEED_QFUNCTION(f_apply_curlcurl_mf_quad)(void *ctx, CeedInt Q,
             vc[i + Q * 2] = qd[2] * uc0 + qd[4] * uc1 + qd[5] * uc2;
          }
          break;
-      case 3333:
+   }
+   return 0;
+}
+
+/// libCEED QFunction for applying a curl-curl operator with a matrix constant
+/// coefficient
+CEED_QFUNCTION(f_apply_curlcurl_mf_const_matrix)(void *ctx, CeedInt Q,
+                                                 const CeedScalar *const *in,
+                                                 CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0], out[0] have shape [curl_dim, ncomp=1, Q]
+   // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J
+   const CeedScalar *coeff = bc->coeff;
+   const CeedScalar *uc = in[0], *J = in[1], *qw = in[2];
+   CeedScalar *vc = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            CeedScalar qd[6];
+            MultJtCJ33(J + i, Q, coeff, 1, 6, qw[i], 1, qd);
+            const CeedScalar uc0 = uc[i + Q * 0];
+            const CeedScalar uc1 = uc[i + Q * 1];
+            const CeedScalar uc2 = uc[i + Q * 2];
+            vc[i + Q * 0] = qd[0] * uc0 + qd[1] * uc1 + qd[2] * uc2;
+            vc[i + Q * 1] = qd[1] * uc0 + qd[3] * uc1 + qd[4] * uc2;
+            vc[i + Q * 2] = qd[2] * uc0 + qd[4] * uc1 + qd[5] * uc2;
+         }
+         break;
+   }
+   return 0;
+}
+
+/// libCEED QFunction for applying a curl-curl operator with a scalar
+/// coefficient evaluated at quadrature points
+CEED_QFUNCTION(f_apply_curlcurl_mf_quad_scalar)(void *ctx, CeedInt Q,
+                                                const CeedScalar *const *in,
+                                                CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0], out[0] have shape [curl_dim, ncomp=1, Q]
+   // in[1] is coefficients with shape [ncomp=1, Q]
+   // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[3] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J
+   const CeedScalar *uc = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   CeedScalar *vc = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 221:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd = qw[i] * c[i] / DetJ22(J + i, Q);
+            vc[i] = qd * uc[i];
+         }
+         break;
+      case 321:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd = qw[i] * c[i] / DetJ32(J + i, Q);
+            vc[i] = qd * uc[i];
+         }
+         break;
+      case 333:
+         CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
+         {
+            CeedScalar qd[6];
+            MultJtCJ33(J + i, Q, c + i, Q, 1, qw[i], 1, qd);
+            const CeedScalar uc0 = uc[i + Q * 0];
+            const CeedScalar uc1 = uc[i + Q * 1];
+            const CeedScalar uc2 = uc[i + Q * 2];
+            vc[i + Q * 0] = qd[0] * uc0 + qd[1] * uc1 + qd[2] * uc2;
+            vc[i + Q * 1] = qd[1] * uc0 + qd[3] * uc1 + qd[4] * uc2;
+            vc[i + Q * 2] = qd[2] * uc0 + qd[4] * uc1 + qd[5] * uc2;
+         }
+         break;
+   }
+   return 0;
+}
+
+/// libCEED QFunction for applying a curl-curl operator with a vector
+/// coefficient evaluated at quadrature points
+CEED_QFUNCTION(f_apply_curlcurl_mf_quad_vector)(void *ctx, CeedInt Q,
+                                                const CeedScalar *const *in,
+                                                CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0], out[0] have shape [curl_dim, ncomp=1, Q]
+   // in[1] is coefficients with shape [ncomp=space_dim, Q]
+   // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[3] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J
+   const CeedScalar *uc = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   CeedScalar *vc = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
@@ -295,11 +438,32 @@ CEED_QFUNCTION(f_apply_curlcurl_mf_quad)(void *ctx, CeedInt Q,
             vc[i + Q * 2] = qd[2] * uc0 + qd[4] * uc1 + qd[5] * uc2;
          }
          break;
-      case 3331:
+   }
+   return 0;
+}
+
+/// libCEED QFunction for applying a curl-curl operator with a matrix
+/// coefficient evaluated at quadrature points
+CEED_QFUNCTION(f_apply_curlcurl_mf_quad_matrix)(void *ctx, CeedInt Q,
+                                                const CeedScalar *const *in,
+                                                CeedScalar *const *out)
+{
+   CurlCurlContext *bc = (CurlCurlContext *)ctx;
+   // in[0], out[0] have shape [curl_dim, ncomp=1, Q]
+   // in[1] is coefficients with shape [ncomp=space_dim*(space_dim+1)/2, Q]
+   // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
+   // in[3] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J) J^T C J
+   const CeedScalar *uc = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   CeedScalar *vc = out[0];
+   switch (100 * bc->space_dim + 10 * bc->dim + bc->curl_dim)
+   {
+      case 333:
          CeedPragmaSIMD for (CeedInt i = 0; i < Q; i++)
          {
             CeedScalar qd[6];
-            MultJtCJ33(J + i, Q, c + i, Q, 1, qw[i], 1, qd);
+            MultJtCJ33(J + i, Q, c + i, Q, 6, qw[i], 1, qd);
             const CeedScalar uc0 = uc[i + Q * 0];
             const CeedScalar uc1 = uc[i + Q * 1];
             const CeedScalar uc2 = uc[i + Q * 2];

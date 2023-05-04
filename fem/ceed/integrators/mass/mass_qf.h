@@ -14,15 +14,14 @@
 
 #include "../util/util_qf.h"
 
-/// A structure used to pass additional data to f_build_mass and f_apply_mass
 struct MassContext
 {
    CeedInt dim, space_dim, vdim;
    CeedScalar coeff;
 };
 
-/// libCEED QFunction for building quadrature data for a mass operator with a
-/// constant coefficient
+/// libCEED QFunction for building quadrature data for a mass operator
+/// with a constant coefficient
 CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
                                    const CeedScalar *const *in,
                                    CeedScalar *const *out)
@@ -30,7 +29,7 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
    // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * c * det(J).
+   // At every quadrature point, compute and store qw * c * det(J)
    MassContext *bc = (MassContext *)ctx;
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
@@ -71,8 +70,8 @@ CEED_QFUNCTION(f_build_mass_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for building quadrature data for a mass operator with a
-/// coefficient evaluated at quadrature points.
+/// libCEED QFunction for building quadrature data for a mass operator
+/// with a coefficient evaluated at quadrature points
 CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
                                   const CeedScalar *const *in,
                                   CeedScalar *const *out)
@@ -81,7 +80,7 @@ CEED_QFUNCTION(f_build_mass_quad)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * c * det(J).
+   // At every quadrature point, compute and store qw * c * det(J)
    MassContext *bc = (MassContext *)ctx;
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
@@ -162,16 +161,18 @@ CEED_QFUNCTION(f_apply_mass)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a mass operator
+/// libCEED QFunction for applying a mass operator with a constant
+/// coefficient
 CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
-                                      const CeedScalar *const *in, CeedScalar *const *out)
+                                      const CeedScalar *const *in,
+                                      CeedScalar *const *out)
 {
    MassContext *bc = (MassContext *)ctx;
    // in[0], out[0] have shape [ncomp=vdim, Q]
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw * c * det(J).
+   // At every quadrature point, compute qw * c * det(J)
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *u = in[0], *J = in[1], *qw = in[2];
    CeedScalar *v = out[0];
@@ -256,16 +257,18 @@ CEED_QFUNCTION(f_apply_mass_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a mass operator
+/// libCEED QFunction for applying a mass operator with a coefficient
+/// evaluated at quadrature points
 CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
-                                     const CeedScalar *const *in, CeedScalar *const *out)
+                                     const CeedScalar *const *in,
+                                     CeedScalar *const *out)
 {
    MassContext *bc = (MassContext *)ctx;
    // in[0], out[0] have shape [ncomp=vdim, Q]
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw * c * det(J).
+   // At every quadrature point, compute qw * c * det(J)
    const CeedScalar *u = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *v = out[0];
    switch (100 * bc->space_dim + 10 * bc->dim + bc->vdim)

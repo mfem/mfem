@@ -36,34 +36,18 @@ struct OperatorInfo
 {
    /** The path to the QFunction header. */
    const char *header;
-   /** The name of the QFunction to build a partially assembled CeedOperator
-       with a constant Coefficient. */
-   const char *build_func_const;
-   /** The QFunction to build a partially assembled CeedOperator with a constant
-       Coefficient. */
-   CeedQFunctionUser build_qf_const;
-   /** The name of the QFunction to build a partially assembled CeedOperator
-       with a variable Coefficient. */
-   const char *build_func_quad;
-   /** The QFunction to build a partially assembled CeedOperator with a variable
-       Coefficient. */
-   CeedQFunctionUser build_qf_quad;
+   /** The name of the QFunction to build a partially assembled CeedOperator. */
+   const char *build_func;
+   /** The QFunction to build a partially assembled CeedOperator. */
+   CeedQFunctionUser build_qf;
    /** The name of the QFunction to apply a partially assembled CeedOperator. */
    const char *apply_func;
    /** The QFunction to apply a partially assembled CeedOperator. */
    CeedQFunctionUser apply_qf;
-   /** The name of the QFunction to apply a matrix-free CeedOperator with a
-       constant Coefficient. */
-   const char *apply_func_mf_const;
-   /** The QFunction to apply a matrix-free CeedOperator with a constant
-       Coefficient. */
-   CeedQFunctionUser apply_qf_mf_const;
-   /** The name of the QFunction to apply a matrix-free CeedOperator with a
-       variable Coefficient. */
-   const char *apply_func_mf_quad;
-   /** The QFunction to apply a matrix-free CeedOperator with a variable
-       Coefficient. */
-   CeedQFunctionUser apply_qf_mf_quad;
+   /** The name of the QFunction to apply a matrix-free CeedOperator. */
+   const char *apply_func_mf;
+   /** The QFunction to apply a matrix-free CeedOperator. */
+   CeedQFunctionUser apply_qf_mf;
    /** The EvalMode on the trial basis functions. */
    EvalMode trial_op;
    /** The EvalMode on the test basis functions. */
@@ -274,17 +258,11 @@ public:
                                 &qdata_restr);
          CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &qdata);
 
-         std::string build_func = coeff ? info.build_func_quad
-                                  : info.build_func_const;
-         CeedQFunctionUser build_qf = coeff ? info.build_qf_quad
-                                      : info.build_qf_const;
-
          // Create the QFunction that builds the operator (i.e. computes its
          // quadrature data) and set its context data.
          CeedQFunction build_qfunc;
-         std::string qf_file = GetCeedPath() + info.header;
-         std::string qf = qf_file + build_func;
-         CeedQFunctionCreateInterior(ceed, 1, build_qf, qf.c_str(),
+         std::string qf = GetCeedPath() + info.header + info.build_func;
+         CeedQFunctionCreateInterior(ceed, 1, info.build_qf, qf.c_str(),
                                      &build_qfunc);
          if (coeff)
          {
@@ -335,17 +313,9 @@ public:
          coeff = nullptr;
       }
 
-      std::string apply_func = !use_mf ? info.apply_func :
-                               (coeff ? info.apply_func_mf_quad
-                                : info.apply_func_mf_const);
-      CeedQFunctionUser apply_qf = !use_mf ? info.apply_qf :
-                                   (coeff ? info.apply_qf_mf_quad
-                                    : info.apply_qf_mf_const);
-
       // Create the QFunction that defines the action of the operator.
-      std::string qf_file = GetCeedPath() + info.header;
-      std::string qf = qf_file + apply_func;
-      CeedQFunctionCreateInterior(ceed, 1, apply_qf, qf.c_str(),
+      std::string qf = GetCeedPath() + info.header + info.apply_func;
+      CeedQFunctionCreateInterior(ceed, 1, info.apply_qf, qf.c_str(),
                                   &apply_qfunc);
       // input
       switch (info.trial_op)

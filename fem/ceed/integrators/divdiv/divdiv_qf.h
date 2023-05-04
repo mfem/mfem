@@ -14,16 +14,14 @@
 
 #include "../util/util_qf.h"
 
-/// A structure used to pass additional data to f_build_divdiv and
-/// f_apply_divdiv
 struct DivDivContext
 {
    CeedInt dim, space_dim;
    CeedScalar coeff;
 };
 
-/// libCEED QFunction for building quadrature data for a div-div operator with
-/// a constant coefficient
+/// libCEED QFunction for building quadrature data for a div-div operator
+/// with a constant coefficient
 CEED_QFUNCTION(f_build_divdiv_const)(void *ctx, CeedInt Q,
                                      const CeedScalar *const *in,
                                      CeedScalar *const *out)
@@ -32,7 +30,7 @@ CEED_QFUNCTION(f_build_divdiv_const)(void *ctx, CeedInt Q,
    // in[0] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[1] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * c / det(J).
+   // At every quadrature point, compute and store qw * c / det(J)
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *J = in[0], *qw = in[1];
    CeedScalar *qd = out[0];
@@ -72,8 +70,8 @@ CEED_QFUNCTION(f_build_divdiv_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for building quadrature data for a div-div operator with
-/// a coefficient evaluated at quadrature points.
+/// libCEED QFunction for building quadrature data for a div-div operator
+/// with a coefficient evaluated at quadrature points
 CEED_QFUNCTION(f_build_divdiv_quad)(void *ctx, CeedInt Q,
                                     const CeedScalar *const *in,
                                     CeedScalar *const *out)
@@ -83,7 +81,7 @@ CEED_QFUNCTION(f_build_divdiv_quad)(void *ctx, CeedInt Q,
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute and store qw * c / det(J).
+   // At every quadrature point, compute and store qw * c / det(J)
    const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
    CeedScalar *qd = out[0];
    switch (10 * bc->space_dim + bc->dim)
@@ -137,16 +135,18 @@ CEED_QFUNCTION(f_apply_divdiv)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a div-div operator
+/// libCEED QFunction for applying a div-div operator with a constant
+/// coefficient
 CEED_QFUNCTION(f_apply_divdiv_mf_const)(void *ctx, CeedInt Q,
-                                        const CeedScalar *const *in, CeedScalar *const *out)
+                                        const CeedScalar *const *in,
+                                        CeedScalar *const *out)
 {
    DivDivContext *bc = (DivDivContext *)ctx;
    // in[0], out[0] have shape [ncomp=1, Q]
    // in[1] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[2] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw * c / det(J).
+   // At every quadrature point, compute qw * c / det(J)
    const CeedScalar coeff = bc->coeff;
    const CeedScalar *ud = in[0], *J = in[1], *qw = in[2];
    CeedScalar *vd = out[0];
@@ -191,9 +191,11 @@ CEED_QFUNCTION(f_apply_divdiv_mf_const)(void *ctx, CeedInt Q,
    return 0;
 }
 
-/// libCEED QFunction for applying a div-div operator
+/// libCEED QFunction for applying a div-div operator with a coefficient
+/// evaluated at quadrature points
 CEED_QFUNCTION(f_apply_divdiv_mf_quad)(void *ctx, CeedInt Q,
-                                       const CeedScalar *const *in, CeedScalar *const *out)
+                                       const CeedScalar *const *in,
+                                       CeedScalar *const *out)
 {
    DivDivContext *bc = (DivDivContext *)ctx;
    // in[0], out[0] have shape [ncomp=1, Q]
@@ -201,7 +203,7 @@ CEED_QFUNCTION(f_apply_divdiv_mf_quad)(void *ctx, CeedInt Q,
    // in[2] is Jacobians with shape [dim, ncomp=space_dim, Q]
    // in[3] is quadrature weights, size (Q)
    //
-   // At every quadrature point, compute qw * c / det(J).
+   // At every quadrature point, compute qw * c / det(J)
    const CeedScalar *ud = in[0], *c = in[1], *J = in[2], *qw = in[3];
    CeedScalar *vd = out[0];
    switch (10 * bc->space_dim + bc->dim)

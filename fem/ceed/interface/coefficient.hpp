@@ -74,7 +74,7 @@ inline void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
                             const mfem::IntegrationRule &ir, bool use_bdr,
                             Coefficient *&coeff_ptr)
 {
-   if (Q == nullptr || dynamic_cast<ConstantCoefficient *>(Q))
+   if (Q == nullptr || dynamic_cast<mfem::ConstantCoefficient *>(Q))
    {
       // The constant coefficient case is handled by the QFunction context
       coeff_ptr = nullptr;
@@ -277,15 +277,15 @@ inline void InitCoefficientWithIndices(mfem::Coefficient *Q,
       // The constant coefficient case is handled by the QFunction context
       coeff_ptr = nullptr;
    }
-   else if (GridFunctionCoefficient *gf_coeff =
-               dynamic_cast<GridFunctionCoefficient *>(Q))
+   else if (mfem::GridFunctionCoefficient *gf_coeff =
+               dynamic_cast<mfem::GridFunctionCoefficient *>(Q))
    {
       GridCoefficient *ceed_coeff =
          new GridCoefficient(*gf_coeff->GetGridFunction());
       coeff_ptr = ceed_coeff;
    }
-   else if (QuadratureFunctionCoefficient *qf_coeff =
-               dynamic_cast<QuadratureFunctionCoefficient *>(Q))
+   else if (mfem::QuadratureFunctionCoefficient *qf_coeff =
+               dynamic_cast<mfem::QuadratureFunctionCoefficient *>(Q))
    {
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
@@ -360,15 +360,15 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ,
       // The constant coefficient case is handled by the QFunction context
       coeff_ptr = nullptr;
    }
-   else if (VectorGridFunctionCoefficient *vgf_coeff =
-               dynamic_cast<VectorGridFunctionCoefficient *>(VQ))
+   else if (mfem::VectorGridFunctionCoefficient *vgf_coeff =
+               dynamic_cast<mfem::VectorGridFunctionCoefficient *>(VQ))
    {
       GridCoefficient *ceed_coeff =
          new GridCoefficient(*vgf_coeff->GetGridFunction());
       coeff_ptr = ceed_coeff;
    }
-   else if (VectorQuadratureFunctionCoefficient *vqf_coeff =
-               dynamic_cast<VectorQuadratureFunctionCoefficient *>(VQ))
+   else if (mfem::VectorQuadratureFunctionCoefficient *vqf_coeff =
+               dynamic_cast<mfem::VectorQuadratureFunctionCoefficient *>(VQ))
    {
       const int vdim = vqf_coeff->GetVDim();
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();

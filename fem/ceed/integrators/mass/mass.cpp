@@ -25,34 +25,66 @@ namespace ceed
 #ifdef MFEM_USE_CEED
 struct MassOperatorInfo : public OperatorInfo
 {
-   MassContext ctx;
+   MassContext ctx = {0};
    MassOperatorInfo(const mfem::FiniteElementSpace &fes, mfem::Coefficient *Q,
-                    bool use_bdr)
+                    bool use_bdr = false, bool use_mf = false)
    {
       ctx.dim = fes.GetMesh()->Dimension() - use_bdr;
       ctx.space_dim = fes.GetMesh()->SpaceDimension();
       ctx.vdim = fes.GetVDim();
+      if (!use_mf)
+      {
+         apply_func = ":f_apply_mass";
+         apply_qf = &f_apply_mass;
+      }
+      else
+      {
+         build_func = "";
+         build_qf = nullptr;
+      }
       if (Q == nullptr)
       {
          ctx.coeff = 1.0;
+         if (!use_mf)
+         {
+            build_func = ":f_build_mass_const";
+            build_qf = &f_build_mass_const;
+         }
+         else
+         {
+            apply_func = ":f_apply_mass_mf_const";
+            apply_qf = &f_apply_mass_mf_const;
+         }
       }
-      else if (ConstantCoefficient *const_coeff =
-                  dynamic_cast<ConstantCoefficient *>(Q))
+      else if (mfem::ConstantCoefficient *const_coeff =
+                  dynamic_cast<mfem::ConstantCoefficient *>(Q))
       {
          ctx.coeff = const_coeff->constant;
+         if (!use_mf)
+         {
+            build_func = ":f_build_mass_const";
+            build_qf = &f_build_mass_const;
+         }
+         else
+         {
+            apply_func = ":f_apply_mass_mf_const";
+            apply_qf = &f_apply_mass_mf_const;
+         }
       }
-
+      else
+      {
+         if (!use_mf)
+         {
+            build_func = ":f_build_mass_quad";
+            build_qf = &f_build_mass_quad;
+         }
+         else
+         {
+            apply_func = ":f_apply_mass_mf_quad";
+            apply_qf = &f_apply_mass_mf_quad;
+         }
+      }
       header = "/integrators/mass/mass_qf.h";
-      build_func_const = ":f_build_mass_const";
-      build_qf_const = &f_build_mass_const;
-      build_func_quad = ":f_build_mass_quad";
-      build_qf_quad = &f_build_mass_quad;
-      apply_func = ":f_apply_mass";
-      apply_qf = &f_apply_mass;
-      apply_func_mf_const = ":f_apply_mass_mf_const";
-      apply_qf_mf_const = &f_apply_mass_mf_const;
-      apply_func_mf_quad = ":f_apply_mass_mf_quad";
-      apply_qf_mf_quad = &f_apply_mass_mf_quad;
       trial_op = EvalMode::Interp;
       test_op = EvalMode::Interp;
       qdatasize = 1;
@@ -92,7 +124,7 @@ MFMassIntegrator::MFMassIntegrator(const mfem::MassIntegrator &integ,
                                    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q, use_bdr);
+   MassOperatorInfo info(fes, Q, use_bdr, true);
    Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -105,7 +137,7 @@ MFMassIntegrator::MFMassIntegrator(const mfem::VectorMassIntegrator &integ,
                                    const bool use_bdr)
 {
 #ifdef MFEM_USE_CEED
-   MassOperatorInfo info(fes, Q, use_bdr);
+   MassOperatorInfo info(fes, Q, use_bdr, true);
    Assemble(integ, info, fes, Q, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
