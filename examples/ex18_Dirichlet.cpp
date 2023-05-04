@@ -62,7 +62,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int problem = 6;
+   int problem = 1;
    const double specific_heat_ratio = 1.4;
    const double gas_constant = 1.0;
 
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
-   if (problem == 6)
+   if (problem == 1)
    {
       mesh.Transform([](const Vector &x, Vector &y)
       {
@@ -226,7 +226,6 @@ int main(int argc, char *argv[])
    Array<int>  ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
    euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
-
 
 
    // Visualize the density
