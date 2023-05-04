@@ -50,8 +50,8 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 6;
    double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 1.0e-3;
+   double dt = 1e-3;
+   double t_final = 10 * dt;
    double reference_pressure = 0.0;
    double reynolds = 1.0 / kinvis;
    double lam = 0.5 * reynolds
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(1, 2, Element::QUADRILATERAL, false, 1.5,
+   Mesh mesh = Mesh::MakeCartesian2D(3, 4, Element::QUADRILATERAL, false, 1.5,
                                      2.0);
 
    mesh.EnsureNodes();
