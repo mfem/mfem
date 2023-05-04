@@ -941,7 +941,10 @@ public:
         specific_heat_ratio(specific_heat_ratio_) {}
 };
 
-class EulerDirichletBC : public EulerFormIntegrator
+
+
+
+class EulerDirichletBC : public EulerFormIntegrator                        /* Ollie Zhang */
 {
    const VectorFunctionCoefficient &dirichletData;
 public:
@@ -950,7 +953,11 @@ public:
                     const VectorFunctionCoefficient &dirichletData_,
                     const int IntOrderOffset_)
       : EulerFormIntegrator(rsolver_, dim, specific_heat_ratio_, IntOrderOffset_),
-        dirichletData(dirichletData_) {}
+        dirichletData(dirichletData_) {
+
+
+
+        }
 
    /**
     * @brief Assemble Dirichlet BC, <F̂(u, g, n), v>_e
@@ -969,7 +976,103 @@ public:
       // TODO: Implement <F̂(u, g, n), v>_e
       // NOTE: See, HyperbolicFormIntegrator::AssembleFaceVector.
       //       Note that we have to replace state2 by g and there is NO second neighboring element.
-   }
+
+
+
+
+
+      const int dof1 = el1.GetDof();         //creating a vairable dof1 to get the DOF of interior element 
+      // const int dof2 = el2.GetDof();         //creating a variable dof1 to get the DOF of exterior element 
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storages for element integration
+
+   Vector shape1(
+      dof1);  // shape function value at an integration point - first elem
+   // Vector shape2(
+   //    dof2);  // shape function value at an integration point - second elem
+   Vector nor(el1.GetDim());     // normal vector (usually not a unit vector)
+   Vector state1(
+      num_equations);  // state value at an integration point - first elem
+   // Vector state2(
+   //    num_equations);  // state value at an integration point - second elem
+   Vector fluxN1(
+      num_equations);  // flux dot n value at an integration point - first elem
+   // Vector fluxN2(
+      // num_equations);  // flux dot n value at an integration point - second elem
+   Vector fluxN(num_equations);   // hat(F)(u,x)
+#else
+   shape1.SetSize(dof1);            
+   // shape2.SetSize(dof2);
+#endif
+
+   elvect.SetSize((dof1) * num_equations);
+   elvect = 0.0;
+
+   const DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equations);
+   // const DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equations, dof2,
+   //                              num_equations);
+
+   DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equations);
+   // DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2,
+   //                         num_equations);
+                  
+   // Integration order calculation from DGTraceIntegrator
+	int intorder;
+	if (Tr.Elem2No >= 0)
+		intorder = (std::max(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) + 2 * std::max(el1.GetOrder(), el2.GetOrder()));
+	else {
+		intorder = Tr.Elem1->OrderW() + 2 * el1.GetOrder();
+	}
+	if (el1.Space() == FunctionSpace::Pk) {
+		intorder++;
+	}
+
+   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
+
+	/// loop over integration points
+	for (int i = 0; i < ir->GetNPoints(); i++) {
+		const IntegrationPoint &ip = ir->IntPoint(i);
+
+		Tr.SetAllIntPoints(&ip);    // set face and element int. points
+
+		// Calculate basis functions on both elements at the face
+		el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+		el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+		// Interpolate e
+		elfun1_mat.MultTranspose(shape1, state1);
+		elfun2_mat.MultTranspose(shape2, dirichletData);
+
+		// Get the normal vector and the flux on the face
+		CalcOrtho(Tr.Jacobian(), nor);
+
+      // Calculates F(u+,g) F(u-,g) with the maximum characteristic speed 
+		const double mcs=std::max(
+         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1);
+         ComputeFluxDotN(dirichletData,nor,Tr.GetElement2Transformation,fluxN2););
+      
+      /// Calculate the Fhat using Reimann solver
+      rsolver->Eval(state1,dirichletData,fluxN1,fluxN2,mcs,nor,fluxN);   //get Fhat for the reimann solver 
+
+		// Update max char speed
+		max_char_speed=std::max(mcs,max_char_speed);
+
+		fluxN *= ip.weight;
+		for (int k = 0; k < inputData_->num_equation; k++) {
+			for (int s = 0; s < dof1; s++) {
+				elvect1_mat(s, k) -= fluxN(k) * shape1(s);
+			}
+			for (int s = 0; s < dof2; s++) {
+				elvect2_mat(s, k) += fluxN(k) * shape2(s);
+			}
+		}
+
+
+	}
+
+
+      
 };
 
 DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
