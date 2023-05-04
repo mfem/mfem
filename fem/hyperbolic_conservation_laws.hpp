@@ -1018,7 +1018,7 @@ public:
    //                         num_equations);
                   
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el1, el2);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el1, el1);
    // const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
 	/// loop over integration points
