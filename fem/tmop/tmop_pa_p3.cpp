@@ -122,7 +122,6 @@ void TMOP_AddMultPA_3D(const double metric_normal,
                // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
                if (mid == 318)
                {
-                  MFEM_ABORT("J Jpt");
                   double dI3b[9];
                   kernels::InvariantsEvaluator3D ie(Args().J(Jpt).dI3b(dI3b));
 

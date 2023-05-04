@@ -35,7 +35,8 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
    MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 ||
-               mid == 77 || mid==80, "Metric not yet implemented!");
+               mid == 56 || mid == 77 || mid==80 || mid==94,
+               "Metric not yet implemented!");
 
    constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

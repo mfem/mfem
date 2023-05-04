@@ -35,7 +35,7 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
 {
    using Args = kernels::InvariantsEvaluator3D::Buffers;
    MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
-               mid == 318 || mid == 321 || mid == 332,
+               mid == 318 || mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -156,7 +156,6 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                   // 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
                   kernels::InvariantsEvaluator3D ie
                   (Args().J(Jpt).dI3b(dI3b).ddI3b(ddI3b));
-
                   double sign_detJ;
                   const double I3b = ie.Get_I3b(sign_detJ);
                   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
@@ -183,14 +182,11 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                {
                   // dP_318 = (I3b - 1/I3b^3)*ddI3b + (1 + 3/I3b^4)*(dI3b x dI3b)
                   // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
-                  constexpr int DIM = 3;
                   kernels::InvariantsEvaluator3D ie
                   (Args().J(Jpt).dI3b(dI3b).ddI3b(ddI3b));
-
                   double sign_detJ;
                   const double I3b = ie.Get_I3b(sign_detJ);
                   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
-
                   for (int i = 0; i < DIM; i++)
                   {
                      for (int j = 0; j < DIM; j++)
@@ -257,10 +253,9 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
 
                if (mid == 332)
                {
-                  // (1-gamma) H_302 + gamma H_315
+                  // w0 H_302 + w1 H_315
                   kernels::InvariantsEvaluator3D ie
-                  (Args()
-                   .J(Jpt).B(B)
+                  (Args().J(Jpt).B(B)
                    .dI1b(dI1b).ddI1b(ddI1b)
                    .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                    .dI3b(dI3b).ddI3b(ddI3b));
@@ -292,6 +287,48 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                                  2.0 * weight * di3b(r,c) * di3b(i,j);
                               H(r,c,i,j,qx,qy,qz,e) =
                                  w[0] * c1 * dp_302 + w[1] * dp_315;
+                           }
+                        }
+                     }
+                  }
+               }
+
+               if (mid == 338)
+               {
+                  // w0 H_302 + w1 H_318
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).B(B)
+                   .dI1b(dI1b).ddI1b(ddI1b)
+                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                   .dI3b(dI3b).ddI3b(ddI3b));
+                  double sign_detJ;
+                  const double c1 = weight/9.;
+                  const double I1b = ie.Get_I1b();
+                  const double I2b = ie.Get_I2b();
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
+                  ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+                  for (int i = 0; i < DIM; i++)
+                  {
+                     for (int j = 0; j < DIM; j++)
+                     {
+                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+                        ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+                        for (int r = 0; r < DIM; r++)
+                        {
+                           for (int c = 0; c < DIM; c++)
+                           {
+                              const double dp_302 =
+                                 (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                                 + ddi2b(r,c)*I1b
+                                 + ddi1b(r,c)*I2b;
+                              const double dp_318 =
+                                 weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
+                                 weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
+                              H(r,c,i,j,qx,qy,qz,e) =
+                                 w[0] * c1 * dp_302 + w[1] * dp_318;
                            }
                         }
                      }
