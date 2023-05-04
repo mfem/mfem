@@ -13,7 +13,6 @@ using namespace mfem;
 // of the form
 // min_(u,m) f(u,m) s.t. c(u,m)=0 and m>=ml
 // the primal variable (u, m) is represented as a BlockVector
-// think about supporting general lower and upper bounds (see HiOP user manual) 
 
 class OptProblem
 {
@@ -22,25 +21,24 @@ protected:
     Array<int> block_offsetsx;
     Vector ml;
 public:
-    OptProblem(); // constructor
+    OptProblem();
     virtual double CalcObjective(const BlockVector &) const = 0;
     virtual void Duf(const BlockVector &, Vector &) const = 0;
     virtual void Dmf(const BlockVector &, Vector &) const = 0;
     void CalcObjectiveGrad(const BlockVector &, BlockVector &) const;
-    virtual void Duuf(const BlockVector &, SparseMatrix *&) = 0;
-    virtual void Dumf(const BlockVector &, SparseMatrix *&) = 0;
-    virtual void Dmuf(const BlockVector &, SparseMatrix *&) = 0;
-    virtual void Dmmf(const BlockVector &, SparseMatrix *&) = 0;
-    //void Dxxf(const BlockVector &, BlockOperator *&);
+    virtual SparseMatrix* Duuf(const BlockVector &) = 0;
+    virtual SparseMatrix* Dumf(const BlockVector &) = 0;
+    virtual SparseMatrix* Dmuf(const BlockVector &) = 0;
+    virtual SparseMatrix* Dmmf(const BlockVector &) = 0;
     virtual void c(const BlockVector &, Vector &) const = 0;
-    virtual void Duc(const BlockVector &, SparseMatrix *&) = 0;
-    virtual void Dmc(const BlockVector &, SparseMatrix *&) = 0;
+    virtual SparseMatrix* Duc(const BlockVector &) = 0;
+    virtual SparseMatrix* Dmc(const BlockVector &) = 0;
     // TO DO: include Hessian terms of constraint c
     int GetDimU() const { return dimU; };
     int GetDimM() const { return dimM; }; 
     int GetDimC() const { return dimC; };
     Vector Getml() const { return ml; };
-    ~OptProblem(); // destructor
+    ~OptProblem();
 };
 
 
@@ -59,18 +57,18 @@ public:
     double CalcObjective(const BlockVector &) const; // objective e
     void Duf(const BlockVector &, Vector &) const;
     void Dmf(const BlockVector &, Vector &) const;
-    void Duuf(const BlockVector &, SparseMatrix *&);
-    void Dumf(const BlockVector &, SparseMatrix *&);
-    void Dmuf(const BlockVector &, SparseMatrix *&);
-    void Dmmf(const BlockVector &, SparseMatrix *&);
+    SparseMatrix* Duuf(const BlockVector &);
+    SparseMatrix* Dumf(const BlockVector &);
+    SparseMatrix* Dmuf(const BlockVector &);
+    SparseMatrix* Dmmf(const BlockVector &);
     void c(const BlockVector &, Vector &) const;
-    void Duc(const BlockVector &, SparseMatrix *&);
-    void Dmc(const BlockVector &, SparseMatrix *&);
+    SparseMatrix* Duc(const BlockVector &);
+    SparseMatrix* Dmc(const BlockVector &);
     virtual double E(const Vector &) const = 0;               // objective e(d) (energy function)
     virtual void DdE(const Vector &, Vector &) const = 0;      // gradient of objective De / Dd
-    virtual void DddE(const Vector &, SparseMatrix *&) = 0;  // Hessian of objective D^2 e / D d^2
+    virtual SparseMatrix* DddE(const Vector &) = 0;  // Hessian of objective D^2 e / D d^2
     virtual void g(const Vector &, Vector &) const = 0;       // inequality constraint g(d) >= 0 (gap function)
-    virtual void Ddg(const Vector &, SparseMatrix *&) = 0;   // Jacobian of inequality constraint Dg / Dd
+    virtual SparseMatrix* Ddg(const Vector &) = 0;   // Jacobian of inequality constraint Dg / Dd
     int GetDimD() const { return dimD; };
     int GetDimS() const { return dimS; };
     virtual ~ContactProblem();
@@ -89,13 +87,12 @@ protected:
    Vector f;
    FiniteElementSpace *Vh;
 public : 
-   ObstacleProblem(FiniteElementSpace* );
+   ObstacleProblem(FiniteElementSpace* , double (*fSource)(const Vector &));
    double E(const Vector &) const;
    void DdE(const Vector &, Vector &) const;
-   void DddE(const Vector &, SparseMatrix *&);
+   SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
-   void Ddg(const Vector &, SparseMatrix *&);
-   static double fRhs(const Vector &);
+   SparseMatrix* Ddg(const Vector &);
    virtual ~ObstacleProblem();
 };
 
@@ -111,9 +108,9 @@ public :
    QPContactExample(SparseMatrix *, SparseMatrix *, Vector *);
    double E(const Vector &) const;
    void DdE(const Vector &, Vector &) const;
-   void DddE(const Vector &, SparseMatrix *&);
+   SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
-   void Ddg(const Vector &, SparseMatrix *&);
+   SparseMatrix* Ddg(const Vector &);
    virtual ~QPContactExample();
 };
 

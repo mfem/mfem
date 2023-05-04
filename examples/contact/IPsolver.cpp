@@ -281,8 +281,8 @@ void InteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, BlockOp
   // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
   //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
 
-  problem->Duuf(x, Huu); problem->Dumf(x, Hum);
-  problem->Dmuf(x, Hmu); problem->Dmmf(x, Hmm);
+  Huu = problem->Duuf(x); Hum = problem->Dumf(x);
+  Hmu = problem->Dmuf(x); Hmm = problem->Dmmf(x);
 
   Vector DiagLogBar(dimM); DiagLogBar = 0.0;
   for(int ii = 0; ii < dimM; ii++)
@@ -315,8 +315,8 @@ void InteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, BlockOp
     Wmm = D;
   }
 
-  problem->Duc(x, Ju); JuT = Transpose(*Ju);
-  problem->Dmc(x, Jm); JmT = Transpose(*Jm);
+  Ju = problem->Duc(x); JuT = Transpose(*Ju);
+  Jm = problem->Dmc(x); JmT = Transpose(*Jm);
   
   //         IP-Newton system matrix
   //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
@@ -428,23 +428,6 @@ void InteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Vecto
     cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO\n";
   #endif
     
-
-  /*Vector bReduced(dimM); bReduced = 0.0;
-  Vector xhatReduced(dimM); xhatReduced = 0.0;
-  ReducedHessian Hr(&A);
-  Hr.ReduceRhs(b, bReduced);
-  
-  MINRESSolver Hrsolver;
-  Hrsolver.SetRelTol(1.e-4);
-  #ifdef MFEM_USE_SUITESPARSE
-    SparseMatrix * WmmSparse = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1,1)));
-    UMFPackSolver Wmmsolver;
-    Wmmsolver.SetOperator(*WmmSparse);
-    Hrsolver.SetPreconditioner(Wmmsolver);
-  #endif
-  Hrsolver.Mult(bReduced, xhatReduced);
-  Hr.RecoverFullSpaceSolution(xhatReduced, Xhat);  */
-
   
   /* backsolve to determine zlhat */
   for(int ii = 0; ii < dimM; ii++)
@@ -453,6 +436,10 @@ void InteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Vecto
   }
 
   // free memory
+  if(!(Hmm == nullptr))
+  {
+    delete Wmm;
+  }
   delete Huu;
   delete Hum;
   delete Hmu;
@@ -727,14 +714,13 @@ void InteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Vecto
   problem->CalcObjectiveGrad(x, gradxf);
   
   SparseMatrix *Jacu, *Jacm, *JacuT, *JacmT;
-  problem->Duc(x, Jacu); problem->Dmc(x, Jacm);
+  Jacu = problem->Duc(x); Jacm = problem->Dmc(x);
   JacuT = Transpose(*Jacu);
   JacmT = Transpose(*Jacm);
   JacuT->Mult(l, y.GetBlock(0));
   JacmT->Mult(l, y.GetBlock(1));
   delete Jacu; delete JacuT;
   delete Jacm; delete JacmT;
-  
   y.Add(1.0, gradxf);
   (y.GetBlock(1)).Add(-1.0, zl);
 }

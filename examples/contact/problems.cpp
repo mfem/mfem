@@ -44,13 +44,13 @@ void ContactProblem::Duf(const BlockVector &x, Vector &y) const { DdE(x.GetBlock
 
 void ContactProblem::Dmf(const BlockVector &x, Vector &y) const { y = 0.0; }
 
-void ContactProblem::Duuf(const BlockVector &x, SparseMatrix *&y) { DddE(x.GetBlock(0), y); }
+SparseMatrix* ContactProblem::Duuf(const BlockVector &x) { return DddE(x.GetBlock(0)); }
 
-void ContactProblem::Dumf(const BlockVector &x, SparseMatrix *&y) { y = nullptr; }
+SparseMatrix* ContactProblem::Dumf(const BlockVector &x) { return nullptr; }
 
-void ContactProblem::Dmuf(const BlockVector &x, SparseMatrix *&y) { y = nullptr; }
+SparseMatrix* ContactProblem::Dmuf(const BlockVector &x) { return nullptr; }
 
-void ContactProblem::Dmmf(const BlockVector &x, SparseMatrix *&y) { y = nullptr; }
+SparseMatrix* ContactProblem::Dmmf(const BlockVector &x) { return nullptr; }
 
 void ContactProblem::c(const BlockVector &x, Vector &y) const // c(u,m) = g(u) - m 
 {
@@ -58,13 +58,13 @@ void ContactProblem::c(const BlockVector &x, Vector &y) const // c(u,m) = g(u) -
   y.Add(-1.0, x.GetBlock(1));  
 }
 
-void ContactProblem::Duc(const BlockVector &x, SparseMatrix *&y) { Ddg(x.GetBlock(0), y); }
+SparseMatrix* ContactProblem::Duc(const BlockVector &x) { return Ddg(x.GetBlock(0)); }
 
-void ContactProblem::Dmc(const BlockVector &x, SparseMatrix *&y) 
+SparseMatrix* ContactProblem::Dmc(const BlockVector &x) 
 { 
   Vector negIdentDiag(dimM);
   negIdentDiag = -1.0;
-  y = new SparseMatrix(negIdentDiag);
+  return new SparseMatrix(negIdentDiag);
 } 
 
 ContactProblem::~ContactProblem() {}
@@ -72,7 +72,7 @@ ContactProblem::~ContactProblem() {}
 
 
 
-ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes) : ContactProblem(fes->GetTrueVSize()), Vh(fes), f(dimD)
+ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem(fes->GetTrueVSize()), Vh(fes), f(dimD)
 {
   Kform = new BilinearForm(Vh);
   Kform->AddDomainIntegrator(new MassIntegrator);
@@ -81,7 +81,7 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes) : ContactProblem(fes->
   Kform->Finalize();
   Kform->FormSystemMatrix(empty_tdof_list, K);
 
-  FunctionCoefficient fcoeff(fRhs);
+  FunctionCoefficient fcoeff(fSource);
   fform = new LinearForm(Vh);
   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
   fform->Assemble();
@@ -89,7 +89,7 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes) : ContactProblem(fes->
 
   dimS = dimD;
   
-  /* ---- boiling plate code ---- */
+  /* ---- boiler plate code ---- */
   dimM = dimS;
   dimC = dimS;
   block_offsetsx[0] = 0;
@@ -97,8 +97,7 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes) : ContactProblem(fes->
   block_offsetsx[2] = dimM;
   block_offsetsx.PartialSum();
   ml.SetSize(dimM); ml = 0.0;
-
-  /* ---- end boiling plate ---- */
+  /* ---- end boiler plate ---- */
 }
 
 double ObstacleProblem::E(const Vector &d) const
@@ -114,9 +113,9 @@ void ObstacleProblem::DdE(const Vector &d, Vector &gradE) const
   gradE.Add(-1.0, f);
 }
 
-void ObstacleProblem::DddE(const Vector &d, SparseMatrix *&HessE)
+SparseMatrix* ObstacleProblem::DddE(const Vector &d)
 {
-  HessE = new SparseMatrix(K); 
+  return new SparseMatrix(K); 
 }
 
 // g(d) = d >= 0
@@ -125,27 +124,11 @@ void ObstacleProblem::g(const Vector &d, Vector &gd) const
   gd.Set(1.0, d);
 }
 
-void ObstacleProblem::Ddg(const Vector &d, SparseMatrix *&Jacg)
+SparseMatrix* ObstacleProblem::Ddg(const Vector &d)
 {
   Vector iDiag(dimD); iDiag = 1.0;
-  Jacg = new SparseMatrix(iDiag);
+  return new SparseMatrix(iDiag);
 }
-
-// f(d) forcing term...
-// this term is such that in the absence of bound-constraints then
-// -div(grad(d)) + d = f + homogeneous Neumann conditions on the unit interval,
-// for d(x) = cos(2 \pi x) + a0 + a3 (x^3 - 1.5 x^2), a2 = 0.2, a3 = -2
-// see overleaf document Interior Point Progress II for more details
-// for a similar function/where it has been used previously
-double ObstacleProblem::fRhs(const Vector &x)
-{
-  double fx = 0.;
-  //fx = (1. + pow(4.*M_PI,2))*cos(4.*M_PI*x(0)) + 1. * pow(x(0),2) - 0.85 * (pow(x(0),3) + 6. * x(0) - 3.);
-  fx = 0.2 - 2.0 * (pow(x(0),3)- 1.5*pow(x(0),2.) - 6 * x(0) + 3.) + (1. + pow(2.*M_PI,2))*cos(2.*M_PI*x(0));
-  return fx;
-}
-
-
 
 ObstacleProblem::~ObstacleProblem()
 {
@@ -159,9 +142,7 @@ QPContactExample::QPContactExample(SparseMatrix *Kin, SparseMatrix *Jin, Vector 
 ContactProblem(Kin->Height()), K(Kin), J(Jin), f(fin) { 
   dimD = J->Width();
   dimS = J->Height();
-  cout << "dim(D) = " << dimD << endl;
-  cout << "dim(S) = " << dimS << endl;
-  /* ---- boiling plate code ---- */
+  /* ---- boiler plate code ---- */
   dimM = dimS;
   dimC = dimS;
   block_offsetsx[0] = 0;
@@ -169,9 +150,7 @@ ContactProblem(Kin->Height()), K(Kin), J(Jin), f(fin) {
   block_offsetsx[2] = dimM;
   block_offsetsx.PartialSum();
   ml.SetSize(dimM); ml = 0.0;
-  /* ---- end boiling plate ---- */
-  cout << "dim(M) = " << dimM << endl;
-
+  /* ---- end boiler plate ---- */
 }
 
 double QPContactExample::E(const Vector &d) const
@@ -187,9 +166,9 @@ void QPContactExample::DdE(const Vector &d, Vector &gradE) const
   gradE.Add(1.0, *f);
 }
 
-void QPContactExample::DddE(const Vector &d, SparseMatrix *&HessE)
+SparseMatrix* QPContactExample::DddE(const Vector &d)
 {
-  HessE = new SparseMatrix(*K); 
+  return new SparseMatrix(*K); 
 }
 
 // g(d) = J d >= 0
@@ -198,32 +177,11 @@ void QPContactExample::g(const Vector &d, Vector &gd) const
   J->Mult(d, gd);
 }
 
-void QPContactExample::Ddg(const Vector &d, SparseMatrix *&Jacg)
+SparseMatrix* QPContactExample::Ddg(const Vector &d)
 {
-  Jacg = new SparseMatrix(*J);
+  return new SparseMatrix(*J);
 }
 
 QPContactExample::~QPContactExample() {}
 
-
-#if 0
-double ContactTNLP:E(const Vector &d) const
-{
-  double Eeval = 0.0;
-  bool eval_E_flag;
-  eval_E_flag = eval_f(dimD, d, true, Eeval);
-  assert(eval_E_flag && "error in objective evaluation");
-  return Eeval;
-}
-
-void ContactTNLP:DdE(const Vector &D, Vector &gradE) const
-{
-  bool eval_dE_flag;
-  eval_dE_flag = eval_grad_f();
-  assert(eval_dE_flag && "error in objective gradient computation");
-}
-
-
-
-#endif 
 
