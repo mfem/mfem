@@ -28,7 +28,8 @@ class StressIntegrator : public BilinearFormIntegrator
 {
 public:
    StressIntegrator(const GridFunctionCoefficient &n,
-                    const IntegrationRule &i, const int m = 0) : nu(n), ir(i), mode(m) {}
+                    const IntegrationRule &ir, const int m = 0) :
+      BilinearFormIntegrator(&ir), nu(n), mode(m) {}
 
    void AssemblePA(const FiniteElementSpace &fes) override
    {
@@ -37,15 +38,15 @@ public:
       const FiniteElement &el = *fes.GetFE(0);
       dim = mesh->Dimension();
       ne = fes.GetNE();
-      geom = mesh->GetGeometricFactors(ir,
+      geom = mesh->GetGeometricFactors(*IntRule,
                                        GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
-      maps = &el.GetDofToQuad(ir, DofToQuad::TENSOR);
+      maps = &el.GetDofToQuad(*IntRule, DofToQuad::TENSOR);
       d1d = maps->ndof;
       q1d = maps->nqpt;
 
       const GridFunction *gf = nu.GetGridFunction();
       const FiniteElementSpace &gf_fes = *gf->FESpace();
-      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(ir));
+      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*IntRule));
       const Operator *R = gf_fes.GetElementRestriction(
                              ElementDofOrdering::LEXICOGRAPHIC);
 
@@ -67,28 +68,28 @@ public:
          {
             case 0x22:
             {
-               return StressIntegratorApply2D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply2D<2, 2>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x33:
             {
-               return StressIntegratorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply2D<3, 3>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x55:
             {
-               return StressIntegratorApply2D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply2D<5, 5>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x77:
             {
-               return StressIntegratorApply2D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply2D<7, 7>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
@@ -104,28 +105,28 @@ public:
          {
             case 0x22:
             {
-               return StressIntegratorApply3D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply3D<2, 2>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x33:
             {
-               return StressIntegratorApply3D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply3D<3, 3>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x55:
             {
-               return StressIntegratorApply3D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply3D<5, 5>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x77:
             {
-               return StressIntegratorApply3D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
+               return StressIntegratorApply3D<7, 7>(ne, maps->B, maps->G, IntRule->GetWeights(),
                                                     geom->J,
                                                     geom->detJ, x, y, nu_wrap);
                break;
@@ -262,7 +263,7 @@ protected:
    const DofToQuad *maps = nullptr;
    const GeometricFactors *geom = nullptr;
    const GridFunctionCoefficient &nu;
-   const IntegrationRule &ir;
+   // const IntegrationRule &ir;
    // Number of degrees of freedom in 1D
    int d1d;
    /// Number of quadrature points in 1D
