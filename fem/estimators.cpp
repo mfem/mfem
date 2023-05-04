@@ -36,10 +36,12 @@ void ProjectionErrorEstimator::ComputeEstimates()
    // Gather information and make projection space
    const int nelem = solution.FESpace()->GetNE(); // number of elements
    FiniteElementSpace *fespace = solution.FESpace(); // solution fespace
-   FiniteElementSpace projectionSpace = FiniteElementSpace(*fespace); // projection fespace, k-1
+   FiniteElementSpace projectionSpace = FiniteElementSpace(
+                                           *fespace); // projection fespace, k-1
    for (int i=0; i<nelem; i++)
    {
-      projectionSpace.SetElementOrder(i, std::max(0, fespace->GetElementOrder(i) - offset)); // update polynomial order
+      projectionSpace.SetElementOrder(i, std::max(0,
+                                                  fespace->GetElementOrder(i) - offset)); // update polynomial order
    }
    projectionSpace.Update(false);
 
@@ -263,7 +265,8 @@ void KellyErrorEstimator::ComputeEstimates()
          mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
          int el1, el2;
          mesh->GetFaceElements(f, &el1, &el2);
-         auto &int_rule = IntRules.Get(FT->FaceGeom, xfes->GetElementOrder(el1) + xfes->GetElementOrder(el2));
+         auto &int_rule = IntRules.Get(FT->FaceGeom,
+                                       xfes->GetElementOrder(el1) + xfes->GetElementOrder(el2));
          const auto nip = int_rule.GetNPoints();
          // auto &int_rule = IntRules.Get(FT->FaceGeom, xfes->GetElementOrder(Inf1))
 

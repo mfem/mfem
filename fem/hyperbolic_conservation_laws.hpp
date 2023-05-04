@@ -1252,25 +1252,75 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
    return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
 }
 
-void weno(const GridFunction &u, FiniteElementSpace &fespace,
-          const HyperbolicFormIntegrator &form)
+// void weno(const GridFunction &u, FiniteElementSpace &fespace,
+//           const HyperbolicFormIntegrator &form)
+// {
+//    Mesh *mesh = fespace.GetMesh();
+//    DG_FECollection fec(0, mesh->Dimension());
+//    FiniteElementSpace p0_space(mesh, &fec, u.VectorDim(), Ordering::byNODES);
+//    GridFunction avg_u(&p0_space);
+//    u.GetElementAverages(avg_u);
+//    for (int i=0; i<mesh->GetNFaces(); i++)
+//    {
+//       auto face = mesh->GetFace(i);
+//       int e1, e2;
+//       mesh->GetFaceElements(i, &e1, &e2);
+//       if (e2)
+//       {
+
+//       }
+//    }
+// }
+
+class FluxReconErrorEstimator : public ErrorEstimator
 {
-   Mesh *mesh = fespace.GetMesh();
-   DG_FECollection fec(0, mesh->Dimension());
-   FiniteElementSpace p0_space(mesh, &fec, u.VectorDim(), Ordering::byNODES);
-   GridFunction avg_u(&p0_space);
-   u.GetElementAverages(avg_u);
-   for (int i=0; i<mesh->GetNFaces(); i++)
+protected:
+   long current_sequence;
+   Vector error_estimates;
+   double total_error;
+
+   HyperbolicFormIntegrator &formIntegrator;
+
+   GridFunction &solution;
+
+   /// Check if the mesh of the solution was modified.
+   bool FESpaceIsModified()
    {
-      auto face = mesh->GetFace(i);
-      int e1, e2;
-      mesh->GetFaceElements(i, &e1, &e2);
-      if (e2)
-      {
-         
-      }
+      long fe_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(fe_sequence >= current_sequence, "");
+      return (fe_sequence > current_sequence);
    }
-}
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new HighestModeErrorEstimator object. ||π_{k-s}u_h - u_h||
+       @param sol      The solution field whose error is to be estimated.
+       @param degree_offset The degree offset (s) for the projected space. Default=1
+   */
+   FluxReconErrorEstimator(GridFunction &sol,
+                           HyperbolicFormIntegrator &formIntegrator_)
+      : current_sequence(-1),
+        total_error(-1.0),
+        formIntegrator(formIntegrator_),
+        solution(sol) {}
+
+   /// Return the total error from the last error estimate.
+   virtual double GetTotalError() const override { return total_error; }
+
+   /// Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors() override
+   {
+      if (FESpaceIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   virtual void Reset() override { current_sequence = -1; }
+
+   virtual ~FluxReconErrorEstimator() { }
+};
 
 }
 
