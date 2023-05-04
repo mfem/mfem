@@ -46,8 +46,9 @@ void ProjectionErrorEstimator::ComputeEstimates()
    // M⁻¹
    InverseIntegrator elemInvMass(new MassIntegrator());
    BilinearForm InvMass(&projectionSpace);
-   InvMass.SetAssemblyLevel(AssemblyLevel::NONE); // matrix-free assembly to avoid memory usage
+   // InvMass.SetAssemblyLevel(AssemblyLevel::NONE); // matrix-free assembly to avoid memory usage
    InvMass.AddDomainIntegrator(&elemInvMass);
+   InvMass.Assemble();
 
    // (u_h, v)
    LinearForm intSol(&projectionSpace);
