@@ -1017,18 +1017,9 @@ public:
    // DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2,
    //                         num_equations);
                   
-   // Integration order calculation from DGTraceIntegrator
-	int intorder;
-	if (Tr.Elem2No >= 0)
-		intorder = (std::max(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) + 2 * std::max(el1.GetOrder(), el2.GetOrder()));
-	else {
-		intorder = Tr.Elem1->OrderW() + 2 * el1.GetOrder();
-	}
-	if (el1.Space() == FunctionSpace::Pk) {
-		intorder++;
-	}
 
-   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el1, el2);
+   // const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
 	/// loop over integration points
 	for (int i = 0; i < ir->GetNPoints(); i++) {
