@@ -91,6 +91,10 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    kv.SetSize(pfes_truevsize);
    grad_nu_sym_grad_uext.SetSize(vfes_truevsize);
 
+   wgn_gf.SetSpace(pmesh->GetNodes()->FESpace());
+   wgn_gf = 0.0;
+   wg_coef = new VectorGridFunctionCoefficient(&wgn_gf);
+
    hpfrt_tdofs.SetSize(vfes_truevsize);
    hpfrt_tdofs = 0.0;
 
@@ -118,22 +122,12 @@ void NavierSolver::Setup(double dt)
    gll_ir_nl = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
                              (int)(ceil(1.5 * (2 * order - 1))));
 
-   mean_evaluator = new MeanEvaluator(*pfes, gll_ir);
-   curl_evaluator = new CurlEvaluator(*vfes);
-   stress_evaluator = new StressEvaluator(*kin_vis_gf.ParFESpace(),
-                                          *un_gf.ParFESpace(),
-                                          gll_ir);
-
-   Vector ones(pfes->GetTrueVSize());
-   ones = 1.0;
-   volume = mean_evaluator->ComputeIntegral(ones);
-
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
-   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
+   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff, wg_coef);
    nlc_nlfi->SetIntRule(&gll_ir_nl);
    N->AddDomainIntegrator(nlc_nlfi);
-   N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    N->Setup();
 
    Mv_form = new ParBilinearForm(vfes);
@@ -141,32 +135,24 @@ void NavierSolver::Setup(double dt)
    mv_blfi->SetIntRule(&gll_ir);
    Mv_form->AddDomainIntegrator(mv_blfi);
    Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   Mv_form->Assemble();
-   Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
    auto *sp_blfi = new DiffusionIntegrator;
    sp_blfi->SetIntRule(&gll_ir);
    Sp_form->AddDomainIntegrator(sp_blfi);
    Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   Sp_form->Assemble();
-   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
 
    D_form = new ParMixedBilinearForm(vfes, pfes);
    auto *vd_mblfi = new VectorDivergenceIntegrator();
    vd_mblfi->SetIntRule(&gll_ir);
    D_form->AddDomainIntegrator(vd_mblfi);
    D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   D_form->Assemble();
-   D_form->FormRectangularSystemMatrix(empty, empty, D);
 
    G_form = new ParMixedBilinearForm(pfes, vfes);
    auto *g_mblfi = new GradientIntegrator();
    g_mblfi->SetIntRule(&gll_ir);
    G_form->AddDomainIntegrator(g_mblfi);
    G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   G_form->Assemble();
-   G_form->FormRectangularSystemMatrix(empty, empty, G);
 
    H_bdfcoeff.constant = 1.0 / dt;
    H_form = new ParBilinearForm(vfes);
@@ -176,20 +162,24 @@ void NavierSolver::Setup(double dt)
 
    BilinearFormIntegrator *hdv_blfi = nullptr;
    kin_vis_gf_coeff.SetGridFunction(&kin_vis_gf);
-   hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, gll_ir);
+   if (variable_viscosity)
+   {
+      hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, gll_ir);
+   }
+   else
+   {
+      hdv_blfi = new VectorDiffusionIntegrator(kin_vis_gf_coeff);
+   }
    hdv_blfi->SetIntRule(&gll_ir);
    H_form->AddDomainIntegrator(hmv_blfi);
    H_form->AddDomainIntegrator(hdv_blfi);
    H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   H_form->Assemble();
-   H_form->FormSystemMatrix(vel_ess_tdof, H);
 
    HMv_form = new ParBilinearForm(vfes);
    auto *hmv_blfi2 = new VectorMassIntegrator(H_bdfcoeff);
    hmv_blfi2->SetIntRule(&gll_ir);
    HMv_form->AddDomainIntegrator(hmv_blfi2);
    HMv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   HMv_form->Assemble();
 
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
@@ -220,46 +210,9 @@ void NavierSolver::Setup(double dt)
    }
    f_form->UseFastAssembly(true);
 
-   Vector diag_pa(vfes->GetTrueVSize());
-   Mv_form->AssembleDiagonal(diag_pa);
-   auto MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+   UpdateForms();
 
-   MvInv = new CGSolver(vfes->GetComm());
-   MvInv->iterative_mode = false;
-   MvInv->SetOperator(*Mv);
-   MvInv->SetPreconditioner(*MvInvPC);
-   MvInv->SetPrintLevel(pl_mvsolve);
-   MvInv->SetRelTol(1e-12);
-   MvInv->SetMaxIter(200);
-
-   lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
-   SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
-   SpInvPC->SetPrintLevel(pl_amg);
-   SpInvPC->Mult(resp, pn);
-   SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-   SpInvOrthoPC->SetSolver(*SpInvPC);
-   SpInv = new CGSolver(vfes->GetComm());
-   SpInv->iterative_mode = true;
-   SpInv->SetOperator(*Sp);
-   if (pres_dbcs.empty())
-   {
-      SpInv->SetPreconditioner(*SpInvOrthoPC);
-   }
-   else
-   {
-      SpInv->SetPreconditioner(*SpInvPC);
-   }
-   SpInv->SetPrintLevel(pl_spsolve);
-   SpInv->SetRelTol(rtol_spsolve);
-   SpInv->SetMaxIter(200);
-
-   HInv = new CGSolver(vfes->GetComm());
-   HInv->iterative_mode = true;
-   HInv->SetOperator(*H);
-   // HInv->SetPreconditioner(*HInvPC);
-   HInv->SetPrintLevel(pl_hsolve);
-   HInv->SetRelTol(rtol_hsolve);
-   HInv->SetMaxIter(300);
+   UpdateSolvers();
 
    // If the initial condition was set, it has to be aligned with dependent
    // Vectors and GridFunctions
@@ -289,6 +242,110 @@ void NavierSolver::Setup(double dt)
    }
 
    sw_setup.Stop();
+}
+
+void NavierSolver::UpdateForms()
+{
+   Array<int> empty;
+
+   N->Update();
+   N->Setup();
+
+   Mv_form->Update();
+   Mv_form->Assemble();
+   Mv_form->FormSystemMatrix(empty, Mv);
+
+   Sp_form->Update();
+   Sp_form->Assemble();
+   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
+
+   D_form->Update();
+   D_form->Assemble();
+   D_form->FormRectangularSystemMatrix(empty, empty, D);
+
+   G_form->Update();
+   G_form->Assemble();
+   G_form->FormRectangularSystemMatrix(empty, empty, G);
+
+   H_form->Update();
+   H_form->Assemble();
+   H_form->FormSystemMatrix(vel_ess_tdof, H);
+
+   HMv_form->Update();
+   HMv_form->Assemble();
+
+   f_form->Update();
+   FText_bdr_form->Update();
+   g_bdr_form->Update();
+
+   delete mean_evaluator;
+   mean_evaluator = new MeanEvaluator(*pfes, gll_ir);
+
+   delete curl_evaluator;
+   curl_evaluator = new CurlEvaluator(*vfes);
+
+   delete stress_evaluator;
+   stress_evaluator = new StressEvaluator(*kin_vis_gf.ParFESpace(),
+                                          *un_gf.ParFESpace(),
+                                          gll_ir);
+
+   Vector ones(pfes->GetTrueVSize());
+   ones = 1.0;
+   volume = mean_evaluator->ComputeIntegral(ones);
+}
+
+void NavierSolver::UpdateSolvers()
+{
+   Array<int> empty;
+
+   Vector diag_pa(vfes->GetTrueVSize());
+   Mv_form->AssembleDiagonal(diag_pa);
+
+   delete MvInvPC;
+   MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+
+   delete MvInv;
+   MvInv = new CGSolver(vfes->GetComm());
+   MvInv->iterative_mode = false;
+   MvInv->SetOperator(*Mv);
+   MvInv->SetPreconditioner(*MvInvPC);
+   MvInv->SetPrintLevel(pl_mvsolve);
+   MvInv->SetRelTol(1e-12);
+   MvInv->SetMaxIter(200);
+
+   delete lor;
+   lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
+   delete SpInvPC;
+   SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
+   SpInvPC->SetPrintLevel(pl_amg);
+   SpInvPC->Mult(resp, pn);
+   delete SpInvOrthoPC;
+   SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
+   SpInvOrthoPC->SetSolver(*SpInvPC);
+   delete SpInv;
+   SpInv = new CGSolver(vfes->GetComm());
+   SpInv->iterative_mode = true;
+   SpInv->SetOperator(*Sp);
+   if (pres_dbcs.empty())
+   {
+      SpInv->SetPreconditioner(*SpInvOrthoPC);
+   }
+   else
+   {
+      SpInv->SetPreconditioner(*SpInvPC);
+   }
+   SpInv->SetPrintLevel(pl_spsolve);
+   SpInv->SetRelTol(rtol_spsolve);
+   SpInv->SetMaxIter(200);
+
+   delete HInv;
+   HInv = new CGSolver(vfes->GetComm());
+   HInv->iterative_mode = true;
+   HInv->SetOperator(*H);
+   // HInv->SetPreconditioner(*HInvPC);
+   HInv->SetPrintLevel(pl_hsolve);
+   HInv->SetRelTol(rtol_hsolve);
+   HInv->SetMaxIter(300);
 }
 
 void NavierSolver::UpdateTimestepHistory(double dt)
@@ -473,10 +530,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    FText.Set(-1.0, Lext);
    FText.Add(1.0, Fext);
 
-   kin_vis_gf.GetTrueDofs(kv);
-   stress_evaluator->Apply(kv, u_ext, grad_nu_sym_grad_uext);
-
-   FText.Add(1.0, grad_nu_sym_grad_uext);
+   if (variable_viscosity)
+   {
+      kin_vis_gf.GetTrueDofs(kv);
+      stress_evaluator->Apply(kv, u_ext, grad_nu_sym_grad_uext);
+      FText.Add(1.0, grad_nu_sym_grad_uext);
+   }
 
    // p_r = \nabla \cdot FText
    D->Mult(FText, resp);
@@ -1085,6 +1144,21 @@ void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
    hpfrt_tdofs *= hpf_chi;
 }
 
+void NavierSolver::TransformMesh(VectorCoefficient &dx)
+{
+   // MFEM_ASSERT(ale_formulation, "Only supported in ALE formulations."
+   //             "Use Navier::EnableALE() to enable ALE.");
+
+   GridFunction xnew(pmesh->GetNodes()->FESpace());
+   xnew = *pmesh->GetNodes();
+   xnew.ProjectCoefficient(dx);
+   *pmesh->GetNodes() = xnew;
+   pmesh->DeleteGeometricFactors();
+
+   UpdateForms();
+   UpdateSolvers();
+}
+
 NavierSolver::~NavierSolver()
 {
    delete FText_gfcoeff;
@@ -1114,3 +1188,47 @@ NavierSolver::~NavierSolver()
    delete stress_evaluator;
 }
 
+double NavierSolver::NekNorm(ParGridFunction &u, int type, bool is_vector)
+{
+   double m = 0.0;
+   if (component_mass_lf == nullptr)
+   {
+      onecoeff.constant = 1.0;
+      component_mass_lf = new ParLinearForm(pfes);
+      component_mass_lf->AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+      component_mass_lf->Assemble();
+   }
+
+   if (is_vector)
+   {
+      ParGridFunction ux(pfes), uy(pfes), umag(pfes);
+
+      for (int i = 0; i < ux.Size(); ++i)
+      {
+         ux(i) = u(vfes->DofToVDof(i, 0));
+         uy(i) = u(vfes->DofToVDof(i, 1));
+         umag(i) = pow(ux(i), 2.0) + pow(uy(i), 2.0);
+      }
+      if (type == 1)
+      {
+         for (int i = 0; i < umag.Size(); ++i)
+         {
+            m = std::max(m, std::abs(sqrt(umag(i))));
+         }
+         return m;
+      }
+      return sqrt(component_mass_lf->operator()(umag) / volume);
+   }
+
+   ParGridFunction w(pfes);
+   for (int i = 0; i < w.Size(); ++i)
+   {
+      w(i) = pow(u(i), 2.0);
+      m = std::max(m, std::abs(u(i)));
+   }
+   if (type == 1)
+   {
+      return m;
+   }
+   return sqrt(component_mass_lf->operator()(w) / volume);
+}

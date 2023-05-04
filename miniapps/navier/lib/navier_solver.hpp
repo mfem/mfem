@@ -173,6 +173,10 @@ public:
    /// Initialize forms, solvers and preconditioners.
    void Setup(double dt);
 
+   void UpdateForms();
+
+   void UpdateSolvers();
+
    /// Compute solution at the next time step t+dt.
    /**
     * This method can be called with the default value @a provisional which
@@ -293,6 +297,12 @@ public:
       return &kin_vis_gf;
    }
 
+   GridFunction *GetCurrentMeshVelocity() { return &wgn_gf; }
+
+   void TransformMesh(VectorCoefficient &dx);
+
+   double NekNorm(ParGridFunction &u, int type, bool is_vector);
+
 protected:
    /// Print information about the Navier version.
    void PrintInfo();
@@ -334,11 +344,8 @@ protected:
    /// Enable/disable verbose output.
    bool verbose = true;
 
-   /// Enable/disable partial assembly of forms.
-   bool partial_assembly = false;
-
-   /// Enable/disable numerical integration rules of forms.
-   bool numerical_integ = false;
+   /// Enable/disable variable viscosity (stress formulation)
+   bool variable_viscosity = true;
 
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
@@ -425,6 +432,7 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
+   Solver *MvInvPC = nullptr;
    CGSolver *MvInv = nullptr;
 
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, u_ext, Fext, FText, Lext,
@@ -505,6 +513,9 @@ protected:
    MeanEvaluator *mean_evaluator = nullptr;
 
    Vector grad_nu_sym_grad_uext, kv;
+
+   GridFunction wgn_gf;
+   VectorCoefficient *wg_coef;
 };
 
 } // namespace navier
