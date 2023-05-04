@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
                                                         specific_heat_ratio, gas_constant);
+   u0.SetTime(0.0);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
 
@@ -507,8 +508,25 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(0) = density;
             y(1) = density * velocity_x;
             y(2) = density * velocity_y;
-            y(3) = energy;
-         });
+            y(3) = energy; });
+   case 6:
+      return VectorFunctionCoefficient(4, [](const Vector &x, double t, Vector &y)
+                                       {
+            MFEM_ASSERT(x.Size() == 2, "");
+            const double L = 1.0;
+            const double density = abs(x(1)) < 0.25 ? 2 : 1;
+            const double velocity_x = abs(x(1)) < 0.25 ? -0.5 : 0.5;
+            const double velocity_y = abs(x(1)) < 0.25 ? 0.01 * sin(M_PI*x(0) / L)
+                                      : 0.01 * sin(M_PI*x(0) / L);
+            const double pressure = abs(x(1)) < 0.25 ? 2.5 : 2.5;
+            const double energy =
+               pressure / (1.4 - 1.0) +
+               density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y);
+
+            y(0) = density;
+            y(1) = density * velocity_x;
+            y(2) = density * velocity_y;
+            y(3) = energy; });
       default:
          throw invalid_argument("Problem Undefined");
    }
