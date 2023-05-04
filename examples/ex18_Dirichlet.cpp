@@ -110,9 +110,9 @@ int main(int argc, char *argv[])
    }
    // When the user does not provide mesh file,
    // use the default mesh file for the problem.
-   if ((mesh_file == NULL) || (mesh_file[0] == '\0'))    // if NULL or empty
+   if ((mesh_file == NULL) || (mesh_file[0] == '\0')) // if NULL or empty
    {
-      EulerMesh(problem, &mesh_file);  // get default mesh file name
+      EulerMesh(problem, &mesh_file); // get default mesh file name
    }
 
    // 2. Read the mesh from the given mesh file.
@@ -125,15 +125,17 @@ int main(int argc, char *argv[])
       mesh.Transform([](const Vector &x, Vector &y)
       {
          y = x;
-         y *= 0.5;
-      });
+         y *= 0.5; });
    }
    // perform uniform refine
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
    }
-   if (dim > 1) { mesh.EnsureNCMesh(); }
+   if (dim > 1)
+   {
+      mesh.EnsureNCMesh();
+   }
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -208,6 +210,7 @@ int main(int argc, char *argv[])
    RiemannSolver *numericalFlux = new RusanovFlux();
    DGHyperbolicConservationLaws euler = getEulerSystem(
                                            &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
+   // euler.addBdrFaceIntegrator(new EulerDirichletBC(u0), bdrymarker);
 
    // Visualize the density
    socketstream sout;
@@ -227,9 +230,10 @@ int main(int argc, char *argv[])
       else
       {
          GridFunction mom(&dfes, sol.GetData());
-         sout << "solution\n" << mesh << mom;
-         sout << "view 0 0\n";  // view from top
-         sout << "keys jlm\n";  // turn off perspective and light
+         sout << "solution\n"
+              << mesh << mom;
+         sout << "view 0 0\n"; // view from top
+         sout << "keys jlm\n"; // turn off perspective and light
          sout << "pause\n";
          sout << flush;
          out << "GLVis visualization paused."
@@ -287,7 +291,8 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             GridFunction mom(&dfes, sol.GetData());
-            sout << "solution\n" << mesh << mom << flush;
+            sout << "solution\n"
+                 << mesh << mom << flush;
             sout << "window_title 't = " << t << "'";
          }
       }
@@ -407,8 +412,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(0) = den;
             y(1) = den * velX;
             y(2) = den * velY;
-            y(3) = den * energy;
-         });
+            y(3) = den * energy; });
       case 2: // slow moving vortex
          return VectorFunctionCoefficient(4, [specific_heat_ratio,
                                               gas_constant](const Vector &x, Vector &y)
@@ -458,8 +462,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(0) = den;
             y(1) = den * velX;
             y(2) = den * velY;
-            y(3) = den * energy;
-         });
+            y(3) = den * energy; });
       case 3: // moving sine wave
          return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
@@ -475,8 +478,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(0) = density;
             y(1) = density * velocity_x;
             y(2) = density * velocity_y;
-            y(3) = energy;
-         });
+            y(3) = energy; });
       case 4:
          return VectorFunctionCoefficient(3, [](const Vector &x, Vector &y)
          {
@@ -489,8 +491,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 
             y(0) = density;
             y(1) = density * velocity_x;
-            y(2) = energy;
-         });
+            y(2) = energy; });
       case 5:
          return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
