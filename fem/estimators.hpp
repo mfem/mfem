@@ -77,14 +77,14 @@ public:
 class ProjectionErrorEstimator : public ErrorEstimator
 {
 protected:
-   long current_sequence;
-   Vector error_estimates;
-   double total_error;
-   int offset;
+   long current_sequence; // current FE sequence
+   Vector error_estimates; // element-wise error
+   double total_error; // total error
+   int offset; // degree offset
 
    GridFunction &solution;
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the finite element of the solution was modified.
    bool FESpaceIsModified()
    {
       long fe_sequence = solution.FESpace()->GetSequence();
@@ -122,6 +122,8 @@ public:
 
    virtual ~ProjectionErrorEstimator() { }
 };
+
+
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
 
