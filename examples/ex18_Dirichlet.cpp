@@ -120,13 +120,6 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
-   if (problem == 1)
-   {
-      mesh.Transform([](const Vector &x, Vector &y)
-      {
-         y = x;
-         y *= 0.5; });
-   }
    // perform uniform refine
    for (int lev = 0; lev < ref_levels; lev++)
    {
@@ -190,9 +183,6 @@ int main(int argc, char *argv[])
    //Direchetlet Data
 
    
-
-
-
    // Output the initial solution.
    {
       ostringstream mesh_name;
@@ -218,7 +208,6 @@ int main(int argc, char *argv[])
    RiemannSolver *numericalFlux = new RusanovFlux();
    DGHyperbolicConservationLaws euler = getEulerSystem(
                                            &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
-   // euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
 
 
 
