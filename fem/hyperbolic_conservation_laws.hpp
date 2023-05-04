@@ -1033,13 +1033,17 @@ public:
 
 		// Interpolate e
 		elfun1_mat.MultTranspose(shape1, state1);
+      dirichletData.Eval(state2, Tr, ip);
 		// elfun2_mat.MultTranspose(shape2, dirichletData);
 
 		// Get the normal vector and the flux on the face
 		CalcOrtho(Tr.Jacobian(), nor);
 
       // Calculates F(u+,g) F(u-,g) with the maximum characteristic speed 
-		const double mcs=ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1);
+		const double mcs=std::max(
+         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1),
+         ComputeFluxDotN(state2,nor,Tr.GetElement1Transformation,fluxN2)
+         );
       
       /// Calculate the Fhat using Reimann solver
       rsolver->Eval(state1,dirichletData,fluxN1,fluxN2,mcs,nor,fluxN);   //get Fhat for the reimann solver 
