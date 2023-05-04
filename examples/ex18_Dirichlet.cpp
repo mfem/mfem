@@ -534,18 +534,16 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
       return VectorFunctionCoefficient(4, [](const Vector &x, double t, Vector &y)
                                        {
             MFEM_ASSERT(x.Size() == 2, "");        // 2D Euler system 
+            const double density = 1+0.2*sin(M_PI*(x(0)+x(1)-t));
+            const double velocity_x = 0.7;
+            const double velocity_y = 0.3;
+            const double pressure =1.0;
+            const double energy =pressure/(1.4-1.0)+0.5*density*(velocity_x*velocity_x+velocity_y*velocity_y);
 
-            while t<t_final:
-               const double density = 1+0.2*sin(M_PI*(x(0)+x(1)-t));
-               const double velocity_x = 0.7;
-               const double velocity_y = 0.3;
-               const double pressure =1.0;
-               const double energy =pressure/(1.4-1.0)+0.5*density*(velocity_x*velocity_x+velocity_y*velocity_y);
-
-               y(0) = density;
-               y(1) = density*velocity_x;
-               y(2) = density*velocity_y;
-               y(3) = energy; });
+            y(0) = density;
+            y(1) = density*velocity_x;
+            y(2) = density*velocity_y;
+            y(3) = energy; });
       default:
          throw invalid_argument("Problem Undefined");
    }
