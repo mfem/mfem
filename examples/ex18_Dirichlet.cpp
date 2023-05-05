@@ -61,7 +61,7 @@ VectorFunctionCoefficient EulerInitialCondition(
 
 int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
-  int problem = 1;
+  int problem = 6;
   const double specific_heat_ratio = 1.4;
   const double gas_constant = 1.0;
 
