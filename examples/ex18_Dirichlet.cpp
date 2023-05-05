@@ -135,24 +135,24 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1:
-         ode_solver = new ForwardEulerSolver;
-         break;
-      case 2:
-         ode_solver = new RK2Solver(1.0);
-         break;
-      case 3:
-         ode_solver = new RK3SSPSolver;
-         break;
-      case 4:
-         ode_solver = new RK4Solver;
-         break;
-      case 6:
-         ode_solver = new RK6Solver;
-         break;
-      default:
-         out << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
+   case 1:
+      ode_solver = new ForwardEulerSolver;
+      break;
+   case 2:
+      ode_solver = new RK2Solver(1.0);
+      break;
+   case 3:
+      ode_solver = new RK3SSPSolver;
+      break;
+   case 4:
+      ode_solver = new RK4Solver;
+      break;
+   case 6:
+      ode_solver = new RK6Solver;
+      break;
+   default:
+      out << "Unknown ODE solver type: " << ode_solver_type << '\n';
+      return 3;
    }
 
    // 4. Define the discontinuous DG finite element space of the given
@@ -170,7 +170,6 @@ int main(int argc, char *argv[])
 
    out << "Number of unknowns: " << vfes.GetVSize() << endl;
 
-
    // 6. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
@@ -180,9 +179,8 @@ int main(int argc, char *argv[])
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
 
-   //Direchetlet Data
+   // Direchetlet Data
 
-   
    // Output the initial solution.
    {
       ostringstream mesh_name;
@@ -202,21 +200,16 @@ int main(int argc, char *argv[])
       }
    }
 
-
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
    DGHyperbolicConservationLaws euler = getEulerSystem(
-                                           &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
-
-
-
+       &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
 
    // 8.Set Boundary Marker
-   Array<int>  ess_bdr(mesh.bdr_attributes.Max());
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
    euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
-
 
    // Visualize the density
    socketstream sout;
@@ -338,38 +331,32 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-
 void EulerMesh(const int problem, const char **mesh_file)
 {
    switch (problem)
    {
-      case 1:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
-         break;
-      case 2:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
-         break;
-      case 3:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
-         break;
-      case 4:
-         *mesh_file = "../data/periodic-segment.mesh";
-         break;
-      case 5:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
-         break;
-      case 6:
-         *mesh_file="../data/dirichlet-square.mesh";                 // Load Mesh 
-         break;
-      default:
-         throw invalid_argument("Default mesh is undefined");
+   case 1:
+      *mesh_file = "../data/periodic-square-4x4.mesh";
+      break;
+   case 2:
+      *mesh_file = "../data/periodic-square-4x4.mesh";
+      break;
+   case 3:
+      *mesh_file = "../data/periodic-square-4x4.mesh";
+      break;
+   case 4:
+      *mesh_file = "../data/periodic-segment.mesh";
+      break;
+   case 5:
+      *mesh_file = "../data/periodic-square-4x4.mesh";
+      break;
+   case 6:
+      *mesh_file = "../data/dirichlet-square.mesh"; // Load Mesh
+      break;
+   default:
+      throw invalid_argument("Default mesh is undefined");
    }
 }
-
-
-
-
-
 
 // Initial condition
 VectorFunctionCoefficient EulerInitialCondition(const int problem,
@@ -378,10 +365,10 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
 {
    switch (problem)
    {
-      case 1: // fast moving vortex
-         return VectorFunctionCoefficient(4, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
-         {
+   case 1: // fast moving vortex
+      return VectorFunctionCoefficient(4, [specific_heat_ratio,
+                                           gas_constant](const Vector &x, Vector &y)
+                                       {
             MFEM_ASSERT(x.Size() == 2, "");
 
             double radius = 0, Minf = 0, beta = 0;
@@ -428,10 +415,10 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(1) = den * velX;
             y(2) = den * velY;
             y(3) = den * energy; });
-      case 2: // slow moving vortex
-         return VectorFunctionCoefficient(4, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
-         {
+   case 2: // slow moving vortex
+      return VectorFunctionCoefficient(4, [specific_heat_ratio,
+                                           gas_constant](const Vector &x, Vector &y)
+                                       {
             MFEM_ASSERT(x.Size() == 2, "");
 
             double radius = 0, Minf = 0, beta = 0;
@@ -478,9 +465,9 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(1) = den * velX;
             y(2) = den * velY;
             y(3) = den * energy; });
-      case 3: // moving sine wave
-         return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
-         {
+   case 3: // moving sine wave
+      return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
+                                       {
             MFEM_ASSERT(x.Size() == 2, "");
             const double density = 1.0 + 0.2 * sin(M_PI*(x(0) + x(1)));
             const double velocity_x = 0.7;
@@ -494,9 +481,9 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(1) = density * velocity_x;
             y(2) = density * velocity_y;
             y(3) = energy; });
-      case 4:
-         return VectorFunctionCoefficient(3, [](const Vector &x, Vector &y)
-         {
+   case 4:
+      return VectorFunctionCoefficient(3, [](const Vector &x, Vector &y)
+                                       {
             MFEM_ASSERT(x.Size() == 1, "");
             const double density = 1.0 + 0.2 * sin(M_PI * 2 * x(0));
             const double velocity_x = 1.0;
@@ -507,9 +494,9 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(0) = density;
             y(1) = density * velocity_x;
             y(2) = energy; });
-      case 5:
-         return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
-         {
+   case 5:
+      return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
+                                       {
             MFEM_ASSERT(x.Size() == 2, "");
             const double L = 1.0;
             const double density = abs(x(1)) < 0.25 ? 2 : 1;
@@ -527,7 +514,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(3) = energy; });
    case 6:
       return VectorFunctionCoefficient(4, [](const Vector &x, double t, Vector &y)
-         {
+                                       {
             MFEM_ASSERT(x.Size() == 2, "");        // 2D Euler system 
             const double density = 1+0.2*sin(M_PI*(x(0)+x(1)-t));
             const double velocity_x = 0.7;
@@ -540,8 +527,8 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(2) = density*velocity_y;
             y(3) = energy; });
 
-      default:
-         throw invalid_argument("Problem Undefined");
+   default:
+      throw invalid_argument("Problem Undefined");
    }
 }
 }
