@@ -211,6 +211,7 @@ int main(int argc, char *argv[])
 
 
 
+
    // 8.Set Boundary Marker
    Array<int>  ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
@@ -542,4 +543,5 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
       default:
          throw invalid_argument("Problem Undefined");
    }
-}}
+}
+}
