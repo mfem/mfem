@@ -53,9 +53,10 @@ protected:
 
 public:
     InteriorPointSolver(OptProblem*);
+    void Mult(const BlockVector& , BlockVector&); // used when the user wants to be aware of bound-constrained variable m >= ml
+    void Mult(const Vector&, Vector &); // useful when the user doesn't need to know about bound-constrained variable   m >= ml
     double AlphaMax(Vector& , Vector& , Vector& , double);
     double AlphaMax(Vector& , Vector& , double);
-    void Mult(const BlockVector& , BlockVector&);
     void formA(BlockVector& , Vector& , Vector& , BlockOperator &);
     void pKKTSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
     void lineSearch(BlockVector& , BlockVector& , double);

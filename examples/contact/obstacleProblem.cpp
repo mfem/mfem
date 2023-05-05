@@ -58,31 +58,35 @@ int main(int argc, char *argv[])
   ObstacleProblem problem(Vh, &fRhs);
   
   int dimD = problem.GetDimD();
-  cout << "dimension of displacement field = " << dimD << endl;
-  Array<int> offsets(3);
-  offsets[0] = 0;
-  offsets[1] = dimD;
-  offsets[2] = dimD;
-  offsets.PartialSum();
-
+  Vector x0(dimD); x0 = 100.0;
+  Vector xf(dimD); xf = 0.0;
 
   InteriorPointSolver optimizer(&problem); 
-  BlockVector x0(offsets); x0 = 100.0;
-  BlockVector xf(offsets); xf = 0.0;
   optimizer.SetTol(1.e-6);
   optimizer.SetLinearSolver(linSolver);
   optimizer.SetMaxIter(maxIPMiters);
   optimizer.Mult(x0, xf);
 
   GridFunction d_gf(Vh);
-  GridFunction s_gf(Vh);
 
-  d_gf = xf.GetBlock(0);
-  s_gf = xf.GetBlock(1);
+  d_gf = xf;
 
   FunctionCoefficient dm_fc(dmanufacturedFun); // pseudo-manufactured solution
   GridFunction dm_gf(Vh);
   dm_gf.ProjectCoefficient(dm_fc);
+  
+  ParaViewDataCollection paraview_dc("BarrierProblemSolution", mesh);
+  paraview_dc.SetPrefixPath("ParaView");
+  paraview_dc.SetLevelsOfDetail(FEorder);
+  paraview_dc.SetDataFormat(VTKFormat::BINARY);
+  paraview_dc.SetHighOrderOutput(true);
+  paraview_dc.SetCycle(0);
+  paraview_dc.SetTime(0.0);
+  paraview_dc.RegisterField("d(x) (numerical)", &d_gf);
+  paraview_dc.RegisterField("d(x) (pseudo-manufactured)", &dm_gf);
+  paraview_dc.Save();
+  
+  
   delete Vh;
   delete fec;
   delete mesh;

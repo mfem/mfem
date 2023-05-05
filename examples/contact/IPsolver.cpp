@@ -100,9 +100,17 @@ double InteriorPointSolver::AlphaMax(Vector &x, Vector &xhat, double tau)
 }
 
 
-// new design for this function...
-// I want to pass in an initial value of the primal variable x0 = [u0 m0] in BlockVector form
-// and a reference to 
+void InteriorPointSolver::Mult(const Vector &x0, Vector &xf)
+{
+  BlockVector x0block(block_offsetsx); x0block = 0.0;
+  x0block.GetBlock(0).Set(1.0, x0);
+  // hard coded initialization :(
+  x0block.GetBlock(1) = 100.;
+  x0block.GetBlock(1).Add(1.0, ml);
+  BlockVector xfblock(block_offsetsx); xfblock = 0.0;
+  Mult(x0block, xfblock);
+  xf.Set(1.0, xfblock.GetBlock(0));
+}
 
 void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {

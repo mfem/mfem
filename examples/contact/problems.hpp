@@ -97,23 +97,4 @@ public :
 };
 
 
-//class QPContactExample : public ContactProblem
-//{
-//protected :
-//    // data to define energy objective function e(d) = 0.5 d^T K d + f^T d, g(d) = J d >= 0
-//    SparseMatrix *K;
-//    SparseMatrix *J;
-//    Vector *f;
-//public : 
-//   QPContactExample(SparseMatrix *, SparseMatrix *, Vector *);
-//   double E(const Vector &) const;
-//   void DdE(const Vector &, Vector &) const;
-//   SparseMatrix* DddE(const Vector &);
-//   void g(const Vector &, Vector &) const;
-//   SparseMatrix* Ddg(const Vector &);
-//   virtual ~QPContactExample();
-//};
-
-
-
 #endif
