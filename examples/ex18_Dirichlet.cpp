@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    // 8.Set Boundary Marker
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
-   euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
+   euler.addBdrFaceIntegrator(new EulerDirichletBC(numericalFlux, dim, specific_heat_ratio, u0, 3), ess_bdr);
 
    // Visualize the density
    socketstream sout;
@@ -530,5 +530,4 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
    default:
       throw invalid_argument("Problem Undefined");
    }
-}
 }
