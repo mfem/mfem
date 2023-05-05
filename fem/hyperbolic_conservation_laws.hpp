@@ -37,8 +37,14 @@
 
 #ifndef MFEM_HYPERBOLIC_CONSERVATION_LAWS
 #define MFEM_HYPERBOLIC_CONSERVATION_LAWS
-#include "mfem.hpp"
-
+#include "../config/config.hpp"
+#include "fespace.hpp"
+#include "bilininteg.hpp"
+#include "nonlinearform.hpp"
+#include "estimators.hpp"
+#ifdef MFEM_USE_MPI
+#include "pnonlinearform.hpp"
+#endif
 // using namespace std;
 // using namespace mfem;
 namespace mfem
@@ -993,7 +999,7 @@ public:
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
    {
-      const int dim = Tr.GetDimension();
+      // const int dim = Tr.GetDimension();
       Jacobian = state(0);
       eigs = state(0);
    }
