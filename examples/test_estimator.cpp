@@ -28,10 +28,15 @@ int main()
       ProjectionErrorEstimator estimator(x);
       auto & estimators = estimator.GetLocalErrors();
 
+      PRefDiffEstimator estimator_Katen(x, -1);
+      auto & estimators_Katen = estimator_Katen.GetLocalErrors();
+
       // double total_error = estimators.Norml2();
       out << estimator.GetTotalError() << std::endl;
+      out << estimator_Katen.GetTotalError() << std::endl;
       out << x.ComputeL2Error(v) << std::endl;
       out << estimator.GetTotalError() / x.ComputeL2Error(v) << std::endl;
+      out << estimator_Katen.GetTotalError() / x.ComputeL2Error(v) << std::endl;
       // out << estimators.Max() << std::endl;
       delete fes;
       delete fec;
