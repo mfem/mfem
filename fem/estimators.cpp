@@ -85,9 +85,7 @@ void ProjectionErrorEstimator::ComputeEstimates()
       int order = std::max(0, fespace->GetElementOrder(i) - offset);
       projectionSpace.SetElementOrder(i, order);  // update polynomial order
    }
-   out << std::endl;
    projectionSpace.Update(false);
-   // out << "space update done" << std::endl;
 
    // local mass inverse
    DenseMatrix invMe;  // auxiliary local mass matrix
