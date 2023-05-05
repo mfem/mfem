@@ -1349,7 +1349,7 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_trace_face_integs_marker.Append(&bdr_marker);
 }
 
-void MixedBilinearForm::Assemble (int skip_zeros)
+void MixedBilinearForm::Assemble(int skip_zeros)
 {
    if (ext)
    {
@@ -1985,10 +1985,9 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          test_fes->GetFaceVDofs(i, test_vdofs);
          eltrans = test_fes->GetMesh()->GetFaceTransformation(i);
 
-         trace_face_integs[0]->AssembleElementMatrix2(*trial_fes->GetFaceElement(i),
-                                                      *test_fes->GetFaceElement(i),
-                                                      *eltrans, elmat);
-         for (int k = 1; k < trace_face_integs.Size(); k++)
+         elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+         elmat = 0.0;
+         for (int k = 0; k < trace_face_integs.Size(); k++)
          {
             trace_face_integs[k]->AssembleElementMatrix2(*trial_fes->GetFaceElement(i),
                                                          *test_fes->GetFaceElement(i),
