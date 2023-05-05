@@ -34,7 +34,6 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
-     face_nbr_el_to_face(NULL),
      glob_elem_offset(-1),
      glob_offset_sequence(-1),
      gtopo(pmesh.gtopo)
@@ -106,8 +105,7 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : face_nbr_el_to_face(NULL)
-   , glob_elem_offset(-1)
+   : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
@@ -854,7 +852,6 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
    , MyRank(pncmesh.MyRank)
-   , face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(MyComm)
@@ -922,8 +919,7 @@ void ParMesh::FinalizeParTopo()
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : face_nbr_el_to_face(NULL)
-   , glob_elem_offset(-1)
+   : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
@@ -1134,7 +1130,7 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
    MyComm = orig_mesh.GetComm();
    NRanks = orig_mesh.GetNRanks();
    MyRank = orig_mesh.GetMyRank();
-   face_nbr_el_to_face = NULL;
+   face_nbr_el_to_face = nullptr;
    glob_elem_offset = -1;
    glob_offset_sequence = -1;
    gtopo = orig_mesh.gtopo;
@@ -2127,7 +2123,6 @@ void ParMesh::ExchangeFaceNbrData()
       pncmesh->GetFaceNeighbors(*this);
       have_face_nbr_data = true;
 
-      ExchangeFaceNbrNodes();
       return;
    }
 
@@ -2192,7 +2187,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    if (Dim == 3)
    {
-      GetFaceNbrElementToFaceTable();
+      BuildFaceNbrElementToFaceTable();
    }
 
    if (del_tables) { delete gr_sface; }
@@ -2721,191 +2716,128 @@ STable3D *ParMesh::GetSharedFacesTable()
    return sfaces_tbl;
 }
 
-STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
+template <int N>
+void
+ParMesh::AddTriFaces(Array<int> &v, const std::unique_ptr<STable3D> &faces,
+const std::unique_ptr<STable3D> &shared_faces,
+int elem, int start, int end, const int fverts[][N])
 {
-   int i, *v;
-   STable3D * faces_tbl = GetFacesTable();
-   STable3D * sfaces_tbl = GetSharedFacesTable();
+   for (int i = start; i < end; ++i)
+   {
+      const int * const fv = fverts[i];
+      int lf = faces->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
+      if (lf < 0)
+      {
+         lf = shared_faces->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
+         if (lf >= 0)
+         {
+            lf += NumOfFaces;
+         }
+      }
 
-   if (face_nbr_el_to_face != NULL)
-   {
-      delete face_nbr_el_to_face;
+      face_nbr_el_to_face->Push(elem, lf);
+
+      if (Nonconforming())
+      {
+         // For a nonconforming mesh, building the face neighbor element to face table also
+         // requires build the face neighbor element to orientation table.
+         // The orientation is stored in the mod64 bits of Elem2Inf, as
+         // Elem1Inf always refers to the processor local element.
+         face_nbr_el_ori.Push(elem, faces_info[lf].Elem2Inf % 64);
+      }
    }
-   face_nbr_el_to_face = new Table(face_nbr_elements.Size(), 6);
-   for (i = 0; i < face_nbr_elements.Size(); i++)
+}
+
+void ParMesh::BuildFaceNbrElementToFaceTable()
+{
+   const auto faces = std::unique_ptr<STable3D>(GetFacesTable());
+   const auto shared_faces = std::unique_ptr<STable3D>(GetSharedFacesTable());
+
+   face_nbr_el_to_face.reset(new Table(face_nbr_elements.Size(), 6));
+   if (Nonconforming())
    {
-      v = face_nbr_elements[i]->GetVertices();
+      face_nbr_el_ori.SetSize(face_nbr_elements.Size(), 6);
+   }
+
+   mfem::Array<int> v;
+
+   // helper for adding quadrilateral faces. Do not need to use
+   auto add_quad_faces = [&faces, &shared_faces, &v, this]
+      (int elem, int start, int end, const int fverts[][4])
+   {
+      for (int i = start; i < end; ++i)
+      {
+         const int * const fv = fverts[i];
+         int k = 0;
+         int max = v[fv[0]];
+
+         if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
+         if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
+         if (max < v[fv[3]]) { k = 3; }
+
+         int v0 = -1, v1 = -1, v2 = -1;
+         switch (k)
+         {
+            case 0:
+               v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
+               break;
+            case 1:
+               v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
+               break;
+            case 2:
+               v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
+               break;
+            case 3:
+               v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
+               break;
+         }
+         int lf = faces->Index(v0, v1, v2);
+         if (lf < 0)
+         {
+            lf = shared_faces->Index(v0, v1, v2);
+            if (lf >= 0)
+            {
+               lf += NumOfFaces;
+            }
+         }
+         face_nbr_el_to_face->Push(elem, lf);
+
+         if (Nonconforming())
+         {
+            // For a nonconforming mesh, building the face neighbor element to face table also
+            // requires build the face neighbor element to orientation table.
+            // The orientation is stored in the mod64 bits of Elem2Inf, as
+            // Elem1Inf always refers to the processor local element.
+            face_nbr_el_ori.Push(elem, faces_info[lf].Elem2Inf % 64);
+         }
+      }
+   };
+
+   for (int i = 0; i < face_nbr_elements.Size(); i++)
+   {
+      face_nbr_elements[i]->GetVertices(v);
       switch (face_nbr_elements[i]->GetType())
       {
          case Element::TETRAHEDRON:
          {
-            for (int j = 0; j < 4; j++)
-            {
-               const int *fv = tet_t::FaceVert[j];
-               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            AddTriFaces(v, faces, shared_faces, i, 0, 4, tet_t::FaceVert);
             break;
          }
          case Element::WEDGE:
          {
-            for (int j = 0; j < 2; j++)
-            {
-               const int *fv = pri_t::FaceVert[j];
-               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
-            for (int j = 2; j < 5; j++)
-            {
-               const int *fv = pri_t::FaceVert[j];
-               int k = 0;
-               int max = v[fv[0]];
-
-               if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
-               if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
-               if (max < v[fv[3]]) { k = 3; }
-
-               int v0 = -1, v1 = -1, v2 = -1;
-               switch (k)
-               {
-                  case 0:
-                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 1:
-                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 2:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
-                     break;
-                  case 3:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
-                     break;
-               }
-               int lf = faces_tbl->Index(v0, v1, v2);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v0, v1, v2);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            AddTriFaces(v, faces, shared_faces, i, 0, 2, pri_t::FaceVert);
+            add_quad_faces(i, 2, 5, pri_t::FaceVert);
             break;
          }
          case Element::PYRAMID:
          {
-            for (int j = 0; j < 1; j++)
-            {
-               const int *fv = pyr_t::FaceVert[j];
-               int k = 0;
-               int max = v[fv[0]];
-
-               if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
-               if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
-               if (max < v[fv[3]]) { k = 3; }
-
-               int v0 = -1, v1 = -1, v2 = -1;
-               switch (k)
-               {
-                  case 0:
-                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 1:
-                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 2:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
-                     break;
-                  case 3:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
-                     break;
-               }
-               int lf = faces_tbl->Index(v0, v1, v2);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v0, v1, v2);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
-            for (int j = 1; j < 5; j++)
-            {
-               const int *fv = pyr_t::FaceVert[j];
-               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            add_quad_faces(i, 0, 1, pyr_t::FaceVert);
+            AddTriFaces(v, faces, shared_faces, i, 1, 5, pyr_t::FaceVert);
             break;
          }
          case Element::HEXAHEDRON:
          {
-            // find the face by the vertices with the smallest 3 numbers
-            // z = 0, y = 0, x = 1, y = 1, x = 0, z = 1
-            for (int j = 0; j < 6; j++)
-            {
-               const int *fv = hex_t::FaceVert[j];
-               int k = 0;
-               int max = v[fv[0]];
-
-               if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
-               if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
-               if (max < v[fv[3]]) { k = 3; }
-
-               int v0 = -1, v1 = -1, v2 = -1;
-               switch (k)
-               {
-                  case 0:
-                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 1:
-                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-                     break;
-                  case 2:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
-                     break;
-                  case 3:
-                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
-                     break;
-               }
-               int lf = faces_tbl->Index(v0, v1, v2);
-               if (lf < 0)
-               {
-                  lf = sfaces_tbl->Index(v0, v1, v2);
-                  if (lf >= 0)
-                  {
-                     lf += NumOfFaces;
-                  }
-               }
-               face_nbr_el_to_face->Push(i, lf);
-            }
+            add_quad_faces(i, 0, 6, hex_t::FaceVert);
             break;
          }
          default:
@@ -2913,14 +2845,6 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
       }
    }
    face_nbr_el_to_face->Finalize();
-
-   delete sfaces_tbl;
-   if (ret_ftbl)
-   {
-      return faces_tbl;
-   }
-   delete faces_tbl;
-   return NULL;
 }
 
 int ParMesh::GetFaceNbrRank(int fn) const
@@ -2954,6 +2878,7 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
       MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
                  "face_nbr_el_to_face not generated.");
    }
+
    if (el_nbr < face_nbr_el_ori.Size())
    {
       const int * row = face_nbr_el_ori.GetRow(el_nbr);
@@ -6727,8 +6652,7 @@ void ParMesh::Destroy()
    }
    shared_edges.DeleteAll();
 
-   delete face_nbr_el_to_face;
-   face_nbr_el_to_face = NULL;
+   face_nbr_el_to_face = nullptr;
 }
 
 ParMesh::~ParMesh()

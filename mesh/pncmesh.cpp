@@ -1181,6 +1181,13 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
+   // Populates the face_nbr_el_to_face and face_nbr_el_ori variables used by
+   // the ParMesh.
+   if (Dim == 3)
+   {
+      pmesh.BuildFaceNbrElementToFaceTable();
+   }
+
    // NOTE: this function skips ParMesh::send_face_nbr_vertices and
    // ParMesh::face_nbr_vertices_offset, these are not used outside of ParMesh
 }
