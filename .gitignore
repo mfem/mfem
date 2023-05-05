@@ -115,6 +115,7 @@ examples/flux.*
 
 examples/euler-*
 examples/euler.mesh
+examples/ex18_Dirichlet
 
 examples/amgx/ex1
 examples/amgx/ex1p
