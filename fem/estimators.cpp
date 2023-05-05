@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "estimators.hpp"
+
 #include "transfer.hpp"
 
 namespace mfem
@@ -22,19 +23,19 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    // ParFiniteElementSpace and 'solution' is a ParGridFunction.
    GridFunction flux(flux_space);
 
-   if (!anisotropic) { aniso_flags.SetSize(0); }
+   if (!anisotropic)
+   {
+      aniso_flags.SetSize(0);
+   }
    total_error = ZZErrorEstimator(integ, solution, flux, error_estimates,
                                   anisotropic ? &aniso_flags : NULL,
-                                  flux_averaging,
-                                  with_coeff);
+                                  flux_averaging, with_coeff);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
-
-PRefDiffEstimator::PRefDiffEstimator(GridFunction& sol_, int p_comp_)
-   : solution(&sol_), p_comp(p_comp_)
-{ }
+PRefDiffEstimator::PRefDiffEstimator(GridFunction &sol_, int p_comp_)
+   : solution(&sol_), p_comp(p_comp_) {}
 
 void PRefDiffEstimator::ComputeEstimates()
 {
@@ -55,7 +56,9 @@ void PRefDiffEstimator::ComputeEstimates()
 
    for (int e = 0; e < nelem; e++)
    {
-      int setOrder = p_comp >= 0 ? p_comp : std::max(0, fespace->GetElementOrder(e)+p_comp);
+      int setOrder = p_comp >= 0
+                     ? p_comp
+                     : std::max(0, fespace->GetElementOrder(e) + p_comp);
       fespaceComp.SetElementOrder(e, setOrder);
    }
    fespaceComp.Update(false);
@@ -72,26 +75,24 @@ void PRefDiffEstimator::ComputeEstimates()
 
 void ProjectionErrorEstimator::ComputeEstimates()
 {
-
    // Gather information and make projection space
-   const int nelem = solution.FESpace()->GetNE(); // number of elements
-   FiniteElementSpace *fespace = solution.FESpace(); // solution fespace
+   const int nelem = solution.FESpace()->GetNE();     // number of elements
+   FiniteElementSpace *fespace = solution.FESpace();  // solution fespace
    FiniteElementSpace projectionSpace(*fespace);
-   for (int i=0; i<nelem; i++)
+   int max_order = 0, min_order = INT_MAX;
+   for (int i = 0; i < nelem; i++)
    {
-      projectionSpace.SetElementOrder(
-         i, std::max(0, fespace->GetElementOrder(i) -
-                     offset)); // update polynomial order
-      // out << projectionSpace.GetElementOrder(i) << ", " << fespace->GetElementOrder(i) << "; ";
+      int order = std::max(0, fespace->GetElementOrder(i) - offset);
+      projectionSpace.SetElementOrder(i, order);  // update polynomial order
    }
-   out<<std::endl;
+   out << std::endl;
    projectionSpace.Update(false);
    // out << "space update done" << std::endl;
 
    // local mass inverse
-   DenseMatrix invMe;     // auxiliary local mass matrix
-   InverseIntegrator invmi(new VectorMassIntegrator());
-   
+   DenseMatrix invMe;  // auxiliary local mass matrix
+   InverseIntegrator invmi(new MassIntegrator());
+
    // (u_h, v)
    VectorGridFunctionCoefficient sol_gf(&solution);
    VectorDomainLFIntegrator int_sol(sol_gf);
@@ -100,20 +101,27 @@ void ProjectionErrorEstimator::ComputeEstimates()
    GridFunction projectedSol(&projectionSpace);
    Array<int> dofs;
    Vector loc_proj, rhs;
+
    // resize it to the current number of elements
    for (int i = 0; i < projectionSpace.GetNE(); i++)
    {
-      int nDofs = projectionSpace.GetFE(i)->GetDof()*projectionSpace.GetVDim();
+      int nDofs = projectionSpace.GetFE(i)->GetDof();
       dofs.SetSize(nDofs);
-      projectionSpace.GetElementVDofs(i, dofs);
       invMe.SetSize(nDofs);
+      loc_proj.SetSize(nDofs * projectionSpace.GetVDim());
+
+      projectionSpace.GetElementVDofs(i, dofs);
       invmi.AssembleElementMatrix(*projectionSpace.GetFE(i),
-                                    *projectionSpace.GetElementTransformation(i), invMe);
-      rhs.SetSize(nDofs);
+                                  *projectionSpace.GetElementTransformation(i),
+                                  invMe);
+      rhs.SetSize(nDofs * projectionSpace.GetVDim());
       int_sol.AssembleRHSElementVect(*projectionSpace.GetFE(i),
-                                       *projectionSpace.GetElementTransformation(i), rhs);
-      loc_proj.SetSize(nDofs);
-      invMe.Mult(rhs, loc_proj);
+                                     *projectionSpace.GetElementTransformation(i),
+                                     rhs);
+      DenseMatrix rhs_mat(rhs.GetData(), nDofs, projectionSpace.GetVDim());
+      DenseMatrix loc_proj_mat(loc_proj.GetData(), nDofs,
+                               projectionSpace.GetVDim());
+      Mult(invMe, rhs_mat, loc_proj_mat);
       projectedSol.SetSubVector(dofs, loc_proj);
    }
 
@@ -126,12 +134,9 @@ void ProjectionErrorEstimator::ComputeEstimates()
 
 void LSZienkiewiczZhuEstimator::ComputeEstimates()
 {
-   total_error = LSZZErrorEstimator(integ,
-                                    solution,
-                                    error_estimates,
-                                    subdomain_reconstruction,
-                                    with_coeff,
-                                    tichonov_coeff);
+   total_error =
+      LSZZErrorEstimator(integ, solution, error_estimates,
+                         subdomain_reconstruction, with_coeff, tichonov_coeff);
 
    current_sequence = solution.FESpace()->GetSequence();
 }
@@ -147,42 +152,44 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    const double solver_tol = 1e-12;
    const int solver_max_it = 200;
    total_error = L2ZZErrorEstimator(integ, solution, *smooth_flux_space,
-                                    *flux_space, error_estimates,
-                                    local_norm_p, solver_tol, solver_max_it);
+                                    *flux_space, error_estimates, local_norm_p,
+                                    solver_tol, solver_max_it);
 
    current_sequence = solution.FESpace()->GetSequence();
 }
 
-#endif // MFEM_USE_MPI
+#endif  // MFEM_USE_MPI
 
-KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
-                                         GridFunction& sol_,
-                                         FiniteElementSpace& flux_fespace_,
+KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator &di_,
+                                         GridFunction &sol_,
+                                         FiniteElementSpace &flux_fespace_,
                                          const Array<int> &attributes_)
-   : attributes(attributes_)
-   , flux_integrator(&di_)
-   , solution(&sol_)
-   , flux_space(&flux_fespace_)
-   , own_flux_fespace(false)
+   : attributes(attributes_),
+     flux_integrator(&di_),
+     solution(&sol_),
+     flux_space(&flux_fespace_),
+     own_flux_fespace(false)
 #ifdef MFEM_USE_MPI
-   , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
-#endif // MFEM_USE_MPI
+   ,
+     isParallel(dynamic_cast<ParFiniteElementSpace *>(sol_.FESpace()))
+#endif  // MFEM_USE_MPI
 {
    ResetCoefficientFunctions();
 }
 
-KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
-                                         GridFunction& sol_,
-                                         FiniteElementSpace* flux_fespace_,
+KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator &di_,
+                                         GridFunction &sol_,
+                                         FiniteElementSpace *flux_fespace_,
                                          const Array<int> &attributes_)
-   : attributes(attributes_)
-   , flux_integrator(&di_)
-   , solution(&sol_)
-   , flux_space(flux_fespace_)
-   , own_flux_fespace(true)
+   : attributes(attributes_),
+     flux_integrator(&di_),
+     solution(&sol_),
+     flux_space(flux_fespace_),
+     own_flux_fespace(true)
 #ifdef MFEM_USE_MPI
-   , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
-#endif // MFEM_USE_MPI
+   ,
+     isParallel(dynamic_cast<ParFiniteElementSpace *>(sol_.FESpace()))
+#endif  // MFEM_USE_MPI
 {
    ResetCoefficientFunctions();
 }
@@ -197,12 +204,9 @@ KellyErrorEstimator::~KellyErrorEstimator()
 
 void KellyErrorEstimator::ResetCoefficientFunctions()
 {
-   compute_element_coefficient = [](Mesh* mesh, const int e)
-   {
-      return 1.0;
-   };
+   compute_element_coefficient = [](Mesh *mesh, const int e) { return 1.0; };
 
-   compute_face_coefficient = [](Mesh* mesh, const int f,
+   compute_face_coefficient = [](Mesh *mesh, const int f,
                                  const bool shared_face)
    {
       auto FT = [&]()
@@ -210,9 +214,9 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
 #ifdef MFEM_USE_MPI
          if (shared_face)
          {
-            return dynamic_cast<ParMesh*>(mesh)->GetSharedFaceTransformations(f);
+            return dynamic_cast<ParMesh *>(mesh)->GetSharedFaceTransformations(f);
          }
-#endif // MFEM_USE_MPI
+#endif  // MFEM_USE_MPI
          return mesh->GetFaceElementTransformations(f);
       }();
       const auto order = FT->GetFE()->GetOrder();
@@ -242,7 +246,7 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
             diameter = std::max<double>(diameter, p2.DistanceTo(p1));
          }
       }
-      return diameter/(2.0*order);
+      return diameter / (2.0 * order);
    };
 }
 
@@ -273,9 +277,10 @@ void KellyErrorEstimator::ComputeEstimates()
    // 1. Compute fluxes in discontinuous space
    GridFunction *flux =
 #ifdef MFEM_USE_MPI
-      isParallel ? new ParGridFunction(dynamic_cast<ParFiniteElementSpace*>
-                                       (flux_space)) :
-#endif // MFEM_USE_MPI
+      isParallel ? new ParGridFunction(
+         dynamic_cast<ParFiniteElementSpace *>(flux_space))
+      :
+#endif  // MFEM_USE_MPI
       new GridFunction(flux_space);
 
    *flux = 0.0;
@@ -299,7 +304,7 @@ void KellyErrorEstimator::ComputeEstimates()
       xfes->GetElementVDofs(e, xdofs);
       solution->GetSubVector(xdofs, el_x);
 
-      ElementTransformation* Transf = xfes->GetElementTransformation(e);
+      ElementTransformation *Transf = xfes->GetElementTransformation(e);
       flux_integrator->ComputeElementFlux(*xfes->GetFE(e), *Transf, el_x,
                                           *flux_space->GetFE(e), el_f, true);
 
@@ -321,23 +326,25 @@ void KellyErrorEstimator::ComputeEstimates()
          mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
          int el1, el2;
          mesh->GetFaceElements(f, &el1, &el2);
-         auto &int_rule = IntRules.Get(FT->FaceGeom,
-                                       xfes->GetElementOrder(el1) + xfes->GetElementOrder(el2));
+         auto &int_rule =
+            IntRules.Get(FT->FaceGeom,
+                         xfes->GetElementOrder(el1) + xfes->GetElementOrder(el2));
          const auto nip = int_rule.GetNPoints();
-         // auto &int_rule = IntRules.Get(FT->FaceGeom, xfes->GetElementOrder(Inf1))
+         // auto &int_rule = IntRules.Get(FT->FaceGeom,
+         // xfes->GetElementOrder(Inf1))
 
          // Convention
          // * Conforming face: Face side with smaller element id handles
          // the integration
          // * Non-conforming face: The slave handles the integration.
          // See FaceInfo documentation for details.
-         bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
+         bool isNCSlave = FT->Elem2No >= 0 && NCFace >= 0;
          bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
          if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
          {
             if (attributes.Size() &&
-                (attributes.FindSorted(FT->Elem1->Attribute) == -1
-                 || attributes.FindSorted(FT->Elem2->Attribute) == -1))
+                (attributes.FindSorted(FT->Elem1->Attribute) == -1 ||
+                 attributes.FindSorted(FT->Elem2->Attribute) == -1))
             {
                continue;
             }
@@ -414,7 +421,7 @@ void KellyErrorEstimator::ComputeEstimates()
                jumps(i) *= jumps(i);
             }
             auto h_k_face = compute_face_coefficient(mesh, f, false);
-            double jump_integral = h_k_face*jumps.Sum();
+            double jump_integral = h_k_face * jumps.Sum();
 
             // A local face is shared between two local elements, so we
             // can get away with integrating the jump only once and add
@@ -430,7 +437,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
 #ifdef MFEM_USE_MPI
    if (!isParallel)
-#endif // MFEM_USE_MPI
+#endif  // MFEM_USE_MPI
    {
       // Finalize element errors
       for (int e = 0; e < xfes->GetNE(); e++)
@@ -450,10 +457,10 @@ void KellyErrorEstimator::ComputeEstimates()
    // 3. Add error contribution from shared interior faces
    // Synchronize face data.
 
-   ParGridFunction *pflux = dynamic_cast<ParGridFunction*>(flux);
+   ParGridFunction *pflux = dynamic_cast<ParGridFunction *>(flux);
    MFEM_VERIFY(pflux, "flux is not a ParGridFunction pointer");
 
-   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   ParMesh *pmesh = dynamic_cast<ParMesh *>(mesh);
    MFEM_VERIFY(pmesh, "mesh is not a ParMesh pointer");
 
    pflux->ExchangeFaceNbrData();
@@ -462,8 +469,8 @@ void KellyErrorEstimator::ComputeEstimates()
    {
       auto FT = pmesh->GetSharedFaceTransformations(sf, true);
       if (attributes.Size() &&
-          (attributes.FindSorted(FT->Elem1->Attribute) == -1
-           || attributes.FindSorted(FT->Elem2->Attribute) == -1))
+          (attributes.FindSorted(FT->Elem1->Attribute) == -1 ||
+           attributes.FindSorted(FT->Elem2->Attribute) == -1))
       {
          continue;
       }
@@ -542,7 +549,7 @@ void KellyErrorEstimator::ComputeEstimates()
          jumps(i) *= jumps(i);
       }
       auto h_k_face = compute_face_coefficient(mesh, sf, true);
-      double jump_integral = h_k_face*jumps.Sum();
+      double jump_integral = h_k_face * jumps.Sum();
 
       error_estimates(FT->Elem1No) += jump_integral;
       // We skip "error_estimates(FT->Elem2No) += jump_integral"
@@ -560,14 +567,14 @@ void KellyErrorEstimator::ComputeEstimates()
    }
 
    // Finish by computing the global error.
-   auto pfes = dynamic_cast<ParFiniteElementSpace*>(xfes);
+   auto pfes = dynamic_cast<ParFiniteElementSpace *>(xfes);
    MFEM_VERIFY(pfes, "xfes is not a ParFiniteElementSpace pointer");
 
-   double process_local_error = pow(error_estimates.Norml2(),2.0);
-   MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                 MPI_SUM, pfes->GetComm());
+   double process_local_error = pow(error_estimates.Norml2(), 2.0);
+   MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE, MPI_SUM,
+                 pfes->GetComm());
    total_error = sqrt(total_error);
-#endif // MFEM_USE_MPI
+#endif  // MFEM_USE_MPI
 }
 
 void LpErrorEstimator::ComputeEstimates()
@@ -586,16 +593,16 @@ void LpErrorEstimator::ComputeEstimates()
    }
 #ifdef MFEM_USE_MPI
    total_error = error_estimates.Sum();
-   auto pfes = dynamic_cast<ParFiniteElementSpace*>(sol->FESpace());
+   auto pfes = dynamic_cast<ParFiniteElementSpace *>(sol->FESpace());
    if (pfes)
    {
       auto process_local_error = total_error;
-      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                    MPI_SUM, pfes->GetComm());
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE, MPI_SUM,
+                    pfes->GetComm());
    }
-#endif // MFEM_USE_MPI
-   total_error = pow(total_error, 1.0/local_norm_p);
+#endif  // MFEM_USE_MPI
+   total_error = pow(total_error, 1.0 / local_norm_p);
    current_sequence = sol->FESpace()->GetSequence();
 }
 
-} // namespace mfem
+}  // namespace mfem
