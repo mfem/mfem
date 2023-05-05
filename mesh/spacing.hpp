@@ -49,6 +49,8 @@ public:
    // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
    virtual void Print(std::ostream &os) = 0;
 
+   virtual ~SpacingFunction() { }
+
 protected:
    int n;
    bool reverse;
