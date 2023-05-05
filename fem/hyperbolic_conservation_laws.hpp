@@ -946,11 +946,11 @@ public:
 
 class EulerDirichletBC : public EulerFormIntegrator                        /* Ollie Zhang */
 {
-   const VectorFunctionCoefficient &dirichletData;
+   VectorFunctionCoefficient &dirichletData;
 public:
    EulerDirichletBC(RiemannSolver *rsolver_, const int dim,
                     const double specific_heat_ratio_,
-                    const VectorFunctionCoefficient &dirichletData_,
+                    VectorFunctionCoefficient &dirichletData_,
                     const int IntOrderOffset_)
       : EulerFormIntegrator(rsolver_, dim, specific_heat_ratio_, IntOrderOffset_),
         dirichletData(dirichletData_) {
@@ -1026,7 +1026,7 @@ public:
 
 		// Interpolate e
 		elfun1_mat.MultTranspose(shape1, state1);
-      dirichletData.Eval(state2, Tr, ip);
+      dirichletData.Eval(state2, Tr.GetElement1Transformation(), Tr.GetElement1IntPoint());
 		// elfun2_mat.MultTranspose(shape2, dirichletData);
 
 		// Get the normal vector and the flux on the face
@@ -1034,8 +1034,8 @@ public:
 
       // Calculates F(u+,g) F(u-,g) with the maximum characteristic speed 
 		const double mcs=std::max(
-         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation,fluxN1),
-         ComputeFluxDotN(state2,nor,Tr.GetElement1Transformation,fluxN2)
+         ComputeFluxDotN(state1,nor,Tr.GetElement1Transformation(),fluxN1),
+         ComputeFluxDotN(state2,nor,Tr.GetElement1Transformation(),fluxN2)
          );
       
       /// Calculate the Fhat using Reimann solver
@@ -1045,12 +1045,9 @@ public:
 		max_char_speed=std::max(mcs,max_char_speed);
 
 		fluxN *= ip.weight;
-		for (int k = 0; k < inputData_->num_equation; k++) {
+		for (int k = 0; k <num_equations; k++) {
 			for (int s = 0; s < dof1; s++) {
 				elvect1_mat(s, k) -= fluxN(k) * shape1(s);
-			}
-			for (int s = 0; s < dof2; s++) {
-				elvect2_mat(s, k) += fluxN(k) * shape2(s);
 			}
 		}
 
@@ -1377,6 +1374,6 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
 
    return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
 }
-}
+};
 
 #endif
