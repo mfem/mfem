@@ -30,8 +30,34 @@ const int KnotVector::MaxOrder = 10;
 KnotVector::KnotVector(std::istream &input)
 {
    input >> Order >> NumOfControlPoints;
+   bool spacingFormula = (NumOfControlPoints < 0);
+   NumOfControlPoints = std::abs(NumOfControlPoints);
    knot.Load(input, NumOfControlPoints + Order + 1);
    GetElements();
+
+   if (spacingFormula)
+   {
+      int spacingType, numIntParam, numDoubleParam;
+      input >> spacingType >> numIntParam >> numDoubleParam;
+
+      MFEM_VERIFY(numIntParam >= 0 &&
+                  numDoubleParam >= 0, "Invalid number of parameters in KnotVector");
+
+      Array<int> ipar(numIntParam);
+      Array<double> dpar(numDoubleParam);
+
+      for (int i=0; i<numIntParam; ++i)
+      {
+         input >> ipar[i];
+      }
+
+      for (int i=0; i<numDoubleParam; ++i)
+      {
+         input >> dpar[i];
+      }
+
+      spacing.reset(GetSpacingFunction((SPACING_TYPE) spacingType, ipar, dpar));
+   }
 }
 
 KnotVector::KnotVector(int Order_, int NCP)
@@ -49,6 +75,7 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    NumOfControlPoints = kv.NumOfControlPoints;
    NumOfElements = kv.NumOfElements;
    knot = kv.knot;
+   spacing = kv.spacing;
    // alternatively, re-compute NumOfElements
    // GetElements();
 
@@ -98,6 +125,58 @@ void KnotVector::UniformRefinement(Vector &newknots) const
    }
 }
 
+void KnotVector::Refinement(Vector &newknots)
+{
+   if (spacing)
+   {
+      spacing->SetSize(2 * NumOfElements);
+      Vector s;
+      spacing->EvalAll(s);
+
+      newknots.SetSize(NumOfElements);
+
+      const double k0 = knot(0);
+      const double k1 = knot(knot.Size()-1);
+
+      Array<int> span0(NumOfElements + 1);
+      span0[0] = 0;
+
+      int j = 1;
+      for (int i = 0; i < knot.Size()-1; i++)
+      {
+         if (knot(i) != knot(i+1))
+         {
+            span0[j] = i+1;
+            j++;
+         }
+      }
+
+      MFEM_VERIFY(j == NumOfElements + 1, "bug");
+
+      double s0 = 0.0;
+
+      for (int i=0; i<NumOfElements; ++i)
+      {
+         // Modify existing coarse knots
+         for (j=span0[i]; j<span0[i+1]; ++j)
+         {
+            knot(j) = ((1.0 - s0) * k0) + (s0 * k1);
+         }
+
+         s0 += s[2*i];
+
+         // Define a new knot between the modified coarse knots
+         newknots(i) = ((1.0 - s0) * k0) + (s0 * k1);
+
+         s0 += s[(2*i) + 1];
+      }
+   }
+   else
+   {
+      UniformRefinement(newknots);
+   }
+}
+
 void KnotVector::GetElements()
 {
    NumOfElements = 0;
@@ -125,8 +204,15 @@ void KnotVector::Flip()
 
 void KnotVector::Print(std::ostream &os) const
 {
-   os << Order << ' ' << NumOfControlPoints << ' ';
+   const int outNCP = spacing ? -NumOfControlPoints : NumOfControlPoints;
+   os << Order << ' ' << outNCP << ' ';
+
    knot.Print(os, knot.Size());
+
+   if (spacing)
+   {
+      spacing->Print(os);
+   }
 }
 
 
@@ -704,7 +790,7 @@ void NURBSPatch::UniformRefinement()
    Vector newknots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      kv[dir]->UniformRefinement(newknots);
+      kv[dir]->Refinement(newknots);
       KnotInsert(dir, newknots);
    }
 }
@@ -768,6 +854,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
                                          oldkv.GetNCP() + knot.Size());
    NURBSPatch &newp  = *newpatch;
    KnotVector &newkv = *newp.GetKV(dir);
+
+   newkv.spacing = oldkv.spacing;
 
    int size = oldp.SetLoopDirection(dir);
    if (size != newp.SetLoopDirection(dir))

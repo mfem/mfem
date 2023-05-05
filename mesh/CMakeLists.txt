@@ -22,6 +22,7 @@ set(SRCS
   pyramid.cpp
   quadrilateral.cpp
   segment.cpp
+  spacing.cpp
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
@@ -45,6 +46,7 @@ set(HDRS
   pyramid.hpp
   quadrilateral.hpp
   segment.hpp
+  spacing.hpp
   tetrahedron.hpp
   tmesh.hpp
   triangle.hpp

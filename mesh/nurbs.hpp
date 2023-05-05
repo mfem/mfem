@@ -17,6 +17,7 @@
 #include "../linalg/vector.hpp"
 #include "element.hpp"
 #include "mesh.hpp"
+#include "spacing.hpp"
 #ifdef MFEM_USE_MPI
 #include "../general/communication.hpp"
 #endif
@@ -69,6 +70,7 @@ public:
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
+   void Refinement(Vector &newknots);
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
    /// @note The returned object should be deleted by the caller.
@@ -85,6 +87,8 @@ public:
 
    double &operator[](int i) { return knot(i); }
    const double &operator[](int i) const { return knot(i); }
+
+   std::shared_ptr<SpacingFunction> spacing;
 };
 
 
