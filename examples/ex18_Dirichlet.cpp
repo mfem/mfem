@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
 
 
    // 8.Set Boundary Marker
-   Array<int>  ess_bdr(mesh->bdr_attributes.Max());
+   Array<int>  ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
    euler.addBdrFaceIntegrator(new EulerDirichletBC(u0, ess_bdr));
 
@@ -358,12 +358,17 @@ void EulerMesh(const int problem, const char **mesh_file)
          *mesh_file = "../data/periodic-square-4x4.mesh";
          break;
       case 6:
-         *mesh_file='../data/dirichlet-square.mesh';                 // Load Mesh 
+         *mesh_file="../data/dirichlet-square.mesh";                 // Load Mesh 
          break;
       default:
          throw invalid_argument("Default mesh is undefined");
    }
 }
+
+
+
+
+
 
 // Initial condition
 VectorFunctionCoefficient EulerInitialCondition(const int problem,
@@ -521,7 +526,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(3) = energy; });
    case 6:
       return VectorFunctionCoefficient(4, [](const Vector &x, double t, Vector &y)
-                                       {
+         {
             MFEM_ASSERT(x.Size() == 2, "");        // 2D Euler system 
             const double density = 1+0.2*sin(M_PI*(x(0)+x(1)-t));
             const double velocity_x = 0.7;
@@ -533,7 +538,8 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(1) = density*velocity_x;
             y(2) = density*velocity_y;
             y(3) = energy; });
+
       default:
          throw invalid_argument("Problem Undefined");
    }
-}
+}}
