@@ -55,7 +55,7 @@ void PRefDiffEstimator::ComputeEstimates()
 
    for (int e = 0; e < nelem; e++)
    {
-      int setOrder = p_comp >= 0 ? p_comp : fespace->GetElementOrder(e)+p_comp;
+      int setOrder = p_comp >= 0 ? p_comp : std::max(0, fespace->GetElementOrder(e)+p_comp);
       fespaceComp.SetElementOrder(e, setOrder);
    }
    fespaceComp.Update(false);
