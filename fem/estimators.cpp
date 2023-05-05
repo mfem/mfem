@@ -31,39 +31,94 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
+
+PRefDiffEstimator::PRefDiffEstimator(GridFunction& sol_, int p_comp_)
+   : solution(&sol_), p_comp(p_comp_)
+{ }
+
+void PRefDiffEstimator::ComputeEstimates()
+{
+   const int nelem = solution->FESpace()->GetNE();
+   error_estimates.SetSize(nelem);
+
+   FiniteElementSpace *fespace = solution->FESpace();
+   FiniteElementSpace fespaceComp = FiniteElementSpace(*(solution->FESpace()));
+
+   for (int e = 0; e < nelem; e++)
+   {
+      fespaceComp.SetElementOrder(e, solution->FESpace()->GetElementOrder(e));
+   }
+   fespaceComp.Update(false);
+
+   GridFunction solutionComp(&fespaceComp);
+   solutionComp = *solution;
+
+   for (int e = 0; e < nelem; e++)
+   {
+      int setOrder = p_comp >= 0 ? p_comp : fespace->GetElementOrder(e)+p_comp;
+      fespaceComp.SetElementOrder(e, setOrder);
+   }
+   fespaceComp.Update(false);
+   solutionComp.Update();
+
+   PRefinementTransferOperator Transfer(*fespace, fespaceComp);
+   Transfer.Mult(*solution, solutionComp);
+
+   GridFunctionCoefficient solutionCompCoeff(&solutionComp);
+   solution->ComputeElementL2Errors(solutionCompCoeff, error_estimates);
+
+   total_error = error_estimates.Norml2();
+}
+
 void ProjectionErrorEstimator::ComputeEstimates()
 {
+
    // Gather information and make projection space
    const int nelem = solution.FESpace()->GetNE(); // number of elements
    FiniteElementSpace *fespace = solution.FESpace(); // solution fespace
-   FiniteElementSpace projectionSpace = FiniteElementSpace(
-                                           *fespace); // projection fespace, k-1
+   FiniteElementSpace projectionSpace(*fespace);
    for (int i=0; i<nelem; i++)
    {
-      projectionSpace.SetElementOrder(i, std::max(0,
-                                                  fespace->GetElementOrder(i) - offset)); // update polynomial order
+      projectionSpace.SetElementOrder(
+         i, std::max(0, fespace->GetElementOrder(i) -
+                     offset)); // update polynomial order
+      // out << projectionSpace.GetElementOrder(i) << ", " << fespace->GetElementOrder(i) << "; ";
    }
+   out<<std::endl;
    projectionSpace.Update(false);
+   // out << "space update done" << std::endl;
 
-   // M⁻¹
-   InverseIntegrator elemInvMass(new MassIntegrator());
-   BilinearForm InvMass(&projectionSpace);
-   // InvMass.SetAssemblyLevel(AssemblyLevel::NONE); // matrix-free assembly to avoid memory usage
-   InvMass.AddDomainIntegrator(&elemInvMass);
-   InvMass.Assemble();
-
+   // local mass inverse
+   DenseMatrix invMe;     // auxiliary local mass matrix
+   InverseIntegrator invmi(new VectorMassIntegrator());
+   
    // (u_h, v)
-   LinearForm intSol(&projectionSpace);
-   GridFunctionCoefficient sol_gf(&solution);
-   intSol.AddDomainIntegrator(new DomainLFIntegrator(sol_gf, 2, -1));
-   intSol.Assemble();
+   VectorGridFunctionCoefficient sol_gf(&solution);
+   VectorDomainLFIntegrator int_sol(sol_gf);
 
-   // Apply projection
-   Vector projectedSol_vec(InvMass.Height());
-   InvMass.Mult(intSol, projectedSol_vec);
-   GridFunction projectedSol(&projectionSpace, projectedSol_vec);
+   // Projected Space
+   GridFunction projectedSol(&projectionSpace);
+   Array<int> dofs;
+   Vector loc_proj, rhs;
+   // resize it to the current number of elements
+   for (int i = 0; i < projectionSpace.GetNE(); i++)
+   {
+      int nDofs = projectionSpace.GetFE(i)->GetDof()*projectionSpace.GetVDim();
+      dofs.SetSize(nDofs);
+      projectionSpace.GetElementVDofs(i, dofs);
+      invMe.SetSize(nDofs);
+      invmi.AssembleElementMatrix(*projectionSpace.GetFE(i),
+                                    *projectionSpace.GetElementTransformation(i), invMe);
+      rhs.SetSize(nDofs);
+      int_sol.AssembleRHSElementVect(*projectionSpace.GetFE(i),
+                                       *projectionSpace.GetElementTransformation(i), rhs);
+      loc_proj.SetSize(nDofs);
+      invMe.Mult(rhs, loc_proj);
+      projectedSol.SetSubVector(dofs, loc_proj);
+   }
 
    // Compute errors
+   error_estimates.SetSize(nelem);
    projectedSol.ComputeElementL2Errors(sol_gf, error_estimates);
    total_error = error_estimates.Norml2();
 }

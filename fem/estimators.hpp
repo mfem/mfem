@@ -70,6 +70,57 @@ public:
    virtual const Array<int> &GetAnisotropicFlags() = 0;
 };
 
+class PRefDiffEstimator : public ErrorEstimator
+{
+public:
+
+private:
+   int current_sequence = -1;
+
+   Vector error_estimates;
+
+   double total_error = 0.0;
+
+   int p_comp = -1;
+
+   GridFunction* solution;               ///< Not owned.
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence,
+                  "improper mesh update sequence");
+      return (mesh_sequence > current_sequence);
+   }
+
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new PRefDiffEstimator object for a scalar field.
+       @param sol_        The solution field whose error is to be estimated.
+       @param p_comp_     Comparison order.. if -ve, subtract this from current order
+   */
+   PRefDiffEstimator(GridFunction& sol_, int p_comp_);
+
+   ~PRefDiffEstimator() { };
+
+   /// Get a Vector with all element errors.
+   const Vector& GetLocalErrors() override
+   {
+      if (MeshIsModified())
+      {
+         ComputeEstimates();
+      }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   void Reset() override { current_sequence = -1; };
+
+   virtual double GetTotalError() const override { return total_error; }
+};
+
 /**
  * @brief Highest
  *
@@ -115,54 +166,7 @@ public:
    {
       if (FESpaceIsModified())
       {
-         // Gather information and make projection space
-         const int nelem = solution.FESpace()->GetNE(); // number of elements
-         FiniteElementSpace *fespace = solution.FESpace(); // solution fespace
-         FiniteElementSpace projectionSpace(*fespace);
-         for (int i=0; i<nelem; i++)
-         {
-            projectionSpace.SetElementOrder(
-               i, std::max(0, fespace->GetElementOrder(i) -
-                           offset)); // update polynomial order
-            // out << projectionSpace.GetElementOrder(i) << ", " << fespace->GetElementOrder(i) << "; ";
-         }
-         out<<std::endl;
-         projectionSpace.Update(false);
-         // out << "space update done" << std::endl;
-
-         // local mass inverse
-         DenseMatrix invMe;     // auxiliary local mass matrix
-         InverseIntegrator invmi(new VectorMassIntegrator());
-
-         // (u_h, v)
-         VectorGridFunctionCoefficient sol_gf(&solution);
-         VectorDomainLFIntegrator int_sol(sol_gf);
-         
-         // Projected Space
-         GridFunction projectedSol(&projectionSpace);
-         Array<int> dofs;
-         Vector loc_proj, rhs;
-         // resize it to the current number of elements
-         for (int i = 0; i < projectionSpace.GetNE(); i++)
-         {
-            int nDofs = projectionSpace.GetFE(i)->GetDof()*projectionSpace.GetVDim();
-            dofs.SetSize(nDofs);
-            projectionSpace.GetElementVDofs(i, dofs);
-            invMe.SetSize(nDofs);
-            invmi.AssembleElementMatrix(*projectionSpace.GetFE(i),
-                                        *projectionSpace.GetElementTransformation(i), invMe);
-            rhs.SetSize(nDofs);
-            int_sol.AssembleRHSElementVect(*projectionSpace.GetFE(i),
-                                           *projectionSpace.GetElementTransformation(i), rhs);
-            loc_proj.SetSize(nDofs);
-            invMe.Mult(rhs, loc_proj);
-            projectedSol.SetSubVector(dofs, loc_proj);
-         }
-
-         // Compute errors
-         error_estimates.SetSize(nelem);
-         projectedSol.ComputeElementL2Errors(sol_gf, error_estimates);
-         total_error = error_estimates.Norml2();
+         ComputeEstimates();
       }
       return error_estimates;
    }
