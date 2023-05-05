@@ -531,4 +531,3 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
       throw invalid_argument("Problem Undefined");
    }
 }
-}
