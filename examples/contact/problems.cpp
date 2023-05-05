@@ -33,9 +33,16 @@ OptProblem::~OptProblem()
 // min E(d) s.t. g(d) >= 0
 // min_(d,s) E(d) s.t. c(d,s) := g(d) - s = 0, s >= 0
 
-ContactProblem::ContactProblem(int dimd) : OptProblem(), dimD(dimd), block_offsetsx(3)
+ContactProblem::ContactProblem(int dimd, int dimg) : OptProblem(), dimD(dimd), dimS(dimg), block_offsetsx(3)
 {
-  dimU    = dimD;
+  dimU = dimD;
+  dimM = dimS;
+  dimC = dimS;
+  block_offsetsx[0] = 0;
+  block_offsetsx[1] = dimU;
+  block_offsetsx[2] = dimM;
+  block_offsetsx.PartialSum();
+  ml.SetSize(dimM); ml = 0.0;
 }
 
 double ContactProblem::CalcObjective(const BlockVector &x) const { return E(x.GetBlock(0)); }
@@ -72,7 +79,7 @@ ContactProblem::~ContactProblem() {}
 
 
 
-ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem(fes->GetTrueVSize()), Vh(fes), f(dimD)
+ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem(fes->GetTrueVSize(), fes->GetTrueVSize()), Vh(fes), f(dimD)
 {
   Kform = new BilinearForm(Vh);
   Kform->AddDomainIntegrator(new MassIntegrator);
@@ -86,18 +93,6 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
   fform->Assemble();
   f.Set(1.0, *fform);
-
-  dimS = dimD;
-  
-  /* ---- boiler plate code ---- */
-  dimM = dimS;
-  dimC = dimS;
-  block_offsetsx[0] = 0;
-  block_offsetsx[1] = dimU;
-  block_offsetsx[2] = dimM;
-  block_offsetsx.PartialSum();
-  ml.SetSize(dimM); ml = 0.0;
-  /* ---- end boiler plate ---- */
 }
 
 double ObstacleProblem::E(const Vector &d) const
@@ -138,50 +133,50 @@ ObstacleProblem::~ObstacleProblem()
 
 
 
-QPContactExample::QPContactExample(SparseMatrix *Kin, SparseMatrix *Jin, Vector *fin) : 
-ContactProblem(Kin->Height()), K(Kin), J(Jin), f(fin) { 
-  dimD = J->Width();
-  dimS = J->Height();
-  /* ---- boiler plate code ---- */
-  dimM = dimS;
-  dimC = dimS;
-  block_offsetsx[0] = 0;
-  block_offsetsx[1] = dimU;
-  block_offsetsx[2] = dimM;
-  block_offsetsx.PartialSum();
-  ml.SetSize(dimM); ml = 0.0;
-  /* ---- end boiler plate ---- */
-}
-
-double QPContactExample::E(const Vector &d) const
-{
-  Vector Kd(dimD); Kd = 0.0;
-  K->Mult(d, Kd);
-  return 0.5 * InnerProduct(d, Kd) + InnerProduct(*f, d);
-}
-
-void QPContactExample::DdE(const Vector &d, Vector &gradE) const
-{
-  K->Mult(d, gradE);
-  gradE.Add(1.0, *f);
-}
-
-SparseMatrix* QPContactExample::DddE(const Vector &d)
-{
-  return new SparseMatrix(*K); 
-}
-
-// g(d) = J d >= 0
-void QPContactExample::g(const Vector &d, Vector &gd) const
-{
-  J->Mult(d, gd);
-}
-
-SparseMatrix* QPContactExample::Ddg(const Vector &d)
-{
-  return new SparseMatrix(*J);
-}
-
-QPContactExample::~QPContactExample() {}
+//QPContactExample::QPContactExample(SparseMatrix *Kin, SparseMatrix *Jin, Vector *fin) : 
+//ContactProblem(Kin->Height()), K(Kin), J(Jin), f(fin) { 
+//  dimD = J->Width();
+//  dimS = J->Height();
+//  /* ---- boiler plate code ---- */
+//  dimM = dimS;
+//  dimC = dimS;
+//  block_offsetsx[0] = 0;
+//  block_offsetsx[1] = dimU;
+//  block_offsetsx[2] = dimM;
+//  block_offsetsx.PartialSum();
+//  ml.SetSize(dimM); ml = 0.0;
+//  /* ---- end boiler plate ---- */
+//}
+//
+//double QPContactExample::E(const Vector &d) const
+//{
+//  Vector Kd(dimD); Kd = 0.0;
+//  K->Mult(d, Kd);
+//  return 0.5 * InnerProduct(d, Kd) + InnerProduct(*f, d);
+//}
+//
+//void QPContactExample::DdE(const Vector &d, Vector &gradE) const
+//{
+//  K->Mult(d, gradE);
+//  gradE.Add(1.0, *f);
+//}
+//
+//SparseMatrix* QPContactExample::DddE(const Vector &d)
+//{
+//  return new SparseMatrix(*K); 
+//}
+//
+//// g(d) = J d >= 0
+//void QPContactExample::g(const Vector &d, Vector &gd) const
+//{
+//  J->Mult(d, gd);
+//}
+//
+//SparseMatrix* QPContactExample::Ddg(const Vector &d)
+//{
+//  return new SparseMatrix(*J);
+//}
+//
+//QPContactExample::~QPContactExample() {}
 
 
