@@ -119,7 +119,8 @@ void ProjectionErrorEstimator::ComputeEstimates()
 
    // Compute errors
    error_estimates.SetSize(nelem);
-   projectedSol.ComputeElementL2Errors(sol_gf, error_estimates);
+   GridFunctionCoefficient proj_gf(&projectedSol);
+   solution.ComputeElementL2Errors(proj_gf, error_estimates);
    total_error = error_estimates.Norml2();
 }
 
