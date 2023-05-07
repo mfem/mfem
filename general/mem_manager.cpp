@@ -22,6 +22,7 @@
 //#define _aligned_malloc(s,a) malloc(s)
 
 #ifndef _WIN32
+#include <cstdint>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/mman.h>

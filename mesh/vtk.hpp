@@ -15,6 +15,8 @@
 #include "../fem/geom.hpp"
 #include "../general/binaryio.hpp"
 
+#include <cstdint>
+
 namespace mfem
 {
 

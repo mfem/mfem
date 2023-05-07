@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "array.hpp"
 #include "globals.hpp"
+#include <cstdint>
 #include <type_traits>
 
 namespace mfem
