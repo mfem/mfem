@@ -26,7 +26,7 @@
 //
 // Compile with: make ext-mesh-mapping
 //
-// Sample runs:   mpirun -np 4 ext_mesh_mapping
+// Sample runs:   mpirun -np 4 ext-mesh-mapping
 
 #include "mfem.hpp"
 #include "ext-mesh-mapping.hpp"
