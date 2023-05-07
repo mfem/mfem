@@ -828,6 +828,7 @@ void BilinearForm::AssembleInteriorFaceIntegrators(int skip_zeros)
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
          {
+	   vdofs.DeleteAll();
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
             fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
 	    vdofs.Append (vdofs2);
