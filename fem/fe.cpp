@@ -48,4 +48,4 @@ LinearPyramidFiniteElement PyramidFE;
 // PyramidFE.
 Geometry Geometries;
 
-} // namespace mfem
+}
