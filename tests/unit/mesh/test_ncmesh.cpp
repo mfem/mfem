@@ -297,6 +297,108 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 
 } // test case
 
+namespace {
+   // Helper functions for testing with
+
+// Given a parallel and a serial mesh, perform an L2 projection and check the
+// solutions match exactly.
+void CheckL2Projection(std::function<double(const Vector&)> exact_soln, ParMesh& pmesh, Mesh& smesh, int order)
+{
+   REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
+   REQUIRE(pmesh.Dimension() == smesh.Dimension());
+   REQUIRE(pmesh.SpaceDimension() == smesh.SpaceDimension());
+
+   // Make an H1 space, then a mass matrix operator and invert it.
+   // If all non-conformal constraints have been conveyed correctly, the
+   // resulting DOF should match exactly on the serial and the parallel
+   // solution.
+
+   H1_FECollection fec(order, smesh.Dimension());
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient rhs_coef(exact_soln);
+
+   constexpr double linear_tol = 1e-16;
+
+   // serial solve
+   auto serror = [&]
+   {
+      FiniteElementSpace fes(&smesh, &fec);
+      // solution vectors
+      GridFunction x(&fes);
+      x = 0.0;
+
+      LinearForm b(&fes);
+      b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
+      b.Assemble();
+
+      BilinearForm a(&fes);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.Assemble();
+
+      SparseMatrix A;
+      Vector B, X;
+
+      Array<int> empty_tdof_list;
+      a.FormLinearSystem(empty_tdof_list, x, b, A, X, B);
+
+#ifndef MFEM_USE_SUITESPARSE
+      // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+      //    solve the system AX=B with PCG.
+      GSSmoother M(A);
+      PCG(A, M, B, X, -1, 500, linear_tol, 0.0);
+#else
+      // 9. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(A);
+      umf_solver.Mult(B, X);
+#endif
+
+      a.RecoverFEMSolution(X, b, x);
+      return x.ComputeL2Error(rhs_coef);
+   }();
+
+   auto perror = [&]
+   {
+      // parallel solve
+      ParFiniteElementSpace fes(&pmesh, &fec);
+      ParLinearForm b(&fes);
+
+      ParGridFunction x(&fes);
+      x = 0.0;
+
+      b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
+      b.Assemble();
+
+      ParBilinearForm a(&fes);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.Assemble();
+
+      HypreParMatrix A;
+      Vector B, X;
+      Array<int> empty_tdof_list;
+      a.FormLinearSystem(empty_tdof_list, x, b, A, X, B);
+
+      HypreBoomerAMG amg(A);
+      HyprePCG pcg(A);
+      amg.SetPrintLevel(-1);
+      pcg.SetTol(linear_tol);
+      pcg.SetMaxIter(500);
+      pcg.SetPrintLevel(-1);
+      pcg.SetPreconditioner(amg);
+      pcg.Mult(B, X);
+      a.RecoverFEMSolution(X, b, x);
+      return x.ComputeL2Error(rhs_coef);
+   }();
+
+      constexpr double test_tol = 1e-9;
+      CHECK(std::abs(serror - perror) < test_tol);
+
+   };
+
+}
+
+
 TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
 {
    constexpr int refining_rank = 0;
@@ -319,103 +421,6 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
       d -= x;
       return std::sin(d * d);
-   };
-
-   // Given a parallel and a serial mesh, perform an L2 projection and check the
-   // solutions match exactly.
-   auto check_l2_projection = [&exact_soln](ParMesh& pmesh, Mesh& smesh, int order)
-   {
-
-      REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
-      REQUIRE(pmesh.Dimension() == smesh.Dimension());
-      REQUIRE(pmesh.SpaceDimension() == smesh.SpaceDimension());
-
-      // Make an H1 space, then a mass matrix operator and invert it.
-      // If all non-conformal constraints have been conveyed correctly, the
-      // resulting DOF should match exactly on the serial and the parallel
-      // solution.
-
-      H1_FECollection fec(order, smesh.Dimension());
-      ConstantCoefficient one(1.0);
-      FunctionCoefficient rhs_coef(exact_soln);
-
-      constexpr double linear_tol = 1e-16;
-
-      // serial solve
-      auto serror = [&]
-      {
-         FiniteElementSpace fes(&smesh, &fec);
-         // solution vectors
-         GridFunction x(&fes);
-         x = 0.0;
-
-         LinearForm b(&fes);
-         b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
-         b.Assemble();
-
-         BilinearForm a(&fes);
-         a.AddDomainIntegrator(new MassIntegrator(one));
-         a.Assemble();
-
-         SparseMatrix A;
-         Vector B, X;
-
-         Array<int> empty_tdof_list;
-         a.FormLinearSystem(empty_tdof_list, x, b, A, X, B);
-
-#ifndef MFEM_USE_SUITESPARSE
-         // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-         //    solve the system AX=B with PCG.
-         GSSmoother M(A);
-         PCG(A, M, B, X, -1, 500, linear_tol, 0.0);
-#else
-         // 9. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(A);
-         umf_solver.Mult(B, X);
-#endif
-
-         a.RecoverFEMSolution(X, b, x);
-         return x.ComputeL2Error(rhs_coef);
-      }();
-
-      auto perror = [&]
-      {
-         // parallel solve
-         ParFiniteElementSpace fes(&pmesh, &fec);
-         ParLinearForm b(&fes);
-
-         ParGridFunction x(&fes);
-         x = 0.0;
-
-         b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
-         b.Assemble();
-
-         ParBilinearForm a(&fes);
-         a.AddDomainIntegrator(new MassIntegrator(one));
-         a.Assemble();
-
-         HypreParMatrix A;
-         Vector B, X;
-         Array<int> empty_tdof_list;
-         a.FormLinearSystem(empty_tdof_list, x, b, A, X, B);
-
-         HypreBoomerAMG amg(A);
-         HyprePCG pcg(A);
-         amg.SetPrintLevel(-1);
-         pcg.SetTol(linear_tol);
-         pcg.SetMaxIter(500);
-         pcg.SetPrintLevel(-1);
-         pcg.SetPreconditioner(amg);
-         pcg.Mult(B, X);
-         a.RecoverFEMSolution(X, b, x);
-         return x.ComputeL2Error(rhs_coef);
-      }();
-
-      constexpr double test_tol = 1e-9;
-      CHECK(std::abs(serror - perror) < test_tol);
-
    };
 
    REQUIRE(smesh.GetNE() == 2);
@@ -510,14 +515,135 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       }
 
       // Use P4 to ensure there's a few fully interior DOF.
-      check_l2_projection(ttmp, sttmp, 4);
+      CheckL2Projection(exact_soln, ttmp, sttmp, 4);
 
       ttmp.ExchangeFaceNbrData();
       ttmp.Rebalance();
 
-      check_l2_projection(ttmp, sttmp, 4);
+      CheckL2Projection(exact_soln, ttmp, sttmp, 4);
    }
 } // test case
+
+TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
+{
+   /*
+      This test aims to demonstrate the fix for the case of calling
+      `GetFaceNbrElementVDofs` on a nonconformal ParMesh. When calling
+      GetVectorValue on a face neighbor element, GetVectorValue will fail for an
+      NC mesh, as the required structures were not populated in the nonconformal
+      branch of ExchangeFaceNbrData, only within the conformal branch.
+   */
+
+   constexpr int refining_rank = 0;
+   auto smesh = Mesh("../../../data/beam-tet.mesh");
+
+   auto vector_exact_soln = [](const Vector& x, Vector& v)
+   {
+      // Vector d(3);
+      // d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      // d -= x;
+      v[0] = x[0];
+      v[1] = x[1];
+      v[2] = x[2];
+   };
+
+   smesh.EnsureNCMesh(true);
+   smesh.Finalize();
+
+   auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
+
+   // Create a grid function of the mesh coordinates
+   pmesh.EnsureNodes();
+   REQUIRE(pmesh.OwnsNodes());
+   const auto * const coords = pmesh.GetNodes();
+
+   // Project the linear function onto the mesh. quadratic ND elements ensures
+   // it is recovered exactly.
+   const int order = 2, dim = 3;
+   ND_FECollection nd_fec(order, dim);
+   // FiniteElementSpace nd_fes(&smesh, &nd_fec);
+   ParFiniteElementSpace pnd_fes(&pmesh, &nd_fec);
+
+   ParGridFunction psol(&pnd_fes);
+
+   VectorFunctionCoefficient func(3, vector_exact_soln);
+   psol.ProjectCoefficient(func);
+
+   psol.ExchangeFaceNbrData();
+
+   Array<int> pvdofs;
+   DofTransformation *ptrans;
+
+   mfem::Vector value(3), exact(3), position(3);
+
+   const IntegrationRule &ir = mfem::IntRules.Get(Geometry::Type::TETRAHEDRON, order + 1);
+
+   // Check that non-ghost elements match up on the serial and parallel spaces.
+   for (int n = 0; n < pmesh.GetNE(); ++n)
+   {
+      constexpr double tol = 1e-12;
+      for (const auto &ip : ir)
+      {
+         coords->GetVectorValue(n, ip, position);
+
+         psol.GetVectorValue(n, ip, value);
+
+         vector_exact_soln(position, exact);
+
+         CHECK((value -= exact).Normlinf() < tol);
+      }
+   }
+
+   // Loop over face neighbor elements and check the vector values match in the
+   // face neighbor space.
+   for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
+   {
+      const int face_index = pmesh.GetSharedFace(n);
+      const auto &face_info = pmesh.GetFaceInformation(face_index);
+      REQUIRE(face_info.IsShared());
+      REQUIRE(face_info.IsConforming());
+      REQUIRE(face_info.element[1].location == Mesh::ElementLocation::FaceNbr);
+
+      auto &T = *pmesh.GetFaceNbrElementTransformation(face_info.element[1].index);
+
+      constexpr double tol = 1e-12;
+      for (const auto &ip : ir)
+      {
+         T.SetIntPoint(&ip);
+         coords->GetVectorValue(T, ip, position);
+         psol.GetVectorValue(T, ip, value);
+
+         vector_exact_soln(position, exact);
+
+         CHECK((value -= exact).Normlinf() < tol);
+      }
+   }
+
+   // if (Mpi::WorldRank() == 0)
+   // {
+   //    const int n_nbr = 0;
+   //    strans = nd_fes.GetElementVDofs(1, svdofs);
+   //    ptrans = pnd_fes.GetFaceNbrElementVDofs(0, pvdofs);
+
+   //    REQUIRE(svdofs.Size() == pvdofs.Size());
+
+   //    // const auto &sorient = strans->GetFaceOrientations();
+   //    // const auto &porient = ptrans->GetFaceOrientations();
+   //    // for (int o = 0; o < 4; ++o)
+   //    // {
+   //    //    std::cout << "sorient[" << o << "] " << sorient[o] << '\n';
+   //    //    CHECK(sorient[o] == porient[o]);
+   //    // }
+
+   //    constexpr double tol = 1e-12;
+   //    for (const auto &ip : ir)
+   //    {
+   //       sol.GetVectorValue(1, ip, sval);
+   //       psol.GetVectorValue(1, ip, pval);
+   //       CHECK((pval -= sval).Normlinf() < tol);
+   //    }
+   // }
+}
 
 
 #endif // MFEM_USE_MPI
