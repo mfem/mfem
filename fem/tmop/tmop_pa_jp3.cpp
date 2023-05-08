@@ -81,7 +81,7 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
-   constexpr int DIM = 2;
+   constexpr int DIM = 3;
    const auto B = Reshape(maps.B.Read(), Q1D, D1D);
    const auto G = Reshape(maps.G.Read(), Q1D, D1D);
    const auto XE = Reshape(xe.Read(), D1D, D1D, D1D, DIM, NE);
