@@ -193,18 +193,33 @@ bool HiopOptimizationProblem::get_vecdistrib_info(size_type global_n,
 #endif
 }
 
+void HiopOptimizationProblem::solution_callback(hiop::hiopSolveStatus status,
+                                                hiop::size_type n,
+                                                const double *x,
+                                                const double *z_L,
+                                                const double *z_U,
+                                                hiop::size_type m,
+                                                const double *g,
+                                                const double *lambda,
+                                                double obj_value)
+{
+   auto hp = dynamic_cast<const HiOpProblem *>(&problem);
+   if (!hp) { return; }
+   hp->SolutionCallback(status, n, x, z_L, z_U, m, g, lambda, obj_value);
+}
+
 bool HiopOptimizationProblem::iterate_callback(int iter,
                                                double obj_value,
                                                double logbar_obj_value,
                                                int n,
-                                               const double* x,
-                                               const double* z_L,
-                                               const double* z_U,
+                                               const double *x,
+                                               const double *z_L,
+                                               const double *z_U,
                                                int m_ineq,
-                                               const double* s,
+                                               const double *s,
                                                int m,
-                                               const double* g,
-                                               const double* lambda,
+                                               const double *g,
+                                               const double *lambda,
                                                double inf_pr,
                                                double inf_du,
                                                double onenorm_pr_,
