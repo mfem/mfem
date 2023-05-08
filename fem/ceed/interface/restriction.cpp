@@ -214,7 +214,7 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
    mfem::Vector el_trans_j;
    mfem::DofTransformation *dof_trans = use_bdr ? fes.GetBdrElementDofs(i0, dofs) :
                                         fes.GetElementDofs(i0, dofs);
-   if (!dof_trans)
+   if (!dof_trans || dof_trans->IsEmpty())
    {
       tp_el_orients.SetSize(nelem * P);
    }
@@ -235,7 +235,7 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
       {
          dof_trans = fes.GetElementDofs(elem_index, dofs);
       }
-      if (!dof_trans)
+      if (!dof_trans || dof_trans->IsEmpty())
       {
          for (int j = 0; j < P; j++)
          {
@@ -375,16 +375,16 @@ void InitRestriction(const FiniteElementSpace &fes,
                         "restriction.");
             InitLexicoRestr(fes, use_bdr, nelem, ceed, restr);
          }
-         else if (dof_trans)
+         else if (!dof_trans || dof_trans->IsEmpty())
+         {
+            // Native ordering without dof_trans
+            InitNativeRestr(fes, use_bdr, nelem, ceed, restr);
+         }
+         else
          {
             // Native ordering with dof_trans
             InitNativeRestrWithIndices(fes, use_bdr, false, nelem, nullptr,
                                        ceed, restr);
-         }
-         else
-         {
-            // Native ordering without dof_trans
-            InitNativeRestr(fes, use_bdr, nelem, ceed, restr);
          }
       }
       mfem::internal::ceed_restr_map[restr_key] = *restr;
@@ -465,16 +465,16 @@ void InitInterpolatorRestrictions(const FiniteElementSpace &trial_fes,
                            "restriction.");
                InitLexicoRestr(fes, false, nelem, ceed, restr);
             }
-            else if (dof_trans)
+            else if (!dof_trans || dof_trans->IsEmpty())
+            {
+               // Native ordering without dof_trans
+               InitNativeRestr(fes, false, nelem, ceed, restr);
+            }
+            else
             {
                // Native ordering with dof_trans
                InitNativeRestrWithIndices(fes, false, (s > 0), nelem, nullptr,
                                           ceed, restr);
-            }
-            else
-            {
-               // Native ordering without dof_trans
-               InitNativeRestr(fes, false, nelem, ceed, restr);
             }
          }
          mfem::internal::ceed_restr_map[restr_key] = *restr;
