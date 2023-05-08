@@ -46,6 +46,10 @@ int main(int argc, char *argv[])
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
+   bool rbf = false;
+   double rbf_h = 2.01;
+   int rbf_type = 6;
+   int rbf_order = -1;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -62,6 +66,7 @@ int main(int argc, char *argv[])
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
+   args.AddOption(&rbf, "-rbf", "--rbf", "-no-rbf", "--no-rbf", "Use radial basis functions");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -104,7 +109,15 @@ int main(int argc, char *argv[])
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if (rbf)
+   {
+      fec = new KernelFECollection(dim, order, rbf_h, rbf_type, 2, rbf_order);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 

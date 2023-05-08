@@ -12,6 +12,9 @@
 // Radial basis function classes
 
 #include "fe_rbf.hpp"
+#include "../bilininteg.hpp"
+#include "../lininteg.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {
@@ -500,8 +503,8 @@ void RBFFiniteElement::GetCompactIndices(const Vector &ip,
    // Should work for any Lp norm, as the regions are assumed to be square
    for (int d = 0; d < dim; ++d)
    {
-      indices[d][0] = max(int(ceil((ip(d) - radPhys) / delta)), 0);
-      indices[d][1] = min(int(floor((ip(d) + radPhys) / delta)), numPointsD - 1);
+      indices[d][0] = std::max(int(ceil((ip(d) - radPhys) / delta)), 0);
+      indices[d][1] = std::min(int(floor((ip(d) + radPhys) / delta)), numPointsD - 1);
    }
 
    // Fill remainder of indices with zeros so we don't have to specialize dim

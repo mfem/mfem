@@ -1028,9 +1028,6 @@ private:
 
    static Array2D<int> binom;
 
-   static void CalcMono(const int p, const double x, double *u);
-   static void CalcMono(const int p, const double x, double *u, double *d);
-
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
    static void CalcChebyshev(const int p, const double x, double *u, double *d,
@@ -1166,6 +1163,9 @@ public:
 
    static void CalcLegendre(const int p, const double x, double *u);
    static void CalcLegendre(const int p, const double x, double *u, double *d);
+
+   static void CalcMono(const int p, const double x, double *u);
+   static void CalcMono(const int p, const double x, double *u, double *d);
 
    ~Poly_1D();
 };
