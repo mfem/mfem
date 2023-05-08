@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,11 +13,10 @@ SHELL = /bin/bash
 MFEM_DIR ?= ..
 DOXYGEN_CONF = CodeDocumentation.conf
 
-
 # doxygen uses: graphviz, latex
 html: $(DOXYGEN_CONF)
 	@# Generate the html documentation
-	@doxygen $(DOXYGEN_CONF)
+	@( cat $(DOXYGEN_CONF) ; echo "$(MFEM_DOXYGEN_FLAGS)" ) | doxygen -
 	@echo "<meta http-equiv=\"REFRESH\" content=\"0;URL=CodeDocumentation/html/index.html\">" > CodeDocumentation.html
 	@cat warnings.log 1>&2
 	@# Generate the log of undocumented methods
@@ -30,4 +29,3 @@ clean:
 $(DOXYGEN_CONF): $(MFEM_DIR)/doc/$(DOXYGEN_CONF).in
 	@sed -e 's%@MFEM_SOURCE_DIR@%$(MFEM_DIR)%g' $(<) \
 	  > $(DOXYGEN_CONF)
-

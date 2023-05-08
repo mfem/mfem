@@ -55,11 +55,11 @@ double freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-hex.mesh";
@@ -94,7 +94,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -141,7 +140,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use Nedelec or Raviart-Thomas finite elements of the specified order.
@@ -167,8 +165,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace trial_fes(pmesh, trial_fec);
    ParFiniteElementSpace test_fes(pmesh, test_fec);
 
-   HYPRE_Int trial_size = trial_fes.GlobalTrueVSize();
-   HYPRE_Int test_size = test_fes.GlobalTrueVSize();
+   HYPRE_BigInt trial_size = trial_fes.GlobalTrueVSize();
+   HYPRE_BigInt test_size = test_fes.GlobalTrueVSize();
 
    if (myid == 0)
    {
@@ -439,8 +437,6 @@ int main(int argc, char *argv[])
    delete trial_fec;
    delete test_fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,11 +27,12 @@ namespace mfem
 /// Class for parallel bilinear form
 class ParBilinearForm : public BilinearForm
 {
+   friend FABilinearFormExtension;
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
-   /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
+   /// Auxiliary vectors used in TrueAddMult(): L-, L-, and T-vector, resp.
+   mutable Vector Xaux, Yaux, Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 
@@ -76,7 +77,7 @@ public:
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
-       using AssemblyLevel::FULL. */
+       using AssemblyLevel::LEGACY. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)
@@ -89,6 +90,17 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+       @a diag is a true-dof Vector.
+
+       When the AssemblyLevel is not LEGACY, and the mesh is nonconforming,
+       this method returns |P^T| d_l, where d_l is the local diagonal of the
+       form before applying parallel/conforming assembly, P^T is the transpose
+       of the parallel/conforming prolongation, and |.| denotes the entry-wise
+       absolute value. In general, this is just an approximation of the exact
+       diagonal for this case. */
+   virtual void AssembleDiagonal(Vector &diag) const;
+
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
@@ -100,6 +112,17 @@ public:
    /// Return the matrix @a m assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+
+   /** @brief Compute parallel RAP operator and store it in @a A as a HypreParMatrix.
+
+       @param[in] loc_A The rank-local `SparseMatrix`.
+       @param[out] A The `OperatorHandle` containing the global `HypreParMatrix`.
+       @param[in] steal_loc_A Have the `HypreParMatrix` in @a A take ownership of
+                              the memory objects in @a loc_A.
+       */
+   void ParallelRAP(SparseMatrix &loc_A,
+                    OperatorHandle &A,
+                    bool steal_loc_A = false);
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P^t A_local P, in the format (type id) specified by @a A. */
@@ -160,6 +183,9 @@ public:
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return pfes->GetProlongationMatrix(); }
+   /// Get the transpose of GetRestriction, useful for matrix-free RAP
+   virtual const Operator *GetRestrictionTranspose() const
+   { return pfes->GetRestrictionTransposeOperator(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
@@ -181,6 +207,8 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
+   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
+
    virtual ~ParBilinearForm() { }
 };
 
@@ -193,7 +221,7 @@ protected:
    /// Points to the same object as #test_fes
    ParFiniteElementSpace *test_pfes;
    /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
+   mutable ParGridFunction Xaux, Yaux;
 
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;
@@ -245,6 +273,9 @@ public:
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
+
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+   using MixedBilinearForm::FormRectangularLinearSystem;
 
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
@@ -301,9 +332,19 @@ public:
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
 
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = R_test A_local P_trial, in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A);
+
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
 
    virtual ~ParDiscreteLinearOperator() { }
 };

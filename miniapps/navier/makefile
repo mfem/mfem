@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,10 +21,14 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-NAVIER_COMMON_SRC = navier_solver.cpp ortho_solver.cpp
+NAVIER_COMMON_SRC = navier_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = navier_mms navier_kovasznay navier_tgv navier_shear navier_3dfoc
+PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
+ navier_shear navier_3dfoc navier_turbchan
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += navier_cht
+endif
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -40,8 +44,8 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(NAVIER_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(NAVIER_COMMON_OBJ) $(MFEM_LIBS)
+%: %.o $(NAVIER_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@

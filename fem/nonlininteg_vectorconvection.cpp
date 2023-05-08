@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "nonlininteg.hpp"
+#include "ceed/integrators/nlconvection/nlconvection.hpp"
 
 using namespace std;
 
@@ -24,6 +25,21 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation &T = *mesh->GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   if (DeviceCanUseCeed())
+   {
+      delete ceedOp;
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAVectorConvectionNLIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::PAVectorConvectionNLFIntegrator(fes, *ir, Q);
+      }
+      return;
+   }
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -48,7 +64,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       auto J = Reshape(geom->J.Read(), NQ, 2, 2, NE);
       auto G = Reshape(pa_data.Write(), NQ, 2, 2, NE);
-      MFEM_FORALL(e, NE,
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
          {
@@ -68,7 +84,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       auto J = Reshape(geom->J.Read(), NQ, 3, 3, NE);
       auto G = Reshape(pa_data.Write(), NQ, 3, 3, NE);
-      MFEM_FORALL(e, NE,
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
          {
@@ -129,7 +145,7 @@ static void PAConvectionNLApply2D(const int NE,
    auto Q = Reshape(q_.Read(), Q1D * Q1D, 2, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, 2, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -268,7 +284,7 @@ static void PAConvectionNLApply3D(const int NE,
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -574,7 +590,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -791,26 +807,33 @@ static void SmemPAConvectionNLApply3D(const int NE,
 
 void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   const int NE = ne;
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
-   const Vector &Q = pa_data;
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
-   const Array<double> &Bt = maps->Bt;
-   if (dim == 2)
+   if (DeviceCanUseCeed())
    {
-      return PAConvectionNLApply2D(NE, B, G, Bt, Q, x, y, D1D, Q1D);
+      ceedOp->AddMult(x, y);
    }
-   if (dim == 3)
+   else
    {
-      constexpr int T_MAX_D1D = 8;
-      constexpr int T_MAX_Q1D = 8;
-      MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
-      return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
-             (NE, B, G, Q, x, y, D1D, Q1D);
+      const int NE = ne;
+      const int D1D = maps->ndof;
+      const int Q1D = maps->nqpt;
+      const Vector &QV = pa_data;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Array<double> &Bt = maps->Bt;
+      if (dim == 2)
+      {
+         return PAConvectionNLApply2D(NE, B, G, Bt, QV, x, y, D1D, Q1D);
+      }
+      if (dim == 3)
+      {
+         constexpr int T_MAX_D1D = 8;
+         constexpr int T_MAX_Q1D = 8;
+         MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
+         return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
+                (NE, B, G, QV, x, y, D1D, Q1D);
+      }
+      MFEM_ABORT("Not yet implemented!");
    }
-   MFEM_ABORT("Not yet implemented!");
 }
 
 } // namespace mfem

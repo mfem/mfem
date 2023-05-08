@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,9 @@
 #include "../config/config.hpp"
 #include <iomanip>
 #include <sstream>
+#ifdef MFEM_USE_HIP
+#include <hip/hip_runtime.h>
+#endif
 
 namespace mfem
 {
@@ -58,6 +61,10 @@ void mfem_error(const char *msg = NULL);
 /// Function called by the macro MFEM_WARNING.
 void mfem_warning(const char *msg = NULL);
 
+#ifdef MFEM_USE_ENZYME
+static void* __enzyme_inactive_global_err = (void*)mfem_error;
+static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
+#endif
 }
 
 #ifndef _MFEM_FUNC_NAME
@@ -110,7 +117,7 @@ void mfem_warning(const char *msg = NULL);
 //   MFEM_CONTRACT_VAR(err);
 //   MFEM_ASSERT( err == 0, "MPI_Reduce gave an error with length "
 //                       << ldata );
-#define MFEM_CONTRACT_VAR(x) if (false && (&x)+1){}
+#define MFEM_CONTRACT_VAR(x) (void)(x)
 
 // Now set up some optional checks, but only if the right flags are on
 #ifdef MFEM_DEBUG
@@ -144,15 +151,59 @@ void mfem_warning(const char *msg = NULL);
    "invalid index " #i << " = " << (i) << \
    ", valid range is [" << (imin) << ',' << (imax) << ')')
 
+
+// Additional abort functions for HIP
+#if defined(MFEM_USE_HIP)
+template<typename T>
+__host__ void abort_msg(T & msg)
+{
+   MFEM_ABORT(msg);
+}
+
+template<typename T>
+__device__ void abort_msg(T & msg)
+{
+   abort();
+}
+#endif
+
 // Abort inside a device kernel
 #if defined(__CUDA_ARCH__)
-#define MFEM_ABORT_KERNEL(msg) \
+#define MFEM_ABORT_KERNEL(...) \
    {                           \
-      printf(msg);             \
+      printf(__VA_ARGS__);     \
       asm("trap;");            \
    }
+#elif defined(MFEM_USE_HIP)
+#define MFEM_ABORT_KERNEL(...) \
+   {                           \
+      printf(__VA_ARGS__);     \
+      abort_msg("");           \
+   }
 #else
-#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#define MFEM_ABORT_KERNEL(...) \
+   {                           \
+      printf(__VA_ARGS__);     \
+      MFEM_ABORT("");          \
+   }
+#endif
+
+// Verify inside a device kernel
+#define MFEM_VERIFY_KERNEL(x,...)    \
+   if (!(x))                         \
+   {                                 \
+      MFEM_ABORT_KERNEL(__VA_ARGS__) \
+   }
+
+// Assert inside a device kernel
+#ifdef MFEM_DEBUG
+#define MFEM_ASSERT_KERNEL(x,...)    \
+   if (!(x))                         \
+   {                                 \
+      MFEM_ABORT_KERNEL(__VA_ARGS__) \
+   }
+#else
+#define MFEM_ASSERT_KERNEL(x,...)
 #endif
 
 #endif

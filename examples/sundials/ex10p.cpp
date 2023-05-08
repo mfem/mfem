@@ -208,18 +208,18 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
@@ -298,7 +298,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -306,14 +305,13 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // check for vaild ODE solver option
+   // check for valid ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 17)
    {
       if (myid == 0)
       {
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
       }
-      MPI_Finalize();
       return 1;
    }
 
@@ -334,7 +332,6 @@ int main(int argc, char *argv[])
          cout << "Unknown type of nonlinear solver: " << nls << endl;
       }
       delete mesh;
-      MPI_Finalize();
       return 4;
    }
 
@@ -365,7 +362,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
@@ -579,15 +576,13 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -597,25 +592,25 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      os << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 
@@ -721,12 +716,14 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    if (nls_type == KINSOL)
    {
-      KINSolver *kinsolver = new KINSolver(f.GetComm(), KIN_NONE, true);
+      KINSolver *kinsolver = new KINSolver(f.GetComm(), KIN_LINESEARCH, true);
+      kinsolver->SetJFNK(true);
+      kinsolver->SetLSMaxIter(100);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
       newton_solver->SetRelTol(rel_tol);
-      newton_solver->SetPrintLevel(0);
+      newton_solver->SetPrintLevel(1);
       kinsolver->SetMaxSetupCalls(4);
    }
    else

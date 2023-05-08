@@ -25,9 +25,9 @@
 #-ts_arkimex_fully_implicit
 #-ts_adapt_type basic
 
-# Valid if using the Mult method for the ODE
+# Used only when using the Mult method for the ODE
+#-ts_view
 
--ts_view
 -ts_monitor
 
 # Dumps log of PETSc code

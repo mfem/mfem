@@ -55,16 +55,20 @@
 #include <gmi_mesh.h>
 #include <crv.h>
 
+#ifndef MFEM_USE_PUMI
+#error This example requires that MFEM is built with MFEM_USE_PUMI=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI (required by PUMI).
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI (required by PUMI) and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/pumi/serial/Kova.smb";
@@ -100,7 +104,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -264,6 +267,5 @@ int main(int argc, char *argv[])
    Sim_unregisterAllKeys();
 #endif
 
-   MPI_Finalize();
    return 0;
 }

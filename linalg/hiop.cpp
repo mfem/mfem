@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@ using namespace hiop;
 namespace mfem
 {
 
-bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
+bool HiopOptimizationProblem::get_prob_sizes(size_type &n, size_type &m)
 {
    n = ntdofs_glob;
    m = problem.GetNumConstraints();
@@ -30,7 +30,7 @@ bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
    return true;
 }
 
-bool HiopOptimizationProblem::get_starting_point(const long long &n, double *x0)
+bool HiopOptimizationProblem::get_starting_point(const size_type &n, double *x0)
 {
    MFEM_ASSERT(x_start != NULL && ntdofs_loc == x_start->Size(),
                "Starting point is not set properly.");
@@ -40,7 +40,7 @@ bool HiopOptimizationProblem::get_starting_point(const long long &n, double *x0)
    return true;
 }
 
-bool HiopOptimizationProblem::get_vars_info(const long long &n,
+bool HiopOptimizationProblem::get_vars_info(const size_type &n,
                                             double *xlow, double *xupp,
                                             NonlinearityType *type)
 {
@@ -55,7 +55,7 @@ bool HiopOptimizationProblem::get_vars_info(const long long &n,
    return true;
 }
 
-bool HiopOptimizationProblem::get_cons_info(const long long &m,
+bool HiopOptimizationProblem::get_cons_info(const size_type &m,
                                             double *clow, double *cupp,
                                             NonlinearityType *type)
 {
@@ -79,7 +79,7 @@ bool HiopOptimizationProblem::get_cons_info(const long long &m,
    return true;
 }
 
-bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
+bool HiopOptimizationProblem::eval_f(const size_type &n, const double *x,
                                      bool new_x, double &obj_value)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
@@ -88,12 +88,13 @@ bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
 
    Vector x_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    obj_value = problem.CalcObjective(x_vec);
 
    return true;
 }
 
-bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
+bool HiopOptimizationProblem::eval_grad_f(const size_type &n, const double *x,
                                           bool new_x, double *gradf)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
@@ -102,15 +103,16 @@ bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
 
    Vector x_vec(ntdofs_loc), gradf_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    problem.CalcObjectiveGrad(x_vec, gradf_vec);
    std::memcpy(gradf, gradf_vec.GetData(), ntdofs_loc * sizeof(double));
 
    return true;
 }
 
-bool HiopOptimizationProblem::eval_cons(const long long &n, const long long &m,
-                                        const long long &num_cons,
-                                        const long long *idx_cons,
+bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
+                                        const size_type &num_cons,
+                                        const index_type *idx_cons,
                                         const double *x, bool new_x,
                                         double *cons)
 {
@@ -123,6 +125,7 @@ bool HiopOptimizationProblem::eval_cons(const long long &n, const long long &m,
    if (new_x) { constr_info_is_current = false; }
    Vector x_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
 
    for (int c = 0; c < num_cons; c++)
@@ -134,12 +137,12 @@ bool HiopOptimizationProblem::eval_cons(const long long &n, const long long &m,
    return true;
 }
 
-bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
-                                            const long long &m,
-                                            const long long &num_cons,
-                                            const long long *idx_cons,
+bool HiopOptimizationProblem::eval_Jac_cons(const size_type &n,
+                                            const size_type &m,
+                                            const size_type &num_cons,
+                                            const index_type *idx_cons,
                                             const double *x, bool new_x,
-                                            double **Jac)
+                                            double *Jac)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
    MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
@@ -150,6 +153,7 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
    if (new_x) { constr_info_is_current = false; }
    Vector x_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
 
    for (int c = 0; c < num_cons; c++)
@@ -157,23 +161,24 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
       MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
       for (int j = 0; j < ntdofs_loc; j++)
       {
-         Jac[c][j] = constr_grads(idx_cons[c], j);
+         // The matrix is stored by rows.
+         Jac[c * ntdofs_loc + j] = constr_grads(idx_cons[c], j);
       }
    }
 
    return true;
 }
 
-bool HiopOptimizationProblem::get_vecdistrib_info(long long global_n,
-                                                  long long *cols)
+bool HiopOptimizationProblem::get_vecdistrib_info(size_type global_n,
+                                                  index_type *cols)
 {
 #ifdef MFEM_USE_MPI
    int nranks;
-   MPI_Comm_size(comm_, &nranks);
+   MPI_Comm_size(comm, &nranks);
 
-   long long *sizes = new long long[nranks];
-   MPI_Allgather(&ntdofs_loc, 1, MPI_LONG_LONG_INT, sizes, 1,
-                 MPI_LONG_LONG_INT, comm_);
+   size_type *sizes = new size_type[nranks];
+   MPI_Allgather(&ntdofs_loc, 1, MPI_HIOP_SIZE_TYPE, sizes, 1,
+                 MPI_HIOP_SIZE_TYPE, comm);
    cols[0] = 0;
    for (int r = 1; r <= nranks; r++)
    {
@@ -249,7 +254,7 @@ HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), hiop_problem(NULL)
 {
 #ifdef MFEM_USE_MPI
    // Set in case a serial driver uses a parallel MFEM build.
-   comm_ = MPI_COMM_WORLD;
+   comm = MPI_COMM_WORLD;
    int initialized, nret = MPI_Initialized(&initialized);
    MFEM_ASSERT(MPI_SUCCESS == nret, "Failure in calling MPI_Initialized!");
    if (!initialized)
@@ -261,8 +266,8 @@ HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), hiop_problem(NULL)
 }
 
 #ifdef MFEM_USE_MPI
-HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm)
-   : OptimizationSolver(_comm), hiop_problem(NULL), comm_(_comm) { }
+HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm comm_)
+   : OptimizationSolver(comm_), hiop_problem(NULL), comm(comm_) { }
 #endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
@@ -278,7 +283,7 @@ void HiopNlpOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
    if (hiop_problem) { delete hiop_problem; }
 
 #ifdef MFEM_USE_MPI
-   hiop_problem = new HiopOptimizationProblem(comm_, *problem);
+   hiop_problem = new HiopOptimizationProblem(comm, *problem);
 #else
    hiop_problem = new HiopOptimizationProblem(*problem);
 #endif
@@ -300,6 +305,8 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    hiopInstance.options->SetStringValue("fixed_var", "relax");
    hiopInstance.options->SetNumericValue("fixed_var_tolerance", 1e-20);
    hiopInstance.options->SetNumericValue("fixed_var_perturb", 1e-9);
+
+   hiopInstance.options->SetNumericValue("mu0", 1e-1);
 
    // 0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", print_level);

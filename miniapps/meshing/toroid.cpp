@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 //             Toroid Miniapp:  Generate simple toroidal meshes
 //             ------------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with triangular
+// This miniapp generates two types of toroidal meshes; one with triangular
 // cross sections and one with square cross sections.  It works by defining a
 // stack of individual elements and bending them so that the bottom and top of
 // the stack can be joined to form a torus.  The stack can also be twisted so
@@ -127,18 +127,20 @@ int main(int argc, char *argv[])
    }
 
    // Add Elements of the desired type
-   int v[8];
-   for (int i=0; i < nphi_; i++)
    {
-      if (el_type_ == Element::WEDGE)
+      int v[8];
+      for (int i=0; i < nphi_; i++)
       {
-         for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
-         mesh->AddWedge(v);
-      }
-      else
-      {
-         for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
-         mesh->AddHex(v);
+         if (el_type_ == Element::WEDGE)
+         {
+            for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
+            mesh->AddWedge(v);
+         }
+         else
+         {
+            for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
+            mesh->AddHex(v);
+         }
       }
    }
    mesh->FinalizeTopology();

@@ -1,5 +1,5 @@
 //                         MFEM Example 16 - Parallel Version
-//                             SUNDIALS Modification
+//                              SUNDIALS Modification
 //
 // Compile with: make ex16p
 //
@@ -101,11 +101,12 @@ double InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -170,7 +171,6 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       args.PrintUsage(cout);
-      MPI_Finalize();
       return 1;
    }
 
@@ -179,14 +179,13 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // check for vaild ODE solver option
+   // check for valid ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 12)
    {
       if (myid == 0)
       {
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
       }
-      MPI_Finalize();
       return 1;
    }
 
@@ -329,7 +328,10 @@ int main(int argc, char *argv[])
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 11) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
+         if (ode_solver_type == 11)
+         {
+            arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
+         }
          ode_solver = arkode; break;
       case 12:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
@@ -414,8 +416,6 @@ int main(int argc, char *argv[])
    // 12. Free the used memory.
    delete ode_solver;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

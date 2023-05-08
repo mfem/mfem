@@ -9,6 +9,7 @@
 //               ex1 -m ../data/fichera.mesh
 //               ex1 -m ../data/fichera-mixed.mesh
 //               ex1 -m ../data/toroid-wedge.mesh
+//               ex1 -m ../data/octahedron.mesh -o 1
 //               ex1 -m ../data/periodic-annulus-sector.msh
 //               ex1 -m ../data/periodic-torus-sector.msh
 //               ex1 -m ../data/square-disc-p2.vtk -o 2
@@ -29,13 +30,21 @@
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
+//               ex1 -fa -d cuda
 //               ex1 -pa -d raja-cuda
+//             * ex1 -pa -d raja-hip
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
 //               ex1 -pa -d ceed-cpu
+//               ex1 -pa -d ceed-cpu -o 4 -a
+//               ex1 -pa -d ceed-cpu -m ../data/square-mixed.mesh
+//               ex1 -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
 //             * ex1 -pa -d ceed-cuda
+//             * ex1 -pa -d ceed-hip
 //               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
+//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
+//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
@@ -69,8 +78,10 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -82,8 +93,14 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+#ifdef MFEM_USE_CEED
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -175,6 +192,14 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -205,12 +230,20 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
    }
-   else // Jacobi preconditioning in partial assembly mode
+   else
    {
       if (UsesTensorBasis(fespace))
       {
-         OperatorJacobiSmoother M(a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         if (algebraic_ceed)
+         {
+            ceed::AlgebraicSolver M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
+         else
+         {
+            OperatorJacobiSmoother M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
       }
       else
       {

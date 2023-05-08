@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,8 +26,8 @@ protected:
    const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
                                 target-element transformation. */
 
-   /** @brief The method SetTransformation() is hidden for TMOP_QualityMetric%s,
-       because it is not used. */
+   /** @brief The method HyperelasticModel::SetTransformation() is hidden
+       for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
 public:
@@ -40,9 +40,15 @@ public:
        The specified Jacobian matrix, #Jtr, can be used by metrics that cannot
        be written just as a function of the target->physical Jacobian matrix,
        Jpt. */
-   void SetTargetJacobian(const DenseMatrix &_Jtr) { Jtr = &_Jtr; }
+   virtual void SetTargetJacobian(const DenseMatrix &Jtr_) { Jtr = &Jtr_; }
 
-   /** @brief Evaluate the strain energy density function, W = W(Jpt).
+   /** @brief Evaluates the metric in matrix form (opposed to invariant form).
+       Used for validating the invariant evaluations. */
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const
+   { return -1.0; /* not implemented -> checks would fail. */ }
+
+   /** @brief Evaluate the strain energy density function, W = W(Jpt), by using
+       the 2D or 3D matrix invariants, see linalg/invariants.hpp.
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
    virtual double EvalW(const DenseMatrix &Jpt) const = 0;
@@ -64,14 +70,154 @@ public:
 
        Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
        where x1 ... xn are the FE dofs. This function is usually defined using
-       the matrix invariants and their derivatives.
-   */
+       the matrix invariants and their derivatives. */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
+
+   /** @brief Return the metric ID. */
+   virtual int Id() const { return 0; }
 };
 
+class TargetConstructor;
 
-/// Metric without a type, 2D
+/// Abstract class used to define explicit combination of metrics with constant
+/// coefficients.
+class TMOP_Combo_QualityMetric : public TMOP_QualityMetric
+{
+protected:
+   Array<TMOP_QualityMetric *> tmop_q_arr; //the metrics are not owned
+   Array<double> wt_arr;
+
+public:
+   virtual void AddQualityMetric(TMOP_QualityMetric *tq, double wt = 1.0)
+   {
+      tmop_q_arr.Append(tq);
+      wt_arr.Append(wt);
+   }
+
+   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
+   {
+      for (int i = 0; i < tmop_q_arr.Size(); i++)
+      {
+         tmop_q_arr[i]->SetTargetJacobian(Jtr_);
+      }
+   }
+
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   /// Computes the averages of all metrics (integral of metric / volume).
+   /// Works in parallel when called with a ParGridFunction.
+   void ComputeAvgMetrics(const GridFunction &nodes,
+                          const TargetConstructor &tc,
+                          Vector &averages) const;
+
+   /// Computes weights so that the averages of all metrics are equal, and the
+   /// weights sum to one. Works in parallel when called with a ParGridFunction.
+   void ComputeBalancedWeights(const GridFunction &nodes,
+                               const TargetConstructor &tc,
+                               Vector &weights) const;
+
+   void GetWeights(Array<double> &weights) const { weights = wt_arr; }
+
+   /// Changes the weights of the metrics in the combination.
+   void SetWeights(const Vector &weights)
+   {
+      MFEM_VERIFY(tmop_q_arr.Size() == weights.Size(), "Incorrect #weights");
+      for (int i = 0; i < tmop_q_arr.Size(); i++) { wt_arr[i] = weights(i); }
+   }
+};
+
+/// Simultaneous Untangler + Worst Case Improvement Metric
+/// Uses a base metric mu and is defined as:
+/// mu_tilde = mu_hat,                 when WorstCaseType = None,
+///          = mu_hat/(beta - mu_hat), when WorstCaseType = Beta,
+///          = mu_hat^p,               when WorstCaseType = PMean,
+/// where beta = max(mu_hat) + muT_ep,
+/// and mu_hat = (mu/2phi(tau,ep)) where
+/// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
+///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseudo
+/// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
+/// entire mesh.
+/// Ultimately, this metric can be used for mesh untangling with the BarrierType
+/// option and for worst case quality improvement with the WorstCaseType option.
+class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
+{
+public:
+   enum class BarrierType
+   {
+      None,
+      Shifted,
+      Pseudo
+   };
+   enum class WorstCaseType
+   {
+      None,
+      Beta,
+      PMean
+   };
+
+protected:
+   TMOP_QualityMetric &tmop_metric; // non-barrier metric to use
+   double min_detT;                 // minimum Jacobian in the mesh
+   double max_muT;                  // max mu_k/phi(tau,ep) in the mesh
+   int exponent;                    // used for p-mean metrics
+   double alpha;                    // scaling factor for min(det(T))
+   double detT_ep;                  // small constant subtracted from min(detT)
+   double muT_ep;                   // small constant added to muT term
+   BarrierType btype;
+   WorstCaseType wctype;
+
+public:
+   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
+                                          int exponent_ = 1,
+                                          double alpha_ = 1.5,
+                                          double detT_ep_ = 0.0001,
+                                          double muT_ep_ = 0.0001,
+                                          BarrierType btype_ = BarrierType::None,
+                                          WorstCaseType wctype_ = WorstCaseType::None) :
+      tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
+      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
+   {
+      MFEM_VERIFY(wctype == WorstCaseType::None,
+                  "Worst-case optimization has not been fully developed!");
+      if (btype != BarrierType::None)
+      {
+         const int m_id = tmop_metric.Id();
+         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66,
+                     "Incorrect input barrier metric --  must be 4 / 14 / 66");
+      }
+   }
+
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+
+   // Compute mu_hat.
+   virtual double EvalWBarrier(const DenseMatrix &Jpt) const;
+
+   virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
+
+   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
+
+   virtual BarrierType GetBarrierType() { return btype; }
+
+   virtual WorstCaseType GetWorstCaseType() { return wctype; }
+};
+
+/// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
 protected:
@@ -85,9 +231,11 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 1; }
 };
 
-/// Skew metric, 2D.
+/// 2D non-barrier Skew metric.
 class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
@@ -102,7 +250,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Skew metric, 3D.
+/// 3D non-barrier Skew metric.
 class TMOP_Metric_skew3D : public TMOP_QualityMetric
 {
 public:
@@ -117,7 +265,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Aspect ratio metric, 2D.
+/// 2D non-barrier Aspect ratio metric.
 class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
 {
 public:
@@ -132,7 +280,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Aspect ratio metric, 3D.
+/// 3D non-barrier Aspect ratio metric.
 class TMOP_Metric_aspratio3D : public TMOP_QualityMetric
 {
 public:
@@ -147,38 +295,48 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Shape+Size+Orientation metric, 2D.
-class TMOP_Metric_SSA2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-};
-
-/// Shape, ideal barrier metric, 2D
+/// 2D barrier shape (S) metric (polyconvex).
+/// Grade - A.
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5|J|^2 / det(J) - 1.
+   // W = 0.5 |J|^2 / det(J) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 I1b - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 2; }
 };
 
-/// Shape & area, ideal barrier metric, 2D
+/// 2D non-barrier shape (S) metric.
+/// Grade - F.
+class TMOP_Metric_004 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = |J|^2 - 2*det(J)
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 4; }
+};
+
+/// 2D barrier Shape+Size (VS) metric (not polyconvex).
 class TMOP_Metric_007 : public TMOP_QualityMetric
 {
 protected:
@@ -192,9 +350,11 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 7; }
 };
 
-/// Shape & area metric, 2D
+/// 2D barrier Shape+Size (VS) metric (not polyconvex).
 class TMOP_Metric_009 : public TMOP_QualityMetric
 {
 protected:
@@ -210,15 +370,30 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shifted barrier form of metric 2 (shape, ideal barrier metric), 2D
+/// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_Metric_014 : public TMOP_QualityMetric
+{
+public:
+   // W = |T-I|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D Shifted barrier form of shape metric (mu_2).
 class TMOP_Metric_022 : public TMOP_QualityMetric
 {
 protected:
-   double &tau0;
+   double &min_detT;
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_022(double &t0): tau0(t0) {}
+   TMOP_Metric_022(double &t0): min_detT(t0) {}
 
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -229,14 +404,18 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 2D
+/// 2D barrier shape metric (polyconvex).
+/// Grade - A.
 class TMOP_Metric_050 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5|J^t J|^2 / det(J)^2 - 1.
+   // W = 0.5 |J^t J|^2 / det(J)^2 - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 I1b^2 - 2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -245,7 +424,8 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Area metric, 2D
+/// 2D non-barrier size (V) metric (not polyconvex).
+/// Grade - F.
 class TMOP_Metric_055 : public TMOP_QualityMetric
 {
 protected:
@@ -262,26 +442,27 @@ public:
 
 };
 
-/// Area, ideal barrier metric, 2D
+/// 2D barrier size (V) metric (polyconvex).
+/// Grade - C.
 class TMOP_Metric_056 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
-   //   = 0.5( det(J) - 1 )^2 / det(J)
-   //   = 0.5( det(J) + 1/det(J) ) - 1.
+   // W = 0.5 (det(J) + 1 / det(J)) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I2b + 1/I2b) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
 };
 
-/// Shape, ideal barrier metric, 2D
+/// 2D barrier shape (S) metric (not polyconvex).
 class TMOP_Metric_058 : public TMOP_QualityMetric
 {
 protected:
@@ -289,24 +470,51 @@ protected:
 
 public:
    // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
-   //   = I1b (I1b - 2).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b (I1b - 2).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-
 };
 
-/// Area, ideal barrier metric, 2D
+/// 2D non-barrier Shape+Size (VS) metric.
+/// Grade - F.
+class TMOP_Metric_066 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_066(double gamma)
+      : sh_metric(new TMOP_Metric_004), sz_metric(new TMOP_Metric_055)
+   {
+      // (1-gamma) mu_4 + gamma mu_55
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+   virtual int Id() const { return 66; }
+   double GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D barrier size (V) metric (polyconvex).
+/// Grade - C.
 class TMOP_Metric_077 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5(det(J) - 1 / det(J))^2.
+   // W = 0.5 (det(J) - 1 / det(J))^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I2 + 1 / I2) - 1.0.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -314,9 +522,33 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+   virtual int Id() const { return 77; }
 };
 
-/// Shape & orientation metric, 2D.
+/// 2D barrier Shape+Size (VS) metric (polyconvex).
+/// Grade - A.
+class TMOP_Metric_080 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_080(double gamma)
+      : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_077)
+   {
+      // (1-gamma) mu_2 + gamma mu_77
+      AddQualityMetric(sh_metric, 1.0 - gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+
+   virtual int Id() const { return 80; }
+   double GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D barrier Shape+Orientation (OS) metric (polyconvex).
 class TMOP_Metric_085 : public TMOP_QualityMetric
 {
 public:
@@ -331,7 +563,64 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Untangling metric, 2D
+/// 2D compound barrier Shape+Size (VS) metric (balanced).
+class TMOP_Metric_090 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_090()
+      : sh_metric(new TMOP_Metric_050), sz_metric(new TMOP_Metric_077)
+   {
+      // mu_50 + lambda mu_77.
+      // 1 <= lambda <= 4 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 1.0);
+      AddQualityMetric(sz_metric, 2.5);
+   }
+
+   virtual int Id() const { return 90; }
+   virtual ~TMOP_Metric_090() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D compound barrier Shape+Size (VS) metric (balanced).
+class TMOP_Metric_094 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_094()
+      : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_056)
+   {
+      // mu_2 + lambda mu_56.
+      // 1 <= lambda <= 2 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 1.0);
+      AddQualityMetric(sz_metric, 1.5);
+   }
+
+   virtual int Id() const { return 94; }
+   virtual ~TMOP_Metric_094() { delete sh_metric; delete sz_metric; }
+};
+
+/// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_Metric_098 : public TMOP_QualityMetric
+{
+public:
+   // W = 1/tau |T-I|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D untangling metric.
 class TMOP_Metric_211 : public TMOP_QualityMetric
 {
 protected:
@@ -370,14 +659,17 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 3D
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J| |J^-1| / 3 - 1.
+   // W = 1/3 |J| |J^-1| - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 1/3 sqrt(I1b * I2b) - 1
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -386,30 +678,80 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape, ideal barrier metric, 3D
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 |J^-1|^2 / 9 - 1.
+   // W = |J|^2 |J^{-1}|^2 / 9 - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b * I2b / 9 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 302; }
 };
 
-/// Shape, ideal barrier metric, 3D
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(2/3) - 1.
+   // W = |J|^2 / 3 / det(J)^(2/3) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b / 3 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 303; }
+};
+
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
+class TMOP_Metric_304 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 / 3^(3/2) / det(J) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = (I1b/3)^3/2 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 304; }
+};
+
+/// 3D Size (V) untangling metric.
+class TMOP_Metric_311 : public TMOP_QualityMetric
+{
+protected:
+   const double eps;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+
+   // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -418,7 +760,28 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Volume metric, 3D
+/// 3D Shape (S) metric, untangling version of 303.
+class TMOP_Metric_313 : public TMOP_QualityMetric
+{
+protected:
+   double &min_detT;
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
+
+   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 313; }
+};
+
+/// 3D Size (V) metric.
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
@@ -432,18 +795,21 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 315; }
 };
 
-/// Volume, ideal barrier metric, 3D
+/// 3D Size (V) metric.
 class TMOP_Metric_316 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
-   //   = 0.5( det(J) - 1 )^2 / det(J)
-   //   = 0.5( det(J) + 1/det(J) ) - 1.
+   // W = 0.5 (det(J) + 1/det(J)) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I3b + 1/I3b) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -452,7 +818,28 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Shape & volume, ideal barrier metric, 3D
+/// 3D Size (V) metric.
+class TMOP_Metric_318 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I3 + 1/I3) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 318; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
 class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
@@ -460,15 +847,188 @@ protected:
 
 public:
    // W = |J - J^-t|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1 + I2/I3 - 6.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 321; }
 };
 
-/// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
+class TMOP_Metric_322 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J - adjJ^-t|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 322; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
+class TMOP_Metric_323 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 323; }
+};
+
+/// 3D compound barrier Shape+Size (VS) metric (polyconvex, balanced).
+class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_328()
+      : sh_metric(new TMOP_Metric_301), sz_metric(new TMOP_Metric_316)
+   {
+      // lambda mu_301 + mu_316.
+      // 3/8 <= lambda <= 9/8 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 0.75);
+      AddQualityMetric(sz_metric, 1.0);
+   }
+
+   virtual int Id() const { return 328; }
+   virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D compound barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
+{
+protected:
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_332(double gamma)
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_315)
+   {
+      // (1-gamma) mu_302 + gamma mu_315
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+
+   virtual int Id() const { return 332; }
+   double GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
+class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_333(double gamma)
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_302 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+
+   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
+class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_334(double gamma)
+      : sh_metric(new TMOP_Metric_303), sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_303 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+
+   virtual int Id() const { return 334; }
+   double GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D compound barrier Shape+Size (VS) metric (polyconvex, balanced).
+class TMOP_Metric_338 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_338()
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_318)
+   {
+      // mu_302 + lambda mu_318.
+      // 4/9 <= lambda <= 3 should produce best asymptotic balance.
+      AddQualityMetric(sh_metric, 1.0);
+      AddQualityMetric(sz_metric, 0.5 * (4.0/9.0 + 3.0));
+   }
+
+   virtual int Id() const { return 338; }
+   virtual ~TMOP_Metric_338() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
+class TMOP_Metric_347 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_347(double gamma)
+      : sh_metric(new TMOP_Metric_304), sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_304 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+
+   virtual int Id() const { return 347; }
+   double GetGamma() const { return wt_arr[1]; }
+
+   virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D shifted barrier form of metric 316 (not typed).
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
 protected:
@@ -487,6 +1047,118 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// 3D non-barrier Shape (S) metric.
+class TMOP_Metric_360 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 / 3^(3/2) - det(J).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = (I1b/3)^3/2 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 360; }
+};
+
+/// A-metrics
+/// 2D barrier Shape (S) metric (polyconvex).
+class TMOP_AMetric_011 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Size (V) metric (polyconvex).
+class TMOP_AMetric_014a : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_AMetric_036 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // (1/alpha) | A - W |^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Shape+Orientation (OS) metric (polyconvex).
+class TMOP_AMetric_107a : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // (1/2 alpha) | A - (|A|/|W|) W |^2
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// 2D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_AMetric_126 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_AMetric_126(double gamma)
+      : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014a)
+   {
+      // (1-gamma) nu_11 + gamma nu_14
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
+   }
+
+   virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
+};
 
 /// Base class for limiting functions to be used in class TMOP_Integrator.
 /** This class represents a scalar function f(x, x0, d), where x and x0 are
@@ -543,6 +1215,59 @@ public:
    virtual ~TMOP_QuadraticLimiter() { }
 };
 
+/// Exponential limiter function in TMOP_Integrator.
+class TMOP_ExponentialLimiter : public TMOP_LimiterFunction
+{
+public:
+   virtual double Eval(const Vector &x, const Vector &x0, double dist) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      return  exp(10.0*((x.DistanceSquaredTo(x0) / (dist * dist))-1.0));
+   }
+
+   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+                        Vector &d1) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      d1.SetSize(x.Size());
+      double dist_squared = dist*dist;
+      subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
+               dist_squared, x, x0, d1);
+   }
+
+   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+                        DenseMatrix &d2) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+      Vector tmp;
+      tmp.SetSize(x.Size());
+      double dist_squared = dist*dist;
+      double dist_squared_squared = dist_squared*dist_squared;
+      double f = exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)-1.0));
+
+      subtract(x,x0,tmp);
+      d2.SetSize(x.Size());
+      d2(0,0) = ((400.0*tmp(0)*tmp(0)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      d2(1,1) = ((400.0*tmp(1)*tmp(1)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      d2(0,1) = (400.0*tmp(0)*tmp(1)*f)/dist_squared_squared;
+      d2(1,0) = d2(0,1);
+
+      if (x.Size() == 3)
+      {
+         d2(0,2) = (400.0*tmp(0)*tmp(2)*f)/dist_squared_squared;
+         d2(1,2) = (400.0*tmp(1)*tmp(2)*f)/dist_squared_squared;
+         d2(2,0) = d2(0,2);
+         d2(2,1) = d2(1,2);
+         d2(2,2) = ((400.0*tmp(2)*tmp(2)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      }
+
+   }
+
+   virtual ~TMOP_ExponentialLimiter() { }
+};
+
 class FiniteElementCollection;
 class FiniteElementSpace;
 class ParFiniteElementSpace;
@@ -560,8 +1285,6 @@ protected:
    ParFiniteElementSpace *pfes;
 #endif
 
-   int dim, ncomp;
-
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
@@ -572,15 +1295,15 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+   /** Specifies the Mesh and FiniteElementSpace of the solution that will
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
-                          const FiniteElementCollection &fec, int num_comp);
+                          const FiniteElementSpace &f);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
-                       const FiniteElementCollection &fec, int num_comp);
+                       const ParFiniteElementSpace &f);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
@@ -588,7 +1311,10 @@ public:
                                 const Vector &init_field) = 0;
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field) = 0;
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES) = 0;
+
+   void ClearGeometricFactors();
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -628,22 +1354,33 @@ protected:
    mutable double avg_volume;
    double volume_scale;
    const TargetType target_type;
+   bool uses_phys_coords; // see UsesPhysicalCoordinates()
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   bool Parallel() const { return (comm != MPI_COMM_NULL); }
-#else
-   bool Parallel() const { return false; }
 #endif
 
    // should be called only if avg_volume == 0.0, i.e. avg_volume is not
    // computed yet
    void ComputeAvgVolume() const;
 
+   template<int DIM>
+   bool ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                 const IntegrationRule &ir,
+                                 const Vector &xe,
+                                 DenseTensor &Jtr) const;
+
+   // CPU fallback that uses ComputeElementTargets()
+   void ComputeAllElementTargets_Fallback(const FiniteElementSpace &fes,
+                                          const IntegrationRule &ir,
+                                          const Vector &xe,
+                                          DenseTensor &Jtr) const;
+
 public:
    /// Constructor for use in serial
    TargetConstructor(TargetType ttype)
-      : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype)
+      : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype),
+        uses_phys_coords(false)
    {
 #ifdef MFEM_USE_MPI
       comm = MPI_COMM_NULL;
@@ -653,9 +1390,16 @@ public:
    /// Constructor for use in parallel
    TargetConstructor(TargetType ttype, MPI_Comm mpicomm)
       : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype),
-        comm(mpicomm) { }
+        uses_phys_coords(false), comm(mpicomm) { }
 #endif
    virtual ~TargetConstructor() { }
+
+#ifdef MFEM_USE_MPI
+   bool Parallel() const { return (comm != MPI_COMM_NULL); }
+   MPI_Comm GetComm() const { return comm; }
+#else
+   bool Parallel() const { return false; }
+#endif
 
    /** @brief Set the nodes to be used in the target-matrix construction.
 
@@ -664,8 +1408,18 @@ public:
        nodes are used by all target types except IDEAL_SHAPE_UNIT_SIZE. */
    void SetNodes(const GridFunction &n) { nodes = &n; avg_volume = 0.0; }
 
+   /** @brief Get the nodes to be used in the target-matrix construction. */
+   const GridFunction *GetNodes() const { return nodes; }
+
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
+
+   TargetType GetTargetType() const { return target_type; }
+
+   /** @brief Return true if the methods ComputeElementTargets(),
+       ComputeAllElementTargets(), and ComputeElementTargetsGradient() use the
+       physical node coordinates provided by the parameters 'elfun', or 'xe'. */
+   bool UsesPhysicalCoordinates() const { return uses_phys_coords; }
 
    /// Checks if the target matrices contain non-trivial size specification.
    virtual bool ContainsVolumeInfo() const;
@@ -678,13 +1432,27 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
+   /** @brief Computes reference-to-target transformation Jacobians for all
+       quadrature points in all elements.
+
+       @param[in] fes  The nodal FE space
+       @param[in] ir   The quadrature rule to use for all elements
+       @param[in] xe   E-vector with the current physical coordinates/positions;
+                       this parameter is used only when needed by the target
+                       constructor, see UsesPhysicalCoordinates()
+       @param[out] Jtr The computed ref->target Jacobian matrices. */
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
+
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
 };
 
-class TMOPMatrixCoefficient  : public MatrixCoefficient
+class TMOPMatrixCoefficient : public MatrixCoefficient
 {
 public:
    explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
@@ -709,7 +1477,8 @@ protected:
 public:
    AnalyticAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL) { }
+        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL)
+   { uses_phys_coords = true; }
 
    virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
@@ -722,6 +1491,11 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
 
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -739,7 +1513,7 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
-   Vector tspec;             //eta(x)
+   Vector tspec;             //eta(x) - we enforce Ordering::byNODES
    Vector tspec_sav;
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
@@ -748,14 +1522,31 @@ protected:
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
+   // DenseMatrix to hold target_spec values for the (children of the)
+   // element being refined to consider for h-refinement.
+   DenseMatrix tspec_refine;
+   // Vector to hold the target_spec values for the coarse version of the
+   // current mesh. Used for derefinement decision with hr-adaptivity.
+   Vector tspec_derefine;
+
    // Components of Target Jacobian at each quadrature point of an element. This
    // is required for computation of the derivative using chain rule.
    mutable DenseTensor Jtrcomp;
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-   const FiniteElementSpace *tspec_fes;
-   const FiniteElementSpace *tspec_fesv;
+   FiniteElementSpace *tspec_fesv;         //owned
+   FiniteElementSpace *coarse_tspec_fesv;  //not owned, derefinement FESpace
+   GridFunction *tspec_gf;                 //owned, uses tspec and tspec_fes
+   // discrete adaptivity
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *ptspec_fesv;     //owned, needed for derefinement to
+   // get update operator.
+   ParGridFunction *tspec_pgf;             // similar to tspec_gf
+#endif
+
+   int amr_el;
+   double lim_min_size;
 
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
@@ -767,7 +1558,7 @@ protected:
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
-   void FinalizeSerialDiscreteTargetSpec();
+   void FinalizeSerialDiscreteTargetSpec(const GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
    void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
    void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
@@ -779,16 +1570,16 @@ public:
         ncomp(0),
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
-        tspec_fes(NULL), tspec_fesv(NULL),
+        tspec_refine(), tspec_derefine(),
+        tspec_fesv(NULL), coarse_tspec_fesv(NULL), tspec_gf(NULL),
+#ifdef MFEM_USE_MPI
+        ptspec_fesv(NULL), tspec_pgf(NULL),
+#endif
+        amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC()
-   {
-      delete adapt_eval;
-      delete tspec_fes;
-      delete tspec_fesv;
-   }
+   virtual ~DiscreteAdaptTC();
 
    /** @name Target specification methods.
        The following methods are used to specify geometric parameters of the
@@ -819,12 +1610,28 @@ public:
    void ResetUpdateFlags()
    { good_tspec = good_tspec_grad = good_tspec_hess = false; }
 
+   /// Get one of the discrete fields from tspec.
+   void GetDiscreteTargetSpec(GridFunction &tspec_, int idx);
+   /// Get the FESpace associated with tspec.
+   FiniteElementSpace *GetTSpecFESpace() { return tspec_fesv; }
+   /// Get the entire tspec.
+   GridFunction *GetTSpecData() { return tspec_gf; }
+   /// Update all discrete fields based on tspec and update for AMR
+   void UpdateAfterMeshTopologyChange();
+
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *GetTSpecParFESpace() { return ptspec_fesv; }
+   void ParUpdateAfterMeshTopologyChange();
+#endif
+
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. If @a use_flags is true, repeated
        calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false);
+   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
+                                  int new_x_ordering=Ordering::byNODES);
 
-   void UpdateTargetSpecification(Vector &new_x, Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -838,18 +1645,25 @@ public:
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
-                                          bool use_flag = false);
+                                          bool use_flag = false,
+                                          int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
-                                         bool use_flag = false);
+                                         bool use_flag = false,
+                                         int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
       if (adapt_eval) { delete adapt_eval; }
       adapt_eval = ae;
+   }
+
+   const AdaptivityEvaluator *GetAdaptivityEvaluator() const
+   {
+      return adapt_eval;
    }
 
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
@@ -866,10 +1680,45 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
+
    virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
                                               const Vector &elfun,
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
+
+   // Generates tspec_vals for target construction using intrule
+   // Used for the refinement component in hr-adaptivity.
+   void SetTspecFromIntRule(int e_id, const IntegrationRule &intrule);
+
+   // Targets based on discrete functions can result in invalid (negative)
+   // size at the quadrature points. This method can be used to set a
+   // minimum target size.
+   void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
+
+   /// Computes target specification data with respect to the coarse FE space.
+   void SetTspecDataForDerefinement(FiniteElementSpace *fes);
+
+   // Reset refinement data associated with h-adaptivity component.
+   void ResetRefinementTspecData()
+   {
+      tspec_refine.Clear();
+      amr_el = -1;
+   }
+
+   // Reset derefinement data associated with h-adaptivity component.
+   void ResetDerefinementTspecData()
+   {
+      tspec_derefine.Destroy();
+      coarse_tspec_fesv = NULL;
+   }
+
+   // Used to specify the fine element for determining energy of children of a
+   // parent element.
+   void SetRefinementSubElement(int amr_el_) { amr_el = amr_el_; }
 };
 
 class TMOPNewtonSolver;
@@ -887,6 +1736,7 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
+   TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
@@ -895,15 +1745,15 @@ protected:
    int integ_order;
 
    // Weight Coefficient multiplying the quality metric term.
-   Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
+   Coefficient *metric_coeff; // not owned, if NULL -> metric_coeff is 1.
    // Normalization factor for the metric term.
    double metric_normal;
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
-   // The class doesn't own nodes0 and coeff0.
-   const GridFunction *nodes0;
-   Coefficient *coeff0;
+   // The class doesn't own lim_nodes0 and lim_coeff.
+   const GridFunction *lim_nodes0;
+   Coefficient *lim_coeff;
    // Limiting reference distance. Not owned.
    const GridFunction *lim_dist;
    // Limiting function. Owned.
@@ -912,10 +1762,25 @@ protected:
    double lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *zeta_0;       // Not owned.
-   GridFunction *zeta;               // Owned. Updated by adapt_eval.
-   Coefficient *coeff_zeta;          // Not owned.
-   AdaptivityEvaluator *adapt_eval;  // Not owned.
+   const GridFunction *adapt_lim_gf0;    // Not owned.
+#ifdef MFEM_USE_MPI
+   const ParGridFunction *adapt_lim_pgf0;
+#endif
+   GridFunction *adapt_lim_gf;           // Owned. Updated by adapt_lim_eval.
+   Coefficient *adapt_lim_coeff;         // Not owned.
+   AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
+
+   // Surface fitting.
+   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
+   const Array<bool> *surf_fit_marker;  // Not owned.
+   Coefficient *surf_fit_coeff;         // Not owned.
+   AdaptivityEvaluator *surf_fit_eval;  // Not owned.
+   double surf_fit_normal;
+   bool surf_fit_gf_bg;
+   GridFunction *surf_fit_grad, *surf_fit_hess;
+   AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
+   Array<int> surf_fit_dof_count;
+   Array<int> surf_fit_marker_dof_index;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -945,9 +1810,48 @@ protected:
    //        output - the result of AssembleElementVector() (dof x dim).
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
-   void ComputeNormalizationEnergies(const GridFunction &x,
-                                     double &metric_energy, double &lim_energy);
+   // PA extension
+   // ------------
+   //  E: Q-vector for TMOP-energy
+   //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
+   // X0: E-vector for initial nodal coordinates used for limiting.
+   //  H: Q-Vector for Hessian associated with the metric term.
+   // C0: Q-Vector for spatial weight used for the limiting term.
+   // LD: E-Vector constructed using limiting distance grid function (delta).
+   // H0: Q-Vector for Hessian associated with the limiting term.
+   //
+   // maps:     Dof2Quad map for fespace associate with nodal coordinates.
+   // maps_lim: Dof2Quad map for fespace associated with the limiting distance
+   //            grid function.
+   //
+   // Jtr_debug_grad
+   //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
+   //     is set to true by AssembleGradPA(); any other call to
+   //     ComputeAllElementTargets() will set the flag to false. This flag will
+   //     be used to check that Jtr is the one set by AssembleGradPA() when
+   //     performing operations with the gradient like AddMultGradPA() and
+   //     AssembleGradDiagonalPA().
+   //
+   // TODO:
+   //   * Merge LD, C0, H0 into one scalar Q-vector
+   struct
+   {
+      bool enabled;
+      int dim, ne, nq;
+      mutable DenseTensor Jtr;
+      mutable bool Jtr_needs_update;
+      mutable bool Jtr_debug_grad;
+      mutable Vector E, O, X0, H, C0, LD, H0;
+      const DofToQuad *maps;
+      const DofToQuad *maps_lim = nullptr;
+      const GeometricFactors *geom;
+      const FiniteElementSpace *fes;
+      const IntegrationRule *ir;
+   } PA;
 
+   void ComputeNormalizationEnergies(const GridFunction &x,
+                                     double &metric_energy, double &lim_energy,
+                                     double &surf_fit_gf_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
@@ -966,12 +1870,24 @@ protected:
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElemVecAdaptLim(const FiniteElement &el, const Vector &weights,
+   void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir, DenseMatrix &m);
-   void AssembleElemGradAdaptLim(const FiniteElement &el, const Vector &weights,
+                                const IntegrationRule &ir,
+                                const Vector &weights, DenseMatrix &mat);
+   void AssembleElemGradAdaptLim(const FiniteElement &el,
                                  IsoparametricTransformation &Tpr,
-                                 const IntegrationRule &ir, DenseMatrix &m);
+                                 const IntegrationRule &ir,
+                                 const Vector &weights, DenseMatrix &m);
+
+   // First derivative of the surface fitting term.
+   void AssembleElemVecSurfFit(const FiniteElement &el_x,
+                               IsoparametricTransformation &Tpr,
+                               DenseMatrix &mat);
+
+   // Second derivative of the surface fitting term.
+   void AssembleElemGradSurfFit(const FiniteElement &el_x,
+                                IsoparametricTransformation &Tpr,
+                                DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -980,16 +1896,15 @@ protected:
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
-#ifdef MFEM_USE_MPI
-   void ComputeFDh(const Vector &x, const ParFiniteElementSpace &pfes);
-#endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshChange(const Vector &new_x);
+   void UpdateAfterMeshPositionChange(const Vector &new_x,
+                                      int x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {
-      nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
+      lim_nodes0 = NULL; lim_coeff = NULL; lim_dist = NULL;
+      delete lim_func; lim_func = NULL;
    }
 
    const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
@@ -1012,20 +1927,71 @@ protected:
       return EnergyIntegrationRule(el);
    }
 
+   // Auxiliary PA methods
+   void AssembleGradPA_2D(const Vector&) const;
+   void AssembleGradPA_3D(const Vector&) const;
+   void AssembleGradPA_C0_2D(const Vector&) const;
+   void AssembleGradPA_C0_3D(const Vector&) const;
+
+   double GetLocalStateEnergyPA_2D(const Vector&) const;
+   double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   double GetLocalStateEnergyPA_3D(const Vector&) const;
+   double GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+
+   void AddMultPA_2D(const Vector&, Vector&) const;
+   void AddMultPA_3D(const Vector&, Vector&) const;
+   void AddMultPA_C0_2D(const Vector&, Vector&) const;
+   void AddMultPA_C0_3D(const Vector&, Vector&) const;
+
+   void AddMultGradPA_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
+
+   void AssembleDiagonalPA_2D(Vector&) const;
+   void AssembleDiagonalPA_3D(Vector&) const;
+   void AssembleDiagonalPA_C0_2D(Vector&) const;
+   void AssembleDiagonalPA_C0_3D(Vector&) const;
+
+   void AssemblePA_Limiting();
+   void ComputeAllElementTargets(const Vector &xe = Vector()) const;
+
+   // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
+   double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
+   // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric,
+   // does not reduce over MPI.
+   double ComputeUntanglerMaxMuBarrier(const Vector &x,
+                                       const FiniteElementSpace &fes);
+
 public:
-   /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
-       @param[in] tc Target-matrix construction algorithm to use (not owned). */
-   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
-      : metric(m), targetC(tc), IntegRules(NULL), integ_order(-1),
-        coeff1(NULL), metric_normal(1.0),
-        nodes0(NULL), coeff0(NULL),
+   /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
+       @param[in] tc   Target-matrix construction algorithm to use (not owned).
+       @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
+                   TMOP_QualityMetric *hm)
+      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+        integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
+        lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
-        zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
+        adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
+        adapt_lim_eval(NULL),
+        surf_fit_gf(NULL), surf_fit_marker(NULL),
+        surf_fit_coeff(NULL),
+        surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
-   { }
+   { PA.enabled = false; }
+
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
+      : TMOP_Integrator(m, tc, m) { }
 
    ~TMOP_Integrator();
+
+   /// Release the device memory of large PA allocations. This will copy device
+   /// memory back to the host before releasing.
+   void ReleasePADeviceMemory(bool copy_to_host = true);
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
@@ -1041,7 +2007,7 @@ public:
 
        Note that the Coefficient is evaluated in the physical configuration and
        not in the target configuration which may be undefined. */
-   void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
+   void SetCoefficient(Coefficient &w1) { metric_coeff = &w1; }
 
    /** @brief Limiting of the mesh displacements (general version).
 
@@ -1066,7 +2032,7 @@ public:
 
        Adds the term @f$ \int c (z(x) - z_0(x_0))^2 @f$, where z0(x0) is a given
        function on the starting mesh, and z(x) is its image on the new mesh.
-       Minimizing this, means that a node at x0 is allowed to move to a
+       Minimizing this term means that a node at x0 is allowed to move to a
        position x(x0) only if z(x) ~ z0(x0).
        Such term can be used for tangential mesh relaxation.
 
@@ -1081,8 +2047,69 @@ public:
                                AdaptivityEvaluator &ae);
 #endif
 
+   /** @brief Fitting of certain DOFs to the zero level set of a function.
+
+       Having a level set function s0(x0) on the starting mesh, and a set of
+       marked nodes (or DOFs), we move these nodes to the zero level set of s0.
+       If s(x) is the image of s0(x0) on the current mesh, this function adds to
+       the TMOP functional the term @f$ \int c \bar{s}(x))^2 @f$, where
+       @f$\bar{s}(x)@f$ is the restriction of s(x) on the aligned DOFs.
+       Minimizing this term means that a marked node at x0 is allowed to move to
+       a position x(x0) only if s(x) ~ 0.
+       Such term can be used for surface fitting and tangential relaxation.
+
+       @param[in] s0      The level set function on the initial mesh.
+       @param[in] smarker Indicates which DOFs will be aligned.
+       @param[in] coeff   Coefficient c for the above integral.
+       @param[in] ae      AdaptivityEvaluator to compute s(x) from s0(x0). */
+   void EnableSurfaceFitting(const GridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
+
+#ifdef MFEM_USE_MPI
+   /// Parallel support for surface fitting.
+   void EnableSurfaceFitting(const ParGridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
+
+   /** @brief Fitting of certain DOFs in the current mesh to the zero level set
+       of a function defined on another (finer) source mesh.
+
+       Having a level set function s_bg(x_bg) on a source/background mesh,
+       a set of marked nodes (or DOFs) in the current mesh, we move the marked
+       nodes to the zero level set of s_bg. This functionality is used for
+       surface fitting and tangential relaxation.
+
+       @param[in] s_bg       The level set function on the background mesh.
+       @param[in] s0         The level set function (automatically) interpolated
+                             on the initial mesh.
+       @param[in] smarker    Marker for aligned DOFs in the current mesh.
+       @param[in] coeff      Coefficient c for the fitting penalty term.
+       @param[in] ae         Interpolates s(x) from s_bg(x_bg).
+       @param[in] s_bg_grad  Gradient of s_bg on the background mesh.
+       @param[in] s0_grad    Gradient of s0 on the initial mesh.
+       @param[in] age        Interpolates s_grad(x) from s_bg_grad(x_bg).
+       @param[in] s_bg_hess  Hessian of s(x) on the background mesh.
+       @param[in] s0_hess    Hessian of s0 on the initial mesh.
+       @param[in] ahe        Interpolates s_hess(x) from s_bg_hess(x_bg).
+       See the pmesh-fitting miniapp for details on usage. */
+   void EnableSurfaceFittingFromSource(const ParGridFunction &s_bg,
+                                       ParGridFunction &s0,
+                                       const Array<bool> &smarker,
+                                       Coefficient &coeff,
+                                       AdaptivityEvaluator &ae,
+                                       const ParGridFunction &s_bg_grad,
+                                       ParGridFunction &s0_grad,
+                                       AdaptivityEvaluator &age,
+                                       const ParGridFunction &s_bg_hess,
+                                       ParGridFunction &s0_hess,
+                                       AdaptivityEvaluator &ahe);
+#endif
+   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+
    /// Update the original/reference nodes used for limiting.
-   void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
+   void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
@@ -1092,6 +2119,22 @@ public:
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
+   /** @brief Computes the mean of the energies of the given element's children.
+
+       In addition to the inputs for GetElementEnergy, this function requires an
+       IntegrationRule to be specified that will give the decomposition of the
+       given element based on the refinement type being considered. */
+   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun,
+                                             const IntegrationRule &irule);
+
+   /// This function is similar to GetElementEnergy, but ignores components
+   /// such as limiting etc. to compute the element energy.
+   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
+                                               ElementTransformation &T,
+                                               const Vector &elfun);
+
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
                                       const Vector &elfun, Vector &elvect);
@@ -1099,6 +2142,27 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
+
+   void UpdateAfterMeshTopologyChange();
+#ifdef MFEM_USE_MPI
+   void ParUpdateAfterMeshTopologyChange();
+#endif
+
+   // PA extension
+   using NonlinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
+
+   virtual double GetLocalStateEnergyPA(const Vector&) const;
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultGradPA(const Vector&, Vector&) const;
+
+   virtual void AssembleGradDiagonalPA(Vector&) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
@@ -1115,12 +2179,24 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
+   void   SetFDhScale(double dxscale_) { dxscale = dxscale_; }
    bool   GetFDFlag() const { return fdflag; }
    double GetFDh()    const { return dx; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   /// Update the surface fitting weight as surf_fit_coeff *= factor;
+   void UpdateSurfaceFittingWeight(double factor);
+
+   /// Get the surface fitting weight.
+   double GetSurfaceFittingWeight();
+
+   /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
+   /// the ParFiniteElementSpace must be passed as argument for consistency
+   /// across MPI ranks.
+   void ComputeUntangleMetricQuantiles(const Vector &x,
+                                       const FiniteElementSpace &fes);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
@@ -1164,11 +2240,29 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
+   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun,
+                                             const IntegrationRule &irule);
+
+   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
+                                               ElementTransformation &T,
+                                               const Vector &elfun);
+
    /// Normalization factor that considers all integrators in the combination.
    void EnableNormalization(const GridFunction &x);
 #ifdef MFEM_USE_MPI
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
+
+   // PA extension
+   using NonlinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
+   virtual double GetLocalStateEnergyPA(const Vector&) const;
+   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultGradPA(const Vector&, Vector&) const;
+   virtual void AssembleGradDiagonalPA(Vector&) const;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.

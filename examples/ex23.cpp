@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
 
    GridFunction u_gf(&fespace);
    GridFunction dudt_gf(&fespace);
+
    // 6. Set the initial conditions for u. All boundaries are considered
    //    natural.
    FunctionCoefficient u_0(InitialSolution);

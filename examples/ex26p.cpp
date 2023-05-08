@@ -37,7 +37,7 @@ using namespace mfem;
 // all spaces except the coarsest one in the ParFiniteElementSpaceHierarchy.
 // The multigrid uses a PCG solver preconditioned with AMG on the coarsest level
 // and second order Chebyshev accelerated smoothers on the other levels.
-class DiffusionMultigrid : public Multigrid
+class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
    ConstantCoefficient one;
@@ -48,7 +48,7 @@ public:
    // and the array of essential boundaries
    DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
                       Array<int>& ess_bdr)
-      : Multigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces), one(1.0)
    {
       ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
@@ -115,7 +115,7 @@ private:
       Vector diag(fespace.GetTrueVSize());
       bfs.Last()->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
                                                        *essentialTrueDofs.Last(), 2, fespace.GetParMesh()->GetComm());
 
       AddLevel(opr.Ptr(), smoother, true, true);
@@ -125,11 +125,11 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -157,7 +157,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -220,11 +219,11 @@ int main(int argc, char *argv[])
    }
    for (int level = 0; level < order_refinements; ++level)
    {
-      collections.Append(new H1_FECollection(std::pow(2, level+1), dim));
+      collections.Append(new H1_FECollection((int)std::pow(2, level+1), dim));
       fespaces->AddOrderRefinedLevel(collections.Last());
    }
 
-   HYPRE_Int size = fespaces->GetFinestFESpace().GlobalTrueVSize();
+   HYPRE_BigInt size = fespaces->GetFinestFESpace().GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -245,9 +244,9 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    // 10. Create the multigrid operator using the previously created parallel
-   //     FiniteElementSpaceHierarchy and additional boundary information. This operator
-   //     is then used to create the MultigridSolver as a preconditioner in the
-   //     iterative solver.
+   //     FiniteElementSpaceHierarchy and additional boundary information. This
+   //     operator is then used to create the MultigridSolver as preconditioner
+   //     in the iterative solver.
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    if (pmesh->bdr_attributes.Size())
    {
@@ -274,8 +273,8 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    M->RecoverFineFEMSolution(X, *b, x);
 
-   // 13. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 13. Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -310,8 +309,6 @@ int main(int argc, char *argv[])
    {
       delete collections[level];
    }
-
-   MPI_Finalize();
 
    return 0;
 }

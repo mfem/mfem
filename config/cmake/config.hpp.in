@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,6 +39,9 @@
 // Description of the git commit used to build MFEM.
 #cmakedefine MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
+// Enable shared library build of MFEM.
+#cmakedefine MFEM_SHARED_BUILD
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 #cmakedefine MFEM_USE_MPI
@@ -74,8 +77,8 @@
 // [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
 #cmakedefine MFEM_USE_LEGACY_OPENMP
 
-// Enable MFEM functionality based on the Mesquite library.
-#cmakedefine MFEM_USE_MESQUITE
+// Internal MFEM option: enable group/batch allocation for some small objects.
+#cmakedefine MFEM_USE_MEMALLOC
 
 // Enable MFEM functionality based on the SuiteSparse library.
 #cmakedefine MFEM_USE_SUITESPARSE
@@ -83,14 +86,17 @@
 // Enable MFEM functionality based on the SuperLU_DIST library.
 #cmakedefine MFEM_USE_SUPERLU
 
+// Enable MFEM functionality based on the MUMPS library.
+#cmakedefine MFEM_USE_MUMPS
+
 // Enable MFEM functionality based on the STRUMPACK library.
 #cmakedefine MFEM_USE_STRUMPACK
 
-// Internal MFEM option: enable group/batch allocation for some small objects.
-#cmakedefine MFEM_USE_MEMALLOC
-
 // Enable functionality based on the Ginkgo library
 #cmakedefine MFEM_USE_GINKGO
+
+// Enable MFEM functionality based on the AmgX library
+#cmakedefine MFEM_USE_AMGX
 
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
@@ -113,11 +119,17 @@
 // Enable the use of SIMD in the high performance templated classes
 #cmakedefine MFEM_USE_SIMD
 
+// Enable MFEM functionality based on the FMS library
+#cmakedefine MFEM_USE_FMS
+
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 
 // Enable MFEM functionality based on the PUMI library
 #cmakedefine MFEM_USE_PUMI
+
+// Enable MFEM functionality based on the Moonolith library
+#cmakedefine MFEM_USE_MOONOLITH
 
 // Enable MFEM functionality based on the HiOp library
 #cmakedefine MFEM_USE_HIOP
@@ -125,6 +137,10 @@
 // Build the GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 #cmakedefine MFEM_USE_CUDA
+
+// Build the HIP-enabled version of the MFEM library.
+// Requires a HIP compiler (hipcc).
+#cmakedefine MFEM_USE_HIP
 
 // Enable MFEM functionality based on the RAJA library
 #cmakedefine MFEM_USE_RAJA
@@ -141,6 +157,12 @@
 // Enable MFEM functionality based on the ADIOS2 library
 #cmakedefine MFEM_USE_ADIOS2
 
+// Enable MFEM functionality based on the Caliper library
+#cmakedefine MFEM_USE_CALIPER
+
+// Enable MFEM functionality based on the Algoim library
+#cmakedefine MFEM_USE_ALGOIM
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
@@ -155,5 +177,20 @@
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
+
+// Enable interface to the MKL CPardiso library.
+#cmakedefine MFEM_USE_MKL_CPARDISO
+
+// Use forward mode for automatic differentiation
+#cmakedefine MFEM_USE_ADFORWARD
+
+// Enable the use of the CoDiPack library for AD
+#cmakedefine MFEM_USE_CODIPACK
+
+// Enable MFEM functionality based on the Google Benchmark library.
+#cmakedefine MFEM_USE_BENCHMARK
+
+// Enable Enzyme for AD
+#cmakedefine MFEM_USE_ENZYME
 
 #endif // MFEM_CONFIG_HEADER

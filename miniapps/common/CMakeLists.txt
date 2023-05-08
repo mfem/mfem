@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,13 +21,18 @@ list(APPEND HDRS
 
 if (MFEM_USE_MPI)
   list(APPEND SRCS
-    pfem_extras.cpp)
+    pfem_extras.cpp
+    dist_solver.cpp)
   list(APPEND HDRS
-    pfem_extras.hpp)
+    pfem_extras.hpp
+    dist_solver.hpp)
 endif()
 
 if (MFEM_USE_CUDA)
   set_property(SOURCE ${SRCS} PROPERTY LANGUAGE CUDA)
+endif()
+if (MFEM_USE_HIP)
+  set_property(SOURCE ${SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
@@ -36,5 +41,5 @@ convert_filenames_to_full_paths(HDRS)
 set(MINIAPPS_COMMON_SOURCES ${MINIAPPS_COMMON_SOURCES} ${SRCS} PARENT_SCOPE)
 set(MINIAPPS_COMMON_HEADERS ${MINIAPPS_COMMON_HEADERS} ${HDRS} PARENT_SCOPE)
 
-add_library(mfem-common ${SRCS} ${HDRS})
+mfem_add_library(mfem-common ${SRCS} ${HDRS})
 target_link_libraries(mfem-common mfem)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,16 +21,14 @@
 //
 // Compile with: make life
 //
-// Sample runs: life
-//              life -nx 30
-//              life -nx 100 -ny 100 -r 0.3
-//              life -g '2 3 0'
-//              life -b '10 10 0' -g '2 2 0'
-//              life -b '10 10 1' -g '2 2 0'
-//              life -sp '8 10 0 1 1 1 2 1 1 1'
-//              life -nx 30 -sp '11 11 1 1 1 1 1 1 1 1 2
-//                                     1 0 1 1 1 1 0 1 2
-//                                     1 1 1 1 1 1 1 1'
+// Sample runs:  life
+//               life -nx 30
+//               life -nx 100 -ny 100 -r 0.3
+//               life -g '2 3 0'
+//               life -b '10 10 0' -g '2 2 0'
+//               life -b '10 10 1' -g '2 2 0'
+//               life -sp '8 10 0 1 1 1 2 1 1 1'
+//               life -nx 30 -sp '11 11 1 1 1 1 1 1 1 1 2 1 0 1 1 1 1 0 1 2 1 1 1 1 1 1 1 1'
 
 #include "mfem.hpp"
 #include <algorithm>
@@ -98,13 +96,14 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // 2. Build a rectangular mesh of quadrilateral elements.
-   Mesh *mesh = new Mesh(nx, ny, Element::QUADRILATERAL, 0, nx, ny, false);
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, 0, nx, ny,
+                                     false);
 
    // 3. Define a finite element space on the mesh. Here we use discontinuous
    //    Lagrange finite elements of order zero i.e. piecewise constant basis
    //    functions.
-   FiniteElementCollection *fec = new L2_FECollection(0, 2);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   L2_FECollection fec(0, 2);
+   FiniteElementSpace fespace(&mesh, &fec);
 
    // 4. Initialize a pair of bit arrays to store two copies of the
    //    playing field.
@@ -170,7 +169,7 @@ int main(int argc, char *argv[])
    // 5. Define the vector x as a finite element grid function corresponding
    //    to fespace which will be used to visualize the playing field.
    //    Initialize x with the starting layout set above.
-   GridFunction x(fespace);
+   GridFunction x(&fespace);
 
    ProjectStep(*vbp[0], x, len);
 
@@ -201,7 +200,7 @@ int main(int argc, char *argv[])
 
       if (visualization && is_good )
       {
-         sol_sock << "solution\n" << *mesh << x << flush;
+         sol_sock << "solution\n" << mesh << x << flush;
          {
             static int once = 1;
             if (once)
@@ -225,15 +224,10 @@ int main(int argc, char *argv[])
    //    viewed later using GLVis: "glvis -m life.mesh -g life.gf".
    ofstream mesh_ofs("life.mesh");
    mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
+   mesh.Print(mesh_ofs);
    ofstream sol_ofs("life.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-
-   // 10. Free the used memory.
-   delete fespace;
-   delete fec;
-   delete mesh;
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,7 +42,7 @@ public:
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();
 
-   /// Clear the elapsed time and start the stopwatch.
+   /// Start the stopwatch. The elapsed time is @b not cleared.
    void Start();
 
    /// Stop the stopwatch.
@@ -66,7 +66,7 @@ public:
 };
 
 
-extern StopWatch tic_toc;
+extern MFEM_EXPORT StopWatch tic_toc;
 
 /// Start the tic_toc timer
 extern void tic();

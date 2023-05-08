@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,6 +28,7 @@ protected:
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
    /// see FormSystemOperator()
+   /** @note Uses DiagonalPolicy::DIAG_ONE. */
    void FormConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
@@ -37,7 +38,8 @@ protected:
       const Array<int> &test_tdof_list,
       RectangularConstrainedOperator* &Aout);
 
-   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
 public:
@@ -51,8 +53,7 @@ public:
 
    /// Initializes memory for true vectors of linear system
    void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
-                     Vector &x, Vector &b,
-                     Vector &X, Vector &B) const;
+                     Vector &x, Vector &b, Vector &X, Vector &B) const;
 
    /// Construct a square Operator with given size s (default 0).
    explicit Operator(int s = 0) { height = width = s; }
@@ -77,7 +78,7 @@ public:
    /** This is the MemoryClass that will be used to access the input and output
        vectors in the Mult() and MultTranspose() methods.
 
-       For example, classes using the MFEM_FORALL macro for implementation can
+       For example, classes using the mfem::forall macro for implementation can
        return the value returned by Device::GetMemoryClass().
 
        The default implementation of this method in class Operator returns
@@ -90,28 +91,70 @@ public:
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+
+   /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
+
+   /// Operator application on a matrix: `Y=A(X)`.
+   virtual void ArrayMult(const Array<const Vector *> &X,
+                          Array<Vector *> &Y) const;
+
+   /// Action of the transpose operator on a matrix: `Y=A^t(X)`.
+   virtual void ArrayMultTranspose(const Array<const Vector *> &X,
+                                   Array<Vector *> &Y) const;
+
+   /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
+   virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
+                             const double a = 1.0) const;
+
+   /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
+       or `Y+=a*A^t(X)`. */
+   virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
+                                      Array<Vector *> &Y, const double a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overloaded!");
+      mfem_error("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
+   }
+
+   /** @brief Computes the diagonal entries into @a diag. Typically, this
+       operation only makes sense for linear Operator%s. In some cases, only an
+       approximation of the diagonal is computed. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      MFEM_CONTRACT_VAR(diag);
+      MFEM_ABORT("Not relevant or not implemented for this Operator.");
    }
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
+
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to output vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetOutputProlongation() const
    {
       return GetProlongation(); // Assume square unless specialized
    }
+
+   /** @brief Transpose of GetOutputRestriction, directly available in this
+       form to facilitate matrix-free RAP-type operators.
+
+       `NULL` means identity. */
+   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
+
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
@@ -227,7 +270,10 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
-   void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
+   void PrintMatlab(std::ostream & out, int n, int m = 0) const;
+
+   /// Prints operator in Matlab format.
+   virtual void PrintMatlab(std::ostream & out) const;
 
    /// Virtual destructor.
    virtual ~Operator() { }
@@ -247,7 +293,10 @@ public:
       PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
       Complex_Operator, ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
-      Complex_Hypre_ParCSR   ///< ID for class ComplexHypreParMatrix.
+      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
+      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
+      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
    };
 
    /// Return the type ID of the Operator class.
@@ -308,7 +357,7 @@ public:
    virtual double GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double _t) { t = _t; }
+   virtual void SetTime(const double t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -606,23 +655,22 @@ public:
 
    using TimeDependentOperator::ImplicitSolve;
    /** @brief Solve the equation:
-       @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
+       @a k = f(@a x + @a fac0 @a k, @a dxdt + @a fac1 @a k, t), for the
        unknown @a k at the current time t.
 
        For general F and G, the equation for @a k becomes:
-       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t)
-                        = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
+       F(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t)
+                        = G(@a x +  @a fac0 @a k, @a dxdt + @a fac1 @a k, t).
 
-       The input vector @a x corresponds to time index (or cycle) n, while the
+       The input vectors @a x and @a dxdt corresponds to time index (or cycle) n, while the
        currently set time, #t, and the result vector @a k correspond to time
-       index n+1. The time step @a dt corresponds to the time interval between
-       cycles n and n+1.
+       index n+1.
 
        This method allows for the abstract implementation of some time
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt0, const double dt1,
+   virtual void ImplicitSolve(const double fac0, const double fac1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
 
@@ -684,11 +732,15 @@ private:
 public:
    /// Create an operator which is a scalar multiple of A.
    explicit ScaledOperator(const Operator *A, double a)
-      : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
+      : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const
    { A_.Mult(x, y); y *= a_; }
+
+   /// Application of the transpose.
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A_.MultTranspose(x, y); y *= a_; }
 };
 
 
@@ -759,6 +811,23 @@ public:
    virtual void Mult(const Vector & x, Vector & y) const
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Approximate diagonal of the RAP Operator.
+   /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
+       multiplied be P^T.
+
+       When P is the FE space prolongation operator on a mesh without hanging
+       nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
+       of A is also exact. */
+   virtual void AssembleDiagonal(Vector &diag) const
+   {
+      A.AssembleDiagonal(APx);
+      P.MultTranspose(APx, diag);
+
+      // TODO: For an AMR mesh, a convergent diagonal can be assembled with
+      // |P^T| APx, where |P^T| has entry-wise absolute values of the conforming
+      // prolongation transpose operator. See BilinearForm::AssembleDiagonal.
+   }
+
    /// Application of the transpose.
    virtual void MultTranspose(const Vector & x, Vector & y) const
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
@@ -796,7 +865,10 @@ public:
 
     Square operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormLinearSystem. */
+    general, matrix-free system formulation of Operator::FormLinearSystem.
+
+    Do not confuse with ConstrainedSolver, which despite the name has very
+    different functionality. */
 class ConstrainedOperator : public Operator
 {
 protected:
@@ -823,8 +895,11 @@ public:
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
-   void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
-   { diag_policy = _diag_policy; }
+   void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
+   { diag_policy = diag_policy_; }
+
+   /// Diagonal of A, modified according to the used DiagonalPolicy.
+   virtual void AssembleDiagonal(Vector &diag) const;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -834,7 +909,9 @@ public:
            z = A((0,x_b));  b_i -= z_i;  b_b = x_b;
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
-       the vectors, and "_i" -- the rest of the entries. */
+       the vectors, and "_i" -- the rest of the entries.
+
+       @note This method is consistent with `DiagonalPolicy::DIAG_ONE`. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
    /** @brief Constrained operator action.
@@ -922,7 +999,7 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
-   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
+   PowerMethod(MPI_Comm comm_) : comm(comm_) {}
 #endif
 
    /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
@@ -931,7 +1008,7 @@ public:
        the eigenvector corresponding to the largest eigenvalue after convergence.
        The maximum number of iterations may set with \p numSteps, the relative
        tolerance with \p tolerance and the seed of the random initialization of
-       \p v0 with \p seed. */
+       \p v0 with \p seed. If \p seed is 0 \p v0 will not be random-initialized. */
    double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                     int numSteps = 10, double tolerance = 1e-8,
                                     int seed = 12345);
