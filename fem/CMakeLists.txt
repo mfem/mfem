@@ -104,7 +104,6 @@ set(SRCS
   ceed/integrators/mixedveccurl/mixedveccurl.cpp
   ceed/integrators/interp/interp.cpp
   ceed/solvers/algebraic.cpp
-  ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
   linearform.cpp
   linearform_ext.cpp
@@ -237,7 +236,6 @@ set(HDRS
   ceed/integrators/interp/interp.hpp
   ceed/integrators/util/util_qf.h
   ceed/solvers/algebraic.hpp
-  ceed/solvers/full-assembly.hpp
   ceed/solvers/solvers-atpmg.hpp
   linearform.hpp
   linearform_ext.hpp

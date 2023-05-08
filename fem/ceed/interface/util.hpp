@@ -17,6 +17,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include "../../../general/error.hpp"
 #include "ceed.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
