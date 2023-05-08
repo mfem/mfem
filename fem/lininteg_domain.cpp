@@ -107,6 +107,7 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
 
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQD = (Q >= D) ? Q : D;
 
       double u[D];
 
@@ -114,8 +115,8 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
       const DeviceMatrix Bt(sBt, d,q);
       kernels::internal::LoadB<D,Q>(d,q,B,sBt);
 
-      MFEM_SHARED double sQQQ[Q*Q*Q];
-      const DeviceCube QQQ(sQQQ, q,q,q);
+      MFEM_SHARED double sQQQ[MQD*MQD*MQD];
+      const DeviceCube QQQ(sQQQ, MQD, MQD, MQD);
 
       for (int c = 0; c < vdim; ++c)
       {
