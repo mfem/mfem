@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    bool rbf = false;
    double rbf_h = 2.01;
    int rbf_type = 6;
-   int rbf_order = -1;
+   int rbf_order = 1;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
