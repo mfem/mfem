@@ -9,35 +9,25 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../gridfunc.hpp"
-#include "../kernels.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 
 using namespace mfem;
 
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL,
-                           const int NE,
-                           const DenseMatrix &w_,
-                           DenseTensor &j_,
-                           const int d1d,
-                           const int q1d)
+template<int T_Q1D = 0>
+void TMOP_TcIdealShapeUnitSize_2D(const int NE,
+                                  const ConstDeviceMatrix &W,
+                                  DeviceTensor<5> &J,
+                                  const int q1d)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto W = Reshape(w_.Read(), DIM,DIM);
-   auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D, NE);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int DIM = 2;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -47,34 +37,26 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL,
          }
       }
    });
-   return true;
 }
 
-MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
-                           const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const DenseMatrix &w_,
-                           const Vector &x_,
-                           DenseTensor &j_,
-                           const int d1d,
-                           const int q1d)
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+void TMOP_TcIdealShapeGivenSize_2D(const int NE,
+                                   const double detW,
+                                   const ConstDeviceMatrix &B,
+                                   const ConstDeviceMatrix &G,
+                                   const ConstDeviceMatrix &W,
+                                   const DeviceTensor<4, const double> &X,
+                                   DeviceTensor<5> &J,
+                                   const int d1d,
+                                   const int q1d,
+                                   const int max)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
-   const double detW = w_.Det();
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto W = Reshape(w_.Read(), DIM,DIM);
-   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
-   auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D, NE);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -88,7 +70,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
 
       kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
       kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
@@ -106,7 +88,6 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
          }
       }
    });
-   return true;
 }
 
 template<> bool
@@ -126,22 +107,33 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes.GetFE(0);
    MFEM_VERIFY(fe.GetGeomType() == Geometry::SQUARE, "");
-   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::SQUARE);
+   const DenseMatrix &w = Geometries.GetGeomToPerfGeomJac(Geometry::SQUARE);
+   const double detW = w.Det();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
-   const int D1D = maps.ndof;
-   const int Q1D = maps.nqpt;
-   const int id = (D1D << 4 ) | Q1D;
+   const int d = maps.ndof, q = maps.nqpt;
 
-   const Array<double> &B = maps.B;
-   const Array<double> &G = maps.G;
+   constexpr int DIM = 2;
+   const auto W = Reshape(w.Read(), DIM,DIM);
+   const auto B = Reshape(maps.B.Read(), q, d);
+   const auto G = Reshape(maps.G.Read(), q, d);
+   auto J = Reshape(Jtr.Write(), DIM,DIM, q,q, NE);
 
    switch (target_type)
    {
       case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
       {
-         MFEM_LAUNCH_TMOP_KERNEL(TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL,
-                                 id,NE,W,Jtr);
+         decltype(&TMOP_TcIdealShapeUnitSize_2D<>) ker =
+            TMOP_TcIdealShapeUnitSize_2D;
+
+         if (q==2) { ker = TMOP_TcIdealShapeUnitSize_2D<2>; }
+         if (q==3) { ker = TMOP_TcIdealShapeUnitSize_2D<3>; }
+         if (q==4) { ker = TMOP_TcIdealShapeUnitSize_2D<4>; }
+         if (q==5) { ker = TMOP_TcIdealShapeUnitSize_2D<5>; }
+         if (q==6) { ker = TMOP_TcIdealShapeUnitSize_2D<6>; }
+
+         ker(NE,W,J,q);
+         return true;
       }
       case IDEAL_SHAPE_EQUAL_SIZE: return false;
       case IDEAL_SHAPE_GIVEN_SIZE:
@@ -149,12 +141,35 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
          MFEM_VERIFY(nodes, "");
          const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
          const Operator *R = fes.GetElementRestriction(ordering);
-         Vector X(R->Height(), Device::GetDeviceMemoryType());
-         X.UseDevice(true);
-         R->Mult(*nodes, X);
+         Vector x(R->Height(), Device::GetDeviceMemoryType());
+         x.UseDevice(true);
+         R->Mult(*nodes, x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
-         MFEM_LAUNCH_TMOP_KERNEL(TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
-                                 id,NE,B,G,W,X,Jtr);
+         const auto X = Reshape(x.Read(), d, d, DIM, NE);
+
+         decltype(&TMOP_TcIdealShapeGivenSize_2D<>) ker =
+            TMOP_TcIdealShapeGivenSize_2D;
+
+         if (d==2 && q==2) { ker = TMOP_TcIdealShapeGivenSize_2D<2,2>; }
+         if (d==2 && q==3) { ker = TMOP_TcIdealShapeGivenSize_2D<2,3>; }
+         if (d==2 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<2,4>; }
+         if (d==2 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<2,5>; }
+         if (d==2 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<2,6>; }
+
+         if (d==3 && q==3) { ker = TMOP_TcIdealShapeGivenSize_2D<3,3>; }
+         if (d==3 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<3,4>; }
+         if (d==3 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<3,5>; }
+         if (d==3 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<3,6>; }
+
+         if (d==4 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<4,4>; }
+         if (d==4 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<4,5>; }
+         if (d==4 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<4,6>; }
+
+         if (d==5 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<5,5>; }
+         if (d==5 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<5,6>; }
+
+         ker(NE,detW,B,G,W,X,J,d,q,4);
+         return true;
       }
       case GIVEN_SHAPE_AND_SIZE: return false;
       default: return false;

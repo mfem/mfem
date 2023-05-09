@@ -9,42 +9,31 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
-                           const int NE,
-                           const Array<double> &b,
-                           const Array<double> &g,
-                           const DenseTensor &j,
-                           const Vector &h,
-                           Vector &diagonal,
-                           const int d1d,
-                           const int q1d)
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+void TMOP_AssembleDiagonalPA_3D(const int NE,
+                                const ConstDeviceMatrix &B,
+                                const ConstDeviceMatrix &G,
+                                const DeviceTensor<6, const double> &J,
+                                const DeviceTensor<8, const double> &H,
+                                DeviceTensor<5> &D,
+                                const int d1d = 0,
+                                const int q1d = 0,
+                                const int max = 4)
 {
-   constexpr int DIM = 3;
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto G = Reshape(g.Read(), Q1D, D1D);
-   const auto J = Reshape(j.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-   const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
-
-   auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
 
       MFEM_SHARED double qqd[MQ1*MQ1*MD1];
       MFEM_SHARED double qdd[MQ1*MD1*MD1];
@@ -133,18 +122,38 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
    });
 }
 
-void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &D) const
+void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {
-   const int N = PA.ne;
-   const int D1D = PA.maps->ndof;
-   const int Q1D = PA.maps->nqpt;
-   const int id = (D1D << 4 ) | Q1D;
-   const DenseTensor &J = PA.Jtr;
-   const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
-   const Vector &H = PA.H;
+   constexpr int DIM = 3;
+   const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_3D,id,N,B,G,J,H,D);
+   const auto B = Reshape(PA.maps->B.Read(), q, d);
+   const auto G = Reshape(PA.maps->G.Read(), q, d);
+   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
+   const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, q, q, q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
+
+   decltype(&TMOP_AssembleDiagonalPA_3D<>) ker = TMOP_AssembleDiagonalPA_3D;
+
+   if (d==2 && q==2) { ker = TMOP_AssembleDiagonalPA_3D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_AssembleDiagonalPA_3D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<2,6>; }
+
+   if (d==3 && q==3) { ker = TMOP_AssembleDiagonalPA_3D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<3,6>; }
+
+   if (d==4 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<4,6>; }
+
+   if (d==5 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<5,6>; }
+
+   ker(NE,B,G,J,H,D,d,q,4);
 }
 
 } // namespace mfem

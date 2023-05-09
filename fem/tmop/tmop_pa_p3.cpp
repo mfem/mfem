@@ -9,156 +9,32 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../tmop.hpp"
 #include "tmop_pa.hpp"
-#include "../linearform.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-using Args = kernels::InvariantsEvaluator3D::Buffers;
-
-// P_302 = (I1b/9)*dI2b + (I2b/9)*dI1b
-static MFEM_HOST_DEVICE inline
-void EvalP_302(const double *J, double *P)
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+void TMOP_AddMultPA_3D(const double metric_normal,
+                       const double *w,
+                       const int mid,
+                       const int NE,
+                       const DeviceTensor<6, const double> &J,
+                       const ConstDeviceCube &W,
+                       const ConstDeviceMatrix &B,
+                       const ConstDeviceMatrix &G,
+                       const DeviceTensor<5,const double> &X,
+                       DeviceTensor<5> &Y,
+                       const int d1d,
+                       const int q1d,
+                       const int max)
 {
-   double B[9];
-   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args()
-                                     .J(J).B(B)
-                                     .dI1b(dI1b)
-                                     .dI2(dI2).dI2b(dI2b)
-                                     .dI3b(dI3b));
-   const double alpha = ie.Get_I1b()/9.;
-   const double beta = ie.Get_I2b()/9.;
-   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
-}
-
-// P_303 = dI1b/3
-static MFEM_HOST_DEVICE inline
-void EvalP_303(const double *J, double *P)
-{
-   double B[9];
-   double dI1b[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B).dI1b(dI1b).dI3b(dI3b));
-   kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
-}
-
-// P_315 = 2*(I3b - 1)*dI3b
-static MFEM_HOST_DEVICE inline
-void EvalP_315(const double *J, double *P)
-{
-   double dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args().J(J).dI3b(dI3b));
-
-   double sign_detJ;
-   const double I3b = ie.Get_I3b(sign_detJ);
-   kernels::Set(3,3, 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
-}
-
-// P_318 = (I3b - 1/I3b^3)*dI3b.
-// Uses the I3b form, as dI3 and ddI3 were not implemented at the time.
-static MFEM_HOST_DEVICE inline
-void EvalP_318(const double *J, double *P)
-{
-   double dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args().J(J).dI3b(dI3b));
-
-   double sign_detJ;
-   const double I3b = ie.Get_I3b(sign_detJ);
-   kernels::Set(3,3, I3b - 1.0/(I3b * I3b * I3b), ie.Get_dI3b(sign_detJ), P);
-}
-
-// P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
-static MFEM_HOST_DEVICE inline
-void EvalP_321(const double *J, double *P)
-{
-   double B[9];
-   double dI1[9], dI2[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B)
-                                     .dI1(dI1).dI2(dI2).dI3b(dI3b));
-   double sign_detJ;
-   const double I3 = ie.Get_I3();
-   const double alpha = 1.0/I3;
-   const double beta = -2.*ie.Get_I2()/(I3*ie.Get_I3b(sign_detJ));
-   kernels::Add(3,3, alpha, ie.Get_dI2(), beta, ie.Get_dI3b(sign_detJ), P);
-   kernels::Add(3,3, ie.Get_dI1(), P);
-}
-
-// P_332 = w0 P_302 + w1 P_315.
-static MFEM_HOST_DEVICE inline
-void EvalP_332(const double *J, const double *w, double *P)
-{
-   double B[9];
-   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args()
-                                     .J(J).B(B)
-                                     .dI1b(dI1b)
-                                     .dI2(dI2).dI2b(dI2b)
-                                     .dI3b(dI3b));
-   const double alpha = w[0] * ie.Get_I1b()/9.;
-   const double beta = w[0]* ie.Get_I2b()/9.;
-   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
-
-   double sign_detJ;
-   const double I3b = ie.Get_I3b(sign_detJ);
-   kernels::Add(3,3, w[1] * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
-}
-
-// P_338 = w0 P_302 + w1 P_318.
-static MFEM_HOST_DEVICE inline
-void EvalP_338(const double *J, const double *w, double *P)
-{
-   double B[9];
-   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
-   kernels::InvariantsEvaluator3D ie(Args()
-                                     .J(J).B(B)
-                                     .dI1b(dI1b)
-                                     .dI2(dI2).dI2b(dI2b)
-                                     .dI3b(dI3b));
-   const double alpha = w[0] * ie.Get_I1b()/9.;
-   const double beta = w[0]* ie.Get_I2b()/9.;
-   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
-
-   double sign_detJ;
-   const double I3b = ie.Get_I3b(sign_detJ);
-   kernels::Add(3,3, w[1] * (I3b - 1.0/(I3b * I3b * I3b)),
-                ie.Get_dI3b(sign_detJ), P);
-}
-
-MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
-                           const double metric_normal,
-                           const Array<double> &metric_param,
-                           const int mid,
-                           const int NE,
-                           const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const Vector &x_,
-                           Vector &y_,
-                           const int d1d,
-                           const int q1d)
-{
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
    MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
                mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
-   constexpr int DIM = 3;
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
-
-   const double *metric_data = metric_param.Read();
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -174,7 +50,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
       MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,s_DDD);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,s_BG);
 
       kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,s_BG,s_DDD,s_DDQ);
       kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,s_DQQ);
@@ -204,13 +80,100 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
 
                // metric->EvalP(Jpt, P);
                double P[9];
-               if (mid == 302) { EvalP_302(Jpt, P); }
-               if (mid == 303) { EvalP_303(Jpt, P); }
-               if (mid == 315) { EvalP_315(Jpt, P); }
-               if (mid == 318) { EvalP_318(Jpt, P); }
-               if (mid == 321) { EvalP_321(Jpt, P); }
-               if (mid == 332) { EvalP_332(Jpt, metric_data, P); }
-               if (mid == 338) { EvalP_338(Jpt, metric_data, P); }
+
+               if (mid == 302)
+               {
+                  // (I1b/9)*dI2b + (I2b/9)*dI1b
+                  double B[9];
+                  double dI1b[9], dI2[9], dI2b[9], dI3b[9];
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).B(B).dI1b(dI1b).dI2(dI2).dI2b(dI2b) .dI3b(dI3b));
+                  const double alpha = ie.Get_I1b()/9.;
+                  const double beta = ie.Get_I2b()/9.;
+                  kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+               }
+
+               if (mid == 303)
+               {
+                  // dI1b/3
+                  double B[9];
+                  double dI1b[9], dI3b[9];
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).B(B).dI1b(dI1b).dI3b(dI3b));
+                  kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
+               }
+
+               if (mid == 315)
+               {
+                  // 2*(I3b - 1)*dI3b
+                  double dI3b[9];
+                  kernels::InvariantsEvaluator3D ie(Args().J(Jpt).dI3b(dI3b));
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  kernels::Set(3,3, 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
+               }
+
+               // P_318 = (I3b - 1/I3b^3)*dI3b.
+               // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
+               if (mid == 318)
+               {
+                  double dI3b[9];
+                  kernels::InvariantsEvaluator3D ie(Args().J(Jpt).dI3b(dI3b));
+
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  kernels::Set(3,3, I3b - 1.0/(I3b * I3b * I3b), ie.Get_dI3b(sign_detJ), P);
+               }
+
+               if (mid == 321)
+               {
+                  // dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
+                  double B[9];
+                  double dI1[9], dI2[9], dI3b[9];
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).B(B).dI1(dI1).dI2(dI2).dI3b(dI3b));
+                  double sign_detJ;
+                  const double I3 = ie.Get_I3();
+                  const double alpha = 1.0/I3;
+                  const double beta = -2.*ie.Get_I2()/(I3*ie.Get_I3b(sign_detJ));
+                  kernels::Add(3,3, alpha, ie.Get_dI2(), beta, ie.Get_dI3b(sign_detJ), P);
+                  kernels::Add(3,3, ie.Get_dI1(), P);
+               }
+
+               if (mid == 332)
+               {
+                  // w0 P_302 + w1 P_315
+                  double B[9];
+                  double dI1b[9], dI2[9], dI2b[9], dI3b[9];
+                  kernels::InvariantsEvaluator3D ie
+                  (Args().J(Jpt).B(B).dI1b(dI1b).dI2(dI2).dI2b(dI2b).dI3b(dI3b));
+                  const double alpha = w[0] * ie.Get_I1b()/9.;
+                  const double beta = w[0] * ie.Get_I2b()/9.;
+                  kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  kernels::Add(3,3, w[1] * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
+               }
+
+               if (mid == 338)
+               {
+                  // w0 P_302 + w1 P_318
+                  double B[9];
+                  double dI1b[9], dI2[9], dI2b[9], dI3b[9];
+                  kernels::InvariantsEvaluator3D ie(Args()
+                                                    .J(Jpt).B(B)
+                                                    .dI1b(dI1b)
+                                                    .dI2(dI2).dI2b(dI2b)
+                                                    .dI3b(dI3b));
+                  const double alpha = w[0] * ie.Get_I1b()/9.;
+                  const double beta = w[0]* ie.Get_I2b()/9.;
+                  kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+                  double sign_detJ;
+                  const double I3b = ie.Get_I3b(sign_detJ);
+                  kernels::Add(3,3, w[1] * (I3b - 1.0/(I3b * I3b * I3b)),
+                               ie.Get_dI3b(sign_detJ), P);
+               }
+
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                // Y += DS . P^t += DSh . (Jrt . P^t)
@@ -221,33 +184,55 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
+      kernels::internal::LoadBGt<MD1,MQ1>(D1D,Q1D,B,G,s_BG);
       kernels::internal::GradZt<MD1,MQ1>(D1D,Q1D,s_BG,s_QQQ,s_DQQ);
       kernels::internal::GradYt<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_DDQ);
       kernels::internal::GradXt<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,Y,e);
    });
 }
 
-void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
+void TMOP_Integrator::AddMultPA_3D(const Vector &x, Vector &y) const
 {
-   const int N = PA.ne;
-   const int M = metric->Id();
-   const int D1D = PA.maps->ndof;
-   const int Q1D = PA.maps->nqpt;
-   const int id = (D1D << 4 ) | Q1D;
-   const DenseTensor &J = PA.Jtr;
-   const Array<double> &W = PA.ir->GetWeights();
-   const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
+   constexpr int DIM = 3;
    const double mn = metric_normal;
+   const int NE = PA.ne, M = metric->Id();
+   const int d = PA.maps->ndof, q = PA.maps->nqpt;
 
    Array<double> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
       m->GetWeights(mp);
    }
+   const double *w = mp.Read();
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y);
+   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
+   const auto B = Reshape(PA.maps->B.Read(), q, d);
+   const auto G = Reshape(PA.maps->G.Read(), q, d);
+   const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
+   auto Y = Reshape(y.ReadWrite(), d, d, d, DIM, NE);
+
+   decltype(&TMOP_AddMultPA_3D<>) ker = TMOP_AddMultPA_3D;
+
+   if (d==2 && q==2) { ker = TMOP_AddMultPA_3D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_AddMultPA_3D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_AddMultPA_3D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_AddMultPA_3D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_AddMultPA_3D<2,6>; }
+
+   if (d==3 && q==3) { ker = TMOP_AddMultPA_3D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_AddMultPA_3D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_AddMultPA_3D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_AddMultPA_3D<3,6>; }
+
+   if (d==4 && q==4) { ker = TMOP_AddMultPA_3D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_AddMultPA_3D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_AddMultPA_3D<4,6>; }
+
+   if (d==5 && q==5) { ker = TMOP_AddMultPA_3D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_AddMultPA_3D<5,6>; }
+
+   ker(mn,w,M,NE,J,W,B,G,X,Y,d,q,4);
 }
 
 } // namespace mfem
