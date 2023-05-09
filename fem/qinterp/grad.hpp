@@ -54,7 +54,7 @@ static void Derivatives2D(const int NE,
             Reshape(y_, Q1D, Q1D, VDIM, 2, NE):
             Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -161,7 +161,7 @@ static void Derivatives3D(const int NE,
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
