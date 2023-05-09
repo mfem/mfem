@@ -2412,20 +2412,19 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 
    Array<int> patchvert, edges, orient, edgevert;
 
-   // Get Element Vertices
    patchTopo->GetElementVertices(p, patchvert);
 
-   // Get Element Edges
    patchTopo->GetElementEdges(p, edges, orient);
 
    // Compare the vertices of the patches with the vertices of the knotvectors of knot2dge
    // Based on the match the orientation will be a 1 or a -1
    // -1: direction is flipped
    //  1: direction is not flipped
+
+   // First side
    for (int i = 0; i < edges.Size(); i++)
    {
       patchTopo->GetEdgeVertices(edges[i], edgevert);
-      // First side
       if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[1])
       {
          kvdir[0] = 1;
@@ -2442,6 +2441,8 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       // Second side
       for (int i = 0; i < edges.Size(); i++)
       {
+         patchTopo->GetEdgeVertices(edges[i], edgevert);
+
          if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
          {
             kvdir[1] = 1;
@@ -2473,8 +2474,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       }
    }
 
-   // Verify that all knotvectors have been given a direction.
-   MFEM_ASSERT(kvdir.Find(0) == -1, "Could not find direction of knotvector.");
+   MFEM_VERIFY(kvdir.Find(0) == -1, "Could not find direction of knotvector.");
 }
 
 void NURBSExtension::CreateComprehensiveKV()
@@ -2658,6 +2658,7 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
    Array<int> edges, orient;
 
    kv.SetSize(Dimension());
+   patchTopo->GetElementEdges(p, edges, orient);
 
    if (Dimension() == 1)
    {
@@ -2682,6 +2683,8 @@ const
    Array<int> edges, orient;
 
    kv.SetSize(Dimension());
+   patchTopo->GetElementEdges(p, edges, orient);
+
    if (Dimension() == 1)
    {
       kv[0] = knotVectorsCompr[Dimension()*p];
@@ -4472,7 +4475,7 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
 
    if (Ext->Dimension() == 1)
    {
-      kv[0] = Ext->KnotVec(p);
+      kv[0] = Ext->knotVectorsCompr[Ext->Dimension()*p];
    }
    else if (Ext->Dimension() == 2)
    {
