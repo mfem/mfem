@@ -43,14 +43,14 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = -1;
    int order = 1;
+   bool rk = false;
+   int rk_num_points = 4;
+   double rbf_h = 2.01;
+   int rbf_type = 6;
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
-   bool rbf = false;
-   double rbf_h = 2.01;
-   int rbf_type = 6;
-   int rbf_order = 1;
-   bool visualization = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -58,7 +58,15 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) >= 0.");
+                  "Finite element order (polynomial degree) >= 0 OR reproducing kernel order.");
+   args.AddOption(&rk, "-rk", "--rk", "-no-rk", "--no-rk",
+                  "Use reproducing kernel functions");
+   args.AddOption(&rk_num_points, "-rkp", "--rk-num-points",
+                  "Number of reproducing kernel points across each dimension of element");
+   args.AddOption(&rbf_h, "-rbfh", "--rbf-h",
+                  "Radial basis function shape parameter (>= RK order)");
+   args.AddOption(&rbf_type, "-rbft", "--rbf-type",
+                  "Radial basis function type: (0-2) global, (3-7) local");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -66,7 +74,6 @@ int main(int argc, char *argv[])
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
-   args.AddOption(&rbf, "-rbf", "--rbf", "-no-rbf", "--no-rbf", "Use radial basis functions");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -79,6 +86,14 @@ int main(int argc, char *argv[])
    if (kappa < 0)
    {
       kappa = (order+1)*(order+1);
+   }
+   if (rbf_h < order + 1)
+   {
+     rbf_h = std::max(2.01, 1.01 + order);
+   }
+   if (rk && sigma < 0.0)
+   {
+     sigma = 1.0;
    }
    args.PrintOptions(cout);
 
@@ -110,9 +125,9 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec;
-   if (rbf)
+   if (rk)
    {
-      fec = new KernelFECollection(dim, order, rbf_h, rbf_type, 2, rbf_order);
+      fec = new KernelFECollection(dim, rk_num_points, rbf_h, rbf_type, 2, order);
    }
    else
    {
