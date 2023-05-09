@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    int ncp        = 9;
    int order      = 2;
    bool ifbspline = true;
+   bool visualization = true;
 
    args.AddOption(&l, "-l", "--box-side-length",
                   "Height and width of the box");
@@ -65,6 +66,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ifbspline, "-uw", "--unit-weight", "-nw",
                   "--non-unit-weight",
                   "Use a unit-weight for B-splines (default) or not: for general NURBS");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable visualization.");
 
    // Parse and print commandline options
    args.Parse();
@@ -165,61 +169,65 @@ int main(int argc, char *argv[])
    patch.DegreeElevate(1, order-kv_o1->GetOrder());
    patch.KnotInsert(1, *kv);
 
-   // 3. Open and write mesh output file
-   string mesh_file("sin-fit.mesh");
-   ofstream output(mesh_file.c_str());
+   if (visualization)
+   {
+      // 3. Open and write mesh output file
+      string mesh_file("sin-fit.mesh");
+      ofstream output(mesh_file.c_str());
 
-   output<<"MFEM NURBS mesh v1.0"<<endl;
-   output<< endl << "# Square nurbs mesh with a sine fitted at its bottom edge" <<
-         endl << endl;
-   output<< "dimension"<<endl;
-   output<< 2 <<endl;
-   output<< endl;
+      output<<"MFEM NURBS mesh v1.0"<<endl;
+      output<< endl << "# Square nurbs mesh with a sine fitted at its bottom edge" <<
+            endl << endl;
+      output<< "dimension"<<endl;
+      output<< 2 <<endl;
+      output<< endl;
 
-   output<<"elements"<<endl;
-   output<<"1"<<endl;
-   output<<"1 3 0 1 2 3"<<endl;
-   output<<endl;
+      output<<"elements"<<endl;
+      output<<"1"<<endl;
+      output<<"1 3 0 1 2 3"<<endl;
+      output<<endl;
 
-   output<<"boundary"<<endl;
-   output<<"0"<<endl;
-   output<<endl;
+      output<<"boundary"<<endl;
+      output<<"0"<<endl;
+      output<<endl;
 
-   output << "edges" <<endl;
-   output << "4" <<endl;
-   output << "0 0 1"<<endl;
-   output << "0 3 2"<<endl;
-   output << "1 0 3"<<endl;
-   output << "1 1 2"<<endl;
-   output<<endl;
+      output << "edges" <<endl;
+      output << "4" <<endl;
+      output << "0 0 1"<<endl;
+      output << "0 3 2"<<endl;
+      output << "1 0 3"<<endl;
+      output << "1 1 2"<<endl;
+      output<<endl;
 
-   output << "vertices" << endl;
-   output << 4 << endl;
+      output << "vertices" << endl;
+      output << 4 << endl;
 
-   output<<"patches"<<endl;
-   output<<endl;
+      output<<"patches"<<endl;
+      output<<endl;
 
-   output << "# Patch 1 " << endl;
-   patch.Print(output);
-   output.close();
+      output << "# Patch 1 " << endl;
+      patch.Print(output);
+      output.close();
 
-   // Print mesh info to screen
-   cout << "=========================================================="<< endl;
-   cout << " Attempting to read mesh: " <<mesh_file.c_str()<< endl ;
-   cout << "=========================================================="<< endl;
-   Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
-   mesh->PrintInfo();
+      // Print mesh info to screen
+      cout << "=========================================================="<< endl;
+      cout << " Attempting to read mesh: " <<mesh_file.c_str()<< endl ;
+      cout << "=========================================================="<< endl;
+      Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
+      mesh->PrintInfo();
 
-   // Print mesh to file for visualisation
-   VisItDataCollection dc = VisItDataCollection("mesh", mesh);
-   dc.SetPrefixPath("solution");
-   dc.SetCycle(0);
-   dc.SetTime(0.0);
-   dc.Save();
+      // Print mesh to file for visualisation
+      VisItDataCollection dc = VisItDataCollection("mesh", mesh);
+      dc.SetPrefixPath("CurveInt");
+      dc.SetCycle(0);
+      dc.SetTime(0.0);
+      dc.Save();
+
+      delete mesh;
+   }
 
    delete kv_o1;
    delete kv;
-   delete mesh;
 
    return 0;
 }
