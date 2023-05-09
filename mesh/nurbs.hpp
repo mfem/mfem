@@ -277,7 +277,7 @@ protected:
    /** Checks if the comprehensive array of KnotVectors agrees with
        the reduced set of KnotVectors. Returns false if it finds
        a difference. */
-   bool ConsistentUniqueKVComprehensiveKV();
+   bool ConsistentKVSets();
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
