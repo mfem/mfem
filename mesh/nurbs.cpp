@@ -2407,6 +2407,16 @@ void NURBSExtension::CheckBdrPatches()
 
 void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 {
+   kvdir.SetSize(Dimension());
+   kvdir = 0;
+
+   // This is not required for 1D
+   if (Dimension() == 1)
+   {
+      kvdir[0] = 1;
+      return;
+   }
+
    Array<int> patchvert, edges, orient, edgevert;
 
    // Get Element Vertices
@@ -2415,14 +2425,10 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    // Get Element Edges
    patchTopo->GetElementEdges(p, edges, orient);
 
-   // Match Element vertices to edges (knot direction)
-   kvdir.SetSize(Dimension());
-   kvdir = 0;
-
    // Compare the vertices of the patches with the vertices of the knotvectors of knot2dge
    // Based on the match the orientation will be a 1 or a -1
    // -1: direction is flipped
-   //  1: direction is not  flipped
+   //  1: direction is not flipped
    for (int i = 0; i < edges.Size(); i++)
    {
       patchTopo->GetEdgeVertices(edges[i], edgevert);
@@ -2477,6 +2483,10 @@ void NURBSExtension::CreateComprehensiveKV()
    Array<int> edges, orient, kvdir;
 
    Array<int> e(Dimension());
+   if (Dimension() == 1)
+   {
+      e[0] = 0;
+   }
    if (Dimension() == 2)
    {
       e[0] = 0;
@@ -2512,6 +2522,11 @@ void NURBSExtension::UpdateUniqueKV()
    ifupd = 0;
 
    Array<int> e(Dimension());
+
+   if (Dimension() == 1)
+   {
+      e[0] = 0;
+   }
    if (Dimension() == 2)
    {
       e[0] = 0;
@@ -2596,12 +2611,15 @@ bool NURBSExtension::ConsistentUniqueKVComprehensiveKV()
 
    Array<int>e(Dimension());
 
-   if (Dimension() == 2)
+   if (Dimension() == 1)
+   {
+      e[0] = 0;
+   }
+   else if (Dimension() == 2)
    {
       e[0] = 0;
       e[1] = 1;
    }
-
    else if (Dimension() == 3)
    {
       e[0] = 0;
@@ -2651,7 +2669,7 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
 
    if (Dimension() == 1)
    {
-      kv[0] = knotVectorsCompr(p);
+      kv[0] = knotVectorsCompr[Dimension()*p];
    }
    else if (Dimension() == 2)
    {
@@ -2674,7 +2692,7 @@ const
    kv.SetSize(Dimension());
    if (Dimension() == 1)
    {
-      kv[0] = knotVectorsCompr(p);
+      kv[0] = knotVectorsCompr[Dimension()*p];
    }
    else if (Dimension() == 2)
    {
