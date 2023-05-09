@@ -78,8 +78,8 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
 
-CI_ARGS_1 := -uw -n 9
-CI_ARGS_2 := -nw -n 9
+CI_ARGS_1 := -uw -n 9 -no-visit
+CI_ARGS_2 := -nw -n 9 -no-visit
 
 nurbs_curveint-test-seq: nurbs_curveint
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))

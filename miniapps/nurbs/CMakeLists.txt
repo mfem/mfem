@@ -65,11 +65,11 @@ if (MFEM_ENABLE_TESTING)
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 
   add_test(NAME nurbs_curveint_unit_weight_ser
-    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis
+    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
     -uw -n 9)
 
   add_test(NAME nurbs_curveint_non_unit_weight_ser
-    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis
+    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
     -nw -n 9)
 endif()
 
