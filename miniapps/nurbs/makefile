@@ -64,6 +64,12 @@ EX1_ARGS_8 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2
 EX1_ARGS_9 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_10 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_11 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+EX1_ARGS_12 := -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
+EX1_ARGS_13 := -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
+EX1_ARGS_14 := -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
+EX1_ARGS_15 := -m ../../data/two-cubes-nurbs.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+EX1_ARGS_16 := -m ../../data/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+EX1_ARGS_17 := -m ../../data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
@@ -77,6 +83,12 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_9))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_12))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_13))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_14))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_15))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
 
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
