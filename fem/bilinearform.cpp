@@ -207,14 +207,63 @@ void BilinearForm::UseSparsity(SparseMatrix &A)
    UseSparsity(A.GetI(), A.GetJ(), A.ColumnsAreSorted());
 }
 
-double& BilinearForm::Elem(int i, int j)
+double &BilinearForm::Elem(int i, int j)
 {
    return mat->Elem(i,j);
 }
 
-const double& BilinearForm::Elem(int i, int j) const
+const double &BilinearForm::Elem(int i, int j) const
 {
    return mat->Elem(i,j);
+}
+
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
+void BilinearForm::AddMult(const Vector &x, Vector &y, const double a) const
+{
+   if (ext)
+   {
+      ext->AddMult(x, y, a);
+   }
+   else
+   {
+      mat->AddMult(x, y, a);
+   }
+}
+
+void BilinearForm::MultTranspose(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->MultTranspose(x, y);
+   }
+   else
+   {
+      mat->MultTranspose(x, y);
+   }
+}
+
+void BilinearForm::AddMultTranspose(const Vector &x, Vector &y,
+                                    const double a) const
+{
+   if (ext)
+   {
+      ext->AddMultTranspose(x, y, a);
+   }
+   else
+   {
+      mat->AddMultTranspose(x, y, a);
+   }
 }
 
 MatrixInverse *BilinearForm::Inverse() const
@@ -1082,31 +1131,6 @@ void BilinearForm::EliminateVDofsInRHS(
    mat->PartMult(vdofs_, x, b);
 }
 
-void BilinearForm::Mult(const Vector &x, Vector &y) const
-{
-   if (ext)
-   {
-      ext->Mult(x, y);
-   }
-   else
-   {
-      mat->Mult(x, y);
-   }
-}
-
-void BilinearForm::MultTranspose(const Vector & x, Vector & y) const
-{
-   if (ext)
-   {
-      ext->MultTranspose(x, y);
-   }
-   else
-   {
-      y = 0.0;
-      AddMultTranspose(x, y);
-   }
-}
-
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
@@ -1147,11 +1171,6 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 
    if (ext) { ext->Update(); }
-}
-
-void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
-{
-   diag_policy = policy;
 }
 
 BilinearForm::~BilinearForm()
@@ -1245,23 +1264,29 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    }
 }
 
-double & MixedBilinearForm::Elem(int i, int j)
+double &MixedBilinearForm::Elem(int i, int j)
 {
    return (*mat)(i, j);
 }
 
-const double & MixedBilinearForm::Elem(int i, int j) const
+const double &MixedBilinearForm::Elem(int i, int j) const
 {
    return (*mat)(i, j);
 }
 
-void MixedBilinearForm::Mult(const Vector & x, Vector & y) const
+void MixedBilinearForm::Mult(const Vector &x, Vector &y) const
 {
-   y = 0.0;
-   AddMult(x, y);
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
 }
 
-void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
+void MixedBilinearForm::AddMult(const Vector &x, Vector &y,
                                 const double a) const
 {
    if (ext)
@@ -1274,13 +1299,19 @@ void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
    }
 }
 
-void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
+void MixedBilinearForm::MultTranspose(const Vector &x, Vector &y) const
 {
-   y = 0.0;
-   AddMultTranspose(x, y);
+   if (ext)
+   {
+      ext->MultTranspose(x, y);
+   }
+   else
+   {
+      mat->MultTranspose(x, y);
+   }
 }
 
-void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
+void MixedBilinearForm::AddMultTranspose(const Vector &x, Vector &y,
                                          const double a) const
 {
    if (ext)

@@ -183,6 +183,18 @@ public:
        If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
+
+   /// Sets diagonal policy used upon construction of the linear system.
+   /** Policies include:
+
+       - DIAG_ZERO (Set the diagonal values to zero)
+       - DIAG_ONE  (Set the diagonal values to one)
+       - DIAG_KEEP (Keep the diagonal values)
+   */
+   void SetDiagonalPolicy(DiagonalPolicy policy) { diag_policy = policy; }
+
    /** @brief Force the sparse matrix column indices to be sorted when using
        AssemblyLevel::FULL.
 
@@ -198,8 +210,16 @@ public:
       sort_sparse_matrix = enable_it;
    }
 
-   /// Returns the assembly level
-   AssemblyLevel GetAssemblyLevel() const { return assembly; }
+   /// Indicate that integrators are not owned by the BilinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
+
+   /// Enable hybridization.
+   /** For details see the description for class
+       Hybridization in fem/hybridization.hpp. This method should be called
+       before assembly. */
+   void EnableHybridization(FiniteElementSpace *constr_space,
+                            BilinearFormIntegrator *constr_integ,
+                            const Array<int> &ess_tdof_list);
 
    Hybridization *GetHybridization() const { return hybridization; }
 
@@ -216,14 +236,6 @@ public:
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const
    { return static_cond ? static_cond->GetTraceFESpace() : NULL; }
-
-   /// Enable hybridization.
-   /** For details see the description for class
-       Hybridization in fem/hybridization.hpp. This method should be called
-       before assembly. */
-   void EnableHybridization(FiniteElementSpace *constr_space,
-                            BilinearFormIntegrator *constr_integ,
-                            const Array<int> &ess_tdof_list);
 
    /** @brief For scalar FE spaces, precompute the sparsity pattern of the matrix
        (assuming dense element matrices) based on the types of integrators
@@ -250,27 +262,6 @@ public:
        finalized) and the entries are initialized with zeros. */
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
-   /// Access all the integrators added with AddDomainIntegrator().
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
-
-   /// Access all the integrators added with AddBoundaryIntegrator().
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
-   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
-       If no marker was specified when the integrator was added, the
-       corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
-
-   /// Access all integrators added with AddInteriorFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
-
-   /// Access all integrators added with AddBdrFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
-   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
-       If no marker was specified when the integrator was added, the
-       corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBFBFI_Marker()
-   { return &boundary_face_integs_marker; }
-
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
@@ -283,15 +274,22 @@ public:
    /// Matrix vector multiplication:  \f$ y = M x \f$
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double a = 1.0) const;
+
+   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
+
    /** @brief Matrix vector multiplication with the original uneliminated
        matrix.  The original matrix is \f$ M + M_e \f$ so we have:
        \f$ y = M x + M_e x \f$ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
-
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
-   { mat -> AddMult(x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
        The original matrix is \f$ M + Me \f$ so we have:
@@ -299,26 +297,29 @@ public:
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const
-   { mat->AddMultTranspose(x, y, a); }
-
    /** @brief Add the original uneliminated matrix transpose vector
        multiple to a vector. The original matrix is \f$ M + M_e \f$
        so we have: \f$ y += M^T x + {M_e}^T x \f$ */
-   void FullAddMultTranspose(const Vector & x, Vector & y) const
+   void FullAddMultTranspose(const Vector &x, Vector &y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
+   double FullInnerProduct(const Vector &x, const Vector &y) const
+   { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
+
+   /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
+   virtual MatrixInverse *Inverse() const;
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y); }
 
-   /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
-   virtual MatrixInverse *Inverse() const;
+   /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
+   void operator=(const double a)
+   {
+      if (mat != NULL) { *mat = a; }
+      if (mat_e != NULL) { *mat_e = a; }
+   }
 
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
@@ -344,14 +345,7 @@ public:
    /** @brief Returns true if the sparse matrix is not null, false otherwise.
 
        @sa SpMat(). */
-   bool HasSpMat()
-   {
-      return mat != nullptr;
-   }
-
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transferring ownership. */
-   SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
+   bool HasSpMat() const { return mat != nullptr; }
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
        \f$ M_e \f$
@@ -377,10 +371,11 @@ public:
         false otherwise.
 
         @sa SpMatElim(). */
-   bool HasSpMatElim()
-   {
-      return mat_e != nullptr;
-   }
+   bool HasSpMatElim() const { return mat_e != nullptr; }
+
+   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+        to it.  Used for transferring ownership. */
+   SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
@@ -414,12 +409,26 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
-   /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
-   void operator=(const double a)
-   {
-      if (mat != NULL) { *mat = a; }
-      if (mat_e != NULL) { *mat_e = a; }
-   }
+   /// Access all the integrators added with AddDomainIntegrator().
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
+
+   /// Access all the integrators added with AddBoundaryIntegrator().
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
+
+   /// Access all integrators added with AddInteriorFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
+
+   /// Access all integrators added with AddBdrFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
+   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBFBFI_Marker()
+   { return &boundary_face_integs_marker; }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
@@ -637,10 +646,6 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
                             Vector &b);
 
-   /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
-   double FullInnerProduct(const Vector &x, const Vector &y) const
-   { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
-
    /// Update the @a FiniteElementSpace and delete all data associated with the old one.
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
@@ -648,18 +653,6 @@ public:
    FiniteElementSpace *FESpace() { return fes; }
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
-
-   /// Sets diagonal policy used upon construction of the linear system.
-   /** Policies include:
-
-       - DIAG_ZERO (Set the diagonal values to zero)
-       - DIAG_ONE  (Set the diagonal values to one)
-       - DIAG_KEEP (Keep the diagonal values)
-   */
-   void SetDiagonalPolicy(DiagonalPolicy policy);
-
-   /// Indicate that integrators are not owned by the BilinearForm
-   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
@@ -748,6 +741,13 @@ public:
                      FiniteElementSpace *te_fes,
                      MixedBilinearForm *mbf);
 
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
+
    /// Returns a reference to: \f$ M_{ij} \f$
    virtual double &Elem(int i, int j);
 
@@ -755,16 +755,20 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix multiplication: \f$ y = M x \f$
-   virtual void Mult(const Vector & x, Vector & y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual void AddMult(const Vector & x, Vector & y,
+   virtual void AddMult(const Vector &x, Vector &y,
                         const double a = 1.0) const;
 
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double a = 1.0) const;
 
    virtual MatrixInverse *Inverse() const;
+
+   /// Sets all sparse values of \f$ M \f$ to @a a.
+   void operator=(const double a) { *mat = a; }
 
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
@@ -779,6 +783,9 @@ public:
 
    /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat() { return *mat; }
+
+   /// Returns true if the sparse matrix is not null, false otherwise.
+   bool HasSpMat() const { return mat != nullptr; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
         to it.  Used for transferring ownership. */
@@ -829,13 +836,6 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
-
-   /// Sets all sparse values of \f$ M \f$ to @a a.
-   void operator=(const double a) { *mat = a; }
-
-   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
-   /** This method must be called before assembly. */
-   void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    void Assemble(int skip_zeros = 1);
 

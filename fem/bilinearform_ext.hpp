@@ -62,7 +62,7 @@ class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
    const FiniteElementSpace *fes; // Not owned
-   mutable Vector local_x, local_y;
+   mutable Vector local_x, local_y, temp_y;
    mutable Vector int_face_x, int_face_y;
    mutable Vector bdr_face_x, bdr_face_y;
    const ElementRestriction *elem_restrict; // Not owned
@@ -75,7 +75,9 @@ public:
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double c = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c = 1.0) const;
    void Update();
 
 protected:
@@ -91,7 +93,9 @@ public:
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double c = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c = 1.0) const;
 };
 
 /// Data and methods for element-assembled bilinear forms

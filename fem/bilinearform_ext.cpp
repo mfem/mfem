@@ -72,9 +72,8 @@ void MFBilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       int_face_y.UseDevice(true);
    }
 
-   const bool has_bdr_integs = (a->GetBFBFI()->Size() > 0 ||
-                                a->GetBBFI()->Size() > 0);
-   if (bdr_face_restrict_lex == nullptr && has_bdr_integs)
+   if (bdr_face_restrict_lex == nullptr &&
+       (a->GetBFBFI()->Size() > 0 || a->GetBBFI()->Size() > 0))
    {
       bdr_face_restrict_lex = fes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
@@ -114,21 +113,14 @@ void MFBilinearFormExtension::Assemble()
 void MFBilinearFormExtension::AssembleDiagonal(Vector &diag) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
+      local_y = 0.0;
+      for (BilinearFormIntegrator *integ : integrators)
       {
-         local_y = 0.0;
-         for (BilinearFormIntegrator *integ : integrators)
-         {
-            integ->AssembleDiagonalMF(local_y);
-         }
-         elem_restrict->MultTransposeUnsigned(local_y, diag);
+         integ->AssembleDiagonalMF(local_y);
       }
-      else
-      {
-         diag = 0.0;
-      }
+      elem_restrict->MultTransposeUnsigned(local_y, diag);
    }
    else
    {
@@ -141,9 +133,9 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &diag) const
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex)
+   if (bdr_integrators.Size() > 0)
    {
-      if (bdr_integrators.Size() > 0)
+      if (bdr_face_restrict_lex)
       {
          bdr_face_y = 0.0;
          for (BilinearFormIntegrator *integ : bdr_integrators)
@@ -152,12 +144,12 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &diag) const
          }
          bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_y, diag);
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      else
       {
-         integ->AssembleDiagonalMF(diag);
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AssembleDiagonalMF(diag);
+         }
       }
    }
 }
@@ -165,22 +157,15 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &diag) const
 void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
+      elem_restrict->Mult(x, local_x);
+      local_y = 0.0;
+      for (BilinearFormIntegrator *integ : integrators)
       {
-         elem_restrict->Mult(x, local_x);
-         local_y = 0.0;
-         for (BilinearFormIntegrator *integ : integrators)
-         {
-            integ->AddMultMF(local_x, local_y);
-         }
-         elem_restrict->MultTranspose(local_y, y);
+         integ->AddMultMF(local_x, local_y);
       }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->MultTranspose(local_y, y);
    }
    else
    {
@@ -193,9 +178,9 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex)
+   if (bdr_integrators.Size() > 0)
    {
-      if (bdr_integrators.Size() > 0)
+      if (bdr_face_restrict_lex)
       {
          bdr_face_restrict_lex->Mult(x, bdr_face_x);
          if (bdr_face_x.Size() > 0)
@@ -208,12 +193,100 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
             bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
          }
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      else
       {
-         integ->AddMultMF(x, y);
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AddMultMF(x, y);
+         }
+      }
+   }
+}
+
+void MFBilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                      const double c) const
+{
+   Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
+   if (integrators.Size() > 0)
+   {
+      if (elem_restrict)
+      {
+         elem_restrict->Mult(x, local_x);
+         local_y = 0.0;
+         for (BilinearFormIntegrator *integ : integrators)
+         {
+            integ->AddMultMF(local_x, local_y);
+         }
+         if (c != 1.0)
+         {
+            local_y *= c;
+         }
+         elem_restrict->AddMultTranspose(local_y, y);
+      }
+      else
+      {
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultMF(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultMF(x, y);
+            }
+         }
+      }
+   }
+
+   Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
+   if (bdr_integrators.Size() > 0)
+   {
+      if (bdr_face_restrict_lex)
+      {
+         bdr_face_restrict_lex->Mult(x, bdr_face_x);
+         if (bdr_face_x.Size() > 0)
+         {
+            bdr_face_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultMF(bdr_face_x, bdr_face_y);
+            }
+            if (c != 1.0)
+            {
+               bdr_face_y *= c;
+            }
+            bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
+         }
+      }
+      else
+      {
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultMF(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultMF(x, y);
+            }
+         }
       }
    }
 }
@@ -221,22 +294,15 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
+      elem_restrict->Mult(x, local_x);
+      local_y = 0.0;
+      for (BilinearFormIntegrator *integ : integrators)
       {
-         elem_restrict->Mult(x, local_x);
-         local_y = 0.0;
-         for (BilinearFormIntegrator *integ : integrators)
-         {
-            integ->AddMultTransposeMF(local_x, local_y);
-         }
-         elem_restrict->MultTranspose(local_y, y);
+         integ->AddMultTransposeMF(local_x, local_y);
       }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->MultTranspose(local_y, y);
    }
    else
    {
@@ -249,9 +315,9 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex)
+   if (bdr_integrators.Size() > 0)
    {
-      if (bdr_integrators.Size() > 0)
+      if (bdr_face_restrict_lex)
       {
          bdr_face_restrict_lex->Mult(x, bdr_face_x);
          if (bdr_face_x.Size() > 0)
@@ -264,12 +330,100 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
          }
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      else
       {
-         integ->AddMultTransposeMF(x, y);
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AddMultTransposeMF(x, y);
+         }
+      }
+   }
+}
+
+void MFBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
+                                               const double c) const
+{
+   Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
+   if (integrators.Size() > 0)
+   {
+      if (elem_restrict)
+      {
+         elem_restrict->Mult(x, local_x);
+         local_y = 0.0;
+         for (BilinearFormIntegrator *integ : integrators)
+         {
+            integ->AddMultTransposeMF(local_x, local_y);
+         }
+         if (c != 1.0)
+         {
+            local_y *= c;
+         }
+         elem_restrict->AddMultTranspose(local_y, y);
+      }
+      else
+      {
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultTransposeMF(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultTransposeMF(x, y);
+            }
+         }
+      }
+   }
+
+   Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
+   if (bdr_integrators.Size() > 0)
+   {
+      if (bdr_face_restrict_lex)
+      {
+         bdr_face_restrict_lex->Mult(x, bdr_face_x);
+         if (bdr_face_x.Size() > 0)
+         {
+            bdr_face_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultTransposeMF(bdr_face_x, bdr_face_y);
+            }
+            if (c != 1.0)
+            {
+               bdr_face_y *= c;
+            }
+            bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
+         }
+      }
+      else
+      {
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultTransposeMF(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultTransposeMF(x, y);
+            }
+         }
       }
    }
 }
@@ -322,21 +476,14 @@ void PABilinearFormExtension::Assemble()
 void PABilinearFormExtension::AssembleDiagonal(Vector &diag) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
+      local_y = 0.0;
+      for (BilinearFormIntegrator *integ : integrators)
       {
-         local_y = 0.0;
-         for (BilinearFormIntegrator *integ : integrators)
-         {
-            integ->AssembleDiagonalPA(local_y);
-         }
-         elem_restrict->MultTransposeUnsigned(local_y, diag);
+         integ->AssembleDiagonalPA(local_y);
       }
-      else
-      {
-         diag = 0.0;
-      }
+      elem_restrict->MultTransposeUnsigned(local_y, diag);
    }
    else
    {
@@ -349,9 +496,9 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &diag) const
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex)
+   if (bdr_integrators.Size() > 0)
    {
-      if (bdr_integrators.Size() > 0)
+      if (bdr_face_restrict_lex)
       {
          bdr_face_y = 0.0;
          for (BilinearFormIntegrator *integ : bdr_integrators)
@@ -360,12 +507,12 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &diag) const
          }
          bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_y, diag);
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      else
       {
-         integ->AssembleDiagonalPA(diag);
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AssembleDiagonalPA(diag);
+         }
       }
    }
 }
@@ -373,22 +520,15 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &diag) const
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
+      elem_restrict->Mult(x, local_x);
+      local_y = 0.0;
+      for (BilinearFormIntegrator *integ : integrators)
       {
-         elem_restrict->Mult(x, local_x);
-         local_y = 0.0;
-         for (BilinearFormIntegrator *integ : integrators)
-         {
-            integ->AddMultPA(local_x, local_y);
-         }
-         elem_restrict->MultTranspose(local_y, y);
+         integ->AddMultPA(local_x, local_y);
       }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->MultTranspose(local_y, y);
    }
    else
    {
@@ -401,9 +541,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
    Array<BilinearFormIntegrator *> &int_face_integrators = *a->GetFBFI();
-   if (int_face_restrict_lex)
+   if (int_face_integrators.Size() > 0)
    {
-      if (int_face_integrators.Size() > 0)
+      if (int_face_restrict_lex)
       {
          int_face_restrict_lex->Mult(x, int_face_x);
          if (int_face_x.Size() > 0)
@@ -416,20 +556,20 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             int_face_restrict_lex->AddMultTransposeInPlace(int_face_y, y);
          }
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : int_face_integrators)
+      else
       {
-         integ->AddMultPA(x, y);
+         for (BilinearFormIntegrator *integ : int_face_integrators)
+         {
+            integ->AddMultPA(x, y);
+         }
       }
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
    Array<BilinearFormIntegrator *> &bdr_face_integrators = *a->GetBFBFI();
-   if (bdr_face_restrict_lex)
+   if (bdr_integrators.Size() > 0 || bdr_face_integrators.Size() > 0)
    {
-      if (bdr_integrators.Size() > 0 || bdr_face_integrators.Size() > 0)
+      if (bdr_face_restrict_lex)
       {
          bdr_face_restrict_lex->Mult(x, bdr_face_x);
          if (bdr_face_x.Size() > 0)
@@ -446,16 +586,160 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
          }
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      else
       {
-         integ->AddMultPA(x, y);
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AddMultPA(x, y);
+         }
+         for (BilinearFormIntegrator *integ : bdr_face_integrators)
+         {
+            integ->AddMultPA(x, y);
+         }
       }
-      for (BilinearFormIntegrator *integ : bdr_face_integrators)
+   }
+}
+
+void PABilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                      const double c) const
+{
+   Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
+   if (integrators.Size() > 0)
+   {
+      if (elem_restrict)
       {
-         integ->AddMultPA(x, y);
+         elem_restrict->Mult(x, local_x);
+         local_y = 0.0;
+         for (BilinearFormIntegrator *integ : integrators)
+         {
+            integ->AddMultPA(local_x, local_y);
+         }
+         if (c != 1.0)
+         {
+            local_y *= c;
+         }
+         elem_restrict->AddMultTranspose(local_y, y);
+      }
+      else
+      {
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultPA(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultPA(x, y);
+            }
+         }
+      }
+   }
+
+   Array<BilinearFormIntegrator *> &int_face_integrators = *a->GetFBFI();
+   if (int_face_integrators.Size() > 0)
+   {
+      if (int_face_restrict_lex)
+      {
+         int_face_restrict_lex->Mult(x, int_face_x);
+         if (int_face_x.Size() > 0)
+         {
+            int_face_y = 0.0;
+            for (BilinearFormIntegrator *integ : int_face_integrators)
+            {
+               integ->AddMultPA(int_face_x, int_face_y);
+            }
+            if (c != 1.0)
+            {
+               int_face_y *= c;
+            }
+            int_face_restrict_lex->AddMultTransposeInPlace(int_face_y, y);
+         }
+      }
+      else
+      {
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : int_face_integrators)
+            {
+               integ->AddMultPA(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : int_face_integrators)
+            {
+               integ->AddMultPA(x, y);
+            }
+         }
+      }
+   }
+
+   Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
+   Array<BilinearFormIntegrator *> &bdr_face_integrators = *a->GetBFBFI();
+   if (bdr_integrators.Size() > 0 || bdr_face_integrators.Size() > 0)
+   {
+      if (bdr_face_restrict_lex)
+      {
+         bdr_face_restrict_lex->Mult(x, bdr_face_x);
+         if (bdr_face_x.Size() > 0)
+         {
+            bdr_face_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultPA(bdr_face_x, bdr_face_y);
+            }
+            for (BilinearFormIntegrator *integ : bdr_face_integrators)
+            {
+               integ->AddMultPA(bdr_face_x, bdr_face_y);
+            }
+            if (c != 1.0)
+            {
+               bdr_face_y *= c;
+            }
+            bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
+         }
+      }
+      else
+      {
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultPA(x, temp_y);
+            }
+            for (BilinearFormIntegrator *integ : bdr_face_integrators)
+            {
+               integ->AddMultPA(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultPA(x, y);
+            }
+            for (BilinearFormIntegrator *integ : bdr_face_integrators)
+            {
+               integ->AddMultPA(x, y);
+            }
+         }
       }
    }
 }
@@ -463,22 +747,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
+      elem_restrict->Mult(x, local_x);
+      local_y = 0.0;
+      for (BilinearFormIntegrator *integ : integrators)
       {
-         elem_restrict->Mult(x, local_x);
-         local_y = 0.0;
-         for (BilinearFormIntegrator *integ : integrators)
-         {
-            integ->AddMultTransposePA(local_x, local_y);
-         }
-         elem_restrict->MultTranspose(local_y, y);
+         integ->AddMultTransposePA(local_x, local_y);
       }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->MultTranspose(local_y, y);
    }
    else
    {
@@ -491,9 +768,9 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 
    Array<BilinearFormIntegrator *> &int_face_integrators = *a->GetFBFI();
-   if (int_face_restrict_lex)
+   if (int_face_integrators.Size() > 0)
    {
-      if (int_face_integrators.Size() > 0)
+      if (int_face_restrict_lex)
       {
          int_face_restrict_lex->Mult(x, int_face_x);
          if (int_face_x.Size() > 0)
@@ -506,20 +783,20 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             int_face_restrict_lex->AddMultTransposeInPlace(int_face_y, y);
          }
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : int_face_integrators)
+      else
       {
-         integ->AddMultTransposePA(x, y);
+         for (BilinearFormIntegrator *integ : int_face_integrators)
+         {
+            integ->AddMultTransposePA(x, y);
+         }
       }
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
    Array<BilinearFormIntegrator *> &bdr_face_integrators = *a->GetBFBFI();
-   if (bdr_face_restrict_lex)
+   if (bdr_integrators.Size() > 0 || bdr_face_integrators.Size() > 0)
    {
-      if (bdr_integrators.Size() > 0 || bdr_face_integrators.Size() > 0)
+      if (bdr_face_restrict_lex)
       {
          bdr_face_restrict_lex->Mult(x, bdr_face_x);
          if (bdr_face_x.Size() > 0)
@@ -536,16 +813,160 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
          }
       }
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      else
       {
-         integ->AddMultTransposePA(x, y);
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AddMultTransposePA(x, y);
+         }
+         for (BilinearFormIntegrator *integ : bdr_face_integrators)
+         {
+            integ->AddMultTransposePA(x, y);
+         }
       }
-      for (BilinearFormIntegrator *integ : bdr_face_integrators)
+   }
+}
+
+void PABilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
+                                               const double c) const
+{
+   Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
+   if (integrators.Size() > 0)
+   {
+      if (elem_restrict)
       {
-         integ->AddMultTransposePA(x, y);
+         elem_restrict->Mult(x, local_x);
+         local_y = 0.0;
+         for (BilinearFormIntegrator *integ : integrators)
+         {
+            integ->AddMultTransposePA(local_x, local_y);
+         }
+         if (c != 1.0)
+         {
+            local_y *= c;
+         }
+         elem_restrict->AddMultTranspose(local_y, y);
+      }
+      else
+      {
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultTransposePA(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultTransposePA(x, y);
+            }
+         }
+      }
+   }
+
+   Array<BilinearFormIntegrator *> &int_face_integrators = *a->GetFBFI();
+   if (int_face_integrators.Size() > 0)
+   {
+      if (int_face_restrict_lex)
+      {
+         int_face_restrict_lex->Mult(x, int_face_x);
+         if (int_face_x.Size() > 0)
+         {
+            int_face_y = 0.0;
+            for (BilinearFormIntegrator *integ : int_face_integrators)
+            {
+               integ->AddMultTransposePA(int_face_x, int_face_y);
+            }
+            if (c != 1.0)
+            {
+               int_face_y *= c;
+            }
+            int_face_restrict_lex->AddMultTransposeInPlace(int_face_y, y);
+         }
+      }
+      else
+      {
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : int_face_integrators)
+            {
+               integ->AddMultTransposePA(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : int_face_integrators)
+            {
+               integ->AddMultTransposePA(x, y);
+            }
+         }
+      }
+   }
+
+   Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
+   Array<BilinearFormIntegrator *> &bdr_face_integrators = *a->GetBFBFI();
+   if (bdr_integrators.Size() > 0 || bdr_face_integrators.Size() > 0)
+   {
+      if (bdr_face_restrict_lex)
+      {
+         bdr_face_restrict_lex->Mult(x, bdr_face_x);
+         if (bdr_face_x.Size() > 0)
+         {
+            bdr_face_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultTransposePA(bdr_face_x, bdr_face_y);
+            }
+            for (BilinearFormIntegrator *integ : bdr_face_integrators)
+            {
+               integ->AddMultTransposePA(bdr_face_x, bdr_face_y);
+            }
+            if (c != 1.0)
+            {
+               bdr_face_y *= c;
+            }
+            bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_y, y);
+         }
+      }
+      else
+      {
+         if (c != 1.0)
+         {
+            temp_y.SetSize(y.Size());
+            temp_y.UseDevice(true);
+            temp_y = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultTransposePA(x, temp_y);
+            }
+            for (BilinearFormIntegrator *integ : bdr_face_integrators)
+            {
+               integ->AddMultTransposePA(x, temp_y);
+            }
+            y.Add(c, temp_y);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultTransposePA(x, y);
+            }
+            for (BilinearFormIntegrator *integ : bdr_face_integrators)
+            {
+               integ->AddMultTransposePA(x, y);
+            }
+         }
       }
    }
 }
@@ -645,19 +1066,12 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          Y(j, e) += res;
       });
    };
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
-      {
-         elem_restrict->Mult(x, local_x);
-         local_y = 0.0;
-         Apply(ne, elem_dofs, ea_data, local_x, local_y);
-         elem_restrict->MultTranspose(local_y, y);
-      }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->Mult(x, local_x);
+      local_y = 0.0;
+      Apply(ne, elem_dofs, ea_data, local_x, local_y);
+      elem_restrict->MultTranspose(local_y, y);
    }
    else
    {
@@ -770,19 +1184,12 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          Y(j, e) += res;
       });
    };
-   if (elem_restrict)
+   if (integrators.Size() > 0 && elem_restrict)
    {
-      if (integrators.Size() > 0)
-      {
-         elem_restrict->Mult(x, local_x);
-         local_y = 0.0;
-         ApplyTranspose(ne, elem_dofs, ea_data, local_x, local_y);
-         elem_restrict->MultTranspose(local_y, y);
-      }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->Mult(x, local_x);
+      local_y = 0.0;
+      ApplyTranspose(ne, elem_dofs, ea_data, local_x, local_y);
+      elem_restrict->MultTranspose(local_y, y);
    }
    else
    {
@@ -1205,9 +1612,7 @@ void MFMixedBilinearFormExtension::SetupRestrictionOperators(
       }
    }
 
-   const bool has_bdr_integs = (a->GetBTFBFI()->Size() > 0 ||
-                                a->GetBBFI()->Size() > 0);
-   if (has_bdr_integs)
+   if (a->GetBTFBFI()->Size() > 0 || a->GetBBFI()->Size() > 0)
    {
       if (bdr_face_restrict_lex_trial == nullptr)
       {
@@ -1265,85 +1670,90 @@ void MFMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
                                            const double c) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict_trial && integrators.Size() > 0)
+   if (integrators.Size() > 0)
    {
-      elem_restrict_trial->Mult(x, local_trial);
-   }
-   if (elem_restrict_test && integrators.Size() > 0)
-   {
-      local_test = 0.0;
-      for (BilinearFormIntegrator *integ : integrators)
+      if (elem_restrict_trial)
       {
-         integ->AddMultMF(elem_restrict_trial ? local_trial : x, local_test);
+         elem_restrict_trial->Mult(x, local_trial);
       }
-      if (c != 1.0)
+      if (elem_restrict_test)
       {
-         local_test *= c;
-      }
-      elem_restrict_test->AddMultTranspose(local_test, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      if (c != 1.0 && integrators.Size() > 0)
-      {
-         temp_test.SetSize(y.Size());
-         temp_test.UseDevice(true);
-         temp_test = 0.0;
+         local_test = 0.0;
          for (BilinearFormIntegrator *integ : integrators)
          {
-            integ->AddMultMF(elem_restrict_trial ? local_trial : x, temp_test);
+            integ->AddMultMF(elem_restrict_trial ? local_trial : x, local_test);
          }
-         y.Add(c, temp_test);
+         if (c != 1.0)
+         {
+            local_test *= c;
+         }
+         elem_restrict_test->AddMultTranspose(local_test, y);
       }
       else
       {
-         for (BilinearFormIntegrator *integ : integrators)
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
          {
-            integ->AddMultMF(elem_restrict_trial ? local_trial : x, y);
+            temp_test.SetSize(y.Size());
+            temp_test.UseDevice(true);
+            temp_test = 0.0;
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultMF(elem_restrict_trial ? local_trial : x, temp_test);
+            }
+            y.Add(c, temp_test);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultMF(elem_restrict_trial ? local_trial : x, y);
+            }
          }
       }
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex_trial && bdr_integrators.Size() > 0)
+   if (bdr_integrators.Size() > 0)
    {
-      bdr_face_restrict_lex_trial->Mult(x, bdr_face_trial);
-   }
-   if (bdr_face_restrict_lex_test && bdr_integrators.Size() > 0)
-   {
-      bdr_face_test = 0.0;
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      if (bdr_face_restrict_lex_trial)
       {
-         integ->AddMultMF(bdr_face_restrict_lex_trial ? bdr_face_trial : x,
-                          bdr_face_test);
+         bdr_face_restrict_lex_trial->Mult(x, bdr_face_trial);
       }
-      if (c != 1.0)
+      if (bdr_face_restrict_lex_test)
       {
-         bdr_face_test *= c;
-      }
-      bdr_face_restrict_lex_test->AddMultTranspose(bdr_face_test, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      if (c != 1.0 && bdr_integrators.Size() > 0)
-      {
-         temp_test.SetSize(y.Size());
-         temp_test.UseDevice(true);
-         temp_test = 0.0;
+         bdr_face_test = 0.0;
          for (BilinearFormIntegrator *integ : bdr_integrators)
          {
             integ->AddMultMF(bdr_face_restrict_lex_trial ? bdr_face_trial : x,
-                             temp_test);
+                             bdr_face_test);
          }
-         y.Add(c, temp_test);
+         if (c != 1.0)
+         {
+            bdr_face_test *= c;
+         }
+         bdr_face_restrict_lex_test->AddMultTranspose(bdr_face_test, y);
       }
       else
       {
-         for (BilinearFormIntegrator *integ : bdr_integrators)
+         if (c != 1.0)
          {
-            integ->AddMultMF(bdr_face_restrict_lex_trial ? bdr_face_trial : x, y);
+            temp_test.SetSize(y.Size());
+            temp_test.UseDevice(true);
+            temp_test = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultMF(bdr_face_restrict_lex_trial ? bdr_face_trial : x,
+                                temp_test);
+            }
+            y.Add(c, temp_test);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultMF(bdr_face_restrict_lex_trial ? bdr_face_trial : x, y);
+            }
          }
       }
    }
@@ -1414,7 +1824,7 @@ void MFMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
       }
       if (bdr_face_restrict_lex_trial)
       {
-         bdr_face_test = 0.0;
+         bdr_face_trial = 0.0;
          for (BilinearFormIntegrator *integ : bdr_integrators)
          {
             integ->AddMultTransposeMF(bdr_face_restrict_lex_test ? bdr_face_test : x,
@@ -1501,19 +1911,22 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
                                                          Vector &diag) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict_trial && integrators.Size() > 0)
+   if (integrators.Size() > 0)
    {
-      elem_restrict_trial->MultUnsigned(D, local_trial);
-   }
-   if (elem_restrict_test && integrators.Size() > 0)
-   {
-      local_test = 0.0;
-      for (BilinearFormIntegrator *integ : integrators)
+      if (elem_restrict_trial)
       {
-         integ->AssembleDiagonalPA_ADAt(elem_restrict_trial ? local_trial : D,
-                                        local_test);
+         elem_restrict_trial->MultUnsigned(D, local_trial);
       }
-      elem_restrict_test->MultTransposeUnsigned(local_test, diag);
+      if (elem_restrict_test)
+      {
+         local_test = 0.0;
+         for (BilinearFormIntegrator *integ : integrators)
+         {
+            integ->AssembleDiagonalPA_ADAt(elem_restrict_trial ? local_trial : D,
+                                           local_test);
+         }
+         elem_restrict_test->MultTransposeUnsigned(local_test, diag);
+      }
    }
    else
    {
@@ -1526,26 +1939,29 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex_trial && bdr_integrators.Size() > 0)
+   if (bdr_integrators.Size() > 0)
    {
-      bdr_face_restrict_lex_trial->MultUnsigned(D, bdr_face_trial);
-   }
-   if (bdr_face_restrict_lex_test && bdr_integrators.Size() > 0)
-   {
-      bdr_face_test = 0.0;
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      if (bdr_face_restrict_lex_trial)
       {
-         integ->AssembleDiagonalPA_ADAt(bdr_face_restrict_lex_trial ? bdr_face_trial : D,
-                                        bdr_face_test);
+         bdr_face_restrict_lex_trial->MultUnsigned(D, bdr_face_trial);
       }
-      bdr_face_restrict_lex_test->AddMultTransposeUnsigned(bdr_face_test, diag);
-   }
-   else
-   {
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      if (bdr_face_restrict_lex_test)
       {
-         integ->AssembleDiagonalPA_ADAt(bdr_face_restrict_lex_trial ? bdr_face_trial : D,
-                                        diag);
+         bdr_face_test = 0.0;
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AssembleDiagonalPA_ADAt(bdr_face_restrict_lex_trial ? bdr_face_trial : D,
+                                           bdr_face_test);
+         }
+         bdr_face_restrict_lex_test->AddMultTransposeUnsigned(bdr_face_test, diag);
+      }
+      else
+      {
+         for (BilinearFormIntegrator *integ : bdr_integrators)
+         {
+            integ->AssembleDiagonalPA_ADAt(bdr_face_restrict_lex_trial ? bdr_face_trial : D,
+                                           diag);
+         }
       }
    }
 }
@@ -1554,85 +1970,91 @@ void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
                                            const double c) const
 {
    Array<BilinearFormIntegrator *> &integrators = *a->GetDBFI();
-   if (elem_restrict_trial && integrators.Size() > 0)
+   if (integrators.Size() > 0)
    {
-      elem_restrict_trial->Mult(x, local_trial);
-   }
-   if (elem_restrict_test && integrators.Size() > 0)
-   {
-      local_test = 0.0;
-      for (BilinearFormIntegrator *integ : integrators)
+      if (elem_restrict_trial)
       {
-         integ->AddMultPA(elem_restrict_trial ? local_trial : x, local_test);
+         elem_restrict_trial->Mult(x, local_trial);
       }
-      if (c != 1.0)
+      if (elem_restrict_test)
       {
-         local_test *= c;
-      }
-      elem_restrict_test->AddMultTranspose(local_test, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      if (c != 1.0 && integrators.Size() > 0)
-      {
-         temp_test.SetSize(y.Size());
-         temp_test.UseDevice(true);
-         temp_test = 0.0;
+         local_test = 0.0;
          for (BilinearFormIntegrator *integ : integrators)
          {
-            integ->AddMultPA(elem_restrict_trial ? local_trial : x, temp_test);
+            integ->AddMultPA(elem_restrict_trial ? local_trial : x, local_test);
          }
-         y.Add(c, temp_test);
+         if (c != 1.0)
+         {
+            local_test *= c;
+         }
+         elem_restrict_test->AddMultTranspose(local_test, y);
       }
       else
       {
-         for (BilinearFormIntegrator *integ : integrators)
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
          {
-            integ->AddMultPA(elem_restrict_trial ? local_trial : x, y);
+            temp_test.SetSize(y.Size());
+            temp_test.UseDevice(true);
+            temp_test = 0.0;
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultPA(elem_restrict_trial ? local_trial : x, temp_test);
+            }
+            y.Add(c, temp_test);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : integrators)
+            {
+               integ->AddMultPA(elem_restrict_trial ? local_trial : x, y);
+            }
          }
       }
    }
 
    Array<BilinearFormIntegrator *> &bdr_integrators = *a->GetBBFI();
-   if (bdr_face_restrict_lex_trial && bdr_integrators.Size() > 0)
+   if (bdr_integrators.Size() > 0)
    {
-      bdr_face_restrict_lex_trial->Mult(x, bdr_face_trial);
-   }
-   if (bdr_face_restrict_lex_test && bdr_integrators.Size() > 0)
-   {
-      bdr_face_test = 0.0;
-      for (BilinearFormIntegrator *integ : bdr_integrators)
+      if (bdr_face_restrict_lex_trial)
       {
-         integ->AddMultPA(bdr_face_restrict_lex_trial ? bdr_face_trial : x,
-                          bdr_face_test);
+         bdr_face_restrict_lex_trial->Mult(x, bdr_face_trial);
       }
-      if (c != 1.0)
+      if (bdr_face_restrict_lex_test)
       {
-         bdr_face_test *= c;
-      }
-      bdr_face_restrict_lex_test->AddMultTranspose(bdr_face_test, y);
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      if (c != 1.0 && bdr_integrators.Size() > 0)
-      {
-         temp_test.SetSize(y.Size());
-         temp_test.UseDevice(true);
-         temp_test = 0.0;
+         bdr_face_test = 0.0;
          for (BilinearFormIntegrator *integ : bdr_integrators)
          {
             integ->AddMultPA(bdr_face_restrict_lex_trial ? bdr_face_trial : x,
-                             temp_test);
+                             bdr_face_test);
          }
-         y.Add(c, temp_test);
+         if (c != 1.0)
+         {
+            bdr_face_test *= c;
+         }
+         bdr_face_restrict_lex_test->AddMultTranspose(bdr_face_test, y);
       }
       else
       {
-         for (BilinearFormIntegrator *integ : bdr_integrators)
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         if (c != 1.0)
          {
-            integ->AddMultPA(bdr_face_restrict_lex_trial ? bdr_face_trial : x, y);
+            temp_test.SetSize(y.Size());
+            temp_test.UseDevice(true);
+            temp_test = 0.0;
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultPA(bdr_face_restrict_lex_trial ? bdr_face_trial : x,
+                                temp_test);
+            }
+            y.Add(c, temp_test);
+         }
+         else
+         {
+            for (BilinearFormIntegrator *integ : bdr_integrators)
+            {
+               integ->AddMultPA(bdr_face_restrict_lex_trial ? bdr_face_trial : x, y);
+            }
          }
       }
    }
@@ -1696,7 +2118,7 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
       }
       if (bdr_face_restrict_lex_trial)
       {
-         bdr_face_test = 0.0;
+         bdr_face_trial = 0.0;
          for (BilinearFormIntegrator *integ : bdr_integrators)
          {
             integ->AddMultTransposePA(bdr_face_restrict_lex_test ? bdr_face_test : x,

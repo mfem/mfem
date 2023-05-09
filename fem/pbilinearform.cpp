@@ -302,23 +302,17 @@ void ParBilinearForm::AssembleDiagonal(Vector &diag) const
    // Here, we have extension, ext, and parallel/conforming prolongation, P.
    Vector local_diag(P->Height());
    ext->AssembleDiagonal(local_diag);
-   if (fes->Conforming())
+   const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
+   if (!HP)
    {
+      // This is a parallel prolongation
       P->MultTranspose(local_diag, diag);
       return;
    }
    // For an AMR mesh, a convergent diagonal is assembled with |P^T| d_l,
    // where |P^T| has the entry-wise absolute values of the conforming
    // prolongation transpose operator.
-   const HypreParMatrix *HP = dynamic_cast<const HypreParMatrix*>(P);
-   if (HP)
-   {
-      HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
-   }
-   else
-   {
-      MFEM_ABORT("unsupported prolongation matrix type.");
-   }
+   HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
 }
 
 void ParBilinearForm::ParallelEliminateEssentialBC(
