@@ -81,7 +81,9 @@ public:
        current element. */
    /// The face_orientation array can be obtained from Mesh::GetElementFaces.
    inline void SetFaceOrientations(const Array<int> & face_orientation)
-   { Fo = face_orientation; }
+   {
+      Fo = face_orientation;
+   }
 
    inline const Array<int> & GetFaceOrientations() const { return Fo; }
 
@@ -219,9 +221,6 @@ public:
 
    /// Return the nested DofTransformation object
    inline DofTransformation * GetDofTransformation() const { return doftrans_; }
-
-   inline void SetFaceOrientation(const Array<int> & face_orientation)
-   { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation); }
 
    using DofTransformation::TransformPrimal;
    using DofTransformation::InvTransformPrimal;

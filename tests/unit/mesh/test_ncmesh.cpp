@@ -528,10 +528,14 @@ TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
 {
    /*
       This test aims to demonstrate the fix for the case of calling
-      `GetFaceNbrElementVDofs` on a nonconformal ParMesh. When calling
+      `GetVectorValue` on a nonconformal ParMesh. When calling
       GetVectorValue on a face neighbor element, GetVectorValue will fail for an
-      NC mesh, as the required structures were not populated in the nonconformal
-      branch of ExchangeFaceNbrData, only within the conformal branch.
+      NC Mesh.
+
+      This has two parts: 1) face_nbr_el_to_face needs to be populated and 2)
+      face_nbr_el_ori needs to be populated. The former is relatively easily
+      done similar to the conformal case, the latter requires constructing
+      orientation of faces of ghost elements.
    */
 
    constexpr int refining_rank = 0;
@@ -539,111 +543,174 @@ TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
 
    auto vector_exact_soln = [](const Vector& x, Vector& v)
    {
-      // Vector d(3);
-      // d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
-      // d -= x;
-      v[0] = x[0];
-      v[1] = x[1];
-      v[2] = x[2];
+      Vector d(3);
+      d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      v = (d -= x);
    };
 
-   smesh.EnsureNCMesh(true);
+
+   smesh.EnsureNCMesh(true); // uncomment this to trigger the failure
    smesh.Finalize();
 
-   auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
-
-   // Create a grid function of the mesh coordinates
-   pmesh.EnsureNodes();
-   REQUIRE(pmesh.OwnsNodes());
-   const auto * const coords = pmesh.GetNodes();
-
-   // Project the linear function onto the mesh. quadratic ND elements ensures
-   // it is recovered exactly.
-   const int order = 2, dim = 3;
-   ND_FECollection nd_fec(order, dim);
-   // FiniteElementSpace nd_fes(&smesh, &nd_fec);
-   ParFiniteElementSpace pnd_fes(&pmesh, &nd_fec);
-
-   ParGridFunction psol(&pnd_fes);
-
-   VectorFunctionCoefficient func(3, vector_exact_soln);
-   psol.ProjectCoefficient(func);
-
-   psol.ExchangeFaceNbrData();
-
-   Array<int> pvdofs;
-   DofTransformation *ptrans;
-
-   mfem::Vector value(3), exact(3), position(3);
-
-   const IntegrationRule &ir = mfem::IntRules.Get(Geometry::Type::TETRAHEDRON, order + 1);
-
-   // Check that non-ghost elements match up on the serial and parallel spaces.
-   for (int n = 0; n < pmesh.GetNE(); ++n)
+   for (bool boundary_refine : {false})
    {
-      constexpr double tol = 1e-12;
-      for (const auto &ip : ir)
+      for (bool use_ND : {true})
       {
-         coords->GetVectorValue(n, ip, position);
+         for (bool rebalance : {false})
+         {
+            auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
 
-         psol.GetVectorValue(n, ip, value);
+            if (rebalance)
+            {
+               if (pmesh.Nonconforming())
+               {
+                  pmesh.Rebalance();
+               }
+               else
+               {
+                  continue; // Do not need to repeat the test if conformal.
+               }
+            }
 
-         vector_exact_soln(position, exact);
+            // To refine the face neighbors, need to know where they are.
+            pmesh.ExchangeFaceNbrData();
 
-         CHECK((value -= exact).Normlinf() < tol);
+            Array<int> elem_to_refine;
+            if (boundary_refine && (Mpi::WorldRank() + 1) % 2 == 0)
+            {
+               // Find all face_nbr elements in odd ranks, and refine them.
+               // This helps check for slave-master orientation relation issues.
+               for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
+               {
+                  const int local_face = pmesh.GetSharedFace(n);
+                  const auto &face_info = pmesh.GetFaceInformation(local_face);
+                  REQUIRE(face_info.IsShared());
+                  REQUIRE(face_info.element[1].location == Mesh::ElementLocation::FaceNbr);
+                  elem_to_refine.Append(face_info.element[0].index);
+               }
+            }
+            pmesh.GeneralRefinement(elem_to_refine);
+
+            // Do not rebalance again! The test is also checking for nc refinements
+            // along the processor boundary.
+
+            // Create a grid function of the mesh coordinates
+            pmesh.ExchangeFaceNbrData();
+            pmesh.EnsureNodes();
+            REQUIRE(pmesh.OwnsNodes());
+            GridFunction * const coords = pmesh.GetNodes();
+            dynamic_cast<ParGridFunction *>(pmesh.GetNodes())->ExchangeFaceNbrData();
+
+            // Project the linear function onto the mesh. quadratic ND elements ensures
+            // it is recovered exactly.
+            const int order = 2, dim = 3;
+            std::unique_ptr<FiniteElementCollection> fec;
+            if (use_ND)
+            {
+               fec = std::unique_ptr<ND_FECollection>(new ND_FECollection(order, dim));
+            }
+            else
+            {
+               fec = std::unique_ptr<RT_FECollection>(new RT_FECollection(order, dim));
+            }
+            ParFiniteElementSpace pnd_fes(&pmesh, fec.get());
+
+            ParGridFunction psol(&pnd_fes);
+
+            VectorFunctionCoefficient func(3, vector_exact_soln);
+            psol.ProjectCoefficient(func);
+            psol.ExchangeFaceNbrData();
+
+            Array<int> pvdofs;
+            DofTransformation *ptrans;
+
+            mfem::Vector value(3), exact(3), position(3);
+
+            const IntegrationRule &ir = mfem::IntRules.Get(Geometry::Type::TETRAHEDRON, order + 1);
+
+            // Check that non-ghost elements match up on the serial and parallel spaces.
+            for (int n = 0; n < pmesh.GetNE(); ++n)
+            {
+               constexpr double tol = 1e-12;
+               for (const auto &ip : ir)
+               {
+                  coords->GetVectorValue(n, ip, position);
+                  psol.GetVectorValue(n, ip, value);
+
+                  vector_exact_soln(position, exact);
+
+                  REQUIRE(value.Size() == exact.Size());
+                  CHECK((value -= exact).Normlinf() < tol);
+               }
+            }
+
+            // Loop over face neighbor elements and check the vector values match in the
+            // face neighbor space.
+            const IntegrationRule &fir = mfem::IntRules.Get(Geometry::TRIANGLE, order + 1);
+            IntegrationRule eir(fir.GetNPoints());
+            for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
+            {
+               const int local_face = pmesh.GetSharedFace(n);
+               const auto &face_info = pmesh.GetFaceInformation(local_face);
+               REQUIRE(face_info.IsShared());
+               REQUIRE(face_info.element[1].location == Mesh::ElementLocation::FaceNbr);
+
+               auto &T = *pmesh.GetFaceNbrElementTransformation(face_info.element[1].index);
+
+               constexpr double tol = 1e-12;
+               // On the boundary face, on the non-ghost side
+               {
+                  DenseMatrix posmat, valmat, tr;
+                  psol.GetFaceVectorValues(n, 0, fir, valmat, tr);
+                  coords->GetFaceVectorValues(n, 0, fir, posmat, tr);
+
+                  for (int i = 0; i < valmat.Width(); ++i)
+                  {
+                     valmat.GetColumn(i, value);
+                     posmat.GetColumn(i, position);
+                     vector_exact_soln(position, exact);
+
+                     REQUIRE(value.Size() == exact.Size());
+                     CHECK((value -= exact).Normlinf() < tol);
+                  }
+               }
+
+               // on the ghost side
+               {
+                  DenseMatrix posmat, valmat, tr;
+                  psol.GetFaceVectorValues(n, 1, fir, valmat, tr);
+                  coords->GetFaceVectorValues(n, 1, fir, posmat, tr);
+
+                  // for (int i = 0; i < valmat.Width(); ++i)
+                  // {
+                  //    valmat.GetColumn(i, value);
+                  //    posmat.GetColumn(i, position);
+                  //    vector_exact_soln(position, exact);
+
+                  //    REQUIRE(value.Size() == exact.Size());
+                  //    CHECK((value -= exact).Normlinf() < tol);
+                  // }
+               }
+
+               // In the element interior
+               for (const auto &ip : ir)
+               {
+                  T.SetIntPoint(&ip);
+                  coords->GetVectorValue(T, ip, position);
+                  psol.GetVectorValue(T, ip, value);
+
+                  vector_exact_soln(position, exact);
+
+                  REQUIRE(value.Size() == exact.Size());
+                  CHECK((value -= exact).Normlinf() < tol);
+               }
+            }
+         }
       }
    }
 
-   // Loop over face neighbor elements and check the vector values match in the
-   // face neighbor space.
-   for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
-   {
-      const int face_index = pmesh.GetSharedFace(n);
-      const auto &face_info = pmesh.GetFaceInformation(face_index);
-      REQUIRE(face_info.IsShared());
-      REQUIRE(face_info.IsConforming());
-      REQUIRE(face_info.element[1].location == Mesh::ElementLocation::FaceNbr);
-
-      auto &T = *pmesh.GetFaceNbrElementTransformation(face_info.element[1].index);
-
-      constexpr double tol = 1e-12;
-      for (const auto &ip : ir)
-      {
-         T.SetIntPoint(&ip);
-         coords->GetVectorValue(T, ip, position);
-         psol.GetVectorValue(T, ip, value);
-
-         vector_exact_soln(position, exact);
-
-         CHECK((value -= exact).Normlinf() < tol);
-      }
-   }
-
-   // if (Mpi::WorldRank() == 0)
-   // {
-   //    const int n_nbr = 0;
-   //    strans = nd_fes.GetElementVDofs(1, svdofs);
-   //    ptrans = pnd_fes.GetFaceNbrElementVDofs(0, pvdofs);
-
-   //    REQUIRE(svdofs.Size() == pvdofs.Size());
-
-   //    // const auto &sorient = strans->GetFaceOrientations();
-   //    // const auto &porient = ptrans->GetFaceOrientations();
-   //    // for (int o = 0; o < 4; ++o)
-   //    // {
-   //    //    std::cout << "sorient[" << o << "] " << sorient[o] << '\n';
-   //    //    CHECK(sorient[o] == porient[o]);
-   //    // }
-
-   //    constexpr double tol = 1e-12;
-   //    for (const auto &ip : ir)
-   //    {
-   //       sol.GetVectorValue(1, ip, sval);
-   //       psol.GetVectorValue(1, ip, pval);
-   //       CHECK((pval -= sval).Normlinf() < tol);
-   //    }
-   // }
 }
+
 
 
 #endif // MFEM_USE_MPI
