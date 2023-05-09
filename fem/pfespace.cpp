@@ -1294,6 +1294,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    // element)
    face_nbr_element_dof.MakeI(recv_el_off[num_face_nbrs]);
 
+
    int *send_I = send_nbr_elem_dof.GetI();
    int *recv_I = face_nbr_element_dof.GetI();
    for (int fn = 0; fn < num_face_nbrs; fn++)
