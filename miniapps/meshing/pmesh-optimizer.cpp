@@ -798,8 +798,8 @@ int main (int argc, char *argv[])
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
-                                                     h_metric);
+   auto tmop_integ = new TMOP_Integrator(metric_to_use, target_c, h_metric);
+   tmop_integ->IntegrateOverTarget(false);
    if (barrier_type > 0 || worst_case_type > 0)
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *pfespace);
@@ -920,6 +920,7 @@ int main (int argc, char *argv[])
          target_c2->SetNodes(x0);
          tmop_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
          tmop_integ2->SetCoefficient(metric_coeff2);
+         tmop_integ2->IntegrateOverTarget(false);
       }
       else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
