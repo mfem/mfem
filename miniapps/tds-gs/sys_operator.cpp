@@ -85,6 +85,7 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   GridFunction ones(fespace);
   ones = 1.0;
   Plasma_Current = plasma_term(ones);
+  Plasma_Current *= -1.0;
   
   // note: coil term no longer includes current contributions
   // that is included in F matrix below...
@@ -193,6 +194,7 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   ones = 1.0;
   Vector Plasma_Vec_(m);
   Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
+  Plasma_Vec_ *= -1.0;
   Plasma_Vec = Plasma_Vec_;
 
   // derivative with respect to alpha
@@ -206,8 +208,9 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   B_alpha = diff_plasma_term_5;
   B_alpha *= -1.0;
 
-  // int_{Omega_p} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} dr dz
+  // - int_{Omega_p} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} dr dz
   Alpha_Term = diff_plasma_term_5(ones);
+  Alpha_Term *= -1.0;
   
   return *Final;
     

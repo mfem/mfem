@@ -234,6 +234,10 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double mu = model->get_mu();
   double coeff_u2 = model->get_coeff_u2();
 
+  double switch_beta = 0.0;
+  double switch_taylor = 1.0;
+  
+
   if (option == 1) {
     // integrand of
     // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
@@ -241,9 +245,9 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
 
     double S_bar_ffprime =
-      alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max);
-    // double S_bar_ffprime = model->f_bar(psi_N);
-    
+      switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
+      + switch_taylor * alpha * (f_x + alpha * (psi_bdp - psi_val));
+
     return
       + beta * ri * (model->S_p_prime(psi_N))
       + gamma * (model->S_ff_prime(psi_N)) / (mu * ri)
@@ -253,8 +257,9 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     // derivative with respect to alpha
       
     return
-      + (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
-      + alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri);
+      + switch_beta * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
+      + switch_beta * alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
+      + switch_taylor * (f_x + 2.0 * alpha * (psi_bdp - psi_val)) / (mu * ri);
 
   } else {
     // integrand of
@@ -272,19 +277,20 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     double coeff;
 
     double psi_N_multiplier = \
-    //   + beta * ri * (model->S_prime_p_prime(psi_N))
+      + beta * ri * (model->S_prime_p_prime(psi_N))
       + gamma * (model->S_prime_ff_prime(psi_N)) / (mu * ri)
-      + alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max) / (mu * ri)
-      + alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri);
-    // double psi_N_multiplier = 1.0 * model->f_bar_prime(psi_N) / (mu * ri);
-      
+      + switch_beta * alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max) / (mu * ri)
+      + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri);
+
     double other =
-      - alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))
+      - switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))
       / (psi_bdp - psi_max) / (psi_bdp - psi_max) / (mu * ri);
+    
     // double other = 0.0;
     if (option == 2) {
       // coefficient for phi in d_psi psi_N
-      coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier;
+      coeff = 1.0 / (psi_bdp - psi_max) * psi_N_multiplier
+        - switch_taylor * alpha * alpha / (mu * ri);
     } else if (option == 3) {
       // coefficient for phi_ma in d_psi psi_N
       coeff = - 1.0 * (1.0 - psi_N) / (psi_bdp - psi_max) * psi_N_multiplier
@@ -292,7 +298,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     } else if (option == 4) {
       // coefficient for phi_x in d_psi psi_N
       coeff = - 1.0 * psi_N / (psi_bdp - psi_max) * psi_N_multiplier
-        + other;
+        + other
+        + switch_taylor * alpha * alpha / (mu * ri);
     } 
 
     return
