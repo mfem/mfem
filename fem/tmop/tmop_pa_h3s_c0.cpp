@@ -154,14 +154,14 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
    const auto C0 = const_c0 ?
                    Reshape(PA.C0.Read(), 1, 1, 1, 1) :
                    Reshape(PA.C0.Read(), q, q, q, NE);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto BLD = Reshape(PA.maps_lim->B.Read(), q, d);
-   const auto LD = Reshape(PA.LD.Read(), d, d, d, NE);
-   const auto X0 = Reshape(PA.X0.Read(), d, d, d, DIM, NE);
-   const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
-   auto H0 = Reshape(PA.H0.Write(), DIM, DIM, q, q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), DIM,DIM, q,q,q, NE);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q,q,q);
+   const auto B = Reshape(PA.maps->B.Read(), q,d);
+   const auto BLD = Reshape(PA.maps_lim->B.Read(), q,d);
+   const auto LD = Reshape(PA.LD.Read(), d,d,d, NE);
+   const auto X0 = Reshape(PA.X0.Read(), d,d,d, DIM, NE);
+   const auto X = Reshape(x.Read(), d,d,d, DIM, NE);
+   auto H0 = Reshape(PA.H0.Write(), DIM,DIM, q,q,q, NE);
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;

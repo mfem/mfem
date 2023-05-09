@@ -76,9 +76,9 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, NE);
-   auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
+   const auto B = Reshape(PA.maps->B.Read(), q,d);
+   const auto H0 = Reshape(PA.H0.Read(), DIM,DIM, q,q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d,d, DIM, NE);
 
    decltype(&TMOP_AssembleDiagonalPA_C0_2D<>) ker =
       TMOP_AssembleDiagonalPA_C0_2D;

@@ -144,11 +144,11 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
    const Array<double> &g = PA.maps->G;
    const Vector &h = PA.H;
 
-   const auto B = Reshape(b.Read(), q, d);
-   const auto G = Reshape(g.Read(), q, d);
-   const auto J = Reshape(j.Read(), DIM, DIM, q, q, NE);
-   const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, q, q, NE);
-   auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
+   const auto B = Reshape(b.Read(), q,d);
+   const auto G = Reshape(g.Read(), q,d);
+   const auto J = Reshape(j.Read(), DIM,DIM, q,q, NE);
+   const auto H = Reshape(h.Read(), DIM,DIM, DIM,DIM, q,q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d,d, DIM, NE);
 
    decltype(&TMOP_AssembleDiagonalPA_2D<>) ker = TMOP_AssembleDiagonalPA_2D;
 

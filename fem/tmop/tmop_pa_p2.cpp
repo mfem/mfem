@@ -173,12 +173,12 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const
    }
    const double *w = mp.Read();
 
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto G = Reshape(PA.maps->G.Read(), q, d);
-   auto X = Reshape(x.Read(), d, d, DIM, NE);
-   auto Y = Reshape(y.ReadWrite(), d, d, DIM, NE);
+   const auto J = Reshape(PA.Jtr.Read(), DIM,DIM, q,q, NE);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q,q);
+   const auto B = Reshape(PA.maps->B.Read(), q,d);
+   const auto G = Reshape(PA.maps->G.Read(), q,d);
+   auto X = Reshape(x.Read(), d,d, DIM, NE);
+   auto Y = Reshape(y.ReadWrite(), d,d, DIM, NE);
 
    decltype(&TMOP_AddMultPA_2D<>) ker = TMOP_AddMultPA_2D;
 

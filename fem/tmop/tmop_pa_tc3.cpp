@@ -150,7 +150,7 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
          x.UseDevice(true);
          R->Mult(*nodes, x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 3, "");
-         const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
+         const auto X = Reshape(x.Read(), d,d,d, DIM, NE);
          decltype(&TMOP_TcIdealShapeGivenSize_3D<>) ker =
             TMOP_TcIdealShapeGivenSize_3D;
 

@@ -127,11 +127,11 @@ void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
    constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto G = Reshape(PA.maps->G.Read(), q, d);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-   const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, q, q, q, NE);
-   auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
+   const auto B = Reshape(PA.maps->B.Read(), q,d);
+   const auto G = Reshape(PA.maps->G.Read(), q,d);
+   const auto J = Reshape(PA.Jtr.Read(), DIM,DIM, q,q,q, NE);
+   const auto H = Reshape(PA.H.Read(), DIM,DIM, DIM,DIM, q,q,q, NE);
+   auto D = Reshape(diagonal.ReadWrite(), d,d,d, DIM, NE);
 
    decltype(&TMOP_AssembleDiagonalPA_3D<>) ker = TMOP_AssembleDiagonalPA_3D;
 

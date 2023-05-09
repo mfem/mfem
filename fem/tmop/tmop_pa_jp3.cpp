@@ -76,13 +76,13 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    const int d = maps.ndof, q = maps.nqpt;
 
    constexpr int DIM = 3;
-   const auto B = Reshape(maps.B.Read(), q, d);
-   const auto G = Reshape(maps.G.Read(), q, d);
-   const auto XE = Reshape(xe.Read(), d, d, d, DIM, NE);
+   const auto B = Reshape(maps.B.Read(), q,d);
+   const auto G = Reshape(maps.G.Read(), q,d);
+   const auto XE = Reshape(xe.Read(), d,d,d, DIM, NE);
 
    Vector e(NE*NQ);
    e.UseDevice(true);
-   auto E = Reshape(e.Write(), q, q, q, NE);
+   auto E = Reshape(e.Write(), q,q,q, NE);
 
    decltype(&TMOP_MinDetJpr_3D<>) ker = TMOP_MinDetJpr_3D;
 

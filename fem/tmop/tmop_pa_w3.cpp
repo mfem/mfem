@@ -149,12 +149,12 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
    }
    const double *w = mp.Read();
 
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto G = Reshape(PA.maps->G.Read(), q, d);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
-   auto E = Reshape(PA.E.Write(), q, q, q, NE);
+   const auto J = Reshape(PA.Jtr.Read(), DIM,DIM, q,q,q, NE);
+   const auto B = Reshape(PA.maps->B.Read(), q,d);
+   const auto G = Reshape(PA.maps->G.Read(), q,d);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q,q,q);
+   const auto X = Reshape(x.Read(), d,d,d, DIM, NE);
+   auto E = Reshape(PA.E.Write(), q,q,q, NE);
 
    decltype(&TMOP_EnergyPA_3D<>) ker = TMOP_EnergyPA_3D;
 

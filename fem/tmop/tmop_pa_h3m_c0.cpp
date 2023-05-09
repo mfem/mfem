@@ -88,10 +88,10 @@ void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
    constexpr int DIM = 3;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
-   const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, q, NE);
+   const auto H0 = Reshape(PA.H0.Read(), DIM,DIM, q,q,q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto X = Reshape(R.Read(), d, d, d, DIM, NE);
-   auto Y = Reshape(C.ReadWrite(), d, d, d, DIM, NE);
+   const auto X = Reshape(R.Read(), d,d,d, DIM, NE);
+   auto Y = Reshape(C.ReadWrite(), d,d,d, DIM, NE);
 
    decltype(&TMOP_AddMultGradPA_C0_3D<>) ker = TMOP_AddMultGradPA_C0_3D;
 

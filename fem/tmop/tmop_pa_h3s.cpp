@@ -350,12 +350,12 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &x) const
    }
    const double *w = mp.Read();
 
-   const auto B = Reshape(PA.maps->B.Read(), q, d);
-   const auto G = Reshape(PA.maps->G.Read(), q, d);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
-   const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
-   auto H = Reshape(PA.H.Write(), DIM, DIM, DIM, DIM, q, q, q, NE);
+   const auto B = Reshape(PA.maps->B.Read(), q,d);
+   const auto G = Reshape(PA.maps->G.Read(), q,d);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), q,q,q);
+   const auto J = Reshape(PA.Jtr.Read(), DIM,DIM, q,q,q, NE);
+   const auto X = Reshape(x.Read(), d,d,d, DIM, NE);
+   auto H = Reshape(PA.H.Write(), DIM,DIM, DIM,DIM, q,q,q, NE);
 
    decltype(&TMOP_SetupGradPA_3D<>) ker = TMOP_SetupGradPA_3D;
 

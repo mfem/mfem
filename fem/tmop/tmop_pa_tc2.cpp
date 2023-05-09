@@ -115,8 +115,8 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
 
    constexpr int DIM = 2;
    const auto W = Reshape(w.Read(), DIM,DIM);
-   const auto B = Reshape(maps.B.Read(), q, d);
-   const auto G = Reshape(maps.G.Read(), q, d);
+   const auto B = Reshape(maps.B.Read(), q,d);
+   const auto G = Reshape(maps.G.Read(), q,d);
    auto J = Reshape(Jtr.Write(), DIM,DIM, q,q, NE);
 
    switch (target_type)

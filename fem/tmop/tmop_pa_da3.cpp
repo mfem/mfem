@@ -171,9 +171,9 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    R->Mult(tspec, tspec_e);
 
    constexpr int DIM = 3;
-   const auto B = Reshape(maps.B.Read(), q, d);
+   const auto B = Reshape(maps.B.Read(), q,d);
    const auto W = Reshape(w.Read(), DIM,DIM);
-   const auto X = Reshape(tspec_e.Read(), d, d, d, ncomp, NE);
+   const auto X = Reshape(tspec_e.Read(), d,d,d, ncomp, NE);
    auto J = Reshape(Jtr.Write(), DIM,DIM, q,q,q, NE);
 
    decltype(&DatcSize<>) ker = DatcSize;
