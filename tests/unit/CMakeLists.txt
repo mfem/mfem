@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,6 +14,8 @@ project(mfem-unit-tests NONE)
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
+# The following list can be updated using (in bash):
+#    for d in general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
   general/test_array.cpp
   general/test_mem.cpp
@@ -22,8 +24,8 @@ set(UNIT_TESTS_SRCS
   general/test_zlib.cpp
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
-  linalg/test_complex_operator.cpp
   linalg/test_complex_dense_matrix.cpp
+  linalg/test_complex_operator.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
@@ -42,57 +44,72 @@ set(UNIT_TESTS_SRCS
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
-  mesh/test_pmesh.cpp
-  mesh/test_submesh.cpp
-  mesh/test_psubmesh.cpp
   mesh/test_periodic_mesh.cpp
+  mesh/test_pmesh.cpp
+  mesh/test_psubmesh.cpp
+  mesh/test_submesh.cpp
   mesh/test_vtu.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
-  fem/test_r1d_bilininteg.cpp
-  fem/test_r2d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
-  fem/test_calcshape.cpp
-  fem/test_calcvshape.cpp
-  fem/test_calcdshape.cpp
+  fem/test_build_dof_to_arrays.cpp
   fem/test_calccurlshape.cpp
   fem/test_calcdivshape.cpp
+  fem/test_calcdshape.cpp
+  fem/test_calcshape.cpp
+  fem/test_calcvshape.cpp
   fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
+  fem/test_doftrans.cpp
+  fem/test_domain_int.cpp
+  fem/test_eigs.cpp
   fem/test_estimator.cpp
+  fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
+  fem/test_face_restriction.cpp
   fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
+  fem/test_getgradient.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_linearform_ext.cpp
   fem/test_lor.cpp
   fem/test_lor_batched.cpp
   fem/test_operatorjacobismoother.cpp
+  fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp
+  fem/test_quadinterpolator.cpp
   fem/test_quadraturefunc.cpp
+  fem/test_r1d_bilininteg.cpp
+  fem/test_r2d_bilininteg.cpp
   fem/test_sparse_matrix.cpp
   fem/test_sum_bilin.cpp
+  fem/test_surf_blf.cpp
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
-  # The following are tested separately (keep the comment as a reminder):
+  enzyme/compatibility.cpp
+  # The following are tested separately (keep the comment as a reminder).
+  # This list can be updated using (in bash):
+  #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
   # miniapps/test_debug_device.cpp
   # miniapps/test_sedov.cpp
   # miniapps/test_tmop_pa.cpp
@@ -335,7 +352,7 @@ if (MFEM_USE_HIP)
    set_property(SOURCE ${DEBUG_DEVICE_SRCS}
                 PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
-mfem_add_executable(debug_device_tests unit_test_main.cpp ${DEBUG_DEVICE_SRCS})
+mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
 target_link_libraries(debug_device_tests mfem)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)
