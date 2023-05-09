@@ -153,7 +153,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
   thetaMin = 1.e-4 * max(1.0, theta0);
   thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
 
-  double zlnorm, Eeval, maxBarrierSolves, Eevalmu0;
+  double Eeval, maxBarrierSolves, Eevalmu0;
   
   maxBarrierSolves = 10;
 
@@ -301,7 +301,7 @@ void InteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, BlockOp
   {
     std::ofstream diagStream;
     char diagString[100];
-    sprintf(diagString, "logBarrierHessiandata/D%d.dat", jOpt);
+    snprintf(diagString, 100, "logBarrierHessiandata/D%d.dat", jOpt);
     diagStream.open(diagString, ios::out | ios::trunc);
     for(int ii = 0; ii < dimM; ii++)
     {
@@ -494,14 +494,10 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
 
   Vector ck0(dimC); ck0 = 0.0;
   Vector zhatsoc(dimM); zhatsoc = 0.0;
-  int p;
-  double thetaold;
   BlockVector Xhatumlsoc(block_offsetsuml); Xhatumlsoc = 0.0;
   BlockVector xhatsoc(block_offsetsx); xhatsoc = 0.0;
   Vector uhatsoc(dimU); uhatsoc = 0.0;
   Vector mhatsoc(dimM); mhatsoc = 0.0;
-  double alphasoc;
-
 
   Dxphi(x0, mu, Dxphi0);
   Dxphi0_xhat = InnerProduct(Dxphi0, xhat);
@@ -576,12 +572,10 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
         problem->c(xtrial, ckSoc);
         problem->c(x0, ck0);
         ckSoc.Add(alphaMax, ck0);
-        thetaold = theta(x0);
-        p = 1;
         // A-5.6 Compute the second-order correction.
         pKKTSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
         mhatsoc.Set(1.0, Xhatumlsoc.GetBlock(1));
-        alphasoc = AlphaMax(m0, ml, mhatsoc, tau);
+        // alphasoc = AlphaMax(m0, ml, mhatsoc, tau);
         //WARNING: not complete but currently solver isn't entering this region
       }
     }
@@ -667,9 +661,6 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
 {
   return E(x, l, zl, 0.0);
 }
-
-
-
 
 double InteriorPointSolver::theta(const BlockVector &x)
 {

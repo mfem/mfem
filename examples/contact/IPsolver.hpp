@@ -33,11 +33,11 @@ protected:
     double Dxphi0_xhat;
 
     int dimU, dimM, dimC;
-    Array<int> block_offsetsx, block_offsetsuml, block_offsetsumlz;
+    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
     Vector ml;
 
     Vector ckSoc;
-    SparseMatrix * Huu, * Hum, * Hmu, * Hmm, *D, * Wmm, * Ju, * Jm, * JuT, * JmT;
+    SparseMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, *D, * Ju, * Jm, * JuT, * JmT;
     
     int jOpt;
     bool converged;

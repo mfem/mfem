@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
   Mesh *mesh = new Mesh(meshFile, 1, 1);
   int dim = mesh->Dimension(); // geometric dimension of the domain
   {
-     int ref_levels =
-        (int)floor(log(2000./mesh->GetNE())/log(2.)/dim);
+     int ref_levels = 3;
+        // (int)floor(log(2000./mesh->GetNE())/log(2.)/dim);
      for (int l = 0; l < ref_levels; l++)
      {
         mesh->UniformRefinement();

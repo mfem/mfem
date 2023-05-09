@@ -84,8 +84,8 @@ protected:
    LinearForm   *fform;
    Array<int> empty_tdof_list; // needed for calls to FormSystemMatrix
    SparseMatrix  K;
-   Vector f;
    FiniteElementSpace *Vh;
+   Vector f;
 public : 
    ObstacleProblem(FiniteElementSpace* , double (*fSource)(const Vector &));
    double E(const Vector &) const;

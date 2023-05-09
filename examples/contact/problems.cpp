@@ -15,7 +15,6 @@ using namespace std;
 using namespace mfem;
 
 
-
 OptProblem::OptProblem() {}
 
 void OptProblem::CalcObjectiveGrad(const BlockVector &x, BlockVector &y) const
