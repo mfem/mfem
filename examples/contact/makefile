@@ -19,12 +19,20 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = obstacleProblem
-EXAMPLES = $(SEQ_EXAMPLES)
+PAR_EXAMPLES = ParObstacleProblem
+EXAMPLES = $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 
 ifeq ($(MFEM_USE_SUITESPARSE),NO)
-$(EXAMPLES):
+$(SEQ_EXAMPLES):
 	$(error MFEM is not configured with SUITESPARSE)
 endif
+
+ifeq ($(MFEM_USE_MUMPS),NO)
+$(PAR_EXAMPLES):
+	$(error MFEM is not configured with SUITESPARSE)
+endif
+
+all: $(EXAMPLES)
 
 obstacleProblem: obstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) obstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
@@ -38,3 +46,20 @@ problems.o: $(SRC)problems.cpp $(CONFIG_MK)
 IPsolver.o: $(SRC)IPsolver.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
+ParObstacleProblem: ParObstacleProblem.o ParProblems.o ParIPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ParObstacleProblem.o ParProblems.o ParIPsolver.o -o $@ $(MFEM_LIBS)
+
+ParObstacleProblem.o: $(SRC)ParObstacleProblem.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
+
+ParProblems.o: $(SRC)ParProblems.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
+
+ParIPsolver.o: $(SRC)ParIPsolver.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+
+clean: clean-build 
+
+clean-build:
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -rf *.dSYM *.TVD.*breakpoints
