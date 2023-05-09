@@ -10,6 +10,7 @@
 
 Version 4.5.3 (development)
 ===========================
+- Added curve interpolation method for NURBS.
 
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
@@ -24,6 +25,8 @@ Version 4.5.3 (development)
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a miniapp for interpolation of NURBS.
+
 - Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
   fitting to implicit domains defined using level-set functions.
 
