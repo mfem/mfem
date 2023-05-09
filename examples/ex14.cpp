@@ -89,11 +89,11 @@ int main(int argc, char *argv[])
    }
    if (rbf_h < order + 1)
    {
-     rbf_h = std::max(2.01, 1.01 + order);
+      rbf_h = std::max(2.01, 1.01 + order);
    }
    if (rk && sigma < 0.0)
    {
-     sigma = 1.0;
+      sigma = 1.0;
    }
    args.PrintOptions(cout);
 

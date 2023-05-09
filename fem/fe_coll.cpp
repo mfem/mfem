@@ -361,7 +361,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                            ? FiniteElement::VALUE
                            : FiniteElement::INTEGRAL);
       const int intOrder = 2; // fix this for now
-      
+
       if (!strncmp(name, "RK", 2))
       {
          int order = atoi(name + 2);
@@ -3572,7 +3572,7 @@ KernelFECollection::KernelFECollection(const int dim,
    {
       MFEM_ABORT("invalid order: " << order);
    }
-   
+
    for (int g = 0; g < Geometry::NumGeom; ++g)
    {
       L2_Elements[g] = NULL;
@@ -3583,7 +3583,7 @@ KernelFECollection::KernelFECollection(const int dim,
       SegDofOrd[i] = NULL;
    }
    OtherDofOrd = NULL;
-   
+
    if (dim == 0)
    {
       L2_Elements[Geometry::POINT] = new PointFiniteElement;
@@ -3596,7 +3596,8 @@ KernelFECollection::KernelFECollection(const int dim,
             = new RBFFiniteElement(1, numPointsD, h,
                                    rbfType, distNorm, intOrder);
       }
-      else {
+      else
+      {
          L2_Elements[Geometry::SEGMENT]
             = new RKFiniteElement(1, numPointsD, h,
                                   rbfType, distNorm, order, intOrder);
@@ -3615,7 +3616,8 @@ KernelFECollection::KernelFECollection(const int dim,
             = new RBFFiniteElement(1, numPointsD, h,
                                    rbfType, distNorm, intOrder);
       }
-      else {
+      else
+      {
          L2_Elements[Geometry::SQUARE]
             = new RKFiniteElement(2, numPointsD, h,
                                   rbfType, distNorm, order, intOrder);
@@ -3636,7 +3638,8 @@ KernelFECollection::KernelFECollection(const int dim,
             = new RBFFiniteElement(2, numPointsD, h,
                                    rbfType, distNorm, intOrder);
       }
-      else {
+      else
+      {
          L2_Elements[Geometry::CUBE]
             = new RKFiniteElement(3, numPointsD, h,
                                   rbfType, distNorm, order, intOrder);
@@ -3646,12 +3649,13 @@ KernelFECollection::KernelFECollection(const int dim,
       }
       L2_Elements[Geometry::CUBE]->SetMapType(mapType);
    }
-   
+
    if (dim == 1)
    {
       SegDofOrd[0] = new int[2*numPointsD];
       SegDofOrd[1] = SegDofOrd[0] + numPointsD;
-      for (int i = 0; i < numPointsD; ++i) {
+      for (int i = 0; i < numPointsD; ++i)
+      {
          SegDofOrd[0][i] = i;
          SegDofOrd[1][i] = numPointsD - i - 1;
       }
@@ -3699,9 +3703,11 @@ int KernelFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0;
 }
 
-const int *KernelFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or) const
+const int *KernelFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
-   if (GeomType == Geometry::SEGMENT) {
+   if (GeomType == Geometry::SEGMENT)
+   {
       return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
    }
    else

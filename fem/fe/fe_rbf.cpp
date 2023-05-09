@@ -280,10 +280,10 @@ double Wendland33RBF::BaseDerivative2(double r) const
 DistanceMetric *DistanceMetric::GetDistance(const int dim,
                                             const int pnorm)
 {
-   if (pnorm == 1)      return new L1Distance(dim);
-   else if (pnorm == 2) return new L2Distance(dim);
-   else if (pnorm > 2)  return new LpDistance(dim, pnorm);
-   else MFEM_ABORT("distance norm not recognized: " << pnorm);
+   if (pnorm == 1) { return new L1Distance(dim); }
+   else if (pnorm == 2) { return new L2Distance(dim); }
+   else if (pnorm > 2) { return new LpDistance(dim, pnorm); }
+   else { MFEM_ABORT("distance norm not recognized: " << pnorm); }
    return NULL;
 }
 
@@ -426,20 +426,20 @@ void KernelFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
 {
    switch (dim)
    {
-   case 1:
-      vec(0) = ip.x;
-      break;
-   case 2:
-      vec(0) = ip.x;
-      vec(1) = ip.y;
-      break;
-   case 3:
-      vec(0) = ip.x;
-      vec(1) = ip.y;
-      vec(2) = ip.z;
-      break;
-   default:
-      MFEM_ABORT("invalid dimension: " << dim);
+      case 1:
+         vec(0) = ip.x;
+         break;
+      case 2:
+         vec(0) = ip.x;
+         vec(1) = ip.y;
+         break;
+      case 3:
+         vec(0) = ip.x;
+         vec(1) = ip.y;
+         vec(2) = ip.z;
+         break;
+      default:
+         MFEM_ABORT("invalid dimension: " << dim);
    }
 }
 
@@ -461,16 +461,16 @@ void KernelFiniteElement::Project(
    // Copied from PositiveFiniteElement
    DenseMatrix pos_mass, mixed_mass;
    MassIntegrator mass_integ;
-   
+
    mass_integ.AssembleElementMatrix(*this, Trans, pos_mass);
    mass_integ.AssembleElementMatrix2(fe, *this, Trans, mixed_mass);
-   
+
    DenseMatrixInverse pos_mass_inv(pos_mass);
    I.SetSize(dof, fe.GetDof());
    pos_mass_inv.Mult(mixed_mass, I);
 }
 
-RBFFiniteElement::RBFFiniteElement(const int D, 
+RBFFiniteElement::RBFFiniteElement(const int D,
                                    const int numPointsD,
                                    const double h,
                                    const int rbfType,
@@ -529,8 +529,8 @@ void RBFFiniteElement::GetGlobalIndices(const Vector &ip,
 void RBFFiniteElement::GetTensorIndices(const Vector &ip,
                                         int (&indices)[3][2]) const
 {
-   if (isCompact) GetCompactIndices(ip, indices);
-   else           GetGlobalIndices(ip, indices);
+   if (isCompact) { GetCompactIndices(ip, indices); }
+   else { GetGlobalIndices(ip, indices); }
 }
 
 void RBFFiniteElement::DistanceVec(const int i,
@@ -539,20 +539,20 @@ void RBFFiniteElement::DistanceVec(const int i,
 {
    switch (dim)
    {
-   case 1:
-      y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
-      break;
-   case 2:
-      y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
-      y(1) = (x(1) - Nodes.IntPoint(i).y) * hPhysInv;
-      break;
-   case 3:
-      y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
-      y(1) = (x(1) - Nodes.IntPoint(i).y) * hPhysInv;
-      y(2) = (x(2) - Nodes.IntPoint(i).z) * hPhysInv;
-      break;
-   default:
-      MFEM_ABORT("invalid dimension: " << dim);
+      case 1:
+         y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
+         break;
+      case 2:
+         y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
+         y(1) = (x(1) - Nodes.IntPoint(i).y) * hPhysInv;
+         break;
+      case 3:
+         y(0) = (x(0) - Nodes.IntPoint(i).x) * hPhysInv;
+         y(1) = (x(1) - Nodes.IntPoint(i).y) * hPhysInv;
+         y(2) = (x(2) - Nodes.IntPoint(i).z) * hPhysInv;
+         break;
+      default:
+         MFEM_ABORT("invalid dimension: " << dim);
    }
 }
 
@@ -568,40 +568,40 @@ void RBFFiniteElement::InitializeGeometry()
    dimPoints[2] = dim > 2 ? numPointsD : 1;
    switch (dim)
    {
-   case 1:
-      for (int i = 0; i < numPointsD; ++i)
-      {
-         Nodes.IntPoint(i).x = delta * static_cast<double>(i);
-      }
-      break;
-   case 2:
-      for (int i = 0; i < numPointsD; ++i)
-      {
-         for (int j = 0; j < numPointsD; ++j)
+      case 1:
+         for (int i = 0; i < numPointsD; ++i)
          {
-            int l = j + numPointsD * i;
-            Nodes.IntPoint(l).x = delta * static_cast<double>(i);
-            Nodes.IntPoint(l).y = delta * static_cast<double>(j);
+            Nodes.IntPoint(i).x = delta * static_cast<double>(i);
          }
-      }
-      break;
-   case 3:
-      for (int i = 0; i < numPointsD; ++i)
-      {
-         for (int j = 0; j < numPointsD; ++j)
+         break;
+      case 2:
+         for (int i = 0; i < numPointsD; ++i)
          {
-            for (int k = 0; k < numPointsD; ++k)
+            for (int j = 0; j < numPointsD; ++j)
             {
-               int l = k + numPointsD * (j + numPointsD * i);
+               int l = j + numPointsD * i;
                Nodes.IntPoint(l).x = delta * static_cast<double>(i);
                Nodes.IntPoint(l).y = delta * static_cast<double>(j);
-               Nodes.IntPoint(l).z = delta * static_cast<double>(k);
             }
          }
-      }
-      break;
-   default:
-      MFEM_ABORT("invalid dimension: " << dim);
+         break;
+      case 3:
+         for (int i = 0; i < numPointsD; ++i)
+         {
+            for (int j = 0; j < numPointsD; ++j)
+            {
+               for (int k = 0; k < numPointsD; ++k)
+               {
+                  int l = k + numPointsD * (j + numPointsD * i);
+                  Nodes.IntPoint(l).x = delta * static_cast<double>(i);
+                  Nodes.IntPoint(l).y = delta * static_cast<double>(j);
+                  Nodes.IntPoint(l).z = delta * static_cast<double>(k);
+               }
+            }
+         }
+         break;
+      default:
+         MFEM_ABORT("invalid dimension: " << dim);
    }
 }
 
@@ -614,7 +614,7 @@ void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
    double r_scr; // distance
    int cInd[3][2];
 #endif
-   
+
    IntRuleToVec(ip, x_scr);
    if (isCompact)
    {
@@ -627,13 +627,13 @@ void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Get distance vector
                DistanceVec(l, x_scr, y_scr);
-               
+
                // Get distance
                distance->Distance(y_scr, r_scr);
-               
+
                // Get value of function
                shape(l) = rbf->BaseFunction(r_scr);
             }
@@ -646,10 +646,10 @@ void RBFFiniteElement::CalcShape(const IntegrationPoint &ip,
       {
          // Get distance vector
          DistanceVec(i, x_scr, y_scr);
-               
+
          // Get distance
          distance->Distance(y_scr, r_scr);
-               
+
          // Get value of function
          shape(i) = rbf->BaseFunction(r_scr);
       }
@@ -669,7 +669,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
    double df_scr; // derivative value of function
    int cInd[3][2];
 #endif
-   
+
    IntRuleToVec(ip, x_scr);
    if (isCompact)
    {
@@ -682,7 +682,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Get distance vector
                DistanceVec(l, x_scr, y_scr);
 
@@ -692,7 +692,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
                // Get base value of function
                df_scr = rbf->BaseDerivative(r_scr);
-      
+
                for (int d = 0; d < dim; ++d)
                {
                   dshape(l, d) = dr_scr(d) * df_scr * hPhysInv;
@@ -714,7 +714,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
          // Get base value of function
          df_scr = rbf->BaseDerivative(r_scr);
-      
+
          for (int d = 0; d < dim; ++d)
          {
             dshape(i, d) = dr_scr(d) * df_scr * hPhysInv;
@@ -739,7 +739,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
    int cInd[3][2];
 #endif
    IntRuleToVec(ip, x_scr);
-   
+
    if (isCompact)
    {
       h = 0.0;
@@ -750,7 +750,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Get distance vector
                DistanceVec(l, x_scr, y_scr);
 
@@ -758,7 +758,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
                distance->Distance(y_scr, r_scr);
                distance->DDistance(y_scr, dr_scr);
                distance->DDDistance(y_scr, ddr_scr);
-      
+
                // Get base value of function
                df_scr = rbf->BaseDerivative(r_scr);
                ddf_scr = rbf->BaseDerivative2(r_scr);
@@ -788,7 +788,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
          distance->Distance(y_scr, r_scr);
          distance->DDistance(y_scr, dr_scr);
          distance->DDDistance(y_scr, ddr_scr);
-      
+
          // Get base value of function
          df_scr = rbf->BaseDerivative(r_scr);
          ddf_scr = rbf->BaseDerivative2(r_scr);
@@ -854,10 +854,10 @@ void RKFiniteElement::CalcShape(const IntegrationPoint &ip,
    DenseMatrix M_scr(numPoly, numPoly);
    DenseMatrixInverse Minv_scr;
 #endif
-   
+
    // Fill the shape vector with base function values
    baseFE->CalcShape(ip, shape);
-   
+
    // Calculate M
    GetM(shape, ip, M_scr);
    Minv_scr.Factor(M_scr);
@@ -865,7 +865,7 @@ void RKFiniteElement::CalcShape(const IntegrationPoint &ip,
    // Get coefficients
    GetG(g_scr);
    Minv_scr.Mult(g_scr, c_scr);
-   
+
    // Calculate the values of the functions
    CalculateValues(c_scr, shape, ip, shape);
 }
@@ -905,7 +905,7 @@ void RKFiniteElement::CalcDShape(const IntegrationPoint &ip,
       Minv_scr.Mult(g_scr, dc_scr[d]);
       dc_scr[d].Neg();
    }
-   
+
    // Calculate the values of the functions
    CalculateDValues(c_scr, dc_scr, s_scr, dshape, ip, dshape);
 }
@@ -927,20 +927,20 @@ void RKFiniteElement::DistanceVec(const int i,
 {
    switch (dim)
    {
-   case 1:
-      y(0) = x(0) - Nodes.IntPoint(i).x;
-      break;
-   case 2:
-      y(0) = x(0) - Nodes.IntPoint(i).x;
-      y(1) = x(1) - Nodes.IntPoint(i).y;
-      break;
-   case 3:
-      y(0) = x(0) - Nodes.IntPoint(i).x;
-      y(1) = x(1) - Nodes.IntPoint(i).y;
-      y(2) = x(2) - Nodes.IntPoint(i).z;
-      break;
-   default:
-      MFEM_ABORT("invalid dimension: " << dim);
+      case 1:
+         y(0) = x(0) - Nodes.IntPoint(i).x;
+         break;
+      case 2:
+         y(0) = x(0) - Nodes.IntPoint(i).x;
+         y(1) = x(1) - Nodes.IntPoint(i).y;
+         break;
+      case 3:
+         y(0) = x(0) - Nodes.IntPoint(i).x;
+         y(1) = x(1) - Nodes.IntPoint(i).y;
+         y(2) = x(2) - Nodes.IntPoint(i).z;
+         break;
+      default:
+         MFEM_ABORT("invalid dimension: " << dim);
    }
 }
 
@@ -959,43 +959,43 @@ void RKFiniteElement::GetPoly(const Vector &x,
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix q_scr(numPoly1d, dim);
 #endif
-   
+
    int index = 0;
    switch (dim)
    {
-   case 1:
-      poly1d.CalcMono(polyOrd, x(0), &p(0));
-      break;
-   case 2:
-      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
-      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
-      for (int i = 0; i < numPoly1d; ++i)
-      {
-         for (int j = 0; j + i < numPoly1d; ++j)
+      case 1:
+         poly1d.CalcMono(polyOrd, x(0), &p(0));
+         break;
+      case 2:
+         poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
+         poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
+         for (int i = 0; i < numPoly1d; ++i)
          {
-            p(index) = q_scr(i, 0) * q_scr(j, 1);
-            ++index;
-         }
-      }
-      break;
-   case 3:
-      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
-      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
-      poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2));
-      for (int i = 0; i < numPoly1d; ++i)
-      {
-         for (int j = 0; j + i < numPoly1d; ++j)
-         {
-            for (int k = 0; k + j + i < numPoly1d; ++k)
+            for (int j = 0; j + i < numPoly1d; ++j)
             {
-               p(index) = q_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
+               p(index) = q_scr(i, 0) * q_scr(j, 1);
                ++index;
             }
          }
-      }
-      break;
-   default:
-      MFEM_ABORT("invalid dimension: " << dim);
+         break;
+      case 3:
+         poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
+         poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
+         poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2));
+         for (int i = 0; i < numPoly1d; ++i)
+         {
+            for (int j = 0; j + i < numPoly1d; ++j)
+            {
+               for (int k = 0; k + j + i < numPoly1d; ++k)
+               {
+                  p(index) = q_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
+                  ++index;
+               }
+            }
+         }
+         break;
+      default:
+         MFEM_ABORT("invalid dimension: " << dim);
    }
 }
 
@@ -1007,48 +1007,48 @@ void RKFiniteElement::GetDPoly(const Vector &x,
    DenseMatrix q_scr(numPoly1d, dim);
    DenseMatrix dq_scr(numPoly1d, dim);
 #endif
-   
+
    int index = 0;
    switch (dim)
    {
-   case 1:
-      poly1d.CalcMono(polyOrd, x(0), &p(0), &dp[0](0));
-      break;
-   case 2:
-      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
-      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
-      for (int i = 0; i < numPoly1d; ++i)
-      {
-         for (int j = 0; j + i < numPoly1d; ++j)
+      case 1:
+         poly1d.CalcMono(polyOrd, x(0), &p(0), &dp[0](0));
+         break;
+      case 2:
+         poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
+         poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
+         for (int i = 0; i < numPoly1d; ++i)
          {
-            p(index) = q_scr(i, 0) * q_scr(j, 1);
-            dp[0](index) = dq_scr(i, 0) * q_scr(j, 1);
-            dp[1](index) = q_scr(i, 0) * dq_scr(j, 1);
-            ++index;
-         }
-      }
-      break;
-   case 3:
-      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
-      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
-      poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2), &dq_scr(0, 2));
-      for (int i = 0; i < numPoly1d; ++i)
-      {
-         for (int j = 0; j + i < numPoly1d; ++j)
-         {
-            for (int k = 0; k + j + i < numPoly1d; ++k)
+            for (int j = 0; j + i < numPoly1d; ++j)
             {
-               p(index) = q_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
-               dp[0](index) = dq_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
-               dp[1](index) = q_scr(i, 0) * dq_scr(j, 1) * q_scr(k, 2);
-               dp[2](index) = q_scr(i, 0) * q_scr(j, 1) * dq_scr(k, 2);
+               p(index) = q_scr(i, 0) * q_scr(j, 1);
+               dp[0](index) = dq_scr(i, 0) * q_scr(j, 1);
+               dp[1](index) = q_scr(i, 0) * dq_scr(j, 1);
                ++index;
             }
          }
-      }
-      break;
-   default:
-      MFEM_ABORT("invalid dimension: " << dim);
+         break;
+      case 3:
+         poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
+         poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
+         poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2), &dq_scr(0, 2));
+         for (int i = 0; i < numPoly1d; ++i)
+         {
+            for (int j = 0; j + i < numPoly1d; ++j)
+            {
+               for (int k = 0; k + j + i < numPoly1d; ++k)
+               {
+                  p(index) = q_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
+                  dp[0](index) = dq_scr(i, 0) * q_scr(j, 1) * q_scr(k, 2);
+                  dp[1](index) = q_scr(i, 0) * dq_scr(j, 1) * q_scr(k, 2);
+                  dp[2](index) = q_scr(i, 0) * q_scr(j, 1) * dq_scr(k, 2);
+                  ++index;
+               }
+            }
+         }
+         break;
+      default:
+         MFEM_ABORT("invalid dimension: " << dim);
    }
 }
 
@@ -1063,7 +1063,7 @@ void RKFiniteElement::GetM(const Vector &baseShape,
    int cInd[3][2];
    int dimPoints[3];
 #endif
-   
+
    IntRuleToVec(ip, x_scr);
 
    // Zero out M
@@ -1080,13 +1080,13 @@ void RKFiniteElement::GetM(const Vector &baseShape,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Distance vector
                DistanceVec(l, x_scr, y_scr);
-               
+
                // Polynomials
                GetPoly(y_scr, p_scr);
-               
+
                // Add values to M
                AddToM(p_scr, baseShape(l), M);
             }
@@ -1108,7 +1108,7 @@ void RKFiniteElement::GetM(const Vector &baseShape,
          AddToM(p_scr, baseShape(i), M);
       }
    }
-   
+
    // Fill in symmetries
    for (int k = 1; k < numPoly; ++k)
    {
@@ -1160,17 +1160,17 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Distance vector
                DistanceVec(l, x_scr, y_scr);
-      
+
                // Polynomials
                GetDPoly(y_scr, p_scr, dp_scr);
 
                // Add values to M
                f_scr = baseShape(l);
                AddToM(p_scr, f_scr, M);
-      
+
                // Add values to dM
                for (int d = 0; d < dim; ++d)
                {
@@ -1187,14 +1187,14 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
       {
          // Distance vector
          DistanceVec(i, x_scr, y_scr);
-      
+
          // Polynomials
          GetDPoly(y_scr, p_scr, dp_scr);
 
          // Add values to M
          f_scr = baseShape(i);
          AddToM(p_scr, f_scr, M);
-      
+
          // Add values to dM
          for (int d = 0; d < dim; ++d)
          {
@@ -1203,7 +1203,7 @@ void RKFiniteElement::GetDM(const Vector &baseShape,
          AddToDM(p_scr, dp_scr, f_scr, df_scr, dM);
       }
    }
-   
+
    // Fill in symmetries
    for (int k = 1; k < numPoly; ++k)
    {
@@ -1271,9 +1271,9 @@ void RKFiniteElement::CalculateValues(const Vector &c,
    int cInd[3][2];
    int dimPoints[3];
 #endif
-   
+
    IntRuleToVec(ip, x_scr);
-   
+
    if (baseFE->IsCompact() && baseFE->TensorIndexed())
    {
       baseFE->GetTensorIndices(x_scr, cInd);
@@ -1285,10 +1285,10 @@ void RKFiniteElement::CalculateValues(const Vector &c,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Distance vector
                DistanceVec(l, x_scr, y_scr);
-               
+
                // Polynomials
                GetPoly(y_scr, p_scr);
 
@@ -1304,7 +1304,7 @@ void RKFiniteElement::CalculateValues(const Vector &c,
       {
          // Distance vector
          DistanceVec(i, x_scr, y_scr);
-      
+
          // Polynomials
          GetPoly(y_scr, p_scr);
 
@@ -1333,9 +1333,9 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
    int cInd[3][2];
    int dimPoints[3];
 #endif
-   
+
    IntRuleToVec(ip, x_scr);
-   
+
    if (baseFE->IsCompact() && baseFE->TensorIndexed())
    {
       baseFE->GetTensorIndices(x_scr, cInd);
@@ -1347,13 +1347,13 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
             for (int i = cInd[0][0]; i <= cInd[0][1]; ++i)
             {
                int l = k + dimPoints[2] * (j + dimPoints[1] * i);
-               
+
                // Distance vector
                DistanceVec(l, x_scr, y_scr);
-               
+
                // Polynomials
                GetDPoly(y_scr, p_scr, dp_scr);
-               
+
                // Get shape
                for (int d = 0; d < dim; ++d)
                {
@@ -1370,10 +1370,10 @@ void RKFiniteElement::CalculateDValues(const Vector &c,
       {
          // Distance vector
          DistanceVec(i, x_scr, y_scr);
-      
+
          // Polynomials
          GetDPoly(y_scr, p_scr, dp_scr);
-      
+
          // Get shape
          for (int d = 0; d < dim; ++d)
          {

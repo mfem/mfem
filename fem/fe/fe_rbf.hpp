@@ -34,7 +34,7 @@ public:
 
    // Does function have compact support?
    virtual bool CompactSupport() const { return false; }
-   
+
    // This makes the shape parameter consistent across kernels
    virtual double HNorm() const = 0;
 };
@@ -46,11 +46,11 @@ class GaussianRBF : public RBFFunction
 public:
    GaussianRBF() { };
    virtual ~GaussianRBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
-   
+
    virtual double HNorm() const { return hNorm; }
 };
 
@@ -61,11 +61,11 @@ class MultiquadricRBF : public RBFFunction
 public:
    MultiquadricRBF() { };
    virtual ~MultiquadricRBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
-   
+
    virtual double HNorm() const { return hNorm; }
 };
 
@@ -76,11 +76,11 @@ class InvMultiquadricRBF : public RBFFunction
 public:
    InvMultiquadricRBF() { };
    virtual ~InvMultiquadricRBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
-   
+
    virtual double HNorm() const { return hNorm; }
 };
 
@@ -90,17 +90,17 @@ class CompactGaussianRBF : public RBFFunction
    static const double hNorm;
    const double radius;
    double multK, shiftK;
-   
+
 public:
    CompactGaussianRBF(const double rad = 5.0);
    virtual ~CompactGaussianRBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
 
    virtual double Radius() const { return radius; }
-   
+
    virtual double HNorm() const { return hNorm; }
    virtual bool CompactSupport() const { return true; }
 };
@@ -114,13 +114,13 @@ public:
    TruncatedGaussianRBF(const double rad = 5.0)
       : radius(rad) { }
    virtual ~TruncatedGaussianRBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
 
    virtual double Radius() const { return radius; }
-   
+
    virtual double HNorm() const { return hNorm; }
    virtual bool CompactSupport() const { return true; }
 };
@@ -128,17 +128,17 @@ public:
 class Wendland11RBF : public RBFFunction
 {
    static const double radius;
-   
+
 public:
    Wendland11RBF() { }
    virtual ~Wendland11RBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
 
    virtual double Radius() const { return radius; }
-   
+
    virtual double HNorm() const { return 1.0 / radius; }
    virtual bool CompactSupport() const { return true; }
 };
@@ -146,17 +146,17 @@ public:
 class Wendland31RBF : public RBFFunction
 {
    static const double radius;
-   
+
 public:
    Wendland31RBF() { };
    virtual ~Wendland31RBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
 
    virtual double Radius() const { return radius; }
-   
+
    virtual double HNorm() const { return 1.0 / radius; }
    virtual bool CompactSupport() const { return true; }
 };
@@ -164,17 +164,17 @@ public:
 class Wendland33RBF : public RBFFunction
 {
    static const double radius;
-   
+
 public:
    Wendland33RBF() { };
    virtual ~Wendland33RBF() { }
-   
+
    virtual double BaseFunction(double r) const;
    virtual double BaseDerivative(double r) const;
    virtual double BaseDerivative2(double r) const;
 
    virtual double Radius() const { return radius; }
-   
+
    virtual double HNorm() const { return 1.0 / radius; }
    virtual bool CompactSupport() const { return true; }
 };
@@ -201,27 +201,27 @@ public:
    {
       switch (rbfType)
       {
-      case RBFType::Gaussian:
-         return new GaussianRBF();
-      case RBFType::Multiquadric:
-         return new MultiquadricRBF();
-      case RBFType::InvMultiquadric:
-         return new InvMultiquadricRBF();
-      case RBFType::TruncatedGaussian:
-         return new TruncatedGaussianRBF();
-      case RBFType::CompactGaussian:
-         return new CompactGaussianRBF();
-      case RBFType::Wendland11:
-         return new Wendland11RBF();
-      case RBFType::Wendland31:
-         return new Wendland31RBF();
-      case RBFType::Wendland33:
-         return new Wendland33RBF();
+         case RBFType::Gaussian:
+            return new GaussianRBF();
+         case RBFType::Multiquadric:
+            return new MultiquadricRBF();
+         case RBFType::InvMultiquadric:
+            return new InvMultiquadricRBF();
+         case RBFType::TruncatedGaussian:
+            return new TruncatedGaussianRBF();
+         case RBFType::CompactGaussian:
+            return new CompactGaussianRBF();
+         case RBFType::Wendland11:
+            return new Wendland11RBF();
+         case RBFType::Wendland31:
+            return new Wendland31RBF();
+         case RBFType::Wendland33:
+            return new Wendland33RBF();
       }
       MFEM_ABORT("unknown RBF type");
       return NULL;
    }
-   
+
    // Abort if rbfType is invalid
    static int Check(const int rbfType)
    {
@@ -235,23 +235,24 @@ public:
    {
       static const char ident[] = { 'G', 'M', 'I',
                                     'T', 'C',
-                                    '1', '3', '6' };
+                                    '1', '3', '6'
+                                  };
       return ident[Check(rbfType)];
    }
-   
+
    // Convert identifier to rbf int
    static int GetType(const char rbfIdent)
    {
       switch (rbfIdent)
       {
-      case 'G': return Gaussian;
-      case 'M': return Multiquadric;
-      case 'I': return InvMultiquadric;
-      case 'T': return TruncatedGaussian;
-      case 'C': return CompactGaussian;
-      case '1': return Wendland11;
-      case '3': return Wendland31;
-      case '6': return Wendland33;
+         case 'G': return Gaussian;
+         case 'M': return Multiquadric;
+         case 'I': return InvMultiquadric;
+         case 'T': return TruncatedGaussian;
+         case 'C': return CompactGaussian;
+         case '1': return Wendland11;
+         case '3': return Wendland31;
+         case '6': return Wendland33;
       }
       MFEM_ABORT("unknown RBF identifier: " << rbfIdent);
       return -1;
@@ -267,14 +268,14 @@ public:
    virtual ~DistanceMetric() { }
 
    virtual void SetDim(int D) { dim = D; }
-   
+
    virtual void Distance(const Vector &x,
                          double &r) const = 0;
    virtual void DDistance(const Vector &x,
                           Vector &dr) const = 0;
    virtual void DDDistance(const Vector &x,
                            DenseMatrix &ddr) const = 0;
-   
+
    static DistanceMetric *GetDistance(int dim, int pnorm);
 };
 
@@ -317,7 +318,7 @@ public:
         pinv(1. / static_cast<double>(p))
    { };
    virtual ~LpDistance() { }
-   
+
    virtual void Distance(const Vector &x,
                          double &r) const;
    virtual void DDistance(const Vector &x,
@@ -347,9 +348,9 @@ public:
    { MFEM_ABORT("GetTensorIndices(...)"); }
    virtual void GetTensorNumPoints(int (&tNumPoints)[3]) const
    { MFEM_ABORT("GetTensorNumPoints(...)"); }
-   
+
    using FiniteElement::Project;
-   
+
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 
@@ -386,11 +387,11 @@ private:
    const RBFFunction *rbf;
    const DistanceMetric *distance;
    void InitializeGeometry();
-   
+
    virtual void DistanceVec(const int i,
                             const Vector &x,
                             Vector &y) const;
-   
+
 public:
    RBFFiniteElement(const int D,
                     const int numPointsD,
@@ -413,10 +414,10 @@ public:
       tNumPoints[1] = dimPoints[1];
       tNumPoints[2] = dimPoints[2];
    }
-   
+
    virtual bool IsCompact() const { return isCompact; }
    virtual const RBFFunction *Kernel() const { return rbf; }
-   
+
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -476,7 +477,7 @@ private:
    virtual void DistanceVec(const int i,
                             const Vector &x,
                             Vector &y) const;
-   
+
 public:
    RKFiniteElement(const int D,
                    const int numPointsD,
@@ -486,12 +487,12 @@ public:
                    const int order,
                    const int intOrder);
    virtual ~RKFiniteElement() { delete baseFE; }
-   
+
    virtual bool IsCompact() const { return baseFE->IsCompact(); }
    virtual const RBFFunction *Kernel() const { return baseFE->Kernel(); }
-   
+
    static int GetNumPoly(int polyOrd, int dim);
-   
+
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,

@@ -1314,9 +1314,9 @@ private:
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    int *SegDofOrd[2]; // for rotating segment dofs in 1D
-   int *OtherDofOrd; 
+   int *OtherDofOrd;
    bool ValidGeomType(Geometry::Type GeomType) const;
-   
+
 public:
    KernelFECollection(const int D,
                       const int numPointsD,
@@ -1327,7 +1327,7 @@ public:
                       const int intOrder = 2, // num integration points per 1d point
                       const int mapType = FiniteElement::VALUE);
    virtual ~KernelFECollection();
-   
+
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
 
@@ -1336,7 +1336,8 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
 
    virtual const char * Name() const { return d_name; }
    virtual int GetContType() const { return DISCONTINUOUS; }
