@@ -20,12 +20,12 @@ struct MetricTMOP_302 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double B[9];
       double         dI1b[9],          ddI1b[9];
       double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
-      double        *dI3b = Jrt;
+      double         dI3b[9];// = Jrt;
       // (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
       kernels::InvariantsEvaluator3D ie
       (Args().J(Jpt).B(B).dI1b(dI1b).ddI1b(ddI1b)
@@ -64,7 +64,7 @@ struct MetricTMOP_303 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double B[9];
       double         dI1b[9], ddI1[9], ddI1b[9];
@@ -103,7 +103,7 @@ struct MetricTMOP_315 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double *dI3b = Jrt, *ddI3b = Jpr;
       // 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
@@ -137,7 +137,7 @@ struct MetricTMOP_318 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double *dI3b = Jrt, *ddI3b = Jpr;
       // dP_318 = (I3b - 1/I3b^3)*ddI3b + (1 + 3/I3b^4)*(dI3b x dI3b)
@@ -172,7 +172,7 @@ struct MetricTMOP_321 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double B[9];
       double         dI1b[9], ddI1[9], ddI1b[9];
@@ -229,7 +229,7 @@ struct MetricTMOP_332 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double B[9];
       double         dI1b[9], /*ddI1[9],*/ ddI1b[9];
@@ -282,7 +282,7 @@ struct MetricTMOP_338 : MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) override
+                  const DeviceTensor<8> &H) const override
    {
       double B[9];
       double         dI1b[9],          ddI1b[9];
@@ -331,36 +331,42 @@ struct MetricTMOP_338 : MetricTMOPKer3D
 
 struct TMOP_SetupGradPA_3D
 {
-   const double metric_normal;
-   const double *w;
-   const int NE;
-   const ConstDeviceCube &W;
-   const ConstDeviceMatrix &B;
-   const ConstDeviceMatrix &G;
-   const DeviceTensor<6, const double> &J;
-   const DeviceTensor<5,const double> &X;
-   DeviceTensor<8> &H;
-   const int d1d, q1d, max;
+   const mfem::TMOP_Integrator *ti; // not owned
+   const Vector &x;
 
-   TMOP_SetupGradPA_3D(const double metric_normal,
-                       const double *w,
-                       const int NE,
-                       const ConstDeviceCube &W,
-                       const ConstDeviceMatrix &B,
-                       const ConstDeviceMatrix &G,
-                       const DeviceTensor<6, const double> &J,
-                       const DeviceTensor<5,const double> &X,
-                       DeviceTensor<8> &H,
-                       const int d1d,
-                       const int q1d,
-                       const int max):
-      metric_normal(metric_normal), w(w), NE(NE),
-      W(W), B(B), G(G), J(J), X(X), H(H),
-      d1d(d1d), q1d(q1d), max(max) { }
+   TMOP_SetupGradPA_3D(const mfem::TMOP_Integrator *ti,
+                       const Vector &x): ti(ti), x(x) { }
 
-   template<typename METRIC_KERNEL, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+   int d() const { return ti->PA.maps->ndof; }
+
+   int q() const { return ti->PA.maps->nqpt; }
+
+   template<typename METRIC, int T_D1D, int T_Q1D, int T_MAX = 4>
    void operator()()
    {
+      constexpr int DIM = 3;
+      const double metric_normal = ti->metric_normal;
+
+      Array<double> mp;
+      if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
+      {
+         m->GetWeights(mp);
+      }
+      const double *w = mp.Read();
+
+      const int d = ti->PA.maps->ndof, q = ti->PA.maps->nqpt, d1d = d, q1d = q;
+
+      const int NE = ti->PA.ne;
+
+      const ConstDeviceCube &W = Reshape(ti->PA.ir->GetWeights().Read(), q,q,q);
+      const ConstDeviceMatrix &B = Reshape(ti->PA.maps->B.Read(), q,d);
+      const ConstDeviceMatrix &G = Reshape(ti->PA.maps->G.Read(), q,d);
+      const DeviceTensor<6, const double> &J =
+         Reshape(ti->PA.Jtr.Read(), DIM,DIM, q,q,q, NE);
+      const DeviceTensor<5, const double> &X = Reshape(x.Read(), d,d,d, DIM, NE);
+      const DeviceTensor<8> &H =
+         Reshape(ti->PA.H.Write(), DIM,DIM, DIM,DIM, q,q,q, NE);
+
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
@@ -405,7 +411,7 @@ struct TMOP_SetupGradPA_3D
                   double Jpt[9];
                   kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
-                  METRIC_KERNEL{}.AssembleH(qx,qy,qz,e, weight,Jrt,Jpr,Jpt, w,H);
+                  METRIC{}.AssembleH(qx,qy,qz,e, weight,Jrt,Jpr,Jpt, w,H);
                } // qx
             } // qy
          } // qz
@@ -433,6 +439,8 @@ static void Launch(K &ker, const int d, const int q)
 
    if (d==5 && q==5) { return ker.template operator()<M,5,5>(); }
    if (d==5 && q==6) { return ker.template operator()<M,5,6>(); }
+
+   ker.template operator()<M,0,0>();
 }
 
 } // namespace mfem

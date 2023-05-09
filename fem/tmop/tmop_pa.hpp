@@ -48,7 +48,7 @@ struct MetricTMOPKer3D
    void AssembleH(const int qx, const int qy, const int qz, const int e,
                   const double weight, double *Jrt, double *Jpr,
                   const double (&Jpt)[9], const double *w,
-                  const DeviceTensor<8> &H) {}
+                  const DeviceTensor<8> &H) const {}
 };
 
 } // namespace mfem

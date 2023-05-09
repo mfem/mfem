@@ -14,9 +14,9 @@
 namespace mfem
 {
 
-void KAssembleGradPA_3D_302(TMOP_SetupGradPA_3D &k, int d, int q)
+void KAssembleGradPA_3D_302(TMOP_SetupGradPA_3D &k)
 {
-   Launch<MetricTMOP_302>(k,d,q);
+   Launch<MetricTMOP_302>(k, k.d(), k.q());
 }
 
 } // namespace mfem
