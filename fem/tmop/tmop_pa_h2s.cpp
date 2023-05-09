@@ -16,9 +16,10 @@ namespace mfem
 
 struct MetricTMOP_1 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       // weight * ddI1
       double ddI1[4];
@@ -44,9 +45,10 @@ struct MetricTMOP_1 : MetricTMOPKer2D
 
 struct MetricTMOP_2 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       // 0.5 * weight * dI1b
       double ddI1[4], ddI1b[4], dI2b[4];
@@ -73,9 +75,10 @@ struct MetricTMOP_2 : MetricTMOPKer2D
 
 struct MetricTMOP_7 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       double ddI1[4], ddI2[4], dI1[4], dI2[4], dI2b[4];
       kernels::InvariantsEvaluator2D ie
@@ -111,9 +114,10 @@ struct MetricTMOP_7 : MetricTMOPKer2D
 
 struct MetricTMOP_56 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       // (0.5 - 0.5/I2b^2)*ddI2b + (1/I2b^3)*(dI2b x dI2b)
       double dI2b[4], ddI2b[4];
@@ -142,9 +146,10 @@ struct MetricTMOP_56 : MetricTMOPKer2D
 
 struct MetricTMOP_77 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       double dI2[4], dI2b[4], ddI2[4];
       kernels::InvariantsEvaluator2D ie
@@ -172,9 +177,10 @@ struct MetricTMOP_77 : MetricTMOPKer2D
 
 struct MetricTMOP_80 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       // w0 H_2 + w1 H_77
       double ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];
@@ -206,9 +212,10 @@ struct MetricTMOP_80 : MetricTMOPKer2D
 
 struct MetricTMOP_94 : MetricTMOPKer2D
 {
-   virtual void AssembleH(const int qx, const int qy, const int e,
-                          const double weight, const double (&Jpt)[4],
-                          const double *w, const DeviceTensor<7> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int e,
+                  const double weight, const double (&Jpt)[4],
+                  const double *w, const DeviceTensor<7> &H) override
    {
       // w0 H_2 + w1 H_56
       double ddI1[4], ddI1b[4], dI2b[4], ddI2b[4];

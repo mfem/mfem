@@ -14,31 +14,9 @@
 namespace mfem
 {
 
-// Explicit template instantiations
-/*#define T_DECL(ker,mid,...) template decltype(ker<mid>) ker<mid,__VA_ARGS__>;
-
-#define EXPLICIT_TEMPLATE_INSTANTIATIONS(i)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,0,0,4)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,2,2)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,2,3)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,2,4)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,2,5)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,2,6)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,3,3)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,3,4)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,3,5)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,3,6)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,4,4)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,4,5)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,4,6)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,5,5)\
-T_DECL(TMOP_AddMultPA_2D, MetricTMOP_##i,6,6)
-
-//EXPLICIT_TEMPLATE_INSTANTIATIONS(1)
-//EXPLICIT_TEMPLATE_INSTANTIATIONS(2)*/
-
 struct MetricTMOP_1 : MetricTMOPKer2D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       double dI1[4];
@@ -49,6 +27,7 @@ struct MetricTMOP_1 : MetricTMOPKer2D
 
 struct MetricTMOP_2 : MetricTMOPKer2D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       double dI1b[4], dI2b[4];
@@ -59,6 +38,7 @@ struct MetricTMOP_2 : MetricTMOPKer2D
 
 struct MetricTMOP_7 : MetricTMOPKer2D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       double dI1[4], dI2[4], dI2b[4];
@@ -71,6 +51,7 @@ struct MetricTMOP_7 : MetricTMOPKer2D
 
 struct MetricTMOP_56 : MetricTMOPKer2D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       // 0.5*(1 - 1/I2b^2)*dI2b
@@ -83,6 +64,7 @@ struct MetricTMOP_56 : MetricTMOPKer2D
 
 struct MetricTMOP_77 : MetricTMOPKer2D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       double dI2[4], dI2b[4];
@@ -92,9 +74,9 @@ struct MetricTMOP_77 : MetricTMOPKer2D
    }
 };
 
-class MetricTMOP_80 : MetricTMOPKer2D
+struct MetricTMOP_80 : MetricTMOPKer2D
 {
-public:
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       // w0 P_2 + w1 P_77
@@ -108,6 +90,7 @@ public:
 
 struct MetricTMOP_94 : MetricTMOPKer2D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) override
    {
       // w0 P_2 + w1 P_56

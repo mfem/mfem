@@ -16,10 +16,11 @@ namespace mfem
 
 struct MetricTMOP_302 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double B[9];
       double         dI1b[9],          ddI1b[9];
@@ -59,10 +60,11 @@ struct MetricTMOP_302 : MetricTMOPKer3D
 
 struct MetricTMOP_303 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double B[9];
       double         dI1b[9], ddI1[9], ddI1b[9];
@@ -97,10 +99,11 @@ struct MetricTMOP_303 : MetricTMOPKer3D
 
 struct MetricTMOP_315 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double *dI3b = Jrt, *ddI3b = Jpr;
       // 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
@@ -130,10 +133,11 @@ struct MetricTMOP_315 : MetricTMOPKer3D
 
 struct MetricTMOP_318 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double *dI3b = Jrt, *ddI3b = Jpr;
       // dP_318 = (I3b - 1/I3b^3)*ddI3b + (1 + 3/I3b^4)*(dI3b x dI3b)
@@ -164,10 +168,11 @@ struct MetricTMOP_318 : MetricTMOPKer3D
 
 struct MetricTMOP_321 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double B[9];
       double         dI1b[9], ddI1[9], ddI1b[9];
@@ -220,10 +225,11 @@ struct MetricTMOP_321 : MetricTMOPKer3D
 
 struct MetricTMOP_332 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double B[9];
       double         dI1b[9], /*ddI1[9],*/ ddI1b[9];
@@ -272,10 +278,11 @@ struct MetricTMOP_332 : MetricTMOPKer3D
 
 struct MetricTMOP_338 : MetricTMOPKer3D
 {
-   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
-                          const double weight, double *Jrt, double *Jpr,
-                          const double (&Jpt)[9], const double *w,
-                          const DeviceTensor<8> &H) override
+   MFEM_HOST_DEVICE
+   void AssembleH(const int qx, const int qy, const int qz, const int e,
+                  const double weight, double *Jrt, double *Jpr,
+                  const double (&Jpt)[9], const double *w,
+                  const DeviceTensor<8> &H) override
    {
       double B[9];
       double         dI1b[9],          ddI1b[9];

@@ -16,6 +16,7 @@ namespace mfem
 
 struct MetricTMOP_302 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       // (I1b/9)*dI2b + (I2b/9)*dI1b
@@ -31,6 +32,7 @@ struct MetricTMOP_302 : MetricTMOPKer3D
 
 struct MetricTMOP_303 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       // dI1b/3
@@ -44,6 +46,7 @@ struct MetricTMOP_303 : MetricTMOPKer3D
 
 struct MetricTMOP_315 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       // 2*(I3b - 1)*dI3b
@@ -59,6 +62,7 @@ struct MetricTMOP_315 : MetricTMOPKer3D
 // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
 struct MetricTMOP_318 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       double dI3b[9];
@@ -72,6 +76,7 @@ struct MetricTMOP_318 : MetricTMOPKer3D
 
 struct MetricTMOP_321 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       // dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
@@ -90,6 +95,7 @@ struct MetricTMOP_321 : MetricTMOPKer3D
 
 struct MetricTMOP_332 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       // w0 P_302 + w1 P_315
@@ -108,6 +114,7 @@ struct MetricTMOP_332 : MetricTMOPKer3D
 
 struct MetricTMOP_338 : MetricTMOPKer3D
 {
+   MFEM_HOST_DEVICE
    void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) override
    {
       // w0 P_302 + w1 P_318
