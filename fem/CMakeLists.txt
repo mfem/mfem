@@ -120,6 +120,13 @@ set(SRCS
   tmop/tmop_pa_h3m.cpp
   tmop/tmop_pa_h3m_c0.cpp
   tmop/tmop_pa_h3s.cpp
+  tmop/tmop_pa_h3s_302.cpp
+  tmop/tmop_pa_h3s_303.cpp
+  tmop/tmop_pa_h3s_315.cpp
+  tmop/tmop_pa_h3s_318.cpp
+  tmop/tmop_pa_h3s_321.cpp
+  tmop/tmop_pa_h3s_332.cpp
+  tmop/tmop_pa_h3s_338.cpp
   tmop/tmop_pa_h3s_c0.cpp
   tmop/tmop_pa_jp2.cpp
   tmop/tmop_pa_jp3.cpp
@@ -220,6 +227,10 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop/tmop_pa.hpp
+  tmop/tmop_pa_h2s.hpp
+  tmop/tmop_pa_h3s.hpp
+  tmop/tmop_pa_p2.hpp
+  tmop/tmop_pa_p3.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp

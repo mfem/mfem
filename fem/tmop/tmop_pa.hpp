@@ -21,4 +21,32 @@
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
 
+namespace mfem
+{
+
+/// Abstract base class for the 2D metric TMOP kernels.
+struct MetricTMOPKer2D
+{
+   static constexpr int DIM = 2;
+   using Args = kernels::InvariantsEvaluator2D::Buffers;
+   virtual void EvalP(const double (&Jpt)[4], const double *w, double (&P)[4]) {}
+   virtual void AssembleH(const int qx, const int qy, const int e,
+                          const double weight, const double (&Jpt)[4],
+                          const double *w, const DeviceTensor<7> &H) {}
+};
+
+/// Abstract base class for the 3D metric TMOP kernels.
+struct MetricTMOPKer3D
+{
+   static constexpr int DIM = 3;
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
+   virtual void EvalP(const double (&Jpt)[9], const double *w, double (&P)[9]) {}
+   virtual void AssembleH(const int qx, const int qy, const int qz, const int e,
+                          const double weight, double *Jrt, double *Jpr,
+                          const double (&Jpt)[9], const double *w,
+                          const DeviceTensor<8> &H) {}
+};
+
+} // namespace mfem
+
 #endif // MFEM_TMOP_PA_HPP
