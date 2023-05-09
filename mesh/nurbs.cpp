@@ -2410,13 +2410,6 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    kvdir.SetSize(Dimension());
    kvdir = 0;
 
-   // This is not required for 1D
-   if (Dimension() == 1)
-   {
-      kvdir[0] = 1;
-      return;
-   }
-
    Array<int> patchvert, edges, orient, edgevert;
 
    // Get Element Vertices
@@ -2442,22 +2435,28 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       {
          kvdir[0] = -1;
       }
+   }
 
+   if (Dimension()>1)  // 2D and 3D
+   {
       // Second side
-      if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
+      for (int i = 0; i < edges.Size(); i++)
       {
-         kvdir[1] = 1;
-      }
+         if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
+         {
+            kvdir[1] = 1;
+         }
 
-      if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
-      {
-         kvdir[1] = -1;
+         if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
+         {
+            kvdir[1] = -1;
+         }
       }
    }
 
-   // Third direction: only for 3D
    if (Dimension() == 3)
    {
+      // Third side
       for (int i = 0; i < edges.Size(); i++)
       {
          patchTopo->GetEdgeVertices(edges[i], edgevert);
@@ -2499,17 +2498,22 @@ void NURBSExtension::CreateComprehensiveKV()
       e[2] = 8;
    }
 
-   // Create Comprehensive set of knotvectors based on direction of the knotvector.
    knotVectorsCompr.SetSize(GetNP()*Dimension());
    for (int p = 0; p < GetNP(); p++)
    {
       CheckKVDirection(p, kvdir);
+
       patchTopo->GetElementEdges(p, edges, orient);
 
-      for (int i = 0; i < Dimension(); i++)
+      for (int d = 0; d < Dimension(); d++)
       {
-         knotVectorsCompr[Dimension()*p+i] = new KnotVector(*(KnotVec(edges[e[i]])));
-         if (kvdir[i] == -1) {knotVectorsCompr[Dimension()*p+i]->Flip();}
+         // Indices in unique and comprehensive sets of the KnotVector
+         int iun = edges[e[d]];
+         int icomp = Dimension()*p+d;
+
+         knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(iun)));
+
+         if (kvdir[d] == -1) {knotVectorsCompr[icomp]->Flip();}
       }
    }
 
@@ -2518,23 +2522,16 @@ void NURBSExtension::CreateComprehensiveKV()
 
 void NURBSExtension::UpdateUniqueKV()
 {
-   Array<int> ifupd(NumOfKnotVectors);
-   ifupd = 0;
-
    Array<int> e(Dimension());
 
-   if (Dimension() == 1)
-   {
-      e[0] = 0;
-   }
+   e[0] = 0;
+
    if (Dimension() == 2)
    {
-      e[0] = 0;
       e[1] = 1;
    }
    else if (Dimension() == 3)
    {
-      e[0] = 0;
       e[1] = 3;
       e[2] = 8;
    }
@@ -2548,55 +2545,43 @@ void NURBSExtension::UpdateUniqueKV()
 
       for ( int d = 0; d < Dimension(); d++)
       {
-         Vector diffknot;
+         bool flip = false;
+         if (kvdir[d] == -1) {flip = true;}
 
          // Indices in unique and comprehensive sets of the KnotVector
          int iun = edges[e[d]];
          int icomp = Dimension()*p+d;
 
-         // Check if difference in order: we have to check this first, otherwise
-         // KnotVector::Difference might fail as we cannot compare KnotVectors of
-         // different order.
-         int diffo = KnotVec(iun)->GetOrder() - knotVectorsCompr[icomp]->GetOrder();
+         // Check if difference in order
+         int o1 = KnotVec(iun)->GetOrder();
+         int o2 = knotVectorsCompr[icomp]->GetOrder();
+         int diffo = abs(o1 - o2);
 
          if (diffo)
          {
-            // Check if knotvector is already updated.
-            MFEM_ASSERT(ifupd[KnotInd(iun)] == 0,
-                        "KnotVector[i] is updated twice. Knotvectors problably not equal.");
-
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
-            ifupd[KnotInd(iun)] = 1;
 
-            // Give correct direction to unique knotvector. Unique knotvectors should remain original.
-            if (kvdir[d] == -1) {KnotVec(iun)->Flip();}
+            // Give correct direction to unique knotvector.
+            if (flip) {KnotVec(iun)->Flip();}
          }
 
          // Check if difference between knots
-         if (kvdir[d] == 1)
-         {
-            KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diffknot);
-         }
-         else
-         {
-            knotVectorsCompr[icomp]->Flip();
-            KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diffknot);
-            knotVectorsCompr[icomp]->Flip();
-         }
+         Vector diffknot;
+
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
+
+         KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diffknot);
+
+         if (flip) { knotVectorsCompr[icomp]->Flip(); }
 
          if (diffknot.Size() > 0)
          {
-            // Check if knotvector is already updated.
-            MFEM_ASSERT(ifupd[KnotInd(iun)] == 0,
-                        "KnotVector[i] is updated twice. Knotvectors problably not equal.");
-
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
-            ifupd[KnotInd(iun)] = 1;
 
-            // Give correct direction to unique knotvector. Reduced knotvectors are not flipped.
-            if (kvdir[d] == -1) {KnotVec(iun)->Flip();}
+            // Give correct direction to unique knotvector.
+            if (flip) {KnotVec(iun)->Flip();}
          }
       }
    }
@@ -2611,18 +2596,14 @@ bool NURBSExtension::ConsistentUniqueKVComprehensiveKV()
 
    Array<int>e(Dimension());
 
-   if (Dimension() == 1)
+   e[0] = 0;
+
+   if (Dimension() == 2)
    {
-      e[0] = 0;
-   }
-   else if (Dimension() == 2)
-   {
-      e[0] = 0;
       e[1] = 1;
    }
    else if (Dimension() == 3)
    {
-      e[0] = 0;
       e[1] = 3;
       e[2] = 8;
    }
@@ -2630,30 +2611,41 @@ bool NURBSExtension::ConsistentUniqueKVComprehensiveKV()
    for (int p = 0; p < GetNP(); p++)
    {
       patchTopo->GetElementEdges(p, edges, orient);
+
       CheckKVDirection(p, kvdir);
-      for ( int i = 0; i < Dimension(); i++)
+
+      for (int d = 0; d < Dimension(); d++)
       {
+         bool flip = false;
+         if (kvdir[d] == -1) {flip = true;}
+
+         // Indices in unique and comprehensive sets of the KnotVector
+         int iun = edges[e[d]];
+         int icomp = Dimension()*p+d;
+
          // Check if KnotVectors are of equal order
-         int d = KnotVec(edges[e[i]])->GetOrder() - knotVectorsCompr[Dimension()*p
-                                                                     +i]->GetOrder();
-         if (d > 0)
+         int o1 = KnotVec(iun)->GetOrder();
+         int o2 = knotVectorsCompr[icomp]->GetOrder();
+         int diffo = abs(o1 - o2);
+
+         if (diffo)
          {
-            mfem::out << "\nOrder of knotVectorsCompr " << i << " of patch " << p;
-            mfem::out << " does not agree with order of knotVectors " <<
-                      KnotInd(edges[e[i]]) << "\n";
+            mfem::out << "\norder of knotVectorsCompr " << d << " of patch " << p;
+            mfem::out << " does not agree with knotVectors " << KnotInd(iun) << "\n";
             return false;
          }
 
          // Check if Knotvectors have the same knots
-         if (kvdir[i] == -1) {knotVectorsCompr[Dimension()*p+i]->Flip();}
-         KnotVec(edges[e[i]])->Difference(*(knotVectorsCompr[Dimension()*p+i]), diff);
-         if (kvdir[i] == -1) {knotVectorsCompr[Dimension()*p+i]->Flip();}
+         if (flip) {knotVectorsCompr[icomp]->Flip();}
+
+         KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diff);
+
+         if (flip) {knotVectorsCompr[icomp]->Flip();}
 
          if (diff.Size() > 0)
          {
-            mfem::out << "\nKnots of knotVectorsCompr " << i << " of patch " << p;
-            mfem::out << " do not agree with knots of knotVectors " <<
-                      KnotInd(edges[e[i]]) << "\n";
+            mfem::out << "\nknotVectorsCompr " << d << " of patch " << p;
+            mfem::out << " does not agree with knotVectors " << KnotInd(iun) << "\n";
             return false;
          }
       }
@@ -3759,18 +3751,18 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
       CheckKVDirection(p, kvdir);
 
       Array<KnotVector *> pkvc(Dimension());
-      for (int i = 0; i < Dimension(); i++)
+      for (int d = 0; d < Dimension(); d++)
       {
-         pkvc[i] = new KnotVector(*(pkv[i]));
+         pkvc[d] = new KnotVector(*(pkv[d]));
 
-         if (kvdir[i] == -1)
+         if (kvdir[d] == -1)
          {
-            pkvc[i]->Flip();
+            pkvc[d]->Flip();
          }
       }
 
       patches[p]->KnotInsert(pkvc);
-      for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
+      for (int d = 0; d < Dimension(); d++) { delete pkvc[d]; }
    }
 }
 
@@ -3806,28 +3798,27 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
       // Check whether inserted knots should be flipped before inserting.
       // Knotvectors are stored in a different array pkvc such that the original
       // knots which are inserted are not changed.
-      // We need original knots for multiple patches so they have to remain original
       CheckKVDirection(p, kvdir);
 
       Array<Vector *> pkvc(Dimension());
-      for (int i = 0; i < Dimension(); i++)
+      for (int d = 0; d < Dimension(); d++)
       {
-         pkvc[i] = new Vector(*(pkv[i]));
+         pkvc[d] = new Vector(*(pkv[d]));
 
-         if (kvdir[i] == -1)
+         if (kvdir[d] == -1)
          {
             // Find flip point, for knotvectors that do not have the domain [0:1]
-            KnotVector *kva = knotVectorsCompr[Dimension()*p+i];
+            KnotVector *kva = knotVectorsCompr[Dimension()*p+d];
             double apb = (*kva)[0] + (*kva)[kva->Size()-1];
 
             // Flip vector
-            int size =pkvc[i]->Size();
+            int size = pkvc[d]->Size();
             int ns = ceil(size/2.0);
             for (int j = 0; j < ns; j++)
             {
-               double tmp = apb - pkvc[i]->Elem(j);
-               pkvc[i]->Elem(j) = apb - pkvc[i]->Elem(size-1-j);
-               pkvc[i]->Elem(size-1-j) = tmp;
+               double tmp = apb - pkvc[d]->Elem(j);
+               pkvc[d]->Elem(j) = apb - pkvc[d]->Elem(size-1-j);
+               pkvc[d]->Elem(size-1-j) = tmp;
             }
          }
       }
