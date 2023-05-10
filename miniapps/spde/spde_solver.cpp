@@ -767,7 +767,7 @@ void SPDESolver::SolveLinearSystem(const HypreParMatrix *Op)
 {
    HypreBoomerAMG prec(*Op);
    prec.SetPrintLevel(-1);
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(fespace_ptr_->GetComm());
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);

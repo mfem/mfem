@@ -104,7 +104,7 @@ public:
    ~SPDESolver();
 
    /// Solve the SPDE for a given right hand side b. May alter b if
-   /// the exponent (alpha) is larger than 1. We avoid copying be default. If
+   /// the exponent (alpha) is larger than 1. We avoid copying by default. If
    /// you need b later on, make a copy of it before calling this function.
    void Solve(ParLinearForm &b, ParGridFunction &x);
 
