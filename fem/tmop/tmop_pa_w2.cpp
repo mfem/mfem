@@ -10,36 +10,101 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "../../general/jit/jit.hpp"
-MFEM_JIT
 #include "tmop_pa.hpp"
+#include "../linearform.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
+#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_EnergyPA_2D(const double metric_normal,
-                      const double *w,
-                      const int mid,
-                      const int NE,
-                      const DeviceTensor<5, const double> &J,
-                      const ConstDeviceMatrix &W,
-                      const ConstDeviceMatrix &B,
-                      const ConstDeviceMatrix &G,
-                      const DeviceTensor<4, const double> &X,
-                      DeviceTensor<3> &E,
-                      const int d1d,
-                      const int q1d,
-                      const int max)
+using Args = kernels::InvariantsEvaluator2D::Buffers;
+
+static MFEM_HOST_DEVICE inline
+double EvalW_001(const double *Jpt)
 {
-   using Args = kernels::InvariantsEvaluator2D::Buffers;
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 ||
-               mid == 56 || mid == 77 || mid == 80 || mid == 94,
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   return ie.Get_I1();
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_002(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   return 0.5 * ie.Get_I1b() - 1.0;
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_007(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   return ie.Get_I1() * (1.0 + 1.0/ie.Get_I2()) - 4.0;
+}
+
+// mu_56 = 0.5*(I2b + 1/I2b) - 1.
+static MFEM_HOST_DEVICE inline
+double EvalW_056(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   const double I2b = ie.Get_I2b();
+   return 0.5*(I2b + 1.0/I2b) - 1.0;
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_077(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   const double I2b = ie.Get_I2b();
+   return 0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_080(const double *Jpt, const double *w)
+{
+   return w[0] * EvalW_002(Jpt) + w[1] * EvalW_077(Jpt);
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_094(const double *Jpt, const double *w)
+{
+   return w[0] * EvalW_002(Jpt) + w[1] * EvalW_056(Jpt);
+}
+
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
+                           const double metric_normal,
+                           const Array<double> &metric_param,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           const Vector &ones,
+                           Vector &energy,
+                           const int d1d,
+                           const int q1d)
+{
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77
+               || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
+   constexpr int DIM = 2;
    constexpr int NBZ = 1;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D);
+   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+
+   auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
+
+   const double *metric_data = metric_param.Read();
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -55,7 +120,7 @@ void TMOP_EnergyPA_2D(const double metric_normal,
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
       kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
       kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
@@ -81,101 +146,43 @@ void TMOP_EnergyPA_2D(const double metric_normal,
             kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
 
             // metric->EvalW(Jpt);
-            kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
-
-            auto EvalW_01 = [&]() { return ie.Get_I1(); };
-
-            auto EvalW_02 = [&]() { return 0.5 * ie.Get_I1b() - 1.0; };
-
-            auto EvalW_07 = [&]()
-            {
-               return ie.Get_I1() * (1.0 + 1.0/ie.Get_I2()) - 4.0;
-            };
-
-            auto EvalW_56 = [&]()
-            {
-               const double I2b = ie.Get_I2b();
-               return 0.5*(I2b + 1.0/I2b) - 1.0;
-            };
-
-            auto EvalW_77 = [&] ()
-            {
-               const double I2b = ie.Get_I2b();
-               return 0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
-            };
-
-            auto EvalW_80 = [&]()
-            {
-               return w[0] * EvalW_02() + w[1] * EvalW_77();
-            };
-
-            auto EvalW_94 = [&]()
-            {
-               return w[0] * EvalW_02() + w[1] * EvalW_56();
-            };
-
             const double EvalW =
-               mid ==  1 ? EvalW_01() :
-               mid ==  2 ? EvalW_02() :
-               mid ==  7 ? EvalW_07() :
-               mid == 56 ? EvalW_56() :
-               mid == 77 ? EvalW_77() :
-               mid == 80 ? EvalW_80() :
-               mid == 94 ? EvalW_94() : 0.0;
+               mid ==  1 ? EvalW_001(Jpt) :
+               mid ==  2 ? EvalW_002(Jpt) :
+               mid ==  7 ? EvalW_007(Jpt) :
+               mid == 77 ? EvalW_077(Jpt) :
+               mid == 80 ? EvalW_080(Jpt, metric_data) :
+               mid == 94 ? EvalW_094(Jpt, metric_data) : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
          }
       }
    });
+   return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
+double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
 {
-   const int NE = PA.ne;
-   constexpr int DIM = 2;
+   const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
+   const DenseTensor &J = PA.Jtr;
+   const Array<double> &W = PA.ir->GetWeights();
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   const Vector &O = PA.O;
+   Vector &E = PA.E;
 
    Array<double> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
       m->GetWeights(mp);
    }
-   const double *w = mp.Read();
 
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
-   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
-   const auto G = Reshape(PA.maps->G.Read(), Q1D, D1D);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D);
-   const auto X = Reshape(x.Read(), D1D, D1D, DIM, NE);
-
-   auto E = Reshape(PA.E.Write(), Q1D, Q1D, NE);
-
-   decltype(&TMOP_EnergyPA_2D<>) ker = TMOP_EnergyPA_2D;
-#ifndef MFEM_USE_JIT
-   const int d=D1D, q=Q1D;
-   if (d==2 && q==2) { ker = TMOP_EnergyPA_2D<2,2>; }
-   if (d==2 && q==3) { ker = TMOP_EnergyPA_2D<2,3>; }
-   if (d==2 && q==4) { ker = TMOP_EnergyPA_2D<2,4>; }
-   if (d==2 && q==5) { ker = TMOP_EnergyPA_2D<2,5>; }
-   if (d==2 && q==6) { ker = TMOP_EnergyPA_2D<2,6>; }
-
-   if (d==3 && q==3) { ker = TMOP_EnergyPA_2D<3,3>; }
-   if (d==3 && q==4) { ker = TMOP_EnergyPA_2D<3,4>; }
-   if (d==3 && q==5) { ker = TMOP_EnergyPA_2D<3,5>; }
-   if (d==3 && q==6) { ker = TMOP_EnergyPA_2D<3,6>; }
-
-   if (d==4 && q==4) { ker = TMOP_EnergyPA_2D<4,4>; }
-   if (d==4 && q==5) { ker = TMOP_EnergyPA_2D<4,5>; }
-   if (d==4 && q==6) { ker = TMOP_EnergyPA_2D<4,6>; }
-
-   if (d==5 && q==5) { ker = TMOP_EnergyPA_2D<5,5>; }
-   if (d==5 && q==6) { ker = TMOP_EnergyPA_2D<5,6>; }
-#endif
-   ker(mn,w,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
-   return PA.E * PA.O;
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,mp,M,N,J,W,B,G,X,O,E);
 }
 
 } // namespace mfem

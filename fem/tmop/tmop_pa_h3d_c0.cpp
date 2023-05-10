@@ -10,32 +10,37 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "../../general/jit/jit.hpp"
-MFEM_JIT
 #include "tmop_pa.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
-                                   const ConstDeviceMatrix &B,
-                                   const DeviceTensor<6, const double> &H0,
-                                   DeviceTensor<5> &D,
-                                   const int d1d,
-                                   const int q1d,
-                                   const int max)
+MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
+                           const int NE,
+                           const Array<double> &b,
+                           const Vector &h0,
+                           Vector &diagonal,
+                           const int d1d,
+                           const int q1d)
 {
+   constexpr int DIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto H0 = Reshape(h0.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+
+   auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
 
       MFEM_SHARED double qqd[MQ1*MQ1*MD1];
       MFEM_SHARED double qdd[MQ1*MD1*MD1];
@@ -103,40 +108,16 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
    });
 }
 
-void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
+void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &D) const
 {
-   const int NE = PA.ne;
-   constexpr int DIM = 3;
+   const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const Array<double> &B = PA.maps->B;
+   const Vector &H0 = PA.H0;
 
-   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
-   const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-   auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
-
-   decltype(&TMOP_AssembleDiagonalPA_C0_3D<>) ker =
-      TMOP_AssembleDiagonalPA_C0_3D;
-#ifndef MFEM_USE_JIT
-   const int d=D1D, q=Q1D;
-   if (d==2 && q==2) { ker = TMOP_AssembleDiagonalPA_C0_3D<2,2>; }
-   if (d==2 && q==3) { ker = TMOP_AssembleDiagonalPA_C0_3D<2,3>; }
-   if (d==2 && q==4) { ker = TMOP_AssembleDiagonalPA_C0_3D<2,4>; }
-   if (d==2 && q==5) { ker = TMOP_AssembleDiagonalPA_C0_3D<2,5>; }
-   if (d==2 && q==6) { ker = TMOP_AssembleDiagonalPA_C0_3D<2,6>; }
-
-   if (d==3 && q==3) { ker = TMOP_AssembleDiagonalPA_C0_3D<3,3>; }
-   if (d==3 && q==4) { ker = TMOP_AssembleDiagonalPA_C0_3D<3,4>; }
-   if (d==3 && q==5) { ker = TMOP_AssembleDiagonalPA_C0_3D<3,5>; }
-   if (d==3 && q==6) { ker = TMOP_AssembleDiagonalPA_C0_3D<3,6>; }
-
-   if (d==4 && q==4) { ker = TMOP_AssembleDiagonalPA_C0_3D<4,4>; }
-   if (d==4 && q==5) { ker = TMOP_AssembleDiagonalPA_C0_3D<4,5>; }
-   if (d==4 && q==6) { ker = TMOP_AssembleDiagonalPA_C0_3D<4,6>; }
-
-   if (d==5 && q==5) { ker = TMOP_AssembleDiagonalPA_C0_3D<5,5>; }
-   if (d==5 && q==6) { ker = TMOP_AssembleDiagonalPA_C0_3D<5,6>; }
-#endif
-   ker(NE,B,H0,D,D1D,Q1D,4);
+   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_C0_3D,id,N,B,H0,D);
 }
 
 } // namespace mfem

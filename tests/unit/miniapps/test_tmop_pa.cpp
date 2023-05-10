@@ -15,7 +15,6 @@
 #endif
 
 #include <list>
-#include <memory>
 #include <fstream>
 #include <iostream>
 
@@ -124,17 +123,17 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Mesh smesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { smesh.UniformRefinement(); }
    const int dim = smesh.Dimension();
-   std::unique_ptr<ParMesh> pmesh = nullptr;
+   ParMesh *pmesh = nullptr;
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-   pmesh.reset(new ParMesh(MPI_COMM_WORLD, smesh));
+   pmesh = new ParMesh(MPI_COMM_WORLD, smesh);
 #else
-   pmesh.reset(new Mesh(smesh));
+   pmesh = new Mesh(smesh);
 #endif
    smesh.Clear();
 
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fes(pmesh.get(), &fec, dim);
+   ParFiniteElementSpace fes(pmesh, &fec, dim);
    ParGridFunction x0(&fes), x(&fes);
    pmesh->SetNodalGridFunction(&x);
 
@@ -180,37 +179,37 @@ int tmop(int id, Req &res, int argc, char *argv[])
    x.SetFromTrueVector();
    x0 = x;
 
-   std::unique_ptr<TMOP_QualityMetric> metric = nullptr;
+   TMOP_QualityMetric *metric = nullptr;
    switch (metric_id)
    {
-      case   1: metric.reset(new TMOP_Metric_001); break;
-      case   2: metric.reset(new TMOP_Metric_002); break;
-      case   7: metric.reset(new TMOP_Metric_007); break;
-      case  77: metric.reset(new TMOP_Metric_077); break;
-      case  80: metric.reset(new TMOP_Metric_080(0.5)); break;
-      case  94: metric.reset(new TMOP_Metric_094); break;
-      case 302: metric.reset(new TMOP_Metric_302); break;
-      case 303: metric.reset(new TMOP_Metric_303); break;
-      case 315: metric.reset(new TMOP_Metric_315); break;
-      case 318: metric.reset(new TMOP_Metric_318); break;
-      case 321: metric.reset(new TMOP_Metric_321); break;
-      case 332: metric.reset(new TMOP_Metric_332(0.5)); break;
-      case 338: metric.reset(new TMOP_Metric_338); break;
+      case   1: metric = new TMOP_Metric_001; break;
+      case   2: metric = new TMOP_Metric_002; break;
+      case   7: metric = new TMOP_Metric_007; break;
+      case  77: metric = new TMOP_Metric_077; break;
+      case  80: metric = new TMOP_Metric_080(0.5); break;
+      case  94: metric = new TMOP_Metric_094; break;
+      case 302: metric = new TMOP_Metric_302; break;
+      case 303: metric = new TMOP_Metric_303; break;
+      case 315: metric = new TMOP_Metric_315; break;
+      case 318: metric = new TMOP_Metric_318; break;
+      case 321: metric = new TMOP_Metric_321; break;
+      case 332: metric = new TMOP_Metric_332(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       default:
       {
-         cout << "Unknown metric_id: " << metric_id << endl;
+         if (id == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 2;
       }
    }
 
    TargetConstructor::TargetType target_t;
-   std::unique_ptr<TargetConstructor> target_c = nullptr;
-   std::unique_ptr<HessianCoefficient> adapt_coeff = nullptr;
+   TargetConstructor *target_c = nullptr;
+   HessianCoefficient *adapt_coeff = nullptr;
    constexpr int mesh_poly_deg = 1;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
-   ParFiniteElementSpace ind_fes(pmesh.get(), &ind_fec);
+   ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParGridFunction size(&ind_fes);
-   ParFiniteElementSpace ind_fesv(pmesh.get(), &ind_fec, dim);
+   ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction aspr3d(&ind_fesv);
    const AssemblyLevel al =
       pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
@@ -224,9 +223,9 @@ int tmop(int id, Req &res, int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff.reset(new HessianCoefficient(dim, metric_id));
-         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff.get());
-         target_c.reset(tc);
+         adapt_coeff = new HessianCoefficient(dim, metric_id);
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
          break;
       }
       case 5: // Discrete size 2D or 3D
@@ -236,7 +235,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          tc->SetAdaptivityEvaluator(new AdvectorCG(al));
          ConstructSizeGF(size);
          tc->SetDiscreteTargetSize(size);
-         target_c.reset(tc);
+         target_c = tc;
          break;
       }
       case 7: // aspect-ratio 3D
@@ -247,24 +246,24 @@ int tmop(int id, Req &res, int argc, char *argv[])
          VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
          aspr3d.ProjectCoefficient(fd_aspr3d);
          tc->SetDiscreteTargetAspectRatio(aspr3d);
-         target_c.reset(tc);
+         target_c = tc;
          break;
       }
       default:
       {
-         cout << "Unknown target_id: " << target_id << endl;
+         if (id == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
       }
    }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
    if (target_c == NULL)
    {
-      target_c.reset(new TargetConstructor(target_t, MPI_COMM_WORLD));
+      target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
 #else
    if (target_c == nullptr)
    {
-      target_c.reset(new TargetConstructor(target_t));
+      target_c = new TargetConstructor(target_t);
    }
 #endif
    target_c->SetNodes(x0);
@@ -281,18 +280,17 @@ int tmop(int id, Req &res, int argc, char *argv[])
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
       {
-         cout << "Unknown quad_type: " << quad_type << endl;
+         if (id == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
          return 4;
       }
    }
 
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric.get(),
-                                                       target_c.get());
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
 
    if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x0); }
 
-   ParFiniteElementSpace dist_fes(pmesh.get(), &fec); // scalar space
+   ParFiniteElementSpace dist_fes(pmesh, &fec); // scalar space
    ParGridFunction dist(&dist_fes);
    dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
@@ -313,29 +311,29 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
-   std::unique_ptr<ConstantCoefficient> coeff1 = nullptr;
-   std::unique_ptr<TMOP_QualityMetric> metric2 = nullptr;
-   std::unique_ptr<TargetConstructor> target_c2 = nullptr;
+   ConstantCoefficient *coeff1 = nullptr;
+   TMOP_QualityMetric *metric2 = nullptr;
+   TargetConstructor *target_c2 = nullptr;
    FunctionCoefficient coeff2(weight_fun);
    if (combo > 0)
    {
       // First metric.
-      coeff1.reset(new ConstantCoefficient(1.0));
+      coeff1 = new ConstantCoefficient(1.0);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
-      if (dim == 2) { metric2.reset(new TMOP_Metric_077); }
-      else          { metric2.reset(new TMOP_Metric_315); }
+      if (dim == 2) { metric2 = new TMOP_Metric_077; }
+      else          { metric2 = new TMOP_Metric_315; }
       TMOP_Integrator *he_nlf_integ2 = nullptr;
       if (combo == 1)
       {
-         target_c2.reset(new TargetConstructor(
-                            TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE));
+         target_c2 = new TargetConstructor(
+            TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
          target_c2->SetVolumeScale(0.01);
          target_c2->SetNodes(x0);
-         he_nlf_integ2 = new TMOP_Integrator(metric2.get(), target_c2.get());
+         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
          he_nlf_integ2->SetCoefficient(coeff2);
       }
-      else { he_nlf_integ2 = new TMOP_Integrator(metric2.get(), target_c.get()); }
+      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
@@ -372,7 +370,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       else
       {
          ParNonlinearForm nlf_fa(&fes);
-         TMOP_Integrator *nlfi_fa = new TMOP_Integrator(metric.get(), target_c.get());
+         TMOP_Integrator *nlfi_fa = new TMOP_Integrator(metric, target_c);
          nlfi_fa->SetIntegrationRule(*ir);
          if (normalization == 1) { nlfi_fa->ParEnableNormalization(x0); }
          if (lim_const != 0.0)
@@ -395,11 +393,11 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
 
    // Linear solver for the system's Jacobian
-   std::unique_ptr<Solver> S = nullptr, S_prec = nullptr;
+   Solver *S = nullptr, *S_prec = nullptr;
    constexpr double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
-      S.reset(new DSmoother(1, 1.0, max_lin_iter));
+      S = new DSmoother(1, 1.0, max_lin_iter);
    }
    else if (lin_solver == 1)
    {
@@ -408,7 +406,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
       cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      S.reset(cg);
+      S = cg;
    }
    else
    {
@@ -422,23 +420,22 @@ int tmop(int id, Req &res, int argc, char *argv[])
          if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec.reset(new OperatorJacobiSmoother);
+            S_prec = new OperatorJacobiSmoother;
          }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          else
          {
             HypreSmoother *hs = new HypreSmoother;
-            hs->SetType((lin_solver == 3) ?
-                        HypreSmoother::Jacobi :
-                        HypreSmoother::l1Jacobi, 1);
-            S_prec.reset(hs);
+            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                        : HypreSmoother::l1Jacobi, 1);
+            S_prec = hs;
          }
 #else
-         else { S_prec.reset(new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1)); }
+         else { S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1); }
 #endif
          minres->SetPreconditioner(*S_prec);
       }
-      S.reset(minres);
+      S = minres;
    }
 
    // Compute the minimum det(J) of the starting mesh
@@ -467,10 +464,9 @@ int tmop(int id, Req &res, int argc, char *argv[])
    Vector b(0);
    b.UseDevice(true);
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-   std::unique_ptr<NewtonSolver>
-   newton(new TMOPNewtonSolver(PFesGetParMeshGetComm(fes),*ir));
+   NewtonSolver *newton = new TMOPNewtonSolver(PFesGetParMeshGetComm(fes),*ir);
 #else
-   std::unique_ptr<NewtonSolver> newton(new TMOPNewtonSolver(*ir));
+   NewtonSolver *newton = new TMOPNewtonSolver(*ir);
 #endif
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
@@ -485,7 +481,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       x = x_init;
       x.SetTrueVector();
 
-      DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC*>(target_c.get());
+      DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC*>(target_c);
       if (datc && target_id == 5) { datc->SetDiscreteTargetSize(size); }
       if (datc && target_id == 7) { datc->SetDiscreteTargetAspectRatio(aspr3d); }
 
@@ -523,6 +519,17 @@ int tmop(int id, Req &res, int argc, char *argv[])
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
    res.dot = dot;
 
+   delete S;
+   delete S_prec;
+   delete pmesh;
+   delete metric;
+   delete coeff1;
+   delete metric2;
+   delete newton;
+   delete target_c;
+   delete target_c2;
+   delete adapt_coeff;
+
    return 0;
 }
 
@@ -538,7 +545,7 @@ static void req_tmop(int id, const char *args[], Req &res)
 { REQUIRE(tmop(id, res, argn(args), const_cast<char**>(args))==0); }
 
 #define DEFAULT_ARGS const char *args[] = { \
-    "tmop_pa_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
+    "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
     "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
     "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
    "-lc", "0", "-nor", "0", "-ji", "0", "-nl", "1",\
@@ -546,13 +553,12 @@ static void req_tmop(int id, const char *args[], Req &res)
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
-constexpr int RS  = 7;
+constexpr int RS = 7;
 constexpr int MID = 9;
 constexpr int TID = 11;
 constexpr int QTY = 13;
 constexpr int QOR = 15;
 constexpr int NI  = 17;
-constexpr int RTOL = 19;
 constexpr int LS  = 21;
 constexpr int LI  = 23;
 constexpr int LC  = 25;
@@ -566,15 +572,12 @@ static void dump_args(int id, const char *args[])
 {
    if (id != 0) { return; }
    const char *format =
-      "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s "
-      "-ni %s -rtol %s"  // newton iteration and tolerance
+      "tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s"
       "%s%s%s%s"         // Optional args: RS, QTY
       "%s%s%s%s%s%s%s%s%s%s" // Optional args: LC, NOR, JI, NL, CMB, LT
       " %s\n";           // Assembly level
    printf(format,
-          args[MSH], args[POR], args[QOR],
-          args[MID], args[TID], args[LS],
-          args[NI], args[RTOL],
+          args[MSH], args[POR], args[QOR], args[MID], args[TID], args[LS],
           // Optional args: RS, QTY
           args[RS][0] == '0' ? "" : " -rs ",
           args[RS][0] == '0' ? "" : args[RS],
@@ -618,7 +621,7 @@ static inline const char *itoa(const int i, char *buf)
 
 static inline const char *dtoa(const double d, char *buf)
 {
-   if (std::snprintf(buf, sz, "%g", d) < 0) { MFEM_ABORT("snprintf error!"); }
+   std::snprintf(buf, sz, "%.4f", d);
    return buf;
 }
 
@@ -633,9 +636,8 @@ public:
       const char *name = nullptr;
       const char *mesh = "../../data/star.mesh";
       int newton_iter = 100;
-      double newton_rtol = 1e-8;
       int rs_levels = 0;
-      int max_lin_iter = 100;
+      int max_lin_iter  = 100;
       int combo = 0;
       bool normalization = false;
       double lim_const = 0.0;
@@ -649,10 +651,9 @@ public:
       set newton_loop = {1,3};
 
    public:
-      Args(const char *name = nullptr): name(name) {}
+      Args(const char *name =nullptr): name(name) {}
       Args &MESH(const char *arg) { mesh = arg; return *this; }
       Args &NEWTON_ITERATIONS(const int arg) { newton_iter = arg; return *this; }
-      Args &NEWTON_RTOLERANCE(const double arg) { newton_rtol = arg; return *this; }
       Args &REFINE(const int arg) { rs_levels = arg; return *this; }
       Args &LINEAR_ITERATIONS(const int arg) { max_lin_iter = arg; return *this; }
       Args &CMB(const int arg) { combo = arg; return *this; }
@@ -671,36 +672,34 @@ public:
    const char *name, *mesh;
    int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
    bool NORMALIZATION;
-   double NEWTON_RTOLERANCE, LIMITING, JITTER;
+   double LIMITING, JITTER;
    set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 public:
    Launch(Args a = Args()):
       name(a.name), mesh(a.mesh),
       NEWTON_ITERATIONS(a.newton_iter), REFINE(a.rs_levels),
       LINEAR_ITERATIONS(a.max_lin_iter), COMBO(a.combo), LIMIT_TYPE(a.lim_type),
-      NORMALIZATION(a.normalization),
-      NEWTON_RTOLERANCE(a.newton_rtol), LIMITING(a.lim_const), JITTER(a.jitter),
+      NORMALIZATION(a.normalization), LIMITING(a.lim_const), JITTER(a.jitter),
       P_ORDERS(a.order), TARGET_IDS(a.target_id), METRIC_IDS(a.metric_id),
       Q_ORDERS(a.quad_order), LINEAR_SOLVERS(a.lin_solver),
       NEWTON_LOOPS(a.newton_loop)
    { }
 
-   void Run(const int id = 0, bool all = false) const
+   void Run(const int id = 0, bool nr = false) const
    {
-      if ((id == 0) && name) { mfem::out << "[" << name << "]" << std::endl; }
+      if ((id==0) && name) { mfem::out << "[" << name << "]" << std::endl; }
       DEFAULT_ARGS;
-      char ni[sz] {}, nt[sz] {}, rs[sz] {}, li[sz] {},
-           lc[sz] {}, ji[sz] {}, cmb[sz] {}, lt[sz] {};
+      char ni[sz] {}, rs[sz] {}, li[sz] {}, lc[sz] {}, ji[sz] {},
+           cmb[sz] {}, lt[sz] {};
       args[MSH] = mesh;
-      args[NI] = itoa(NEWTON_ITERATIONS,ni);
       args[RS] = itoa(REFINE,rs);
+      args[NI] = itoa(NEWTON_ITERATIONS,ni);
       args[LI] = itoa(LINEAR_ITERATIONS,li);
       args[CMB] = itoa(COMBO,cmb);
-      args[LT] = itoa(LIMIT_TYPE,lt);
-      args[NOR] = NORMALIZATION ? "1" : "0";
-      args[RTOL] = dtoa(NEWTON_RTOLERANCE,nt);
       args[LC] = dtoa(LIMITING,lc);
+      args[LT] = itoa(LIMIT_TYPE,lt);
       args[JI] = dtoa(JITTER,ji);
+      args[NOR] = NORMALIZATION ? "1" : "0";
       for (int p : P_ORDERS)
       {
          char por[sz] {};
@@ -730,17 +729,17 @@ public:
                         char nl[sz] {};
                         args[NL] = itoa(n, nl);
                         tmop_require(id, args);
-                        if (!all) { break; }
+                        if (!nr) { break; }
                      }
-                     if (!all) { break; }
+                     if (!nr) { break; }
                   }
-                  if (!all) { break; }
+                  if (!nr) { break; }
                }
-               if (!all) { break; }
+               if (!nr) { break; }
             }
-            if (!all) { break; }
+            if (!nr) { break; }
          }
-         if (!all) { break; }
+         if (!nr) { break; }
       }
    }
 };
@@ -773,7 +772,7 @@ static void tmop_tests(int id = 0, bool all = false)
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
-          POR({1,2}).QOR({2,6}).
+          POR({1,2}).QOR({2,3}).
           TID({3}).MID({302})).Run(id,all);
 
    Launch(Launch::Args("Star").
@@ -789,24 +788,19 @@ static void tmop_tests(int id = 0, bool all = false)
    Launch(Launch::Args("Square01 + Adapted discrete size").
           MESH("../../miniapps/meshing/square01.mesh").REFINE(1).
           NORMALIZATION(true).
-          POR({1,2}).QOR({2,4}).
-          LINEAR_ITERATIONS(200).
-          NEWTON_RTOLERANCE(1e-10).
+          POR({1,2}).QOR({4,6}).
+          LINEAR_ITERATIONS(150).
           TID({5}).MID({80,94}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
           POR({1,2}).QOR({2,4}).
-          NEWTON_RTOLERANCE(1e-13).
           TID({1,2,3}).MID({2}).LS({2})).Run(id,all);
 
    Launch(Launch::Args("Blade + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({2,4}).
-          LINEAR_ITERATIONS(200).
-          NEWTON_RTOLERANCE(1e-12).
-          NL({2}).
           TID({1,2,3}).MID({2})).Run(id,all);
 
    Launch(Launch::Args("Blade + limiting + normalization").
@@ -818,7 +812,6 @@ static void tmop_tests(int id = 0, bool all = false)
    Launch(Launch::Args("Blade + limiting_expo + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
           NORMALIZATION(true).LIMITING(M_PI).LIMIT_TYPE(1).
-          NEWTON_RTOLERANCE(1e-12).
           POR({1,2}).QOR({2,4}).
           TID({1,2,3}).MID({2})).Run(id,all);
 
@@ -837,34 +830,32 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../miniapps/meshing/cube.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({4,2}).
-          TID({5}).MID({315,318,332,338})).Run(id,all);
+          TID({5}).MID({332,338})).Run(id,all);
 
    // Note: order 1 has no interior nodes, so all residuals are zero and the
-   //       Newton iteration exits immediately.
-   // Note: In parallel, orders > 1 fail with: Initial mesh was valid,
-   //       but intermediate mesh is invalid. Contact TMOP Developers.
+   // Newton iteration exits immediately.
    Launch(Launch::Args("Toroid-Hex").
           MESH("../../data/toroid-hex.mesh").
-          POR({1/*,2*/}).QOR({2,4,8}).
-          TID({1,2,3}).MID({302,303,321})).Run(id, all);
+          POR({1,2}).QOR({2,4,8}).
+          TID({1,2,3}).MID({302,303,321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex + limiting").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).
-          POR({1/*,2*/}).QOR({2,4}).NL({3,1}).
-          TID({1,2}).MID({321,338})).Run(id, all);
+          POR({1,2}).QOR({2,4}).NL({3,1}).
+          TID({1,2}).MID({321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex + limiting + norm.").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).NORMALIZATION(true).
-          POR({1/*,2*/}).QOR({2,4}).
-          TID({1,2}).MID({321,315,318,332,338})).Run(id, all);
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id,all);
 
    Launch(Launch::Args("Toroid-Hex + limiting_expo + norm.").
           MESH("../../data/toroid-hex.mesh").
           LIMITING(M_PI).LIMIT_TYPE(1).NORMALIZATION(true).
-          POR({1/*,2*/}).QOR({2,4}).
-          TID({1,2}).MID({321})).Run(id, all);
+          POR({1,2}).QOR({2,4}).
+          TID({1,2}).MID({321})).Run(id,all);
 
    // -m cube.mesh -rs 1 -tid 5 -mid 321 -ni 5 -ls 3 -li 100 -lc 1.0 -nor
    Launch(Launch::Args("Cube + Blast options").
@@ -905,15 +896,13 @@ static void tmop_tests(int id = 0, bool all = false)
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
-          LINEAR_ITERATIONS(1000).NORMALIZATION(true).
-          NEWTON_RTOLERANCE(1e-14).
+          LINEAR_ITERATIONS(300).NORMALIZATION(true).
           POR({1}).QOR({2}).
-          TID({5}).MID({7}).LS({2}).NL({4})).Run(id,true);
+          TID({5}).MID({7}).LS({2}).NL({2})).Run(id,true);
 
    Launch(Launch::Args("Blade + Discrete size + normalization").
           MESH("../../miniapps/meshing/blade.mesh").
-          LINEAR_ITERATIONS(500).NORMALIZATION(true).
-          NEWTON_RTOLERANCE(1e-12).
+          LINEAR_ITERATIONS(200).NORMALIZATION(true).
           POR({1}).QOR({2}).
           TID({5}).MID({2})).Run(id,true);
 }

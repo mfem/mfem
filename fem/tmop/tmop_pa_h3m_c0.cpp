@@ -1,5 +1,3 @@
-
-
 // Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
@@ -12,26 +10,33 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "../linearform.hpp"
-#include "../../general/jit/jit.hpp"
-MFEM_JIT
 #include "tmop_pa.hpp"
+#include "../linearform.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AddMultGradPA_C0_3D(const int NE,
-                              const ConstDeviceMatrix &b,
-                              const DeviceTensor<6, const double> &H0,
-                              const DeviceTensor<5, const double> &X,
-                              DeviceTensor<5> &Y,
-                              const int d1d,
-                              const int q1d,
-                              const int max)
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
+                           const int NE,
+                           const Array<double> &b_,
+                           const Vector &h0_,
+                           const Vector &r_,
+                           Vector &c_,
+                           const int d1d,
+                           const int q1d)
 {
+   constexpr int DIM = 3;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto H0 = Reshape(h0_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto R = Reshape(r_.Read(), D1D, D1D, D1D, DIM, NE);
+
+   auto Y = Reshape(c_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -48,7 +53,7 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
       MFEM_SHARED double DQQ[3][MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[3][MQ1*MQ1*MQ1];
 
-      kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
+      kernels::internal::LoadX<MD1>(e,D1D,R,DDD);
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
       kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
@@ -92,38 +97,14 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 
 void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
 {
-   const int NE = PA.ne;
-   constexpr int DIM = 3;
+   const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const Array<double> &B = PA.maps->B;
+   const Vector &H0 = PA.H0;
 
-   const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
-   const auto X = Reshape(R.Read(), D1D, D1D, D1D, DIM, NE);
-   auto Y = Reshape(C.ReadWrite(), D1D, D1D, D1D, DIM, NE);
-
-   decltype(&TMOP_AddMultGradPA_C0_3D<>) ker = TMOP_AddMultGradPA_C0_3D;
-#ifndef MFEM_USE_JIT
-   const int d=D1D, q=Q1D;
-   if (d==2 && q==2) { ker = TMOP_AddMultGradPA_C0_3D<2,2>; }
-   if (d==2 && q==3) { ker = TMOP_AddMultGradPA_C0_3D<2,3>; }
-   if (d==2 && q==4) { ker = TMOP_AddMultGradPA_C0_3D<2,4>; }
-   if (d==2 && q==5) { ker = TMOP_AddMultGradPA_C0_3D<2,5>; }
-   if (d==2 && q==6) { ker = TMOP_AddMultGradPA_C0_3D<2,6>; }
-
-   if (d==3 && q==3) { ker = TMOP_AddMultGradPA_C0_3D<3,3>; }
-   if (d==3 && q==4) { ker = TMOP_AddMultGradPA_C0_3D<3,4>; }
-   if (d==3 && q==5) { ker = TMOP_AddMultGradPA_C0_3D<3,5>; }
-   if (d==3 && q==6) { ker = TMOP_AddMultGradPA_C0_3D<3,6>; }
-
-   if (d==4 && q==4) { ker = TMOP_AddMultGradPA_C0_3D<4,4>; }
-   if (d==4 && q==5) { ker = TMOP_AddMultGradPA_C0_3D<4,5>; }
-   if (d==4 && q==6) { ker = TMOP_AddMultGradPA_C0_3D<4,6>; }
-
-   if (d==5 && q==5) { ker = TMOP_AddMultGradPA_C0_3D<5,5>; }
-   if (d==5 && q==6) { ker = TMOP_AddMultGradPA_C0_3D<5,6>; }
-#endif
-   ker(NE,B,H0,X,Y,D1D,Q1D,4);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_3D,id,N,B,H0,R,C);
 }
 
 } // namespace mfem

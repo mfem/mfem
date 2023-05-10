@@ -10,32 +10,39 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "../../general/jit/jit.hpp"
-MFEM_JIT
 #include "tmop_pa.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AddMultGradPA_2D(const int NE,
-                           const ConstDeviceMatrix &B,
-                           const ConstDeviceMatrix &G,
-                           const DeviceTensor<5, const double> &J,
-                           const DeviceTensor<7, const double> &H,
-                           const DeviceTensor<4, const double> &X,
-                           DeviceTensor<4> &Y,
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
+                           const int NE,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const DenseTensor &j_,
+                           const Vector &h_,
+                           const Vector &x_,
+                           Vector &y_,
                            const int d1d,
-                           const int q1d,
-                           const int max)
+                           const int q1d)
 {
+   constexpr int DIM = 2;
    constexpr int NBZ = 1;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+   const auto H = Reshape(h_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
@@ -48,7 +55,7 @@ void TMOP_AddMultGradPA_2D(const int NE,
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
       kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
       kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
@@ -98,7 +105,7 @@ void TMOP_AddMultGradPA_2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::LoadBGt<MD1,MQ1>(D1D,Q1D,B,G,BG);
+      kernels::internal::LoadBGt<MD1,MQ1>(D1D,Q1D,b,g,BG);
       kernels::internal::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
       kernels::internal::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
@@ -106,40 +113,16 @@ void TMOP_AddMultGradPA_2D(const int NE,
 
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
 {
-   const int NE = PA.ne;
-   constexpr int DIM = 2;
+   const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const DenseTensor &J = PA.Jtr;
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   const Vector &H = PA.H;
 
-   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
-   const auto G = Reshape(PA.maps->G.Read(), Q1D, D1D);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
-   const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
-   const auto X = Reshape(R.Read(), D1D, D1D, DIM, NE);
-   auto Y = Reshape(C.ReadWrite(), D1D, D1D, DIM, NE);
-
-   decltype(&TMOP_AddMultGradPA_2D<>) ker = TMOP_AddMultGradPA_2D;
-#ifndef MFEM_USE_JIT
-   const int d=D1D, q=Q1D;
-   if (d==2 && q==2) { ker = TMOP_AddMultGradPA_2D<2,2>; }
-   if (d==2 && q==3) { ker = TMOP_AddMultGradPA_2D<2,3>; }
-   if (d==2 && q==4) { ker = TMOP_AddMultGradPA_2D<2,4>; }
-   if (d==2 && q==5) { ker = TMOP_AddMultGradPA_2D<2,5>; }
-   if (d==2 && q==6) { ker = TMOP_AddMultGradPA_2D<2,6>; }
-
-   if (d==3 && q==3) { ker = TMOP_AddMultGradPA_2D<3,3>; }
-   if (d==3 && q==4) { ker = TMOP_AddMultGradPA_2D<3,4>; }
-   if (d==3 && q==5) { ker = TMOP_AddMultGradPA_2D<3,5>; }
-   if (d==3 && q==6) { ker = TMOP_AddMultGradPA_2D<3,6>; }
-
-   if (d==4 && q==4) { ker = TMOP_AddMultGradPA_2D<4,4>; }
-   if (d==4 && q==5) { ker = TMOP_AddMultGradPA_2D<4,5>; }
-   if (d==4 && q==6) { ker = TMOP_AddMultGradPA_2D<4,6>; }
-
-   if (d==5 && q==5) { ker = TMOP_AddMultGradPA_2D<5,5>; }
-   if (d==5 && q==6) { ker = TMOP_AddMultGradPA_2D<5,6>; }
-#endif
-   ker(NE,B,G,J,H,X,Y,D1D,Q1D,4);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_2D,id,N,B,G,J,H,R,C);
 }
 
 } // namespace mfem

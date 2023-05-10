@@ -10,34 +10,47 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "../linearform.hpp"
-#include "../../general/jit/jit.hpp"
-MFEM_JIT
 #include "tmop_pa.hpp"
+#include "../linearform.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_SetupGradPA_C0_3D(const double lim_normal,
-                            const DeviceTensor<4, const double> &LD,
-                            const bool const_c0,
-                            const DeviceTensor<4, const double> &C0,
-                            const int NE,
-                            const DeviceTensor<6, const double> &J,
-                            const ConstDeviceCube &W,
-                            const ConstDeviceMatrix &b,
-                            const ConstDeviceMatrix &bld,
-                            const DeviceTensor<5, const double> &X0,
-                            const DeviceTensor<5, const double> &X1,
-                            DeviceTensor<6> &H0,
-                            const bool exp_lim,
-                            const int d1d,
-                            const int q1d,
-                            const int max)
+MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
+                           const double lim_normal,
+                           const Vector &lim_dist,
+                           const Vector &c0_,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &bld_,
+                           const Vector &x0_,
+                           const Vector &x1_,
+                           Vector &h0_,
+                           const bool exp_lim,
+                           const int d1d,
+                           const int q1d)
 {
+   constexpr int DIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const bool const_c0 = c0_.Size() == 1;
+   const auto C0 = const_c0 ?
+                   Reshape(c0_.Read(), 1, 1, 1, 1) :
+                   Reshape(c0_.Read(), Q1D, Q1D, Q1D, NE);
+   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, D1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto bld = Reshape(bld_.Read(), Q1D, D1D);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
+   const auto X0 = Reshape(x0_.Read(), D1D, D1D, D1D, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, D1D, D1D, DIM, NE);
+
+   auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, Q1D, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -100,22 +113,26 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
                const double weight_m = weight * lim_normal * coeff0;
 
-               double D, grad_grad[9];
+               double D, p0[3], p1[3];
                kernels::internal::PullEval(qx,qy,qz,QQQ,D);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ0,p0);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
+
                const double dist = D; // GetValues, default comp set to 0
+
+               // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
+
+               double grad_grad[9];
 
                if (!exp_lim)
                {
-                  // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
                   // d2.Diag(1.0 / (dist * dist), x.Size());
                   const double c = 1.0 / (dist * dist);
                   kernels::Diag<3>(c, grad_grad);
                }
                else
                {
-                  double p0[3], p1[3], tmp[3];
-                  kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ0,p0);
-                  kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
+                  double tmp[3];
                   kernels::Subtract<3>(1.0, p1, p0, tmp);
                   double dsq = kernels::DistanceSquared<3>(p1,p0);
                   double dist_squared = dist*dist;
@@ -149,52 +166,27 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
    });
 }
 
-void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
+void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
 {
-   const int NE = PA.ne;
-   constexpr int DIM = 3;
+   const int N = PA.ne;
    const int D1D = PA.maps_lim->ndof;
    const int Q1D = PA.maps_lim->nqpt;
-
+   const int id = (D1D << 4 ) | Q1D;
    const double ln = lim_normal;
-   const bool const_c0 = PA.C0.Size() == 1;
-   const auto C0 = const_c0 ?
-                   Reshape(PA.C0.Read(), 1, 1, 1, 1) :
-                   Reshape(PA.C0.Read(), Q1D, Q1D, Q1D, NE);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
-   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
-   const auto BLD = Reshape(PA.maps_lim->B.Read(), Q1D, D1D);
-   const auto LD = Reshape(PA.LD.Read(), D1D, D1D, D1D, NE);
-   const auto X0 = Reshape(PA.X0.Read(), D1D, D1D, D1D, DIM, NE);
-   const auto X = Reshape(x.Read(), D1D, D1D, D1D, DIM, NE);
-   auto H0 = Reshape(PA.H0.Write(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const Vector &LD = PA.LD;
+   const DenseTensor &J = PA.Jtr;
+   const Array<double> &W = PA.ir->GetWeights();
+   const Array<double> &B   = PA.maps->B;
+   const Array<double> &BLD = PA.maps_lim->B;
+   const Vector &C0 = PA.C0;
+   const Vector &X0 = PA.X0;
+   Vector &H0 = PA.H0;
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   decltype(&TMOP_SetupGradPA_C0_3D<>) ker = TMOP_SetupGradPA_C0_3D;
-#ifndef MFEM_USE_JIT
-   const int d=D1D, q=Q1D;
-   if (d==2 && q==2) { ker = TMOP_SetupGradPA_C0_3D<2,2>; }
-   if (d==2 && q==3) { ker = TMOP_SetupGradPA_C0_3D<2,3>; }
-   if (d==2 && q==4) { ker = TMOP_SetupGradPA_C0_3D<2,4>; }
-   if (d==2 && q==5) { ker = TMOP_SetupGradPA_C0_3D<2,5>; }
-   if (d==2 && q==6) { ker = TMOP_SetupGradPA_C0_3D<2,6>; }
-
-   if (d==3 && q==3) { ker = TMOP_SetupGradPA_C0_3D<3,3>; }
-   if (d==3 && q==4) { ker = TMOP_SetupGradPA_C0_3D<3,4>; }
-   if (d==3 && q==5) { ker = TMOP_SetupGradPA_C0_3D<3,5>; }
-   if (d==3 && q==6) { ker = TMOP_SetupGradPA_C0_3D<3,6>; }
-
-   if (d==4 && q==4) { ker = TMOP_SetupGradPA_C0_3D<4,4>; }
-   if (d==4 && q==5) { ker = TMOP_SetupGradPA_C0_3D<4,5>; }
-   if (d==4 && q==6) { ker = TMOP_SetupGradPA_C0_3D<4,6>; }
-
-   if (d==5 && q==5) { ker = TMOP_SetupGradPA_C0_3D<5,5>; }
-   if (d==5 && q==6) { ker = TMOP_SetupGradPA_C0_3D<5,6>; }
-#endif
-   ker(ln,LD,const_c0,C0,NE,J,W,B,BLD,X0,X,H0,exp_lim,D1D,Q1D,4);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Kernel_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,
+                           H0,exp_lim);
 }
 
 } // namespace mfem

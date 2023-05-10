@@ -10,39 +10,339 @@
 // CONTRIBUTING.md for details.
 
 #include "../tmop.hpp"
-#include "../../general/jit/jit.hpp"
-MFEM_JIT
 #include "tmop_pa.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
+#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_SetupGradPA_3D(const double metric_normal,
-                         const double *w,
-                         const int mid,
-                         const int NE,
-                         const ConstDeviceCube &W,
-                         const ConstDeviceMatrix &B,
-                         const ConstDeviceMatrix &G,
-                         const DeviceTensor<6, const double> &J,
-                         const DeviceTensor<5,const double> &X,
-                         DeviceTensor<8> &H,
-                         const int d1d,
-                         const int q1d,
-                         const int max)
+using Args = kernels::InvariantsEvaluator3D::Buffers;
+
+// dP_302 = (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
+static MFEM_HOST_DEVICE inline
+void EvalH_302(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b)
 {
-   using Args = kernels::InvariantsEvaluator3D::Buffers;
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
-               mid == 318 || mid == 321 || mid == 332 || mid == 338,
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b));
+   const double c1 = weight/9.;
+   const double I1b = ie.Get_I1b();
+   const double I2b = ie.Get_I2b();
+   ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
+   ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp =
+                  (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                  + ddi2b(r,c)*I1b
+                  + ddi1b(r,c)*I2b;
+               dP(r,c,i,j,qx,qy,qz,e) = c1 * dp;
+            }
+         }
+      }
+   }
+}
+
+// dP_303 = ddI1b/3
+static MFEM_HOST_DEVICE inline
+void EvalH_303(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
+   const double c1 = weight/3.;
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp = ddi1b(r,c);
+               dP(r,c,i,j,qx,qy,qz,e) = c1 * dp;
+            }
+         }
+      }
+   }
+}
+
+// dP_315 = 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
+static MFEM_HOST_DEVICE inline
+void EvalH_315(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *dI3b, double *ddI3b)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args().
+                                     J(J).
+                                     dI3b(dI3b).ddI3b(ddI3b));
+
+   double sign_detJ;
+   const double I3b = ie.Get_I3b(sign_detJ);
+   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
+                                 2.0 * weight * di3b(r,c) * di3b(i,j);
+               dP(r,c,i,j,qx,qy,qz,e) = dp;
+            }
+         }
+      }
+   }
+}
+
+// dP_318 = (I3b - 1/I3b^3)*ddI3b + (1 + 3/I3b^4)*(dI3b x dI3b)
+// Uses the I3b form, as dI3 and ddI3 were not implemented at the time.
+static MFEM_HOST_DEVICE inline
+void EvalH_318(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *dI3b, double *ddI3b)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args().
+                                     J(J).
+                                     dI3b(dI3b).ddI3b(ddI3b));
+
+   double sign_detJ;
+   const double I3b = ie.Get_I3b(sign_detJ);
+   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp =
+                  weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
+                  weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
+               dP(r,c,i,j,qx,qy,qz,e) = dp;
+            }
+         }
+      }
+   }
+}
+
+// dP_321 = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2)
+//               + (1/I3)*ddI2
+//               + (6*I2/I3b^4)*(dI3b x dI3b)
+//               + (-2*I2/I3b^3)*ddI3b
+static MFEM_HOST_DEVICE inline
+void EvalH_321(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
+   double sign_detJ;
+   const double I2 = ie.Get_I2();
+   const double I3b = ie.Get_I3b(sign_detJ);
+
+   ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
+   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+
+   const double c0 = 1.0/I3b;
+   const double c1 = weight*c0*c0;
+   const double c2 = -2*c0*c1;
+   const double c3 = c2*I2;
+
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp =
+                  weight * ddi1(r,c)
+                  + c1 * ddi2(r,c)
+                  + c3 * ddi3b(r,c)
+                  + c2 * ((di2(r,c)*di3b(i,j) + di3b(r,c)*di2(i,j)))
+                  -3*c0*c3 * di3b(r,c)*di3b(i,j);
+               dP(r,c,i,j,qx,qy,qz,e) = dp;
+            }
+         }
+      }
+   }
+}
+
+// H_332 = w0 H_302 + w1 H_315
+static MFEM_HOST_DEVICE inline
+void EvalH_332(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *w,
+               const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
+   double sign_detJ;
+   const double c1 = weight/9.;
+   const double I1b = ie.Get_I1b();
+   const double I2b = ie.Get_I2b();
+   const double I3b = ie.Get_I3b(sign_detJ);
+   ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
+   ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp_302 =
+                  (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                  + ddi2b(r,c)*I1b
+                  + ddi1b(r,c)*I2b;
+               const double dp_315 = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
+                                     2.0 * weight * di3b(r,c) * di3b(i,j);
+               dP(r,c,i,j,qx,qy,qz,e) = w[0] * c1 * dp_302 +
+                                        w[1] * dp_315;
+            }
+         }
+      }
+   }
+}
+
+// H_338 = w0 H_302 + w1 H_318
+static MFEM_HOST_DEVICE inline
+void EvalH_338(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *w,
+               const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b).ddI1b(ddI1b)
+                                     .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                     .dI3b(dI3b).ddI3b(ddI3b));
+   double sign_detJ;
+   const double c1 = weight/9.;
+   const double I1b = ie.Get_I1b();
+   const double I2b = ie.Get_I2b();
+   const double I3b = ie.Get_I3b(sign_detJ);
+   ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
+   ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+   ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp_302 =
+                  (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                  + ddi2b(r,c)*I1b
+                  + ddi1b(r,c)*I2b;
+               const double dp_318 =
+                  weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
+                  weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
+               dP(r,c,i,j,qx,qy,qz,e) = w[0] * c1 * dp_302 +
+                                        w[1] * dp_318;
+            }
+         }
+      }
+   }
+}
+
+MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
+                           const double metric_normal,
+                           const Array<double> &metric_param,
+                           const int mid,
+                           const Vector &x_,
+                           const int NE,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const DenseTensor &j_,
+                           Vector &h_,
+                           const int d1d,
+                           const int q1d)
+{
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
+               mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
+   constexpr int DIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
+   auto H = Reshape(h_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
+
+   const double *metric_data = metric_param.Read();
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -55,7 +355,7 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
       MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,s_DDD);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,s_BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
 
       kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,s_BG,s_DDD,s_DDQ);
       kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,s_DQQ);
@@ -93,246 +393,36 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
                // metric->AssembleH
                if (mid == 302)
                {
-                  // (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
-                  kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).B(B).dI1b(dI1b).ddI1b(ddI1b)
-                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b).dI3b(dI3b));
-
-                  const double c1 = weight/9.;
-                  const double I1b = ie.Get_I1b();
-                  const double I2b = ie.Get_I2b();
-                  ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
-                  ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp =
-                                 (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
-                                 + ddi2b(r,c)*I1b
-                                 + ddi1b(r,c)*I2b;
-                              H(r,c,i,j,qx,qy,qz,e) = c1 * dp;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_302(e,qx,qy,qz,weight,Jpt,H,
+                            B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b);
                }
-
                if (mid == 303)
                {
-                  // ddI1b/3
-                  kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).B(B)
-                   .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
-                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
-                   .dI3b(dI3b).ddI3b(ddI3b));
-
-                  const double c1 = weight/3.;
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp = ddi1b(r,c);
-                              H(r,c,i,j,qx,qy,qz,e) = c1 * dp;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_303(e,qx,qy,qz,weight,Jpt,H,
+                            B,dI1b,ddI1,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
                }
-
                if (mid == 315)
                {
-                  // 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
-                  kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).dI3b(dI3b).ddI3b(ddI3b));
-                  double sign_detJ;
-                  const double I3b = ie.Get_I3b(sign_detJ);
-                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp =
-                                 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
-                                 2.0 * weight * di3b(r,c) * di3b(i,j);
-                              H(r,c,i,j,qx,qy,qz,e) = dp;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_315(e,qx,qy,qz,weight,Jpt,H, dI3b,ddI3b);
                }
-
                if (mid == 318)
                {
-                  // dP_318 = (I3b - 1/I3b^3)*ddI3b + (1 + 3/I3b^4)*(dI3b x dI3b)
-                  // Uses the I3b form, as dI3 and ddI3 were not implemented at the time
-                  kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).dI3b(dI3b).ddI3b(ddI3b));
-                  double sign_detJ;
-                  const double I3b = ie.Get_I3b(sign_detJ);
-                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp =
-                                 weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
-                                 weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
-                              H(r,c,i,j,qx,qy,qz,e) = dp;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_318(e,qx,qy,qz,weight,Jpt,H, dI3b,ddI3b);
                }
-
                if (mid == 321)
                {
-                  // ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2)
-                  //      + (1/I3)*ddI2
-                  //      + (6*I2/I3b^4)*(dI3b x dI3b)
-                  //      + (-2*I2/I3b^3)*ddI3b
-                  kernels::InvariantsEvaluator3D ie
-                  (Args()
-                   .J(Jpt).B(B)
-                   .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
-                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
-                   .dI3b(dI3b).ddI3b(ddI3b));
-                  double sign_detJ;
-                  const double I2 = ie.Get_I2();
-                  const double I3b = ie.Get_I3b(sign_detJ);
-                  ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
-                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
-                  const double c0 = 1.0/I3b;
-                  const double c1 = weight*c0*c0;
-                  const double c2 = -2*c0*c1;
-                  const double c3 = c2*I2;
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp =
-                                 weight * ddi1(r,c)
-                                 + c1 * ddi2(r,c)
-                                 + c3 * ddi3b(r,c)
-                                 + c2 * ((di2(r,c)*di3b(i,j) + di3b(r,c)*di2(i,j)))
-                                 -3*c0*c3 * di3b(r,c)*di3b(i,j);
-                              H(r,c,i,j,qx,qy,qz,e) = dp;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_321(e,qx,qy,qz,weight,Jpt,H,
+                            B,dI1b,ddI1,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
                }
-
                if (mid == 332)
                {
-                  // w0 H_302 + w1 H_315
-                  kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).B(B)
-                   .dI1b(dI1b).ddI1b(ddI1b)
-                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
-                   .dI3b(dI3b).ddI3b(ddI3b));
-                  double sign_detJ;
-                  const double c1 = weight / 9.0;
-                  const double I1b = ie.Get_I1b();
-                  const double I2b = ie.Get_I2b();
-                  const double I3b = ie.Get_I3b(sign_detJ);
-                  ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
-                  ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
-                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp_302 =
-                                 (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
-                                 + ddi2b(r,c)*I1b
-                                 + ddi1b(r,c)*I2b;
-                              const double dp_315 =
-                                 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
-                                 2.0 * weight * di3b(r,c) * di3b(i,j);
-                              H(r,c,i,j,qx,qy,qz,e) =
-                                 w[0] * c1 * dp_302 + w[1] * dp_315;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_332(e,qx,qy,qz,weight,metric_data,Jpt,H,
+                            B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
                }
-
                if (mid == 338)
                {
-                  // w0 H_302 + w1 H_318
-                  kernels::InvariantsEvaluator3D ie
-                  (Args().J(Jpt).B(B)
-                   .dI1b(dI1b).ddI1b(ddI1b)
-                   .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
-                   .dI3b(dI3b).ddI3b(ddI3b));
-                  double sign_detJ;
-                  const double c1 = weight/9.;
-                  const double I1b = ie.Get_I1b();
-                  const double I2b = ie.Get_I2b();
-                  const double I3b = ie.Get_I3b(sign_detJ);
-                  ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
-                  ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
-                  ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
-                  {
-                     for (int j = 0; j < DIM; j++)
-                     {
-                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi3b(ie.Get_ddI3b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
-                        {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double dp_302 =
-                                 (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
-                                 + ddi2b(r,c)*I1b
-                                 + ddi1b(r,c)*I2b;
-                              const double dp_318 =
-                                 weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
-                                 weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
-                              H(r,c,i,j,qx,qy,qz,e) =
-                                 w[0] * c1 * dp_302 + w[1] * dp_318;
-                           }
-                        }
-                     }
-                  }
+                  EvalH_338(e,qx,qy,qz,weight,metric_data,Jpt,H,
+                            B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
                }
             } // qx
          } // qy
@@ -340,51 +430,27 @@ void TMOP_SetupGradPA_3D(const double metric_normal,
    });
 }
 
-void TMOP_Integrator::AssembleGradPA_3D(const Vector &x) const
+void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
 {
-   const int NE = PA.ne;
-   constexpr int DIM = 3;
+   const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int M = metric->Id();
+   const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
+   const DenseTensor &J = PA.Jtr;
+   const Array<double> &W = PA.ir->GetWeights();
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   Vector &H = PA.H;
 
    Array<double> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
       m->GetWeights(mp);
    }
-   const double *w = mp.Read();
 
-   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
-   const auto G = Reshape(PA.maps->G.Read(), Q1D, D1D);
-   const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
-   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
-   const auto X = Reshape(x.Read(), D1D, D1D, D1D, DIM, NE);
-   auto H = Reshape(PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
-
-   decltype(&TMOP_SetupGradPA_3D<>) ker = TMOP_SetupGradPA_3D;
-#ifndef MFEM_USE_JIT
-   const int d=D1D, q=Q1D;
-   if (d==2 && q==2) { ker = TMOP_SetupGradPA_3D<2,2>; }
-   if (d==2 && q==3) { ker = TMOP_SetupGradPA_3D<2,3>; }
-   if (d==2 && q==4) { ker = TMOP_SetupGradPA_3D<2,4>; }
-   if (d==2 && q==5) { ker = TMOP_SetupGradPA_3D<2,5>; }
-   if (d==2 && q==6) { ker = TMOP_SetupGradPA_3D<2,6>; }
-
-   if (d==3 && q==3) { ker = TMOP_SetupGradPA_3D<3,3>; }
-   if (d==3 && q==4) { ker = TMOP_SetupGradPA_3D<3,4>; }
-   if (d==3 && q==5) { ker = TMOP_SetupGradPA_3D<3,5>; }
-   if (d==3 && q==6) { ker = TMOP_SetupGradPA_3D<3,6>; }
-
-   if (d==4 && q==4) { ker = TMOP_SetupGradPA_3D<4,4>; }
-   if (d==4 && q==5) { ker = TMOP_SetupGradPA_3D<4,5>; }
-   if (d==4 && q==6) { ker = TMOP_SetupGradPA_3D<4,6>; }
-
-   if (d==5 && q==5) { ker = TMOP_SetupGradPA_3D<5,5>; }
-   if (d==5 && q==6) { ker = TMOP_SetupGradPA_3D<5,6>; }
-#endif
-   ker(mn,w,M,NE,W,B,G,J,X,H,D1D,Q1D,4);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mp,M,X,N,W,B,G,J,H);
 }
 
 } // namespace mfem
