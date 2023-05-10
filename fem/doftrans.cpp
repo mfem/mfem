@@ -14,39 +14,6 @@
 namespace mfem
 {
 
-void DofTransformation::TransformPrimalCols(DenseMatrix &V) const
-{
-   for (int c=0; c<V.Width(); c++)
-   {
-      TransformPrimal(V.GetColumn(c));
-   }
-}
-
-void DofTransformation::TransformDual(DenseMatrix &V) const
-{
-   TransformDualCols(V);
-   TransformDualRows(V);
-}
-
-void DofTransformation::TransformDualRows(DenseMatrix &V) const
-{
-   Vector row;
-   for (int r=0; r<V.Height(); r++)
-   {
-      V.GetRow(r, row);
-      TransformDual(row);
-      V.SetRow(r, row);
-   }
-}
-
-void DofTransformation::TransformDualCols(DenseMatrix &V) const
-{
-   for (int c=0; c<V.Width(); c++)
-   {
-      TransformDual(V.GetColumn(c));
-   }
-}
-
 void TransformPrimal(const DofTransformation *ran_dof_trans,
                      const DofTransformation *dom_dof_trans,
                      DenseMatrix &elmat)
@@ -214,6 +181,7 @@ void StatelessVDofTransformation::InvTransformDual(const Array<int> & face_ori,
    }
 }
 
+// ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
 const double ND_StatelessDofTransformation::T_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
@@ -227,6 +195,7 @@ const double ND_StatelessDofTransformation::T_data[24] =
 const DenseTensor ND_StatelessDofTransformation
 ::T(const_cast<double*>(ND_StatelessDofTransformation::T_data), 2, 2, 6);
 
+// ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
 const double ND_StatelessDofTransformation::TInv_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
@@ -276,9 +245,8 @@ void ND_StatelessDofTransformation::TransformPrimal(const Array<int> & Fo,
    }
 }
 
-void
-ND_StatelessDofTransformation::InvTransformPrimal(const Array<int> & Fo,
-                                                  double *v) const
+void ND_StatelessDofTransformation::InvTransformPrimal(const Array<int> & Fo,
+                                                       double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -301,9 +269,8 @@ ND_StatelessDofTransformation::InvTransformPrimal(const Array<int> & Fo,
    }
 }
 
-void
-ND_StatelessDofTransformation::TransformDual(const Array<int> & Fo,
-                                             double *v) const
+void ND_StatelessDofTransformation::TransformDual(const Array<int> & Fo,
+                                                  double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
@@ -326,9 +293,8 @@ ND_StatelessDofTransformation::TransformDual(const Array<int> & Fo,
    }
 }
 
-void
-ND_StatelessDofTransformation::InvTransformDual(const Array<int> & Fo,
-                                                double *v) const
+void ND_StatelessDofTransformation::InvTransformDual(const Array<int> & Fo,
+                                                     double *v) const
 {
    // Return immediately when no face DoFs are present
    if (nfdofs < 2) { return; }
