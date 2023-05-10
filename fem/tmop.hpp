@@ -1934,7 +1934,6 @@ protected:
    // Auxiliary PA methods
    void AssembleGradPA_2D(const Vector&) const;
    void AssembleGradPA_3D(const Vector&) const;
-
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
 
