@@ -108,9 +108,7 @@ public:
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
-
    // interface for ParFiniteElementSpace
-
    int GetNElements() const { return NElements; }
 
    int GetNGhostVertices() const { return NGhostVertices; }

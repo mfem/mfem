@@ -903,7 +903,7 @@ void ParMesh::FinalizeParTopo()
    sface_lface.SetSize(nst + shared_quads.Size());
    if (sface_lface.Size())
    {
-      STable3D *faces_tbl = GetFacesTable();
+      auto faces_tbl = std::unique_ptr<STable3D>(GetFacesTable());
       for (int st = 0; st < nst; st++)
       {
          const int *v = shared_trias[st].v;
@@ -914,7 +914,6 @@ void ParMesh::FinalizeParTopo()
          const int *v = shared_quads[sq].v;
          sface_lface[nst+sq] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
       }
-      delete faces_tbl;
    }
 }
 
@@ -2119,7 +2118,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    if (Nonconforming())
    {
-      // with ParNCMesh we can set up face neighbors without communication
+      // with ParNCMesh we can set up face neighbors mostly without communication
       pncmesh->GetFaceNeighbors(*this);
       have_face_nbr_data = true;
 
@@ -2315,6 +2314,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
    el_marker = -1;
    vertex_marker = -1;
    const int nst = shared_trias.Size();
+
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_group = face_nbr_group[fn];
@@ -2452,8 +2452,8 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
    // convert the element data into face_nbr_elements
    face_nbr_elements.SetSize(face_nbr_elements_offset[num_face_nbrs]);
-   face_nbr_el_ori.Clear();
-   face_nbr_el_ori.SetSize(face_nbr_elements_offset[num_face_nbrs], 6);
+   face_nbr_el_ori->Clear();
+   face_nbr_el_ori->SetSize(face_nbr_elements_offset[num_face_nbrs], 6);
    while (true)
    {
       int fn;
@@ -2484,7 +2484,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          if (Dim == 3)
          {
             int nf = el->GetNFaces();
-            int * fn_ori = face_nbr_el_ori.GetRow(elem_off);
+            int * fn_ori = face_nbr_el_ori->GetRow(elem_off);
             for (int j = 0; j < nf; j++)
             {
                fn_ori[j] = recv_elemdata[j];
@@ -2494,7 +2494,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          face_nbr_elements[elem_off++] = el;
       }
    }
-   face_nbr_el_ori.Finalize();
+   face_nbr_el_ori->Finalize();
 
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
 
@@ -2718,33 +2718,32 @@ STable3D *ParMesh::GetSharedFacesTable()
 
 template <int N>
 void
-ParMesh::AddTriFaces(Array<int> &v, const std::unique_ptr<STable3D> &faces,
+ParMesh::AddTriFaces(const Array<int> &elem_vertices, const std::unique_ptr<STable3D> &faces,
 const std::unique_ptr<STable3D> &shared_faces,
 int elem, int start, int end, const int fverts[][N])
 {
    for (int i = start; i < end; ++i)
    {
-      const int * const fv = fverts[i];
-      int lf = faces->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-      if (lf < 0)
-      {
-         lf = shared_faces->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
-         if (lf >= 0)
-         {
-            lf += NumOfFaces;
-         }
-      }
+      // Reference face vertices.
+      const auto fv = fverts[i];
+      // Element specific face vertices.
+      const Vert3 elem_fv(elem_vertices[fv[0]], elem_vertices[fv[1]], elem_vertices[fv[2]]);
 
-      face_nbr_el_to_face->Push(elem, lf);
+      // Check amongst the faces of elements local to this rank for this set of vertices
+      const int lf = faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]);
 
-      if (Nonconforming())
-      {
-         // For a nonconforming mesh, building the face neighbor element to face table also
-         // requires build the face neighbor element to orientation table.
-         // The orientation is stored in the mod64 bits of Elem2Inf, as
-         // Elem1Inf always refers to the processor local element.
-         face_nbr_el_ori.Push(elem, faces_info[lf].Elem2Inf % 64);
-      }
+      // If the face wasn't found amonst processor local elements, search the
+      // ghosts for this set of vertices.
+      const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]) : -1;
+      // If find local face -> use that
+      //    else if find shared face -> shift and use that
+      //       else no face found -> set to -1
+      const int face_to_add = lf < 0 ? (sf >= 0 ? sf + NumOfFaces : -1) : lf;
+
+      MFEM_ASSERT(sf >= 0 || lf >= 0, "Face must be from a local or a face neighbor element");
+
+      // Add this discovered face to the list of faces of this face neighbor element
+      face_nbr_el_to_face->Push(elem, face_to_add);
    }
 }
 
@@ -2754,14 +2753,10 @@ void ParMesh::BuildFaceNbrElementToFaceTable()
    const auto shared_faces = std::unique_ptr<STable3D>(GetSharedFacesTable());
 
    face_nbr_el_to_face.reset(new Table(face_nbr_elements.Size(), 6));
-   if (Nonconforming())
-   {
-      face_nbr_el_ori.SetSize(face_nbr_elements.Size(), 6);
-   }
 
    mfem::Array<int> v;
 
-   // helper for adding quadrilateral faces. Do not need to use
+   // Helper for adding quadrilateral faces.
    auto add_quad_faces = [&faces, &shared_faces, &v, this]
       (int elem, int start, int end, const int fverts[][4])
    {
@@ -2801,15 +2796,6 @@ void ParMesh::BuildFaceNbrElementToFaceTable()
             }
          }
          face_nbr_el_to_face->Push(elem, lf);
-
-         if (Nonconforming())
-         {
-            // For a nonconforming mesh, building the face neighbor element to face table also
-            // requires build the face neighbor element to orientation table.
-            // The orientation is stored in the mod64 bits of Elem2Inf, as
-            // Elem1Inf always refers to the processor local element.
-            face_nbr_el_ori.Push(elem, faces_info[lf].Elem2Inf % 64);
-         }
       }
    };
 
@@ -2865,13 +2851,12 @@ int ParMesh::GetFaceNbrRank(int fn) const
 }
 
 void
-ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
+ParMesh::GetFaceNbrElementFaces(int i, Array<int> &faces, Array<int> &orientations) const
 {
-   int n, j;
    int el_nbr = i - GetNE();
-   if (face_nbr_el_to_face)
+   if (face_nbr_el_to_face != nullptr && el_nbr < face_nbr_el_to_face->Size())
    {
-      face_nbr_el_to_face->GetRow(el_nbr, fcs);
+      face_nbr_el_to_face->GetRow(el_nbr, faces);
    }
    else
    {
@@ -2879,20 +2864,17 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const
                  "face_nbr_el_to_face not generated.");
    }
 
-   if (el_nbr < face_nbr_el_ori.Size())
+   if (face_nbr_el_ori != nullptr && el_nbr < face_nbr_el_ori->Size())
    {
-      const int * row = face_nbr_el_ori.GetRow(el_nbr);
-      n = fcs.Size();
-      cor.SetSize(n);
-      for (j=0; j<n; j++)
-      {
-         cor[j] = row[j];
-      }
+      face_nbr_el_ori->GetRow(el_nbr, orientations);
    }
    else
    {
-      MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
-                 "face_nbr_el_to_face not generated.");
+      // No face_nbr_el_ori was generated, make the orientations invalid.
+      // This will cause errors if the face orientations are necessary to
+      // evaluate the basis in face neighbor elements.
+      orientations.SetSize(faces.Size());
+      orientations = -1;
    }
 }
 
@@ -3152,7 +3134,7 @@ int ParMesh::GetSharedFace(int sface) const
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
-      int csize = (int) shared.conforming.Size();
+      int csize = shared.conforming.Size();
       return sface < csize
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
@@ -4518,7 +4500,7 @@ void ParMesh::UniformRefinement3D()
 
    DSTable v_to_v(NumOfVertices);
    GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetFacesTable();
+   auto faces_tbl = std::unique_ptr<STable3D>(GetFacesTable());
 
    // call Mesh::UniformRefinement3D_base so that it won't update the nodes
    Array<int> f2qf;
@@ -4533,7 +4515,6 @@ void ParMesh::UniformRefinement3D()
    // update the groups
    UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl,
                          f2qf.Size() ? &f2qf : NULL);
-   delete faces_tbl;
 
    UpdateNodes();
 }

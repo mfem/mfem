@@ -16,6 +16,7 @@
 #include "mesh_headers.hpp"
 #include "pncmesh.hpp"
 #include "../general/binaryio.hpp"
+#include "../general/communication.hpp"
 
 #include <numeric> // std::accumulate
 #include <map>
@@ -907,8 +908,13 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
 
+   // If there are face neighbor elements with triangular faces, the
+   // `face_nbr_el_ori` structure will need to be built. This requires
+   // communication so we attempt to avoid it by checking first.
+   bool face_nbr_w_tri_faces = false;
+
    // go over all shared faces and collect face neighbor elements
-   for (int i = 0; i < shared.conforming.Size(); i++)
+   for (int i = 0; i < shared.conforming.Size(); ++i)
    {
       const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
@@ -919,6 +925,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
       MFEM_ASSERT(e[0]->rank != MyRank && e[1]->rank == MyRank, "");
+
+      face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[0]->geom));
+      face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[1]->geom));
 
       fnbr.Append(e[0]);
       send_elems.Append(Connection(e[0]->rank, e[1]->index));
@@ -943,6 +952,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             continue;
          }
          if (loc0) { std::swap(e[0], e[1]); }
+
+         face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[0]->geom));
+         face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[1]->geom));
 
          fnbr.Append(e[0]);
          send_elems.Append(Connection(e[0]->rank, e[1]->index));
@@ -1181,12 +1193,133 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   // Populates the face_nbr_el_to_face and face_nbr_el_ori variables used by
-   // the ParMesh.
+   // Populates face_nbr_el_to_face, always needed.
+   pmesh.BuildFaceNbrElementToFaceTable();
+
+   // In 3D some extra orientation data structures can be needed.
    if (Dim == 3)
    {
-      pmesh.BuildFaceNbrElementToFaceTable();
+      if (face_nbr_w_tri_faces)
+      {
+         // There are face neighbor elements with triangular faces, need to
+         // perform communication to ensure the orientation is valid.
+         using RankToOrientation = std::map<int, std::vector<std::array<int, 6>>>;
+         constexpr std::array<int, 6> unset_ori{{-1,-1,-1,-1,-1,-1}};
+         const int rank = pmesh.GetMyRank();
+
+         // Loop over send elems, compute the orientation and place in the stack to
+         // send to each processor. Note the order in each stack is the same across
+         // ranks, thus the explicit numbering is not important.
+         RankToOrientation send_rank_to_face_neighbor_orientations;
+         Array<int> orientations, faces;
+
+         // send_elems goes from rank of the receiving processor, to the local
+         // element index of the element across the face from the face neighbor element.
+         for (const auto &se : send_elems)
+         {
+            const auto &true_rank = pmesh.face_nbr_group[se.from];
+            pmesh.GetElementFaces(se.to, faces, orientations);
+
+            // Place a new entry of unset orientations
+            send_rank_to_face_neighbor_orientations[true_rank].emplace_back(unset_ori);
+
+            // Copy the entries, any unset faces will remain -1.
+            std::copy(orientations.begin(), orientations.end(),
+                  send_rank_to_face_neighbor_orientations[true_rank].back().begin());
+         }
+
+         // For asynchronous send/recv, will use arrays of requests to monitor the
+         // status of the connections.
+         const int nranks = send_rank_to_face_neighbor_orientations.size();
+         std::vector<MPI_Request> send_requests, recv_requests;
+         std::vector<MPI_Status> status(nranks);
+
+         // NOTE: This is CRITICAL, to ensure the addresses of these requests
+         // do not change between the send/recv and the wait.
+         send_requests.reserve(nranks);
+         recv_requests.reserve(nranks);
+
+         // Shared face communication is bidirectional -> any rank to whom
+         // orientations must be sent, will need to send orientations back.
+         // The orientation data is contiguous because std::array<int,6> is an
+         // aggregate. Using a copy is convenient to ensure the buffers are
+         // correctly sized, given the symmetry.
+         auto recv_rank_to_face_neighbor_orientations = send_rank_to_face_neighbor_orientations;
+
+         // Loop over each communication pairing, and dispatch the buffer loaded
+         // with  all the orientation data.
+         for (const auto &kv : send_rank_to_face_neighbor_orientations)
+         {
+            send_requests.emplace_back(); // instantiate a request for tracking.
+
+            // low rank sends on tag equal to low, high rank sends on tag equal
+            // to high.
+            const int send_tag = (rank < kv.first)
+                  ? std::min(rank, kv.first)
+                  : std::max(rank, kv.first);
+            MPI_Isend(&kv.second[0][0], int(kv.second.size() * 6),
+                      MPI_INT, kv.first, send_tag, pmesh.MyComm, &send_requests.back());
+            // MPI_Send(&kv.second[0][0], int(kv.second.size() * 6),
+            //           MPI_INT, kv.first, send_tag, pmesh.MyComm);
+         }
+
+         // Loop over the communication pairing again, and receive the
+         // symmetric buffer from the other processor.
+         for (auto &kv : recv_rank_to_face_neighbor_orientations)
+         {
+            recv_requests.emplace_back(); // instantiate a request for tracking
+
+            // low rank sends on tag equal to low, high rank sends on tag equal
+            // to high.
+            const int recv_tag = (rank < kv.first) ? std::max(rank, kv.first) : std::min(rank, kv.first);
+            MPI_Irecv(&kv.second[0][0], int(kv.second.size() * 6),
+                      MPI_INT, kv.first, recv_tag, pmesh.MyComm, &recv_requests.back());
+            // MPI_Recv(&kv.second[0][0], int(kv.second.size() * 6),
+            //           MPI_INT, kv.first, recv_tag, pmesh.MyComm, MPI_STATUS_IGNORE);
+         }
+
+         // Wait until all our receiving buffers are complete. In theory could
+         // be more efficient and begin processing below for completed buffers
+         // as they appear.
+         MPI_Waitall(int(recv_requests.size()), recv_requests.data(), status.data());
+
+         pmesh.face_nbr_el_ori.reset(new Table(pmesh.face_nbr_elements.Size(), 6));
+         int elem = 0;
+         for (const auto &kv : recv_rank_to_face_neighbor_orientations)
+         {
+            const auto &rank = kv.first;
+            const auto &element_orientations = kv.second;
+
+            // All elements associated to this face-neighbor rank
+            for (const auto &eo : element_orientations)
+            {
+               std::copy(eo.begin(), eo.end(), pmesh.face_nbr_el_ori->GetRow(elem));
+               ++elem;
+            }
+         }
+         pmesh.face_nbr_el_ori->Finalize();
+
+         // for (int irank = 0; irank < pmesh.face_nbr_group.Size(); ++irank)
+         // {
+         //    const auto &lrank = pmesh.face_nbr_group[irank];
+         //    const auto &send = send_rank_to_face_neighbor_orientations.at(lrank);
+         //    const auto &recv = recv_rank_to_face_neighbor_orientations.at(lrank);
+
+         //    std::stringstream dbgmsg;
+         //    dbgmsg << "R" << Mpi::WorldRank() << " lrank " << lrank << '\n';
+         //    for (int i = 0; i < send.size(); ++i)
+         //    {
+         //       for (int j = 0; j < 6; ++j)
+         //       {
+         //          dbgmsg << "(" << send[i][j] << ", " << recv[i][j] << ") ";
+         //       }
+         //       dbgmsg << '\n';
+         //    }
+         //    std::cout << dbgmsg.str();
+         // }
+      }
    }
+
 
    // NOTE: this function skips ParMesh::send_face_nbr_vertices and
    // ParMesh::face_nbr_vertices_offset, these are not used outside of ParMesh
