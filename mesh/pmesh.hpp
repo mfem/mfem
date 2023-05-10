@@ -80,7 +80,7 @@ protected:
    /// Table that maps from face neighbor element number, to the face numbers of
    /// that element.
    std::unique_ptr<Table> face_nbr_el_to_face;
-   Table  face_nbr_el_ori; // orientations for each face (from nbr processor)
+   std::unique_ptr<Table> face_nbr_el_ori; // orientations for each face (from nbr processor)
 
    IsoparametricTransformation FaceNbrTransformation;
 
@@ -122,8 +122,6 @@ protected:
    // the face_nbr_el_ori variable from the faces_info.
    void BuildFaceNbrElementToFaceTable();
 
-
-
    /**
     * @brief Helper function for adding triangle face neighbor element to face
     * table entries. Have to use a template here rather than lambda capture
@@ -140,7 +138,7 @@ protected:
     * @param fverts Array of face vertices for this particular geometry.
     */
    template <int N>
-   void AddTriFaces(Array<int> &v, const std::unique_ptr<STable3D> &faces,
+   void AddTriFaces(const Array<int> &v, const std::unique_ptr<STable3D> &faces,
         const std::unique_ptr<STable3D> &shared_faces,
         int elem, int start, int end, const int fverts[][N]);
 
@@ -494,7 +492,7 @@ public:
    int GetFaceNbrRank(int fn) const;
 
    /** Similar to Mesh::GetElementFaces */
-   void GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const;
+   void GetFaceNbrElementFaces(int i, Array<int> &faces, Array<int> &orientation) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
@@ -583,6 +581,8 @@ public:
 
    /// Return the local face index for the given shared face.
    int GetSharedFace(int sface) const;
+
+
 
    /** @brief Returns the number of local faces according to the requested type,
        does not count master non-conforming faces.
