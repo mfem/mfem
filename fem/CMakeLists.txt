@@ -10,35 +10,9 @@
 # CONTRIBUTING.md for details.
 
 set(JITS
-    bilininteg_diffusion_pa.cpp
-    bilininteg_mass_pa.cpp
-    tmop/tmop_pa.cpp
-    tmop/tmop_pa_da3.cpp
-    tmop/tmop_pa_h2d.cpp
-    tmop/tmop_pa_h2d_c0.cpp
-    tmop/tmop_pa_h2m.cpp
-    tmop/tmop_pa_h2m_c0.cpp
-    tmop/tmop_pa_h2s.cpp
-    tmop/tmop_pa_h2s_c0.cpp
-    tmop/tmop_pa_h3d.cpp
-    tmop/tmop_pa_h3d_c0.cpp
-    tmop/tmop_pa_h3m.cpp
-    tmop/tmop_pa_h3m_c0.cpp
-    tmop/tmop_pa_h3s.cpp
-    tmop/tmop_pa_h3s_c0.cpp
-    tmop/tmop_pa_jp2.cpp
-    tmop/tmop_pa_jp3.cpp
-    tmop/tmop_pa_p2.cpp
-    tmop/tmop_pa_p2_c0.cpp
-    tmop/tmop_pa_p3.cpp
-    tmop/tmop_pa_p3_c0.cpp
-    tmop/tmop_pa_tc2.cpp
-    tmop/tmop_pa_tc3.cpp
-    tmop/tmop_pa_w2.cpp
-    tmop/tmop_pa_w2_c0.cpp
-    tmop/tmop_pa_w3.cpp
-    tmop/tmop_pa_w3_c0.cpp
-    )
+  bilininteg_diffusion_pa.cpp
+  bilininteg_mass_pa.cpp
+  )
 
 set(SRCS
   bilinearform.cpp
@@ -136,6 +110,32 @@ set(SRCS
   restriction.cpp
   staticcond.cpp
   tmop.cpp
+  tmop/tmop_pa.cpp
+  tmop/tmop_pa_da3.cpp
+  tmop/tmop_pa_h2d.cpp
+  tmop/tmop_pa_h2d_c0.cpp
+  tmop/tmop_pa_h2m.cpp
+  tmop/tmop_pa_h2m_c0.cpp
+  tmop/tmop_pa_h2s.cpp
+  tmop/tmop_pa_h2s_c0.cpp
+  tmop/tmop_pa_h3d.cpp
+  tmop/tmop_pa_h3d_c0.cpp
+  tmop/tmop_pa_h3m.cpp
+  tmop/tmop_pa_h3m_c0.cpp
+  tmop/tmop_pa_h3s.cpp
+  tmop/tmop_pa_h3s_c0.cpp
+  tmop/tmop_pa_jp2.cpp
+  tmop/tmop_pa_jp3.cpp
+  tmop/tmop_pa_p2.cpp
+  tmop/tmop_pa_p2_c0.cpp
+  tmop/tmop_pa_p3.cpp
+  tmop/tmop_pa_p3_c0.cpp
+  tmop/tmop_pa_tc2.cpp
+  tmop/tmop_pa_tc3.cpp
+  tmop/tmop_pa_w2.cpp
+  tmop/tmop_pa_w2_c0.cpp
+  tmop/tmop_pa_w3.cpp
+  tmop/tmop_pa_w3_c0.cpp
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
