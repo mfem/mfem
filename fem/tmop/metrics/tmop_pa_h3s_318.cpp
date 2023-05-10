@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa_h3s.hpp"
+#include "../tmop_pa_h3s.hpp"
 
 namespace mfem
 {
 
-void KAssembleGradPA_3D_315(TMOP_SetupGradPA_3D &k)
+void TMOPAssembleGradPA_318(TMOPSetupGradPA3D &ker)
 {
-   Launch<MetricTMOP_315>(k, k.d(), k.q());
+   TMOPKernelLaunch<TMOP_PA_Metric_318>(ker);
 }
 
 } // namespace mfem
