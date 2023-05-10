@@ -663,6 +663,26 @@ public:
       generator.seed(seed);
    }
 
+   std::string  GetRndState()
+   {
+       std::stringstream ostr;
+       ostr.setf(std::ios::dec);
+       ostr.setf(std::ios::left);
+       ostr.fill(' ');
+       ostr<<generator;
+       return ostr.str();
+   }
+
+   void SetRndState(std::string& state)
+   {
+       std::stringstream ostr;
+       ostr.setf(std::ios::dec);
+       ostr.setf(std::ios::left);
+       ostr.fill(' ');
+       ostr.str(state);
+       ostr>>generator;
+   }
+
    using LinearFormIntegrator::AssembleRHSElementVect;
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
