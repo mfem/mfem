@@ -926,19 +926,6 @@ double Vector::Max() const
    return max;
 }
 
-double Vector::Sum() const
-{
-   double sum = 0.0;
-
-   const double *h_data = this->HostRead();
-   for (int i = 0; i < size; i++)
-   {
-      sum += h_data[i];
-   }
-
-   return sum;
-}
-
 #ifdef MFEM_USE_CUDA
 static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 {
@@ -994,7 +981,7 @@ static __global__ void cuKernelDot(const int N, double *gdsr,
    const int tid = threadIdx.x;
    const int bbd = bid*blockDim.x;
    const int rid = bbd+tid;
-   s_dot[tid] = x[n] * y[n];
+   s_dot[tid] = x[n] * (y ? y[n] : 1.0);
    for (int workers=blockDim.x>>1; workers>0; workers>>=1)
    {
       __syncthreads();
@@ -1054,7 +1041,7 @@ static __global__ void hipKernelMin(const int N, double *gdsr, const double *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
-static Array<double> cuda_reduce_buf;
+static Array<double> hip_reduce_buf;
 
 static double hipVectorMin(const int N, const double *X)
 {
@@ -1062,8 +1049,8 @@ static double hipVectorMin(const int N, const double *X)
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(min_sz);
-   Memory<double> &buf = cuda_reduce_buf.GetMemory();
+   hip_reduce_buf.SetSize(min_sz);
+   Memory<double> &buf = hip_reduce_buf.GetMemory();
    double *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    hipLaunchKernelGGL(hipKernelMin,gridSize,blockSize,0,0,N,d_min,X);
    MFEM_GPU_CHECK(hipGetLastError());
@@ -1280,6 +1267,30 @@ vector_min_cpu:
       }
    }
    return minimum;
+}
+
+double Vector::Sum() const
+{
+   if (size == 0) { return 0.0; }
+
+   if (UseDevice())
+   {
+#ifdef MFEM_USE_CUDA
+      if (Device::Allows(Backend::CUDA_MASK))
+      {
+         return cuVectorDot(size, Read(), nullptr);
+      }
+#endif
+   }
+
+   // CPU fallback
+   const double *h_data = HostRead();
+   double sum = 0.0;
+   for (int i = 0; i < size; i++)
+   {
+      sum += h_data[i];
+   }
+   return sum;
 }
 
 }
