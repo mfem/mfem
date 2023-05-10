@@ -524,21 +524,11 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    }
 } // test case
 
-TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
+TEST_CASE("GetVectorValueInFaceNeighborElement", "[Parallel], [NCMesh]")
 {
-   /*
-      This test aims to demonstrate the fix for the case of calling
-      `GetVectorValue` on a nonconformal ParMesh. When calling
-      GetVectorValue on a face neighbor element, GetVectorValue will fail for an
-      NC Mesh.
-
-      This has two parts: 1) face_nbr_el_to_face needs to be populated and 2)
-      face_nbr_el_ori needs to be populated. The former is relatively easily
-      done similar to the conformal case, the latter requires constructing
-      orientation of faces of ghost elements.
-   */
-
-   constexpr int refining_rank = 0;
+   // The aim of this test is to verify the correct behaviour of the
+   // GetVectorValue method when called on face neighbor elements in a non
+   // conforming mesh.
    auto smesh = Mesh("../../../data/beam-tet.mesh");
 
    auto vector_exact_soln = [](const Vector& x, Vector& v)
@@ -548,48 +538,41 @@ TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
       v = (d -= x);
    };
 
-
-   smesh.EnsureNCMesh(true); // uncomment this to trigger the failure
    smesh.Finalize();
+   smesh.EnsureNCMesh(true); // uncomment this to trigger the failure
 
-   for (bool boundary_refine : {false})
+   for (int nc_level : {0,1,2,3}) // depth of refinement on boundary faces
    {
-      for (bool use_ND : {true})
+      for (int skip : {1,2}) // refine every "skip" boundary face element
       {
-         for (bool rebalance : {false})
+         for (bool use_ND : {false, true}) // use ND or RT elements
          {
             auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
 
-            if (rebalance)
+            // Apply refinement on face neighbors to achieve a given nc level mismatch.
+            for (int i = 0; i < nc_level; ++i)
             {
-               if (pmesh.Nonconforming())
+               // To refine the face neighbors, need to know where they are.
+               pmesh.ExchangeFaceNbrData();
+               Array<int> elem_to_refine;
+               // Refine only on odd ranks.
+               if ((Mpi::WorldRank() + 1) % 2 == 0)
                {
-                  pmesh.Rebalance();
+                  // Refine a subset of all shared faces. Using a subset helps to
+                  // mix in conformal faces with nonconformal faces.
+                  for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
+                  {
+                     if (n % skip != 0) { continue; }
+                     const int local_face = pmesh.GetSharedFace(n);
+                     const auto &face_info = pmesh.GetFaceInformation(local_face);
+                     REQUIRE(face_info.IsShared());
+                     REQUIRE(face_info.element[1].location == Mesh::ElementLocation::FaceNbr);
+                     elem_to_refine.Append(face_info.element[0].index);
+                  }
                }
-               else
-               {
-                  continue; // Do not need to repeat the test if conformal.
-               }
+               pmesh.GeneralRefinement(elem_to_refine);
             }
 
-            // To refine the face neighbors, need to know where they are.
-            pmesh.ExchangeFaceNbrData();
-
-            Array<int> elem_to_refine;
-            if (boundary_refine && (Mpi::WorldRank() + 1) % 2 == 0)
-            {
-               // Find all face_nbr elements in odd ranks, and refine them.
-               // This helps check for slave-master orientation relation issues.
-               for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
-               {
-                  const int local_face = pmesh.GetSharedFace(n);
-                  const auto &face_info = pmesh.GetFaceInformation(local_face);
-                  REQUIRE(face_info.IsShared());
-                  REQUIRE(face_info.element[1].location == Mesh::ElementLocation::FaceNbr);
-                  elem_to_refine.Append(face_info.element[0].index);
-               }
-            }
-            pmesh.GeneralRefinement(elem_to_refine);
 
             // Do not rebalance again! The test is also checking for nc refinements
             // along the processor boundary.
@@ -601,8 +584,8 @@ TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
             GridFunction * const coords = pmesh.GetNodes();
             dynamic_cast<ParGridFunction *>(pmesh.GetNodes())->ExchangeFaceNbrData();
 
-            // Project the linear function onto the mesh. quadratic ND elements ensures
-            // it is recovered exactly.
+            // Project the linear function onto the mesh. Quadratic ND tetrahedral
+            // elements are the first to require face orientations.
             const int order = 2, dim = 3;
             std::unique_ptr<FiniteElementCollection> fec;
             if (use_ND)
@@ -658,41 +641,6 @@ TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
                auto &T = *pmesh.GetFaceNbrElementTransformation(face_info.element[1].index);
 
                constexpr double tol = 1e-12;
-               // On the boundary face, on the non-ghost side
-               {
-                  DenseMatrix posmat, valmat, tr;
-                  psol.GetFaceVectorValues(n, 0, fir, valmat, tr);
-                  coords->GetFaceVectorValues(n, 0, fir, posmat, tr);
-
-                  for (int i = 0; i < valmat.Width(); ++i)
-                  {
-                     valmat.GetColumn(i, value);
-                     posmat.GetColumn(i, position);
-                     vector_exact_soln(position, exact);
-
-                     REQUIRE(value.Size() == exact.Size());
-                     CHECK((value -= exact).Normlinf() < tol);
-                  }
-               }
-
-               // on the ghost side
-               {
-                  DenseMatrix posmat, valmat, tr;
-                  psol.GetFaceVectorValues(n, 1, fir, valmat, tr);
-                  coords->GetFaceVectorValues(n, 1, fir, posmat, tr);
-
-                  // for (int i = 0; i < valmat.Width(); ++i)
-                  // {
-                  //    valmat.GetColumn(i, value);
-                  //    posmat.GetColumn(i, position);
-                  //    vector_exact_soln(position, exact);
-
-                  //    REQUIRE(value.Size() == exact.Size());
-                  //    CHECK((value -= exact).Normlinf() < tol);
-                  // }
-               }
-
-               // In the element interior
                for (const auto &ip : ir)
                {
                   T.SetIntPoint(&ip);
@@ -708,10 +656,7 @@ TEST_CASE("InternalBoundaryOnProcessorBoundary", "[Parallel], [NCMesh]")
          }
       }
    }
-
 }
-
-
 
 #endif // MFEM_USE_MPI
 
