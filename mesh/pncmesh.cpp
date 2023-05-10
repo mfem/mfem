@@ -894,6 +894,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
    Array<Element*> fnbr;
    Array<Connection> send_elems;
+   std::map<int, std::vector<int>> recv_elems;
 
    // Counts the number of slave faces of a master. This may be larger than the
    // number of shared slaves if there exist degenerate slave-faces from face-edge constraints.
@@ -931,6 +932,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
       fnbr.Append(e[0]);
       send_elems.Append(Connection(e[0]->rank, e[1]->index));
+      recv_elems[e[0]->rank].push_back(e[0]->index);
    }
 
    for (int i = 0; i < shared.masters.Size(); i++)
@@ -958,6 +960,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
          fnbr.Append(e[0]);
          send_elems.Append(Connection(e[0]->rank, e[1]->index));
+         recv_elems[e[0]->rank].push_back(e[0]->index);
       }
    }
 
@@ -1039,6 +1042,12 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // make the 'send_face_nbr_elements' table
    send_elems.Sort();
    send_elems.Unique();
+
+   for (auto &kv : recv_elems)
+   {
+      std::sort(kv.second.begin(), kv.second.end());
+      kv.second.erase(std::unique(kv.second.begin(), kv.second.end()), kv.second.end());
+   }
 
    for (int i = 0, last_rank = -1; i < send_elems.Size(); i++)
    {
@@ -1207,14 +1216,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          constexpr std::array<int, 6> unset_ori{{-1,-1,-1,-1,-1,-1}};
          const int rank = pmesh.GetMyRank();
 
-         // Loop over send elems, compute the orientation and place in the stack to
-         // send to each processor. Note the order in each stack is the same across
-         // ranks, thus the explicit numbering is not important.
+         // Loop over send elems, compute the orientation and place in the buffer to
+         // send to each processor. Note elements are lexicographically sorted
+         // with rank and element number, and this ordering holds across processors.
          RankToOrientation send_rank_to_face_neighbor_orientations;
          Array<int> orientations, faces;
 
-         // send_elems goes from rank of the receiving processor, to the local
-         // element index of the element across the face from the face neighbor element.
+         // send_elems goes from rank of the receiving processor, to the index
+         // of the face neighbor element on this processor.
          for (const auto &se : send_elems)
          {
             const auto &true_rank = pmesh.face_nbr_group[se.from];
@@ -1226,6 +1235,16 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             // Copy the entries, any unset faces will remain -1.
             std::copy(orientations.begin(), orientations.end(),
                   send_rank_to_face_neighbor_orientations[true_rank].back().begin());
+         }
+
+         // Initialize the receive buffers and resize to match the expected
+         // number of elements coming in. The copy ensures the appropriate rank
+         // pairings are in place, and for a purely conformal interface, the
+         // resize is a no-op.
+         auto recv_rank_to_face_neighbor_orientations = send_rank_to_face_neighbor_orientations;
+         for (auto &kv : recv_rank_to_face_neighbor_orientations)
+         {
+            kv.second.resize(recv_elems[kv.first].size());
          }
 
          // For asynchronous send/recv, will use arrays of requests to monitor the
@@ -1242,9 +1261,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          // Shared face communication is bidirectional -> any rank to whom
          // orientations must be sent, will need to send orientations back.
          // The orientation data is contiguous because std::array<int,6> is an
-         // aggregate. Using a copy is convenient to ensure the buffers are
-         // correctly sized, given the symmetry.
-         auto recv_rank_to_face_neighbor_orientations = send_rank_to_face_neighbor_orientations;
+         // aggregate.
 
          // Loop over each communication pairing, and dispatch the buffer loaded
          // with  all the orientation data.
@@ -1252,15 +1269,12 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          {
             send_requests.emplace_back(); // instantiate a request for tracking.
 
-            // low rank sends on tag equal to low, high rank sends on tag equal
-            // to high.
+            // low rank sends on low, high rank sends on high.
             const int send_tag = (rank < kv.first)
                   ? std::min(rank, kv.first)
                   : std::max(rank, kv.first);
             MPI_Isend(&kv.second[0][0], int(kv.second.size() * 6),
                       MPI_INT, kv.first, send_tag, pmesh.MyComm, &send_requests.back());
-            // MPI_Send(&kv.second[0][0], int(kv.second.size() * 6),
-            //           MPI_INT, kv.first, send_tag, pmesh.MyComm);
          }
 
          // Loop over the communication pairing again, and receive the
@@ -1269,19 +1283,49 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          {
             recv_requests.emplace_back(); // instantiate a request for tracking
 
-            // low rank sends on tag equal to low, high rank sends on tag equal
-            // to high.
-            const int recv_tag = (rank < kv.first) ? std::max(rank, kv.first) : std::min(rank, kv.first);
+            // low rank sends on low, high rank sends on high.
+            const int recv_tag = (rank < kv.first)
+                  ? std::max(rank, kv.first)
+                  : std::min(rank, kv.first);
             MPI_Irecv(&kv.second[0][0], int(kv.second.size() * 6),
                       MPI_INT, kv.first, recv_tag, pmesh.MyComm, &recv_requests.back());
-            // MPI_Recv(&kv.second[0][0], int(kv.second.size() * 6),
-            //           MPI_INT, kv.first, recv_tag, pmesh.MyComm, MPI_STATUS_IGNORE);
          }
 
          // Wait until all our receiving buffers are complete. In theory could
          // be more efficient and begin processing below for completed buffers
          // as they appear.
          MPI_Waitall(int(recv_requests.size()), recv_requests.data(), status.data());
+#if 0
+         for (int irank = 0; irank < pmesh.face_nbr_group.Size(); ++irank)
+         {
+            const auto &lrank = pmesh.face_nbr_group[irank];
+            const auto &send = send_rank_to_face_neighbor_orientations.at(lrank);
+            const auto &recv = recv_rank_to_face_neighbor_orientations.at(lrank);
+
+            std::stringstream dbgmsg;
+            dbgmsg << "R" << Mpi::WorldRank() << " lrank " << lrank << '\n';
+            dbgmsg << "send\n";
+            for (int i = 0; i < send.size(); ++i)
+            {
+               for (int j = 0; j < 6; ++j)
+               {
+                  dbgmsg << "(" << send[i][j] << ") ";
+               }
+               dbgmsg << '\n';
+            }
+
+            dbgmsg << "recv\n";
+            for (int i = 0; i < recv.size(); ++i)
+            {
+               for (int j = 0; j < 6; ++j)
+               {
+                  dbgmsg << "(" << recv[i][j] << ") ";
+               }
+               dbgmsg << '\n';
+            }
+            std::cout << dbgmsg.str();
+         }
+#endif
 
          pmesh.face_nbr_el_ori.reset(new Table(pmesh.face_nbr_elements.Size(), 6));
          int elem = 0;
@@ -1298,25 +1342,6 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             }
          }
          pmesh.face_nbr_el_ori->Finalize();
-
-         // for (int irank = 0; irank < pmesh.face_nbr_group.Size(); ++irank)
-         // {
-         //    const auto &lrank = pmesh.face_nbr_group[irank];
-         //    const auto &send = send_rank_to_face_neighbor_orientations.at(lrank);
-         //    const auto &recv = recv_rank_to_face_neighbor_orientations.at(lrank);
-
-         //    std::stringstream dbgmsg;
-         //    dbgmsg << "R" << Mpi::WorldRank() << " lrank " << lrank << '\n';
-         //    for (int i = 0; i < send.size(); ++i)
-         //    {
-         //       for (int j = 0; j < 6; ++j)
-         //       {
-         //          dbgmsg << "(" << send[i][j] << ", " << recv[i][j] << ") ";
-         //       }
-         //       dbgmsg << '\n';
-         //    }
-         //    std::cout << dbgmsg.str();
-         // }
       }
    }
 
