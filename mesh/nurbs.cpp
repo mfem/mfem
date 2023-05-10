@@ -2563,7 +2563,7 @@ void NURBSExtension::UpdateUniqueKV()
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
 
             // Give correct direction to unique knotvector.
-            if (flip) {KnotVec(iun)->Flip();}
+            if (flip) { KnotVec(iun)->Flip(); }
          }
 
          // Check if difference between knots
@@ -4479,6 +4479,8 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
    }
    else if (Ext->Dimension() == 2)
    {
+      Ext->patchTopo->GetElementEdges(p, edges, oedge);
+
       kv[0] = Ext->knotVectorsCompr[Ext->Dimension()*p];
       kv[1] = Ext->knotVectorsCompr[Ext->Dimension()*p + 1];
    }
