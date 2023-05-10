@@ -74,8 +74,8 @@ public:
        GridFunction object. */
    virtual void TransformPrimal(const Array<int> & face_orientation,
                                 double *v) const = 0;
-   virtual void TransformPrimal(const Array<int> & face_orientation,
-                                Vector &v) const
+   inline void TransformPrimal(const Array<int> & face_orientation,
+                               Vector &v) const
    { TransformPrimal(face_orientation, v.GetData()); }
 
    /** Inverse transform local DoFs. Used to transform DoFs from a global vector
@@ -85,23 +85,23 @@ public:
    */
    virtual void InvTransformPrimal(const Array<int> & face_orientation,
                                    double *v) const = 0;
-   virtual void InvTransformPrimal(const Array<int> & face_orientation,
-                                   Vector &v) const
+   inline void InvTransformPrimal(const Array<int> & face_orientation,
+                                  Vector &v) const
    { InvTransformPrimal(face_orientation, v.GetData()); }
 
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
    virtual void TransformDual(const Array<int> & face_orientation,
                               double *v) const = 0;
-   virtual void TransformDual(const Array<int> & face_orientation,
-                              Vector &v) const
+   inline void TransformDual(const Array<int> & face_orientation,
+                             Vector &v) const
    { TransformDual(face_orientation, v.GetData()); }
 
    /** Inverse Transform dual DoFs */
    virtual void InvTransformDual(const Array<int> & face_orientation,
                                  double *v) const = 0;
-   virtual void InvTransformDual(const Array<int> & face_orientation,
-                                 Vector &v) const
+   inline void InvTransformDual(const Array<int> & face_orientation,
+                                Vector &v) const
    { InvTransformDual(face_orientation, v.GetData()); }
 };
 
@@ -148,46 +148,73 @@ public:
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
-   virtual void TransformPrimal(double *v) const
+   inline void TransformPrimal(double *v) const
    { TransformPrimal(Fo, v); }
-   virtual void TransformPrimal(Vector &v) const
+   inline void TransformPrimal(Vector &v) const
    { TransformPrimal(v.GetData()); }
 
    /// Transform groups of DoFs stored as dense matrices
-   virtual void TransformPrimalCols(DenseMatrix &V) const;
+   inline void TransformPrimalCols(DenseMatrix &V) const
+   {
+      for (int c=0; c<V.Width(); c++)
+      {
+         TransformPrimal(V.GetColumn(c));
+      }
+   }
 
    /** Inverse transform local DoFs. Used to transform DoFs from a global vector
        back to their element-local form. For example, this must be used to
        transform the vector obtained using GridFunction::GetSubVector before it
        can be used to compute a local interpolation.
    */
-   virtual void InvTransformPrimal(double *v) const
+   inline void InvTransformPrimal(double *v) const
    { InvTransformPrimal(Fo, v); }
-   virtual void InvTransformPrimal(Vector &v) const
+   inline void InvTransformPrimal(Vector &v) const
    { InvTransformPrimal(v.GetData()); }
 
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
-   virtual void TransformDual(double *v) const
+   inline void TransformDual(double *v) const
    { TransformDual(Fo, v); }
-   virtual void TransformDual(Vector &v) const
+   inline void TransformDual(Vector &v) const
    { TransformDual(v.GetData()); }
 
    /** Inverse Transform dual DoFs */
-   virtual void InvTransformDual(double *v) const
+   inline void InvTransformDual(double *v) const
    { InvTransformDual(Fo, v); }
-   virtual void InvTransformDual(Vector &v) const
+   inline void InvTransformDual(Vector &v) const
    { InvTransformDual(v.GetData()); }
 
    /** Transform a matrix of dual DoFs entries as computed by a
        BilinearFormIntegrator before summing into a BilinearForm object. */
-   virtual void TransformDual(DenseMatrix &V) const;
+   inline void TransformDual(DenseMatrix &V) const
+   {
+      TransformDualCols(V);
+      TransformDualRows(V);
+   }
 
-   /// Transform groups of dual DoFs stored as dense matrices
-   virtual void TransformDualRows(DenseMatrix &V) const;
-   virtual void TransformDualCols(DenseMatrix &V) const;
+   /// Transform rows of a dense matrix containing dual DoFs
+   inline void TransformDualRows(DenseMatrix &V) const
+   {
+      Vector row;
+      for (int r=0; r<V.Height(); r++)
+      {
+         V.GetRow(r, row);
+         TransformDual(row);
+         V.SetRow(r, row);
+      }
+   }
 
-   virtual ~DofTransformation() {}
+   /// Transform columns of a dense matrix containing dual DoFs
+   inline void TransformDualCols(DenseMatrix &V) const
+   {
+      for (int c=0; c<V.Width(); c++)
+      {
+         TransformDual(V.GetColumn(c));
+      }
+   }
+
+   virtual ~DofTransformation() = default;
 };
 
 /** Transform a matrix of DoFs entries from different finite element spaces as
@@ -251,7 +278,7 @@ public:
    inline int GetVDim() const { return vdim_; }
 
    /// Set or change the nested StatelessDofTransformation object
-   virtual void SetDofTransformation(StatelessDofTransformation & doftrans)
+   inline void SetDofTransformation(StatelessDofTransformation & doftrans)
    {
       size_ = vdim_ * doftrans.Size();
       sdoftrans_ = &doftrans;
