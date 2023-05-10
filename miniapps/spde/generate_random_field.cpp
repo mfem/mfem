@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
          return (tau - mdm->ComputeMetric(x));
       };
 
-      // II.3 Create a grid funtion for the topological support.
+      // II.3 Create a GridFunction for the topological support.
       FunctionCoefficient topo_coeff(topo);
       v.ProjectCoefficient(topo_coeff);
    }
