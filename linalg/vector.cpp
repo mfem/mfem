@@ -1070,7 +1070,7 @@ static __global__ void hipKernelDot(const int N, double *gdsr,
    const int tid = hipThreadIdx_x;
    const int bbd = bid*hipBlockDim_x;
    const int rid = bbd+tid;
-   s_dot[tid] = x[n] * y[n];
+   s_dot[tid] = x[n] * (y ? y[n] : 1.0);
    for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
    {
       __syncthreads();
@@ -1281,6 +1281,27 @@ double Vector::Sum() const
          return cuVectorDot(size, Read(), nullptr);
       }
 #endif
+#ifdef MFEM_USE_HIP
+      if (Device::Allows(Backend::HIP_MASK))
+      {
+         return hipVectorDot(size, Read(), nullptr);
+      }
+#endif
+      if (Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         const int N = size;
+         auto d_data = Read();
+         Vector sum(1);
+         sum.UseDevice(true);
+         auto d_sum = sum.Write();
+         d_sum[0] = 0.0;
+         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_sum[0] += d_data[i];
+         });
+         sum.HostReadWrite();
+         return sum[0];
+      }
    }
 
    // CPU fallback
