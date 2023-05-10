@@ -2407,6 +2407,9 @@ void NURBSExtension::CheckBdrPatches()
 
 void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 {
+   // patchTopo->GetElementEdges is not yet implemented for 1D
+   MFEM_VERIFY(Dimension()>1, "1D not yet implemented.");
+
    kvdir.SetSize(Dimension());
    kvdir = 0;
 
@@ -2421,9 +2424,10 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    // -1: direction is flipped
    //  1: direction is not flipped
 
-   // First side
+
    for (int i = 0; i < edges.Size(); i++)
    {
+      // First side
       patchTopo->GetEdgeVertices(edges[i], edgevert);
       if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[1])
       {
@@ -2434,24 +2438,16 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       {
          kvdir[0] = -1;
       }
-   }
 
-   if (Dimension()>1)  // 2D and 3D
-   {
       // Second side
-      for (int i = 0; i < edges.Size(); i++)
+      if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
       {
-         patchTopo->GetEdgeVertices(edges[i], edgevert);
+         kvdir[1] = 1;
+      }
 
-         if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
-         {
-            kvdir[1] = 1;
-         }
-
-         if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
-         {
-            kvdir[1] = -1;
-         }
+      if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
+      {
+         kvdir[1] = -1;
       }
    }
 
@@ -2607,6 +2603,9 @@ void NURBSExtension::UpdateUniqueKV()
 
 bool NURBSExtension::ConsistentKVSets()
 {
+   // patchTopo->GetElementEdges is not yet implemented for 1D
+   MFEM_VERIFY(Dimension()>1, "1D not yet implemented.");
+
    Array<int> edges, orient, kvdir;
    Vector diff;
 
