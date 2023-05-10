@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
                   "Use a unit-weight for B-splines (default) or not: for general NURBS");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                   "Enable or disable GLVis visualization. This is a dummy option to enable testing.");
+                  "Enable or disable GLVis visualization. This is a dummy option to enable testing.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
 
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
    mesh->PrintInfo();
 
-   if(visit)
+   if (visit)
    {
       // Print mesh to file for visualisation
       VisItDataCollection dc = VisItDataCollection("mesh", mesh);
