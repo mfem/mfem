@@ -269,7 +269,7 @@ protected:
        the patch orientation for patch @a p returns the direction of
        the Knotvectors in @a kvdir.*/
    void CheckKVDirection(int p, Array <int> &kvdir);
-   /**  Creates the comprehensive set of KnotVectors */
+   /**  Creates the comprehensive set of KnotVectors. They are the same for 1D. */
    void CreateComprehensiveKV();
    /**  Updates the unique set of KnotVectors */
    void UpdateUniqueKV();
