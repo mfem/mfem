@@ -2480,25 +2480,32 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 void NURBSExtension::CreateComprehensiveKV()
 {
    Array<int> edges, orient, kvdir;
-
    Array<int> e(Dimension());
+
+   // 1D: comprehensive and unique KV are the same
    if (Dimension() == 1)
    {
-      e[0] = 0;
+      knotVectorsCompr.SetSize(GetNKV());
+      for (int i = 0; i < GetNKV(); i++)
+      {
+         knotVectorsCompr[i] = new KnotVector(*(KnotVec(i)));
+      }
+      return;
    }
-   if (Dimension() == 2)
+   else if (Dimension() == 2)
    {
+      knotVectorsCompr.SetSize(GetNP()*Dimension());
       e[0] = 0;
       e[1] = 1;
    }
    else if (Dimension() == 3)
    {
+      knotVectorsCompr.SetSize(GetNP()*Dimension());
       e[0] = 0;
       e[1] = 3;
       e[2] = 8;
    }
 
-   knotVectorsCompr.SetSize(GetNP()*Dimension());
    for (int p = 0; p < GetNP(); p++)
    {
       CheckKVDirection(p, kvdir);
@@ -2524,14 +2531,23 @@ void NURBSExtension::UpdateUniqueKV()
 {
    Array<int> e(Dimension());
 
-   e[0] = 0;
-
-   if (Dimension() == 2)
+   // 1D: comprehensive and unique KV are the same
+   if (Dimension() == 1)
    {
+      for (int i = 0; i < GetNKV(); i++)
+      {
+         *(KnotVec(i)) = *(knotVectorsCompr[i]);
+      }
+      return;
+   }
+   else if (Dimension() == 2)
+   {
+      e[0] = 0;
       e[1] = 1;
    }
    else if (Dimension() == 3)
    {
+      e[0] = 0;
       e[1] = 3;
       e[2] = 8;
    }
@@ -2658,7 +2674,6 @@ void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
    Array<int> edges, orient;
 
    kv.SetSize(Dimension());
-   patchTopo->GetElementEdges(p, edges, orient);
 
    if (Dimension() == 1)
    {
@@ -2683,7 +2698,6 @@ const
    Array<int> edges, orient;
 
    kv.SetSize(Dimension());
-   patchTopo->GetElementEdges(p, edges, orient);
 
    if (Dimension() == 1)
    {
