@@ -1278,18 +1278,25 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
 //    }
 // }
 
+/**
+ * @brief Error estimator based on RT projection of flux and numerical flux
+ *
+ */
 class FluxReconErrorEstimator : public ErrorEstimator
 {
 protected:
-   long current_sequence;
-   Vector error_estimates;
-   double total_error;
-
-   HyperbolicFormIntegrator &formIntegrator;
+   long current_sequence; // current FE sequence
+   Vector error_estimates; // element-wise error
+   double total_error; // total error
 
    GridFunction &solution;
 
-   /// Check if the mesh of the solution was modified.
+   HyperbolicFormIntegrator *hpblfi;
+
+   RT_FECollection *RTfec;
+   
+
+   /// Check if the finite element of the solution was modified.
    bool FESpaceIsModified()
    {
       long fe_sequence = solution.FESpace()->GetSequence();
@@ -1301,16 +1308,18 @@ protected:
    void ComputeEstimates();
 
 public:
-   /** @brief Construct a new HighestModeErrorEstimator object. ||π_{k-s}u_h - u_h||
+   /** @brief Construct a new FluxReconErrorEstimator object. ||π_RT(F(u_h), F̂(u_h, n)) - F(u_h)||
        @param sol      The solution field whose error is to be estimated.
-       @param degree_offset The degree offset (s) for the projected space. Default=1
+       @param hyperbolicFormIntegrator 
    */
-   FluxReconErrorEstimator(GridFunction &sol,
-                           HyperbolicFormIntegrator &formIntegrator_)
+   FluxReconErrorEstimator(GridFunction &sol, HyperbolicFormIntegrator *hyperbolicFormIntegrator)
       : current_sequence(-1),
         total_error(-1.0),
-        formIntegrator(formIntegrator_),
-        solution(sol) {}
+        solution(sol),
+        hpblfi(hyperbolicFormIntegrator)
+   { 
+      RTfec = new RT_FECollection(0, solution.FESpace()->GetMesh()->Dimension());
+   }
 
    /// Return the total error from the last error estimate.
    virtual double GetTotalError() const override { return total_error; }
@@ -1318,7 +1327,10 @@ public:
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() override
    {
-      if (FESpaceIsModified()) { ComputeEstimates(); }
+      if (FESpaceIsModified())
+      {
+         ComputeEstimates();
+      }
       return error_estimates;
    }
 
@@ -1328,7 +1340,7 @@ public:
    virtual ~FluxReconErrorEstimator() { }
 };
 
-}
+} // end mfem namespace
 
 
 #endif
