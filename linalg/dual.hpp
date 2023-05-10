@@ -349,14 +349,16 @@ dual<value_type, gradient_type> atan(dual<value_type, gradient_type> a)
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> exp(dual<value_type, gradient_type> a)
 {
-   return {std::exp(a.value), std::exp(a.value) * a.gradient};
+   using std::exp;
+   return {exp(a.value), exp(a.value) * a.gradient};
 }
 
 /** @brief implementation of the natural logarithm function for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)
 {
-   return {std::log(a.value), a.gradient / a.value};
+   using std::log;
+   return {log(a.value), a.gradient / a.value};
 }
 
 /** @brief implementation of `a` (dual) raised to the `b` (dual) power */
@@ -364,6 +366,7 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
                                     dual<value_type, gradient_type> b)
 {
+   using std::pow;
    value_type value = pow(a.value, b.value);
    return {value, value * (a.gradient * (b.value / a.value) + b.gradient * std::log(a.value))};
 }
@@ -372,6 +375,7 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
 {
+   using std::pow;
    value_type value = pow(a, b.value);
    return {value, value * b.gradient * std::log(a)};
 }
@@ -379,6 +383,7 @@ dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
 /** @brief implementation of `a` (non-dual) raised to the `b` (non-dual) power */
 template <typename value_type > MFEM_HOST_DEVICE
 value_type pow(value_type a, value_type b) { return std::pow(a, b); }
+
 
 /** @brief implementation of `a` (dual) raised to the `b` (non-dual) power */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE

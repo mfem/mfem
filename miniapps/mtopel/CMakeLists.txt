@@ -161,6 +161,12 @@ add_mfem_miniapp(mtop_foundation
         ${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_table
+        MAIN mtop_table.cpp
+        ${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
+
 add_mfem_miniapp(randfw_test
 	MAIN randfw_test.cpp
 	${PARADIFF_COMMON_FILES}

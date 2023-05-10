@@ -133,6 +133,8 @@ public:
         rf=new ParGridFunction(fes); (*rf)=0.0;
         gfc.SetGridFunction(rf);
 
+        scale=1.0;
+
     }
 
     ~RandFieldCoefficient(){
@@ -140,6 +142,10 @@ public:
         delete rf;
         delete fes;
         delete fec;
+    }
+
+    void SetScale(double scale_=1.0){
+        scale=scale_;
     }
 
     void SetCorrelationLen(double l_){
@@ -158,7 +164,7 @@ public:
     virtual
     double Eval(ElementTransformation& T, const IntegrationPoint& ip)
     {
-        return gfc.Eval(T,ip);
+        return scale*gfc.Eval(T,ip);
     }
 
     /// Generates a new random center for the ball.
@@ -173,6 +179,7 @@ public:
 private:
     double lx,ly,lz;
     double nu;
+    double scale;
     ParMesh* pmesh;
     FiniteElementCollection* fec;
     ParFiniteElementSpace* fes;

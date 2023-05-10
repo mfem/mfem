@@ -33,6 +33,11 @@ add_mfem_miniapp(seqtest
 	${SEQADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(test_ex
+        MAIN test_ex.cpp
+        ${SEQADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
 if(MFEM_USE_MPI)
 
 list(APPEND PARADIFF_COMMON_SOURCES)
