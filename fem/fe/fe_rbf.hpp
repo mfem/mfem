@@ -17,6 +17,7 @@
 namespace mfem
 {
 
+// Pure virtual class for dimensionless radial basis functions
 class RBFFunction
 {
 public:
@@ -35,10 +36,12 @@ public:
    // Does function have compact support?
    virtual bool CompactSupport() const { return false; }
 
-   // This makes the shape parameter consistent across kernels
+   /* This normalizes the smoothing parameter h such that h doesn't need to
+      be changed based on the choice of basis function */
    virtual double HNorm() const = 0;
 };
 
+// Gaussian RBF, exp(-r^2)
 class GaussianRBF : public RBFFunction
 {
    // hNorm minimizes integral of Gaussian minus Wendland kernel over r=0,1
@@ -54,6 +57,7 @@ public:
    virtual double HNorm() const { return hNorm; }
 };
 
+// Multiquadric RBF, sqrt(1+r^2)
 class MultiquadricRBF : public RBFFunction
 {
    // Same as inverse multiquadric
@@ -69,6 +73,7 @@ public:
    virtual double HNorm() const { return hNorm; }
 };
 
+// Inverse multiquadric RBF, 1/sqrt(1+r^2)
 class InvMultiquadricRBF : public RBFFunction
 {
    // hNorm minimizes integral of Gaussian minus InvMQ kernel over r=0,0.5
@@ -84,7 +89,8 @@ public:
    virtual double HNorm() const { return hNorm; }
 };
 
-// Shifted down to be exactly zero at radius
+/* Same as the Gaussian, but subtracted by a factor such that the
+   function is exactly zero at the chosen radius */
 class CompactGaussianRBF : public RBFFunction
 {
    static const double hNorm;
@@ -105,7 +111,7 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Truncated at radius
+// Same as the Gaussian, but truncated (set to zero) at the chosen radius
 class TruncatedGaussianRBF : public RBFFunction
 {
    static const double hNorm;
@@ -125,6 +131,7 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
+// Wendland 11 RBF, (1-r)^3 * (1+3r) if r < 1
 class Wendland11RBF : public RBFFunction
 {
    static const double radius;
@@ -143,6 +150,7 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
+// Wendland 31 RBF, (1-r)^4 * (1+4r) if r < 1
 class Wendland31RBF : public RBFFunction
 {
    static const double radius;
@@ -161,6 +169,7 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
+// Wendland 33 RBF, (1-r)^8 * (1+8r+25r^2+32r^3) if r < 1
 class Wendland33RBF : public RBFFunction
 {
    static const double radius;
@@ -179,10 +188,11 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Choose the type of RBF to use
+// Class for storing and creating the various RBFs
 class RBFType
 {
 public:
+   // Assign integers to each type of function
    enum
    {
       Gaussian = 0,
@@ -230,7 +240,7 @@ public:
       return rbfType;
    }
 
-   // Convert rbf int to identifier
+   // Convert rbf int to identifier for storage
    static char GetChar(const int rbfType)
    {
       static const char ident[] = { 'G', 'M', 'I',
@@ -259,6 +269,7 @@ public:
    }
 };
 
+// Dimensionless distance metrics, whose output is the input for RBFs
 class DistanceMetric
 {
 protected:
@@ -279,6 +290,7 @@ public:
    static DistanceMetric *GetDistance(int dim, int pnorm);
 };
 
+// Dimensionless distance with r = |x| + |y| + ...
 class L1Distance : public DistanceMetric
 {
 public:
@@ -293,6 +305,7 @@ public:
                            DenseMatrix &ddr) const;
 };
 
+// Dimensionless distance with r = (x^2 + y^2 + ...)^(1/2)
 class L2Distance : public DistanceMetric
 {
 public:
@@ -307,6 +320,7 @@ public:
                            DenseMatrix &ddr) const;
 };
 
+// Dimensionless distance with r = (x^p + y^p + ...)^(1/p)
 class LpDistance : public DistanceMetric
 {
    const int p;
@@ -327,9 +341,13 @@ public:
                            DenseMatrix &ddr) const;
 };
 
+
+/* Pure virtual class for a finite element with radial basis functions
+   instead of polynomials inside each element */
 class KernelFiniteElement : public ScalarFiniteElement
 {
 private:
+   // Choose whether to interpolate or project when Project is called
    bool interpolate = false;
 public:
    KernelFiniteElement(int D, Geometry::Type G, int Do, int O, int F)
@@ -340,7 +358,10 @@ public:
    virtual void IntRuleToVec(const IntegrationPoint &ip,
                              Vector &vec) const;
 
+   // Is base RBF compact?
    virtual bool IsCompact() const = 0;
+
+   // Return base kernel
    virtual const RBFFunction *Kernel() const = 0;
 
    // Get range of i,j,k indices that are nonzero for compact support
@@ -352,13 +373,13 @@ public:
    { MFEM_ABORT("GetTensorNumPoints(...)"); }
 
    using FiniteElement::Project;
-
+  
    virtual void Project(Coefficient &coeff, ElementTransformation &Trans,
                         Vector &dofs) const;
 
    virtual void Project(VectorCoefficient &vc, ElementTransformation &Trans,
                         Vector &dofs) const;
-
+  
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
 
@@ -372,6 +393,7 @@ public:
    { CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this); }
 };
 
+// Finite element using base radial basis functions without polynomial corrections
 class RBFFiniteElement : public KernelFiniteElement
 {
 private:
@@ -393,6 +415,7 @@ private:
    const DistanceMetric *distance;
    void InitializeGeometry();
 
+   // Get the dimensionless distance from x to the center of the RBF indexed i
    virtual void DistanceVec(const int i,
                             const Vector &x,
                             Vector &y) const;
@@ -431,6 +454,9 @@ public:
                             DenseMatrix &h) const;
 };
 
+/* Reproducing kernel finite element, which includes polynomial corrections
+   to the standard radial basis function finite element to guarantee a
+   chosen order of accuracy */
 class RKFiniteElement : public KernelFiniteElement
 {
 private:
@@ -447,11 +473,19 @@ private:
    int polyOrd, numPoly, numPoly1d;
    KernelFiniteElement *baseFE;
 
+   // Get the vector of polynomials for the corrections, evaluated at x
    virtual void GetPoly(const Vector &x,
                         Vector &p) const;
    virtual void GetDPoly(const Vector &x,
                          Vector &p,
                          Vector (&dp)[3]) const;
+
+   /* Helper functions that return pieces of the RK evaluation
+      W_{RK,i} = P_i^T C_i W_{RBF,i}, where
+      P_i = [1, x, y, z, ...] is the polynomial vector evaluated at the point i,
+      M_i = P_i P_i^T W_{RBF,i} is a matrix used in calculating the corrections,
+      C_i = M_i^{-1} G are the RK corrections,
+      G = [1, 0, 0, ...] is a convencience vector */
    virtual void GetG(Vector &g) const;
    virtual void GetM(const Vector &baseShape,
                      const IntegrationPoint &ip,
@@ -469,6 +503,8 @@ private:
                         const double &f,
                         const Vector &df,
                         DenseMatrix (&dM)[3]) const;
+
+   // Given the corrections and base values, calculate the RK value at the ip
    virtual void CalculateValues(const Vector &c,
                                 const Vector &baseShape,
                                 const IntegrationPoint &ip,
@@ -479,6 +515,8 @@ private:
                                  const DenseMatrix &baseDShape,
                                  const IntegrationPoint &ip,
                                  DenseMatrix &dshape) const;
+
+   // The corrections make the distance dimensionless, so no smoothing parameter
    virtual void DistanceVec(const int i,
                             const Vector &x,
                             Vector &y) const;
@@ -502,7 +540,7 @@ public:
                           Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   // Should put in a method to calculate shape and dshape simultaneously
+   // Could put in a method to calculate shape and dshape simultaneously
 };
 
 } // end namespace mfem

@@ -877,8 +877,8 @@ RKFiniteElement::RKFiniteElement(const int D,
                          intOrder * numPointsD, // integration order
                          FunctionSpace::Qk),
      polyOrd(order),
-     numPoly1d(order+1),
      numPoly(RKFiniteElement::GetNumPoly(order, D)),
+     numPoly1d(order+1),
      baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distNorm, intOrder))
 {
    Nodes = baseFE->GetNodes();
