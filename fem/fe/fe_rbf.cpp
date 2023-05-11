@@ -505,7 +505,7 @@ void KernelFiniteElement::Project(
       DenseMatrixInverse Minv(M);
       for (int d = 0; d < vdim; ++d)
       {
-         Vector qd(q, d*dof, dof);
+         Vector qd(q, d * dof, dof);
          Vector dofsd(dofs, d * dof, dof);
          Minv.Mult(qd, dofsd);
       }
