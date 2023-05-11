@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
    int order = 3;
    bool rk = false;
    int rk_num_points = 4;
-   double rbf_h = 2.01;
-   int rbf_type = 6;
+   double rbf_h = 4.01;
+   int rbf_type = 7;
    int ode_solver_type = 4;
    double t_final = 2.0;
    double dt = -0.01;
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec =
       rk ?
       (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_h,
-                                                       rbf_type, 2, order) :
+                                                       rbf_type, 2, order, 2) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    FiniteElementSpace fes(&mesh, fec);
