@@ -43,8 +43,8 @@ void vel(const Vector &x, double t, Vector &u)
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init(argc, argv);
-   Hypre::Init();
+   MPI_Session mpi(argc, argv); // Mpi::Init(argc, argv);
+   // Hypre::Init();
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
@@ -85,13 +85,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Root())
+      if (mpi.Root()) // if (Mpi::Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (Mpi::Root())
+   if (mpi.Root()) // if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (Mpi::Root())
+   if (mpi.Root()) // if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
       // err_u = u_gf->ComputeL2Error(u_excoeff);
       // err_p = p_gf->ComputeL2Error(p_excoeff);
 
-      if (Mpi::Root())
+      if (mpi.Root()) // if (Mpi::Root())
       {
          printf("%11s %11s %11s %11s\n", "Time", "dt", "err_u", "err_p");
          printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
@@ -191,8 +191,8 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << Mpi::WorldSize() << " "
-               << Mpi::WorldRank() << "\n";
+      sol_sock << "parallel " << mpi.WorldSize() << " "
+               << mpi.WorldRank() << "\n";
       sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
    }
 
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
       double tol = 1e-3;
       if (err_u > tol || err_p > tol)
       {
-         if (Mpi::Root())
+         if (mpi.Root()) // if (Mpi::Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;
