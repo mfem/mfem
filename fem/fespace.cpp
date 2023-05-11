@@ -3203,6 +3203,7 @@ void FiniteElementSpace::Destroy()
    {
       delete x.second;
    }
+   L2F.clear();
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];
