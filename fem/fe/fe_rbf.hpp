@@ -329,6 +329,8 @@ public:
 
 class KernelFiniteElement : public ScalarFiniteElement
 {
+private:
+   bool interpolate = false;
 public:
    KernelFiniteElement(int D, Geometry::Type G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F) { }
@@ -351,8 +353,11 @@ public:
 
    using FiniteElement::Project;
 
-   virtual void Project(Coefficient &coeff,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project(Coefficient &coeff, ElementTransformation &Trans,
+                        Vector &dofs) const;
+
+   virtual void Project(VectorCoefficient &vc, ElementTransformation &Trans,
+                        Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;

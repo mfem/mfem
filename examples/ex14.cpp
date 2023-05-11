@@ -124,15 +124,11 @@ int main(int argc, char *argv[])
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec;
-   if (rk)
-   {
-      fec = new KernelFECollection(dim, rk_num_points, rbf_h, rbf_type, 2, order);
-   }
-   else
-   {
-      fec = new DG_FECollection(order, dim);
-   }
+   FiniteElementCollection *fec =
+      rk ?
+      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_h,
+                                                       rbf_type, 2, order) :
+      (FiniteElementCollection*)new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 

@@ -446,12 +446,69 @@ void KernelFiniteElement::IntRuleToVec(const IntegrationPoint &ip,
 void KernelFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   // Copied from PositiveFiniteElement
-   for (int i = 0; i < dof; i++)
+   if (interpolate)
    {
-      const IntegrationPoint &ip = Nodes.IntPoint(i);
-      Trans.SetIntPoint(&ip);
-      dofs(i) = coeff.Eval(Trans, ip);
+      // Copied from PositiveFiniteElement
+      for (int i = 0; i < dof; i++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(i);
+         Trans.SetIntPoint(&ip);
+         dofs(i) = coeff.Eval(Trans, ip);
+      }
+   }
+   else
+   {
+      DenseMatrix M;
+      MassIntegrator Minteg;
+      Minteg.AssembleElementMatrix(*this, Trans, M);
+
+      Vector q;
+      DomainLFIntegrator qinteg(coeff);
+      qinteg.AssembleRHSElementVect(*this, Trans, q);
+
+      DenseMatrixInverse Minv(M);
+      Minv.Mult(q, dofs);
+   }
+}
+
+void KernelFiniteElement::Project(
+   VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
+   const int vdim = vc.GetVDim();
+   Vector x(vdim);
+
+   if (interpolate)
+   {
+      // Copied from PositiveFiniteElement
+      for (int i = 0; i < dof; i++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(i);
+         Trans.SetIntPoint(&ip);
+         vc.Eval(x, Trans, ip);
+         for (int j = 0; j < vdim; j++)
+         {
+            dofs(dof*j+i) = x(j);
+         }
+      }
+   }
+   else
+   {
+      Vector q;
+      VectorDomainLFIntegrator qinteg(vc);
+      qinteg.AssembleRHSElementVect(*this, Trans, q);
+
+      DenseMatrix M;
+      MassIntegrator Minteg;
+      Minteg.AssembleElementMatrix(*this, Trans, M);
+
+      DenseMatrixInverse Minv(M);
+      for (int d = 0; d < vdim; ++d)
+      {
+         Vector qd(q, d*dof, dof);
+         Vector dofsd(dofs, d * dof, dof);
+         Minv.Mult(qd, dofsd);
+      }
    }
 }
 
