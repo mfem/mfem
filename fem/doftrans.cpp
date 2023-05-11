@@ -342,21 +342,20 @@ void ND_TetDofTransformation::InvTransformPrimal(double *v) const
    double data[2];
    Vector v2(data, 2);
 
-   auto print_orientations = [this]()
-   {
-      std::stringstream msg;
-      msg << "Orientations = ";
-      for (const auto &x : Fo)
-      {
-         msg << x << " ";
-      }
-      return msg.str();
-   };
-
    // Transform face DoFs
    for (int f=0; f<4; f++)
    {
-      MFEM_ASSERT(Fo[f] >=0 && Fo[f] <= 5, print_orientations() << " are invalid");
+      MFEM_ASSERT(Fo[f] >=0 && Fo[f] <= 5,
+                  [this]()
+      {
+         std::stringstream msg;
+         msg << "Orientations = ";
+         for (const auto &x : Fo)
+         {
+            msg << x << " ";
+         }
+         return msg.str();
+      }() << " are invalid");
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];

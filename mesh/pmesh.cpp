@@ -2452,8 +2452,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
    // convert the element data into face_nbr_elements
    face_nbr_elements.SetSize(face_nbr_elements_offset[num_face_nbrs]);
-   face_nbr_el_ori->Clear();
-   face_nbr_el_ori->SetSize(face_nbr_elements_offset[num_face_nbrs], 6);
+   face_nbr_el_ori.reset(new Table(face_nbr_elements_offset[num_face_nbrs], 6));
    while (true)
    {
       int fn;
