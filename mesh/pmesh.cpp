@@ -2718,29 +2718,33 @@ STable3D *ParMesh::GetSharedFacesTable()
 
 template <int N>
 void
-ParMesh::AddTriFaces(const Array<int> &elem_vertices, const std::unique_ptr<STable3D> &faces,
-const std::unique_ptr<STable3D> &shared_faces,
-int elem, int start, int end, const int fverts[][N])
+ParMesh::AddTriFaces(const Array<int> &elem_vertices,
+                     const std::unique_ptr<STable3D> &faces,
+                     const std::unique_ptr<STable3D> &shared_faces,
+                     int elem, int start, int end, const int fverts[][N])
 {
    for (int i = start; i < end; ++i)
    {
       // Reference face vertices.
       const auto fv = fverts[i];
       // Element specific face vertices.
-      const Vert3 elem_fv(elem_vertices[fv[0]], elem_vertices[fv[1]], elem_vertices[fv[2]]);
+      const Vert3 elem_fv(elem_vertices[fv[0]], elem_vertices[fv[1]],
+                          elem_vertices[fv[2]]);
 
       // Check amongst the faces of elements local to this rank for this set of vertices
       const int lf = faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]);
 
       // If the face wasn't found amonst processor local elements, search the
       // ghosts for this set of vertices.
-      const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]) : -1;
+      const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1],
+                                                  elem_fv.v[2]) : -1;
       // If find local face -> use that
       //    else if find shared face -> shift and use that
       //       else no face found -> set to -1
       const int face_to_add = lf < 0 ? (sf >= 0 ? sf + NumOfFaces : -1) : lf;
 
-      MFEM_ASSERT(sf >= 0 || lf >= 0, "Face must be from a local or a face neighbor element");
+      MFEM_ASSERT(sf >= 0 ||
+                  lf >= 0, "Face must be from a local or a face neighbor element");
 
       // Add this discovered face to the list of faces of this face neighbor element
       face_nbr_el_to_face->Push(elem, face_to_add);
@@ -2758,7 +2762,7 @@ void ParMesh::BuildFaceNbrElementToFaceTable()
 
    // Helper for adding quadrilateral faces.
    auto add_quad_faces = [&faces, &shared_faces, &v, this]
-      (int elem, int start, int end, const int fverts[][4])
+                         (int elem, int start, int end, const int fverts[][4])
    {
       for (int i = start; i < end; ++i)
       {
@@ -2851,7 +2855,8 @@ int ParMesh::GetFaceNbrRank(int fn) const
 }
 
 void
-ParMesh::GetFaceNbrElementFaces(int i, Array<int> &faces, Array<int> &orientations) const
+ParMesh::GetFaceNbrElementFaces(int i, Array<int> &faces,
+                                Array<int> &orientations) const
 {
    int el_nbr = i - GetNE();
    if (face_nbr_el_to_face != nullptr && el_nbr < face_nbr_el_to_face->Size())
