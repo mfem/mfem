@@ -297,12 +297,14 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 
 } // test case
 
-namespace {
-   // Helper functions for testing with
+namespace
+{
+// Helper functions for testing with
 
 // Given a parallel and a serial mesh, perform an L2 projection and check the
 // solutions match exactly.
-void CheckL2Projection(std::function<double(const Vector&)> exact_soln, ParMesh& pmesh, Mesh& smesh, int order)
+void CheckL2Projection(std::function<double(const Vector&)> exact_soln,
+                       ParMesh& pmesh, Mesh& smesh, int order)
 {
    REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
    REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -609,7 +611,8 @@ TEST_CASE("GetVectorValueInFaceNeighborElement", "[Parallel], [NCMesh]")
 
             mfem::Vector value(3), exact(3), position(3);
 
-            const IntegrationRule &ir = mfem::IntRules.Get(Geometry::Type::TETRAHEDRON, order + 1);
+            const IntegrationRule &ir = mfem::IntRules.Get(Geometry::Type::TETRAHEDRON,
+                                                           order + 1);
 
             // Check that non-ghost elements match up on the serial and parallel spaces.
             for (int n = 0; n < pmesh.GetNE(); ++n)

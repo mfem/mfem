@@ -80,7 +80,8 @@ protected:
    /// Table that maps from face neighbor element number, to the face numbers of
    /// that element.
    std::unique_ptr<Table> face_nbr_el_to_face;
-   std::unique_ptr<Table> face_nbr_el_ori; // orientations for each face (from nbr processor)
+   std::unique_ptr<Table>
+   face_nbr_el_ori; // orientations for each face (from nbr processor)
 
    IsoparametricTransformation FaceNbrTransformation;
 
@@ -139,8 +140,8 @@ protected:
     */
    template <int N>
    void AddTriFaces(const Array<int> &v, const std::unique_ptr<STable3D> &faces,
-        const std::unique_ptr<STable3D> &shared_faces,
-        int elem, int start, int end, const int fverts[][N]);
+                    const std::unique_ptr<STable3D> &shared_faces,
+                    int elem, int start, int end, const int fverts[][N]);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -492,7 +493,8 @@ public:
    int GetFaceNbrRank(int fn) const;
 
    /** Similar to Mesh::GetElementFaces */
-   void GetFaceNbrElementFaces(int i, Array<int> &faces, Array<int> &orientation) const;
+   void GetFaceNbrElementFaces(int i, Array<int> &faces,
+                               Array<int> &orientation) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */

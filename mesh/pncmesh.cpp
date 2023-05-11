@@ -1046,7 +1046,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    for (auto &kv : recv_elems)
    {
       std::sort(kv.second.begin(), kv.second.end());
-      kv.second.erase(std::unique(kv.second.begin(), kv.second.end()), kv.second.end());
+      kv.second.erase(std::unique(kv.second.begin(), kv.second.end()),
+                      kv.second.end());
    }
 
    for (int i = 0, last_rank = -1; i < send_elems.Size(); i++)
@@ -1234,14 +1235,15 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             // Copy the entries, any unset faces will remain -1.
             std::copy(orientations.begin(), orientations.end(),
-                  send_rank_to_face_neighbor_orientations[true_rank].back().begin());
+                      send_rank_to_face_neighbor_orientations[true_rank].back().begin());
          }
 
          // Initialize the receive buffers and resize to match the expected
          // number of elements coming in. The copy ensures the appropriate rank
          // pairings are in place, and for a purely conformal interface, the
          // resize is a no-op.
-         auto recv_rank_to_face_neighbor_orientations = send_rank_to_face_neighbor_orientations;
+         auto recv_rank_to_face_neighbor_orientations =
+            send_rank_to_face_neighbor_orientations;
          for (auto &kv : recv_rank_to_face_neighbor_orientations)
          {
             kv.second.resize(recv_elems[kv.first].size());
@@ -1271,8 +1273,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             // low rank sends on low, high rank sends on high.
             const int send_tag = (rank < kv.first)
-                  ? std::min(rank, kv.first)
-                  : std::max(rank, kv.first);
+                                 ? std::min(rank, kv.first)
+                                 : std::max(rank, kv.first);
             MPI_Isend(&kv.second[0][0], int(kv.second.size() * 6),
                       MPI_INT, kv.first, send_tag, pmesh.MyComm, &send_requests.back());
          }
@@ -1285,47 +1287,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             // low rank sends on low, high rank sends on high.
             const int recv_tag = (rank < kv.first)
-                  ? std::max(rank, kv.first)
-                  : std::min(rank, kv.first);
+                                 ? std::max(rank, kv.first)
+                                 : std::min(rank, kv.first);
             MPI_Irecv(&kv.second[0][0], int(kv.second.size() * 6),
                       MPI_INT, kv.first, recv_tag, pmesh.MyComm, &recv_requests.back());
          }
 
-         // Wait until all our receiving buffers are complete. In theory could
-         // be more efficient and begin processing below for completed buffers
-         // as they appear.
+         // Wait until all receive buffers are full before beginning to process.
          MPI_Waitall(int(recv_requests.size()), recv_requests.data(), status.data());
-#if 0
-         for (int irank = 0; irank < pmesh.face_nbr_group.Size(); ++irank)
-         {
-            const auto &lrank = pmesh.face_nbr_group[irank];
-            const auto &send = send_rank_to_face_neighbor_orientations.at(lrank);
-            const auto &recv = recv_rank_to_face_neighbor_orientations.at(lrank);
-
-            std::stringstream dbgmsg;
-            dbgmsg << "R" << Mpi::WorldRank() << " lrank " << lrank << '\n';
-            dbgmsg << "send\n";
-            for (int i = 0; i < send.size(); ++i)
-            {
-               for (int j = 0; j < 6; ++j)
-               {
-                  dbgmsg << "(" << send[i][j] << ") ";
-               }
-               dbgmsg << '\n';
-            }
-
-            dbgmsg << "recv\n";
-            for (int i = 0; i < recv.size(); ++i)
-            {
-               for (int j = 0; j < 6; ++j)
-               {
-                  dbgmsg << "(" << recv[i][j] << ") ";
-               }
-               dbgmsg << '\n';
-            }
-            std::cout << dbgmsg.str();
-         }
-#endif
 
          pmesh.face_nbr_el_ori.reset(new Table(pmesh.face_nbr_elements.Size(), 6));
          int elem = 0;
@@ -1342,6 +1311,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             }
          }
          pmesh.face_nbr_el_ori->Finalize();
+
+         // Must wait for all send buffers to be released before the scope closes.
+         MPI_Waitall(int(send_requests.size()), send_requests.data(), status.data());
       }
    }
 
