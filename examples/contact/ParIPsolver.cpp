@@ -508,6 +508,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
    Vector mhatsoc(dimM); mhatsoc = 0.0;
 
    Dxphi(x0, mu, Dxphi0);
+
    Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
    descentDirection = Dxphi0_xhat < 0. ? true : false;
    if(descentDirection)
@@ -538,7 +539,6 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
       // ------ A-5.3. if not in filter region go to A.5.4 otherwise go to A-5.5.
       thxtrial = theta(xtrial);
       phxtrial = phi(xtrial, mu);
-
       filterCheck(thxtrial, phxtrial);    
       if(!inFilterRegion)
       {
@@ -564,7 +564,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
       // Case I      
          if(thx0 <= thetaMin && switchCondition)
          {
-            sufficientDecrease = phxtrial <= phx0 + eta * alpha * Dxphi0_xhat ? true : false;
+            sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true : false;
             if(sufficientDecrease)
             {
                if(iAmRoot) { cout << "A-5.4. Case I -- accepted step length.\n"; } 
@@ -638,8 +638,8 @@ void ParInteriorPointSolver::filterCheck(double th, double ph)
       {
          if(th >= F1[i] && ph >= F2[i])
          {
-         inFilterRegion = true;
-         break;
+            inFilterRegion = true;
+            break;
          }
       }
    }
@@ -704,7 +704,6 @@ double ParInteriorPointSolver::phi(const BlockVector &x, double mu)
    }
    double logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   logBarrierGlb = logBarrierLoc;
    return fx - mu * logBarrierGlb;
 }
 
@@ -712,6 +711,7 @@ double ParInteriorPointSolver::phi(const BlockVector &x, double mu)
 void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
+   
    for(int i = 0; i < dimM; i++) 
    { 
       y(dimU + i) -= mu / (x(dimU + i));
