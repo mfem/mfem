@@ -36,8 +36,6 @@ enum class AssemblyLevel
    /// is fully evaluated on the fly.
    /// This assembly level is ALWAYS performed on the host.
    LEGACY = 0,
-   /// @deprecated Use LEGACY instead.
-   LEGACYFULL = 0,
    /// Fully assembled form, i.e. a global sparse matrix in MFEM format. This
    /// assembly is compatible with device execution.
    FULL,
