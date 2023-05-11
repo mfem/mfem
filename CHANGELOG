@@ -10,6 +10,7 @@
 
 Version 4.5.3 (development)
 ===========================
+- Added new small miniapp for printing of shape functions of a KnotVector
 
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
