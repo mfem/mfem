@@ -129,6 +129,7 @@ void KnotVector::Refinement(Vector &newknots)
 {
    if (spacing)
    {
+      spacing->ScaleParameters(0.5);
       spacing->SetSize(2 * NumOfElements);
       Vector s;
       spacing->EvalAll(s);

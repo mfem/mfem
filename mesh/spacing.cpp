@@ -25,26 +25,30 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
                      dpar.Size() == 0, "Invalid spacing function parameters");
          return new UniformSpacingFunction(ipar[0]);
       case SPACING_TYPE::LINEAR:
-         MFEM_VERIFY(ipar.Size() == 2 &&
+         MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
-         return new LinearSpacingFunction(ipar[0], (bool) ipar[1], dpar[0]);
+         return new LinearSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                          (bool) ipar[2]);
       case SPACING_TYPE::GEOMETRIC:
-         MFEM_VERIFY(ipar.Size() == 2 &&
+         MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
-         return new GeometricSpacingFunction(ipar[0], (bool) ipar[1], dpar[0]);
+         return new GeometricSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                             (bool) ipar[2]);
       case SPACING_TYPE::BELL:
-         MFEM_VERIFY(ipar.Size() == 2 &&
+         MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 2, "Invalid spacing function parameters");
-         return new BellSpacingFunction(ipar[0], (bool) ipar[1], dpar[0], dpar[1]);
+         return new BellSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                        dpar[1], (bool) ipar[2]);
       case SPACING_TYPE::GAUSSIAN:
-         MFEM_VERIFY(ipar.Size() == 2 &&
+         MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 2, "Invalid spacing function parameters");
-         return new GaussianSpacingFunction(ipar[0], (bool) ipar[1], dpar[0], dpar[1]);
+         return new GaussianSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                            dpar[1], (bool) ipar[2]);
       case SPACING_TYPE::LOGARITHMIC:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
-         return new LogarithmicSpacingFunction(ipar[0], (bool) ipar[1], (bool) ipar[2],
-                                               dpar[0]);
+         return new LogarithmicSpacingFunction(ipar[0], (bool) ipar[1],
+                                               (bool) ipar[2], dpar[0]);
       default:
          MFEM_ABORT("Unknown spacing type \"" << spacingType << "\"");
          break;
@@ -61,7 +65,7 @@ void GeometricSpacingFunction::CalculateSpacing()
    // Find the root of g(r) = s * (r^n - 1) - r + 1 by Newton's method.
 
    constexpr double convTol = 1.0e-8;
-   constexpr int maxIter = 10;
+   constexpr int maxIter = 20;
 
    const double s_unif = 1.0 / ((double) n);
 
@@ -140,7 +144,7 @@ void BellSpacingFunction::CalculateSpacing()
    for (int iter=0; iter<maxIter; ++iter)
    {
       int j;
-      for ( j = 1; j <= n - 3; j++ )
+      for (j = 1; j <= n - 3; j++)
       {
          wk[0] = (s[j] + s[j+1]) * (s[j] + s[j+1]);
          wk[1] = s[j-1];
@@ -149,20 +153,20 @@ void BellSpacingFunction::CalculateSpacing()
          wk[4] = (s[j+2] + s[j+1]) * (s[j+2] + s[j+1]) * (s[j+2] + s[j+1]);
          wk[5] = wk[0] * wk[1] / wk[2];
          wk[6] = wk[0] * wk[3] / wk[4];
-         a[j+1]  = a[j+1] + urk*( wk[5] - a[j+1] );
-         b[j+1]  = b[j+1] + urk*( wk[6] - b[j+1] );
+         a[j+1]  = a[j+1] + urk*(wk[5] - a[j+1]);
+         b[j+1]  = b[j+1] + urk*(wk[6] - b[j+1]);
       }
 
-      for ( j = 2; j <= n - 2; j++ )
+      for (j = 2; j <= n - 2; j++)
       {
-         wk[0] = a[j]*( 1.0 - 2.0*alpha[ j - 1 ] + alpha[ j - 1 ]*alpha[ j - 2 ]
-                        + beta[ j - 2 ] ) + b[j] + 2.0 - alpha[ j - 1 ];
+         wk[0] = a[j]*(1.0 - 2.0*alpha[j - 1] + alpha[j - 1]*alpha[j - 2]
+                       + beta[j - 2]) + b[j] + 2.0 - alpha[j - 1];
          wk[1] = 1.0 / wk[0];
-         alpha[j] = wk[1]*( a[j]*beta[ j - 1 ]*( 2.0 - alpha[ j - 2 ] ) +
-                            2.0*b[j] + beta[ j - 1 ] + 1.0 );
+         alpha[j] = wk[1]*(a[j]*beta[j - 1]*(2.0 - alpha[j - 2]) +
+                           2.0*b[j] + beta[j - 1] + 1.0);
          beta[j]  = -b[j]*wk[1];
-         gamma[j] = wk[1]*( a[j]*( 2.0*gamma[ j - 1 ] - gamma[ j - 2 ] -
-                                   alpha[ j - 2 ]*gamma[ j - 1 ] ) + gamma[ j - 1 ] );
+         gamma[j] = wk[1]*(a[j]*(2.0*gamma[j - 1] - gamma[j - 2] -
+                                 alpha[j - 2]*gamma[j - 1]) + gamma[j - 1]);
       }
 
       s_new[0] = s[0];
@@ -171,10 +175,10 @@ void BellSpacingFunction::CalculateSpacing()
          s_new[j] = s_new[j-1] + s[j];
       }
 
-      for ( j = n - 3; j >= 1; j-- )
+      for (j = n - 3; j >= 1; j--)
       {
-         s_new[j] = alpha[j+1]*s_new[ j + 1 ] +
-                    beta[j+1]*s_new[ j + 2 ] + gamma[j+1];
+         s_new[j] = alpha[j+1]*s_new[j + 1] +
+                    beta[j+1]*s_new[j + 2] + gamma[j+1];
       }
 
       // Convert back from points to spacings
@@ -184,7 +188,7 @@ void BellSpacingFunction::CalculateSpacing()
       }
 
       wk[5] = wk[6] = 0.0;
-      for ( j = n - 2; j >= 2; j-- )
+      for (j = n - 2; j >= 2; j--)
       {
          wk[5] = wk[5] + s_new[j]*s_new[j];
          wk[6] = wk[6] + pow(s_new[j] - s[j], 2);
@@ -256,7 +260,7 @@ void GaussianSpacingFunction::CalculateSpacing()
       for (int i=0; i<n; ++i)
       {
          const double x = i * h;
-         const double ti = exp((-(x * x) + (2.0 * x * m)) * u / c2);  // Gaussian
+         const double ti = exp((-(x * x) + (2.0 * x * m)) * u / c2); // Gaussian
          r += ti;
 
          // Derivative of Gaussian
@@ -275,9 +279,9 @@ void GaussianSpacingFunction::CalculateSpacing()
 
       drdc *= s0 * u;
 
-      // Newton update is -r / drdc
-      double dc = std::max(-r / drdc, -0.5*c);  // Prevent cutting c by more than 1/2
-      dc = std::min(dc, 2.0*c);  // Prevent increasing s by more than double.
+      // Newton update is -r / drdc, limited by factors of 1/2 and 2.
+      double dc = std::max(-r / drdc, -0.5*c);
+      dc = std::min(dc, 2.0*c);
 
       c += dc;
    }

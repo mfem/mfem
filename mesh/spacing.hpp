@@ -23,11 +23,11 @@ SPACING_TYPE;
 class SpacingFunction
 {
 public:
-   SpacingFunction(int n_,
-                   bool r=false)
+   SpacingFunction(int n_, bool r=false, bool s=false)
    {
       n = n_;
       reverse = r;
+      scale = s;
    }
 
    virtual double Eval(int p) = 0;
@@ -45,6 +45,8 @@ public:
       }
    }
 
+   virtual void ScaleParameters(double a) { }
+
    // The format is
    // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
    virtual void Print(std::ostream &os) = 0;
@@ -53,7 +55,7 @@ public:
 
 protected:
    int n;
-   bool reverse;
+   bool reverse, scale;
 };
 
 class UniformSpacingFunction : public SpacingFunction
@@ -95,8 +97,8 @@ private:
 class LinearSpacingFunction : public SpacingFunction
 {
 public:
-   LinearSpacingFunction(int n_, bool r_, double s_)
-      : SpacingFunction(n_, r_), s(s_)
+   LinearSpacingFunction(int n_, bool r_, double s_, bool scale_)
+      : SpacingFunction(n_, r_, scale_), s(s_)
    {
       MFEM_ASSERT(0.0 < s && s < 1.0, "Initial spacing must be in (0,1)");
       CalculateDifference();
@@ -106,6 +108,15 @@ public:
    {
       n = size;
       CalculateDifference();
+   }
+
+   virtual void ScaleParameters(double a) override
+   {
+      if (scale)
+      {
+         s *= a;
+         CalculateDifference();
+      }
    }
 
    virtual double Eval(int p) override
@@ -119,7 +130,8 @@ public:
    virtual void Print(std::ostream &os) override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << LINEAR << " 2 1 " << n << " " << (int) reverse << " " << s << "\n";
+      os << LINEAR << " 3 1 " << n << " " << (int) reverse << " "
+         << (int) scale << " " << s << "\n";
    }
 
 private:
@@ -146,8 +158,8 @@ private:
 class GeometricSpacingFunction : public SpacingFunction
 {
 public:
-   GeometricSpacingFunction(int n_, bool r_, double s_)
-      : SpacingFunction(n_, r_), s(s_)
+   GeometricSpacingFunction(int n_, bool r_, double s_, bool scale_)
+      : SpacingFunction(n_, r_, scale_), s(s_)
    {
       CalculateSpacing();
    }
@@ -156,6 +168,15 @@ public:
    {
       n = size;
       CalculateSpacing();
+   }
+
+   virtual void ScaleParameters(double a) override
+   {
+      if (scale)
+      {
+         s *= a;
+         CalculateSpacing();
+      }
    }
 
    virtual double Eval(int p) override
@@ -167,8 +188,8 @@ public:
    virtual void Print(std::ostream &os) override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << GEOMETRIC << " 2 1 " << n << " " << (int) reverse
-         << " " << s << "\n";
+      os << GEOMETRIC << " 3 1 " << n << " " << (int) reverse << " "
+         << (int) scale << " " << s << "\n";
    }
 
 private:
@@ -181,8 +202,8 @@ private:
 class BellSpacingFunction : public SpacingFunction
 {
 public:
-   BellSpacingFunction(int n_, bool r_, double s0_, double s1_)
-      : SpacingFunction(n_, r_), s0(s0_), s1(s1_)
+   BellSpacingFunction(int n_, bool r_, double s0_, double s1_, bool scale_)
+      : SpacingFunction(n_, r_, scale_), s0(s0_), s1(s1_)
    {
       CalculateSpacing();
    }
@@ -191,6 +212,16 @@ public:
    {
       n = size;
       CalculateSpacing();
+   }
+
+   virtual void ScaleParameters(double a) override
+   {
+      if (scale)
+      {
+         s0 *= a;
+         s1 *= a;
+         CalculateSpacing();
+      }
    }
 
    virtual double Eval(int p) override
@@ -202,8 +233,8 @@ public:
    virtual void Print(std::ostream &os) override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << BELL << " 2 2 " << n << " " << (int) reverse << " "
-         << s0 << " " << s1 << "\n";
+      os << BELL << " 3 2 " << n << " " << (int) reverse << " " << (int) scale
+         << " " << s0 << " " << s1 << "\n";
    }
 
 private:
@@ -218,8 +249,8 @@ private:
 class GaussianSpacingFunction : public SpacingFunction
 {
 public:
-   GaussianSpacingFunction(int n_, bool r_, double s0_, double s1_)
-      : SpacingFunction(n_, r_), s0(s0_), s1(s1_)
+   GaussianSpacingFunction(int n_, bool r_, double s0_, double s1_, bool scale_)
+      : SpacingFunction(n_, r_, scale_), s0(s0_), s1(s1_)
    {
       CalculateSpacing();
    }
@@ -228,6 +259,16 @@ public:
    {
       n = size;
       CalculateSpacing();
+   }
+
+   virtual void ScaleParameters(double a) override
+   {
+      if (scale)
+      {
+         s0 *= a;
+         s1 *= a;
+         CalculateSpacing();
+      }
    }
 
    virtual double Eval(int p) override
@@ -239,8 +280,8 @@ public:
    virtual void Print(std::ostream &os) override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << GAUSSIAN << " 2 2 " << n << " " << (int) reverse << " "
-         << s0 << " " << s1 << "\n";
+      os << GAUSSIAN << " 3 2 " << n << " " << (int) reverse << " "
+         << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
 private:
