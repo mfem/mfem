@@ -21,6 +21,7 @@
 #include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
+#include <array>
 
 namespace mfem
 {
@@ -1203,12 +1204,13 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   // Populates face_nbr_el_to_face, always needed.
-   pmesh.BuildFaceNbrElementToFaceTable();
 
    // In 3D some extra orientation data structures can be needed.
    if (Dim == 3)
    {
+      // Populates face_nbr_el_to_face, always needed.
+      pmesh.BuildFaceNbrElementToFaceTable();
+
       if (face_nbr_w_tri_faces)
       {
          // There are face neighbor elements with triangular faces, need to
@@ -1251,7 +1253,6 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
          // For asynchronous send/recv, will use arrays of requests to monitor the
          // status of the connections.
-         const int nranks = send_rank_to_face_neighbor_orientations.size();
          std::vector<MPI_Request> send_requests, recv_requests;
          std::vector<MPI_Status> status(nranks);
 
@@ -1285,7 +1286,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          {
             recv_requests.emplace_back(); // instantiate a request for tracking
 
-            // low rank sends on low, high rank sends on high.
+            // low rank receives on high, high rank sends on low.
             const int recv_tag = (rank < kv.first)
                                  ? std::max(rank, kv.first)
                                  : std::min(rank, kv.first);
@@ -1300,11 +1301,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          int elem = 0;
          for (const auto &kv : recv_rank_to_face_neighbor_orientations)
          {
-            const auto &rank = kv.first;
-            const auto &element_orientations = kv.second;
-
             // All elements associated to this face-neighbor rank
-            for (const auto &eo : element_orientations)
+            for (const auto &eo : kv.second)
             {
                std::copy(eo.begin(), eo.end(), pmesh.face_nbr_el_ori->GetRow(elem));
                ++elem;

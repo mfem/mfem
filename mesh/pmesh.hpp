@@ -80,8 +80,8 @@ protected:
    /// Table that maps from face neighbor element number, to the face numbers of
    /// that element.
    std::unique_ptr<Table> face_nbr_el_to_face;
-   std::unique_ptr<Table>
-   face_nbr_el_ori; // orientations for each face (from nbr processor)
+   /// orientations for each face (from nbr processor)
+   std::unique_ptr<Table> face_nbr_el_ori;
 
    IsoparametricTransformation FaceNbrTransformation;
 

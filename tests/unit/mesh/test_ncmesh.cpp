@@ -531,7 +531,7 @@ TEST_CASE("GetVectorValueInFaceNeighborElement", "[Parallel], [NCMesh]")
    // The aim of this test is to verify the correct behaviour of the
    // GetVectorValue method when called on face neighbor elements in a non
    // conforming mesh.
-   auto smesh = Mesh("../../../data/beam-tet.mesh");
+   auto smesh = Mesh("../../data/beam-tet.mesh");
 
    auto vector_exact_soln = [](const Vector& x, Vector& v)
    {
@@ -606,11 +606,7 @@ TEST_CASE("GetVectorValueInFaceNeighborElement", "[Parallel], [NCMesh]")
             psol.ProjectCoefficient(func);
             psol.ExchangeFaceNbrData();
 
-            Array<int> pvdofs;
-            DofTransformation *ptrans;
-
             mfem::Vector value(3), exact(3), position(3);
-
             const IntegrationRule &ir = mfem::IntRules.Get(Geometry::Type::TETRAHEDRON,
                                                            order + 1);
 
