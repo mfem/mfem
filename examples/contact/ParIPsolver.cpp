@@ -386,71 +386,88 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
 
 
    // Use a direct solver (default for now)
-#ifdef MFEM_USE_MUMPS
-      if(linSolver == 0)
+   if(linSolver == 0)
+   {
+      // BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
+      Array2D<HypreParMatrix *> ABlockMatrix(3,3);
+      for(int ii = 0; ii < 3; ii++)
       {
-         // BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
-         Array2D<HypreParMatrix *> ABlockMatrix(3,3);
-         for(int ii = 0; ii < 3; ii++)
+      for(int jj = 0; jj < 3; jj++)
+      {
+         if(!A.IsZeroBlock(ii, jj))
          {
-         for(int jj = 0; jj < 3; jj++)
-         {
-            if(!A.IsZeroBlock(ii, jj))
-            {
-               ABlockMatrix(ii, jj) = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(ii, jj)));
-            }
+            ABlockMatrix(ii, jj) = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(ii, jj)));
          }
-         }
-         HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);
+	 else
+	 {
+	   cout << "i = " << ii << " j = " << jj << " is a zero block\n";
+	 }
+      }
+      }
+      HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);
+   
+      /* direct solve of the 3x3 IP-Newton linear system */
+      #ifdef MFEM_USE_MUMPS
+        MUMPSSolver ASolver;
+        ASolver.SetPrintLevel(0);
+        ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC);
+        #else 
+        #ifdef MFEM_USE_MKL_CPARDISO
+          CPardisoSolver ASolver(MPI_COMM_WORLD);
+        #else
+          cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO and MFEM_USE_MKL_CPARDISO=NO\n";
+        #endif
+      #endif
+      ASolver.SetOperator(*Ah);
+      ASolver.Mult(b, Xhat);
+      delete Ah;
+   }
+   else if(linSolver == 1)
+   {
+      MFEM_WARNING("using a linear solve strategy that assumes that Ju = Identity");
+      /* reduce onto the 1, 1 block */
+      /* here assuming that Ju = I, not applicable for all problems */
+      /* so that the Schur-complement A = Huu + Ju^T D Ju = Huu + D */
+      HypreParMatrix * Huuloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0,0))));
+      HypreParMatrix * Wmmloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1,1))));
+      HypreParMatrix * Areduced = new HypreParMatrix(*Huuloc);
+      Areduced->Add(1.0, *Wmmloc);
+
+      /* prepare the reduced rhs */
+      // breduced = bu + Ju^T (bm + Wmm bl)
+      Vector breduced(dimU); breduced = 0.0;
+      breduced.Set(1.0, b.GetBlock(0)); 
+      breduced.Add(1.0, b.GetBlock(1));
+      Wmmloc->AddMult(b.GetBlock(2), breduced);
       
-         /* direct solve of the 3x3 IP-Newton linear system */
-         MUMPSSolver ASolver;
-         ASolver.SetPrintLevel(0);
-         ASolver.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-         ASolver.SetOperator(*Ah);
-         ASolver.Mult(b, Xhat);
-         delete Ah;
-      }
-      else if(linSolver == 1)
-      {
-         MFEM_WARNING("using a linear solve strategy that assumes that Ju = Identity");
-         /* reduce onto the 1, 1 block */
-         /* here assuming that Ju = I, not applicable for all problems */
-         /* so that the Schur-complement A = Huu + Ju^T D Ju = Huu + D */
-         HypreParMatrix * Huuloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0,0))));
-         HypreParMatrix * Wmmloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1,1))));
-         HypreParMatrix * Areduced = new HypreParMatrix(*Huuloc);
-         Areduced->Add(1.0, *Wmmloc);
+      // solve the reduced linear system
+      #ifdef MFEM_USE_MUMPS
+        MUMPSSolver AreducedSolver;
+        AreducedSolver.SetPrintLevel(0);
+        AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC);
+      #else 
+        #ifdef MFEM_USE_MKL_CPARDISO
+          CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
+        #else
+          cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO and MFEM_USE_MKL_CPARDISO=NO\n";
+        #endif
+      #endif
+      AreducedSolver.SetOperator(*Areduced);
+      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
 
-         /* prepare the reduced rhs */
-         // breduced = bu + Ju^T (bm + Wmm bl)
-         Vector breduced(dimU); breduced = 0.0;
-         breduced.Set(1.0, b.GetBlock(0)); 
-         breduced.Add(1.0, b.GetBlock(1));
-         Wmmloc->AddMult(b.GetBlock(2), breduced);
-         
-         // solve the reduced linear system
-         MUMPSSolver AreducedSolver;
-         AreducedSolver.SetOperator(*Areduced);
-         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+      // now propagate solved uhat to obtain mhat and lhat
+      // xm = xu - bl
+      Xhat.GetBlock(1).Set(1.0, Xhat.GetBlock(0));
+      Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
-         // now propagate solved uhat to obtain mhat and lhat
-         // xm = xu - bl
-         Xhat.GetBlock(1).Set(1.0, Xhat.GetBlock(0));
-         Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+      // xl = Wmm xm - bm
+      Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+      Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
-         // xl = Wmm xm - bm
-         Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-         Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
-
-         delete Wmmloc;
-         delete Huuloc;
-         delete Areduced;
-      }
-#else
-      cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO\n";
-#endif
-    
+      delete Wmmloc;
+      delete Huuloc;
+      delete Areduced;
+   }
    /* backsolve to determine zlhat */
    for(int ii = 0; ii < dimM; ii++)
    {
