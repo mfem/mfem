@@ -925,10 +925,7 @@ int main (int argc, char *argv[])
          tmop_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
          tmop_integ2->SetCoefficient(metric_coeff2);
       }
-      else
-      {
-         tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric);
-      }
+      else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
       tmop_integ2->IntegrateOverTarget(integ_over_targ);
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
