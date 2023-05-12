@@ -2007,6 +2007,10 @@ public:
    /// By default integratioin is performed over the target elements.
    void IntegrateOverTarget(bool integ_over_target_)
    {
+      MFEM_VERIFY(metric_normal == 1.0 && lim_normal == 1.0,
+                  "This function must be called before EnableNormalization, as "
+                  "the normalization computations must know how to integrate.");
+
       integ_over_target = integ_over_target_;
    }
 
