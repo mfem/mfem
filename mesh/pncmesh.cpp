@@ -1286,7 +1286,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          {
             recv_requests.emplace_back(); // instantiate a request for tracking
 
-            // low rank receives on high, high rank sends on low.
+            // low rank receives on high, high rank receives on low.
             const int recv_tag = (rank < kv.first)
                                  ? std::max(rank, kv.first)
                                  : std::min(rank, kv.first);

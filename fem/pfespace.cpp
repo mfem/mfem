@@ -2161,7 +2161,7 @@ void NeighborRowMessage::Decode(int rank)
          // This cannot treat all face dofs, as they can have rotations and
          // reflections.
          const int *ind = nullptr;
-         Geometry::Type geom;
+         Geometry::Type geom = Geometry::Type::INVALID;
          if (ent == 1)
          {
             // edge NC orientation is element defined.

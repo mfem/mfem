@@ -836,6 +836,9 @@ double GridFunction::GetValue(ElementTransformation &T,
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
+            MFEM_ASSERT(FET != nullptr,
+                        "FaceElementTransformation must be valid for a boundary element");
+
             // Boundary elements and Boundary Faces may have different
             // orientations so adjust the integration point if necessary.
             int o = 0;
@@ -975,6 +978,9 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
+            MFEM_ASSERT(FET != nullptr,
+                        "FaceElementTransformation must be valid for a boundary element");
+
             // Boundary elements and Boundary Faces may have different
             // orientations so adjust the integration point if necessary.
             int o = 0;
@@ -999,6 +1005,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
          FaceElementTransformations * FET =
             dynamic_cast<FaceElementTransformations *>(&T);
 
+         MFEM_ASSERT(FET != nullptr,
+                     "FaceElementTransformation must be valid for a boundary element");
          // Evaluate in neighboring element for both continuous and
          // discontinuous fields (the integration point in T1 should have
          // already been set).
