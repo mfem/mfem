@@ -6617,6 +6617,8 @@ void ParMesh::Swap(ParMesh &other)
    mfem::Swap(face_nbr_vertices, other.face_nbr_vertices);
    mfem::Swap(send_face_nbr_elements, other.send_face_nbr_elements);
    mfem::Swap(send_face_nbr_vertices, other.send_face_nbr_vertices);
+   std::swap(face_nbr_el_ori, other.face_nbr_el_ori);
+   std::swap(face_nbr_el_to_face, other.face_nbr_el_to_face);
 
    // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
    mfem::Swap(pncmesh, other.pncmesh);
