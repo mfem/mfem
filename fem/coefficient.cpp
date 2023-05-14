@@ -148,7 +148,8 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridF->FESpace()->GetMesh();
-   if (T.mesh == gf_mesh)
+   //if (T.mesh == gf_mesh)
+   if (T.mesh == gf_mesh || T.mesh->GetNE() == gf_mesh->GetNE())
    {
       return GridF->GetValue(T, ip, Component);
    }
