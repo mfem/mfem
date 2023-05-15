@@ -393,29 +393,46 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
          if(!A.IsZeroBlock(ii, jj))
          {
             ABlockMatrix(ii, jj) = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(ii, jj)));
-         }
-	 else
+	 }
+	 else if(iAmRoot)
 	 {
-	   cout << "i = " << ii << " j = " << jj << " is a zero block\n";
+	    cout << "i = " << ii << " j = " << jj << " is a zero block\n";
 	 }
       }
       }
-      HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);
-   
+
+
+
+
+      HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);   
+      cout << "formed Ah from blocks\n";
       /* direct solve of the 3x3 IP-Newton linear system */
       #ifdef MFEM_USE_MUMPS
         MUMPSSolver ASolver;
         ASolver.SetPrintLevel(0);
-        ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC);
+        ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
       #else 
         #ifdef MFEM_USE_MKL_CPARDISO
           CPardisoSolver ASolver(MPI_COMM_WORLD);
-        #else
-          cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO and MFEM_USE_MKL_CPARDISO=NO\n";
         #endif
       #endif
       ASolver.SetOperator(*Ah);
       ASolver.Mult(b, Xhat);
+      if (iAmRoot) { cout << "A^-1 b computed\n"; }
+      BlockVector Residual(block_offsetsuml); Residual = 0.0;
+      Ah->Mult(Xhat, Residual);
+      if (iAmRoot) { cout << "A * x computed\n"; }
+      Residual.Add(-1.0, b);
+      if (iAmRoot) { cout << "added -b to A * x \n"; }
+      double rnorm = sqrt(InnerProduct(MPI_COMM_WORLD, Residual, Residual));
+      if (iAmRoot)
+      {
+        cout << "computed ||b - A x||_2\n";
+        cout << "||b - A x||_2 = " << rnorm << endl;
+      }
+      rnorm = rnorm / sqrt(InnerProduct(MPI_COMM_WORLD, b, b));
+      if (iAmRoot) { cout << "||b - A x||_2 / || b ||_2 = " << rnorm << endl; }    
+
       delete Ah;
    }
    else if(linSolver == 1)
@@ -440,12 +457,10 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
       #ifdef MFEM_USE_MUMPS
         MUMPSSolver AreducedSolver;
         AreducedSolver.SetPrintLevel(0);
-        AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC);
+        AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
       #else 
         #ifdef MFEM_USE_MKL_CPARDISO
           CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
-        #else
-          cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO and MFEM_USE_MKL_CPARDISO=NO\n";
         #endif
       #endif
       AreducedSolver.SetOperator(*Areduced);
