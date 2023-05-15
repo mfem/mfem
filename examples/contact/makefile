@@ -28,8 +28,10 @@ $(SEQ_EXAMPLES):
 endif
 
 ifeq ($(MFEM_USE_MUMPS),NO)
+ifeq ($(MFEM_USE_MKL_CPARDISO), NO)
 $(PAR_EXAMPLES):
-	$(error MFEM is not configured with SUITESPARSE)
+	$(error MFEM is not configured with MUMPS or CPARDISO)
+endif
 endif
 
 all: $(EXAMPLES)

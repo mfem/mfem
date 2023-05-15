@@ -12,9 +12,9 @@ using namespace mfem;
 ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_) 
                      : problem(problem_), 
                        block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-                       Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
-                       Hmm(nullptr), Wmm(nullptr), D(nullptr), 
-                       Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), 
+                       Huu(NULL), Hum(NULL), Hmu(NULL), 
+                       Hmm(NULL), Wmm(NULL), D(NULL), 
+                       Ju(NULL), Jm(NULL), JuT(NULL), JmT(NULL), 
                        saveLogBarrierIterates(false)
 {
    rel_tol  = 1.e-2;
@@ -274,11 +274,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
             cout << "no feasibility restoration implemented, exiting now \n";
          }
          break;
-         //cout << "feasibility restoration!!! :( :( :(\n";
-         //problem->feasibilityRestoration(x, 1.e-12);
-         //      break;
       }
-      //
       if(jOpt + 1 == max_iter && iAmRoot) 
       {  
          cout << "maximum optimization iterations :(\n";
@@ -325,7 +321,7 @@ void ParInteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, Bloc
    HypreStealOwnership(*D,*Ds);
    delete Ds;
   
-   if(Hmm != nullptr)
+   if(Hmm != NULL)
    {
       Wmm = Hmm;
       Wmm->Add(1.0, *D);
@@ -347,7 +343,7 @@ void ParInteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, Bloc
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
-   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
+   if(Hum != NULL) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
 }
 
 // perturbed KKT system solve
@@ -411,7 +407,7 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
         MUMPSSolver ASolver;
         ASolver.SetPrintLevel(0);
         ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC);
-        #else 
+      #else 
         #ifdef MFEM_USE_MKL_CPARDISO
           CPardisoSolver ASolver(MPI_COMM_WORLD);
         #else
@@ -578,7 +574,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
             cout << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "     << (1. - gTheta) * thx0 << endl;
             cout << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = " << phx0 - gPhi * thx0   << endl;
          }      
-      // Case I      
+         // Case I      
          if(thx0 <= thetaMin && switchCondition)
          {
             sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true : false;
