@@ -722,7 +722,6 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
    Vector dy_scr(dim); // derivative of distance vector, diagonal
    double r_scr; // distance
    Vector dr_scr(dim); // derivative of distance
-   double f_scr; // value of function
    double df_scr; // derivative value of function
    int cInd[3][2];
 #endif
@@ -790,7 +789,6 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
    double r_scr; // distance
    Vector dr_scr(dim); // derivative of distance
    DenseMatrix ddr_scr(dim, dim);
-   double f_scr; // value of function
    double df_scr; // derivative value of function
    double ddf_scr;
    int cInd[3][2];

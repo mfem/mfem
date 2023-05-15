@@ -398,7 +398,7 @@ class RBFFiniteElement : public KernelFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable double r_scr, f_scr, df_scr, ddf_scr;
+   mutable double r_scr, df_scr, ddf_scr;
    mutable Vector x_scr, y_scr, dy_scr, dr_scr;
    mutable DenseMatrix ddr_scr;
    mutable int cInd[3][2];
