@@ -77,31 +77,9 @@ TEST_CASE("MDArray", "[MDSpan][MDArray]")
          REQUIRE(abc_r.MDRead()(0,0,0) == 0);
          REQUIRE(abc_r.MDRead()(0,1,2) == 7); // = ((0)*2 + 1) * 3 + 2 = 5
       }
-
-      SECTION("Offset")
-      {
-         constexpr int NA = 18, NB = 2, NC = 36;
-         // Fortran col major: (18, 2, 36)
-         //                    ( 0, 1,  2)
-         // = 0 + 18( 1 + 2( 2)) = 90
-         MDArray<int,3> left(NA,NB,NC); // default layout is LayoutLeft
-         REQUIRE(left.Offset(0,1,2) == 90);
-
-         // C/C++ row major: (18, 2, 36)
-         //                  ( 0, 1,  2)
-         // = 32( 2 + 36( 1 + 2(0))) = 38
-         // = ((0)*2 + 1) * 36 + 2
-         MDArray<int,3> right(NA, NB, NC);
-         right.SetLayout(MDLayout<3>({2,1,0}));
-         REQUIRE(right.Offset(0,1,2) == 38);
-
-         MDArray<int,3,MDLayoutRight<3>> right4(NA, NB, NC);
-         right4.SetLayout(MDLayoutRight<3>({2,1,0}));
-         REQUIRE(right4.Offset(0,1,2) == 38);
-      }
    }
 
-   SECTION("SetLayout")
+   SECTION("Offset")
    {
       constexpr int NA = 11, NB = 22, NC = 33;
       constexpr int na =  0, nb =  1, nc =  2;
@@ -114,6 +92,28 @@ TEST_CASE("MDArray", "[MDSpan][MDArray]")
 
       REQUIRE(abc_set.Offset(na,nb,nc) == abc.Offset(na,nb,nc));
       REQUIRE(abc_set.Offset(na,nb,nc) == abc_ini.Offset(na,nb,nc));
+   }
+
+   SECTION("SetLayout")
+   {
+      constexpr int NA = 18, NB = 2, NC = 36;
+      // Fortran col major: (18, 2, 36)
+      //                    ( 0, 1,  2)
+      // = 0 + 18( 1 + 2( 2)) = 90
+      MDArray<int,3> left(NA,NB,NC); // default layout is LayoutLeft
+      REQUIRE(left.Offset(0,1,2) == 90);
+
+      // C/C++ row major: (18, 2, 36)
+      //                  ( 0, 1,  2)
+      // = 32( 2 + 36( 1 + 2(0))) = 38
+      // = ((0)*2 + 1) * 36 + 2
+      MDArray<int,3> right(NA, NB, NC);
+      right.SetLayout(MDLayout<3>({2,1,0}));
+      REQUIRE(right.Offset(0,1,2) == 38);
+
+      MDArray<int,3,MDLayoutRight<3>> right4(NA, NB, NC);
+      right4.SetLayout(MDLayoutRight<3>({2,1,0}));
+      REQUIRE(right4.Offset(0,1,2) == 38);
    }
 }
 
@@ -143,7 +143,7 @@ TEST_CASE("MDVector", "[MDSpan][MDVector]")
       }
    }
 
-   SECTION("SetLayout")
+   SECTION("Offset")
    {
       constexpr int NA = 11, NB = 22, NC = 33;
       constexpr int na =  0, nb =  1, nc =  2;
@@ -158,7 +158,7 @@ TEST_CASE("MDVector", "[MDSpan][MDVector]")
       REQUIRE(abc_set.Offset(na,nb,nc) == abc_ini.Offset(na,nb,nc));
    }
 
-   SECTION("Offset")
+   SECTION("SetLayout")
    {
       constexpr int NA = 18, NB = 2, NC = 36, ND = 32;
       // Fortran col major: (N1:18, 2, 36, Nd:32)
@@ -211,14 +211,14 @@ TEST_CASE("MDGridFunction layouts", "[MDSpan][MDGridFunction]")
       REQUIRE(std::is_same<decltype(mdgf.MDHostRead()), MDTensor<4, double const> const>());
    }
 
-   SECTION("EGDA, left")
+   SECTION("LeftOffset")
    {
       MDGridFunction<4> gsa(NE, NG, &fes, NA);
       const int gsa_0123 = gsa.Offset(0, 1, 2, 3);
       REQUIRE(gsa_0123 == 0 + 1*(NE) + 2*(NE*NG) + 3*(NE*NG*ND));
    }
 
-   SECTION("EGDA, right")
+   SECTION("RightOffset")
    {
       MDGridFunction<4, MDLayoutRight<4>> gsa(NE, NG, &fes, NA);
       const int gsa_0123 = gsa.Offset(0,1,2,3);
