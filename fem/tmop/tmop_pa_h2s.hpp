@@ -14,11 +14,12 @@
 namespace mfem
 {
 
-struct TMOPSetupGradPA2D
+class TMOPSetupGradPA2D
 {
    const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
 
+public:
    TMOPSetupGradPA2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x) { }
 
    int Ndof() const { return ti->PA.maps->ndof; }

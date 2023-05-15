@@ -14,12 +14,13 @@
 namespace mfem
 {
 
-struct TMOPAddMultPA3D
+class TMOPAddMultPA3D
 {
    const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
    Vector &y;
 
+public:
    TMOPAddMultPA3D(const TMOP_Integrator *ti, const Vector &x, Vector &y):
       ti(ti), x(x), y(y) { }
 
