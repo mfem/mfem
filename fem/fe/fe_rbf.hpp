@@ -451,7 +451,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &h) const;
+                            DenseMatrix &hess) const;
 };
 
 /* Reproducing kernel finite element, which includes polynomial corrections

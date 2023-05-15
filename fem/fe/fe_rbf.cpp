@@ -781,7 +781,7 @@ void RBFFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
-                                   DenseMatrix &h) const
+                                   DenseMatrix &hess) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector x_scr(dim); // integration point as vector
@@ -799,7 +799,7 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 
    if (isCompact)
    {
-      h = 0.0;
+      hess = 0.0;
       for (int k = cInd[2][0]; k <= cInd[2][1]; ++k)
       {
          for (int j = cInd[1][0]; j <= cInd[1][1]; ++j)
@@ -825,8 +825,8 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
                {
                   for (int d2 = d1; d2 < dim; ++d2)
                   {
-                     h(l, m) = (dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv
-                                + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv);
+                     hess(l, m) = (dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv
+                                   + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv);
                      m += 1;
                   }
                }
@@ -855,8 +855,8 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
          {
             for (int d2 = d1; d2 < dim; ++d2)
             {
-               h(i, k) = (dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv
-                          + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv);
+               hess(i, k) = (dr_scr(d1) * dr_scr(d2) * ddf_scr * hPhysInv
+                             + ddr_scr(d1, d2) * df_scr * hPhysInv * hPhysInv);
                k += 1;
             }
          }
