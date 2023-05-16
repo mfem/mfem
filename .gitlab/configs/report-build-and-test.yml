@@ -22,12 +22,10 @@
         date
         echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
         # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
-        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
-        # command to hang indefinitely sometimes, so we use the timeout & retry
-        # as a workaround; we may want to add a counter for the number of
+        # every 5 seconds; we may want to add a counter for the number of
         # retries to interrupt a potential infinite loop
-        while ! flock -w 5 9; do
-          true
+        while ! flock -n 9; do
+          sleep 5
         done
         echo "Acquired lock on '$PWD/autotest.lock'"
         date
@@ -57,12 +55,10 @@
         date
         echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
         # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
-        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
-        # command to hang indefinitely sometimes, so we use the timeout & retry
-        # as a workaround; we may want to add a counter for the number of
+        # every 5 seconds; we may want to add a counter for the number of
         # retries to interrupt a potential infinite loop
-        while ! flock -w 5 9; do
-          true
+        while ! flock -n 9; do
+          sleep 5
         done
         echo "Acquired lock on '$PWD/autotest.lock'"
         date
