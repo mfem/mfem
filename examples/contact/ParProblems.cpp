@@ -50,11 +50,11 @@ HypreParMatrix * ParContactProblem::Duuf(const BlockVector &x)
    return DddE(x.GetBlock(0)); 
 }
 
-HypreParMatrix * ParContactProblem::Dumf(const BlockVector &x) { return NULL; }
+HypreParMatrix * ParContactProblem::Dumf(const BlockVector &x) { return nullptr; }
 
-HypreParMatrix * ParContactProblem::Dmuf(const BlockVector &x) { return NULL; }
+HypreParMatrix * ParContactProblem::Dmuf(const BlockVector &x) { return nullptr; }
 
-HypreParMatrix * ParContactProblem::Dmmf(const BlockVector &x) { return NULL; }
+HypreParMatrix * ParContactProblem::Dmmf(const BlockVector &x) { return nullptr; }
 
 void ParContactProblem::c(const BlockVector &x, Vector &y) const // c(u,m) = g(u) - m 
 {

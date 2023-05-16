@@ -12,9 +12,9 @@ using namespace mfem;
 ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_) 
                      : problem(problem_), 
                        block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-                       Huu(NULL), Hum(NULL), Hmu(NULL), 
-                       Hmm(NULL), Wmm(NULL), D(NULL), 
-                       Ju(NULL), Jm(NULL), JuT(NULL), JmT(NULL), 
+                       Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
+                       Hmm(nullptr), Wmm(nullptr), D(nullptr), 
+                       Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), 
                        saveLogBarrierIterates(false)
 {
    rel_tol  = 1.e-2;
@@ -35,8 +35,6 @@ ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_)
    // control the rate at which the penalty parameter is decreased
    kMu     = 0.2;
    thetaMu = 1.5;
-
-   // TO DO -- include the filter
 
    thetaMax = 1.e6; // maximum constraint violation
    // data for the second order correction
@@ -112,7 +110,6 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 {
    BlockVector x0block(block_offsetsx); x0block = 0.0;
    x0block.GetBlock(0).Set(1.0, x0);
-   // hard coded initialization :(
    x0block.GetBlock(1) = 100.;
    x0block.GetBlock(1).Add(1.0, ml);
    BlockVector xfblock(block_offsetsx); xfblock = 0.0;
@@ -321,7 +318,7 @@ void ParInteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, Bloc
    HypreStealOwnership(*D,*Ds);
    delete Ds;
   
-   if(Hmm != NULL)
+   if(Hmm != nullptr)
    {
       Wmm = Hmm;
       Wmm->Add(1.0, *D);
@@ -343,7 +340,7 @@ void ParInteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, Bloc
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
-   if(Hum != NULL) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
+   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
 }
 
 // perturbed KKT system solve
@@ -384,7 +381,6 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
    // Use a direct solver (default for now)
    if(linSolver == 0)
    {
-      // BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
       Array2D<HypreParMatrix *> ABlockMatrix(3,3);
       for(int ii = 0; ii < 3; ii++)
       {
@@ -394,18 +390,15 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
          {
             ABlockMatrix(ii, jj) = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(ii, jj)));
 	 }
-	 else if(iAmRoot)
+	 else
 	 {
-	    cout << "i = " << ii << " j = " << jj << " is a zero block\n";
+	    ABlockMatrix(ii, jj) = nullptr;
 	 }
       }
       }
-
-
-
-
+      
       HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);   
-      cout << "formed Ah from blocks\n";
+      
       /* direct solve of the 3x3 IP-Newton linear system */
       #ifdef MFEM_USE_MUMPS
         MUMPSSolver ASolver;
@@ -418,20 +411,6 @@ void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Ve
       #endif
       ASolver.SetOperator(*Ah);
       ASolver.Mult(b, Xhat);
-      if (iAmRoot) { cout << "A^-1 b computed\n"; }
-      BlockVector Residual(block_offsetsuml); Residual = 0.0;
-      Ah->Mult(Xhat, Residual);
-      if (iAmRoot) { cout << "A * x computed\n"; }
-      Residual.Add(-1.0, b);
-      if (iAmRoot) { cout << "added -b to A * x \n"; }
-      double rnorm = sqrt(InnerProduct(MPI_COMM_WORLD, Residual, Residual));
-      if (iAmRoot)
-      {
-        cout << "computed ||b - A x||_2\n";
-        cout << "||b - A x||_2 = " << rnorm << endl;
-      }
-      rnorm = rnorm / sqrt(InnerProduct(MPI_COMM_WORLD, b, b));
-      if (iAmRoot) { cout << "||b - A x||_2 / || b ||_2 = " << rnorm << endl; }    
 
       delete Ah;
    }
