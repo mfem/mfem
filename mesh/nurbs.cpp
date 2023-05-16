@@ -1721,7 +1721,6 @@ NURBSExtension::NURBSExtension(std::istream &input)
 
    // periodic
    ConnectBoundaries();
-   CreateComprehensiveKV();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
