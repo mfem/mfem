@@ -1788,6 +1788,7 @@ protected:
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
    double last_active_surf_fit_const;
+   bool surf_element_wise_gradient = true;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2076,6 +2077,8 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+   void DisableElementWiseGradient() { surf_element_wise_gradient = false; }
+   void EnableElementWiseGradient() { surf_element_wise_gradient = true; }
 
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.

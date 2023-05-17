@@ -3243,7 +3243,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
-   bool experimental = true;
    delete surf_fit_gf;
    ParGridFunction *surf_fit_gf_dummy = new ParGridFunction(s0);
    surf_fit_gf = surf_fit_gf_dummy;
@@ -3259,7 +3258,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_gf_bg = false;
 
    SaveSurfaceFittingWeight();
-   if (!experimental) { return; }
+   if (surf_element_wise_gradient) { return; }
    // Define spaces for grad and hessian
    delete surf_fit_grad;
    delete surf_fit_hess;
@@ -4228,6 +4227,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    {
       surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
       surf_fit_hess->GetSubVector(dofs, hess_ptr);
+      surf_fit_hess_e.Transpose();
    }
    else
    {
@@ -4253,7 +4253,8 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       surf_fit_hess_e.GetRow(s, gg_ptr);
 
       // Loops over the local matrix.
-      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
+      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
+                       1.0/surf_fit_dof_count[sdofs[s]];
       for (int idim = 0; idim < dim; idim++)
       {
          for (int jdim = 0; jdim <= idim; jdim++)
@@ -4261,7 +4262,6 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
             double entry = w * ( 2.0 * surf_fit_grad_e(s, idim) *
                                  /* */ surf_fit_grad_e(s, jdim) +
                                  2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim));
-            entry *= 1.0/surf_fit_dof_count[sdofs[s]];
             int idx = s + idim*ndofs;
             int jdx = s + jdim*ndofs;
             mat(idx, jdx) += entry;
