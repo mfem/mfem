@@ -325,7 +325,6 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    // solutions match exactly.
    auto check_l2_projection = [&exact_soln](ParMesh& pmesh, Mesh& smesh, int order)
    {
-      MPI_Barrier(MPI_COMM_WORLD); // Get our ducks in a row.
 
       REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
       REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -416,7 +415,7 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
 
       constexpr double test_tol = 1e-9;
       CHECK(std::abs(serror - perror) < test_tol);
-      MPI_Barrier(MPI_COMM_WORLD); // Get our ducks in a row.
+
    };
 
    REQUIRE(smesh.GetNE() == 2);
@@ -449,12 +448,14 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
    REQUIRE(smesh.GetNE() == 8 + 1);
 
-   // This is the set of (i,j) that result in face-edge constraints.
-   // These pairs were arrived at by looping over all possible i,j pairs and
+   // Each pair of indices here represents sequential element indices to refine.
+   // First the i element is refined, then in the resulting mesh the j element is
+   // refined. These pairs were arrived at by looping over all possible i,j pairs and
    // checking for the addition of a face-edge constraint.
    std::vector<std::pair<int,int>> indices{{2,13}, {3,13}, {6,2}, {6,3}};
 
-   // Rank 0 has all but one element.
+   // Rank 0 has all but one element in the parallel mesh. The remaining element
+   // is owned by another processor if the number of ranks is greater than one.
    for (const auto &ij : indices)
    {
       int i = ij.first;
@@ -498,20 +499,20 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       {
          const auto face_transform = sttmp.GetFaceElementTransformations(iface);
 
-         CHECK(std::abs(face_transform->CheckConsistency(0)) < 1e-12);
+         CHECK(face_transform->CheckConsistency(0) < 1e-12);
       }
 
       for (int iface = 0; iface < ttmp.GetNumFacesWithGhost(); ++iface)
       {
          const auto face_transform = ttmp.GetFaceElementTransformations(iface);
 
-         CHECK(std::abs(face_transform->CheckConsistency(0)) < 1e-12);
+         CHECK(face_transform->CheckConsistency(0) < 1e-12);
       }
 
       // Use P4 to ensure there's a few fully interior DOF.
       check_l2_projection(ttmp, sttmp, 4);
 
-      ttmp.ExchangeFaceNbrData(); // This causes issues.
+      ttmp.ExchangeFaceNbrData();
       ttmp.Rebalance();
 
       check_l2_projection(ttmp, sttmp, 4);
