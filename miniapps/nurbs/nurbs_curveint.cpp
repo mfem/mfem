@@ -230,6 +230,8 @@ int main(int argc, char *argv[])
    delete mesh;
    delete kv_o1;
    delete kv;
+   delete xy[0];
+   delete xy[1];
 
    return 0;
 }
