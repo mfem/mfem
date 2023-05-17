@@ -390,8 +390,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    }
    tic_toc.Clear();
    tic_toc.Start();
-   // Pre-allocate sparsity assuming dense element matrices
-   a->UsePrecomputedSparsity();
 
    HPCBilinearForm *a_hpc = NULL;
    Operator *a_oper = NULL;
@@ -460,7 +458,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    {
       // TODO: assemble the LOR matrix using the performance code
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-      a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
       a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
    }
@@ -472,7 +469,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
       }
       else
       {
-         a_pc->UsePrecomputedSparsity();
          a_hpc->AssembleBilinearForm(*a_pc);
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
       }

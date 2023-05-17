@@ -30,26 +30,29 @@ class ParBilinearForm : public BilinearForm
    friend FABilinearFormExtension;
 
 protected:
-   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
+   ///< Points to the same object as #fes
+   ParFiniteElementSpace *pfes;
 
    /// Auxiliary vectors used in TrueAddMult(): L-, L-, and T-vector, resp.
    mutable Vector Xaux, Yaux, Ytmp;
 
+   /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;
 
    bool keep_nbr_block;
 
-   // Allocate mat - called when (mat == NULL && fbfi.Size() > 0)
-   void pAllocMat();
+   //XX TODO
+   // // Allocate mat - called when (mat == NULL && fbfi.Size() > 0)
+   // void pAllocMat();
 
    void AssembleSharedFaces(int skip_zeros = 1);
 
 private:
-   /// Copy construction is not supported; body is undefined.
-   ParBilinearForm(const ParBilinearForm &);
+   /// Copy construction is not supported.
+   ParBilinearForm(const ParBilinearForm &) = delete;
 
-   /// Copy assignment is not supported; body is undefined.
-   ParBilinearForm &operator=(const ParBilinearForm &);
+   /// Copy assignment is not supported.
+   ParBilinearForm &operator=(const ParBilinearForm &) = delete;
 
 public:
    /// Creates parallel bilinear form associated with the FE space @a *pf.
@@ -211,6 +214,7 @@ protected:
    ParFiniteElementSpace *trial_pfes;
    /// Points to the same object as #test_fes
    ParFiniteElementSpace *test_pfes;
+
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction Xaux, Yaux;
 
@@ -218,11 +222,11 @@ protected:
    OperatorHandle p_mat, p_mat_e;
 
 private:
-   /// Copy construction is not supported; body is undefined.
-   ParMixedBilinearForm(const ParMixedBilinearForm &);
+   /// Copy construction is not supported.
+   ParMixedBilinearForm(const ParMixedBilinearForm &) = delete;
 
-   /// Copy assignment is not supported; body is undefined.
-   ParMixedBilinearForm &operator=(const ParMixedBilinearForm &);
+   /// Copy assignment is not supported.
+   ParMixedBilinearForm &operator=(const ParMixedBilinearForm &) = delete;
 
 public:
    /** @brief Construct a ParMixedBilinearForm on the given FiniteElementSpace%s
@@ -304,11 +308,12 @@ protected:
    ParFiniteElementSpace *range_fes;
 
 private:
-   /// Copy construction is not supported; body is undefined.
-   ParDiscreteLinearOperator(const ParDiscreteLinearOperator &);
+   /// Copy construction is not supported.
+   ParDiscreteLinearOperator(const ParDiscreteLinearOperator &) = delete;
 
-   /// Copy assignment is not supported; body is undefined.
-   ParDiscreteLinearOperator &operator=(const ParDiscreteLinearOperator &);
+   /// Copy assignment is not supported.
+   ParDiscreteLinearOperator &operator=(const ParDiscreteLinearOperator &) =
+      delete;
 
 public:
    /** @brief Construct a ParDiscreteLinearOperator on the given
@@ -318,7 +323,11 @@ public:
        object. */
    ParDiscreteLinearOperator(ParFiniteElementSpace *dfes,
                              ParFiniteElementSpace *rfes)
-      : DiscreteLinearOperator(dfes, rfes) { domain_fes=dfes; range_fes=rfes; }
+      : DiscreteLinearOperator(dfes, rfes)
+   {
+      domain_fes = dfes;
+      range_fes = rfes;
+   }
 
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;

@@ -171,7 +171,6 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       a_lor.AddDomainIntegrator(new VectorMassIntegrator);
    }
-   a_lor.UsePrecomputedSparsity();
    a_lor.Assemble();
    a_lor.EliminateEssentialBC(ess_bdr, policy);
    a_lor.Finalize();
@@ -244,7 +243,6 @@ MatrixFreeAuxiliarySpace::MatrixFreeAuxiliarySpace(
    {
       a_lor.AddDomainIntegrator(new DiffusionIntegrator);
    }
-   a_lor.UsePrecomputedSparsity();
    a_lor.Assemble();
    if (ess_bdr.Size())
    {

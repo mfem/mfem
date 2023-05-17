@@ -64,7 +64,7 @@ protected:
    SparseMatrix *mat;
 
    /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
-        from the b.c.  Owned.
+        from the b.c. Owned.
        \f$ M + M_e = M_{original} \f$ */
    SparseMatrix *mat_e;
 
@@ -73,11 +73,11 @@ protected:
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly;
-   /// Element batch size used in the form action (1, 8, num_elems, etc.)
-   int batch;
+
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
+
    /** Indicates if the sparse matrix is sorted after assembly when using
        Full Assembly (FA). */
    bool sort_sparse_matrix = false;
@@ -111,9 +111,6 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
-   DenseMatrix elemmat;
-   Array<int>  vdofs;
-
    StaticCondensation *static_cond; ///< Owned.
    Hybridization *hybridization; ///< Owned.
 
@@ -122,30 +119,29 @@ protected:
        the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
-   int precompute_sparsity;
-
-   // Allocate appropriate SparseMatrix and assign it to mat
-   void AllocMat();
+   DenseMatrix elemmat;
+   Array<int>  vdofs;
 
    // may be used in the construction of derived classes
    BilinearForm() : Matrix(0)
    {
-      fes = NULL; sequence = -1;
-      mat = mat_e = NULL; extern_bfs = 0;
-      static_cond = NULL; hybridization = NULL;
-      precompute_sparsity = 0;
+      fes = NULL;
+      sequence = -1;
+      mat = mat_e = NULL;
+      extern_bfs = 0;
+      static_cond = NULL;
+      hybridization = NULL;
       diag_policy = DIAG_KEEP;
       assembly = AssemblyLevel::LEGACY;
-      batch = 1;
       ext = NULL;
    }
 
 private:
-   /// Copy construction is not supported; body is undefined.
-   BilinearForm(const BilinearForm &);
+   /// Copy construction is not supported.
+   BilinearForm(const BilinearForm &) = delete;
 
-   /// Copy assignment is not supported; body is undefined.
-   BilinearForm &operator=(const BilinearForm &);
+   /// Copy assignment is not supported.
+   BilinearForm &operator=(const BilinearForm &) = delete;
 
 public:
    /// Creates bilinear form associated with FE space @a *f.
@@ -158,11 +154,8 @@ public:
        The pointer @a f is not owned by the newly constructed object.
 
        The integrators in @a bf are copied as pointers and they are not owned by
-       the newly constructed BilinearForm.
-
-       The optional parameter @a ps is used to initialize the internal flag
-       #precompute_sparsity, see UsePrecomputedSparsity() for details. */
-   BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
+       the newly constructed BilinearForm. */
+   BilinearForm(FiniteElementSpace *f, BilinearForm *bf);
 
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }
@@ -232,31 +225,6 @@ public:
    /// Return the trace FE space associated with static condensation.
    FiniteElementSpace *SCFESpace() const
    { return static_cond ? static_cond->GetTraceFESpace() : NULL; }
-
-   /** @brief For scalar FE spaces, precompute the sparsity pattern of the matrix
-       (assuming dense element matrices) based on the types of integrators
-       present in the bilinear form. */
-   void UsePrecomputedSparsity(int ps = 1) { precompute_sparsity = ps; }
-
-   /** @brief Use the given CSR sparsity pattern to allocate the internal
-       SparseMatrix.
-
-       - The @a I and @a J arrays must define a square graph with size equal to
-         GetVSize() of the associated FiniteElementSpace.
-       - This method should be called after enabling static condensation or
-         hybridization, if used.
-       - In the case of static condensation, @a I and @a J are not used.
-       - The ownership of the arrays @a I and @a J remains with the caller. */
-   void UseSparsity(int *I, int *J, bool isSorted);
-
-   /// Use the sparsity of @a A to allocate the internal SparseMatrix.
-   void UseSparsity(SparseMatrix &A);
-
-   /// Pre-allocate the internal SparseMatrix before assembly.
-   /**  If the flag 'precompute sparsity'
-       is set, the matrix is allocated in CSR format (i.e.
-       finalized) and the entries are initialized with zeros. */
-   void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
@@ -373,6 +341,25 @@ public:
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
+   /** Returns a const reference to the extension for assembly levels other
+    than AssemblyLevel::LEGACY. */
+   const BilinearFormExtension &Ext() const
+   {
+      MFEM_VERIFY(ext, "ext is NULL and can't be dereferenced");
+      return *ext;
+   }
+
+   /** Returns a reference to the extension for assembly levels other than
+       AssemblyLevel::LEGACY. */
+   BilinearFormExtension &Ext()
+   {
+      MFEM_VERIFY(ext, "ext is NULL and can't be dereferenced");
+      return *ext;
+   }
+
+   /// Returns true if the extension is not null, false otherwise.
+   bool HasExt() const { return ext != nullptr; }
+
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
    /// Adds new Domain Integrator restricted to certain elements specified by
@@ -425,6 +412,42 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a vdofs. The flag @a skip_zeros skips the zero elements of the
+       matrix, unless they are breaking the symmetry of the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              Array<int> &vdofs, int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a vdofs. The flag @a skip_zeros skips the zero elements
+       of the matrix, unless they are breaking the symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 Array<int> &vdofs, int skip_zeros = 1);
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
@@ -538,48 +561,6 @@ public:
    */
    void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override;
 
-   /// Compute the element matrix of the given element
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
-
-   /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
-
-   /// Assemble the given element matrix
-   /** The element matrix @a elmat is assembled for the element @a i, i.e.
-       added to the system matrix. The flag @a skip_zeros skips the zero
-       elements of the matrix, unless they are breaking the symmetry of
-       the system matrix.
-   */
-   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              int skip_zeros = 1);
-
-   /// Assemble the given element matrix
-   /** The element matrix @a elmat is assembled for the element @a i, i.e.
-       added to the system matrix. The vdofs of the element are returned
-       in @a vdofs. The flag @a skip_zeros skips the zero elements of the
-       matrix, unless they are breaking the symmetry of the system matrix.
-   */
-   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              Array<int> &vdofs, int skip_zeros = 1);
-
-   /// Assemble the given boundary element matrix
-   /** The boundary element matrix @a elmat is assembled for the boundary
-       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
-       skips the zero elements of the matrix, unless they are breaking the
-       symmetry of the system matrix.
-   */
-   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 int skip_zeros = 1);
-
-   /// Assemble the given boundary element matrix
-   /** The boundary element matrix @a elmat is assembled for the boundary
-       element @a i, i.e. added to the system matrix. The vdofs of the element
-       are returned in @a vdofs. The flag @a skip_zeros skips the zero elements
-       of the matrix, unless they are breaking the symmetry of the system matrix.
-   */
-   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 Array<int> &vdofs, int skip_zeros = 1);
-
    /// Eliminate essential boundary DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
        the essential part of the boundary. By default, the diagonal at the
@@ -662,11 +643,12 @@ public:
 class MixedBilinearForm : public Matrix
 {
 protected:
-   SparseMatrix *mat; ///< Owned.
-   SparseMatrix *mat_e; ///< Owned.
+   /** Sparse matrices associated with the form and the eliminations from
+       the b.c. Owned. */
+   SparseMatrix *mat, *mat_e;
 
-   FiniteElementSpace *trial_fes, ///< Not owned
-                      *test_fes;  ///< Not owned
+   /// FE space on which the form lives. Not owned.
+   FiniteElementSpace *trial_fes, *test_fes;
 
    /// The form assembly level (full, partial, etc.)
    AssemblyLevel assembly;
@@ -699,11 +681,11 @@ protected:
    Array<int>  trial_vdofs, test_vdofs;
 
 private:
-   /// Copy construction is not supported; body is undefined.
-   MixedBilinearForm(const MixedBilinearForm &);
+   /// Copy construction is not supported.
+   MixedBilinearForm(const MixedBilinearForm &) = delete;
 
-   /// Copy assignment is not supported; body is undefined.
-   MixedBilinearForm &operator=(const MixedBilinearForm &);
+   /// Copy assignment is not supported.
+   MixedBilinearForm &operator=(const MixedBilinearForm &) = delete;
 
 public:
    /** @brief Construct a MixedBilinearForm on the given trial, @a tr_fes, and
@@ -764,10 +746,18 @@ public:
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
    /// Returns a const reference to the sparse matrix:  \f$ M \f$
-   const SparseMatrix &SpMat() const { return *mat; }
+   const SparseMatrix &SpMat() const
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
    /// Returns a reference to the sparse matrix:  \f$ M \f$
-   SparseMatrix &SpMat() { return *mat; }
+   SparseMatrix &SpMat()
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
    /// Returns true if the sparse matrix is not null, false otherwise.
    bool HasSpMat() const { return mat != nullptr; }
@@ -775,6 +765,25 @@ public:
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
+
+   /** Returns a const reference to the extension for assembly levels other
+    than AssemblyLevel::LEGACY. */
+   const MixedBilinearFormExtension &Ext() const
+   {
+      MFEM_VERIFY(ext, "ext is NULL and can't be dereferenced");
+      return *ext;
+   }
+
+   /** Returns a reference to the extension for assembly levels other than
+       AssemblyLevel::LEGACY. */
+   MixedBilinearFormExtension &Ext()
+   {
+      MFEM_VERIFY(ext, "ext is NULL and can't be dereferenced");
+      return *ext;
+   }
+
+   /// Returns true if the extension is not null, false otherwise.
+   bool HasExt() const { return ext != nullptr; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
@@ -822,41 +831,6 @@ public:
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
 
-   void Assemble(int skip_zeros = 1);
-
-   /** For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing A := P2^t A P1 where A is the internal
-       sparse matrix; P1 and P2 are the conforming prolongation matrices of the
-       trial and test FE spaces, respectively. After this call the
-       MixedBilinearForm becomes an operator on the conforming FE spaces. */
-   void ConformingAssemble();
-
-   /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
-       bilinear form and D is a diagonal. */
-   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
-
-   /// Get the input finite element space prolongation matrix
-   const Operator *GetProlongation() const override
-   { return trial_fes->GetProlongationMatrix(); }
-
-   /// Get the input finite element space restriction matrix
-   const Operator *GetRestriction() const override
-   { return trial_fes->GetRestrictionMatrix(); }
-
-   /// Get the test finite element space prolongation matrix
-   const Operator *GetOutputProlongation() const override
-   { return test_fes->GetProlongationMatrix(); }
-
-   /// Get the test finite element space restriction matrix
-   const Operator *GetOutputRestriction() const override
-   { return test_fes->GetRestrictionMatrix(); }
-
-   /// Compute the element matrix of the given element
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
-
-   /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
-
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
        added to the system matrix. The flag @a skip_zeros skips the zero
@@ -897,13 +871,34 @@ public:
                                  Array<int> &trial_vdofs, Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
-   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
-                           const Vector &sol, Vector &rhs);
+   void Assemble(int skip_zeros = 1);
 
-   void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
-                                          const Vector &sol, Vector &rhs);
+   /** For partially conforming trial and/or test FE spaces, complete the
+       assembly process by performing A := P2^t A P1 where A is the internal
+       sparse matrix; P1 and P2 are the conforming prolongation matrices of the
+       trial and test FE spaces, respectively. After this call the
+       MixedBilinearForm becomes an operator on the conforming FE spaces. */
+   void ConformingAssemble();
 
-   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+   /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
+       bilinear form and D is a diagonal. */
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
+   /// Get the input finite element space prolongation matrix
+   const Operator *GetProlongation() const override
+   { return trial_fes->GetProlongationMatrix(); }
+
+   /// Get the input finite element space restriction matrix
+   const Operator *GetRestriction() const override
+   { return trial_fes->GetRestrictionMatrix(); }
+
+   /// Get the test finite element space prolongation matrix
+   const Operator *GetOutputProlongation() const override
+   { return test_fes->GetProlongationMatrix(); }
+
+   /// Get the test finite element space restriction matrix
+   const Operator *GetOutputRestriction() const override
+   { return test_fes->GetRestrictionMatrix(); }
 
    /** @brief Form the linear system A X = B, corresponding to this mixed bilinear
        form and the linear form @a b(.).
@@ -1022,11 +1017,11 @@ public:
 class DiscreteLinearOperator : public MixedBilinearForm
 {
 private:
-   /// Copy construction is not supported; body is undefined.
-   DiscreteLinearOperator(const DiscreteLinearOperator &);
+   /// Copy construction is not supported.
+   DiscreteLinearOperator(const DiscreteLinearOperator &) = delete;
 
-   /// Copy assignment is not supported; body is undefined.
-   DiscreteLinearOperator &operator=(const DiscreteLinearOperator &);
+   /// Copy assignment is not supported.
+   DiscreteLinearOperator &operator=(const DiscreteLinearOperator &) = delete;
 
 public:
    /** @brief Construct a DiscreteLinearOperator on the given
@@ -1051,7 +1046,7 @@ public:
    /// Access all interpolators added with AddTraceFaceInterpolator().
    Array<BilinearFormIntegrator*> *GetTFI() { return GetTFBFI(); }
 
-   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
