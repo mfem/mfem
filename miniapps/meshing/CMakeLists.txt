@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -97,6 +97,12 @@ if (MFEM_USE_MPI)
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
+
+  add_mfem_miniapp(pmesh-fitting
+    MAIN pmesh-fitting.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pminimal-surface
     MAIN pminimal-surface.cpp

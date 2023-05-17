@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,8 @@
 // CONTRIBUTING.md for details.
 //
 // Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics. Serial.
-//   ./tmop-metric-magnitude -mid 2 -p 2.0
+//   ./tmop-metric-magnitude -mid 7   -pv 2.0 -par 0.5 -ps 4.0
+//   ./tmop-metric-magnitude -mid 321 -pv 2.0 -par 0.5 -ps 4.0
 //
 
 #include "mfem.hpp"
@@ -43,6 +44,9 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
+
+   MFEM_VERIFY(perturb_v > 0.0 && perturb_ar > 0.0 && perturb_s >= 1.0,
+               "Invalid input");
 
    // Setup metric.
    TMOP_QualityMetric *metric = NULL;
@@ -165,40 +169,38 @@ void Form2DJac(double perturb_v, double perturb_ar, double perturb_s,
 void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
                DenseMatrix &J)
 {
-   MFEM_ABORT("The 3D case is still not complete.");
-
    // Volume.
    const double volume = 1.0 * perturb_v;
 
    // Aspect Ratio - only in one direction, the others are uniform.
    const double ar_1 = 1.0 * perturb_ar,
-                ar_2 = 1.0 * perturb_ar;
+                ar_2 = 1.0,
+                ar_3 = 1.0;
 
    // Skew - only in one direction, the others are pi/2.
    const double skew_angle_12 = M_PI / 2.0 / perturb_s,
-                skew_angle_13 = M_PI / 2.0 / perturb_s,
-                skew_angle_23 = M_PI / 2.0 / perturb_s;
-   const double sin3 = sin(skew_angle_12)*sin(skew_angle_13)*sin(skew_angle_23);
+                skew_angle_13 = M_PI / 2.0,
+                skew_angle_23 = M_PI / 2.0;
 
    // Rotation - not done yet.
 
    J.SetSize(3);
    //
-   J(0, 0) = ar_1;
-   J(0, 1) = ar_2 * cos(skew_angle_12);
-   J(0, 2) = cos(skew_angle_13) / (ar_1 * ar_2) *
-             sqrt(sin3 / volume);
+   J(0, 0) = pow(ar_1, 1.0/3.0);
+   J(0, 1) = pow(ar_2, 1.0/3.0) * cos(skew_angle_12);
+   J(0, 2) = pow(ar_3, 1.0/3.0) * cos(skew_angle_13);
    //
    J(1, 0) = 0.0;
-   J(1, 1) = ar_2 * sin(skew_angle_12);
-   J(1, 2) = sin(skew_angle_13) * cos(skew_angle_23) / (ar_1 * ar_2) *
-             sqrt(sin3 / volume);
+   J(1, 1) = pow(ar_2, 1.0/3.0) * sin(skew_angle_12);
+   J(1, 2) = pow(ar_3, 1.0/3.0) * sin(skew_angle_13) * cos(skew_angle_23);
    //
    J(2, 0) = 0.0;
    J(2, 1) = 0.0;
-   J(2, 2) = sin(skew_angle_13) * sin(skew_angle_23) / (ar_1 * ar_2) *
-             sqrt(sin3/ volume);
+   J(2, 2) = pow(ar_3, 1.0/3.0) * sin(skew_angle_13) * sin(skew_angle_23);
    //
-   J *= sqrt(volume / sin3);
+
+   double sin3 = sin(skew_angle_12)*sin(skew_angle_13)*sin(skew_angle_23),
+          ar3  = pow(ar_1, 1.0/3.0) * pow(ar_2, 1.0/3.0) * pow(ar_3, 1.0/3.0);
+   J *= pow(volume / (sin3 * ar3), 1.0/3.0);
 }
 

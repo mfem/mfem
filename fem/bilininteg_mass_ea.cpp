@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,7 @@ static void EAMassAssemble1D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
    auto M = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -82,7 +82,7 @@ static void EAMassAssemble2D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
    auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -154,20 +154,51 @@ static void EAMassAssemble3D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
    auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      for (int d = 0; d < D1D; d++)
+      constexpr int DQ = T_D1D * T_Q1D;
+
+      // For quadratic and lower it's better to use registers but for higher-order you start to
+      // spill and it's better to use shared memory
+      constexpr bool USE_REG = DQ != 0 && DQ <= 12;
+      constexpr int MD1r = USE_REG ? MD1 : 1;
+      constexpr int MQ1r = USE_REG ? MQ1 : 1;
+      constexpr int MD1s = USE_REG ? 1 : MD1;
+      constexpr int MQ1s = USE_REG ? 1 : MQ1;
+
+      MFEM_SHARED double s_B[MQ1s][MD1s];
+      double r_B[MQ1r][MD1r];
+      double (*l_B)[MD1] = nullptr;
+      if (USE_REG)
       {
-         for (int q = 0; q < Q1D; q++)
+         for (int d = 0; d < D1D; d++)
          {
-            r_B[q][d] = B(q,d);
+            for (int q = 0; q < Q1D; q++)
+            {
+               r_B[q][d] = B(q,d);
+            }
          }
+         l_B = (double (*)[MD1])r_B;
       }
+      else
+      {
+         if (MFEM_THREAD_ID(z) == 0)
+         {
+            MFEM_FOREACH_THREAD(d,x,D1D)
+            {
+               MFEM_FOREACH_THREAD(q,y,Q1D)
+               {
+                  s_B[q][d] = B(q,d);
+               }
+            }
+         }
+         l_B = (double (*)[MD1])s_B;
+      }
+
       MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
       MFEM_FOREACH_THREAD(k1,x,Q1D)
       {
@@ -199,9 +230,9 @@ static void EAMassAssemble3D(const int NE,
                            {
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
-                                 val += r_B[k1][i1] * r_B[k1][j1]
-                                        * r_B[k2][i2] * r_B[k2][j2]
-                                        * r_B[k3][i3] * r_B[k3][j3]
+                                 val += l_B[k1][i1] * l_B[k1][j1]
+                                        * l_B[k2][i2] * l_B[k2][j2]
+                                        * l_B[k3][i3] * l_B[k3][j3]
                                         * s_D[k1][k2][k3];
                               }
                            }

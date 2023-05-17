@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,7 +100,7 @@ static void Eval2D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 2, NE):
               Reshape(q_der.Write(), VDIM, 2, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   MFEM_FORALL_2D(e, NE, NMAX, 1, 1,
+   mfem::forall_2D(NE, NMAX, 1, [=] MFEM_HOST_DEVICE (int e)
    {
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
@@ -248,7 +248,7 @@ static void Eval3D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 3, NE):
               Reshape(q_der.Write(), VDIM, 3, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   MFEM_FORALL_2D(e, NE, NMAX, 1, 1,
+   mfem::forall_2D(NE, NMAX, 1, [=] MFEM_HOST_DEVICE (int e)
    {
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;

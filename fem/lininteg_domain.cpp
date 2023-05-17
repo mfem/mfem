@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
    const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
    auto Y = Reshape(y, d,d, vdim, ne);
 
-   MFEM_FORALL_2D(e, ne, q, q, 1,
+   mfem::forall_2D(ne, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -101,12 +101,13 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
 
    auto Y = Reshape(y, d,d,d, vdim, ne);
 
-   MFEM_FORALL_2D(e, ne, q, q, 1,
+   mfem::forall_2D(ne, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQD = (Q >= D) ? Q : D;
 
       double u[D];
 
@@ -114,8 +115,8 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
       const DeviceMatrix Bt(sBt, d,q);
       kernels::internal::LoadB<D,Q>(d,q,B,sBt);
 
-      MFEM_SHARED double sQQQ[Q*Q*Q];
-      const DeviceCube QQQ(sQQQ, q,q,q);
+      MFEM_SHARED double sQQQ[MQD*MQD*MQD];
+      const DeviceCube QQQ(sQQQ, MQD, MQD, MQD);
 
       for (int c = 0; c < vdim; ++c)
       {

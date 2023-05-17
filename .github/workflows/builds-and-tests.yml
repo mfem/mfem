@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -84,6 +84,9 @@ jobs:
             mpi: par
             build-system: cmake
             hypre-target: int32
+            # This option can be set to pass additional configuration options to
+            # the MFEM configuration command.
+            # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -159,7 +162,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
-      uses: mfem/github-actions/build-hypre@v2.2
+      uses: mfem/github-actions/build-hypre@v2.4
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -168,7 +171,7 @@ jobs:
 
     - name: get hypre (Windows)
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
-      uses: mfem/github-actions/build-hypre@v2.2
+      uses: mfem/github-actions/build-hypre@v2.4
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -187,7 +190,7 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v2.2
+      uses: mfem/github-actions/build-metis@v2.4
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
@@ -214,7 +217,7 @@ jobs:
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v2.3
+      uses: mfem/github-actions/build-mfem@v2.4
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       with:
@@ -260,13 +263,15 @@ jobs:
       if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
-        cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
+        cd ${{ env.MFEM_TOP_DIR }}/build && \
+        ctest --output-on-failure -C ${CTEST_CONFIG} || \
+        ctest --rerun-failed --output-on-failure -C ${CTEST_CONFIG}
       shell: bash
 
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@v2.2
+      uses: mfem/github-actions/upload-coverage@v2.4
       with:
         name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
