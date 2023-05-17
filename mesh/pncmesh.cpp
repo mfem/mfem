@@ -17,6 +17,7 @@
 #include "pncmesh.hpp"
 #include "../general/binaryio.hpp"
 
+#include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
 
