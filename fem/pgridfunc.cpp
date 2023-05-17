@@ -492,7 +492,7 @@ void ParGridFunction::CountZones(Array<int> &zones_per_vdof) const
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
-                                    ParGridFunction &der)
+                                    ParGridFunction &der) const
 {
    Array<int> overlap;
    AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);

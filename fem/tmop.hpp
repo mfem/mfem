@@ -242,6 +242,24 @@ public:
 };
 
 /// 2D non-barrier metric without a type.
+class TMOP_Metric_000 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = |J|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const {return 0.0;}
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P = 0.0;}
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const {A = 0.0;}
+
+   virtual int Id() const { return 1; }
+};
+
+/// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
 protected:
@@ -1766,9 +1784,6 @@ protected:
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
-   //#ifdef MFEM_USE_MPI
-   //   ParGridFunction *surf_fit_grad, *surf_fit_hess;
-   //#endif
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;

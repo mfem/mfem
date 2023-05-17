@@ -430,7 +430,7 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(squircle_inside_circle_level_set);
    }
-   else if (surf_ls_type == 4) // cube inside sphere 
+   else if (surf_ls_type == 4) // cube inside sphere
    {
       ls_coeff = new FunctionCoefficient(csg_cubesph_smooth);
    }
@@ -756,11 +756,13 @@ int main (int argc, char *argv[])
       psubmesh->SetAttributes();
       num_active_glob = psubmesh->GetGlobalNE();
       neprocsubmesh = psubmesh->GetNE() > 0 ? 1 : 0;
-      MPI_Allreduce(MPI_IN_PLACE, &neprocsubmesh, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &neprocsubmesh, 1, MPI_INT, MPI_SUM,
+                    pmesh->GetComm());
 
       if (myid == 0)
       {
-         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<  endl;
+         std::cout << "Number of elements in the submesh 2: " << num_active_glob <<
+                   endl;
          std::cout << "k10-Number of ranks for submesh: " << neprocsubmesh << std::endl;
       }
 
@@ -1423,13 +1425,14 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   double surf_fit_err_avg, surf_fit_err_max;  
+   double surf_fit_err_avg, surf_fit_err_max;
    if (surface_fit_const > 0.0)
    {
       tmop_integ->GetSurfaceFittingErrors(surf_fit_err_avg, surf_fit_err_max);
       if (myid == 0)
       {
-         std::cout << "Avg fitting error Pre-Optimization: " << surf_fit_err_avg << std::endl
+         std::cout << "Avg fitting error Pre-Optimization: " << surf_fit_err_avg <<
+                   std::endl
                    << "Max fitting error Pre-Optimization: " << surf_fit_err_max << std::endl;
       }
    }
@@ -1555,14 +1558,17 @@ int main (int argc, char *argv[])
                 std::endl;
       std::cout << "k10-Time for TMOP Solve: " << TimeSolve.RealTime() << std::endl;
       std::cout << "k10-Number of elements in the mesh: " << neglob <<  endl;
-      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<  endl;
-      std::cout << "K10info-1: rs_levels, nranks, nranks_submesh, neglob, ne_submesh, Time, avg_fit_err, max_fit_err" << endl;
+      std::cout << "k10-Number of elements in the sub-mesh: " << num_active_glob <<
+                endl;
+      std::cout <<
+                "K10info-1: rs_levels, nranks, nranks_submesh, neglob, ne_submesh, Time, avg_fit_err, max_fit_err"
+                << endl;
       std::cout << "K10info-2: " << rs_levels << " " <<
-                                  nranks << " " << neprocsubmesh << " " <<
-                                  neglob << " " << num_active_glob << " " <<
-                                  TimeSolve.RealTime() << " " <<
-                                  surf_fit_err_avg << " " <<
-                                  surf_fit_err_max << endl;
+                nranks << " " << neprocsubmesh << " " <<
+                neglob << " " << num_active_glob << " " <<
+                TimeSolve.RealTime() << " " <<
+                surf_fit_err_avg << " " <<
+                surf_fit_err_max << endl;
    }
 
    // 18. Visualize the final mesh and metric values.

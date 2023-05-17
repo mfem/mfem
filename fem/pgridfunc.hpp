@@ -230,7 +230,7 @@ public:
    void CountZones(Array<int> &zones_per_vdof) const;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
-   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der) const;
 
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. If @a el is greater than or equal to the number

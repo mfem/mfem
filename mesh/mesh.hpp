@@ -1614,6 +1614,8 @@ public:
    /// Updates the vertex/node locations. Invokes NodesUpdated().
    void SetNodes(const Vector &node_coord);
 
+   void SetVerticesFromNodes();
+
    /// Return a pointer to the internal node GridFunction (may be NULL).
    /** If the mesh is straight-sided (low-order), it may not have a GridFunction
        for the nodes, in which case this function returns NULL. To ensure that

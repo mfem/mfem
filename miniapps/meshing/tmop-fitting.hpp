@@ -146,7 +146,7 @@ double csg_cubecylsph_smooth(const Vector &x)
    double dsph = x2.Norml2() - rsph;;/*x2.Norml2()*x2.Norml2() - rsph*rsph;*/
    //      return dsph; //return here for sphere
    double dcube = cube_dist(x, xcc, rcube);
-//    return std::max(dsph, dcube); // return here for sphere + cube
+   //    return std::max(dsph, dcube); // return here for sphere + cube
    double dist1 = std::max(dsph, dcube);
 
    //   return std::max(dsph, -10*dcube);
@@ -1158,7 +1158,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
 }
 
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
-                                       FunctionCoefficient &ls_coeff,
+                                       Coefficient &ls_coeff,
                                        ParGridFunction &distance_s,
                                        const int nDiffuse = 2,
                                        const int pLapOrder = 4,

@@ -8352,6 +8352,12 @@ void Mesh::SetNodes(const Vector &node_coord)
    NodesUpdated();
 }
 
+void Mesh::SetVerticesFromNodes()
+{
+    MFEM_VERIFY(Nodes, "Nodes are not set for the mesh yet.");
+    SetVerticesFromNodes(Nodes);
+}
+
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 {
    if (own_nodes) { delete Nodes; }

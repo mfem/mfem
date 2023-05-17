@@ -342,6 +342,10 @@ public:
    /// Set v = v1 - v2.
    friend void subtract(const Vector &v1, const Vector &v2, Vector &v);
 
+   /// Computes cross product of this vector with another 3D vector.
+   /// vout = this x vin.
+   void cross3D(const Vector &vin, Vector &vout) const;
+
    /// z = a * (x - y)
    friend void subtract(const double a, const Vector &x,
                         const Vector &y, Vector &z);
@@ -482,6 +486,7 @@ inline bool IsFinite(const double &val)
 {
    // isfinite didn't appear in a standard until C99, and later C++11. It wasn't
    // standard in C89 or C++98. PGI as of 14.7 still defines it as a macro.
+
 #ifdef isfinite
    return isfinite(val);
 #else
