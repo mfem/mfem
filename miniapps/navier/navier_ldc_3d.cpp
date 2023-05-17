@@ -22,9 +22,9 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 1;
-   int order = 3;
+   int order = 4;
    double kinvis = 1.0/50.0; //  = 1/Re
-   double t_final = 50 * 0.25e-2;
+   double t_final = 1000 * 0.25e-2;
    double dt = 0.25e-2;
    bool pa = true;
    bool ni = false;
@@ -99,8 +99,9 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh("../../data/inline-hex.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
-   *nodes *= 2.0;
-   *nodes -= 1.0;
+   // // next lines convert [0,1] to [-1,1]
+   // *nodes *= 2.0;
+   // *nodes -= 1.0;
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
