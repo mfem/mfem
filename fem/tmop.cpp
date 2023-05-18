@@ -2939,6 +2939,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                "Using both fitting approaches is not supported.");
 
    surf_fit_pos     = &pos;
+   pos.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker  = &smarker;
    surf_fit_coeff   = &coeff;
    delete surf_fit_limiter;
@@ -3043,19 +3044,16 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
 {
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
+   const FiniteElementSpace *fes =
+      (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
 #ifdef MFEM_USE_MPI
-   auto pfes =
-      dynamic_cast<const ParFiniteElementSpace *>(surf_fit_gf->FESpace());
+   auto pfes = dynamic_cast<const ParFiniteElementSpace *>(fes);
    bool parallel = (pfes) ? true : false;
 #endif
 
-   int dim;
+   int dim = fes->GetMesh()->Dimension();
    if (surf_fit_pos)
-   {
-      MFEM_VERIFY(surf_fit_pos->FESpace()->GetOrdering() == Ordering::byNODES,
-                  "Not supported below.");
-      dim = surf_fit_pos->FESpace()->GetMesh()->Dimension();
-   }
+   { MFEM_VERIFY(fes->GetOrdering() == Ordering::byNODES, "Not supported."); }
 
    const int node_cnt = surf_fit_marker->Size();
    err_max = 0.0;
@@ -3086,7 +3084,6 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
 
       err_max  = fmax(err_max, sigma_s);
       err_sum += sigma_s;
-
    }
 
 #ifdef MFEM_USE_MPI
