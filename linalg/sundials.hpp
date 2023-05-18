@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,15 +37,137 @@
 #include <arkode/arkode_arkstep.h>
 #include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
+#ifdef MFEM_USE_CUDA
+#include <sunmemory/sunmemory_cuda.h>
+#endif
 
 #include <functional>
+
+#if (SUNDIALS_VERSION_MAJOR < 6)
+
+/// (DEPRECATED) Map SUNDIALS version >= 6 datatypes and constants to
+/// version < 6 for backwards compatibility
+using ARKODE_ERKTableID = int;
+using ARKODE_DIRKTableID = int;
+constexpr ARKODE_ERKTableID ARKODE_ERK_NONE = -1;
+constexpr ARKODE_DIRKTableID ARKODE_DIRK_NONE = -1;
+constexpr ARKODE_ERKTableID ARKODE_FEHLBERG_13_7_8 = FEHLBERG_13_7_8;
+
+/// (DEPRECATED) There is no SUNContext in SUNDIALS version < 6 so set it to
+/// arbitrary type for more compact backwards compatibility
+using SUNContext = void*;
+
+#endif // SUNDIALS_VERSION_MAJOR < 6
 
 namespace mfem
 {
 
+#ifdef MFEM_USE_CUDA
+
 // ---------------------------------------------------------------------------
-// Base class for interfacing with SUNDIALS packages
+// SUNMemory interface class (used when CUDA is enabled)
 // ---------------------------------------------------------------------------
+class SundialsMemHelper
+{
+   /// The actual SUNDIALS object
+   SUNMemoryHelper h;
+
+public:
+
+   /// Default constructor -- object must be moved to
+   SundialsMemHelper() = default;
+
+   /// Require a SUNContext as an argument (rather than calling Sundials::GetContext)
+   /// to avoid undefined behavior during the construction of the Sundials singleton.
+   SundialsMemHelper(SUNContext context);
+
+   /// Implement move assignment
+   SundialsMemHelper(SundialsMemHelper&& that_helper);
+
+   /// Disable copy construction
+   SundialsMemHelper(const SundialsMemHelper& that_helper) = delete;
+
+   ~SundialsMemHelper() { if (h) { SUNMemoryHelper_Destroy(h); } }
+
+   /// Disable copy assignment
+   SundialsMemHelper& operator=(const SundialsMemHelper&) = delete;
+
+   /// Implement move assignment
+   SundialsMemHelper& operator=(SundialsMemHelper&& rhs);
+
+   /// Typecasting to SUNDIALS' SUNMemoryHelper type
+   operator SUNMemoryHelper() const { return h; }
+
+   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper, SUNMemory* memptr,
+                                      size_t memsize, SUNMemoryType mem_type
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                      , void* queue
+#endif
+                                     );
+
+   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                        , void* queue
+#endif
+                                       );
+
+};
+
+#else // MFEM_USE_CUDA
+
+// ---------------------------------------------------------------------------
+// Dummy SUNMemory interface class (used when CUDA is not enabled)
+// ---------------------------------------------------------------------------
+class SundialsMemHelper
+{
+public:
+
+   SundialsMemHelper() = default;
+
+   SundialsMemHelper(SUNContext context)
+   {
+      // Do nothing
+   }
+};
+
+#endif // MFEM_USE_CUDA
+
+
+/// Singleton class for SUNContext and SundialsMemHelper objects
+class Sundials
+{
+public:
+
+   /// Disable copy construction
+   Sundials(Sundials &other) = delete;
+
+   /// Disable copy assignment
+   void operator=(const Sundials &other) = delete;
+
+   /// Initializes SUNContext and SundialsMemHelper objects. Should be called at
+   /// the beginning of the calling program (after Mpi::Init if applicable)
+   static void Init();
+
+   /// Provides access to the SUNContext object
+   static SUNContext &GetContext();
+
+   /// Provides access to the SundialsMemHelper object
+   static SundialsMemHelper &GetMemHelper();
+
+private:
+   /// Returns a reference to the singleton instance of the class.
+   static Sundials &Instance();
+
+   /// Constructor called by Sundials::Instance (does nothing for version < 6)
+   Sundials();
+
+   /// Destructor called at end of calling program (does nothing for version < 6)
+   ~Sundials();
+
+   SUNContext context;
+   SundialsMemHelper memHelper;
+};
+
 
 /// Vector interface for SUNDIALS N_Vectors.
 class SundialsNVector : public Vector
@@ -676,19 +798,19 @@ public:
 
    /// Choose a specific Butcher table for an explicit RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, table_num = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
-   void SetERKTableNum(int table_num);
+       For example, table_id = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
+   void SetERKTableNum(ARKODE_ERKTableID table_id);
 
    /// Choose a specific Butcher table for a diagonally implicit RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, table_num = CASH_5_3_4 is 5-stage 4th order. */
-   void SetIRKTableNum(int table_num);
+       For example, table_id = CASH_5_3_4 is 5-stage 4th order. */
+   void SetIRKTableNum(ARKODE_DIRKTableID table_id);
 
    /// Choose a specific Butcher table for an IMEX RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, etable_num = ARK548L2SA_DIRK_8_4_5 and
-       itable_num = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
-   void SetIMEXTableNum(int etable_num, int itable_num);
+       For example, etable_id = ARK548L2SA_DIRK_8_4_5 and
+       itable_id = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
+   void SetIMEXTableNum(ARKODE_ERKTableID etable_id, ARKODE_DIRKTableID itable_id);
 
    /// Use a fixed time step size (disable temporal adaptivity).
    /** Use of this function is not recommended, since there is no assurance of

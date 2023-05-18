@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -240,7 +240,7 @@ public:
    virtual void Trim();
 
    /// Return total number of bytes allocated.
-   long MemoryUsage(bool with_base = true) const;
+   std::size_t MemoryUsage(bool with_base = true) const;
 
    int PrintMemoryDetail(bool with_base = true) const;
 
@@ -506,7 +506,7 @@ protected: // implementation
 
       void SetElements(const Array<int> &elems, NCMesh *ncmesh);
       void SetNCMesh(NCMesh* ncmesh) { eset.SetNCMesh(ncmesh); }
-      long MemoryUsage() const;
+      std::size_t MemoryUsage() const;
 
       typedef std::map<int, RebalanceDofMessage> Map;
 
@@ -540,7 +540,7 @@ protected: // implementation
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
 
-   long GroupsMemoryUsage() const;
+   std::size_t GroupsMemoryUsage() const;
 
    friend class NeighborRowMessage;
 };

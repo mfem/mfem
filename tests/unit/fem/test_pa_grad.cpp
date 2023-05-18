@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,7 +93,6 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    xv.Randomize();
    if (transpose)
    {
-      assembled_grad_mat.EnsureMultTranspose();
       assembled_grad_mat.MultTranspose(xv, assembled_y);
       pa_grad.MultTranspose(xv, pa_y);
    }

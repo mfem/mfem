@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,8 @@
 
 #ifndef MFEM_VTK
 #define MFEM_VTK
+
+#include <cstdint>
 
 #include "../fem/geom.hpp"
 #include "../general/binaryio.hpp"
@@ -37,6 +39,7 @@ struct VTKGeometry
    static const int TETRAHEDRON = 10;
    static const int CUBE = 12;
    static const int PRISM = 13;
+   static const int PYRAMID = 14;
    ///@}
 
    /// @name Legacy quadratic VTK geometric types
@@ -48,6 +51,7 @@ struct VTKGeometry
    static const int TRIQUADRATIC_CUBE = 29;
    static const int QUADRATIC_PRISM = 26;
    static const int BIQUADRATIC_QUADRATIC_PRISM = 32;
+   static const int QUADRATIC_PYRAMID = 27;
    ///@}
 
    /// @name Arbitrary-order VTK geometric types
@@ -58,6 +62,7 @@ struct VTKGeometry
    static const int LAGRANGE_TETRAHEDRON = 71;
    static const int LAGRANGE_CUBE = 72;
    static const int LAGRANGE_PRISM = 73;
+   static const int LAGRANGE_PYRAMID = 74;
    ///@}
    ///@}
 
@@ -142,7 +147,7 @@ template <typename T>
 void WriteBinaryOrASCII(std::ostream &os, std::vector<char> &buf, const T &val,
                         const char *suffix, VTKFormat format)
 {
-   if (format == VTKFormat::ASCII) { out << val << suffix; }
+   if (format == VTKFormat::ASCII) { os << val << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 

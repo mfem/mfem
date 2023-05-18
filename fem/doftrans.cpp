@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -339,8 +339,11 @@ ND_TriDofTransformation::TransformDual(double *v) const
 void
 ND_TriDofTransformation::InvTransformDual(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -432,8 +435,11 @@ ND_TetDofTransformation::TransformDual(double *v) const
 void
 ND_TetDofTransformation::InvTransformDual(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
