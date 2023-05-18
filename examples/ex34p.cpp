@@ -6,8 +6,8 @@
 //               mpirun -np 4 ex34p -o 2 -pa
 //
 // Device sample runs:
-//               mpirun -np 4 ex34p -pa -d cuda
-//               mpirun -np 4 ex34p -no-pa -d cuda
+//               mpirun -np 4 ex34p -o 2 -pa -d cuda
+//               mpirun -np 4 ex34p -o 2 -no-pa -d cuda
 //
 // Description:  This example code solves a simple magnetostatic problem
 //               curl curl A = J where the current density J is computed on a
@@ -49,9 +49,9 @@ using namespace std;
 using namespace mfem;
 
 void ComputeCurrentDensityOnSubMesh(int order,
-				    const Array<int> &phi0_attr,
-				    const Array<int> &phi1_attr,
-				    ParGridFunction &j_cond);
+                                    const Array<int> &phi0_attr,
+                                    const Array<int> &phi1_attr,
+                                    ParGridFunction &j_cond);
 
 int main(int argc, char *argv[])
 {
@@ -143,12 +143,12 @@ int main(int argc, char *argv[])
    if (phi0_attr.Size() == 0 &&
        strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
    {
-     phi0_attr.Append(2);
+      phi0_attr.Append(2);
    }
    if (phi1_attr.Size() == 0 &&
        strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
    {
-     phi1_attr.Append(23);
+      phi1_attr.Append(23);
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
                 << "window_title 'Conductor J'"
                 << "window_geometry 0 0 400 350" << flush;
    }
-   
+
    // 8. Define a parallel finite element space on the full mesh. Here we
    //    use the H(curl) finite elements for the vector potential and H(div)
    //    for the current density.
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       for (int i=0; i<sym_plane_attr.Size(); i++)
       {
-	ess_bdr[sym_plane_attr[i]-1] = 0;
+         ess_bdr[sym_plane_attr[i]-1] = 0;
       }
       fespace_nd.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -329,9 +329,9 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "\nSolving for magnetic vector potential "
-	   << "using CG with AMS" << endl;
+           << "using CG with AMS" << endl;
    }
-   
+
    // 14. Solve the system AX=B using PCG with an AMS preconditioner.
    if (pa)
    {
@@ -439,136 +439,136 @@ int main(int argc, char *argv[])
 }
 
 void ComputeCurrentDensityOnSubMesh(int order,
-				    const Array<int> &phi0_attr,
-				    const Array<int> &phi1_attr,
-				    ParGridFunction &j_cond)
+                                    const Array<int> &phi0_attr,
+                                    const Array<int> &phi1_attr,
+                                    ParGridFunction &j_cond)
 {
-  // Exract the finite element space and mesh on which j_cond is defined
-  ParFiniteElementSpace &fes_cond_rt = *j_cond.ParFESpace();
-  ParMesh &pmesh_cond = *fes_cond_rt.GetParMesh();
-  int myid = fes_cond_rt.GetMyRank();
-  int dim  = pmesh_cond.Dimension();
+   // Exract the finite element space and mesh on which j_cond is defined
+   ParFiniteElementSpace &fes_cond_rt = *j_cond.ParFESpace();
+   ParMesh &pmesh_cond = *fes_cond_rt.GetParMesh();
+   int myid = fes_cond_rt.GetMyRank();
+   int dim  = pmesh_cond.Dimension();
 
-  // Define a parallel finite element space on the SubMesh. Here we use the
-  // H1 finite elements for the electrostatic potential.
-  H1_FECollection fec_h1(order, dim);
-  ParFiniteElementSpace fes_cond_h1(&pmesh_cond, &fec_h1);
+   // Define a parallel finite element space on the SubMesh. Here we use the
+   // H1 finite elements for the electrostatic potential.
+   H1_FECollection fec_h1(order, dim);
+   ParFiniteElementSpace fes_cond_h1(&pmesh_cond, &fec_h1);
 
-  // Define the conductivity coefficient and the boundaries associated with
-  // the fixed potentials phi0 and phi1 which will drive the current.
-  ConstantCoefficient sigmaCoef(1.0);
-  Array<int> ess_bdr_phi(pmesh_cond.bdr_attributes.Max());
-  Array<int> ess_bdr_j(pmesh_cond.bdr_attributes.Max());
-  Array<int> ess_bdr_tdof_phi;
-  ess_bdr_phi = 0;
-  ess_bdr_j   = 1;
-  for (int i=0; i<phi0_attr.Size(); i++)
-  {
-    ess_bdr_phi[phi0_attr[i]-1] = 1;
-    ess_bdr_j[phi0_attr[i]-1] = 0;
-  }
-  for (int i=0; i<phi1_attr.Size(); i++)
-  {
-    ess_bdr_phi[phi1_attr[i]-1] = 1;
-    ess_bdr_j[phi1_attr[i]-1] = 0;
-  }
-  fes_cond_h1.GetEssentialTrueDofs(ess_bdr_phi, ess_bdr_tdof_phi);
+   // Define the conductivity coefficient and the boundaries associated with
+   // the fixed potentials phi0 and phi1 which will drive the current.
+   ConstantCoefficient sigmaCoef(1.0);
+   Array<int> ess_bdr_phi(pmesh_cond.bdr_attributes.Max());
+   Array<int> ess_bdr_j(pmesh_cond.bdr_attributes.Max());
+   Array<int> ess_bdr_tdof_phi;
+   ess_bdr_phi = 0;
+   ess_bdr_j   = 1;
+   for (int i=0; i<phi0_attr.Size(); i++)
+   {
+      ess_bdr_phi[phi0_attr[i]-1] = 1;
+      ess_bdr_j[phi0_attr[i]-1] = 0;
+   }
+   for (int i=0; i<phi1_attr.Size(); i++)
+   {
+      ess_bdr_phi[phi1_attr[i]-1] = 1;
+      ess_bdr_j[phi1_attr[i]-1] = 0;
+   }
+   fes_cond_h1.GetEssentialTrueDofs(ess_bdr_phi, ess_bdr_tdof_phi);
 
-  // Setup the bilinear form corresponding to -Div(sigma Grad phi)
-  ParBilinearForm a_h1(&fes_cond_h1);
-  a_h1.AddDomainIntegrator(new DiffusionIntegrator(sigmaCoef));
-  a_h1.Assemble();
+   // Setup the bilinear form corresponding to -Div(sigma Grad phi)
+   ParBilinearForm a_h1(&fes_cond_h1);
+   a_h1.AddDomainIntegrator(new DiffusionIntegrator(sigmaCoef));
+   a_h1.Assemble();
 
-  // Set the r.h.s. to zero 
-  ParLinearForm b_h1(&fes_cond_h1);
-  b_h1 = 0.0;
+   // Set the r.h.s. to zero
+   ParLinearForm b_h1(&fes_cond_h1);
+   b_h1 = 0.0;
 
-  // Setup the boundary conditions on phi
-  ConstantCoefficient one(1.0);
-  ConstantCoefficient zero(0.0);
-  ParGridFunction phi_h1(&fes_cond_h1);
-  phi_h1 = 0.0;
+   // Setup the boundary conditions on phi
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+   ParGridFunction phi_h1(&fes_cond_h1);
+   phi_h1 = 0.0;
 
-  Array<int> bdr0(pmesh_cond.bdr_attributes.Max()); bdr0 = 0;
-  for (int i=0; i<phi0_attr.Size(); i++)
-  {
-    bdr0[phi0_attr[i]-1] = 1;
-  }
-  phi_h1.ProjectBdrCoefficient(zero, bdr0);
+   Array<int> bdr0(pmesh_cond.bdr_attributes.Max()); bdr0 = 0;
+   for (int i=0; i<phi0_attr.Size(); i++)
+   {
+      bdr0[phi0_attr[i]-1] = 1;
+   }
+   phi_h1.ProjectBdrCoefficient(zero, bdr0);
 
-  Array<int> bdr1(pmesh_cond.bdr_attributes.Max()); bdr1 = 0;
-  for (int i=0; i<phi1_attr.Size(); i++)
-  {
-    bdr1[phi1_attr[i]-1] = 1;
-  }
-  phi_h1.ProjectBdrCoefficient(one, bdr1);
+   Array<int> bdr1(pmesh_cond.bdr_attributes.Max()); bdr1 = 0;
+   for (int i=0; i<phi1_attr.Size(); i++)
+   {
+      bdr1[phi1_attr[i]-1] = 1;
+   }
+   phi_h1.ProjectBdrCoefficient(one, bdr1);
 
-  // Solve the linear system using algebraic multigrid
-  {
-    if (myid == 0)
-    {
-      cout << "\nSolving for electric potential "
-	   << "using CG with AMG" << endl;
-    }
-    OperatorPtr A;
-    Vector B, X;
-    a_h1.FormLinearSystem(ess_bdr_tdof_phi, phi_h1, b_h1, A, X, B);
+   // Solve the linear system using algebraic multigrid
+   {
+      if (myid == 0)
+      {
+         cout << "\nSolving for electric potential "
+              << "using CG with AMG" << endl;
+      }
+      OperatorPtr A;
+      Vector B, X;
+      a_h1.FormLinearSystem(ess_bdr_tdof_phi, phi_h1, b_h1, A, X, B);
 
-    HypreBoomerAMG prec;
-    CGSolver cg(MPI_COMM_WORLD);
-    cg.SetRelTol(1e-12);
-    cg.SetMaxIter(2000);
-    cg.SetPrintLevel(1);
-    cg.SetPreconditioner(prec);
-    cg.SetOperator(*A);
-    cg.Mult(B, X);
-    a_h1.RecoverFEMSolution(X, b_h1, phi_h1);
-  }
+      HypreBoomerAMG prec;
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(prec);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a_h1.RecoverFEMSolution(X, b_h1, phi_h1);
+   }
 
-  // Solve for the current density J = -sigma Grad phi with boundary
-  // conditions J.n = 0 on the walls of the conductor but not on the
-  // ports where phi=0 and phi=1.
+   // Solve for the current density J = -sigma Grad phi with boundary
+   // conditions J.n = 0 on the walls of the conductor but not on the
+   // ports where phi=0 and phi=1.
 
-  // J will be computed in H(div) so we need an RT mass matrix
-  ParBilinearForm m_rt(&fes_cond_rt);
-  m_rt.AddDomainIntegrator(new VectorFEMassIntegrator);
-  m_rt.Assemble();
+   // J will be computed in H(div) so we need an RT mass matrix
+   ParBilinearForm m_rt(&fes_cond_rt);
+   m_rt.AddDomainIntegrator(new VectorFEMassIntegrator);
+   m_rt.Assemble();
 
-  // Assemble the (sigma Grad phi) operator
-  ParMixedBilinearForm d_h1(&fes_cond_h1, &fes_cond_rt);
-  d_h1.AddDomainIntegrator(new MixedVectorGradientIntegrator(sigmaCoef));
-  d_h1.Assemble();
+   // Assemble the (sigma Grad phi) operator
+   ParMixedBilinearForm d_h1(&fes_cond_h1, &fes_cond_rt);
+   d_h1.AddDomainIntegrator(new MixedVectorGradientIntegrator(sigmaCoef));
+   d_h1.Assemble();
 
-  // Compute the r.h.s, b_rt = sigma E = -sigma Grad phi
-  ParLinearForm b_rt(&fes_cond_rt);
-  d_h1.Mult(phi_h1, b_rt);
-  b_rt *= -1.0;
+   // Compute the r.h.s, b_rt = sigma E = -sigma Grad phi
+   ParLinearForm b_rt(&fes_cond_rt);
+   d_h1.Mult(phi_h1, b_rt);
+   b_rt *= -1.0;
 
-  // Apply the necessary boundary conditions and solve for J in H(div)
-  if (myid == 0)
-  {
-    cout << "\nSolving for current density in H(Div) "
-	 << "using diagonally scaled CG" << endl;
-    cout << "Size of linear system: "
-	 << fes_cond_rt.GlobalTrueVSize() << endl;
-  }
-  Array<int> ess_bdr_tdof_rt;
-  OperatorPtr M;
-  Vector B, X;
+   // Apply the necessary boundary conditions and solve for J in H(div)
+   if (myid == 0)
+   {
+      cout << "\nSolving for current density in H(Div) "
+           << "using diagonally scaled CG" << endl;
+      cout << "Size of linear system: "
+           << fes_cond_rt.GlobalTrueVSize() << endl;
+   }
+   Array<int> ess_bdr_tdof_rt;
+   OperatorPtr M;
+   Vector B, X;
 
-  fes_cond_rt.GetEssentialTrueDofs(ess_bdr_j, ess_bdr_tdof_rt);
-  
-  j_cond = 0.0;
-  m_rt.FormLinearSystem(ess_bdr_tdof_rt, j_cond, b_rt, M, X, B);
-      
-  HypreDiagScale prec;
-  
-  CGSolver cg(MPI_COMM_WORLD);
-  cg.SetRelTol(1e-12);
-  cg.SetMaxIter(2000);
-  cg.SetPrintLevel(1);
-  cg.SetPreconditioner(prec);
-  cg.SetOperator(*M);
-  cg.Mult(B, X);
-  m_rt.RecoverFEMSolution(X, b_rt, j_cond);
+   fes_cond_rt.GetEssentialTrueDofs(ess_bdr_j, ess_bdr_tdof_rt);
+
+   j_cond = 0.0;
+   m_rt.FormLinearSystem(ess_bdr_tdof_rt, j_cond, b_rt, M, X, B);
+
+   HypreDiagScale prec;
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   cg.SetPreconditioner(prec);
+   cg.SetOperator(*M);
+   cg.Mult(B, X);
+   m_rt.RecoverFEMSolution(X, b_rt, j_cond);
 }
