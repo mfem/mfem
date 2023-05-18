@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -98,6 +98,8 @@ public:
    {
       return MakeTrueOperator(ran_fes, dom_fes, BackwardOperator(), bw_t_oper);
    }
+
+   virtual bool SupportsBackwardsOperator() const { return true; }
 };
 
 
@@ -346,6 +348,8 @@ public:
    virtual const Operator &ForwardOperator();
 
    virtual const Operator &BackwardOperator();
+
+   virtual bool SupportsBackwardsOperator() const;
 private:
    void BuildF();
 };

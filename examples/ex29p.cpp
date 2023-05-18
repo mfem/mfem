@@ -1,4 +1,4 @@
-//                      MFEM Example 29 - Parallel Version
+//                       MFEM Example 29 - Parallel Version
 //
 // Compile with: make ex29p
 //

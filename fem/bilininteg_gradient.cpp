@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 
 using namespace std;
 
@@ -61,8 +62,8 @@ namespace mfem
    The shared memory (Smem) versions of the kernels differ from the regular
    versions in the following properties.
 
-   \b MFEM_FORALL is using only one level of parallelism.
-   \b MFEM_FORALL_ND uses an additional level of parallelism
+   \b mfem::forall is using only one level of parallelism.
+   \b mfem::forall_ND uses an additional level of parallelism
    \b MFEM_FOREACH_THREAD
 
    These macros allow automatic mapping of manually defined blocks to
@@ -86,7 +87,7 @@ static void PAGradientSetup2D(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
                   Reshape(c.Read(), NQ, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -121,7 +122,7 @@ static void PAGradientSetup3D(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1) :
                   Reshape(c.Read(), NQ,NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -209,44 +210,8 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
 
-   Vector coeff;
-
-   if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *trial_fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                    ne, ir->GetWeights(), geom->J, coeff, pa_data);
@@ -277,7 +242,7 @@ static void PAGradientApply2D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, 2, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -407,7 +372,7 @@ static void PAGradientApply3D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 3,3, NE);
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
@@ -607,7 +572,8 @@ static void SmemPAGradientApply3D(const int NE,
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
 
-   MFEM_FORALL_3D(e, NE, (Q1D>8)?8:Q1D, (Q1D>8)?8:Q1D, (Q1D>8)?8:Q1D,
+   mfem::forall_3D(NE, (Q1D>8)?8:Q1D, (Q1D>8)?8:Q1D, (Q1D>8)?8:Q1D,
+                   [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1DR = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -865,4 +831,3 @@ void GradientIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 }
 
 } // namespace mfem
-

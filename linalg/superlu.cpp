@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -149,7 +149,9 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
 
    // Create the SuperMatrix A by borrowing the internal data from a
    // hypre_CSRMatrix.
+   hypParMat.HostRead();
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   hypParMat.HypreRead();
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
    // For now, this method assumes that HYPRE_BigInt is int. Also, csr_op->num_cols
@@ -427,6 +429,15 @@ void SuperLUSolver::SetSymmetricPattern( bool sym )
    yes_no_t opt = sym?YES:NO;
 
    options->SymPattern = opt;
+}
+
+void SuperLUSolver::SetParSymbFact( bool par )
+{
+   superlu_dist_options_t * options = (superlu_dist_options_t*)optionsPtr_;
+
+   yes_no_t opt = par?YES:NO;
+
+   options->ParSymbFact = opt;
 }
 
 void SuperLUSolver::SetupGrid()

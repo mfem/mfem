@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -667,7 +667,7 @@ bool StringCompare(const char *s1, const char *s2)
    return strcmp(s1, s2) == 0;
 }
 
-/// Abstract base class for reading continguous arrays of (potentially
+/// Abstract base class for reading contiguous arrays of (potentially
 /// compressed, potentially base-64 encoded) binary data from a buffer into a
 /// destination array. The types of the source and destination arrays may be
 /// different (e.g. read data of type uint8_t into destination array of
@@ -1671,11 +1671,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             -1,-1, /* unsupported tetrahedral types */
             -1,-1, /* unsupported polygonal and polyhedral types */
             16,  /* 16-node third order quadrilateral (4 nodes associated with
-                    the vertices, 8 with the edges, 4 wth the face) */
+                    the vertices, 8 with the edges, 4 with the face) */
             25,  /* 25-node fourth order quadrilateral (4 nodes associated with
-                    the vertices, 12 with the edges, 9 wth the face) */
+                    the vertices, 12 with the edges, 9 with the face) */
             36,  /* 36-node fifth order quadrilateral (4 nodes associated with
-                    the vertices, 16 with the edges, 16 wth the face) */
+                    the vertices, 16 with the edges, 16 with the face) */
             -1,-1,-1, /* unsupported quadrilateral types */
             28,  /* 28-node sixth order complete triangle (3 nodes associated
                     with the vertices, 15 with the edges, 10 with the face) */
@@ -1688,15 +1688,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             66,  /* 66-node tenth order complete triangle (3 nodes associated
                     with the vertices, 27 with the edges, 36 with the face) */
             49,  /* 49-node sixth order quadrilateral (4 nodes associated with
-                    the vertices, 20 with the edges, 25 wth the face) */
+                    the vertices, 20 with the edges, 25 with the face) */
             64,  /* 64-node seventh order quadrilateral (4 nodes associated with
-                    the vertices, 24 with the edges, 36 wth the face) */
+                    the vertices, 24 with the edges, 36 with the face) */
             81,  /* 81-node eighth order quadrilateral (4 nodes associated with
-                    the vertices, 28 with the edges, 49 wth the face) */
+                    the vertices, 28 with the edges, 49 with the face) */
             100, /* 100-node ninth order quadrilateral (4 nodes associated with
-                    the vertices, 32 with the edges, 64 wth the face) */
+                    the vertices, 32 with the edges, 64 with the face) */
             121, /* 121-node tenth order quadrilateral (4 nodes associated with
-                    the vertices, 36 with the edges, 81 wth the face) */
+                    the vertices, 36 with the edges, 81 with the face) */
             -1,-1,-1,-1,-1, /* unsupported triangular types */
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
             7,   /* 7-node sixth order edge (2 nodes associated with the
@@ -2107,8 +2107,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     /*
-                     // MFEM does not support pyramids yet
                      case   7: el_order--; //   5-node pyramid
                      case  14: el_order--; //  14-node pyramid (2nd order)
                      case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2121,7 +2119,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         {
                            el_order--; // Gmsh does not define an order 10 pyr
                            elements_3D.push_back(
-                               new Pyramid(&vert_indices[0], phys_domain));
+                              new Pyramid(&vert_indices[0], phys_domain));
                            if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
@@ -2131,7 +2129,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     */
                      case 15: // 1-node point
                      {
                         elements_0D.push_back(
@@ -2336,8 +2333,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  /*
-                  // MFEM does not support pyramids yet
                   case   7: el_order--; //   5-node pyramid
                   case  14: el_order--; //  14-node pyramid (2nd order)
                   case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2350,7 +2345,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      {
                         el_order--;
                         elements_3D.push_back(
-                            new Pyramid(&vert_indices[0], phys_domain));
+                           new Pyramid(&vert_indices[0], phys_domain));
                         if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
@@ -2360,7 +2355,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  */
                   case 15: // 1-node point
                   {
                      elements_0D.push_back(
@@ -2563,16 +2557,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      vm = ho_wdg[el_order];
                      break;
-                  // case Element::PYRAMID:
-                  //    ho_verts = ho_verts_3D[el];
-                  //    el_order = ho_el_order_3D[el];
-                  //    if (ho_pyr[el_order])
-                  //    {
-                  //      ho_pyr[el_order] = new int[ho_verts->Size()];
-                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
-                  //    }
-                  //    vm = ho_pyr[el_order];
-                  //    break;
+                  case Element::PYRAMID:
+                     ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (!ho_pyr[el_order])
+                     {
+                        ho_pyr[el_order] = new int[ho_verts->Size()];
+                        GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
+                     }
+                     vm = ho_pyr[el_order];
+                     break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
@@ -2638,6 +2632,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
          ++n_partitions;
          ++elem_domain;
+         MFEM_CONTRACT_VAR(n_partitions);
+         MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
       else if (buff == "$Periodic") // Reading master/slave node pairs
@@ -2851,9 +2847,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int retval;
 
    // dummy string
-   char str_dummy[256];
+   constexpr size_t buf_size = 256;
+   char str_dummy[buf_size];
 
-   char temp_str[256];
+   char temp_str[buf_size];
    int temp_id;
 
    // open the file.
@@ -2897,14 +2894,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int previous_num_node_per_el = 0;
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      sprintf(temp_str, "num_el_in_blk%d", i+1);
+      snprintf(temp_str, buf_size, "num_el_in_blk%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_el_in_blk[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
-      sprintf(temp_str, "num_nod_per_el%d", i+1);
+      snprintf(temp_str, buf_size, "num_nod_per_el%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_node_per_el)))
       {
@@ -3051,7 +3048,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    size_t *num_side_in_ss  = new size_t[num_side_sets];
    for (int i = 0; i < (int) num_side_sets; i++)
    {
-      sprintf(temp_str, "num_side_ss%d", i+1);
+      snprintf(temp_str, buf_size, "num_side_ss%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_side_in_ss[i])))
       {
@@ -3086,7 +3083,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    for (int i = 0; i < (int) num_el_blk; i++)
    {
       elem_blk[i] = new int[num_el_in_blk[i] * num_node_per_el];
-      sprintf(temp_str, "connect%d", i+1);
+      snprintf(temp_str, buf_size, "connect%d", i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_blk[i])))
       {
@@ -3110,14 +3107,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       elem_ss[i] = new int[num_side_in_ss[i]];
       side_ss[i] = new int[num_side_in_ss[i]];
 
-      sprintf(temp_str, "elem_ss%d", i+1);
+      snprintf(temp_str, buf_size, "elem_ss%d", i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
-      sprintf(temp_str,"side_ss%d",i+1);
+      snprintf(temp_str, buf_size,"side_ss%d",i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, side_ss[i])))
       {

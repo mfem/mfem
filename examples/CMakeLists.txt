@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -39,6 +39,7 @@ list(APPEND ALL_EXE_SRCS
   ex29.cpp
   ex30.cpp
   ex31.cpp
+  ex33.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -75,6 +76,7 @@ if (MFEM_USE_MPI)
     ex30p.cpp
     ex31p.cpp
     ex32p.cpp
+    ex33p.cpp
     )
 endif()
 
@@ -198,4 +200,8 @@ endif()
 # Include the examples/superlu directory if SUPERLU is enabled.
 if (MFEM_USE_SUPERLU)
   add_subdirectory(superlu)
+endif()
+
+if(MFEM_USE_MOONOLITH)
+  add_subdirectory(moonolith)
 endif()
