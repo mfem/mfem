@@ -927,6 +927,132 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
 }
 
 
+void PipelinedPCGSolver::UpdateVectors()
+{
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+
+   r.SetSize(width, mt); r.UseDevice(true);
+   u.SetSize(width, mt); u.UseDevice(true);
+   w.SetSize(width, mt); w.UseDevice(true);
+   m.SetSize(width, mt); m.UseDevice(true);
+   n.SetSize(width, mt); n.UseDevice(true);
+
+   z.SetSize(width, mt); z.UseDevice(true);
+   q.SetSize(width, mt); q.UseDevice(true);
+   s.SetSize(width, mt); s.UseDevice(true);
+   p.SetSize(width, mt); p.UseDevice(true);
+}
+
+void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
+{
+  //std::cout<<"calling PipelinedPCGSolver::Mult "<<std::endl;
+  //Algorithm 4. Preconditioned pipelined CG
+
+  x.UseDevice(true);  
+
+  z = 0.0;
+  q = 0.0;
+  s = 0.0;
+  p = 0.0;
+
+  n = 0.0;
+  m = 0.0;
+  w = 0.0;
+  u = 0.0;
+  x = 0.0;
+  r = 0.0;
+  
+  oper->Mult(x, r);
+  subtract(b, r, r); // r = b - Ax
+
+  double initial_norm = Dot(r, r);
+  //std::cout<<"initial_norm = "<<initial_norm<<std::endl;
+  
+  prec->Mult(r, u); // u = inv(M) r
+  //u = r;
+  oper->Mult(u, w); // w = A u
+
+  double nom = 0;
+
+  double gamma = 0; //intialize so we may copy the value in the loop
+  double gamma_old; 
+  double delta;
+
+  double beta, alpha;
+  double alpha_old;  
+  
+  bool converged = false;
+  final_iter = max_iter;
+  for(int i = 0; i < max_iter; ++i )
+  {
+        
+    //Fuse these two operations below
+    gamma_old = gamma;    
+    gamma = Dot(r, u);
+    delta = Dot(w, u);
+
+    //std::cout<<"gamma "<<gamma<<" "<<gamma_old<<std::endl;
+    //std::cout<<"delta "<<delta<<" "<<delta_old<<std::endl;
+    
+    prec->Mult(w, m);
+    //m = w;
+    oper->Mult(m, n);
+
+    if( i > 0 ){
+      alpha_old = alpha;
+      
+      beta = gamma/gamma_old;
+      alpha = gamma/(delta - beta*gamma/alpha_old);
+    }else{
+      beta = 0;
+      alpha = gamma/delta;
+    }
+
+    //z_i = n_i + beta_i * z_{i-1}
+    add(n, beta, z, z);
+
+    //q_i = m_i + beta_i q_{i-1}
+    add(m, beta, q, q);
+
+    //s_i = w_i + beta_i s_{i-1}
+    add(w, beta, s, s);
+
+    //p_i = u_i + beta_i p_{i-1}
+    add(u, beta, p, p);
+
+    //x_{i+1} = x_i + alpha_i p_i
+    add(x, alpha, p, x);
+
+    //r_{i+1} = r_i - alpha_i s_i
+    add(r, (-alpha), s, r);
+
+    //u_{i+1} = u_i  - alpha_i q_i
+    add(u, (-alpha), q, u);
+
+    //w_{i+1} = w_i - alpha_i z_i
+    add(w, (-alpha), z, w);
+    
+    if(i == 0)
+    {
+      nom = sqrt(Dot(r, r));
+    }
+    //Check convergence - every 10 steps
+    if(i % 10 == 0)
+    {
+
+      double r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);      
+      
+      double betanom = Dot(r, r);
+      //Monitor(i, betanom, r, x);
+      std::cout<<"i = "<<i<<" betanorm = "<<betanom<<std::endl;
+      if(betanom <= r0 || i > max_iter) {   
+        break;
+      }
+    }
+  }
+  
+}
+
 inline void GeneratePlaneRotation(double &dx, double &dy,
                                   double &cs, double &sn)
 {
