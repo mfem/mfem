@@ -31,12 +31,6 @@
 //
 // Compile with: make mesh-fitting
 //
-// Sample runs:
-//   Adapted analytic shape:
-//     mesh-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted discrete size:
-//     mesh-fitting -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4
-
 //  Adaptive surface fitting:
 //    mesh-fitting -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
 //    mesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
@@ -282,22 +276,21 @@ int main(int argc, char *argv[])
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
-   FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
-   {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
-   }
-   else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+   MFEM_VERIFY(mesh_poly_deg >= 1,"Mesh order should at-least be 1.");
+   // Use an H1 space for mesh nodes
+   FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
                                                         mesh_node_ordering);
 
+   // use an L2 space for storing the order of elements (piecewise constant).
    L2_FECollection order_coll = L2_FECollection(0, dim);
    FiniteElementSpace order_space = FiniteElementSpace(mesh, &order_coll);
    GridFunction order_gf = GridFunction(&order_space);
    order_gf = mesh_poly_deg*1.0;
 
-   // P-Refine the mesh
+   // P-Refine the mesh - randomly
+   // We do this here just to make sure that the base mesh-optimization algorithm
+   // works for p-refined mesh
    if (prefine)
    {
       MFEM_VERIFY(surface_fit_const == 0.0,
@@ -315,33 +308,33 @@ int main(int argc, char *argv[])
       fespace->Update(false);
    }
 
+   // Define a transfer operator for updating gridfunctions after the mesh
+   // has been p-refined
    PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
 
-   // 4. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Curve the mesh based on the (optionally  p-refined) finite element space.
    mesh->SetNodalFESpace(fespace);
 
-   // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
-   Vector b(0);
-
-   // 6. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other degrees of freedom in the finite
+   // element space) as a finite element grid function in fespace. Note that
+   // changing x automatically changes the shapes of the mesh elements.
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
 
+   // Define a gridfunction to save the mesh at maximum order when some of the
+   // elements in the mesh are p-refined. We need this for now because some of
+   // mfem's output functions do not work for p-refined spaces.
    GridFunction *x_max_order = NULL;
    delete x_max_order;
    x_max_order = ProlongToMaxOrder(&x, 0);
    mesh->SetNodalGridFunction(x_max_order);
    mesh->SetNodalGridFunction(&x);
 
-   // 7. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in fespace. Note: this is partition-dependent.
+   // Define a vector representing the minimal local mesh size in the mesh
+   // nodes. We index the nodes using the scalar version of the degrees of
+   // freedom in fespace. Note: this is partition-dependent.
    //
-   //    In addition, compute average mesh size and total volume.
+   // In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
    double mesh_volume = 0.0;
@@ -365,27 +358,33 @@ int main(int argc, char *argv[])
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
    GridFunction rdm(fespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < fespace->GetNDofs(); i++)
+   if (jitter != 0.0)
    {
-      for (int d = 0; d < dim; d++)
-      {
-         rdm(fespace->DofToVDof(i,d)) *= h0(i);
-      }
+       rdm.Randomize();
+       rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+       rdm *= jitter;
+       rdm.HostReadWrite();
+       // Scale the random values to be of order of the local mesh size.
+       for (int i = 0; i < fespace->GetNDofs(); i++)
+       {
+          for (int d = 0; d < dim; d++)
+          {
+             rdm(fespace->DofToVDof(i,d)) *= h0(i);
+          }
+       }
+       Array<int> vdofs;
+       for (int i = 0; i < fespace->GetNBE(); i++)
+       {
+          // Get the vector degrees of freedom in the boundary element.
+          fespace->GetBdrElementVDofs(i, vdofs);
+          // Set the boundary values to zero.
+          for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+       }
+       x -= rdm;
    }
-   Array<int> vdofs;
-   for (int i = 0; i < fespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      fespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
+
+   // For parallel runs, we define the true-vector. This makes sure the data is
+   // consistent across processor boundaries.
    x.SetTrueVector();
    x.SetFromTrueVector();
 
@@ -397,23 +396,23 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
    }
 
-
    // 10. Store the starting (prior to the optimization) positions.
    GridFunction x0(fespace);
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
+   // First pick a metric
    double min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
       // T-metrics
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 80: metric = new TMOP_Metric_080(0.5); break;
-      case 303: metric = new TMOP_Metric_303; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 1: metric = new TMOP_Metric_001; break; //shape-metric
+      case 2: metric = new TMOP_Metric_002; break; //shape-metric
+      case 58: metric = new TMOP_Metric_058; break; // shape-metric
+      case 80: metric = new TMOP_Metric_080(0.5); break; //shape+size
+      case 303: metric = new TMOP_Metric_303; break; //shape
+      case 328: metric = new TMOP_Metric_328(0.5); break; //shape+size
       default:
          cout << "Unknown metric_id: " << metric_id << endl;
          return 3;
@@ -428,15 +427,9 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(dim == 3, "Incompatible metric for 2D meshes");
    }
 
+   // Next, select a target.
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
-   HessianCoefficient *adapt_coeff = NULL;
-   HRHessianCoefficient *hr_adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
-   FiniteElementSpace ind_fes(mesh, &ind_fec);
-   FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
-   GridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
-   GridFunction aspr3d(&ind_fesv);
 
    const AssemblyLevel al = AssemblyLevel::LEGACY;
 
@@ -445,45 +438,6 @@ int main(int argc, char *argv[])
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      case 4: // Analytic
-      {
-         target_t = TargetConstructor::GIVEN_FULL;
-         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, metric_id);
-         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
-         target_c = tc;
-         break;
-      }
-      case 5: // Discrete size 2D or 3D
-      {
-         target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         if (adapt_eval == 0)
-         {
-            tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         }
-         else
-         {
-#ifdef MFEM_USE_GSLIB
-            tc->SetAdaptivityEvaluator(new InterpolatorFP);
-#else
-            MFEM_ABORT("MFEM is not built with GSLIB.");
-#endif
-         }
-         if (dim == 2)
-         {
-            FunctionCoefficient size_coeff(discrete_size_2d);
-            size.ProjectCoefficient(size_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient size_coeff(discrete_size_3d);
-            size.ProjectCoefficient(size_coeff);
-         }
-         tc->SetSerialDiscreteTargetSize(size);
-         target_c = tc;
-         break;
-      }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
    if (target_c == NULL)
@@ -492,7 +446,9 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
 
+   // Define a TMOPIntegrator based on the metric and target.
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
+
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = NULL;
    switch (quad_type)
@@ -607,7 +563,6 @@ int main(int argc, char *argv[])
 
       tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
                                        surf_fit_coeff, *adapt_surface);
-      //      MFEM_ABORT(" ");
 
 
       if (prefine)
@@ -732,6 +687,7 @@ int main(int argc, char *argv[])
       }
       Array<int> ess_vdofs(n);
       n = 0;
+      Array<int> vdofs;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int nd = fespace->GetBE(i)->GetDof();
@@ -796,11 +752,18 @@ int main(int argc, char *argv[])
       S = minres;
    }
 
+   // Set up an empty right-hand side vector b, which is equivalent to b=0.
+   // We use this later when we solve the TMOP problem
+   Vector b(0);
+
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
-   if (surface_fit_const > 0.0 && surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_const > 0.0 && surface_fit_adapt)
+   {
+       solver.EnableAdaptiveSurfaceFitting();
+   }
    if (surface_fit_const > 0.0 && surface_fit_threshold > 0)
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
@@ -809,7 +772,6 @@ int main(int argc, char *argv[])
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
    {
-      // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
    // For untangling, the solver will update the min det(T) values.
@@ -907,8 +869,6 @@ int main(int argc, char *argv[])
    delete metric_coeff1;
    delete adapt_surface;
    delete target_c;
-   delete hr_adapt_coeff;
-   delete adapt_coeff;
    delete metric;
    delete fespace;
    delete fec;
