@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 //   mpirun -np 4 limit_fit
 //   mpirun -np 4 limit_fit -m square01-tri.mesh
 //   mpirun -np 4 limit_fit -m ./cube.mesh
-//   mpirun -np 4 limit_fit -m ./cube01_tet.mesh -rs 1
+//   mpirun -np 4 limit_fit -m ./cube_tet_4x4x4.mesh -rs 1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -24,8 +24,6 @@ using namespace std;
 char vishost[] = "localhost";
 int  visport   = 19916;
 int  wsize     = 350;
-
-int problem = 0;
 
 int main (int argc, char *argv[])
 {
@@ -43,8 +41,6 @@ int main (int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&mesh_poly_deg, "-o", "--order",

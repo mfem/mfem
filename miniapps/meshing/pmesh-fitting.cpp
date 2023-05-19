@@ -598,8 +598,7 @@ int main (int argc, char *argv[])
       if (!surf_bg_mesh)
       {
          tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
-                                          surf_fit_coeff,
-                                          *adapt_surface);
+                                          surf_fit_coeff, *adapt_surface);
       }
       else
       {
