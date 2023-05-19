@@ -4667,7 +4667,6 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
-      std::cout << surf_fit_gf_bg << " k10surffitbgstatus\n";
       if (surf_fit_gf_bg)
       {
          // Interpolate information for only DOFs marked for fitting.
