@@ -13,8 +13,8 @@
 //      Fitting of Selected Mesh Nodes to Specified Physical Positions
 //    ------------------------------------------------------------------
 //
-// This example fits a selected set of mesh nodes to given physical positions
-// while maintaining a valid mesh with good quality.
+// This example fits a selected set of the mesh nodes to given physical
+// positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
 //   mpirun -np 4 tmop-fit-position
@@ -34,7 +34,7 @@ int  wsize     = 350;
 
 int main (int argc, char *argv[])
 {
-   // 0. Initialize MPI.
+   // Initialize MPI.
    Mpi::Init();
    int myid = Mpi::WorldRank();
 
@@ -43,7 +43,7 @@ int main (int argc, char *argv[])
    int mesh_poly_deg = 2;
    int quad_order    = 5;
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -61,12 +61,14 @@ int main (int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
+   // Read and refine the mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    const int dim = pmesh.Dimension();
 
+   // Setup mesh curvature and GridFunction that stores the coordinates.
    FiniteElementCollection *fec_mesh;
    if (mesh_poly_deg <= 0)
    {
@@ -122,7 +124,7 @@ int main (int argc, char *argv[])
          else { coord_target(j_y) = y; }
       }
    }
-   // Show the target positions.
+   // Visualize the target positions.
    socketstream vis1;
    coord = coord_target;
    common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
@@ -130,23 +132,25 @@ int main (int argc, char *argv[])
                           0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
    coord = x0;
 
+   // TMOP setup.
    TMOP_QualityMetric *metric;
    if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
-   ConstantCoefficient one(1.0);
+   ConstantCoefficient fit_weight(100.0);
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
-   integ->EnableSurfaceFitting(coord_target, fit_marker, one);
+   integ->EnableSurfaceFitting(coord_target, fit_marker, fit_weight);
 
-   ParNonlinearForm a(&pfes_mesh);
-   a.AddDomainIntegrator(integ);
-
+   // Linear solver.
    MINRESSolver minres(pfes_mesh.GetComm());
    minres.SetMaxIter(100);
    minres.SetRelTol(1e-12);
    minres.SetAbsTol(0.0);
 
+   // Nonlinear solver.
+   ParNonlinearForm a(&pfes_mesh);
+   a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
       IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
@@ -159,15 +163,15 @@ int main (int argc, char *argv[])
    solver.EnableAdaptiveSurfaceFitting();
    solver.SetTerminationWithMaxSurfaceFittingError(1e-5);
 
+   // Solve.
    Vector b(0);
    coord.SetTrueVector();
    solver.Mult(b, coord.GetTrueVector());
    coord.SetFromTrueVector();
 
    socketstream vis2;
-   common::VisualizeField(vis2, "localhost", 19916, fit_marker_vis_gf,
-                          "Final mesh & marked DOFs (set at value 1)",
-                          400, 0, 400, 400, (dim == 2) ? "Rjm" : "");
+   common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
+                         400, 0, 400, 400);
 
    delete metric;
    return 0;
