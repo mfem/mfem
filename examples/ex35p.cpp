@@ -1,29 +1,14 @@
-//                       MFEM Example 22 - Parallel Version
+//                       MFEM Example 35 - Parallel Version
 //
-// Compile with: make ex22p
+// Compile with: make ex35p
 //
-// Sample runs:  mpirun -np 4 ex22p -m ../data/inline-segment.mesh -o 3
-//               mpirun -np 4 ex22p -m ../data/inline-tri.mesh -o 3
-//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3
-//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3 -p 1
-//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3 -p 2
-//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa
-//               mpirun -np 4 ex22p -m ../data/inline-tet.mesh -o 2
-//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2
-//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
-//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
-//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
-//               mpirun -np 4 ex22p -m ../data/inline-wedge.mesh -o 1
-//               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
-//               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
-//
-//   mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 1 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 2
-//   mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 1 -rp 1 -pbc '7 8 11 12' -p 2 -em 1 -f 0.4 -o 2
+// Sample runs:  mpirun -np 4 ex35p -p 0 -o 2
+//               mpirun -np 4 ex35p -p 0 -o 2 -pbc '22 23 24' -em 0
+//               mpirun -np 4 ex35p -p 1 -o 1 -rp 2
+//               mpirun -np 4 ex35p -p 1 -o 2
+//               mpirun -np 4 ex35p -p 2 -o 1 -rp 2 -c 15
 //
 // Device sample runs:
-//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa -d cuda
-//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa -d cuda
-//               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0 -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
@@ -40,72 +25,29 @@
 //
 //               In each case the field is driven by a forced oscillation, with
 //               angular frequency omega, imposed at the boundary or a portion
-//               of the boundary.
+//               of the boundary. The spatial variation of the boundary
+//               condition is computed as an eigenmode of an appropriate
+//               operator defined on a portion of the boundary i.e. a port
+//               boundary condition.
 //
 //               In electromagnetics the coefficients are typically named the
 //               permeability, mu = 1/a, permittivity, epsilon = b, and
 //               conductivity, sigma = c. The user can specify these constants
 //               using either set of names.
 //
+//               This example demonstrates how to transfer fields computed on
+//               a boundary generated SubMesh to the full mesh and apply them
+//               as boundary conditions. The default mesh and corresponding
+//               boundary attriburtes were chosen to verify proper behavior on
+//               both triangular and quadrilateral faces of tetrahedral,
+//               wedge-shaped, and hexahedral elements.
+//
 //               The example also demonstrates how to display a time-varying
 //               solution as a sequence of fields sent to a single GLVis socket.
 //
-//               We recommend viewing examples 1, 3 and 4 before viewing this
-//               example.
-//
-// The boundary surfaces labeled 7, 8, 11, and 12 are chosen because
-// they are made up of triangular faces of tetrahedra and prisms as
-// well as quadrilateral faces of prisms and hexahedra.
-//
-// Scalar case works in serial and parallel
-// mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 0 -o 2
-// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 0 -o 2
-//
-// Vector H(Div) works in serial. In parallel the convergence depends
-// on the number of processors (1 and 4 seem fine but 8 is much
-// slower).  Note that the "Full BC" output suggests that the port BC
-// is not imposing the correct vector quantities on surfaces 11 and 12
-// where the vector appears larger than expected. The normal component
-// of the vector BC is correct. On the other hand the tangential
-// components are non-zero and this would appear to be
-// incorrect. However, this is not necessarily incorrect. The
-// tangential components would also have contributions from the
-// non-boundary faces of the elements which make up the boundary
-// surface. These interior face DoFs are assume to be zero in the
-// "Full BC" output. However, the final solution vector will most
-// likely contain nonzero values for these DoFs which would alter the
-// tangential components of the final solution. Constraint equations
-// might be added to force these tangential values to be be zero but
-// this does not seem to be necessary when the field is sufficiently
-// resolved.
-//
-// Order 1
-// np its
-//  1 771
-//  2 615
-//  3 >1000
-//  4 493
-//  5 >1000
-//  6 195
-//
-// Order 2
-// np its
-//  1 343
-//  2 524
-//  3 >1000
-//  4 245
-//  5 >1000
-//
-// mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 2 -em 1 -f 0.5 -o 2
-// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7 8 11 12' -p 2 -em 1 -f 0.5 -o 2
-//
-// Vector H(Curl) works in serial fails in parallel
-// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 1
-// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 1 -rp 1 -pbc '7 8 11 12' -p 1 -em 1 -f 1 -o 2
-//
-//  mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 3 -rp 0 -pbc '21 22 24' -o 2 -em 5 -p 0 -f .25
-// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7' -o 2 -em 2 -p 2 -f .7
-//
+//               We recommend viewing examples 11, 13, and 22 before viewing
+//               this example.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -134,9 +76,9 @@ int main(int argc, char *argv[])
    int order = 1;
    Array<int> port_bc_attr;
    int prob = 0;
-   int mode = 0;
+   int mode = 1;
    double freq = -1.0;
-   double omega = 10.0;
+   double omega = 2.0 * M_PI;
    double a_coef = 0.0;
    bool herm_conv = true;
    bool slu_solver  = false;
@@ -196,13 +138,6 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
-
-   MFEM_VERIFY(prob >= 0 && prob <=2,
-               "Unrecognized problem type: " << prob);
 
    if ( a_coef != 0.0 )
    {
@@ -212,6 +147,23 @@ int main(int argc, char *argv[])
    {
       omega = 2.0 * M_PI * freq;
    }
+   if (port_bc_attr.Size() == 0 &&
+       strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+   {
+      port_bc_attr.SetSize(4);
+      port_bc_attr[0] =  7;
+      port_bc_attr[1] =  8;
+      port_bc_attr[2] = 11;
+      port_bc_attr[3] = 12;
+   }
+
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
+
+   MFEM_VERIFY(prob >= 0 && prob <=2,
+               "Unrecognized problem type: " << prob);
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
@@ -233,23 +185,22 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6a. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int l = 0; l < par_ref_levels; l++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
 
    // 6b. Extract a submesh covering a portion of the boundary
-   ParSubMesh *pmesh_port =
-      new ParSubMesh(ParSubMesh::CreateFromBoundary(*pmesh, port_bc_attr));
+   ParSubMesh pmesh_port(ParSubMesh::CreateFromBoundary(pmesh, port_bc_attr));
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements of
-   //    the specified order.
+   // 7a. Define a parallel finite element space on the parallel mesh. Here we
+   //     use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements
+   //     of the specified order.
    if (dim == 1 && prob != 0 )
    {
       if (myid == 0)
@@ -268,8 +219,8 @@ int main(int argc, char *argv[])
       case 2:  fec = new RT_FECollection(order - 1, dim);  break;
       default: break; // This should be unreachable
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_BigInt size = fespace->GlobalTrueVSize();
+   ParFiniteElementSpace fespace(&pmesh, fec);
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -299,20 +250,24 @@ int main(int argc, char *argv[])
                                                  FiniteElement::INTEGRAL); break;
       default: break; // This should be unreachable
    }
-   ParFiniteElementSpace *fespace_port =
-      new ParFiniteElementSpace(pmesh_port, fec_port);
-   HYPRE_BigInt size_port = fespace_port->GlobalTrueVSize();
+   ParFiniteElementSpace fespace_port(&pmesh_port, fec_port);
+   HYPRE_BigInt size_port = fespace_port.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element port BC unknowns: " << size_port
            << endl;
    }
 
-   ParGridFunction port_bc(fespace_port);
+   // 8a. Define a parallel grid function on the SubMesh which will contain
+   //     the field to be applied as a port boundary condition.
+   ParGridFunction port_bc(&fespace_port);
    port_bc = 0.0;
 
    SetPortBC(prob, dim, mode, port_bc);
 
+   // 8b. Save the SubMesh and associated port boundary condition in parallel.
+   //     This output can be viewed later using GLVis:
+   //        "glvis -np <np> -m port_mesh -g port_mode"
    {
       ostringstream mesh_name, port_name;
       mesh_name << "port_mesh." << setfill('0') << setw(6) << myid;
@@ -320,12 +275,13 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh_port->Print(mesh_ofs);
+      pmesh_port.Print(mesh_ofs);
 
       ofstream port_ofs(port_name.str().c_str());
       port_ofs.precision(8);
       port_bc.Save(port_ofs);
    }
+   // 8c. Send the port bc, computed on the SubMesh, to a GLVis server.
    if (visualization && dim == 3)
    {
       char vishost[] = "localhost";
@@ -333,37 +289,37 @@ int main(int argc, char *argv[])
       socketstream port_sock(vishost, visport);
       port_sock << "parallel " << num_procs << " " << myid << "\n";
       port_sock.precision(8);
-      port_sock << "solution\n" << *pmesh_port << port_bc
+      port_sock << "solution\n" << pmesh_port << port_bc
                 << "window_title 'Port BC'"
                 << "window_geometry 0 0 400 350" << flush;
    }
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
+   // 9. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
-   //    based on the type of mesh and the problem type.
+   //    using an eigenmode of the appropriate type computed on the SubMesh.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
-   if (pmesh->bdr_attributes.Size())
+   if (pmesh.bdr_attributes.Size())
    {
-      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 9. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system.
-   ParComplexLinearForm b(fespace, conv);
+   // 10. Set up the parallel linear form b(.) which corresponds to the
+   //     right-hand side of the FEM linear system.
+   ParComplexLinearForm b(&fespace, conv);
    b.Vector::operator=(0.0);
 
-   // 10. Define the solution vector u as a parallel complex finite element grid
-   //     function corresponding to fespace. Initialize u with initial guess of
-   //     1+0i or the exact solution if it is known.
-   ParComplexGridFunction u(fespace);
+   // 11a. Define the solution vector u as a parallel complex finite element
+   //      grid function corresponding to fespace. Initialize u to equal zero.
+   ParComplexGridFunction u(&fespace);
    u = 0.0;
-   pmesh_port->Transfer(port_bc, u.real());
-   if (true)
+   pmesh_port.Transfer(port_bc, u.real());
+
+   // 11b. Send the transferred port bc field to a GLVis server.
    {
-      ParGridFunction full_bc(fespace);
+      ParGridFunction full_bc(&fespace);
       ParTransferMap port_to_full(port_bc, full_bc);
 
       full_bc = 0.0;
@@ -376,21 +332,13 @@ int main(int argc, char *argv[])
          socketstream full_sock(vishost, visport);
          full_sock << "parallel " << num_procs << " " << myid << "\n";
          full_sock.precision(8);
-         full_sock << "solution\n" << *pmesh << full_bc
+         full_sock << "solution\n" << pmesh << full_bc
                    << "window_title 'Transferred BC'"
                    << "window_geometry 400 0 400 350"<< flush;
       }
    }
 
-   ConstantCoefficient zeroCoef(0.0);
-   ConstantCoefficient oneCoef(1.0);
-
-   Vector zeroVec(dim); zeroVec = 0.0;
-   Vector  oneVec(dim);  oneVec = 0.0; oneVec[(prob==2)?(dim-1):0] = 1.0;
-   VectorConstantCoefficient zeroVecCoef(zeroVec);
-   VectorConstantCoefficient oneVecCoef(oneVec);
-
-   // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
+   // 12. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the damped harmonic oscillator operator of the
    //     appropriate type:
    //
@@ -408,51 +356,51 @@ int main(int argc, char *argv[])
    ConstantCoefficient lossCoef(omega * sigma_);
    ConstantCoefficient negMassCoef(omega * omega * epsilon_);
 
-   ParSesquilinearForm *a = new ParSesquilinearForm(fespace, conv);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   ParSesquilinearForm a(&fespace, conv);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
-         a->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef),
-                                NULL);
-         a->AddDomainIntegrator(new MassIntegrator(massCoef),
-                                new MassIntegrator(lossCoef));
+         a.AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef),
+                               NULL);
+         a.AddDomainIntegrator(new MassIntegrator(massCoef),
+                               new MassIntegrator(lossCoef));
          break;
       case 1:
-         a->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef),
-                                NULL);
-         a->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
-                                new VectorFEMassIntegrator(lossCoef));
+         a.AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef),
+                               NULL);
+         a.AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
+                               new VectorFEMassIntegrator(lossCoef));
          break;
       case 2:
-         a->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef),
-                                NULL);
-         a->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
-                                new VectorFEMassIntegrator(lossCoef));
+         a.AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef),
+                               NULL);
+         a.AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
+                               new VectorFEMassIntegrator(lossCoef));
          break;
       default: break; // This should be unreachable
    }
 
-   // 12. Assemble the parallel bilinear form and the corresponding linear
+   // 13. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
-   a->Assemble();
+   a.Assemble();
 
    OperatorHandle A;
    Vector B, U;
 
-   a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
+   a.FormLinearSystem(ess_tdof_list, u, b, A, U, B);
 
    if (myid == 0)
    {
       cout << "Size of linear system: "
-           << 2 * fespace->GlobalTrueVSize() << endl << endl;
+           << 2 * fespace.GlobalTrueVSize() << endl << endl;
    }
 
    if (!slu_solver)
    {
-      // 13a. Set up the parallel bilinear form for the preconditioner
+      // 14a. Set up the parallel bilinear form for the preconditioner
       //      corresponding to the appropriate operator
       //
       //      0) A scalar H1 field
@@ -464,30 +412,30 @@ int main(int argc, char *argv[])
       //      2) A vector H(Div) field
       //         -Grad(a Div) - omega^2 b + i omega c
       //
-      ParBilinearForm *pcOp = new ParBilinearForm(fespace);
-      if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      ParBilinearForm pcOp(&fespace);
+      if (pa) { pcOp.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       switch (prob)
       {
          case 0:
-            pcOp->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
-            pcOp->AddDomainIntegrator(new MassIntegrator(massCoef));
-            pcOp->AddDomainIntegrator(new MassIntegrator(lossCoef));
+            pcOp.AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
+            pcOp.AddDomainIntegrator(new MassIntegrator(massCoef));
+            pcOp.AddDomainIntegrator(new MassIntegrator(lossCoef));
             break;
          case 1:
-            pcOp->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
-            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
-            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+            pcOp.AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
+            pcOp.AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
+            pcOp.AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
             break;
          case 2:
-            pcOp->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
-            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
-            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+            pcOp.AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
+            pcOp.AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
+            pcOp.AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
             break;
          default: break; // This should be unreachable
       }
-      pcOp->Assemble();
+      pcOp.Assemble();
 
-      // 13b. Define and apply a parallel FGMRES solver for AU=B with a block
+      // 14b. Define and apply a parallel FGMRES solver for AU=B with a block
       //     diagonal preconditioner based on the appropriate multigrid
       //     preconditioner from hypre.
       Array<int> blockTrueOffsets;
@@ -504,12 +452,12 @@ int main(int argc, char *argv[])
 
       if (pa)
       {
-         pc_r = new OperatorJacobiSmoother(*pcOp, ess_tdof_list);
+         pc_r = new OperatorJacobiSmoother(pcOp, ess_tdof_list);
       }
       else
       {
          OperatorHandle PCOp;
-         pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
+         pcOp.FormSystemMatrix(ess_tdof_list, PCOp);
 
          switch (prob)
          {
@@ -517,16 +465,16 @@ int main(int argc, char *argv[])
                pc_r = new HypreBoomerAMG(*PCOp.As<HypreParMatrix>());
                break;
             case 1:
-               pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
+               pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), &fespace);
                break;
             case 2:
                if (dim == 2 )
                {
-                  pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
+                  pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), &fespace);
                }
                else
                {
-                  pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), fespace);
+                  pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), &fespace);
                }
                break;
             default: break; // This should be unreachable
@@ -547,13 +495,11 @@ int main(int argc, char *argv[])
       fgmres.SetMaxIter(1000);
       fgmres.SetPrintLevel(1);
       fgmres.Mult(B, U);
-
-      delete pcOp;
    }
 #ifdef MFEM_USE_SUPERLU
    else
    {
-      // 13. Solve using a direct solver
+      // 14. Solve using a direct solver
       // Transform to monolithic HypreParMatrix
       HypreParMatrix *A_hyp = A.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       SuperLURowLocMatrix SA(*A_hyp);
@@ -567,12 +513,13 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 14. Recover the parallel grid function corresponding to U. This is the
+   // 15. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
-   a->RecoverFEMSolution(U, b, u);
+   a.RecoverFEMSolution(U, b, u);
 
-   // 15. Save the refined mesh and the solution in parallel. This output can be
-   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 16. Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_r" or
+   //     "glvis -np <np> -m mesh -g sol_i".
    {
       ostringstream mesh_name, sol_r_name, sol_i_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -581,7 +528,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh.Print(mesh_ofs);
 
       ofstream sol_r_ofs(sol_r_name.str().c_str());
       ofstream sol_i_ofs(sol_i_name.str().c_str());
@@ -591,7 +538,7 @@ int main(int argc, char *argv[])
       u.imag().Save(sol_i_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -599,7 +546,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock_r(vishost, visport);
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
-      sol_sock_r << "solution\n" << *pmesh << u.real()
+      sol_sock_r << "solution\n" << pmesh << u.real()
                  << "window_title 'Solution: Real Part'"
                  << "window_geometry 800 0 400 350" << flush;
 
@@ -608,20 +555,20 @@ int main(int argc, char *argv[])
       socketstream sol_sock_i(vishost, visport);
       sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_i.precision(8);
-      sol_sock_i << "solution\n" << *pmesh << u.imag()
+      sol_sock_i << "solution\n" << pmesh << u.imag()
                  << "window_title 'Solution: Imaginary Part'"
                  << "window_geometry 1200 0 400 350" << flush;
    }
    if (visualization)
    {
-      ParGridFunction u_t(fespace);
+      ParGridFunction u_t(&fespace);
       u_t = u.real();
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << u_t
+      sol_sock << "solution\n" << pmesh << u_t
                << "window_title 'Harmonic Solution (t = 0.0 T)'"
                << "window_geometry 0 432 600 450"
                << "pause\n" << flush;
@@ -639,20 +586,15 @@ int main(int argc, char *argv[])
          add(cos( 2.0 * M_PI * t), u.real(),
              sin(-2.0 * M_PI * t), u.imag(), u_t);
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock << "solution\n" << *pmesh << u_t
+         sol_sock << "solution\n" << pmesh << u_t
                   << "window_title '" << oss.str() << "'" << flush;
          i++;
       }
    }
 
-   // 17. Free the used memory.
-   delete a;
-   delete fespace_port;
+   // 18. Free the used memory.
    delete fec_port;
-   delete pmesh_port;
-   delete fespace;
    delete fec;
-   delete pmesh;
 
    return 0;
 }
@@ -840,6 +782,9 @@ void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
    delete M;
 }
 
+// Compute eigenmode "mode" of either a Dirichlet or Neumann Laplacian
+// or of a Dirichlet curl curl operator based on the problem type and
+// dimension of the domain.
 void SetPortBC(int prob, int dim, int mode, ParGridFunction &port_bc)
 {
    switch (prob)
