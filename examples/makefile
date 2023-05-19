@@ -183,3 +183,4 @@ clean-exec:
 	@rm -f ex23.mesh ex23-*.gf
 	@rm -f ex25.mesh ex25-*.gf ex25p-*.*
 	@rm -rf ex28_* ex28p_*
+	@rm -rf cond_mesh.* cond_j.* dsol.* port_mesh.* port_mode.*
