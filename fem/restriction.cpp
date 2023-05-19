@@ -837,7 +837,7 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.element[0].index;
 
-   int * h_vol_dof_map = vol_dof_map.HostRead();
+   const int * h_vol_dof_map = vol_dof_map.HostRead();
 
    for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
@@ -867,7 +867,7 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.element[0].index;
 
-   int * h_vol_dof_map = vol_dof_map.HostRead();
+   const int * h_vol_dof_map = vol_dof_map.HostRead();
 
    for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
