@@ -344,7 +344,7 @@ int main (int argc, char *argv[])
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
    }
-   mesh->EnsureNCMesh();
+   //   mesh->EnsureNCMesh();
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -430,6 +430,7 @@ int main (int argc, char *argv[])
    switch (metric_id)
    {
       // T-metrics
+      case 0: metric = new TMOP_Metric_000; break;
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
       case 55: metric = new TMOP_Metric_055; break;
@@ -752,6 +753,20 @@ int main (int argc, char *argv[])
             surf_fit_marker[dof_list[i]] = true;
             surf_fit_mat_gf(dof_list[i]) = 1.0;
          }
+
+         // Unify across processor boundaries
+         GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
+         Array<double> surf_fit_mat_gf_array(surf_fit_mat_gf.GetData(),
+                                             surf_fit_mat_gf.Size());
+         gcomm.Reduce<double>(surf_fit_mat_gf_array, GroupCommunicator::Max);
+         gcomm.Bcast(surf_fit_mat_gf_array);
+
+         surf_fit_mat_gf.ExchangeFaceNbrData();
+
+         for (int i = 0; i < surf_fit_mat_gf.Size(); i++)
+         {
+            surf_fit_marker[i] = surf_fit_mat_gf(i) == 1.0;
+         }
       }
       // Strategy 2: Mark all boundaries with attribute marking_type
       else if (marking_type > 0)
@@ -776,17 +791,19 @@ int main (int argc, char *argv[])
       if (adapt_eval == 0)
       {
          adapt_surface = new AdvectorCG;
-         MFEM_ASSERT(!surf_bg_mesh, "Background meshes require GSLIB.");
+         MFEM_VERIFY(!surf_bg_mesh, "Background meshes require GSLIB.");
       }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
-         if (surf_bg_mesh)
-         {
-            adapt_grad_surface = new InterpolatorFP;
-            adapt_hess_surface = new InterpolatorFP;
-         }
+         adapt_grad_surface = new InterpolatorFP;
+         adapt_hess_surface = new InterpolatorFP;
+         //         if (surf_bg_mesh)
+         //         {
+         //            adapt_grad_surface = new InterpolatorFP;
+         //            adapt_hess_surface = new InterpolatorFP;
+         //         }
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
@@ -797,7 +814,8 @@ int main (int argc, char *argv[])
       {
          tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
                                           surf_fit_coeff,
-                                          *adapt_surface);
+                                          *adapt_surface, adapt_grad_surface,
+                                          adapt_hess_surface);
       }
       else
       {
@@ -1047,6 +1065,7 @@ int main (int argc, char *argv[])
    if (surface_fit_adapt > 0.0)
    {
       solver.SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+      //      solver.SetAdaptiveSurfaceFittingRelativeChangeThreshold(0.01);
    }
    if (surface_fit_threshold > 0)
    {
@@ -1064,7 +1083,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
-   solver.SetMinimumDeterminantThreshold(0.001*tauval);
+   //   solver.SetMinimumDeterminantThreshold(0.001*tauval);
    if (solver_art_type > 0)
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
@@ -1081,8 +1100,8 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
-      //      pmesh->PrintAsSerial(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Compute the final energy of the functional.

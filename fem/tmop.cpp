@@ -3241,7 +3241,9 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
                                            Coefficient &coeff,
-                                           AdaptivityEvaluator &ae)
+                                           AdaptivityEvaluator &ae,
+                                           AdaptivityEvaluator *aegrad,
+                                           AdaptivityEvaluator *aehess)
 {
    delete surf_fit_gf;
    ParGridFunction *surf_fit_gf_dummy = new ParGridFunction(s0);
@@ -3258,10 +3260,22 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_gf_bg = false;
 
    SaveSurfaceFittingWeight();
-   if (surf_element_wise_gradient) { return; }
+   if (!aegrad) { return; }
+
+   // Store DOF indices that are marked for fitting. Used to reduce work for
+   // transferring information between source/background and current mesh.
+   surf_fit_marker_dof_index.SetSize(0);
+   for (int i = 0; i < surf_fit_marker->Size(); i++)
+   {
+      if ((*surf_fit_marker)[i] == true)
+      {
+         surf_fit_marker_dof_index.Append(i);
+      }
+   }
+
+
    // Define spaces for grad and hessian
    delete surf_fit_grad;
-   delete surf_fit_hess;
 
    int dim = s0.ParFESpace()->GetParMesh()->Dimension();
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
@@ -3287,6 +3301,17 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
 
+   surf_fit_eval_bg_grad = aegrad;
+   surf_fit_eval_bg_grad->SetParMetaInfo(*
+                                         (surf_fit_grad_dummy->ParFESpace()->GetParMesh()),
+                                         *(surf_fit_grad_dummy->ParFESpace()));
+   surf_fit_eval_bg_grad->SetInitialField
+   (*surf_fit_grad_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_grad_dummy);
+
+
+   MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
+               "also.");
+   delete surf_fit_hess;
    H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(),
                                                    dim,
                                                    fec->GetBasisType());
@@ -3297,8 +3322,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    ParGridFunction *surf_fit_hess_dummy = new ParGridFunction(fes_hess);
    surf_fit_hess_dummy->MakeOwner(fec_hess);
    surf_fit_hess = surf_fit_hess_dummy;
-   //   surf_fit_hess = new GridFunction(fes_hess);
-   //   surf_fit_hess->MakeOwner(fec_hess);
 
    int id = 0;
    for (int d = 0; d < dim; d++)
@@ -3311,6 +3334,14 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
          id++;
       }
    }
+
+   surf_fit_eval_bg_hess = aehess;
+   surf_fit_eval_bg_hess->SetParMetaInfo(
+      *surf_fit_hess_dummy->ParFESpace()->GetParMesh(),
+      *surf_fit_hess_dummy->ParFESpace());
+   surf_fit_eval_bg_hess->SetInitialField
+   (*surf_fit_hess_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_hess_dummy);
+   surf_fit_gf_bg = true;
 }
 
 void TMOP_Integrator::DisableSurfaceFitting()
@@ -3318,6 +3349,10 @@ void TMOP_Integrator::DisableSurfaceFitting()
    delete surf_fit_gf;
    surf_fit_gf = NULL;
    surf_fit_gf_bg = false;
+   delete surf_fit_grad;
+   surf_fit_grad = NULL;
+   delete surf_fit_hess;
+   surf_fit_hess = NULL;
 }
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
@@ -3592,8 +3627,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          {
             const IntegrationPoint &ip_s = ir_s.IntPoint(s);
             Tpr->SetIntPoint(&ip_s);
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      sigma_e(s) * sigma_e(s) * 1.0/surf_fit_dof_count[dofs[s]];;
+            double surf_fit_energy = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                                     sigma_e(s) * sigma_e(s) * 1.0/surf_fit_dof_count[dofs[s]];
+            energy += surf_fit_energy;
          }
       }
    }
@@ -4156,7 +4192,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   if (surf_fit_gf_bg || surf_fit_grad)
+   if (surf_fit_gf_bg)
    {
       surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
       surf_fit_grad->GetSubVector(dofs, grad_ptr);
@@ -4210,7 +4246,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys;
-   if (surf_fit_gf_bg || surf_fit_grad)
+   if (surf_fit_gf_bg)
    {
       surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
       surf_fit_grad->GetSubVector(dofs, grad_ptr);
@@ -4223,11 +4259,10 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
    DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
    Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
-   if (surf_fit_gf_bg || surf_fit_hess)
+   if (surf_fit_gf_bg)
    {
       surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
       surf_fit_hess->GetSubVector(dofs, hess_ptr);
-      surf_fit_hess_e.Transpose();
    }
    else
    {
@@ -4235,7 +4270,6 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       Mult(grad_phys, surf_fit_grad_e, surf_fit_hess_e);
       surf_fit_hess_e.SetSize(dof_s, dim * dim);
    }
-
 
    const IntegrationRule &ir = el_s.GetNodes();
 
@@ -4633,6 +4667,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
+      std::cout << surf_fit_gf_bg << " k10surffitbgstatus\n";
       if (surf_fit_gf_bg)
       {
          // Interpolate information for only DOFs marked for fitting.
@@ -4674,6 +4709,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
 
          surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
                                                      new_x_ordering);
+
          // Assumes surf_fit_grad and surf_fit_gf share the same space
          const int grad_dim = surf_fit_grad->VectorDim();
          const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4735,58 +4771,6 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
       else
       {
          surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
-         if (!surf_fit_grad) { return; }
-         const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
-
-         bool serial = true;
-#ifdef MFEM_USE_MPI
-         ParGridFunction *surf_fit_gf_par = dynamic_cast<ParGridFunction *>(surf_fit_gf);
-         if (surf_fit_gf_par)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               ParGridFunction surf_fit_grad_comp(surf_fit_gf_par->ParFESpace(),
-                                                  surf_fit_grad->GetData()+d*surf_fit_gf->Size());
-               surf_fit_gf_par->GetDerivative(1, d, surf_fit_grad_comp);
-            }
-            int id = 0;
-            for (int d = 0; d < dim; d++)
-            {
-               for (int idir = 0; idir < dim; idir++)
-               {
-                  ParGridFunction surf_fit_grad_comp(surf_fit_gf_par->ParFESpace(),
-                                                     surf_fit_grad->GetData()+d*surf_fit_gf->Size());
-                  ParGridFunction surf_fit_hess_comp(surf_fit_gf_par->ParFESpace(),
-                                                     surf_fit_hess->GetData()+id*surf_fit_gf->Size());
-                  surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
-                  id++;
-               }
-            }
-            serial = false;
-         } //
-#endif
-         if (serial)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               GridFunction surf_fit_grad_comp(surf_fit_gf->FESpace(),
-                                               surf_fit_grad->GetData()+d*surf_fit_gf->Size());
-               surf_fit_gf->GetDerivative(1, d, surf_fit_grad_comp);
-            }
-            int id = 0;
-            for (int d = 0; d < dim; d++)
-            {
-               GridFunction surf_fit_grad_comp(surf_fit_gf->FESpace(),
-                                               surf_fit_grad->GetData()+d*surf_fit_gf->Size());
-               for (int idir = 0; idir < dim; idir++)
-               {
-                  GridFunction surf_fit_hess_comp(surf_fit_gf->FESpace(),
-                                                  surf_fit_hess->GetData()+id*surf_fit_gf->Size());
-                  surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
-                  id++;
-               }
-            }
-         } //if serial
       }
    }
 }
