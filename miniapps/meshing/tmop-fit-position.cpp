@@ -9,11 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
+//    ------------------------------------------------------------------
+//      Fitting of Selected Mesh Nodes to Specified Physical Positions
+//    ------------------------------------------------------------------
+//
+// This example fits a selected set of mesh nodes to given physical positions
+// while maintaining a valid mesh with good quality.
+//
 // Sample runs:
-//   mpirun -np 4 limit_fit
-//   mpirun -np 4 limit_fit -m square01-tri.mesh
-//   mpirun -np 4 limit_fit -m ./cube.mesh
-//   mpirun -np 4 limit_fit -m ./cube_tet_4x4x4.mesh -rs 1
+//   mpirun -np 4 tmop-fit-position
+//   mpirun -np 4 tmop-fit-position -m square01-tri.mesh
+//   mpirun -np 4 tmop-fit-position -m ./cube.mesh
+//   mpirun -np 4 tmop-fit-position -m ./cube_tet_4x4x4.mesh -rs 1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -35,7 +42,6 @@ int main (int argc, char *argv[])
    int rs_levels     = 2;
    int mesh_poly_deg = 2;
    int quad_order    = 5;
-   bool fin_diff     = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -47,9 +53,6 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
-   args.AddOption(&fin_diff, "-fd", "--fd_approximation",
-                  "-no-fd", "--no-fd-approx",
-                  "Enable finite difference based derivative computations.");
    args.Parse();
    if (!args.Good())
    {
@@ -101,18 +104,17 @@ int main (int argc, char *argv[])
          {
             if (coord(j_y) < 0.5)
             {
-               coord_target(j_y) = 0.1 * std::sin(4 * M_PI * x) *
-                                         std::cos(M_PI * z);
+               coord_target(j_y) = 0.1 * sin(4 * M_PI * x) * cos(M_PI * z);
             }
             else
             {
                if (coord(j_x) < 0.5)
                {
-                  coord_target(j_y) = 1.0 + 0.1 * std::sin(2 * M_PI * x);
+                  coord_target(j_y) = 1.0 + 0.1 * sin(2 * M_PI * x);
                }
                else
                {
-                  coord_target(j_y) = 1.0 + 0.1 * std::sin(2 * M_PI * (x + 0.5));
+                  coord_target(j_y) = 1.0 + 0.1 * sin(2 * M_PI * (x + 0.5));
                }
 
             }
@@ -124,7 +126,8 @@ int main (int argc, char *argv[])
    socketstream vis1;
    coord = coord_target;
    common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
-                          "Marked dofs", 0, 0, 300, 300);
+                          "Target positions (DOFS with value 1)",
+                          0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
    coord = x0;
 
    TMOP_QualityMetric *metric;
@@ -135,7 +138,6 @@ int main (int argc, char *argv[])
    ConstantCoefficient one(1.0);
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
    integ->EnableSurfaceFitting(coord_target, fit_marker, one);
-   if (fin_diff) { integ->EnableFiniteDifferences(coord); }
 
    ParNonlinearForm a(&pfes_mesh);
    a.AddDomainIntegrator(integ);
@@ -162,16 +164,10 @@ int main (int argc, char *argv[])
    solver.Mult(b, coord.GetTrueVector());
    coord.SetFromTrueVector();
 
-   char title[] = "Final metric values";
-   vis_tmop_metric_p(mesh_poly_deg, *metric, target, pmesh, title, 600);
-
-   Vector zvec(dim); zvec = 0.0;
-   VectorConstantCoefficient zero(zvec);
-   double norm = coord.ComputeL1Error(zero);
-   if (myid == 0)
-   {
-      std::cout << setprecision(12) << "L1 norm = " << norm << std::endl;
-   }
+   socketstream vis2;
+   common::VisualizeField(vis2, "localhost", 19916, fit_marker_vis_gf,
+                          "Final mesh & marked DOFs (set at value 1)",
+                          400, 0, 400, 400, (dim == 2) ? "Rjm" : "");
 
    delete metric;
    return 0;
