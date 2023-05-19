@@ -145,8 +145,8 @@ TEST_CASE("HypreBoomerAMG", "[Parallel], [HypreBoomerAMG]")
 
       a.RecoverFEMSolution(X, b, x);
 
-      double err = x.ComputeL2Error(sin3dCoef);
-      REQUIRE(fabs(err - err0) < 1e-6 * err0);
+      double err1 = x.ComputeL2Error(sin3dCoef);
+      REQUIRE(fabs(err1 - err0) < 1e-6 * err0);
    }
 }
 
@@ -213,8 +213,8 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
 
       a.RecoverFEMSolution(X, b, x);
 
-      double err = x.ComputeL2Error(sinCoef);
-      REQUIRE(fabs(err - err0) < 1e-6 * err0);
+      double err1 = x.ComputeL2Error(sinCoef);
+      REQUIRE(fabs(err1 - err0) < 1e-6 * err0);
    }
 }
 
@@ -278,8 +278,8 @@ TEST_CASE("HypreADS", "[Parallel], [HypreADS]")
 
       a.RecoverFEMSolution(X, b, x);
 
-      double err = x.ComputeL2Error(sin3dCoef);
-      REQUIRE(fabs(err - err0) < 1e-6 * err0);
+      double err1 = x.ComputeL2Error(sin3dCoef);
+      REQUIRE(fabs(err1 - err0) < 1e-6 * err0);
    }
 }
 
