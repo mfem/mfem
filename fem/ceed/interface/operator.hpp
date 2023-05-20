@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,8 @@ public:
    Operator(CeedOperator op);
 #endif
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
-   void AddMult(const mfem::Vector &x, mfem::Vector &y) const;
+   void AddMult(const mfem::Vector &x, mfem::Vector &y,
+                const double a = 1.0) const override;
    void GetDiagonal(mfem::Vector &diag) const;
    using mfem::Operator::SetupRAP;
    virtual ~Operator()

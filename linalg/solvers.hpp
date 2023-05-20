@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -159,11 +159,12 @@ protected:
    ///@}
 
    /// @name Solver statistics (protected attributes)
+   /// Every IterativeSolver is expected to define these in its Mult() call.
    ///@{
 
-   mutable int final_iter;
-   mutable bool converged;
-   mutable double final_norm;
+   mutable int final_iter = -1;
+   mutable bool converged = false;
+   mutable double initial_norm = -1.0, final_norm = -1.0;
 
    ///@}
 
@@ -241,11 +242,38 @@ public:
    virtual void SetPrintLevel(PrintLevel);
    ///@}
 
-   /// @name Solver statistics
+   /// @name Solver statistics.
+   /// These are valid after the call to Mult().
    ///@{
+
+   /// Returns the number of iterations taken during the last call to Mult()
    int GetNumIterations() const { return final_iter; }
+   /// Returns true if the last call to Mult() converged successfully.
    bool GetConverged() const { return converged; }
+   /// @brief Returns the initial residual norm from the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), computed before the start of the
+   /// iteration.
+   double GetInitialNorm() const { return initial_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), corresponding to the returned
+   /// solution.
    double GetFinalNorm() const { return final_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult(), divided by the initial residual norm.
+   /// Returns -1 if one of these norms is left undefined by the solver.
+   ///
+   /// @sa GetFinalNorm(), GetInitialNorm()
+   double GetFinalRelNorm() const
+   {
+      if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
+      return final_norm / initial_norm;
+   }
+
    ///@}
 
    /// This should be called before SetOperator
@@ -765,6 +793,9 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, double cf,
            double &tol, double &atol, int printit);
 
+#ifdef MFEM_USE_HIOP
+class HiopOptimizationProblem;
+#endif
 
 /** Defines operators and constraints for the following optimization problem:
  *
@@ -784,10 +815,24 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *  the operators are expected to be defined for tdof vectors. */
 class OptimizationProblem
 {
+#ifdef MFEM_USE_HIOP
+   friend class HiopOptimizationProblem;
+#endif
+
+private:
+   /// See NewX().
+   mutable bool new_x = true;
+
 protected:
    /// Not owned, some can remain unused (NULL).
    const Operator *C, *D;
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
+
+   /// Implementations of CalcObjective() and CalcObjectiveGrad() can use this
+   /// method to check if the argument Vector x has been changed after the last
+   /// call to CalcObjective() or CalcObjectiveGrad().
+   /// The result is on by default, and gets set by the OptimizationSolver.
+   bool NewX() const { return new_x; }
 
 public:
    const int input_size;
@@ -1196,6 +1241,7 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+   using Operator::Mult;
 };
 #endif // MFEM_USE_MPI
 

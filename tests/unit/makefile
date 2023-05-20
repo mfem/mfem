@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -120,9 +120,9 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-$(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
+$(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
-	$(CCC) $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
+	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
 	   $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
@@ -131,11 +131,11 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) \
  $(PCUDA_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
  $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
 # Template rule for devices
 # SEDOV Template rule for devices
@@ -150,7 +150,7 @@ sedov_tests_$(1): unit_test_main.o $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call sedov_tests,cpu,CPU,cpu))
@@ -167,7 +167,7 @@ psedov_tests_$(1): punit_test_main.o $$(PAR_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call psedov_tests,cpu,CPU,cpu))
@@ -193,7 +193,7 @@ tmop_pa_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call tmop_pa_tests,cpu,CPU,cpu))
@@ -211,7 +211,7 @@ ptmop_pa_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call ptmop_pa_tests,cpu,CPU,cpu))

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ protected:
 public:
 
    /// Method probing for assembly on device
-   virtual bool SupportsDevice() { return false; }
+   virtual bool SupportsDevice() const { return false; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -121,7 +121,7 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
-   virtual bool SupportsDevice() { return true; }
+   virtual bool SupportsDevice() const { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -154,7 +154,7 @@ public:
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool SupportsDevice() { return true; }
+   virtual bool SupportsDevice() const { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -187,6 +187,13 @@ public:
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -209,6 +216,13 @@ public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
+
+   virtual bool SupportsDevice() const { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -248,7 +262,7 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool SupportsDevice() { return true; }
+   virtual bool SupportsDevice() const { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -282,7 +296,7 @@ public:
    VectorDomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool SupportsDevice() override { return true; }
+   virtual bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -347,6 +361,12 @@ public:
    virtual void AssembleDeltaElementVect(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          Vector &elvect);
+
+   virtual bool SupportsDevice() const { return true; }
+
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -442,6 +462,12 @@ public:
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   virtual bool SupportsDevice() const { return true; }
+
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 };
 
 /// Class for boundary integration \f$ L(v) = (n \times f, v) \f$

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,6 +91,9 @@ public:
    /// Deep copy from a braced init-list of convertible type
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
+
+   /// Move constructor ("steals" data from 'src')
+   inline Array(Array<T> &&src) { Swap(src, *this); }
 
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
@@ -344,7 +347,7 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 
 
 /// Utility function similar to std::as_const in c++17.
-template <typename T> const T &AsConst(T &a) { return a; }
+template <typename T> const T &AsConst(const T &a) { return a; }
 
 
 template <class T>
@@ -366,6 +369,8 @@ private:
 public:
    Array2D() { M = N = 0; }
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
+
+   Array2D(const Array2D &) = default;
 
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
@@ -872,9 +877,8 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
    size = master.size;
-   data.ClearOwnerFlags();
+   data.MakeAlias(master.GetMemory(), 0, size);
 }
 
 template <class T>

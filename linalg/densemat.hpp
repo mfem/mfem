@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,19 +142,35 @@ public:
    void Mult(const double *x, double *y) const;
 
    /// Matrix vector multiplication.
+   void Mult(const double *x, Vector &y) const;
+
+   /// Matrix vector multiplication.
+   void Mult(const Vector &x, double *y) const;
+
+   /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const double *x, double *y) const;
 
    /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const double *x, Vector &y) const;
+
+   /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const Vector &x, double *y) const;
+
+   /// Multiply a vector with the transpose matrix.
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
-   /// y += A.x
-   void AddMult(const Vector &x, Vector &y) const;
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
-   /// y += A^t x
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   /// y += a * A.x
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// y += a * A^t x
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
@@ -180,7 +196,7 @@ public:
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const
-   { return InnerProduct((const double *)x, (const double *)y); }
+   { return InnerProduct(x.GetData(), y.GetData()); }
 
    /// Returns a pointer to the inverse matrix.
    virtual MatrixInverse *Inverse() const;
@@ -207,8 +223,12 @@ public:
       Set(alpha, A.GetData());
    }
 
-   /// Adds the matrix A multiplied by the number c to the matrix
+   /// Adds the matrix A multiplied by the number c to the matrix.
    void Add(const double c, const DenseMatrix &A);
+
+   /// Adds the matrix A multiplied by the number c to the matrix,
+   /// assuming A has the same dimensions and uses column-major layout.
+   void Add(const double c, const double *A);
 
    /// Sets the matrix elements equal to constant c
    DenseMatrix &operator=(double c);
@@ -231,6 +251,13 @@ public:
 
    /// Take the 2-norm of the columns of A and store in v
    void Norm2(double *v) const;
+
+   /// Take the 2-norm of the columns of A and store in v
+   void Norm2(Vector &v) const
+   {
+      MFEM_ASSERT(v.Size() == Width(), "incompatible Vector size!");
+      Norm2(v.GetData());
+   }
 
    /// Compute the norm ||A|| = max_{ij} |A_{ij}|
    double MaxMaxNorm() const;
@@ -321,8 +348,13 @@ public:
    /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
        CurlShape matrix. If *this is a N by D matrix, then curl is a D*N by
        D*(D-1)/2 matrix. The size of curl must be set outside. The dimension D
-       can be either 2 or 3. */
+       can be either 2 or 3. In 2D this computes the scalar-valued curl of a
+       2D vector field */
    void GradToCurl(DenseMatrix &curl);
+   /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
+       CurlShape matrix. This computes the vector-valued curl of a scalar field.
+       *this is N by 2 matrix and curl is N by 2 matrix as well. */
+   void GradToVectorCurl2D(DenseMatrix &curl);
    /** Given a DShape matrix (from a scalar FE), stored in *this,
        returns the DivShape vector. If *this is a N by dim matrix,
        then div is a dim*N vector. The size of div must be set
@@ -355,6 +387,55 @@ public:
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
+   /** Get the square submatrix which corresponds to the given indices @a idx.
+       Note: the @a A matrix will be resized to accommodate the data */
+   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const;
+
+   /** Get the rectangular submatrix which corresponds to the given indices
+      @a idx_i and @a idx_j. Note: the @a A matrix will be resized to
+      accommodate the data */
+   void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     DenseMatrix & A) const;
+
+   /** Get the square submatrix which corresponds to the range
+       [ @a ibeg, @a iend ). Note: the @a A matrix will be resized
+        to accommodate the data */
+   void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
+
+   /** Get the square submatrix which corresponds to the range
+      i ∈ [ @a ibeg, @a iend ) and j ∈ [ @a jbeg, @a jend )
+      Note: the @a A matrix will be resized to accommodate the data */
+   void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
+
+   /// Set (*this)(idx[i],idx[j]) = A(i,j)
+   void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+
+   /// Set (*this)(idx_i[i],idx_j[j]) = A(i,j)
+   void SetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+
+   /** Set a submatrix of (this) to the given matrix @a A
+       with row and column offset @a ibeg */
+   void SetSubMatrix(int ibeg, const DenseMatrix & A);
+
+   /** Set a submatrix of (this) to the given matrix @a A
+       with row and column offset @a ibeg and @a jbeg respectively */
+   void SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
+   /// (*this)(idx[i],idx[j]) += A(i,j)
+   void AddSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+
+   /// (*this)(idx_i[i],idx_j[j]) += A(i,j)
+   void AddSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+
+   /** Add the submatrix @a A to this with row and column offset @a ibeg */
+   void AddSubMatrix(int ibeg, const DenseMatrix & A);
+
+   /** Add the submatrix @a A to this with row and column offsets
+       @a ibeg and @a jbeg respectively */
+   void AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
    /// Get the matrix 'data' from the Vector 'v' at the given 'offset'
@@ -368,7 +449,7 @@ public:
 
    /** Count the number of entries in the matrix for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), height*width); }
 
    /// Prints matrix to stream out.
    virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
@@ -523,6 +604,14 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
+/** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
+    to accommodate the data */
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
+
+/** Computes the matrix Rt^t * A * P. Note: The @a RAP matrix will be resized
+    to accommodate the data */
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP);
 
 /** Abstract class that can compute factorization of external data and perform various
     operations with the factored data. */
@@ -773,6 +862,8 @@ public:
    /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
    void Mult(DenseMatrix &X) const {factors->Solve(width, X.Width(), X.Data());}
 
+   using Operator::Mult;
+
    /// Compute and return the inverse matrix in Ainv.
    void GetInverseMatrix(DenseMatrix &Ainv) const;
 
@@ -887,7 +978,7 @@ class Table;
 class DenseTensor
 {
 private:
-   DenseMatrix Mk;
+   mutable DenseMatrix Mk;
    Memory<double> tdata;
    int nk;
 
@@ -966,7 +1057,12 @@ public:
       return Mk;
    }
    const DenseMatrix &operator()(int k) const
-   { return const_cast<DenseTensor&>(*this)(k); }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = Memory<double>(const_cast<double*>(GetData(k)), SizeI()*SizeJ(),
+                               false);
+      return Mk;
+   }
 
    double &operator()(int i, int j, int k)
    {
@@ -985,6 +1081,12 @@ public:
    }
 
    double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
+
+   const double *GetData(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata+k*Mk.Height()*Mk.Width();

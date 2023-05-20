@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
       const int dofs = fes.GetFE(0)->GetDof();
       auto A = Reshape(ea_data_tmp.Read(), dofs, dofs, ne);
       auto AT = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
-      MFEM_FORALL(e, ne,
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int i = 0; i < dofs; i++)
          {
@@ -46,7 +46,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
       if (ne == 0) { return; }
       const int dofs = fes.GetFE(0)->GetDof();
       auto A = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
-      MFEM_FORALL(e, ne,
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int i = 0; i < dofs; i++)
          {
@@ -75,12 +75,12 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
       Vector ea_data_ext_tmp(ea_data_ext.Size());
       bfi->AssembleEAInteriorFaces(fes, ea_data_int_tmp, ea_data_ext_tmp, false);
       const int faceDofs = fes.GetTraceElement(0,
-                                               fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+                                               fes.GetMesh()->GetFaceGeometry(0))->GetDof();
       auto A_int = Reshape(ea_data_int_tmp.Read(), faceDofs, faceDofs, 2, nf);
       auto A_ext = Reshape(ea_data_ext_tmp.Read(), faceDofs, faceDofs, 2, nf);
       auto AT_int = Reshape(ea_data_int.ReadWrite(), faceDofs, faceDofs, 2, nf);
       auto AT_ext = Reshape(ea_data_ext.ReadWrite(), faceDofs, faceDofs, 2, nf);
-      MFEM_FORALL(f, nf,
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          for (int i = 0; i < faceDofs; i++)
          {
@@ -102,10 +102,10 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
    {
       bfi->AssembleEAInteriorFaces(fes, ea_data_int, ea_data_ext, false);
       const int faceDofs = fes.GetTraceElement(0,
-                                               fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+                                               fes.GetMesh()->GetFaceGeometry(0))->GetDof();
       auto A_int = Reshape(ea_data_int.ReadWrite(), faceDofs, faceDofs, 2, nf);
       auto A_ext = Reshape(ea_data_ext.ReadWrite(), faceDofs, faceDofs, 2, nf);
-      MFEM_FORALL(f, nf,
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          for (int i = 0; i < faceDofs; i++)
          {
@@ -146,10 +146,10 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
       Vector ea_data_bdr_tmp(ea_data_bdr.Size());
       bfi->AssembleEABoundaryFaces(fes, ea_data_bdr_tmp, false);
       const int faceDofs = fes.GetTraceElement(0,
-                                               fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+                                               fes.GetMesh()->GetFaceGeometry(0))->GetDof();
       auto A_bdr = Reshape(ea_data_bdr_tmp.Read(), faceDofs, faceDofs, nf);
       auto AT_bdr = Reshape(ea_data_bdr.ReadWrite(), faceDofs, faceDofs, nf);
-      MFEM_FORALL(f, nf,
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          for (int i = 0; i < faceDofs; i++)
          {
@@ -165,9 +165,9 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
    {
       bfi->AssembleEABoundaryFaces(fes, ea_data_bdr, false);
       const int faceDofs = fes.GetTraceElement(0,
-                                               fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+                                               fes.GetMesh()->GetFaceGeometry(0))->GetDof();
       auto A_bdr = Reshape(ea_data_bdr.ReadWrite(), faceDofs, faceDofs, nf);
-      MFEM_FORALL(f, nf,
+      mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          for (int i = 0; i < faceDofs; i++)
          {

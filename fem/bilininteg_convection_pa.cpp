@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #include "ceed/integrators/convection/convection.hpp"
 #include "quadinterpolator.hpp"
 
@@ -40,7 +41,7 @@ static void PAConvectionSetup2D(const int NQ,
                   Reshape(vel.Read(), DIM,NQ,NE);
    auto y = Reshape(op.Write(), NQ,DIM,NE);
 
-   MFEM_FORALL(q_global, NE*NQ,
+   mfem::forall(NE*NQ, [=] MFEM_HOST_DEVICE (int q_global)
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
@@ -77,7 +78,7 @@ static void PAConvectionSetup3D(const int NQ,
                   Reshape(vel.Read(), 3,1,1) :
                   Reshape(vel.Read(), 3,NQ,NE);
    auto y = Reshape(op.Write(), NQ,3,NE);
-   MFEM_FORALL(q_global, NE*NQ,
+   mfem::forall(NE*NQ, [=] MFEM_HOST_DEVICE (int q_global)
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
@@ -158,7 +159,7 @@ void PAConvectionApply2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -278,7 +279,7 @@ void SmemPAConvectionApply2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -405,7 +406,7 @@ void PAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -586,7 +587,7 @@ void SmemPAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -790,7 +791,7 @@ void PAConvectionApplyT2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -906,7 +907,7 @@ void SmemPAConvectionApplyT2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1028,7 +1029,7 @@ void PAConvectionApplyT3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1204,7 +1205,7 @@ void SmemPAConvectionApplyT3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1408,66 +1409,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, mt);
-   Vector vel;
-   if (VectorConstantCoefficient *cQ =
-          dynamic_cast<VectorConstantCoefficient*>(Q))
-   {
-      vel = cQ->GetVec();
-   }
-   else if (VectorGridFunctionCoefficient *vgfQ =
-               dynamic_cast<VectorGridFunctionCoefficient*>(Q))
-   {
-      vel.SetSize(dim * nq * ne, mt);
 
-      const GridFunction *gf = vgfQ->GetGridFunction();
-      const FiniteElementSpace &gf_fes = *gf->FESpace();
-      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
-      const bool use_tensor_products = UsesTensorBasis(gf_fes);
-      const ElementDofOrdering ordering = use_tensor_products ?
-                                          ElementDofOrdering::LEXICOGRAPHIC :
-                                          ElementDofOrdering::NATIVE;
-      const Operator *R = gf_fes.GetElementRestriction(ordering);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
 
-      Vector xe(R->Height(), mt);
-      xe.UseDevice(true);
-
-      R->Mult(*gf, xe);
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-      qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(xe,vel);
-   }
-   else if (VectorQuadratureFunctionCoefficient* vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == dim * nq * ne,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-
-      qFun.Read();
-      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      vel.SetSize(dim * nq * ne);
-      auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      DenseMatrix MQ_ir;
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         Q->Eval(MQ_ir, T, *ir);
-         for (int q = 0; q < nq; ++q)
-         {
-            for (int i = 0; i < dim; ++i)
-            {
-               C(i,q,e) = MQ_ir(i,q);
-            }
-         }
-      }
-   }
    PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,
                      vel, alpha, pa_data);
 }

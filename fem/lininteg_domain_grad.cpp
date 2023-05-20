@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,7 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
    const auto C = cst ? Reshape(F,2,vdim,1,1,1) : Reshape(F,2,vdim,q,q,ne);
    auto Y = Reshape(y, d,d, vdim, ne);
 
-   MFEM_FORALL_2D(e, ne, q, q, 1,
+   mfem::forall_2D(ne, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -126,24 +126,21 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
 
    auto Y = Reshape(output, d,d,d, vdim, ne);
 
-   MFEM_FORALL_2D(e, ne, q, q, 1,
+   mfem::forall_2D(ne, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : MAX_D1D;
-
-      double r_u[D];
+      constexpr int MQD = (Q >= D) ? Q : D;
 
       MFEM_SHARED double sBGt[2][Q*D];
-      MFEM_SHARED double sQQQ[Q*Q*Q];
-
       const DeviceMatrix Bt(sBGt[0], q,d), Gt(sBGt[1], q,d);
-      kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
-      const DeviceCube QQQ(sQQQ, q,q,q);
-      const DeviceCube QQD(sQQQ, q,q,d);
-      const DeviceCube QDD(sQQQ, q,d,d);
+      MFEM_SHARED double sQQQ[MQD*MQD*MQD];
+      const DeviceCube QQQ(sQQQ, MQD,MQD,MQD);
+
+      kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -207,16 +204,17 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                MFEM_FOREACH_THREAD(qy,y,q)
                {
-                  for (int dx = 0; dx < d; ++dx) { r_u[dx] = 0.0; }
-                  for (int qx = 0; qx < q; ++qx)
+                  double r_u[Q];
+                  for (int qx = 0; qx < q; ++qx) { r_u[qx] = QQQ(qz,qy,qx); }
+                  for (int dx = 0; dx < d; ++dx)
                   {
-                     const double r_v = QQQ(qz,qy,qx);
-                     for (int dx = 0; dx < d; ++dx)
+                     double u = 0.0;
+                     for (int qx = 0; qx < q; ++qx)
                      {
-                        r_u[dx] += (k == 0 ? Gt(qx,dx) : Bt(qx,dx)) * r_v;
+                        u += (k == 0 ? Gt(qx,dx) : Bt(qx,dx)) * r_u[qx];
                      }
+                     QQQ(qz,qy,dx) = u;
                   }
-                  for (int dx = 0; dx < d; ++dx) { QQD(qz,qy,dx) = r_u[dx]; }
                }
             }
             MFEM_SYNC_THREAD;
@@ -224,16 +222,17 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                MFEM_FOREACH_THREAD(dx,x,d)
                {
-                  for (int dy = 0; dy < d; ++dy) { r_u[dy] = 0.0; }
-                  for (int qy = 0; qy < q; ++qy)
+                  double r_u[Q];
+                  for (int qy = 0; qy < q; ++qy) { r_u[qy] = QQQ(qz,qy,dx); }
+                  for (int dy = 0; dy < d; ++dy)
                   {
-                     const double r_v = QQD(qz,qy,dx);
-                     for (int dy = 0; dy < d; ++dy)
+                     double u = 0.0;
+                     for (int qy = 0; qy < q; ++qy)
                      {
-                        r_u[dy] += (k == 1 ? Gt(qy,dy) : Bt(qy,dy)) * r_v;
+                        u += (k == 1 ? Gt(qy,dy) : Bt(qy,dy)) * r_u[qy];
                      }
+                     QQQ(qz,dy,dx) = u;
                   }
-                  for (int dy = 0; dy < d; ++dy) { QDD(qz,dy,dx) = r_u[dy]; }
                }
             }
             MFEM_SYNC_THREAD;
@@ -241,16 +240,17 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                MFEM_FOREACH_THREAD(dx,x,d)
                {
-                  for (int dz = 0; dz < d; ++dz) { r_u[dz] = 0.0; }
-                  for (int qz = 0; qz < q; ++qz)
+                  double r_u[Q];
+                  for (int qz = 0; qz < q; ++qz) { r_u[qz] = QQQ(qz,dy,dx); }
+                  for (int dz = 0; dz < d; ++dz)
                   {
-                     const double r_v = QDD(qz,dy,dx);
-                     for (int dz = 0; dz < d; ++dz)
+                     double u = 0.0;
+                     for (int qz = 0; qz < q; ++qz)
                      {
-                        r_u[dz] += (k == 2 ? Gt(qz,dz) : Bt(qz,dz)) * r_v;
+                        u += (k == 2 ? Gt(qz,dz) : Bt(qz,dz)) * r_u[qz];
                      }
+                     Y(dx,dy,dz,c,e) += u;
                   }
-                  for (int dz = 0; dz < d; ++dz) { Y(dx,dy,dz,c,e) += r_u[dz]; }
                }
             }
             MFEM_SYNC_THREAD;
@@ -324,108 +324,24 @@ void DomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
-   const int nq = ir->GetNPoints(), ne = fes.GetMesh()->GetNE();
 
-   if (VectorConstantCoefficient *vcQ =
-          dynamic_cast<VectorConstantCoefficient*>(&Q))
-   {
-      Qvec = vcQ->GetVec();
-   }
-   else if (VectorQuadratureFunctionCoefficient *vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
-   {
-      const QuadratureFunction &qfun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qfun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-      MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different.\n");
-      qfun.Read();
-      Qvec.MakeRef(const_cast<QuadratureFunction&>(qfun),0);
-   }
-   else
-   {
-      const int qvdim = Q.GetVDim();
-      Vector qvec(qvdim);
-      Qvec.SetSize(qvdim * nq * ne);
-      auto C = Reshape(Qvec.HostWrite(), qvdim, nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& Tr = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            const IntegrationPoint &ip = ir->IntPoint(q);
-            Tr.SetIntPoint(&ip);
-            Q.Eval(qvec, Tr, ip);
-            for (int c=0; c < qvdim; ++c)
-            {
-               C(c,q,e) = qvec[c];
-            }
-         }
-      }
-   }
-   DLFGradAssemble(fes, ir, markers, Qvec, b);
+   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   DLFGradAssemble(fes, ir, markers, coeff, b);
 }
 
 void VectorDomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                   const Array<int> &markers,
                                                   Vector &b)
 {
-   const int vdim = fes.GetVDim();
    const FiniteElement &fe = *fes.GetFE(0);
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
-   const int nq = ir->GetNPoints(), ne = fes.GetMesh()->GetNE(),
-             ns = fes.GetMesh()->SpaceDimension();
 
-   if (VectorConstantCoefficient *vcQ =
-          dynamic_cast<VectorConstantCoefficient*>(&Q))
-   {
-      Qvec = vcQ->GetVec();
-   }
-   else if (QuadratureFunctionCoefficient *qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
-   {
-      const QuadratureFunction &qfun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qfun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-      MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different.\n");
-      qfun.Read();
-      Qvec.MakeRef(const_cast<QuadratureFunction&>(qfun),0);
-   }
-   else if (VectorQuadratureFunctionCoefficient* vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
-   {
-      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == vdim * ns * nq * ne,
-                  "Incompatible QuadratureFunction dimension \n");
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      Qvec.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      Vector qvec(vdim);
-      Qvec.SetSize(vdim * nq * ne);
-      auto C = Reshape(Qvec.HostWrite(), vdim, nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation &Tr = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            const IntegrationPoint &ip = ir->IntPoint(q);
-            Tr.SetIntPoint(&ip);
-            Q.Eval(qvec, Tr, ip);
-            for (int c = 0; c<vdim; ++c) { C(c,q,e) = qvec[c]; }
-         }
-      }
-   }
-   DLFGradAssemble(fes, ir, markers, Qvec, b);
+   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   DLFGradAssemble(fes, ir, markers, coeff, b);
 }
 
 } // namespace mfem

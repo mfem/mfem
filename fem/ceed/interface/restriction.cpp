@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -232,7 +232,7 @@ void InitRestriction(const FiniteElementSpace &fes,
    RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
-   // Init or retreive key values
+   // Init or retrieve key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
       InitRestrictionImpl(fes, ceed, restr);
@@ -257,7 +257,7 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
    RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
-   // Init or retreive key values
+   // Init or retrieve key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
       InitRestrictionWithIndicesImpl(fes, nelem, indices, ceed, restr);
@@ -281,7 +281,7 @@ void InitCoeffRestrictionWithIndices(const FiniteElementSpace &fes,
    RestrKey restr_key(&fes, nelem, nquads, ncomp, restr_type::Coeff);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
 
-   // Init or retreive key values
+   // Init or retrieve key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
       InitCoeffRestrictionWithIndicesImpl(fes, nelem, indices, nquads, ncomp,

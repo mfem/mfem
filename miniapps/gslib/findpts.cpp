@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,23 +30,79 @@
 //    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
-//    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr
+//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
+//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1 -fo 1 -nc 2
+//    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr -mpr -mo 2
+//    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr -mpr -mo 3
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
-//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr -mpr
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 //    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    findpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace mfem;
 using namespace std;
+
+// Experimental - class used to update GridFunction post p-refinement.
+// Can change as support for p-refinement evolves.
+class PRefinementGFUpdate
+{
+private:
+   FiniteElementSpace *src;
+
+public:
+   /// @brief Used to Update GridFunction post p-refinement.
+   /// Initialize with FESpace prior to p-refinement.
+   PRefinementGFUpdate(const FiniteElementSpace& src_);
+
+   /// Destructor
+   ~PRefinementGFUpdate();
+
+   /// Update source FiniteElementSpace used to construct the
+   /// PRefinementTransfer operator.
+   void SetSourceFESpace(const FiniteElementSpace& src_);
+
+   /// @brief Update GridFunction using PRefinementTransferOperator.
+   /// Do not use GridFunction->Update() prior to this method as it is
+   /// handled internally.
+   void GridFunctionUpdate(GridFunction &targf);
+};
+
+PRefinementGFUpdate::PRefinementGFUpdate(const FiniteElementSpace &src_)
+{
+   src = new FiniteElementSpace(src_);
+}
+
+PRefinementGFUpdate::~PRefinementGFUpdate()
+{
+   delete src;
+}
+
+void PRefinementGFUpdate::SetSourceFESpace(const FiniteElementSpace &src_)
+{
+   if (src) { delete src; }
+   src = new FiniteElementSpace(src_);
+}
+
+void PRefinementGFUpdate::GridFunctionUpdate(GridFunction &targf)
+{
+   MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
+               "GridFunction should not be updated prior to UpdateGF.");
+   Vector srcgf = targf;
+   targf.Update();
+   PRefinementTransferOperator preft =
+      PRefinementTransferOperator(*src, *(targf.FESpace()));
+   preft.Mult(srcgf, targf);
+}
 
 // Experimental - required for visualizing functions on p-refined spaces.
 GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
@@ -54,13 +110,10 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    const FiniteElementSpace *fespace = x->FESpace();
    Mesh *mesh = fespace->GetMesh();
    const FiniteElementCollection *fec = fespace->FEColl();
+   const int vdim = fespace->GetVDim();
 
    // find the max order in the space
-   int max_order = 1;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      max_order = std::max(fespace->GetElementOrder(i), max_order);
-   }
+   int max_order = fespace->GetMaxElementOrder();
 
    // create a visualization space of max order for all elements
    FiniteElementCollection *fecInt = NULL;
@@ -72,7 +125,9 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    {
       fecInt = new L2_FECollection(max_order, mesh->Dimension());
    }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt);
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
+                                                         fespace->GetVDim(),
+                                                         fespace->GetOrdering());
 
    IsoparametricTransformation T;
    DenseMatrix I;
@@ -86,23 +141,44 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
       T.SetIdentityTransformation(geom);
 
       Array<int> dofs;
-      fespace->GetElementDofs(i, dofs);
-      Vector elemvect, vectInt;
+      fespace->GetElementVDofs(i, dofs);
+      Vector elemvect(0), vectInt(0);
       x->GetSubVector(dofs, elemvect);
+      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
 
       const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
       const auto *feInt = fecInt->GetFE(geom, max_order);
 
       feInt->GetTransferMatrix(*fe, T, I);
-      spaceInt->GetElementDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
 
-      I.Mult(elemvect, vectInt);
+      spaceInt->GetElementVDofs(i, dofs);
+      vectInt.SetSize(dofs.Size());
+      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
+
+      Mult(I, elemvecMat, vectIntMat);
       xInt->SetSubVector(dofs, vectInt);
    }
 
    xInt->MakeOwner(fecInt);
    return xInt;
+}
+
+void VisualizeFESpacePolynomialOrder(FiniteElementSpace &fespace,
+                                     const char *title)
+{
+   Mesh *mesh = fespace.GetMesh();
+   L2_FECollection order_coll = L2_FECollection(0, mesh->Dimension());
+   FiniteElementSpace order_space = FiniteElementSpace(mesh, &order_coll);
+   GridFunction order_gf = GridFunction(&order_space);
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      order_gf(e) = fespace.GetElementOrder(e);
+   }
+
+   socketstream vis1;
+   common::VisualizeField(vis1, "localhost", 19916, order_gf, title,
+                          400, 0, 400, 400, "RjmAcp");
 }
 
 double func_order;
@@ -134,6 +210,9 @@ int main (int argc, char *argv[])
    int ncomp             = 1;
    bool hrefinement      = false;
    bool prefinement      = false;
+   int point_ordering    = 0;
+   int gf_ordering       = 0;
+   bool mesh_prefinement = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -158,6 +237,15 @@ int main (int argc, char *argv[])
    args.AddOption(&prefinement, "-pr", "--p-refinement", "-no-pr",
                   "--no-p-refinement",
                   "Do random p refinements to solution field (does not work for pyramids).");
+   args.AddOption(&point_ordering, "-po", "--point-ordering",
+                  "Ordering of points to be found."
+                  "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&gf_ordering, "-fo", "--fespace-ordering",
+                  "Ordering of fespace that will be used for gridfunction to be interpolated."
+                  "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&mesh_prefinement, "-mpr", "--mesh-p-refinement", "-no-mpr",
+                  "--no-mesh-p-refinement",
+                  "Do random p refinements to mesh Nodes.");
 
    args.Parse();
    if (!args.Good())
@@ -182,7 +270,7 @@ int main (int argc, char *argv[])
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
    mesh.GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
-   if (hrefinement || prefinement) { mesh.EnsureNCMesh(); }
+   if (hrefinement || prefinement || mesh_prefinement) { mesh.EnsureNCMesh(true); }
    cout << "--- Generating equidistant point for:\n"
         << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
         << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
@@ -198,7 +286,25 @@ int main (int argc, char *argv[])
    H1_FECollection fecm(mesh_poly_deg, dim);
    FiniteElementSpace fespace(&mesh, &fecm, dim);
    mesh.SetNodalFESpace(&fespace);
+   GridFunction Nodes(&fespace);
+   mesh.SetNodalGridFunction(&Nodes);
    cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
+
+   PRefinementGFUpdate preft_fespace = PRefinementGFUpdate(fespace);
+
+   if (mesh_prefinement)
+   {
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         if ((double) rand() / RAND_MAX < 0.2)
+         {
+            int element_order = fespace.GetElementOrder(e);
+            fespace.SetElementOrder(e, element_order + 1);
+         }
+      }
+      fespace.Update(false);
+      preft_fespace.GridFunctionUpdate(Nodes);
+   }
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
@@ -231,7 +337,7 @@ int main (int argc, char *argv[])
    {
       MFEM_ABORT("Invalid field type.");
    }
-   FiniteElementSpace sc_fes(&mesh, fec, ncomp);
+   FiniteElementSpace sc_fes(&mesh, fec, ncomp, gf_ordering);
    GridFunction field_vals(&sc_fes);
 
    // Random p-refinements to the solution field
@@ -239,7 +345,7 @@ int main (int argc, char *argv[])
    {
       for (int e = 0; e < mesh.GetNE(); e++)
       {
-         if (rand() % 2 == 0)
+         if ((double) rand() / RAND_MAX < 0.5)
          {
             int element_order = sc_fes.GetElementOrder(e);
             sc_fes.SetElementOrder(e, element_order + 1);
@@ -247,6 +353,23 @@ int main (int argc, char *argv[])
       }
       sc_fes.Update(false);
       field_vals.Update();
+   }
+
+   GridFunction *mesh_nodes_pref = mesh_prefinement ?
+                                   ProlongToMaxOrder(&Nodes, 0) :
+                                   &Nodes;
+   if (mesh_prefinement && visualization)
+   {
+      mesh.SetNodalGridFunction(mesh_nodes_pref);
+      VisualizeFESpacePolynomialOrder(fespace, "Mesh Polynomial Order");
+      mesh.SetNodalGridFunction(&Nodes);
+   }
+
+   if (prefinement && visualization)
+   {
+      mesh.SetNodalGridFunction(mesh_nodes_pref);
+      VisualizeFESpacePolynomialOrder(sc_fes, "Solution Polynomial Order");
+      mesh.SetNodalGridFunction(&Nodes);
    }
 
    // Project the GridFunction using VectorFunctionCoefficient.
@@ -260,23 +383,12 @@ int main (int argc, char *argv[])
    // Display the mesh and the field through glvis.
    if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sout;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-      }
-      else
-      {
-         sout.precision(8);
-         sout << "solution\n" << mesh << *field_vals_pref;
-         if (dim == 2) { sout << "keys RmjA*****\n"; }
-         if (dim == 3) { sout << "keys mA\n"; }
-         sout << flush;
-      }
+      if (mesh_prefinement) { mesh.SetNodalGridFunction(mesh_nodes_pref); }
+      socketstream vis1;
+      common::VisualizeField(vis1, "localhost", 19916, *field_vals_pref,
+                             "Solution",
+                             0, 0, 400, 400, "RmjA*****");
+      if (mesh_prefinement) { mesh.SetNodalGridFunction(&Nodes); }
    }
 
    // Generate equidistant points in physical coordinates over the whole mesh.
@@ -292,8 +404,16 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         }
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         }
       }
    }
    else
@@ -303,9 +423,18 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         }
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         }
       }
    }
 
@@ -314,12 +443,12 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder;
    finder.Setup(mesh);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
-   finder.Interpolate(vxyz, field_vals, interp_vals);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
 
    int face_pts = 0, not_found = 0, found = 0;
-   double max_err = 0.0, max_dist = 0.0;
+   double err = 0.0, max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
    int npt = 0;
    for (int j = 0; j < vec_dim; j++)
@@ -329,10 +458,18 @@ int main (int argc, char *argv[])
          if (code_out[i] < 2)
          {
             if (j == 0) { found++; }
-            for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+            for (int d = 0; d < dim; d++)
+            {
+               pos(d) = point_ordering == Ordering::byNODES ?
+                        vxyz(d*pts_cnt + i) :
+                        vxyz(i*dim + d);
+            }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
+            err = gf_ordering == Ordering::byNODES ?
+                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+            max_err  = std::max(max_err, err);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
@@ -352,6 +489,7 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
+   if (mesh_prefinement) { delete mesh_nodes_pref; }
    if (prefinement) { delete field_vals_pref; }
    delete fec;
 

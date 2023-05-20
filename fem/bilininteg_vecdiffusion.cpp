@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
@@ -40,7 +41,7 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
                   Reshape(c.Read(), NQ, NE);
 
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -76,7 +77,7 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
                   Reshape(c.Read(), NQ,NE);
 
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -90,8 +91,8 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
 
          const double C1 = const_c ? C(0,0) : C(q,e);
 
@@ -175,43 +176,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(!VQ && !MQ,
                "Only scalar coefficient supported for partial assembly for VectorDiffusionIntegrator");
-   Vector coeff;
-   if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto Co = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            Co(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const Array<double> &w = ir->GetWeights();
    const Vector &j = geom->J;
@@ -230,7 +197,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1) :
                      Reshape(coeff.Read(), NQ,ne);
 
-      MFEM_FORALL(e, ne,
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
          {
@@ -285,7 +252,7 @@ void PAVectorDiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -406,7 +373,7 @@ void PAVectorDiffusionApply3D(const int NE,
    auto op = Reshape(op_.Read(), Q1D*Q1D*Q1D, 6, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -633,7 +600,7 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
    // store necessary entries
    auto D = Reshape(d.Read(), Q1D*Q1D, 3, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, 2, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -701,7 +668,7 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, 6, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, 3, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -725,8 +692,8 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
                      {
                         const int q = qx + (qy + qz * Q1D) * Q1D;
                         const int k = j >= i ?
-                        3 - (3-i)*(2-i)/2 + j:
-                        3 - (3-j)*(2-j)/2 + i;
+                                      3 - (3-i)*(2-i)/2 + j:
+                                      3 - (3-j)*(2-j)/2 + i;
                         const double O = Q(q,k,e);
                         const double Bz = B(qz,dz);
                         const double Gz = G(qz,dz);

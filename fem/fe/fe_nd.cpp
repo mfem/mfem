@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 // Nedelec Finite Element classes
 
 #include "fe_nd.hpp"
+#include "face_map_utils.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -314,14 +315,16 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
    Vector shape_cz(p + 1), shape_oz(p);
-   Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
+#endif
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
+      basis1d.Eval(ip.z, shape_cz, dshape_cz);
       obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
@@ -329,9 +332,9 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
-      cbasis1d.Eval(ip.z, shape_cz);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.z, shape_cz);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
       obasis1d.Eval(ip.z, shape_oz);
@@ -405,9 +408,9 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
       obasis1d.ScaleIntegrated(false);
@@ -477,6 +480,51 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
             curl_shape(idx,1) =  -s*dshape_cx(i)* shape_cy(j)*shape_oz(k);
             curl_shape(idx,2) = 0.;
          }
+}
+
+void ND_HexahedronElement::GetFaceMap(const int face_id,
+                                      Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = p + 1;
+   const int n_face_dofs_per_component = p*pp1;
+   const int n_dof_per_dim = p*pp1*pp1;
+
+   std::vector<int> n_dofs = {p, pp1, pp1, p};
+   std::vector<int> offsets, strides;
+
+   const auto f = internal::GetFaceNormal3D(face_id);
+   const int face_normal = f.first, level = f.second;
+   if (face_normal == 0) // x-normal
+   {
+      offsets =
+      {
+         n_dof_per_dim + (level ? pp1 - 1 : 0),
+         2*n_dof_per_dim + (level ? pp1 - 1 : 0)
+      };
+      strides = {pp1, p*pp1, pp1, pp1*pp1};
+   }
+   else if (face_normal == 1) // y-normal
+   {
+      offsets =
+      {
+         level ? p*(pp1 - 1) : 0,
+         2*n_dof_per_dim + (level ? pp1*(pp1 - 1) : 0)
+      };
+      strides = {1, p*pp1, 1, pp1*pp1};
+   }
+   else if (face_normal == 2) // z-normal
+   {
+      offsets =
+      {
+         level ? p*pp1*(pp1 - 1) : 0,
+         n_dof_per_dim + (level ? p*pp1*(pp1 - 1) : 0)
+      };
+      strides = {1, p, 1, pp1};
+   }
+
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
 }
 
 const double ND_QuadrilateralElement::tk[8] =
@@ -656,21 +704,23 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
-   Vector dshape_cx, dshape_cy;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(p + 1), dshape_cy(p + 1);
+#endif
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
       obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
    }
@@ -720,8 +770,8 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector dshape_cx(p + 1), dshape_cy(p + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
       obasis1d.ScaleIntegrated(false);
@@ -765,6 +815,26 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
          }
          curl_shape(idx,0) =  s*dshape_cx(i)*shape_oy(j);
       }
+}
+
+void ND_QuadrilateralElement::GetFaceMap(const int face_id,
+                                         Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = order + 1;
+   const int n_face_dofs_per_component = p;
+   std::vector<int> strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
+   std::vector<int> n_dofs = {p};
+   std::vector<int> offsets;
+   switch (face_id)
+   {
+      case 0: offsets = {0}; break; // y = 0
+      case 1: offsets = {p*pp1 + pp1 - 1}; break; // x = 1
+      case 2: offsets = {p*(pp1 - 1)}; break; // y = 1
+      case 3: offsets = {p*pp1}; break; // x = 0
+   }
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
 }
 
 

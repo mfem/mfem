@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
@@ -98,7 +99,7 @@ void PADiffusionSetup2D<2>(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D, symmetric ? 3 : 4, NE);
-   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -165,7 +166,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1,1) :
                   Reshape(c.Read(), Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D, 3, NE);
-   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -210,7 +211,7 @@ void PADiffusionSetup3D(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D,Q1D, symmetric ? 6 : 9, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -228,8 +229,8 @@ void PADiffusionSetup3D(const int Q1D,
                const double J23 = J(qx,qy,qz,1,2,e);
                const double J33 = J(qx,qy,qz,2,2,e);
                const double detJ = J11 * (J22 * J33 - J32 * J23) -
-               /* */               J21 * (J12 * J33 - J32 * J13) +
-               /* */               J31 * (J12 * J23 - J22 * J13);
+                                   J21 * (J12 * J33 - J32 * J13) +
+                                   J31 * (J12 * J23 - J22 * J13);
                const double w_detJ = W(qx,qy,qz) / detJ;
                // adj(J)
                const double A11 = (J22 * J33) - (J23 * J32);
@@ -390,120 +391,21 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   int coeffDim = 1;
-   Vector coeff;
-   const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
-   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      MFEM_VERIFY(SMQ->GetSize() == dim, "");
-      coeffDim = symmDims;
-      coeff.SetSize(symmDims * nq * ne);
 
-      DenseSymmetricMatrix sym_mat;
-      sym_mat.SetSize(dim);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
 
-      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+   if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (VQ) { coeff.Project(*VQ); }
+   else if (Q) { coeff.Project(*Q); }
+   else { coeff.SetConstant(1.0); }
 
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            SMQ->Eval(sym_mat, *tr, ir->IntPoint(p));
-            int cnt = 0;
-            for (int i=0; i<dim; ++i)
-               for (int j=i; j<dim; ++j, ++cnt)
-               {
-                  C(cnt, p, e) = sym_mat(i,j);
-               }
-         }
-      }
-   }
-   else if (MQ)
-   {
-      symmetric = false;
-      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dims*dims);
+   const int pa_size = symmetric ? symmDims : dims*dims;
 
-      coeffDim = MQfullDim;
-
-      coeff.SetSize(MQfullDim * nq * ne);
-
-      DenseMatrix mat;
-      mat.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            MQ->Eval(mat, *tr, ir->IntPoint(p));
-            for (int i=0; i<dim; ++i)
-               for (int j=0; j<dim; ++j)
-               {
-                  C(j+(i*dim), p, e) = mat(i,j);
-               }
-         }
-      }
-   }
-   else if (VQ)
-   {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "");
-      coeffDim = VQ->GetVDim();
-      coeff.SetSize(coeffDim * nq * ne);
-      auto C = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-      Vector DM(coeffDim);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            VQ->Eval(DM, *tr, ir->IntPoint(p));
-            for (int i=0; i<coeffDim; ++i)
-            {
-               C(i, p, e) = DM[i];
-            }
-         }
-      }
-   }
-   else if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
-   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
+   pa_data.SetSize(pa_size * nq * ne, mt);
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
 
@@ -527,7 +429,7 @@ static void PADiffusionDiagonal2D(const int NE,
    // store necessary entries
    auto D = Reshape(d.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -594,7 +496,7 @@ static void SmemPADiffusionDiagonal2D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -688,7 +590,7 @@ static void PADiffusionDiagonal3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -712,8 +614,8 @@ static void PADiffusionDiagonal3D(const int NE,
                      {
                         const int q = qx + (qy + qz * Q1D) * Q1D;
                         const int ksym = j >= i ?
-                        3 - (3-i)*(2-i)/2 + j:
-                        3 - (3-j)*(2-j)/2 + i;
+                                         3 - (3-i)*(2-i)/2 + j:
+                                         3 - (3-j)*(2-j)/2 + i;
                         const int k = symmetric ? ksym : (i*DIM) + j;
                         const double O = Q(q,k,e);
                         const double Bz = B(qz,dz);
@@ -789,7 +691,7 @@ static void SmemPADiffusionDiagonal3D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1071,7 +973,7 @@ static void PADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1192,7 +1094,7 @@ static void SmemPADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1350,7 +1252,7 @@ static void PADiffusionApply3D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1541,7 +1443,7 @@ static void SmemPADiffusionApply3D(const int NE,
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
