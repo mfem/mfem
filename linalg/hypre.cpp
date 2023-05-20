@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -514,7 +514,7 @@ void CopyConvertMemory(Memory<SrcT> &src, MemoryClass dst_mc, Memory<DstT> &dst)
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(src, capacity);
    auto dst_p = mfem::Write(dst, capacity);
-   MFEM_FORALL(i, capacity, dst_p[i] = src_p[i];);
+   mfem::forall(capacity, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 
 
@@ -697,7 +697,7 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(mem_csr.J, nnz);
    auto dst_p = mfem::Write(dst_J, nnz);
-   MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
+   mfem::forall(nnz, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 #endif
 
@@ -1489,7 +1489,10 @@ void HypreParMatrix::GetDiag(Vector &diag) const
       double *d_diag = diag.Write();
       const HYPRE_Int *A_diag_i = A->diag->i;
       const double *A_diag_d = A->diag->data;
-      MFEM_FORALL(i, size, d_diag[i] = A_diag_d[A_diag_i[i]];);
+      mfem::forall(size, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_diag[i] = A_diag_d[A_diag_i[i]];
+      });
    }
    else
 #endif

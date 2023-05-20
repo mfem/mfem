@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -59,6 +59,19 @@ void EvalP_315(const double *J, double *P)
    kernels::Set(3,3, 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
 }
 
+// P_318 = (I3b - 1/I3b^3)*dI3b.
+// Uses the I3b form, as dI3 and ddI3 were not implemented at the time.
+static MFEM_HOST_DEVICE inline
+void EvalP_318(const double *J, double *P)
+{
+   double dI3b[9];
+   kernels::InvariantsEvaluator3D ie(Args().J(J).dI3b(dI3b));
+
+   double sign_detJ;
+   const double I3b = ie.Get_I3b(sign_detJ);
+   kernels::Set(3,3, I3b - 1.0/(I3b * I3b * I3b), ie.Get_dI3b(sign_detJ), P);
+}
+
 // P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
 static MFEM_HOST_DEVICE inline
 void EvalP_321(const double *J, double *P)
@@ -75,9 +88,9 @@ void EvalP_321(const double *J, double *P)
    kernels::Add(3,3, ie.Get_dI1(), P);
 }
 
-// P_332 = (1-gamma) P_302 + gamma P_315.
+// P_332 = w0 P_302 + w1 P_315.
 static MFEM_HOST_DEVICE inline
-void EvalP_332(const double *J, double gamma, double *P)
+void EvalP_332(const double *J, const double *w, double *P)
 {
    double B[9];
    double dI1b[9], dI2[9], dI2b[9], dI3b[9];
@@ -86,18 +99,39 @@ void EvalP_332(const double *J, double gamma, double *P)
                                      .dI1b(dI1b)
                                      .dI2(dI2).dI2b(dI2b)
                                      .dI3b(dI3b));
-   const double alpha = (1.0 - gamma) * ie.Get_I1b()/9.;
-   const double beta = (1.0 - gamma) * ie.Get_I2b()/9.;
+   const double alpha = w[0] * ie.Get_I1b()/9.;
+   const double beta = w[0]* ie.Get_I2b()/9.;
    kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
 
    double sign_detJ;
    const double I3b = ie.Get_I3b(sign_detJ);
-   kernels::Add(3,3, gamma * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
+   kernels::Add(3,3, w[1] * 2.0 * (I3b - 1.0), ie.Get_dI3b(sign_detJ), P);
+}
+
+// P_338 = w0 P_302 + w1 P_318.
+static MFEM_HOST_DEVICE inline
+void EvalP_338(const double *J, const double *w, double *P)
+{
+   double B[9];
+   double dI1b[9], dI2[9], dI2b[9], dI3b[9];
+   kernels::InvariantsEvaluator3D ie(Args()
+                                     .J(J).B(B)
+                                     .dI1b(dI1b)
+                                     .dI2(dI2).dI2b(dI2b)
+                                     .dI3b(dI3b));
+   const double alpha = w[0] * ie.Get_I1b()/9.;
+   const double beta = w[0]* ie.Get_I2b()/9.;
+   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+
+   double sign_detJ;
+   const double I3b = ie.Get_I3b(sign_detJ);
+   kernels::Add(3,3, w[1] * (I3b - 1.0/(I3b * I3b * I3b)),
+                ie.Get_dI3b(sign_detJ), P);
 }
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const double metric_normal,
-                           double metric_param,
+                           const Array<double> &metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -109,8 +143,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
-               mid == 321 || mid == 332, "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
+               mid == 321 || mid == 332 || mid == 338,
+               "3D metric not yet implemented!");
 
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -123,7 +158,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   const double *metric_data = metric_param.Read();
+
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -170,8 +207,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                if (mid == 302) { EvalP_302(Jpt, P); }
                if (mid == 303) { EvalP_303(Jpt, P); }
                if (mid == 315) { EvalP_315(Jpt, P); }
+               if (mid == 318) { EvalP_318(Jpt, P); }
                if (mid == 321) { EvalP_321(Jpt, P); }
-               if (mid == 332) { EvalP_332(Jpt, metric_param, P); }
+               if (mid == 332) { EvalP_332(Jpt, metric_data, P); }
+               if (mid == 338) { EvalP_338(Jpt, metric_data, P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                // Y += DS . P^t += DSh . (Jrt . P^t)
@@ -202,8 +241,11 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y);
 }

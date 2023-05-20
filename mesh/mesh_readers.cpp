@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2632,6 +2632,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
          ++n_partitions;
          ++elem_domain;
+         MFEM_CONTRACT_VAR(n_partitions);
+         MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
       else if (buff == "$Periodic") // Reading master/slave node pairs

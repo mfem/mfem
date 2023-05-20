@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2449,8 +2449,16 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
+   for (int i = 0; i < mesh.NumOfElements; i++)
+   {
+      mesh.FreeElement(mesh.elements[i]);
+   }
    mesh.elements.SetSize(0);
 
+   for (int i = 0; i < mesh.NumOfBdrElements; i++)
+   {
+      mesh.FreeElement(mesh.boundary[i]);
+   }
    mesh.boundary.SetSize(0);
 
    // create an mfem::Element for each leaf Element
@@ -6193,6 +6201,7 @@ void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
       }
    }
    MFEM_ASSERT(count == order.Size(), "");
+   MFEM_CONTRACT_VAR(count);
 }
 
 
