@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 
       if (step % 2000  == 0)
       {
-         ParaViewDataCollection pvdc("ldc_3d_out_time_"+std::__cxx11::to_string(t+dt), pmesh);
+         ParaViewDataCollection pvdc("ldc_3d_out_step_"+std::__cxx11::to_string(step), pmesh);
          pvdc.SetDataFormat(VTKFormat::BINARY32);
          pvdc.SetHighOrderOutput(true);
          pvdc.SetLevelsOfDetail(ctx.order);
