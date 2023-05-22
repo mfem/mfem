@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
    bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
+   //cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
 
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
    PipelinedPCGSolver ppcg(MPI_COMM_WORLD);
    ppcg.SetRelTol(1e-12);
    ppcg.SetMaxIter(2000);
-   ppcg.SetPrintLevel(1);
+   //ppcg.SetPrintLevel(1);
    if (prec) { ppcg.SetPreconditioner(*prec); }
    ppcg.SetOperator(*A);
 
@@ -356,6 +356,7 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   if(false) // don't write out
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
