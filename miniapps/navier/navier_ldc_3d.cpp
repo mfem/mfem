@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
          fflush(stdout);
       }
 
-      if (t + dt % 2000  == 0)
+      if (step % 2000  == 0)
       {
          ParaViewDataCollection pvdc("ldc_3d_out_time_"+to_string(t+dt), pmesh);
          pvdc.SetDataFormat(VTKFormat::BINARY32);
