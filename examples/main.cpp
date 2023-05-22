@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = false;
+   bool pa = true;
    bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
          (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-        //mesh.UniformRefinement();
+         //mesh.UniformRefinement();
       }
    }
 
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-        //pmesh.UniformRefinement();
+         //pmesh.UniformRefinement();
       }
    }
 
@@ -214,6 +214,9 @@ int main(int argc, char *argv[])
    ParGridFunction x(&fespace);
    x = 0.0;
 
+   ParGridFunction x_pp(&fespace);
+   x_pp = 0.0;
+
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the
    //     Diffusion domain integrator.
@@ -237,7 +240,7 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    OperatorPtr A;
-   Vector B, X;
+   Vector B, X, X_pp;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve the linear system A X = B.
@@ -246,73 +249,56 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      if (UsesTensorBasis(fespace))
-      {
-         if (algebraic_ceed)
-         {
-            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
-         }
-         else
-         {
-            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-         }
-      }
+      prec = new OperatorJacobiSmoother(a, ess_tdof_list);
    }
    else
    {
       prec = new HypreBoomerAMG;
    }
 
-   //Reference vector
-   Vector x_ref(x);
-   
-   //PPCGSolver
 #if 1
-   {
-     PipelinedPCGSolver pipelinedpcg(MPI_COMM_WORLD);
-     pipelinedpcg.SetRelTol(1e-12);
-     pipelinedpcg.SetMaxIter(200);
-     pipelinedpcg.SetPrintLevel(1);
-     if (prec) { pipelinedpcg.SetPreconditioner(*prec); }
-     pipelinedpcg.SetOperator(*A);
-     pipelinedpcg.Mult(B, X);
-     
-     // 14. Recover the parallel grid function corresponding to X. This is the
-     //     local finite element solution on each processor.
-     a.RecoverFEMSolution(X, b, x);
-   }
+   std::cout<<"\n Running CGSolver"<<std::endl;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   if (prec) { cg.SetPreconditioner(*prec); }
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   //delete prec;
+
+   // 14. Recover the parallel grid function corresponding to X. This is the
+   //     local finite element solution on each processor.
+   a.RecoverFEMSolution(X, b, x);
+
+   //std::cout<<"\n Reference solution"<<std::endl;
    //x.Print();
-#endif   
+#endif
 
-     
-   //CGSolver
-   {
-     CGSolver cg(MPI_COMM_WORLD);
-     cg.SetRelTol(1e-12);
-     cg.SetMaxIter(200);
-     cg.SetPrintLevel(1);
-     if (prec) { cg.SetPreconditioner(*prec); }
-     cg.SetOperator(*A);
-     cg.Mult(B, X);
-     
-     // 14. Recover the parallel grid function corresponding to X. This is the
-     //     local finite element solution on each processor.
-     a.RecoverFEMSolution(X, b, x_ref);
-   }
-
-   //now we may safely delete preconditioner
+   std::cout<<"\n Running PipelinedPCGSolver"<<std::endl;
+   a.FormLinearSystem(ess_tdof_list, x_pp, b, A, X_pp, B);
+   PipelinedPCGSolver ppcg(MPI_COMM_WORLD);
+   ppcg.SetRelTol(1e-12);
+   ppcg.SetMaxIter(20);
+   ppcg.SetPrintLevel(1);
+   if (prec) { ppcg.SetPreconditioner(*prec); }
+   ppcg.SetOperator(*A);
+   ppcg.Mult(B, X_pp);
    delete prec;
-   
-   x_ref = x;
-   //std::cout<<"\n \n"<<std::endl;
 
-   //std::cout<<"solution in x_ref "<<std::endl;
-   //x_ref.Print();
-   
-   x_ref -= x;   
-   std::cout<<"Diff in solution = "<<x_ref.Norml2()<<std::endl;
+   // 14. Recover the parallel grid function corresponding to X. This is the
+   //     local finite element solution on each processor.
+   a.RecoverFEMSolution(X, b, x_pp);
 
-   
+   //std::cout<<"\n Pipelined solution"<<std::endl;
+   //x_pp.Print();
+
+   //x.Print();
+   x_pp -= x;
+   std::cout<<"\n Diff in solution = "<<x_pp.Norml2()<<std::endl;
+
+
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {

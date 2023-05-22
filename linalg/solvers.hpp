@@ -527,10 +527,10 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class PipelinedPCGSolver : public IterativeSolver
 {
 protected:
-  mutable Vector r, u, w, m, n;
-  mutable Vector z, q, s, p;
-  
-  void UpdateVectors();
+   mutable Vector r, u, w, m, n;
+   mutable Vector z, q, s, p;
+
+   void UpdateVectors();
 
 public:
    PipelinedPCGSolver() { }
@@ -542,7 +542,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void Mult(const Vector &b, Vector &x) const; 
+   virtual void Mult(const Vector &b, Vector &x) const;
 };
 
 /// GMRES method

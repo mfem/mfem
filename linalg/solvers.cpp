@@ -853,6 +853,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       oper->Mult(d, z);       //  z = A d
+
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
@@ -945,112 +946,188 @@ void PipelinedPCGSolver::UpdateVectors()
 
 void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
 {
-  //std::cout<<"calling PipelinedPCGSolver::Mult "<<std::endl;
-  //Algorithm 4. Preconditioned pipelined CG
 
-  x.UseDevice(true);  
+   double nom = 0, nom0 = 0, r0 = 0, den = 0;
+   x.UseDevice(true);
 
-  z = 0.0;
-  q = 0.0;
-  s = 0.0;
-  p = 0.0;
+   oper->Mult(x, r);
+   subtract(b, r, r); // r = b - Ax
 
-  n = 0.0;
-  m = 0.0;
-  w = 0.0;
-  u = 0.0;
-  x = 0.0;
-  r = 0.0;
-  
-  oper->Mult(x, r);
-  subtract(b, r, r); // r = b - Ax
+   prec->Mult(r, u); // u = inv(M) r
 
-  double initial_norm = Dot(r, r);
-  //std::cout<<"initial_norm = "<<initial_norm<<std::endl;
-  
-  prec->Mult(r, u); // u = inv(M) r
-  //u = r;
-  oper->Mult(u, w); // w = A u
+   nom0 = nom = initial_norm = Dot(r, r);
+   if (nom0 >= 0.0) { initial_norm = sqrt(nom0);}
+   MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
+   if (print_options.iterations || print_options.first_and_last)
+   {
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                << nom << (print_options.first_and_last ? " ...\n" : "\n");
+   }
+   Monitor(0, nom, r, x);
 
-  double nom = 0;
-
-  double gamma = 0; //intialize so we may copy the value in the loop
-  double gamma_old; 
-  double delta;
-
-  double beta, alpha;
-  double alpha_old;  
-  
-  bool converged = false;
-  final_iter = max_iter;
-  for(int i = 0; i < max_iter; ++i )
-  {
-        
-    //Fuse these two operations below
-    gamma_old = gamma;    
-    gamma = Dot(r, u);
-    delta = Dot(w, u);
-
-    //std::cout<<"gamma "<<gamma<<" "<<gamma_old<<std::endl;
-    //std::cout<<"delta "<<delta<<" "<<delta_old<<std::endl;
-    
-    prec->Mult(w, m);
-    //m = w;
-    oper->Mult(m, n);
-
-    if( i > 0 ){
-      alpha_old = alpha;
-      
-      beta = gamma/gamma_old;
-      alpha = gamma/(delta - beta*gamma/alpha_old);
-    }else{
-      beta = 0;
-      alpha = gamma/delta;
-    }
-
-    //z_i = n_i + beta_i * z_{i-1}
-    add(n, beta, z, z);
-
-    //q_i = m_i + beta_i q_{i-1}
-    add(m, beta, q, q);
-
-    //s_i = w_i + beta_i s_{i-1}
-    add(w, beta, s, s);
-
-    //p_i = u_i + beta_i p_{i-1}
-    add(u, beta, p, p);
-
-    //x_{i+1} = x_i + alpha_i p_i
-    add(x, alpha, p, x);
-
-    //r_{i+1} = r_i - alpha_i s_i
-    add(r, (-alpha), s, r);
-
-    //u_{i+1} = u_i  - alpha_i q_i
-    add(u, (-alpha), q, u);
-
-    //w_{i+1} = w_i - alpha_i z_i
-    add(w, (-alpha), z, w);
-    
-    if(i == 0)
-    {
-      nom = sqrt(Dot(r, r));
-    }
-    //Check convergence - every 10 steps
-    if(i % 10 == 0)
-    {
-
-      double r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);      
-      
-      double betanom = Dot(r, r);
-      //Monitor(i, betanom, r, x);
-      std::cout<<"i = "<<i<<" betanorm = "<<betanom<<std::endl;
-      if(betanom <= r0 || i > max_iter) {   
-        break;
+   if (nom < 0.0)
+   {
+      if (print_options.warnings)
+      {
+         mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                   << nom << '\n';
       }
-    }
-  }
-  
+      converged = false;
+      final_iter = 0;
+      initial_norm = nom;
+      final_norm = nom;
+      return;
+   }
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   if (nom <= r0)
+   {
+      converged = true;
+      final_iter = 0;
+      final_norm = sqrt(nom);
+      return;
+   }
+
+   oper->Mult(u, w); // w = A u
+
+   den = Dot(w, u);
+   MFEM_ASSERT(IsFinite(den), "den = " << nom);
+   if (den <= 0.0)
+   {
+      if (Dot(w, w) > 0.0 && print_options.warnings)
+      {
+         mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                   << den << '\n';
+      }
+      if (den == 0.0)
+      {
+         converged = false;
+         final_iter = 0;
+         final_norm = sqrt(nom);
+         return;
+      }
+   }
+
+
+   double gamma = 0; //intialize so we may copy the value in the loop
+   double gamma_old;
+   double delta;
+
+   double beta, alpha;
+   double alpha_old;
+
+   bool converged = false;
+   final_iter = max_iter;
+
+   for (int i = 1; true;) //has to start at zero
+   {
+      //Fuse these two operations below
+      gamma_old = gamma;
+      gamma = Dot(r, u);
+      delta = Dot(w, u);
+
+      prec->Mult(w, m);
+
+      //Check if preconditioner is positive definite
+      MFEM_ASSERT(IsFinite(gamma), "gamma = " << gamma);
+      if (gamma < 0.0)
+      {
+         if (print_options.warnings)
+         {
+            mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                      << gamma << '\n';
+         }
+         converged = false;
+         final_iter = i;
+         break;
+      }
+
+      //Report iterations
+      if (print_options.iterations)
+      {
+         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                   << gamma << std::endl;
+      }
+
+      Monitor(i, gamma, r, x);
+
+      if (gamma <= r0)
+      {
+         converged = true;
+         final_iter = i;
+         break;
+      }
+
+      //m = w;
+      oper->Mult(m, n);
+
+      if ( i > 1 )
+      {
+         alpha_old = alpha;
+         beta = gamma/gamma_old;
+         alpha = gamma/(delta - beta*gamma/alpha_old);
+      }
+      else
+      {
+         beta = 0;
+         alpha = gamma/delta;
+      }
+
+      //If maxed out on iterations break
+      if (++i > max_iter)
+      {
+         break;
+      }
+
+      //z_i = n_i + beta_i * z_{i-1}
+      add(n, beta, z, z);
+
+      //q_i = m_i + beta_i q_{i-1}
+      add(m, beta, q, q);
+
+      //s_i = w_i + beta_i s_{i-1}
+      add(w, beta, s, s);
+
+      //p_i = u_i + beta_i p_{i-1}
+      add(u, beta, p, p);
+
+      //x_{i+1} = x_i + alpha_i p_i
+      add(x, alpha, p, x);
+
+      //r_{i+1} = r_i - alpha_i s_i
+      add(r, (-alpha), s, r);
+
+      //u_{i+1} = u_i  - alpha_i q_i
+      add(u, (-alpha), q, u);
+
+      //w_{i+1} = w_i - alpha_i z_i
+      add(w, (-alpha), z, w);
+
+      nom = gamma;
+   }
+
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+                << gamma << '\n';
+   }
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      mfem::out << "PCG: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
+   {
+      const auto arf = pow (gamma/nom0, 0.5/final_iter);
+      mfem::out << "Average reduction factor = " << arf << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "PCG: No convergence!" << '\n';
+   }
+
+   final_norm = sqrt(gamma);
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 inline void GeneratePlaneRotation(double &dx, double &dy,
