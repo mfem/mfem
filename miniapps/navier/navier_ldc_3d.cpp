@@ -24,7 +24,7 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 4;
    double kinvis = 1.0/50.0; //  = 1/Re
-   double t_final = 1000 * 0.25e-2;
+   double t_final = 20000 * 0.25e-2; // 1000 = time 2.5; 2000 = time 5.0; 20_000 = time 50.0
    double dt = 0.25e-2;
    bool pa = true;
    bool ni = false;
@@ -173,19 +173,30 @@ int main(int argc, char *argv[])
          printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
          fflush(stdout);
       }
+
+      if (t + dt % 2000  == 0)
+      {
+         ParaViewDataCollection pvdc("ldc_3d_out_time_"+to_string(t+dt), pmesh);
+         pvdc.SetDataFormat(VTKFormat::BINARY32);
+         pvdc.SetHighOrderOutput(true);
+         pvdc.SetLevelsOfDetail(ctx.order);
+         pvdc.SetCycle(0);
+         pvdc.SetTime(t);
+         pvdc.RegisterField("velocity", u_gf);
+         pvdc.RegisterField("pressure", p_gf);
+         pvdc.Save();
+      }
    }
 
-   ParaViewDataCollection pvdc("ldc_3d_output", pmesh);
-   pvdc.SetDataFormat(VTKFormat::BINARY32);
-   pvdc.SetHighOrderOutput(true);
-   pvdc.SetLevelsOfDetail(ctx.order);
-   pvdc.SetCycle(0);
-   pvdc.SetTime(t);
-   pvdc.RegisterField("velocity", u_gf);
-   pvdc.RegisterField("pressure", p_gf);
-   // pvdc.RegisterField("vorticity", &w_gf);
-   // pvdc.RegisterField("qcriterion", &q_gf);
-   pvdc.Save();
+   // ParaViewDataCollection pvdc("ldc_3d_output", pmesh);
+   // pvdc.SetDataFormat(VTKFormat::BINARY32);
+   // pvdc.SetHighOrderOutput(true);
+   // pvdc.SetLevelsOfDetail(ctx.order);
+   // pvdc.SetCycle(0);
+   // pvdc.SetTime(t);
+   // pvdc.RegisterField("velocity", u_gf);
+   // pvdc.RegisterField("pressure", p_gf);
+   // pvdc.Save();
 
    if (ctx.visualization)
    {
