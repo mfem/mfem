@@ -947,7 +947,7 @@ void PipelinedPCGSolver::UpdateVectors()
 void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
 {
 
-   double nom = 0, nom0 = 0, r0 = 0, den = 0;
+   double r0;
    x.UseDevice(true);
 
    oper->Mult(x, r);
@@ -955,61 +955,10 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
 
    prec->Mult(r, u); // u = inv(M) r
 
-   nom0 = nom = initial_norm = Dot(r, r);
-   if (nom0 >= 0.0) { initial_norm = sqrt(nom0);}
-   MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-   if (print_options.iterations || print_options.first_and_last)
-   {
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
-                << nom << (print_options.first_and_last ? " ...\n" : "\n");
-   }
-   Monitor(0, nom, r, x);
-
-   if (nom < 0.0)
-   {
-      if (print_options.warnings)
-      {
-         mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
-                   << nom << '\n';
-      }
-      converged = false;
-      final_iter = 0;
-      initial_norm = nom;
-      final_norm = nom;
-      return;
-   }
-   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
-   if (nom <= r0)
-   {
-      converged = true;
-      final_iter = 0;
-      final_norm = sqrt(nom);
-      return;
-   }
-
    oper->Mult(u, w); // w = A u
 
-   den = Dot(w, u);
-   MFEM_ASSERT(IsFinite(den), "den = " << nom);
-   if (den <= 0.0)
-   {
-      if (Dot(w, w) > 0.0 && print_options.warnings)
-      {
-         mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
-                   << den << '\n';
-      }
-      if (den == 0.0)
-      {
-         converged = false;
-         final_iter = 0;
-         final_norm = sqrt(nom);
-         return;
-      }
-   }
-
-
    double gamma = 0; //intialize so we may copy the value in the loop
-   double gamma_old;
+   double gamma_0, gamma_old;
    double delta;
 
    double beta, alpha;
@@ -1018,49 +967,104 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
    bool converged = false;
    final_iter = max_iter;
 
-   for (int i = 1; true;) //has to start at zero
+   for (int i = 0; true;) //has to start at zero
    {
       //Fuse these two operations below
       gamma_old = gamma;
       gamma = Dot(r, u);
       delta = Dot(w, u);
 
+      //Do products computation may be overlapped with the following below
       prec->Mult(w, m);
-
-      //Check if preconditioner is positive definite
-      MFEM_ASSERT(IsFinite(gamma), "gamma = " << gamma);
-      if (gamma < 0.0)
-      {
-         if (print_options.warnings)
-         {
-            mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
-                      << gamma << '\n';
-         }
-         converged = false;
-         final_iter = i;
-         break;
-      }
-
-      //Report iterations
-      if (print_options.iterations)
-      {
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << gamma << std::endl;
-      }
-
-      Monitor(i, gamma, r, x);
-
-      if (gamma <= r0)
-      {
-         converged = true;
-         final_iter = i;
-         break;
-      }
-
-      //m = w;
       oper->Mult(m, n);
 
-      if ( i > 1 )
+
+      if (i == 0)
+      {
+         gamma_0 = initial_norm = gamma;
+         if (gamma >= 0.0) { initial_norm = sqrt(gamma);}
+         if (print_options.iterations || print_options.first_and_last)
+         {
+            mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                      << gamma << (print_options.first_and_last ? " ...\n" : "\n");
+         }
+         Monitor(0, gamma, r, x);
+
+         if (gamma < 0.0)
+         {
+            if (print_options.warnings)
+            {
+               mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                         << gamma << '\n';
+            }
+            converged = false;
+            final_iter = 0;
+            initial_norm = gamma;
+            final_norm = gamma;
+            return;
+         }
+         r0 = std::max(gamma*rel_tol*rel_tol, abs_tol*abs_tol);
+         if (gamma <= r0)
+         {
+            converged = true;
+            final_iter = 0;
+            final_norm = sqrt(gamma);
+            return;
+         }
+
+         MFEM_ASSERT(IsFinite(delta), "delta = " << delta);
+         if (delta <= 0.0)
+         {
+            if (Dot(w, w) > 0.0 && print_options.warnings)
+            {
+               mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                         << delta << '\n';
+            }
+            if (delta == 0.0)
+            {
+               converged = false;
+               final_iter = 0;
+               final_norm = sqrt(gamma);
+               return;
+            }
+         }
+      }// i == 0
+      else
+      {
+
+         //Check if preconditioner is positive definite
+         MFEM_ASSERT(IsFinite(gamma), "gamma = " << gamma);
+         if (gamma < 0.0)
+         {
+            if (print_options.warnings)
+            {
+               mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                         << gamma << '\n';
+            }
+            converged = false;
+            final_iter = i;
+            break;
+         }
+
+         //Report iterations
+         if (print_options.iterations)
+         {
+            mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                      << gamma << std::endl;
+         }
+
+         Monitor(i, gamma, r, x);
+
+         if (gamma <= r0)
+         {
+            converged = true;
+            final_iter = i;
+            break;
+         }
+
+      } // i > 0
+
+      if ( i > 0 )
       {
          alpha_old = alpha;
          beta = gamma/gamma_old;
@@ -1101,8 +1105,6 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
 
       //w_{i+1} = w_i - alpha_i z_i
       add(w, (-alpha), z, w);
-
-      nom = gamma;
    }
 
    if (print_options.first_and_last && !print_options.iterations)
@@ -1117,7 +1119,7 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
    if (print_options.summary || print_options.iterations ||
        print_options.first_and_last)
    {
-      const auto arf = pow (gamma/nom0, 0.5/final_iter);
+      const auto arf = pow (gamma/gamma_0, 0.5/final_iter);
       mfem::out << "Average reduction factor = " << arf << '\n';
    }
    if (print_options.warnings && !converged)

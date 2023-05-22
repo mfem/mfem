@@ -80,6 +80,8 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = true;
    bool fa = false;
+   int ser_ref_levels = 2;
+   int par_ref_levels = 0;
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
@@ -96,6 +98,10 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
                   "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_CEED
@@ -136,11 +142,9 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      for (int lev = 0; lev < ser_ref_levels; lev++)
       {
-         //mesh.UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
@@ -150,10 +154,9 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+      for (int lev = 0; lev < par_ref_levels; lev++)
       {
-         //pmesh.UniformRefinement();
+         pmesh.UniformRefinement();
       }
    }
 
@@ -257,14 +260,37 @@ int main(int argc, char *argv[])
    }
 
 #if 1
-   std::cout<<"\n Running CGSolver"<<std::endl;
+   if (myid == 0)
+   {
+      std::cout<<"\n Running CGSolver"<<std::endl;
+   }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
-   cg.Mult(B, X);
+
+   tic_toc.Clear();
+   // Start & Stop CG timing.
+   {
+      tic_toc.Start();
+      cg.Mult(B, X);
+      tic_toc.Stop();
+
+      double rt_min, rt_max, my_rt;
+      my_rt = tic_toc.RealTime();
+      MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh.GetComm());
+      MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh.GetComm());
+
+      if (myid == 0)
+      {
+         int cg_iter = cg.GetNumIterations();
+         std::cout << "No of iterations = "<<cg_iter <<std::endl;
+         std::cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+                   << std::endl;
+      }
+   }
    //delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
@@ -275,15 +301,39 @@ int main(int argc, char *argv[])
    //x.Print();
 #endif
 
-   std::cout<<"\n Running PipelinedPCGSolver"<<std::endl;
+   if (myid == 0)
+   {
+      std::cout<<"\n Running PipelinedPCGSolver"<<std::endl;
+   }
    a.FormLinearSystem(ess_tdof_list, x_pp, b, A, X_pp, B);
    PipelinedPCGSolver ppcg(MPI_COMM_WORLD);
    ppcg.SetRelTol(1e-12);
-   ppcg.SetMaxIter(20);
+   ppcg.SetMaxIter(2000);
    ppcg.SetPrintLevel(1);
    if (prec) { ppcg.SetPreconditioner(*prec); }
    ppcg.SetOperator(*A);
-   ppcg.Mult(B, X_pp);
+
+
+   tic_toc.Clear();
+   // Start & Stop CG timing.
+   {
+      tic_toc.Start();
+      ppcg.Mult(B, X_pp);
+      tic_toc.Stop();
+
+      double rt_min, rt_max, my_rt;
+      my_rt = tic_toc.RealTime();
+      MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh.GetComm());
+      MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh.GetComm());
+
+      if (myid == 0)
+      {
+         int ppcg_iter = ppcg.GetNumIterations();
+         std::cout << "No of iterations = "<<ppcg_iter <<std::endl;
+         std::cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+                   << std::endl;
+      }
+   }
    delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
@@ -295,7 +345,12 @@ int main(int argc, char *argv[])
 
    //x.Print();
    x_pp -= x;
-   std::cout<<"\n Diff in solution = "<<x_pp.Norml2()<<std::endl;
+   double norm_diff = x_pp.Normlinf();
+   MPI_Allreduce(MPI_IN_PLACE, &norm_diff, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   if (myid == 0)
+   {
+      std::cout<<"\n Diff in solution = "<<norm_diff<<std::endl;
+   }
 
 
 
