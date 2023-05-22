@@ -360,27 +360,27 @@ int main(int argc, char *argv[])
    GridFunction rdm(fespace);
    if (jitter != 0.0)
    {
-       rdm.Randomize();
-       rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-       rdm *= jitter;
-       rdm.HostReadWrite();
-       // Scale the random values to be of order of the local mesh size.
-       for (int i = 0; i < fespace->GetNDofs(); i++)
-       {
-          for (int d = 0; d < dim; d++)
-          {
-             rdm(fespace->DofToVDof(i,d)) *= h0(i);
-          }
-       }
-       Array<int> vdofs;
-       for (int i = 0; i < fespace->GetNBE(); i++)
-       {
-          // Get the vector degrees of freedom in the boundary element.
-          fespace->GetBdrElementVDofs(i, vdofs);
-          // Set the boundary values to zero.
-          for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-       }
-       x -= rdm;
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < fespace->GetNDofs(); i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            rdm(fespace->DofToVDof(i,d)) *= h0(i);
+         }
+      }
+      Array<int> vdofs;
+      for (int i = 0; i < fespace->GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         fespace->GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
+      x -= rdm;
    }
 
    // For parallel runs, we define the true-vector. This makes sure the data is
@@ -430,9 +430,6 @@ int main(int argc, char *argv[])
    // Next, select a target.
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
-
-   const AssemblyLevel al = AssemblyLevel::LEGACY;
-
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -602,7 +599,6 @@ int main(int argc, char *argv[])
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
-   ConstantCoefficient *metric_coeff1 = NULL;
    a.AddDomainIntegrator(tmop_integ);
 
    // Compute the minimum det(J) of the starting mesh.
@@ -762,7 +758,7 @@ int main(int argc, char *argv[])
    TMOPNewtonSolver solver(ir, solver_type);
    if (surface_fit_const > 0.0 && surface_fit_adapt)
    {
-       solver.EnableAdaptiveSurfaceFitting();
+      solver.EnableAdaptiveSurfaceFitting();
    }
    if (surface_fit_const > 0.0 && surface_fit_threshold > 0)
    {
@@ -866,7 +862,6 @@ int main(int argc, char *argv[])
 
    delete S;
    delete S_prec;
-   delete metric_coeff1;
    delete adapt_surface;
    delete target_c;
    delete metric;
