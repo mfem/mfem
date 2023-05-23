@@ -981,7 +981,7 @@ static __global__ void cuKernelDot(const int N, double *gdsr,
    const int tid = threadIdx.x;
    const int bbd = bid*blockDim.x;
    const int rid = bbd+tid;
-   s_dot[tid] = x[n] * (y ? y[n] : 1.0);
+   s_dot[tid] = y ? (x[n] * y[n]) : x[n];
    for (int workers=blockDim.x>>1; workers>0; workers>>=1)
    {
       __syncthreads();
@@ -1070,7 +1070,7 @@ static __global__ void hipKernelDot(const int N, double *gdsr,
    const int tid = hipThreadIdx_x;
    const int bbd = bid*hipBlockDim_x;
    const int rid = bbd+tid;
-   s_dot[tid] = x[n] * (y ? y[n] : 1.0);
+   s_dot[tid] = y ? (x[n] * y[n]) : x[n];
    for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
    {
       __syncthreads();
