@@ -1633,8 +1633,8 @@ public:
 };
 
 /** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times u \hat{z}, v)\f$ in 2D and
-    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H^1\f$ or \f$L_2\f$ and \f$v\f$ is in \f$H\f$(curl) or \f$H\f$(div). 
-    
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H^1\f$ or \f$L_2\f$ and \f$v\f$ is in \f$H\f$(curl) or \f$H\f$(div).
+
     \todo Documentation what \f$\hat{z}\f$ is (also missing in https://mfem.org/bilininteg/).
    */
 class MixedScalarWeakCrossProductIntegrator : public MixedScalarVectorIntegrator
@@ -3085,8 +3085,8 @@ public:
     DiffusionIntegrator):
     - \f$\sigma = -1\f$, \f$\kappa \geq \kappa_0\f$: symm. interior penalty (IP or SIPG) method,
     - \f$\sigma = +1\f$, \f$\kappa > 0\f$: non-symmetric interior penalty (NIPG) method,
-    - \f$\sigma = +1\f$, \f$\kappa = 0\f$: the method of Baumann and Oden. 
-    
+    - \f$\sigma = +1\f$, \f$\kappa = 0\f$: the method of Baumann and Oden.
+
     \todo Clarify used notation. */
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
