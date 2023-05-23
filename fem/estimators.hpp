@@ -74,11 +74,11 @@ public:
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    [1] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
     and a posteriori error estimates. Part 1: The recovery technique.
     Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    [2] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
     and a posteriori error estimates. Part 2: Error estimates and adaptivity.
     Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
@@ -220,8 +220,8 @@ public:
     The required BilinearFormIntegrator must implement the method
     ComputeElementFlux().
 
-   COMMENTS:
-   *  The present implementation ignores all single-element patches corresponding
+   @note
+   -  The present implementation ignores all single-element patches corresponding
       to boundary faces. This is appropriate for Dirichlet boundaries, but
       suboptimal for Neumann boundaries. Reference 3 shows that a constrained
       least-squares problem, where the reconstructed flux is constrained by the
@@ -229,13 +229,13 @@ public:
       NOTE THAT THIS CONSTRAINED LS PROBLEM IS NOT YET IMPLEMENTED, so it is
       possible that the local error estimates for elements on a Neumann boundary
       are suboptimal.
-   *  The global polynomial basis used for the flux reconstruction is, by default,
+   -  The global polynomial basis used for the flux reconstruction is, by default,
       aligned with the physical Cartesian axis. For patches with 2D elements, this
       has been improved on so that the basis is aligned with the physical patch
       orientation. Reorientation of the flux reconstruction basis is helpful to
       maintain symmetry in the refinement pattern and could be extended to 3D.
-   *  This estimator is ONLY implemented IN SERIAL.
-   *  Anisotropic refinement is NOT YET SUPPORTED.
+   -  This estimator is ONLY implemented IN SERIAL.
+   -  Anisotropic refinement is NOT YET SUPPORTED.
 
  */
 class LSZienkiewiczZhuEstimator : public ErrorEstimator

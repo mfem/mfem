@@ -76,10 +76,12 @@ public:
 
 /// BilinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// A(u, w) = -<nabla u.n, w>
-///           -<u + nabla u.d + h.o.t, nabla w.n>
-///           +<alpha h^{-1} (u + nabla u.d + h.o.t), w + nabla w.d + h.o.t>
-/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
+/// \f[
+///  A(u, w) = -\langle \nabla u \cdot n, w \rangle
+///            -\langle u + \nabla u \cdot d + h.o.t, \nabla w.n \rangle
+///            +\langle \alpha h^{-1} (u + \nabla u \cdot d + h.o.t), w + \nabla w \cdot d + h.o.t \rangle
+/// \f]
+/// where \f$h.o.t\f$ include higher-order derivatives (\f$\nabla^k u\f$) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
@@ -132,18 +134,20 @@ public:
 
 /// LinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
-/// (u, w) = -<u_D, nabla w.n >
-///          +<alpha h^{-1} u_D, w + nabla w.d + h.o.t>
-/// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
+/// \f[
+///   (u, w) = -\langle u_D, \nabla w \cdot n  \rangle
+///            +\langle \alpha h^{-1} u_D, w + \nabla w \cdot d + h.o.t \rangle
+/// \f]
+/// where \f$h.o.t\f$ include higher-order derivatives (\f$\nabla^k u\f$) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
 /// determined and elements are marked), this integrator adds contribution to
 /// only the element that is adjacent to that face (Trans.Elem1 or Trans.Elem2)
 /// and is part of the surrogate domain.
-/// Note that u_D is evaluated at the true boundary using the distance function
-/// and ShiftedFunctionCoefficient, i.e. u_D(x_true) = u_D(x_surrogate + D),
-/// where x_surrogate is the location of the integration point on the surrogate
-/// boundary and D is the distance vector from the surrogate boundary to the
+/// Note that \f$u_D\f$ is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. \f$u_D(x_{true}) = u_D(x_{surrogate} + D)\f$,
+/// where \f$x_{surrogate}\f$ is the location of the integration point on the surrogate
+/// boundary and \f$D\f$ is the distance vector from the surrogate boundary to the
 /// true boundary.
 class SBM2DirichletLFIntegrator : public LinearFormIntegrator
 {
@@ -197,9 +201,11 @@ public:
 
 /// BilinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// A(u,w) = <[nabla u + nabla(nabla u).d + h.o.t.].nhat(n.nhat),w>-<grad u.n,w>
-/// where h.o.t are the high-order terms due to Taylor expansion for nabla u,
-/// nhat is the normal vector at the true boundary, n is the normal vector at
+/// \f[
+///   A(u,w) = \langle [\nabla u + \nabla(\nabla u) \cdot d + h.o.t.] \cdot \hat{n} \, (n \cdot \hat{n}),w ⟩ - \langle \nabla u \cdot n,w \rangle
+/// \f]
+/// where h.o.t are the high-order terms due to Taylor expansion for \f$\nabla u\f$,
+/// \f$\hat{n}\f$ is the normal vector at the true boundary, \f$n\f$ is the normal vector at
 /// the surrogate boundary. Since this interior face integrator is applied to
 /// the surrogate boundary (see marking.hpp for notes on how the surrogate faces
 /// are determined and elements are marked), this integrator adds contribution
@@ -254,18 +260,20 @@ public:
 
 /// LinearFormIntegrator for Neumann boundaries using the shifted boundary
 /// method.
-/// (u, w) = <nhat.n t_n, w>
-/// where nhat is the normal vector at the true boundary, n is the normal vector
-/// at the surrogate boundary, and t_n is the traction boundary condition.
+/// \f[
+///   (u, w) = \langle \hat{n} \cdot n \, t_n, w \rangle
+/// \f]
+/// where \f$\hat{n}\f$ is the normal vector at the true boundary, \f$n\f$ is the normal vector
+/// at the surrogate boundary, and \f$t_n\f$ is the traction boundary condition.
 /// Since this interior face integrator is applied to the surrogate boundary
 /// (see marking.hpp for notes on how the surrogate faces are determined and
 /// elements are marked), this integrator adds contribution to only the element
 /// that is adjacent to that face (Trans.Elem1 or Trans.Elem2) and is part of
 /// the surrogate domain.
-/// Note that t_N is evaluated at the true boundary using the distance function
-/// and ShiftedFunctionCoefficient, i.e. t_N(x_true) = t_N(x_surrogate + D),
-/// where x_surrogate is the location of the integration point on the surrogate
-/// boundary and D is the distance vector from the surrogate boundary to the
+/// Note that \f$t_n\f$ is evaluated at the true boundary using the distance function
+/// and ShiftedFunctionCoefficient, i.e. \f$t_n(x_{true}) = t_N(x_{surrogate} + D)\f$,
+/// where \f$x_{surrogate}\f$ is the location of the integration point on the surrogate
+/// boundary and \f$D\f$ is the distance vector from the surrogate boundary to the
 /// true boundary.
 class SBM2NeumannLFIntegrator : public LinearFormIntegrator
 {
