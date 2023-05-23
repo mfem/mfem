@@ -38,7 +38,7 @@ if (MFEM_USE_GSLIB)
 
   add_mfem_miniapp(findpts
     MAIN findpts.cpp
-    LIBRARIES mfem)
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(field-interp
     MAIN field-interp.cpp
@@ -61,7 +61,7 @@ if (MFEM_USE_GSLIB)
 
     add_mfem_miniapp(pfindpts
       MAIN pfindpts.cpp
-      LIBRARIES mfem)
+      LIBRARIES mfem mfem-common)
 
     if (MFEM_ENABLE_TESTING)
       foreach (test "schwarz_ex1p" "pfindpts")
