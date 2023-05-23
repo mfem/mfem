@@ -183,8 +183,7 @@ int main(int argc, char *argv[])
 
       if (step % 2000  == 0)
       {
-         char *intStr = itoa(step);
-         string stepStr = string(intStr);
+         string stepStr = to_string(step);
          ParaViewDataCollection pvdc("ldc_3d_out_step_"+stepStr, pmesh);
          pvdc.SetDataFormat(VTKFormat::BINARY32);
          pvdc.SetHighOrderOutput(true);
