@@ -982,11 +982,11 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
       loc_gamma_delta(0) = r * u; //local inner product
       loc_gamma_delta(1) = w * u; //local inner product
 
+      MPI_Iallreduce(loc_gamma_delta.HostRead(), glo_gamma_delta.HostWrite(), 2, MPI_DOUBLE, MPI_SUM, GetComm(), &request);      
+      
       //Do products computation may be overlapped with the following below
       prec->Mult(w, m);
       oper->Mult(m, n);
-
-      MPI_Iallreduce(loc_gamma_delta.HostRead(), glo_gamma_delta.HostWrite(), 2, MPI_DOUBLE, MPI_SUM, GetComm(), &request);
 
       MPI_Wait(&request, MPI_STATUS_IGNORE);
 
