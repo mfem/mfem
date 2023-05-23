@@ -155,11 +155,7 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
       vectInt.SetSize(dofs.Size());
       DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
 
-      <<<<<<< Updated upstream
-      =======
-         //      I.Mult(elemvecMat, vectIntMat);
-         >>>>>>> Stashed changes
-         Mult(I, elemvecMat, vectIntMat);
+      Mult(I, elemvecMat, vectIntMat);
       xInt->SetSubVector(dofs, vectInt);
    }
 
@@ -274,11 +270,7 @@ int main (int argc, char *argv[])
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
    mesh.GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
-   <<<<<<< Updated upstream
    if (hrefinement || prefinement || mesh_prefinement) { mesh.EnsureNCMesh(true); }
-   =======
-   if (hrefinement || prefinement || mesh_prefinement) { mesh.EnsureNCMesh(); }
-   >>>>>>> Stashed changes
    cout << "--- Generating equidistant point for:\n"
         << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
         << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
@@ -298,11 +290,7 @@ int main (int argc, char *argv[])
    mesh.SetNodalGridFunction(&Nodes);
    cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
 
-   <<<<<<< Updated upstream
    PRefinementGFUpdate preft_fespace = PRefinementGFUpdate(fespace);
-   =======
-      FiniteElementSpace fespace_old = FiniteElementSpace(fespace);
-   >>>>>>> Stashed changes
 
    if (mesh_prefinement)
    {
@@ -315,15 +303,7 @@ int main (int argc, char *argv[])
          }
       }
       fespace.Update(false);
-      <<<<<<< Updated upstream
       preft_fespace.GridFunctionUpdate(Nodes);
-      =======
-         Vector NodesCopy = Nodes;
-      Nodes.Update();
-      PRefinementTransferOperator prefT = PRefinementTransferOperator(fespace_old,
-                                                                      fespace);
-      prefT.Mult(NodesCopy, Nodes);
-      >>>>>>> Stashed changes
    }
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
@@ -378,7 +358,6 @@ int main (int argc, char *argv[])
    GridFunction *mesh_nodes_pref = mesh_prefinement ?
                                    ProlongToMaxOrder(&Nodes, 0) :
                                    &Nodes;
-   <<<<<<< Updated upstream
    if (mesh_prefinement && visualization)
    {
       mesh.SetNodalGridFunction(mesh_nodes_pref);
@@ -392,11 +371,9 @@ int main (int argc, char *argv[])
       VisualizeFESpacePolynomialOrder(sc_fes, "Solution Polynomial Order");
       mesh.SetNodalGridFunction(&Nodes);
    }
-   =======
-      >>>>>>> Stashed changes
 
-      // Project the GridFunction using VectorFunctionCoefficient.
-      VectorFunctionCoefficient F(vec_dim, F_exact);
+   // Project the GridFunction using VectorFunctionCoefficient.
+   VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
    GridFunction *field_vals_pref = prefinement ?
@@ -406,34 +383,12 @@ int main (int argc, char *argv[])
    // Display the mesh and the field through glvis.
    if (visualization)
    {
-      <<<<<<< Updated upstream
       if (mesh_prefinement) { mesh.SetNodalGridFunction(mesh_nodes_pref); }
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, *field_vals_pref,
                              "Solution",
                              0, 0, 400, 400, "RmjA*****");
       if (mesh_prefinement) { mesh.SetNodalGridFunction(&Nodes); }
-      =======
-         char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sout;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-      }
-      else
-      {
-         if (mesh_prefinement) { mesh.SetNodalGridFunction(mesh_nodes_pref); }
-         sout.precision(8);
-         sout << "solution\n" << mesh << *field_vals_pref;
-         if (dim == 2) { sout << "keys RmjA*****\n"; }
-         if (dim == 3) { sout << "keys mA\n"; }
-         sout << flush;
-         if (mesh_prefinement) { mesh.SetNodalGridFunction(&Nodes); }
-      }
-      >>>>>>> Stashed changes
    }
 
    // Generate equidistant points in physical coordinates over the whole mesh.
