@@ -45,9 +45,11 @@
 //     mesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
 //
 //   Adapted discrete size:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //     (requires GSLIB):
 //   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
+//   Adapted discrete size NC mesh;
+//     mesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size 3D with PA:
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
 //   Adapted discrete size 3D with PA on device (requires CUDA):
@@ -174,7 +176,10 @@ int main(int argc, char *argv[])
                   "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
                   "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
                   "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
+                  "90 : balanced combo mu_50 & mu_77   -- 2D shape+size\n\t"
+                  "94 : balanced combo mu_2 & mu_56    -- 2D shape+size\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
+                  // "211: (tau-1)^2-tau+sqrt(tau^2+eps)  -- 2D untangling\n\t"
                   // "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
@@ -188,10 +193,11 @@ int main(int argc, char *argv[])
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
                   "322: |T-adjT^-t|^2                -- 3D shape+size\n\t"
                   "323: |J|^3-3sqrt(3)ln(det(J))-3sqrt(3)  -- 3D shape+size\n\t"
-                  "328: (1-gamma) mu_301 + gamma mu_316  -- 3D shape+size\n\t"
+                  "328: balanced combo mu_301 & mu_316   -- 3D shape+size\n\t"
                   "332: (1-gamma) mu_302 + gamma mu_315  -- 3D shape+size\n\t"
                   "333: (1-gamma) mu_302 + gamma mu_316  -- 3D shape+size\n\t"
                   "334: (1-gamma) mu_303 + gamma mu_316  -- 3D shape+size\n\t"
+                  "328: balanced combo mu_302 & mu_318   -- 3D shape+size\n\t"
                   "347: (1-gamma) mu_304 + gamma mu_316  -- 3D shape+size\n\t"
                   // "352: 0.5(tau-1)^2/(tau-tau_0)      -- 3D untangling\n\t"
                   "360: (|T|^3)/3^{3/2}-tau              -- 3D shape\n\t"
@@ -429,6 +435,8 @@ int main(int argc, char *argv[])
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 90: metric = new TMOP_Metric_090; break;
+      case 94: metric = new TMOP_Metric_094; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(min_detJ); break;
@@ -443,10 +451,11 @@ int main(int argc, char *argv[])
       case 321: metric = new TMOP_Metric_321; break;
       case 322: metric = new TMOP_Metric_322; break;
       case 323: metric = new TMOP_Metric_323; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 328: metric = new TMOP_Metric_328; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(min_detJ); break;
       case 360: metric = new TMOP_Metric_360; break;
@@ -576,16 +585,7 @@ int main(int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         if (dim == 2)
-         {
-            FunctionCoefficient size_coeff(discrete_size_2d);
-            size.ProjectCoefficient(size_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient size_coeff(discrete_size_3d);
-            size.ProjectCoefficient(size_coeff);
-         }
+         ConstructSizeGF(size);
          tc->SetSerialDiscreteTargetSize(size);
          target_c = tc;
          break;
