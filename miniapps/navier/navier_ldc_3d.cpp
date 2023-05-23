@@ -24,7 +24,7 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 4;
    double kinvis = 1.0/50.0; //  = 1/Re
-   double t_final = 20000 * 0.25e-2; // 1000 = time 2.5; 2000 = time 5.0; 20_000 = time 50.0
+   double t_final = 200000 * 0.25e-2; // 1000 = time 2.5; 2000 = time 5.0; 20_000 = time 50.0
    double dt = 0.25e-2;
    bool pa = true;
    bool ni = false;
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
          fflush(stdout);
       }
 
-      if ((step + 1) % 2000 == 0 || last_step)
+      if ((step + 1) % 10000 == 0 || last_step)
       {
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
