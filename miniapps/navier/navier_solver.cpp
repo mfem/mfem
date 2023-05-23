@@ -12,7 +12,9 @@
 #include "navier_solver.hpp"
 #include "../../general/forall.hpp"
 
-#include "../../general/nvtx.hpp"
+// #include "../../general/nvtx.hpp"
+#define NVTX(X)
+#define MFEM_NVTX
 
 #include <fstream>
 #include <iomanip>
