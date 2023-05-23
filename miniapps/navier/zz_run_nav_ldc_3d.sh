@@ -1,7 +1,8 @@
 #!/bin/bash
 #BSUB -G asccasc
-#BSUB -t 4:00:00
+#BSUB -W 4:00
 #BSUB -nnodes 8
+#BSub -q pbatch
 #BSUB --mail-type=ALL
 
 # on lassen: max 4 cores per node i.e. n <= 4*N
