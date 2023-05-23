@@ -75,26 +75,34 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(
-      &ctx.checkres,
-      "-cr",
-      "--checkresult",
-      "-no-cr",
-      "--no-checkresult",
-      "Enable or disable checking of the result. Returns -1 on failure.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (mpi.Root()) // if (Mpi::Root())
-      {
-         args.PrintUsage(mfem::out);
-      }
-      return 1;
-   }
-   if (mpi.Root()) // if (Mpi::Root())
-   {
-      args.PrintOptions(mfem::out);
-   }
+   args.AddOption(&ctx.checkres,
+                  "-cr", "--checkresult",
+                  "-no-cr", "--no-checkresult",
+                  "Enable or disable checking of the result. "
+                  "Returns -1 on failure.");
+   args.AddOption(&ctx.device_config, 
+                  "-d", "--device",
+                  "Device configuration string, see Device::Configure().");   
+   // args.Parse();
+   // if (!args.Good())
+   // {
+   //    if (mpi.Root()) // if (Mpi::Root())
+   //    {
+   //       args.PrintUsage(mfem::out);
+   //    }
+   //    return 1;
+   // }
+   // if (mpi.Root()) // if (Mpi::Root())
+   // {
+   //    args.PrintOptions(mfem::out);
+   // }
+
+   args.ParseCheck();
+
+   Device device(ctx.device_config);
+   if (mpi.Root()) { device.Print(); }
+
+
 
    Mesh *mesh = new Mesh("../../data/inline-hex.mesh");
    mesh->EnsureNodes();
