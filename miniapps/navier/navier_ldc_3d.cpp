@@ -145,6 +145,7 @@ int main(int argc, char *argv[])
    // domain_attr = 1;
    // naviersolver.AddAccelTerm(accel, domain_attr);
 
+
    double t = 0.0;
    double dt = ctx.dt;
    double t_final = ctx.t_final;
@@ -158,6 +159,16 @@ int main(int argc, char *argv[])
    ParGridFunction *p_gf = nullptr;
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
+
+   ParaViewDataCollection pvdc("ldc_3d_out", pmesh);
+   pvdc.SetDataFormat(VTKFormat::BINARY32);
+   pvdc.SetHighOrderOutput(true);
+   pvdc.SetLevelsOfDetail(ctx.order);
+   pvdc.SetCycle(0);
+   pvdc.SetTime(t);
+   pvdc.RegisterField("velocity", u_gf);
+   pvdc.RegisterField("pressure", p_gf);
+   pvdc.Save();
 
    for (int step = 0; !last_step; ++step)
    {
@@ -181,29 +192,13 @@ int main(int argc, char *argv[])
          fflush(stdout);
       }
 
-      if (step % 2000  == 0)
+      if ((step + 1) % 2000 == 0 || last_step)
       {
-         ParaViewDataCollection pvdc("ldc_3d_out_step_" + std::__cxx11::to_string(step), pmesh);
-         pvdc.SetDataFormat(VTKFormat::BINARY32);
-         pvdc.SetHighOrderOutput(true);
-         pvdc.SetLevelsOfDetail(ctx.order);
-         pvdc.SetCycle(0);
+         pvdc.SetCycle(step);
          pvdc.SetTime(t);
-         pvdc.RegisterField("velocity", u_gf);
-         pvdc.RegisterField("pressure", p_gf);
          pvdc.Save();
       }
    }
-
-   // ParaViewDataCollection pvdc("ldc_3d_output", pmesh);
-   // pvdc.SetDataFormat(VTKFormat::BINARY32);
-   // pvdc.SetHighOrderOutput(true);
-   // pvdc.SetLevelsOfDetail(ctx.order);
-   // pvdc.SetCycle(0);
-   // pvdc.SetTime(t);
-   // pvdc.RegisterField("velocity", u_gf);
-   // pvdc.RegisterField("pressure", p_gf);
-   // pvdc.Save();
 
    if (ctx.visualization)
    {
