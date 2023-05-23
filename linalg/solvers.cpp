@@ -964,6 +964,11 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
    double beta, alpha;
    double alpha_old;
 
+   MPI_Request request;
+
+   Vector loc_gamma_delta(2);
+   Vector glo_gamma_delta(2);
+
    bool converged = false;
    final_iter = max_iter;
 
@@ -971,12 +976,22 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
    {
       //Fuse these two operations below
       gamma_old = gamma;
-      gamma = Dot(r, u);
-      delta = Dot(w, u);
+
+      //gamma = Dot(r, u);
+      //delta = Dot(w, u);
+      loc_gamma_delta(0) = r * u; //local inner product
+      loc_gamma_delta(1) = w * u; //local inner product
 
       //Do products computation may be overlapped with the following below
       prec->Mult(w, m);
       oper->Mult(m, n);
+
+      MPI_Iallreduce(loc_gamma_delta.HostRead(), glo_gamma_delta.HostWrite(), 2, MPI_DOUBLE, MPI_SUM, GetComm(), &request);
+
+      MPI_Wait(&request, MPI_STATUS_IGNORE);
+
+      gamma = glo_gamma_delta(0);
+      delta = glo_gamma_delta(1);
 
 
       if (i == 0)
