@@ -30,6 +30,7 @@ struct s_NavierContext
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
+   const char *device_config = "cpu";
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -101,8 +102,6 @@ int main(int argc, char *argv[])
 
    Device device(ctx.device_config);
    if (mpi.Root()) { device.Print(); }
-
-
 
    Mesh *mesh = new Mesh("../../data/inline-hex.mesh");
    mesh->EnsureNodes();
