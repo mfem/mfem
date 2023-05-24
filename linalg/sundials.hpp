@@ -651,6 +651,137 @@ public:
    /// Destroy the associated CVODES memory and SUNDIALS objects.
    virtual ~CVODESSolver();
 };
+ 
+
+// ---------------------------------------------------------------------------
+// Interface to the IDA library
+// ---------------------------------------------------------------------------
+
+/// Interface to the IDA library
+class IDASolver : public DAESolver, public SundialsSolver
+{
+protected:
+   int step_mode; ///< IDA step mode (IDA_NORMAL or IDA_ONE_STEP)
+   int root_components;	/// Number of components in gout
+
+   /// Wrapper to compute the DAE res function.
+   /// https://sundials.readthedocs.io/en/latest/ida/Usage/index.html#c.IDAResFn
+   static int RES(realtype t, const N_Vector y, const N_Vector yp, N_Vector r, void *user_data);
+
+   /// Setup the linear system A x = b
+   /// https://sundials.readthedocs.io/en/latest/ida/Usage/index.html#c.IDALsJacFn
+   static int LinSysSetup(realtype t, realtype cj, N_Vector y, N_Vector yp, N_Vector r, 
+		   SUNMatrix A, void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+
+   /// Solve the linear system A x = b
+   /// https://sundials.readthedocs.io/en/latest/sunlinsol/SUNLinSol_API_link.html#c.SUNLinSolSolve
+   static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x, N_Vector b, realtype tol);
+
+   /// Prototype to define root finding for IDA
+   /// https://sundials.readthedocs.io/en/latest/ida/Usage/index.html#c.IDARootFn
+   static int root(realtype t, N_Vector y, N_Vector yp, realtype *gout, void *user_data);
+
+   /// Typedef for root finding functions
+   typedef std::function<int(realtype t, Vector y, Vector yp, Vector gout, IDASolver *)> RootFunction;
+
+   /// A class member to facilitate pointing to a user-specified root function
+   RootFunction root_func;
+
+   /// Typedef declaration for error weight functions
+   /// https://sundials.readthedocs.io/en/latest/ida/Usage/index.html#c.IDAEwtFn
+   typedef std::function<int(Vector y, Vector w, IDASolver *)> EWTFunction;
+
+   /// A class member to facilitate pointing to a user-specified error weight function
+   EWTFunction ewt_func;
+
+public:
+   /// Construct a serial wrapper to SUNDIALS' IDA integrator.
+   IDASolver();
+
+#ifdef MFEM_USE_MPI
+   /// Construct a parallel wrapper to SUNDIALS' IDA integrator.
+   /** @param[in] comm The MPI communicator used to partition the DAE system */
+   IDASolver(MPI_Comm comm);
+#endif
+
+   /** @brief Initialize IDA: calls IDACreate() to create the IDA memory 
+       and set some defaults.
+      
+       If the IDA memory has already been created, it checks if the problem
+       size has changed since the last call to Init(). If the problem is the 
+       same then IDAReInit() will be called in the next call to Step(). If
+       the problem size has changed, the IDA memory is freed and reallocated 
+       for the new problem size. */
+   /** @param[in] f_ The TimeDependentOperator that defines the DAE system.
+
+       @note All other methods must be called after Init().
+
+       @note If this method is called a second time with a different problem
+       size, then any non-default user-set options will be lost and will need 
+       to be set again. */
+   void Init(TimeDependentOperator &f_);
+
+   /// Integrate the DAE with IDA using the specified step mode.
+   /** @param[in,out] x  On output, the solution vector at the requested output
+			 time tout = @a t + @a dt.
+	@param[in,out] xp  On output, the derivative vector at the requested output
+			 time tout = @a t + @a dt.
+       @param[in,out] t  On output, the output time reached.
+       @param[in,out] dt On output, the last time step taken.
+
+       @note On input, the values of @a t and @a dt are used to compute desired
+       output time for the integration, tout = @a t + @a dt.
+   */
+   virtual void Step(Vector &x, Vector &xp, double &t, double &dt);
+
+   /** @brief Attach the linear system setup and solve methods from the
+       TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
+       IDA.
+   */
+   void UseMFEMLinearSolver();
+
+   /// Attach SUNDIALS GMRES linear solver to IDA.
+   void UseSundialsLinearSolver();
+
+   /// Select the IDA step mode: IDA_NORMAL (default) or IDA_ONE_STEP.
+   /** @param[in] itask  The desired step mode. */
+   void SetStepMode(int itask);
+
+   /// Set the scalar relative and scalar absolute tolerances.
+   void SetSStolerances(double reltol, double abstol);
+
+   /// Set the scalar relative and vector of absolute tolerances.
+   void SetSVtolerances(double reltol, Vector abstol);
+
+   /// Initialize Root Finder.
+   void SetRootFinder(int components, RootFunction func);
+
+   /// Set the maximum time step.
+   void SetMaxStep(double dt_max);
+
+   /// Set the maximum number of time steps.
+   void SetMaxNSteps(int steps);
+
+   /// Get the number of internal steps taken so far.
+   long GetNumSteps();
+
+   /** @brief Set the maximum method order.
+    
+       IDA uses adaptive-order integration, based on the local truncation
+       error. The default values for @a max_order is 5. Use this if you know
+       a priori that your system is such that higher order integration
+       formulas are unstable.
+
+       @note @a max_order can't be higher than the current maximum order. */
+   void SetMaxOrder(int max_order);
+
+   /// Print various IDA statistics.
+   void PrintInfo() const;
+
+   /// Destroy the associated IDA memory and SUNDIALS objects.
+   virtual ~IDASolver();
+
+};
 
 
 // ---------------------------------------------------------------------------
