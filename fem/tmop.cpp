@@ -536,12 +536,23 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(c4, A.GetData());
 }
 
+double TMOP_Metric_050::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_50 = 0.5 |J^t J|^2 / det(J)^2 - 1.
+   DenseMatrix JtJ(2);
+   MultAAt(Jpt, JtJ);
+   JtJ.Transpose();
+   double det = Jpt.Det();
+
+   return 0.5 * JtJ.FNorm2()/(det*det) - 1.0;
+}
+
 double TMOP_Metric_050::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_50 = 0.5*|J^t J|^2/det(J)^2 - 1
    //       = 0.5*(l1^4 + l2^4)/(l1*l2)^2 - 1
    //       = 0.5*((l1/l2)^2 + (l2/l1)^2) - 1 = 0.5*(l1/l2 - l2/l1)^2
-   //       = 0.5*(l1/l2 + l2/l1)^2 - 2 = 0.5*I1b^2 - 2
+   //       = 0.5*(l1/l2 + l2/l1)^2 - 2 = 0.5*I1b^2 - 2.
    ie.SetJacobian(Jpt.GetData());
    const double I1b = ie.Get_I1b();
    return 0.5*I1b*I1b - 2.0;
@@ -597,9 +608,16 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
 }
 
+double TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_56 = 0.5 (det(J) + 1 / det(J)) - 1.
+   const double d = Jpt.Det();
+   return 0.5 * (d + 1.0 / d) - 1.0;
+}
+
 double TMOP_Metric_056::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_56 = 0.5*(I2b + 1/I2b) - 1
+   // mu_56 = 0.5*(I2b + 1/I2b) - 1.
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
    return 0.5*(I2b + 1.0/I2b) - 1.0;
@@ -607,8 +625,8 @@ double TMOP_Metric_056::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_056::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_56 = 0.5*(I2b + 1/I2b) - 1
-   // P = 0.5*(1 - 1/I2b^2)*dI2b
+   // mu_56 = 0.5*(I2b + 1/I2b) - 1.
+   // P = 0.5*(1 - 1/I2b^2)*dI2b.
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5 - 0.5/ie.Get_I2(), ie.Get_dI2b());
 }
@@ -618,8 +636,8 @@ void TMOP_Metric_056::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = 0.5*(1 - 1/I2b^2)*dI2b
-   // dP = (1/I2b^3)*(dI2b x dI2b) + (0.5 - 0.5/I2)*ddI2b
+   // P  = 0.5*(1 - 1/I2b^2)*dI2b.
+   // dP = (1/I2b^3)*(dI2b x dI2b) + (0.5 - 0.5/I2)*ddI2b.
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(weight/(ie.Get_I2()*ie.Get_I2b()),
@@ -629,7 +647,7 @@ void TMOP_Metric_056::AssembleH(const DenseMatrix &Jpt,
 
 double TMOP_Metric_058::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
-   // mu_58 = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
+   // mu_58 = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2.
    DenseMatrix JtJ(2);
    MultAAt(Jpt, JtJ);
    JtJ.Transpose();
@@ -667,17 +685,24 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight*(2*ie.Get_I1b() - 2.0), A.GetData());
 }
 
+double TMOP_Metric_077::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_77 = 0.5 (det(J)^2 + 1 / det(J)^2) - 1.
+   const double d = Jpt.Det();
+   return 0.5 * (d*d + 1.0/(d*d)) - 1.0;
+}
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
+   // mu_77 = 0.5 (I2 + 1 / I2) - 1.0.
    ie.SetJacobian(Jpt.GetData());
-   const double I2b = ie.Get_I2b();
-   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+   const double I2 = ie.Get_I2();
+   return  0.5*(I2 + 1.0/I2) - 1.0;
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // Using I2b^2 = I2.
-   // dmu77_dJ = 1/2 (1 - 1/I2^2) dI2_dJ.
+   // mu_77 = 0.5 (I2 + 1 / I2) - 1.0.
+   // P = 1/2 (1 - 1/I2^2) dI2_dJ.
    ie.SetJacobian(Jpt.GetData());
    const double I2 = ie.Get_I2();
    P.Set(0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2());
@@ -1089,6 +1114,43 @@ void TMOP_Metric_316::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(weight/(ie.Get_I3()*ie.Get_I3b()),
                      ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(weight*(0.5 - 0.5/ie.Get_I3()), A.GetData());
+}
+
+double TMOP_Metric_318::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_318 = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
+   double d = Jpt.Det();
+   return 0.5 * (d*d + 1.0 / (d*d)) - 1.0;
+}
+
+double TMOP_Metric_318::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_318 = mu_77_3D = 0.5 * (I3 + 1/I3) - 1.
+   ie.SetJacobian(Jpt.GetData());
+   const double I3 = ie.Get_I3();
+   return 0.5*(I3 + 1.0/I3) - 1.0;
+}
+
+void TMOP_Metric_318::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   // mu_318 = mu_77_3D = 0.5*(I3 + 1/I3) - 1.
+   // P = 0.5*(1 - 1/I3^2)*dI3 = (0.5 - 0.5/I3^2)*dI3.
+   ie.SetJacobian(Jpt.GetData());
+   P.Set(0.5 - 0.5/(ie.Get_I3()*ie.Get_I3()), ie.Get_dI3());
+}
+
+void TMOP_Metric_318::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   // P = (0.5 - 0.5/I3^2)*dI3.
+   // dP =  (1/I3^3)*(dI3 x dI3) +(0.5 - 0.5/I3^2)*ddI3
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   const double i3 = ie.Get_I3();
+   ie.Assemble_TProd(weight/(i3 * i3 * i3), ie.Get_dI3(), A.GetData());
+   ie.Assemble_ddI3(weight*(0.5 - 0.5 / (i3 * i3)), A.GetData());
 }
 
 double TMOP_Metric_321::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -1715,12 +1777,12 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 namespace internal
 {
 
-// MFEM_FORALL-based copy kernel -- used by protected methods below.
-// Needed as a workaround for the nvcc restriction that methods with MFEM_FORALL
+// mfem::forall-based copy kernel -- used by protected methods below.
+// Needed as a workaround for the nvcc restriction that methods with mfem::forall
 // in them must to be public.
 static inline void device_copy(double *d_dest, const double *d_src, int size)
 {
-   MFEM_FORALL(i, size, d_dest[i] = d_src[i];);
+   mfem::forall(size, [=] MFEM_HOST_DEVICE (int i) { d_dest[i] = d_src[i]; });
 }
 
 } // namespace internal
@@ -2105,17 +2167,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-               double min_size = par_vals.Min();//0.001; //
-               if (lim_min_size > 0.)
+               double min_size = par_vals.Min();
+               if (lim_min_size > 0.) { min_size = lim_min_size; }
+               MFEM_VERIFY(min_size > 0.0,
+                           "Non-positive size propagated in the target definition.");
+
+               double size = fmax(shape * par_vals, min_size);
+               NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+               if (ncmesh)
                {
-                  min_size = lim_min_size;
+                  size /= ncmesh->GetElementSizeReduction(e_id);
                }
-               else
-               {
-                  MFEM_VERIFY(min_size > 0.0,
-                              "Non-positive size propagated in the target definition.");
-               }
-               const double size = std::max(shape * par_vals, min_size);
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
                Jtrcomp_q = Jtr(q);
