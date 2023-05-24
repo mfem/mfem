@@ -55,10 +55,10 @@ public:
     InteriorPointSolver(OptProblem*);
     void Mult(const BlockVector& , BlockVector&); // used when the user wants to be aware of bound-constrained variable m >= ml
     void Mult(const Vector&, Vector &); // useful when the user doesn't need to know about bound-constrained variable   m >= ml
-    double AlphaMax(Vector& , Vector& , Vector& , double);
-    double AlphaMax(Vector& , Vector& , double);
-    void formA(BlockVector& , Vector& , Vector& , BlockOperator &);
-    void pKKTSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
+    double MaxStepSize(Vector& , Vector& , Vector& , double);
+    double MaxStepSize(Vector& , Vector& , double);
+    void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &);
+    void IPNewtonSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
     void lineSearch(BlockVector& , BlockVector& , double);
     void projectZ(const Vector & , Vector &, double);
     void filterCheck(double, double);

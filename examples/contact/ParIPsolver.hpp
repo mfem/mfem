@@ -51,12 +51,12 @@ protected:
 
 public:
     ParInteriorPointSolver(ParOptProblem*);
-    double AlphaMax(Vector& , Vector& , Vector& , double);
-    double AlphaMax(Vector& , Vector& , double);
+    double MaxStepSize(Vector& , Vector& , Vector& , double);
+    double MaxStepSize(Vector& , Vector& , double);
     void Mult(const BlockVector& , BlockVector&);
     void Mult(const Vector&, Vector &); 
-    void formA(BlockVector& , Vector& , Vector& , BlockOperator &);
-    void pKKTSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
+    void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &);
+    void IPNewtonSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
     void lineSearch(BlockVector& , BlockVector& , double);
     void projectZ(const Vector & , Vector &, double);
     void filterCheck(double, double);

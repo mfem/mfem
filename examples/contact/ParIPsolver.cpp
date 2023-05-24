@@ -78,7 +78,7 @@ ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_)
    iAmRoot = MyRank == 0 ? true : false;
 }
 
-double ParInteriorPointSolver::AlphaMax(Vector &x, Vector &xl, Vector &xhat, double tau)
+double ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat, double tau)
 {
    double alphaMaxloc = 1.0;
    double alphaTmp;
@@ -99,10 +99,10 @@ double ParInteriorPointSolver::AlphaMax(Vector &x, Vector &xl, Vector &xhat, dou
    return alphaMaxglb;
 }
 
-double ParInteriorPointSolver::AlphaMax(Vector &x, Vector &xhat, double tau)
+double ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xhat, double tau)
 {
    Vector zero(x.Size()); zero = 0.0;
-   return AlphaMax(x, zero, xhat, tau);
+   return MaxStepSize(x, zero, xhat, tau);
 }
 
 
@@ -218,7 +218,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       zlhat = 0.0; Xhatuml = 0.0;
       // why do we have Xhatuml ....???
       // TO DO: remove Xhatuml in favor of passing Xhat
-      pKKTSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, false); 
+      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, false); 
 
       // assign data stack, X = (u, m, l, zl)
       Xk = 0.0;
@@ -284,7 +284,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
 }
 
-void ParInteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, BlockOperator &Ak)
+void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &zl, BlockOperator &Ak)
 {
    // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
    //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
@@ -345,11 +345,11 @@ void ParInteriorPointSolver::formA(BlockVector & x, Vector & l, Vector &zl, Bloc
 
 // perturbed KKT system solve
 // determine the search direction
-void ParInteriorPointSolver::pKKTSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, double mu, bool socSolve)
+void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, double mu, bool socSolve)
 {
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml); BlockVector b(block_offsetsuml); b = 0.0;
-   formA(x, l, zl, A);
+   FormIPNewtonMat(x, l, zl, A);
 
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
@@ -490,8 +490,8 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
    Vector mhat = Xhat.GetBlock(1);
    Vector lhat = Xhat.GetBlock(2);
    Vector zhat = Xhat.GetBlock(3);
-   double alphaMax  = AlphaMax(m0, ml, mhat, tau);
-   double alphaMaxz = AlphaMax(z0, zhat, tau);
+   double alphaMax  = MaxStepSize(m0, ml, mhat, tau);
+   double alphaMaxz = MaxStepSize(z0, zhat, tau);
    alphaz = alphaMaxz;
 
    BlockVector x0(block_offsetsx); x0 = 0.0;
@@ -601,7 +601,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
             problem->c(x0, ck0);
             ckSoc.Add(alphaMax, ck0);
             // A-5.6 Compute the second-order correction.
-            pKKTSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
+            IPNewtonSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
             mhatsoc.Set(1.0, Xhatumlsoc.GetBlock(1));
             //WARNING: not complete but currently solver isn't entering this region
          }
