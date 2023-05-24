@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
          fflush(stdout);
       }
 
-      if ((step + 1) % 10000 == 0 || last_step)
+      if ((step + 1) % 5000 == 0 || last_step)
       {
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
