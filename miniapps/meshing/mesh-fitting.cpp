@@ -41,11 +41,14 @@
 //     mesh-fitting -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //
 //    New sample runs for p-refinement
-//
+//    Take a mesh, add some noise to it, and optimize it
+//    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -rtol 1e-5 -ji 0.1
 //    Randomly p-refine a mesh, add noise to the mesh nodes and optimize it:
-//     make mesh-fitting -j && ./mesh-fitting -m square01-tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -rtol 1e-5 -ji 0.05 -pref
+//     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -rtol 1e-5 -ji 0.1 -pref
 //    Surface fitting to a circular level-set - no-prefinement right now
-//     make mesh-fitting -j && ./mesh-fitting -m square01-tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
+//     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa
+//    Surface fitting to a circular level-set - with p-refinement
+//     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
 
 
 #include "../../mfem.hpp"
@@ -291,10 +294,8 @@ int main(int argc, char *argv[])
    // P-Refine the mesh - randomly
    // We do this here just to make sure that the base mesh-optimization algorithm
    // works for p-refined mesh
-   if (prefine)
+   if (prefine && surface_fit_const == 0.0)
    {
-      MFEM_VERIFY(surface_fit_const == 0.0,
-                  "Surface fitting should carefully be used for p-refinement.");
       for (int e = 0; e < mesh->GetNE(); e++)
       {
          order_gf(e) = mesh_poly_deg;
@@ -493,6 +494,8 @@ int main(int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
+      // Define a function coefficient (based on the analytic description of
+      // the level-set)
       FunctionCoefficient ls_coeff(surface_level_set);
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
 
@@ -587,7 +590,7 @@ int main(int argc, char *argv[])
    {
       mesh->SetNodalGridFunction(x_max_order);
       socketstream vis1;
-      common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polyorder",
+      common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order",
                              00, 600, 300, 300);
       mesh->SetNodalGridFunction(&x);
    }
