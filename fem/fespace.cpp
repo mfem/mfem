@@ -2786,9 +2786,10 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
-   if (i < 0 || !mesh->GetNE()) { return NULL; }
-   MFEM_VERIFY(i < mesh->GetNE(),
-               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+   MFEM_ASSERT(mesh->GetNE(),"Empty Partition");
+   MFEM_VERIFY(i >= 0 && i < mesh->GetNE(),
+               "Invalid element id:" << i << "; minimum allowed:" << 0 << ", maximum allowed:"
+               << mesh->GetNE()-1);
 
    const FiniteElement *FE =
       fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
