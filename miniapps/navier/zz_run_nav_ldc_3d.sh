@@ -6,7 +6,7 @@
 #BSUB -B
 #BSUB -N
 #BSUB -u gillette7@llnl.gov
-#BSUB -o yy_jobinfo.txt
+#BSUB -o yy_jobinfo_%J.out
 
 # on lassen: max 4 cores per node i.e. n <= 4*N
 
