@@ -294,7 +294,9 @@ void KellyErrorEstimator::ComputeEstimates()
             error_estimates(FT->Elem1No) += jump_integral;
             error_estimates(FT->Elem2No) += jump_integral;
          }
-      } else { // We area t a boundary face
+      }
+      else     // We area t a boundary face
+      {
          // TODO implement boundary flux difference
       }
    }

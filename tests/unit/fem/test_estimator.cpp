@@ -596,32 +596,32 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
 
    // Make the mesh NC
    mesh.EnsureNCMesh(true);
-   switch(element)
+   switch (element)
    {
       case Element::HEXAHEDRON:
-         {
-            Array<int> elements_to_refine(1);
-            elements_to_refine[0] = 0;
-            mesh.GeneralRefinement(elements_to_refine, 1, 0);
-         }
-         break;
+      {
+         Array<int> elements_to_refine(1);
+         elements_to_refine[0] = 0;
+         mesh.GeneralRefinement(elements_to_refine, 1, 0);
+      }
+      break;
 
       case Element::TETRAHEDRON:
+      {
+         Array<int> elements_to_refine(6);
+         for (int i=0; i<6; i++)
          {
-            Array<int> elements_to_refine(6);
-            for(int i=0;i<6;i++)
-            {
-               elements_to_refine[i] = i;
-            }
-            mesh.GeneralRefinement(elements_to_refine, 1, 0);
+            elements_to_refine[i] = i;
          }
-         break;
+         mesh.GeneralRefinement(elements_to_refine, 1, 0);
+      }
+      break;
    }
 
-   for(int nref=0;nref<nrefs;nref++)
+   for (int nref=0; nref<nrefs; nref++)
    {
       Array<int> elements_to_refine(mesh.GetNE());
-      for(int i=0;i<mesh.GetNE();i++)
+      for (int i=0; i<mesh.GetNE(); i++)
       {
          elements_to_refine[i] = i;
       }
@@ -702,7 +702,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
       estimator.SetFaceCoefficientFunction([](Mesh* mesh, const int f,
-                                 const bool shared_face) {return 1.0;});
+      const bool shared_face) {return 1.0;});
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -724,7 +724,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
       estimator.SetFaceCoefficientFunction([](Mesh* mesh, const int f,
-                                 const bool shared_face) {return 1.0;});
+      const bool shared_face) {return 1.0;});
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -746,7 +746,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
       estimator.SetFaceCoefficientFunction([](Mesh* mesh, const int f,
-                                 const bool shared_face) {return 1.0;});
+      const bool shared_face) {return 1.0;});
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
