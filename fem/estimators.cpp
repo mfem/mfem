@@ -221,19 +221,15 @@ void KellyErrorEstimator::ComputeEstimates()
       auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       const auto nip = int_rule.GetNPoints();
 
-      if (mesh->FaceIsInterior(f))
+      if (mesh->FaceIsInterior(f)) 
       {
          int Inf1, Inf2, NCFace;
          mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
 
-         // Convention
-         // * Conforming face: Face side with smaller element id handles
-         // the integration
-         // * Non-conforming face: The slave handles the integration.
-         // See FaceInfo documentation for details.
+         // We skip over master faces
          bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
          bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
-         if ((FT->Elem1No < FT->Elem2No && isConforming) || isNCSlave)
+         if (isConforming || isNCSlave)
          {
             if (attributes.Size() &&
                 (attributes.FindSorted(FT->Elem1->Attribute) == -1
@@ -273,7 +269,8 @@ void KellyErrorEstimator::ComputeEstimates()
                   e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
                   normal /= e1.Weight();
                }
-               jumps(i) = val * normal * fip.weight * FT->Face->Weight();
+               
+               jumps(i) = val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
             }
 
             // Subtract integral over half face of e₂
@@ -305,7 +302,7 @@ void KellyErrorEstimator::ComputeEstimates()
                   normal /= e1.Weight();
                }
 
-               jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
+               jumps(i) -= val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
             }
 
             // Finalize "local" L₂ contribution
@@ -323,7 +320,7 @@ void KellyErrorEstimator::ComputeEstimates()
             error_estimates(FT->Elem1No) += jump_integral;
             error_estimates(FT->Elem2No) += jump_integral;
          }
-      }
+      } // else
    }
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
@@ -402,7 +399,7 @@ void KellyErrorEstimator::ComputeEstimates()
             normal /= e1.Weight();
          }
 
-         jumps(i) = val * normal * fip.weight * FT->Face->Weight();
+         jumps(i) = val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
       }
 
       // Subtract integral over non-local half face of e₂
@@ -433,7 +430,7 @@ void KellyErrorEstimator::ComputeEstimates()
             normal /= e1.Weight();
          }
 
-         jumps(i) -= val * normal * fip.weight * FT->Face->Weight();
+         jumps(i) -= val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
       }
 
       // Finalize "local" L₂ contribution
