@@ -33,6 +33,7 @@ public:
   virtual double get_f_ma() const {return 0.0;}
   virtual double get_f_x() const {return 1.0;}
   virtual double set_alpha_bar(double alpha_) {}
+  virtual int get_model_choice() {return 2;}
   // ~PlasmaModel() {}
 };
 
@@ -87,9 +88,12 @@ private:
   double mu0;
   int N;
   double dx;
+  int model_choice;
 public:
-  PlasmaModelFile(double & mu0_, const char *data_file_, double alpha=1.0, double beta=1.0, double gamma=1.0) :
-    mu0(mu0_), data_file(data_file_), alpha(alpha), beta(beta), gamma(gamma)
+  PlasmaModelFile(double & mu0_, const char *data_file_, double alpha=1.0, double beta=1.0, double gamma=1.0,
+                  int model_choice_=2) :
+    mu0(mu0_), data_file(data_file_), alpha(alpha), beta(beta), gamma(gamma),
+    model_choice(model_choice_)
   {
 
     // cout << data_file_ << endl;
@@ -182,6 +186,8 @@ public:
   double get_f_ma() const {return f_ma;}
   double get_f_x() const {return f_x;}
   double set_alpha_bar(double alpha_) {alpha = alpha_;}
+  int get_model_choice() {return model_choice;}
+
   ~PlasmaModelFile() { }
 };
 

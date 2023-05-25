@@ -27,6 +27,7 @@ const int num_currents = 11;
 
 
 double gs(const char * mesh_file, const char * data_file, int order, int d_refine,
+          int model,
           double & alpha, double & beta, double & gamma, double & mu, double & Ip,
           double & r0, double & rho_gamma, int max_krylov_iter, int max_newton_iter,
           double & krylov_tol, double & newton_tol,

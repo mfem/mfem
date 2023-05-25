@@ -234,10 +234,15 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double mu = model->get_mu();
   double coeff_u2 = model->get_coeff_u2();
 
+  // TODO, need to make these inputs!!!
+  int model_choice = model->get_model_choice();
   double switch_beta = 0.0;
   double switch_taylor = 1.0;
+  if (model_choice == 1) {
+    switch_beta = 1.0;
+    switch_taylor = 0.0;
+  }
   
-
   if (option == 1) {
     // integrand of
     // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
@@ -325,6 +330,8 @@ map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
   }
   return vertex_map;
 }
+
+
 
 void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,

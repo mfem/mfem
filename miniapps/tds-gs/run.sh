@@ -4,25 +4,40 @@
 # iter psi relations
 #
 
+# coefficient of ff' term
 alpha=1.0
+# coefficient of p' term
 beta=0.0
+# unused?
 gamma=0.0
+
+# model
+# 1: ff' defined from data
+# 2: Taylor equilibrium
+model=2
+
+# plasma current
 Ip=1.5e+7
+
+# number of control points on plasma
 N_control=20
-# lambda=100.0
+
 R0=2.4
 rho_gamma=16
-# mu=1e-6
 mu=12.5663706144e-7
 mesh_file="meshes/iter_gen.msh"
 data_file="separated_file.data"
 refinement_factor=2
+
 do_test=0
 do_manufactured_solution=0
+
+# linear solver parameters
 max_krylov_iter=10000
 max_newton_iter=20
 krylov_tol=1e-9 # check this...
 newton_tol=1e-12
+
 # center solenoids
 c6=4.552585e+06
 c7=-3.180596e+06
@@ -30,6 +45,7 @@ c8=-5.678096e+06
 c9=-3.825538e+06
 c10=-1.066498e+07
 c11=2.094771e+07
+
 # poloidal flux coils
 c1=1.143284e+03
 c2=-2.478694e+04
@@ -41,7 +57,7 @@ ur_coeff=1.0
 
 do_control=1
 weight=1e-14
-# weight=1e-4
+
 
 ./main.o \
     -m $mesh_file \
@@ -49,6 +65,7 @@ weight=1e-14
     -d $data_file \
     -g $refinement_factor \
     -t $do_test \
+    --model $model \
     --alpha $alpha \
     --beta $beta \
     --gamma $gamma \

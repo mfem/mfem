@@ -101,6 +101,10 @@ int main(int argc, char *argv[])
    // boundary of far-field
    double rho_gamma = 2.5;
    int do_manufactured_solution = 0;
+   // model
+   // 1: ff' defined from data
+   // 2: Taylor equilibrium
+   int model = 1;
 
    int N_control = 10;
    int max_krylov_iter = 1000;
@@ -132,6 +136,7 @@ int main(int argc, char *argv[])
    args.AddOption(&d_refine, "-g", "--refinement_factor", "Number of grid refinements");
    args.AddOption(&do_test, "-t", "--test", "Perform tests only");
 
+   args.AddOption(&model, "-mo", "--model", "model (1: ff', 2: Taylor equilibrium)");
    args.AddOption(&alpha, "-al", "--alpha", "alpha");
    args.AddOption(&beta, "-be", "--beta", "beta");
    args.AddOption(&gamma, "-ga", "--gamma", "gamma");
@@ -169,6 +174,7 @@ int main(int argc, char *argv[])
      test();
    } else {
      gs(mesh_file, data_file, order, d_refine,
+        model,
         alpha, beta, gamma, mu,
         Ip, r0, rho_gamma, max_krylov_iter, max_newton_iter,
         krylov_tol, newton_tol,

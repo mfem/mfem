@@ -71,6 +71,8 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_ma, ind_x, val_ma, val_x, iprint);
+  psi_x = val_x;
+  psi_ma = val_ma;
   // val_x = 1.0;
   // val_ma = 0.0;
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
@@ -133,6 +135,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_ma, ind_x, val_ma, val_x, iprint);
+  psi_x = val_x;
+  psi_ma = val_ma;
   // val_x = 1.0;
   // val_ma = 0.0;
   if ((iprint) || (false)) {

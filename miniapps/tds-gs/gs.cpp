@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "gs.hpp"
 #include "boundary.hpp"
+#include "field.hpp"
 #include "double_integrals.hpp"
 #include <stdio.h>
 
@@ -296,7 +297,7 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
 }
 
 
-void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int & kdim,
+void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *model, GridFunction & x, int & kdim,
            int & max_newton_iter, int & max_krylov_iter,
            double & newton_tol, double & krylov_tol, double & ur_coeff,
            vector<Vector> *alpha_coeffs, vector<Array<int>> *J_inds,
@@ -316,6 +317,23 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
   bool add_alpha = true;
   bool reduce = true;
 
+  GridFunction psi_r(&fespace);
+  GridFunction psi_z(&fespace);
+    
+  FieldCoefficient BrCoeff(&x, &psi_r, &psi_z, model, fespace, 0);
+  FieldCoefficient BpCoeff(&x, &psi_r, &psi_z, model, fespace, 1);
+  FieldCoefficient BzCoeff(&x, &psi_r, &psi_z, model, fespace, 2);
+  GridFunction Br_field(&fespace);
+  GridFunction Bp_field(&fespace);
+  GridFunction Bz_field(&fespace);
+
+  // Save data in the VisIt format
+  VisItDataCollection visit_dc("gs", fespace.GetMesh());
+  visit_dc.RegisterField("psi", &x);
+  visit_dc.RegisterField("Br", &Br_field);
+  visit_dc.RegisterField("Bp", &Bp_field);
+  visit_dc.RegisterField("Bz", &Bz_field);
+  
   if (do_control) {
     // solve the optimization problem of determining currents to fit desired plasma shape
     // + K  dx +      + By^T dp = - opt_res
@@ -404,6 +422,11 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       double Ca = op.get_Alpha_Term();
       Vector Cy = op.get_Plasma_Vec();
       Vector Ba = op.get_B_alpha();
+      double psi_x = op.get_psi_x();
+      double psi_ma = op.get_psi_ma();
+      BrCoeff.set_psi_vals(psi_x, psi_ma);
+      BpCoeff.set_psi_vals(psi_x, psi_ma);
+      BzCoeff.set_psi_vals(psi_x, psi_ma);
 
       // -b1 = opt_res = K y^n + B_y^T p^n + C_y l^n - g
       K->Mult(x, opt_res);
@@ -673,6 +696,19 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
       }
 
       x.Save("xtmp.gf");
+      Br_field.Save("Br.gf");
+      Bp_field.Save("Bp.gf");
+      Bz_field.Save("Bz.gf");
+      
+      // compute magnetic field
+      x.GetDerivative(1, 0, psi_r);
+      x.GetDerivative(1, 1, psi_z);
+      Br_field.ProjectCoefficient(BrCoeff);
+      Bp_field.ProjectCoefficient(BpCoeff);
+      Bz_field.ProjectCoefficient(BzCoeff);
+      
+      visit_dc.Save();
+      
 
     }
     // op.Mult(x, out_vec);
@@ -744,6 +780,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 
 
 double gs(const char * mesh_file, const char * data_file, int order, int d_refine,
+          int model_choice,
           double & alpha, double & beta, double & gamma, double & mu, double & Ip,
           double & r0, double & rho_gamma, int max_krylov_iter, int max_newton_iter,
           double & krylov_tol, double & newton_tol,
@@ -752,9 +789,6 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & ur_coeff,
           int do_control, int N_control, double & weight,
           bool do_manufactured_solution) {
-
-  // todo, make the below options
-  // different initial condition
 
    map<int, double> coil_current_values;
    // center solenoids
@@ -815,7 +849,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    // beta: multiplier for S_{p'} term
    // gamma: multiplier for S_{ff'} term
    const char *data_file_ = "fpol_pres_ffprim_pprime.data";
-   PlasmaModelFile model(mu, data_file_, alpha, beta, gamma);
+   PlasmaModelFile model(mu, data_file_, alpha, beta, gamma, model_choice);
 
    // Define a finite element space on the mesh. Here we use H1 continuous
    // high-order Lagrange finite elements of the given order.
@@ -918,7 +952,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    //   return 0.0;
    // }
    
-   Solve(fespace, op, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, ur_coeff,
+   Solve(fespace, op, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, ur_coeff,
          alpha_coeffs, J_inds, Ip, N_control, do_control);
    x.Save("final.gf");
    printf("Saved solution to final.gf\n");

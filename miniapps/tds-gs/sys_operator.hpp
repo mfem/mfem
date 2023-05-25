@@ -39,6 +39,10 @@ private:
   mutable double Alpha_Term;
   mutable double Plasma_Current;
   mutable Vector B_alpha;
+
+  mutable double psi_x;
+  mutable double psi_ma;
+  
   double *alpha_bar;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
@@ -100,6 +104,12 @@ public:
   }
   Vector get_Plasma_Vec() {
     return Plasma_Vec;
+  }
+  double get_psi_x() {
+    return psi_x;
+  }
+  double get_psi_ma() {
+    return psi_ma;
   }
     
 };

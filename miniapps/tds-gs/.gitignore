@@ -7,3 +7,5 @@ meshes/test_old*
 *.txt
 *backup*
 *#*
+points/*
+gs_000*
