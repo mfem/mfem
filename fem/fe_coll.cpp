@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,71 @@ namespace mfem
 {
 
 using namespace std;
+
+const FiniteElement *
+FiniteElementCollection::FiniteElementForDim(int dim) const
+{
+   ErrorMode save_error_mode = error_mode;
+   error_mode = RETURN_NULL;
+   const FiniteElement *fe = nullptr;
+   for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+   {
+      fe = FiniteElementForGeometry((Geometry::Type)g);
+      if (fe != nullptr) { break; }
+   }
+   error_mode = save_error_mode;
+   return fe;
+}
+
+int FiniteElementCollection::GetRangeType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetRangeType();
+   }
+   return FiniteElement::UNKNOWN_RANGE_TYPE;
+}
+
+int FiniteElementCollection::GetDerivRangeType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetDerivRangeType();
+   }
+   return FiniteElement::UNKNOWN_RANGE_TYPE;
+}
+
+int FiniteElementCollection::GetMapType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetMapType();
+   }
+   return FiniteElement::UNKNOWN_MAP_TYPE;
+}
+
+int FiniteElementCollection::GetDerivType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetDerivType();
+   }
+   return FiniteElement::NONE;
+}
+
+int FiniteElementCollection::GetDerivMapType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetDerivMapType();
+   }
+   return FiniteElement::UNKNOWN_MAP_TYPE;
+}
 
 int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
 {
@@ -579,6 +644,7 @@ LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::PRISM:       return &WedgeFE;
       case Geometry::PYRAMID:     return &PyramidFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -622,6 +688,7 @@ QuadraticFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -662,6 +729,7 @@ QuadraticPosFECollection::FiniteElementForGeometry(
       case Geometry::SEGMENT:     return &SegmentFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("QuadraticPosFECollection: unknown geometry type.");
    }
    return NULL; // Make some compilers happy
@@ -702,6 +770,7 @@ CubicFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("CubicFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -768,6 +837,7 @@ CrouzeixRaviartFECollection::FiniteElementForGeometry(
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("CrouzeixRaviartFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -805,6 +875,7 @@ RT0_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("RT0_2DFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -847,6 +918,7 @@ RT1_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("RT1_2DFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -888,6 +960,7 @@ RT2_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("RT2_2DFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -929,6 +1002,7 @@ Const2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("Const2DFECollection: unknown geometry type.");
    }
    return &TriangleFE; // Make some compilers happy
@@ -964,6 +1038,7 @@ LinearDiscont2DFECollection::FiniteElementForGeometry(
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("LinearDiscont2DFECollection: unknown geometry type.");
    }
    return &TriangleFE; // Make some compilers happy
@@ -999,6 +1074,7 @@ GaussLinearDiscont2DFECollection::FiniteElementForGeometry(
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("GaussLinearDiscont2DFECollection:"
                      " unknown geometry type.");
    }
@@ -1033,6 +1109,7 @@ P1OnQuadFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    if (GeomType != Geometry::SQUARE)
    {
+      if (error_mode == RETURN_NULL) { return nullptr; }
       mfem_error ("P1OnQuadFECollection: unknown geometry type.");
    }
    return &QuadrilateralFE;
@@ -1067,6 +1144,7 @@ QuadraticDiscont2DFECollection::FiniteElementForGeometry(
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("QuadraticDiscont2DFECollection: unknown geometry type.");
    }
    return &TriangleFE; // Make some compilers happy
@@ -1102,6 +1180,7 @@ QuadraticPosDiscont2DFECollection::FiniteElementForGeometry(
    {
       case Geometry::SQUARE:  return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("QuadraticPosDiscont2DFECollection: unknown geometry type.");
    }
    return NULL; // Make some compilers happy
@@ -1132,6 +1211,7 @@ const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("GaussQuadraticDiscont2DFECollection:"
                      " unknown geometry type.");
    }
@@ -1170,6 +1250,7 @@ CubicDiscont2DFECollection::FiniteElementForGeometry(
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("CubicDiscont2DFECollection: unknown geometry type.");
    }
    return &TriangleFE; // Make some compilers happy
@@ -1207,6 +1288,7 @@ LinearNonConf3DFECollection::FiniteElementForGeometry(
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("LinearNonConf3DFECollection: unknown geometry type.");
    }
    return &TriangleFE; // Make some compilers happy
@@ -1247,6 +1329,7 @@ Const3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::PRISM:       return &WedgeFE;
       case Geometry::PYRAMID:     return &PyramidFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
    return &TetrahedronFE; // Make some compilers happy
@@ -1288,6 +1371,7 @@ LinearDiscont3DFECollection::FiniteElementForGeometry(
       case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("LinearDiscont3DFECollection: unknown geometry type.");
    }
    return &TetrahedronFE; // Make some compilers happy
@@ -1327,6 +1411,7 @@ QuadraticDiscont3DFECollection::FiniteElementForGeometry(
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("QuadraticDiscont3DFECollection: unknown geometry type.");
    }
    return &TetrahedronFE; // Make some compilers happy
@@ -1368,6 +1453,7 @@ RefinedLinearFECollection::FiniteElementForGeometry(
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("RefinedLinearFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
@@ -1408,6 +1494,7 @@ ND1_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::PRISM:       return &WedgeFE;
       case Geometry::PYRAMID:     return &PyramidFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("ND1_3DFECollection: unknown geometry type.");
    }
    return &HexahedronFE; // Make some compilers happy
@@ -1457,6 +1544,7 @@ RT0_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::PRISM:       return &WedgeFE;
       case Geometry::PYRAMID:     return &PyramidFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("RT0_3DFECollection: unknown geometry type.");
    }
    return &HexahedronFE; // Make some compilers happy
@@ -1506,6 +1594,7 @@ RT1_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::CUBE:        return &HexahedronFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("RT1_3DFECollection: unknown geometry type.");
    }
    return &HexahedronFE; // Make some compilers happy
@@ -1867,6 +1956,7 @@ H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
    else
    {
+      if (error_mode == RETURN_NULL) { return nullptr; }
       MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
                  "for order > 1.");
       return NULL;
@@ -2247,6 +2337,7 @@ L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
    else
    {
+      if (error_mode == RETURN_NULL) { return nullptr; }
       MFEM_ABORT("L2 Pyramid basis functions are not yet supported "
                  "for order > 0.");
       return NULL;
@@ -2502,6 +2593,7 @@ RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
    else
    {
+      if (error_mode == RETURN_NULL) { return nullptr; }
       MFEM_ABORT("RT Pyramid basis functions are not yet supported "
                  "for order > 0.");
       return NULL;
@@ -2787,6 +2879,7 @@ ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    }
    else
    {
+      if (error_mode == RETURN_NULL) { return nullptr; }
       MFEM_ABORT("ND Pyramid basis functions are not yet supported "
                  "for order > 1.");
       return NULL;
@@ -3353,6 +3446,7 @@ NURBSFECollection::NURBSFECollection(int Order)
    : FiniteElementCollection((Order == VariableOrder) ? 1 : Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
+   PointFE          = new PointFiniteElement();
    SegmentFE        = new NURBS1DFiniteElement(order);
    QuadrilateralFE  = new NURBS2DFiniteElement(order);
    ParallelepipedFE = new NURBS3DFiniteElement(order);
@@ -3375,9 +3469,10 @@ void NURBSFECollection::SetOrder(int Order) const
 
 NURBSFECollection::~NURBSFECollection()
 {
-   delete ParallelepipedFE;
-   delete QuadrilateralFE;
+   delete PointFE;
    delete SegmentFE;
+   delete QuadrilateralFE;
+   delete ParallelepipedFE;
 }
 
 const FiniteElement *
@@ -3385,10 +3480,12 @@ NURBSFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
+      case Geometry::POINT:       return PointFE;
       case Geometry::SEGMENT:     return SegmentFE;
       case Geometry::SQUARE:      return QuadrilateralFE;
       case Geometry::CUBE:        return ParallelepipedFE;
       default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("NURBSFECollection: unknown geometry type.");
    }
    return SegmentFE; // Make some compilers happy

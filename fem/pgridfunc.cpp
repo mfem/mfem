@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -58,9 +58,18 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       {
          if (partitioning[i] == MyRank)
          {
-            pfes->GetElementVDofs(element_counter, lvdofs);
-            glob_fes->GetElementVDofs(i, gvdofs);
+            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter,
+                                                                          lvdofs);
+            const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
+            if (gtrans)
+            {
+               gtrans->InvTransformPrimal(lnodes);
+            }
+            if (ltrans)
+            {
+               ltrans->TransformPrimal(lnodes);
+            }
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
@@ -151,14 +160,14 @@ void ParGridFunction::ParallelAverage(Vector &tv) const
 {
    MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
-   pfes->DivideByGroupSize(tv);
+   pfes->DivideByGroupSize(tv.HostReadWrite());
 }
 
 void ParGridFunction::ParallelAverage(HypreParVector &tv) const
 {
    MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
-   pfes->DivideByGroupSize(tv);
+   pfes->DivideByGroupSize(tv.HostReadWrite());
 }
 
 HypreParVector *ParGridFunction::ParallelAverage() const
@@ -230,7 +239,7 @@ void ParGridFunction::ExchangeFaceNbrData()
 
    auto d_data = this->Read();
    auto d_send_data = send_data.Write();
-   MFEM_FORALL(i, send_data.Size(),
+   mfem::forall(send_data.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int ldof = d_send_ldof[i];
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
@@ -270,13 +279,15 @@ const
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                   nbr_el_no, dofs);
       const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
          Array<int> dofs_(&dofs[(vdim-1)*s], s);
          face_nbr_data.GetSubVector(dofs_, LocVec);
+
          DofVal.SetSize(s);
       }
       else
@@ -284,6 +295,11 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(LocVec);
+      }
+
       if (fe->GetMapType() == FiniteElement::VALUE)
       {
          fe->CalcShape(ip, DofVal);
@@ -298,7 +314,7 @@ const
    }
    else
    {
-      fes->GetElementDofs(i, dofs);
+      const DofTransformation* const doftrans = fes->GetElementDofs(i, dofs);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -313,6 +329,10 @@ const
          fe->CalcPhysShape(*Tr, DofVal);
       }
       GetSubVector(dofs, LocVec);
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(LocVec);
+      }
    }
 
    return (DofVal * LocVec);
@@ -325,8 +345,9 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
-                                                                  dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                   nbr_el_no,
+                                                   dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
       if (doftrans)
@@ -353,7 +374,7 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
          val.SetSize(vdim);
          for (int k = 0; k < vdim; k++)
          {
-            val(k) = shape * ((const double *)loc_data + dof * k);
+            val(k) = shape * (&loc_data[dof * k]);
          }
       }
       else
@@ -400,7 +421,8 @@ double ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                nbr_el_no, dofs);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -413,6 +435,11 @@ double ParGridFunction::GetValue(ElementTransformation &T,
       fe->CalcPhysShape(T, DofVal);
    }
    face_nbr_data.GetSubVector(dofs, LocVec);
+   if (doftrans)
+   {
+      doftrans->InvTransformPrimal(LocVec);
+   }
+
 
    return (DofVal * LocVec);
 }
@@ -468,7 +495,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
       {
-         val(k) = shape * ((const double *)loc_data + dof * k);
+         val(k) = shape * (&loc_data[dof * k]);
       }
    }
    else
@@ -480,6 +507,15 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
+}
+
+void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
+{
+   GridFunction::CountElementsPerVDof(elem_per_vdof);
+   // Count the zones globally.
+   GroupCommunicator &gcomm = this->ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(elem_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(elem_per_vdof);
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
@@ -644,9 +680,9 @@ void ParGridFunction::ProjectBdrCoefficient(
 
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
-   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   gcomm.Reduce<double>(values.HostReadWrite(), GroupCommunicator::Sum);
    // Only the values in the master are guaranteed to be correct!
    for (int i = 0; i < values.Size(); i++)
    {
@@ -682,9 +718,9 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
-   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   gcomm.Reduce<double>(values.HostReadWrite(), GroupCommunicator::Sum);
    // Only the values in the master are guaranteed to be correct!
    for (int i = 0; i < values.Size(); i++)
    {
@@ -1109,11 +1145,11 @@ void ParGridFunction::ComputeFlux(
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
    // Accumulate flux and counts in parallel
-   ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
-   ffes->GroupComm().Bcast<double>(flux);
+   ffes->GroupComm().Reduce<double>(flux.HostReadWrite(), GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<double>(flux.HostReadWrite());
 
-   ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
-   ffes->GroupComm().Bcast<int>(count);
+   ffes->GroupComm().Reduce<int>(count.HostReadWrite(), GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<int>(count.HostReadWrite());
 
    // complete averaging
    for (int i = 0; i < count.Size(); i++)
@@ -1151,15 +1187,23 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      xfes->GetElementVDofs(i, xdofs);
+      const DofTransformation* const xtrans = xfes->GetElementVDofs(i, xdofs);
       x.GetSubVector(xdofs, el_x);
+      if (xtrans)
+      {
+         xtrans->InvTransformPrimal(el_x);
+      }
 
       ElementTransformation *Transf = xfes->GetElementTransformation(i);
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      flux_fes.GetElementVDofs(i, fdofs);
-      flux.AddElementVector(fdofs, el_f);
+      const DofTransformation* const ftrans = flux_fes.GetElementVDofs(i, fdofs);
+      if (ftrans)
+      {
+         ftrans->TransformPrimal(el_f);
+      }
+      flux.SetSubVector(fdofs, el_f);
    }
 
    // Assemble the linear system for L2 projection into the "smooth" space

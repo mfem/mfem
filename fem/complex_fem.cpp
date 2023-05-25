@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -497,7 +497,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          auto d_X_r = X_r.Read();
          auto d_X_i = X_i.Read();
          auto d_idx = ess_tdof_list.Read();
-         MFEM_FORALL(i, n,
+         mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
          {
             const int j = d_idx[i];
             d_B_r[j] = d_X_r[j];
@@ -1230,7 +1230,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       auto d_X_r = X_r.Read();
       auto d_X_i = X_i.Read();
       auto d_idx = ess_tdof_list.Read();
-      MFEM_FORALL(i, n,
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
       {
          const int j = d_idx[i];
          d_B_r[j] = d_X_r[j];

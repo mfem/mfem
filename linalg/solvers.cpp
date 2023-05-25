@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -281,7 +281,7 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    auto D = diag.Read();
    auto DI = dinv.Write();
    const bool use_abs_diag_ = use_abs_diag;
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       if (D[i] == 0.0)
       {
@@ -293,7 +293,10 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    if (ess_tdof_list && ess_tdof_list->Size() > 0)
    {
       auto I = ess_tdof_list->Read();
-      MFEM_FORALL(i, ess_tdof_list->Size(), DI[I[i]] = delta; );
+      mfem::forall(ess_tdof_list->Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         DI[I[i]] = delta;
+      });
    }
 }
 
@@ -319,7 +322,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       Y[i] += DI[i] * R[i];
    });
@@ -405,9 +408,12 @@ void OperatorChebyshevSmoother::Setup()
    residual.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
-   MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
    auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
+   mfem::forall(ess_tdof_list.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      X[I[i]] = 1.0;
+   });
 
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
@@ -507,12 +513,12 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       const int n = N;
       auto Dinv = dinv.Read();
       auto R = residual.ReadWrite();
-      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { R[i] *= Dinv[i]; });
 
       // Add weighted contribution to y
       auto Y = y.ReadWrite();
       auto C = coeffs.Read();
-      MFEM_FORALL(i, n, Y[i] += C[k] * R[i]; );
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
    }
 }
 
@@ -583,6 +589,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    {
       nom0 = nom = sqrt(Dot(r, r));
    }
+   initial_norm = nom0;
 
    if (print_options.iterations | print_options.first_and_last)
    {
@@ -735,6 +742,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       d = r;
    }
    nom0 = nom = Dot(d, r);
+   if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -752,6 +760,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       converged = false;
       final_iter = 0;
+      initial_norm = nom;
       final_norm = nom;
       return;
    }
@@ -1015,7 +1024,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          r = b;
       }
    }
-   double beta = Norm(r);  // beta = ||r||
+   double beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1027,6 +1036,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       j = 1;
       resid = beta;
       converged = true;
+      j = 0;
+      resid = beta;
       goto finish;
    }
 
@@ -1177,7 +1188,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       x = 0.;
       r = b;
    }
-   double beta = Norm(r);  // beta = ||r||
+   double beta = initial_norm = Norm(r);  // beta = ||r||
    // We need to preallocate this to report the correct result in the case of
    // no convergence.
    double resid;
@@ -1393,7 +1404,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    }
    rtilde = r;
 
-   resid = Norm(r);
+   resid = initial_norm = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -1640,7 +1651,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    {
       prec->Mult(v1, u1);
    }
-   eta = beta = sqrt(Dot(*z, v1));
+   eta = beta = initial_norm = sqrt(Dot(*z, v1));
    MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
@@ -1835,7 +1846,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       r -= b;
    }
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "Newton iteration " << setw(2) << 0
@@ -2033,7 +2044,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    c = r;           // initial descent direction
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "LBFGS iteration " << setw(2) << 0
@@ -2406,7 +2417,7 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
    }
 
    // Solve QP with fixed Lagrange multiplier
-   r = solve(l,xt,x,nclip);
+   r = initial_norm = solve(l,xt,x,nclip);
    print_iteration(nclip, r, l);
 
 
@@ -3036,7 +3047,7 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       }
       LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
       // x_i = D_ii^{-1} x_i
-      A_ii_inv.Solve(block_size, 1, xi);
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
 }
 
@@ -3199,7 +3210,8 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3210,8 +3222,9 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {
@@ -3232,7 +3245,8 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3244,8 +3258,9 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {

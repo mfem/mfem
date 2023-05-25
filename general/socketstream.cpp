@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,9 +30,9 @@
 #include <winsock.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
-#endif
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
+#endif
 #endif
 
 #ifdef MFEM_USE_GNUTLS
@@ -432,17 +432,18 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    }
 
 #ifdef MFEM_DEBUG
-   gnutls_datum_t out;
+   gnutls_datum_t status_str;
    gnutls_certificate_type_t type = gnutls_certificate_type_get(session);
-   ret = gnutls_certificate_verification_status_print(status, type, &out, 0);
+   ret = gnutls_certificate_verification_status_print(
+            status, type, &status_str, 0);
    if (ret < 0)
    {
       mfem::out << "Error in gnutls_certificate_verification_status_print:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
-   mfem::out << out.data << std::endl;
-   gnutls_free(out.data);
+   mfem::out << status_str.data << std::endl;
+   gnutls_free(status_str.data);
 #endif
 #else // --> GNUTLS_VERSION_NUMBER < 0x030104
    int ret = gnutls_certificate_verify_peers2(session, &status);
