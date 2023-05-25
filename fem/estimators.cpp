@@ -214,104 +214,78 @@ void KellyErrorEstimator::ComputeEstimates()
    }
 
    // 2. Add error contribution from local interior faces
-   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   IntegrationPoint ip;
+   Vector val(flux_space->GetVDim());
+   Vector normal(mesh->SpaceDimension());
+   Vector ref_normal(mesh->Dimension());
+   for (int fi = 0; fi < mesh->GetNumFaces(); fi++)
    {
-      auto FT = mesh->GetFaceElementTransformations(f);
-
-      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
-      const auto nip = int_rule.GetNPoints();
-
-      if (mesh->FaceIsInterior(f)) 
+      if (mesh->FaceIsInterior(fi))
       {
-         int Inf1, Inf2, NCFace;
-         mesh->GetFaceInfos(f, &Inf1, &Inf2, &NCFace);
+         // Compute NC and face information
+         int FaceElement1, FaceElement2, NCFace;
+         mesh->GetFaceInfos(fi, &FaceElement1, &FaceElement2, &NCFace);
+         mesh->GetFaceElements(fi, &FaceElement1, &FaceElement2);
 
          // We skip over master faces
-         bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
-         bool isConforming = FT->Elem2No >= 0 && NCFace == -1;
+         bool isNCSlave    = FaceElement2 >= 0 && NCFace >= 0;
+         bool isConforming = FaceElement2 >= 0 && NCFace == -1;
          if (isConforming || isNCSlave)
          {
             if (attributes.Size() &&
-                (attributes.FindSorted(FT->Elem1->Attribute) == -1
-                 || attributes.FindSorted(FT->Elem2->Attribute) == -1))
+                (attributes.FindSorted(mesh->GetAttribute(FaceElement1)) == -1
+                 || attributes.FindSorted(mesh->GetAttribute(FaceElement2)) == -1))
             {
                continue;
             }
 
-            IntegrationRule eir;
-            Vector jumps(nip);
+            // Computation of the transformations is not super cheap, so we delay it until here. All ops above are cheaper lookups.
+            auto FT = mesh->GetFaceElementTransformations(fi);
+
+            // TODO Refactor this computation into a user-facing function.
+            auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi));
+            const auto nip = int_rule.GetNPoints();
+
+            double jump_integral = 0.0;
 
             // Integral over local half face on the side of e₁
             // i.e. the numerical integration of ∫ flux ⋅ n dS₁
             for (int i = 0; i < nip; i++)
             {
-               // Evaluate flux at IP
+               // Setup integration point
                auto &fip = int_rule.IntPoint(i);
-               IntegrationPoint ip;
+               FT->Face->SetIntPoint(&fip);
+
+               // Compute weighted normal - note that the normals match at each face integration point up to the sign!
+               if (mesh->Dimension() == mesh->SpaceDimension())
+               {
+                  CalcOrtho(FT->Face->Jacobian(), normal);
+               }
+               else
+               {
+                  FT->Loc1.Transf.SetIntPoint(&fip);
+                  CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+                  auto &e1 = FT->GetElement1Transformation();
+                  e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+                  // We have to cancel the additional weighting from the
+                  // reference to spatial transformation in the line above.
+                  normal /= e1.Weight();
+               }
+
+               // Evaluate flux jump at IP on element 1
                FT->Loc1.Transform(fip, ip);
-
-               Vector val(flux_space->GetVDim());
                flux->GetVectorValue(FT->Elem1No, ip, val);
+               double jump = val * normal;
 
-               // And build scalar product with normal
-               Vector normal(mesh->SpaceDimension());
-               FT->Face->SetIntPoint(&fip);
-               if (mesh->Dimension() == mesh->SpaceDimension())
-               {
-                  CalcOrtho(FT->Face->Jacobian(), normal);
-               }
-               else
-               {
-                  Vector ref_normal(mesh->Dimension());
-                  FT->Loc1.Transf.SetIntPoint(&fip);
-                  CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
-                  auto &e1 = FT->GetElement1Transformation();
-                  e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
-                  normal /= e1.Weight();
-               }
-               
-               jumps(i) = val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
-            }
-
-            // Subtract integral over half face of e₂
-            // i.e. the numerical integration of ∫ flux ⋅ n dS₂
-            for (int i = 0; i < nip; i++)
-            {
-               // Evaluate flux vector at IP
-               auto &fip = int_rule.IntPoint(i);
-               IntegrationPoint ip;
+               // Evaluate flux jump at IP on element 2
                FT->Loc2.Transform(fip, ip);
-
-               Vector val(flux_space->GetVDim());
                flux->GetVectorValue(FT->Elem2No, ip, val);
+               jump -= val * normal;
 
-               // And build scalar product with normal
-               Vector normal(mesh->SpaceDimension());
-               FT->Face->SetIntPoint(&fip);
-               if (mesh->Dimension() == mesh->SpaceDimension())
-               {
-                  CalcOrtho(FT->Face->Jacobian(), normal);
-               }
-               else
-               {
-                  Vector ref_normal(mesh->Dimension());
-                  FT->Loc1.Transf.SetIntPoint(&fip);
-                  CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
-                  auto &e1 = FT->GetElement1Transformation();
-                  e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
-                  normal /= e1.Weight();
-               }
-
-               jumps(i) -= val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
+               // Finalize integral
+               // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
+               jump_integral += jump*jump*fip.weight / FT->Face->Weight();
             }
-
-            // Finalize "local" L₂ contribution
-            for (int i = 0; i < nip; i++)
-            {
-               jumps(i) *= jumps(i);
-            }
-            auto h_k_face = compute_face_coefficient(mesh, f, false);
-            double jump_integral = h_k_face*jumps.Sum();
 
             // A local face is shared between two local elements, so we
             // can get away with integrating the jump only once and add
@@ -320,7 +294,9 @@ void KellyErrorEstimator::ComputeEstimates()
             error_estimates(FT->Elem1No) += jump_integral;
             error_estimates(FT->Elem2No) += jump_integral;
          }
-      } // else
+      } else { // We area t a boundary face
+         // TODO implement boundary flux difference
+      }
    }
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
@@ -355,9 +331,10 @@ void KellyErrorEstimator::ComputeEstimates()
 
    pflux->ExchangeFaceNbrData();
 
-   for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
+   for (int sfi = 0; sfi < pmesh->GetNSharedFaces(); sfi++)
    {
-      auto FT = pmesh->GetSharedFaceTransformations(sf, true);
+      auto FT = pmesh->GetSharedFaceTransformations(sfi, true);
+
       if (attributes.Size() &&
           (attributes.FindSorted(FT->Elem1->Attribute) == -1
            || attributes.FindSorted(FT->Elem2->Attribute) == -1))
@@ -365,81 +342,54 @@ void KellyErrorEstimator::ComputeEstimates()
          continue;
       }
 
+      // TODO Refactor this computation into a user-facing function.
       auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
       const auto nip = int_rule.GetNPoints();
 
-      IntegrationRule eir;
-      Vector jumps(nip);
+      double jump_integral = 0.0;
 
       // Integral over local half face on the side of e₁
       // i.e. the numerical integration of ∫ flux ⋅ n dS₁
       for (int i = 0; i < nip; i++)
       {
-         // Evaluate flux vector at integration point
+         // Setup integration point
          auto &fip = int_rule.IntPoint(i);
-         IntegrationPoint ip;
-         FT->Loc1.Transform(fip, ip);
+         FT->Face->SetIntPoint(&fip);
 
-         Vector val(flux_space->GetVDim());
+         // Evaluate flux at IP on element 1
+         FT->Loc1.Transform(fip, ip);
          flux->GetVectorValue(FT->Elem1No, ip, val);
 
-         Vector normal(mesh->SpaceDimension());
-         FT->Face->SetIntPoint(&fip);
+         // Compute weighted normal - note that the normals match at each face integration point up to the sign!
          if (mesh->Dimension() == mesh->SpaceDimension())
          {
             CalcOrtho(FT->Face->Jacobian(), normal);
          }
          else
          {
-            Vector ref_normal(mesh->Dimension());
             FT->Loc1.Transf.SetIntPoint(&fip);
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
             auto &e1 = FT->GetElement1Transformation();
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+            // We have to cancel the additional weighting from the
+            // reference to spatial transformation in the line above.
             normal /= e1.Weight();
          }
 
-         jumps(i) = val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
-      }
+         // Evaluate flux jump at IP on element 1
+         FT->Loc1.Transform(fip, ip);
+         flux->GetVectorValue(FT->Elem1No, ip, val);
+         double jump = val * normal;
 
-      // Subtract integral over non-local half face of e₂
-      // i.e. the numerical integration of ∫ flux ⋅ n dS₂
-      for (int i = 0; i < nip; i++)
-      {
-         // Evaluate flux vector at integration point
-         auto &fip = int_rule.IntPoint(i);
-         IntegrationPoint ip;
+         // Evaluate flux jump at IP on element 2
          FT->Loc2.Transform(fip, ip);
-
-         Vector val(flux_space->GetVDim());
          flux->GetVectorValue(FT->Elem2No, ip, val);
+         jump -= val * normal;
 
-         // Evaluate Gauss point
-         Vector normal(mesh->SpaceDimension());
-         FT->Face->SetIntPoint(&fip);
-         if (mesh->Dimension() == mesh->SpaceDimension())
-         {
-            CalcOrtho(FT->Face->Jacobian(), normal);
-         }
-         else
-         {
-            Vector ref_normal(mesh->Dimension());
-            CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
-            auto &e1 = FT->GetElement1Transformation();
-            e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
-            normal /= e1.Weight();
-         }
-
-         jumps(i) -= val * normal * sqrt(fip.weight) / sqrt(FT->Face->Weight());
+         // Finalize integral
+         // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
+         jump_integral += jump*jump*fip.weight / FT->Face->Weight();
       }
-
-      // Finalize "local" L₂ contribution
-      for (int i = 0; i < nip; i++)
-      {
-         jumps(i) *= jumps(i);
-      }
-      auto h_k_face = compute_face_coefficient(mesh, sf, true);
-      double jump_integral = h_k_face*jumps.Sum();
 
       error_estimates(FT->Elem1No) += jump_integral;
       // We skip "error_estimates(FT->Elem2No) += jump_integral"
