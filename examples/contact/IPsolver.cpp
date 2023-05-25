@@ -432,7 +432,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       delete Huuloc;
       delete Areduced;
     }
-    else if(linSolver == 2 || linSolver == 3)
+    else if(linSolver == 2)
     {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       // sparsity of Ju is needed
@@ -456,25 +456,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       JuTloc->Mult(tempVec, breduced);
       breduced.Add(1.0, b.GetBlock(0));
 
-      if(linSolver == 2)
-      {
-        // solve the reduced linear system
-        UMFPackSolver AreducedSolver;
-        AreducedSolver.SetOperator(*Areduced);
-        AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-      }
-      else if(linSolver == 3)
-      {
-        DSmoother AreducedPrec((SparseMatrix &)(*Areduced));
-	CGSolver AreducedSolver;
-	AreducedSolver.SetOperator(*Areduced);
-	AreducedSolver.SetAbsTol(1.e-12);
-	AreducedSolver.SetRelTol(1.e-8);
-	AreducedSolver.SetMaxIter(500);
-	AreducedSolver.SetPreconditioner(AreducedPrec);
-	AreducedSolver.SetPrintLevel(1);
-	AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-      }
+      // solve the reduced linear system
+      UMFPackSolver AreducedSolver;
+      AreducedSolver.SetOperator(*Areduced);
+      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
 
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl
@@ -489,10 +474,61 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       delete Huuloc;
       delete JuTDJu;
       delete Juloc;
+      delete Areduced;
     }
   #else
-    cout << "OPTIMIZER will not converge if MFEM_USE_SUITESPARSE=NO\n";
+    MFEM_VERIFY(linSolver > 2, "linSolver = 0, 1 and 2 require MFEM_USE_SUITESPARSE=YES");
   #endif
+  if (linSolver > 2)
+  { 
+    // form A = Huu + Ju^T D Ju, Wmm = D for contact
+    // sparsity of Ju is needed
+    SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
+    SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
+    SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
+    SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
+    Vector D(dimM); D = 0.0;
+    Vector one(dimM); one = 1.0;
+    Wmmloc->Mult(one, D);
+    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
+    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
+
+    
+    /* prepare the reduced rhs */
+    // breduced = bu + Ju^T (bm + Wmm bl)
+    Vector breduced(dimU); breduced = 0.0;
+    Vector tempVec(dimM); tempVec = 0.0;
+    Wmmloc->Mult(b.GetBlock(2), tempVec);
+    tempVec.Add(1.0, b.GetBlock(1));
+    JuTloc->Mult(tempVec, breduced);
+    breduced.Add(1.0, b.GetBlock(0));
+    
+    /* set up an iterative solver */
+    DSmoother AreducedPrec((SparseMatrix &)(*Areduced));
+    CGSolver AreducedSolver;
+    AreducedSolver.SetOperator(*Areduced);
+    AreducedSolver.SetAbsTol(1.e-12);
+    AreducedSolver.SetRelTol(1.e-8);
+    AreducedSolver.SetMaxIter(500);
+    AreducedSolver.SetPreconditioner(AreducedPrec);
+    AreducedSolver.SetPrintLevel(1);
+    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    
+    // now propagate solved uhat to obtain mhat and lhat
+    // xm = Ju xu - bl
+    Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+
+    // xl = Wmm xm - bm
+    Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+
+    delete Wmmloc;
+    delete Huuloc;
+    delete JuTDJu;
+    delete Juloc;
+    delete Areduced;
+  }
     
   
   /* backsolve to determine zlhat */
