@@ -74,6 +74,7 @@ ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_)
    zlk.SetSize(dimM); zlk = 0.0;
 
    linSolver = 0;
+   linSolveTol = 1.e-8;
    MyRank = Mpi::WorldRank();
    iAmRoot = MyRank == 0 ? true : false;
 }
@@ -458,6 +459,71 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       delete Huuloc;
       delete Areduced;
    }
+   else if(linSolver == 2 || linSolver == 3)
+   {
+      // form A = Huu + Ju^T D Ju, Wmm = D for contact
+      // sparsity of Ju is needed
+      HypreParMatrix * Huuloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0))));
+      HypreParMatrix * Wmmloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1))));
+      HypreParMatrix * Juloc  = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0))));
+      HypreParMatrix * JuTloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2))));
+      
+      
+      HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
+      HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
+      /* prepare the reduced rhs */
+      // breduced = bu + Ju^T (bm + Wmm bl)
+      Vector breduced(dimU); breduced = 0.0;
+      Vector tempVec(dimM); tempVec = 0.0;
+      Wmmloc->Mult(b.GetBlock(2), tempVec);
+      tempVec.Add(1.0, b.GetBlock(1));
+      JuTloc->Mult(tempVec, breduced);
+      breduced.Add(1.0, b.GetBlock(0));
+      
+      if(linSolver == 2)
+      {
+         // setup the solver for the reduced linear system
+         #ifdef MFEM_USE_MUMPS
+	   MUMPSSolver AreducedSolver;   
+           AreducedSolver.SetPrintLevel(0);
+           AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
+         #else 
+           #ifdef MFEM_USE_MKL_CPARDISO
+	     CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
+           #endif
+         #endif
+	 AreducedSolver.SetOperator(*Areduced);
+	 AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+      }
+      else
+      {
+         HyprePCG AreducedSolver(MPI_COMM_WORLD);
+	 AreducedSolver.SetOperator(*Areduced);
+	 HypreBoomerAMG AreducedPrec;
+         AreducedSolver.SetTol(1.e-8);
+         AreducedSolver.SetMaxIter(500);
+         AreducedSolver.SetPreconditioner(AreducedPrec);
+         AreducedSolver.SetResidualConvergenceOptions(); // convergence criteria based on residual norm
+	 AreducedSolver.SetPrintLevel(2);
+         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+      }
+
+      // now propagate solved uhat to obtain mhat and lhat
+      // xm = Ju xu - bl
+      Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+      Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+
+      // xl = Wmm xm - bm
+      Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+      Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+
+      delete Wmmloc;
+      delete Huuloc;
+      delete JuTDJu;
+      delete Juloc;
+      delete Areduced;
+   }
+
    /* backsolve to determine zlhat */
    for(int ii = 0; ii < dimM; ii++)
    {
@@ -786,6 +852,12 @@ void ParInteriorPointSolver::SetLinearSolver(int LinSolver)
 {
    linSolver = LinSolver;
 }
+
+void ParInteriorPointSolver::SetLinearSolveTol(double Tol)
+{
+  linSolveTol = Tol;
+}
+
 
 ParInteriorPointSolver::~ParInteriorPointSolver() 
 {

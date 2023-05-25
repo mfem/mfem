@@ -48,7 +48,7 @@ protected:
     bool saveLogBarrierIterates;
 
     int linSolver;
-
+    double linSolveTol;
 public:
     ParInteriorPointSolver(ParOptProblem*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
@@ -74,6 +74,7 @@ public:
     void SetBarrierParameter(double);    
     void SaveLogBarrierHessianIterates(bool);
     void SetLinearSolver(int);
+    void SetLinearSolveTol(double);
     virtual ~ParInteriorPointSolver();
 };
 

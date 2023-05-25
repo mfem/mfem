@@ -79,7 +79,8 @@ int main(int argc, char *argv[])
    Vector xf(dimD); xf = 0.0;
 
    ParInteriorPointSolver optimizer(&problem); 
-   optimizer.SetTol(1.e-12);
+   optimizer.SetTol(1.e-8);
+   optimizer.SetLinearSolveTol(1.e-10);
    optimizer.SetLinearSolver(linSolver);
    optimizer.SetMaxIter(maxIPMiters);
    optimizer.Mult(x0, xf);
