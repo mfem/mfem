@@ -617,6 +617,10 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
          mesh.GeneralRefinement(elements_to_refine, 1, 0);
       }
       break;
+
+      default:
+         REQUIRE(false);
+         break;
    }
 
    for (int nref=0; nref<nrefs; nref++)
