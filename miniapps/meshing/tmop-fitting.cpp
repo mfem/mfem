@@ -31,7 +31,7 @@
 // Sample runs:
 //  Interface fitting:
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
-//    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
+//    make tmop-fitting -j && mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 1 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-8
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
 //  Fitting to Fischer-Tropsch reactor like domain

@@ -117,7 +117,7 @@ double cube_dist(const Vector &x, Vector &center, double halfwidth)
 
 double csg_cubesph_smooth(const Vector &x)
 {
-   double pwrr = 4.0;
+//   double pwrr = 4.0;
    Vector xcc = x;
    xcc = 0.5;
    const int dim = x.Size();
@@ -134,7 +134,7 @@ double csg_cubesph_smooth(const Vector &x)
 
 double csg_cubecylsph_smooth(const Vector &x)
 {
-   double pwrr = 4.0;
+//   double pwrr = 4.0;
    Vector xcc = x;
    xcc = 0.5;
    const int dim = x.Size();
@@ -178,7 +178,7 @@ double csg_cubecylsph_smooth(const Vector &x)
 
 double kabaria_smooth(const Vector &x)
 {
-   double pwrr = 4.0;
+//   double pwrr = 4.0;
    Vector xcc = x;
    xcc = 0.5;
    const int dim = x.Size();
