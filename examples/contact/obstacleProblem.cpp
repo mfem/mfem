@@ -46,7 +46,6 @@ int main(int argc, char *argv[])
   int dim = mesh->Dimension(); // geometric dimension of the domain
   {
      int ref_levels = 3;
-        // (int)floor(log(2000./mesh->GetNE())/log(2.)/dim);
      for (int l = 0; l < ref_levels; l++)
      {
         mesh->UniformRefinement();
@@ -62,7 +61,7 @@ int main(int argc, char *argv[])
   Vector xf(dimD); xf = 0.0;
 
   InteriorPointSolver optimizer(&problem); 
-  optimizer.SetTol(1.e-12);
+  optimizer.SetTol(1.e-8);
   optimizer.SetLinearSolver(linSolver);
   optimizer.SetMaxIter(maxIPMiters);
   optimizer.Mult(x0, xf);
