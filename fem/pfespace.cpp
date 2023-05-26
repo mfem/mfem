@@ -1844,9 +1844,11 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 static int bisect(const int* array, int size, int value)
 {
    const int* end = array + size;
-   const int* pos = std::lower_bound(array, end, value);
-   MFEM_VERIFY(pos != end, "value not found");
-   return pos - array;
+   const int* pos = std::upper_bound(array, end, value);
+   MFEM_VERIFY(pos != array, "value not found");
+   if (pos == end)
+      MFEM_VERIFY(*(array+size - 1) == value, "Last entry must be exact")
+   return pos - array - 1;
 }
 
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
