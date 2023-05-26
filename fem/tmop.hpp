@@ -2118,10 +2118,26 @@ public:
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
 
+   // Set the initial fitting weight by computing the norm of the gradient of
+   // the metric term and (unweighted) fitting term. This ensures that the initial
+   // weight can be set such that the fitting term dominates the metric term
+   // everywhere.
+   double ComputeInitialFittingWeight(ParMesh *pmesh);
+
+   // Sets initial fitting weight based on the magnitude of the norm of the
+   // gradient of the metric term and the fitting term.
+   void SetInitialFittingWeightAutomatically(ParMesh *pmesh, double offset = 1.0);
+
    void DisableSurfaceFitting();
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+   void UpdateSurfaceFittingCoefficient(Coefficient &coeff) { surf_fit_coeff = &coeff;};
+
+   void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
+
+   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                           int new_x_ordering = Ordering::byNODES);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }

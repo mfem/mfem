@@ -413,6 +413,10 @@ public:
    */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
+   // Perform group communicator operations - used in parallel
+   // op=0 (Sum), 1 (Min), 2 (Max), 3 (BitOR)
+   virtual void GroupCommunicatorOp(int op) {};
+
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */

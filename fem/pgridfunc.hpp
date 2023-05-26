@@ -251,6 +251,10 @@ public:
 
    virtual void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type);
 
+   // Perform group communicator operations.
+   // op=0 (Sum), 1 (Min), 2 (Max), 3 (BitOR)
+   virtual void GroupCommunicatorOp(int op);
+
    using GridFunction::ProjectBdrCoefficient;
 
    // Only the values in the master are guaranteed to be correct!

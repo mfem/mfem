@@ -143,6 +143,7 @@ int main (int argc, char *argv[])
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
+   double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
    double surface_fit_const = 0.0;
@@ -185,6 +186,8 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&jitter, "-ji", "--jitter",
+                  "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
                   "T-metrics\n\t"
@@ -406,6 +409,54 @@ int main (int argc, char *argv[])
    x.SetTrueVector();
    HRUpdater.AddFESpaceForUpdate(pfespace);
    HRUpdater.AddGridFunctionForUpdate(&x);
+
+   // jitter
+   {
+      Vector h0(pfespace->GetNDofs());
+      h0 = infinity();
+      double vol_loc = 0.0;
+      Array<int> dofs;
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         // Get the local scalar element degrees of freedom in dofs.
+         pfespace->GetElementDofs(i, dofs);
+         // Adjust the value of h0 in dofs based on the local mesh size.
+         const double hi = pmesh->GetElementSize(i);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            h0(dofs[j]) = min(h0(dofs[j]), hi);
+         }
+         vol_loc += pmesh->GetElementVolume(i);
+      }
+      double vol_glb;
+      MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+      ParGridFunction rdm(pfespace);
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < pfespace->GetNDofs(); i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+         }
+      }
+      Array<int> vdofs;
+      for (int i = 0; i < pfespace->GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         pfespace->GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
+      x -= rdm;
+      // Set the perturbation of all nodes from the true nodes.
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+   }
 
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
@@ -828,6 +879,21 @@ int main (int argc, char *argv[])
          mat.ExchangeFaceNbrData();
       }
 
+      // Set initial fitting weight automatically
+      {
+         tmop_integ->SetInitialFittingWeightAutomatically(pmesh,
+                                                          surf_fit_coeff.constant);
+         //          double init_fitting_weight = tmop_integ->ComputeInitialFittingWeight(pmesh);
+         //          surf_fit_coeff.constant = init_fitting_weight + surface_fit_const;
+         if (myid == 0)
+         {
+            std::cout << "Initial fitting weight will be: " <<
+                      surf_fit_coeff.constant << std::endl;
+         }
+         //          tmop_integ->UpdateSurfaceFittingCoefficient(surf_fit_coeff);
+         //          tmop_integ->SaveSurfaceFittingWeight();
+      }
+
       if (visualization)
       {
          socketstream vis1, vis2, vis3, vis4, vis5;
@@ -843,6 +909,16 @@ int main (int argc, char *argv[])
             common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
                                    "Level Set 0 Source",
                                    300, 600, 300, 300);
+         }
+      }
+
+      {
+         double err_avg, err_max;
+         tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+         if (myid == 0)
+         {
+            std::cout << "Initial mesh - Avg fitting error: " << err_avg << std::endl
+                      << "Initial mesh - Max fitting error: " << err_max << std::endl;
          }
       }
    }

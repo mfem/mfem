@@ -639,6 +639,32 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    ComputeMeans(type, zones_per_vdof);
 }
 
+void ParGridFunction::GroupCommunicatorOp(int op)
+{
+   GroupCommunicator &gcomm = (this)->ParFESpace()->GroupComm();
+   Array<double> gf_array((this)->GetData(), (this)->Size());
+   if (op == 0)
+   {
+      gcomm.Reduce<double>(gf_array, GroupCommunicator::Sum);
+   }
+   else if (op == 1)
+   {
+      gcomm.Reduce<double>(gf_array, GroupCommunicator::Min);
+   }
+   else if (op == 2)
+   {
+      gcomm.Reduce<double>(gf_array, GroupCommunicator::Max);
+   }
+   //    }    else if (op == 3) {
+   //        gcomm.Reduce<double>(gf_array, GroupCommunicator::BitOR);
+   //    }
+   else
+   {
+      MFEM_ABORT("Invalid GroupCommunicator option.");
+   }
+   gcomm.Bcast(gf_array);
+}
+
 void ParGridFunction::ProjectBdrCoefficient(
    Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr)
 {
