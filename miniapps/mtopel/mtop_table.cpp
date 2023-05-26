@@ -230,7 +230,8 @@ public:
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
         gf->SetCorrelationLen(0.2);
         gf->SetMaternParameter(4.0);
-        gf->SetScale(0.2);
+        gf->SetScale(0.1);
+	num_samples=1000;
     }
 
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
@@ -249,6 +250,11 @@ public:
     void SetCorrelationLen(double l)
     {
         gf->SetCorrelationLen(l);
+    }
+    
+    void SetNumSamples(int nn_)
+    {
+       num_samples=nn_;
     }
 
     void SetSIMP(bool simp_=false){
@@ -302,10 +308,12 @@ public:
 
         mfem::VectorArrayCoefficient ff(pmesh->SpaceDimension());
         mfem::ConstantCoefficient one(1.0);
-        ff.Set(1,&one,false);
-        ff.Set(0,gf,false);
+        mfem::ConstantCoefficient zero(0.0);
+        //ff.Set(1,&one,false);
+        ff.Set(0,&zero,false);
+        ff.Set(1,gf,false);
 
-        int n=50;
+        int n=num_samples;
         double obj=0.0;
         double var=0.0;
         for(int i=0;i<n;i++){
@@ -356,6 +364,7 @@ private:
     mfem::ParMesh* pmesh;
 
     mfem::RandFieldCoefficient* gf;
+    int num_samples;
 };
 
 
@@ -380,6 +389,7 @@ int main(int argc, char *argv[])
    int tot_iter = 100;
    int max_it = 51;
    int print_level = 1;
+   int num_samples=100;
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
@@ -422,6 +432,10 @@ int main(int argc, char *argv[])
                   "-mit",
                   "--max-optimization-iterations",
                   "Maximum iterations for the linear optimizer.");
+   args.AddOption(&num_samples,
+                  "-ns",
+                  "--num-samples",
+                  "Number of samples.");
    args.AddOption(&fradius,
                   "-r",
                   "--radius",
@@ -604,7 +618,7 @@ int main(int argc, char *argv[])
               vobj->SetProjection(0.5,2.0);
               alco->SetDensity(vdens,0.5,8.0,1.0);
               alco->SetSIMP(true);
-          }else if(i<100){
+          }else if(i<250){
               vobj->SetProjection(0.5,2.0);
               alco->SetDensity(vdens,0.5,8.0,3.0);
               alco->SetSIMP(true);
@@ -617,8 +631,12 @@ int main(int argc, char *argv[])
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
-          obj=alco->Compliance(ograd);
-          //obj=alco->MeanCompliance(ograd);
+	  if(i<20){
+          alco->SetNumSamples(num_samples);
+          obj=alco->MeanCompliance(ograd);
+	  }else{
+          alco->SetNumSamples(num_samples);
+          obj=alco->MeanCompliance(ograd);}
 
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<obj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
