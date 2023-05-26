@@ -21,11 +21,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 SRC_DIRS := ./lib ./kernels ./rans
 
 INC_DIRS := $(shell find $(SRC_DIRS) ./ -type d -not -path "./output/*")
-INC_DIRS := $(INC_DIRS) $(MFEM_DIR)/miniapps/shifted/ $(MFEM_DIR)/miniapps/hooke/kernels/
+INC_DIRS := $(INC_DIRS) $(MFEM_DIR)/miniapps/common/ $(MFEM_DIR)/miniapps/hooke/kernels/
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 NAVIER_LIB_SRCS := $(shell find $(SRC_DIRS) -name '*.cpp')
-NAVIER_LIB_SRCS := $(NAVIER_LIB_SRCS) $(MFEM_DIR)/miniapps/shifted/dist_solver.cpp
+NAVIER_LIB_SRCS := $(NAVIER_LIB_SRCS) $(MFEM_DIR)/miniapps/common/dist_solver.cpp
 NAVIER_LIB_OBJS := $(NAVIER_LIB_SRCS:%=%.o)
 NAVIER_LIB_DEPS := $(NAVIER_LIB_OBJS:.o=.d)
 NAVIER_LIB := libnavier.a
