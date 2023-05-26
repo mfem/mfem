@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,6 +100,7 @@ public:
       return dI1;
    }
 
+   // Requires dI2b.
    MFEM_HOST_DEVICE inline double *Get_dI1b()
    {
       // I1b = I1/I2b
@@ -114,6 +115,7 @@ public:
       return dI1b;
    }
 
+   // Requires dI2b.
    MFEM_HOST_DEVICE inline double *Get_dI2()
    {
       // I2 = I2b^2
@@ -155,6 +157,7 @@ public:
       return ddI1;
    }
 
+   // Requires dI2b + ddI1.
    // ddI1b = X1 + X2 + X3, where
    // X1_ijkl = (I1b/I2) [ dI2b_ij dI2b_kl + dI2b_kj dI2b_il ]
    // X2_ijkl = (1/I2b) ddI1_ijkl
@@ -209,6 +212,7 @@ public:
       return ddI1b;
    }
 
+   // Requires dI2b.
    // ddI2_ijkl = 2 dI2b_ij dI2b_kl + 2 (dI2b_ij dI2b_kl - dI2b_kj dI2b_il)
    MFEM_HOST_DEVICE inline double *Get_ddI2(int i, int j)
    {
@@ -225,6 +229,7 @@ public:
       return ddI2;
    }
 
+   // Requires dI2b.
    // ddI2b_ijkl = (1/I2b) (δ_ks δ_it - δ_kt δ_si) dI2b_tj dI2b_sl
    MFEM_HOST_DEVICE inline double *Get_ddI2b(int i, int j)
    {

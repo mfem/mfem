@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include <cstring> // std::memcpy, std::memcmp
 #include <unordered_map>
 #include <algorithm> // std::max
+#include <cstdint>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -786,7 +787,7 @@ void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType h_mt,
    void *h_ptr;
    if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
    else { h_ptr = h_tmp; }
-   flags = Mem::REGISTERED | Mem::OWNS_INTERNAL | Mem::OWNS_HOST |
+   flags = Mem::Registered | Mem::OWNS_INTERNAL | Mem::OWNS_HOST |
            Mem::OWNS_DEVICE | valid_flags;
    // The other New_() method relies on this lazy allocation behavior.
    mm.Insert(h_ptr, bytes, h_mt, d_mt); // lazy dev alloc
@@ -802,9 +803,7 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
                                MemoryType mt,
                                bool own, bool alias, unsigned &flags)
 {
-   MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_VERIFY(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
    const MemType h_mt = is_host_mem ? mt : GetDualMemoryType(mt);
    const MemType d_mt = is_host_mem ? MemoryType::DEFAULT : mt;
@@ -820,7 +819,9 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
       return nullptr;
    }
 
-   flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
+   MFEM_VERIFY(!alias, "Cannot register an alias!");
+
+   flags |= Mem::Registered | Mem::OWNS_INTERNAL;
    void *h_ptr;
 
    if (is_host_mem) // HOST TYPES + MANAGED
@@ -859,7 +860,7 @@ void MemoryManager::Register2_(void *h_ptr, void *d_ptr, size_t bytes,
       return;
    }
 
-   flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
+   flags |= Mem::Registered | Mem::OWNS_INTERNAL;
 
    MFEM_VERIFY(d_ptr || bytes == 0,
                "cannot register NULL device pointer with bytes = " << bytes);
@@ -876,8 +877,8 @@ void MemoryManager::Alias_(void *base_h_ptr, size_t offset, size_t bytes,
 {
    mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset, bytes,
                   base_flags & Mem::ALIAS);
-   flags = (base_flags | Mem::ALIAS | Mem::OWNS_INTERNAL) &
-           ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+   flags = (base_flags | Mem::ALIAS) & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+   if (base_h_ptr) { flags |= Mem::OWNS_INTERNAL; }
 }
 
 void MemoryManager::SetDeviceMemoryType_(void *h_ptr, unsigned flags,
@@ -911,7 +912,7 @@ void MemoryManager::SetDeviceMemoryType_(void *h_ptr, unsigned flags,
 void MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
 {
    const bool alias = flags & Mem::ALIAS;
-   const bool registered = flags & Mem::REGISTERED;
+   const bool registered = flags & Mem::Registered;
    const bool owns_host = flags & Mem::OWNS_HOST;
    const bool owns_device = flags & Mem::OWNS_DEVICE;
    const bool owns_internal = flags & Mem::OWNS_INTERNAL;
@@ -1018,7 +1019,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                 size_t bytes, unsigned &flags)
 {
    if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
-   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   if (bytes > 0) { MFEM_VERIFY(flags & Mem::Registered,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
@@ -1042,7 +1043,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
    if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
-   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   if (bytes > 0) { MFEM_VERIFY(flags & Mem::Registered,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
@@ -1066,7 +1067,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
    if (h_ptr) { CheckHostMemoryType_(h_mt, h_ptr, flags & Mem::ALIAS); }
-   if (bytes > 0) { MFEM_VERIFY(flags & Mem::REGISTERED,""); }
+   if (bytes > 0) { MFEM_VERIFY(flags & Mem::Registered,""); }
    MFEM_ASSERT(MemoryClassCheck_(mc, h_ptr, h_mt, bytes, flags),"");
    if (IsHostMemory(GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
    {
@@ -1088,8 +1089,8 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                                size_t alias_bytes, unsigned base_flags,
                                unsigned &alias_flags)
 {
-   // This is called only when (base_flags & Mem::REGISTERED) is true.
-   // Note that (alias_flags & REGISTERED) may not be true.
+   // This is called only when (base_flags & Mem::Registered) is true.
+   // Note that (alias_flags & Registered) may not be true.
    MFEM_ASSERT(alias_flags & Mem::ALIAS, "not an alias");
    if ((base_flags & Mem::VALID_HOST) && !(alias_flags & Mem::VALID_HOST))
    {
@@ -1097,10 +1098,10 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
    }
    if ((base_flags & Mem::VALID_DEVICE) && !(alias_flags & Mem::VALID_DEVICE))
    {
-      if (!(alias_flags & Mem::REGISTERED))
+      if (!(alias_flags & Mem::Registered))
       {
          mm.InsertAlias(base_h_ptr, alias_h_ptr, alias_bytes, base_flags & Mem::ALIAS);
-         alias_flags = (alias_flags | Mem::REGISTERED | Mem::OWNS_INTERNAL) &
+         alias_flags = (alias_flags | Mem::Registered | Mem::OWNS_INTERNAL) &
                        ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
       }
       mm.GetAliasDevicePtr(alias_h_ptr, alias_bytes, true);
@@ -1671,7 +1672,7 @@ void MemoryPrintFlags(unsigned flags)
 {
    typedef Memory<int> Mem;
    mfem::out
-         << "\n   registered    = " << bool(flags & Mem::REGISTERED)
+         << "\n   registered    = " << bool(flags & Mem::Registered)
          << "\n   owns host     = " << bool(flags & Mem::OWNS_HOST)
          << "\n   owns device   = " << bool(flags & Mem::OWNS_DEVICE)
          << "\n   owns internal = " << bool(flags & Mem::OWNS_INTERNAL)

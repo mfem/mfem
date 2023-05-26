@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -370,7 +370,7 @@ TEST_CASE("Tet mesh with linear grid function",
    mesh.AddVertex(Vertex(1.,1.,1.)());
 
    int idx[4] = {0,1,2,3};
-   mesh.AddElement(new Tetrahedron(idx, attrib));
+   mesh.AddTet(idx, attrib);
 
    mesh.FinalizeMesh();
 
@@ -396,7 +396,6 @@ TEST_CASE("Tet mesh with linear grid function",
       L2_FECollection fec(0,dim);
       testGridFunctions(fec, mesh, 1);
    }
-
 }
 
 TEST_CASE("Prism mesh with linear grid function",

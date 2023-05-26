@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -101,8 +101,8 @@ public:
    ~DGMassInverse();
 
    /// @brief Solve the system M b = u. <b>Not part of the public interface.</b>
-   /// @note This member function must be public because it contains an
-   /// MFEM_FORALL kernel (nvcc limitation)
+   /// @note This member function must be public because it defines an
+   /// extended lambda used in an mfem::forall kernel (nvcc limitation)
    template<int DIM, int D1D = 0, int Q1D = 0>
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };
