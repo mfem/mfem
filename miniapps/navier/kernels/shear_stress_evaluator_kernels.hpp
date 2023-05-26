@@ -9,7 +9,7 @@ using mfem::internal::tensor;
 using mfem::internal::make_tensor;
 
 template <int d1d, int q1d> static inline
-void StressEvaluatorApply2D(
+void ShearStressEvaluatorApply2D(
    const int ne,
    const Array<double> &B_,
    const Array<double> &G_,
@@ -68,7 +68,7 @@ void StressEvaluatorApply2D(
 }
 
 template <int d1d, int q1d> static inline
-void StressEvaluatorApply3D(
+void ShearStressEvaluatorApply3D(
    const int ne,
    const Array<double> &B_,
    const Array<double> &G_,

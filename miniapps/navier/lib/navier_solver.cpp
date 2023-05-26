@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "navier_solver.hpp"
-#include "kernels/stress_integrator.hpp"
+#include "kernels/shear_stress_integrator.hpp"
 #include "general/forall.hpp"
 #include <fstream>
 #include <iomanip>
@@ -164,7 +164,7 @@ void NavierSolver::Setup(double dt)
    kin_vis_gf_coeff.SetGridFunction(&kin_vis_gf);
    if (variable_viscosity)
    {
-      hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, gll_ir);
+      hdv_blfi = new ShearStressIntegrator(kin_vis_gf_coeff, gll_ir);
    }
    else
    {
@@ -285,9 +285,9 @@ void NavierSolver::UpdateForms()
    curl_evaluator = new CurlEvaluator(*vfes);
 
    delete stress_evaluator;
-   stress_evaluator = new StressEvaluator(*kin_vis_gf.ParFESpace(),
-                                          *un_gf.ParFESpace(),
-                                          gll_ir);
+   stress_evaluator = new ShearStressEvaluator(*kin_vis_gf.ParFESpace(),
+                                               *un_gf.ParFESpace(),
+                                               gll_ir);
 
    Vector ones(pfes->GetTrueVSize());
    ones = 1.0;

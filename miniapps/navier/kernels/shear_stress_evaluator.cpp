@@ -9,15 +9,15 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "stress_evaluator.hpp"
-#include "stress_evaluator_kernels.hpp"
+#include "shear_stress_evaluator.hpp"
+#include "shear_stress_evaluator_kernels.hpp"
 
 using namespace mfem;
 using namespace navier;
 
-StressEvaluator::StressEvaluator(const ParFiniteElementSpace &kvfes,
-                                 ParFiniteElementSpace &ufes,
-                                 const IntegrationRule &ir)
+ShearStressEvaluator::ShearStressEvaluator(const ParFiniteElementSpace &kvfes,
+                                           ParFiniteElementSpace &ufes,
+                                           const IntegrationRule &ir)
    : ir(ir), dim(kvfes.GetParMesh()->Dimension()), ne(ufes.GetNE()), ufes(&ufes)
 {
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -45,8 +45,8 @@ StressEvaluator::StressEvaluator(const ParFiniteElementSpace &kvfes,
    qi->SetOutputLayout(QVectorLayout::byNODES);
 }
 
-void StressEvaluator::Apply(const Vector &kv, const Vector &u,
-                            Vector &y)
+void ShearStressEvaluator::Apply(const Vector &kv, const Vector &u,
+                                 Vector &y)
 {
    const int d1d = maps->ndof, q1d = maps->nqpt;
 
@@ -69,30 +69,30 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
       {
          case 0x22:
          {
-            StressEvaluatorApply2D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply2D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          case 0x33:
          {
-            StressEvaluatorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          case 0x55:
          {
-            StressEvaluatorApply2D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply2D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          case 0x77:
          {
-            StressEvaluatorApply2D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply2D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          default:
@@ -106,30 +106,30 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
       {
          case 0x22:
          {
-            StressEvaluatorApply3D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply3D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          case 0x33:
          {
-            StressEvaluatorApply3D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply3D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          case 0x55:
          {
-            StressEvaluatorApply3D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply3D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          case 0x77:
          {
-            StressEvaluatorApply3D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
-                                         geom->J,
-                                         geom->detJ, u_e, y_e, dkv_qp);
+            ShearStressEvaluatorApply3D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
          default:

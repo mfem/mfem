@@ -24,11 +24,11 @@ using mfem::internal::tensor;
 using mfem::internal::make_tensor;
 
 // Bilinear form for S
-class StressIntegrator : public BilinearFormIntegrator
+class ShearStressIntegrator : public BilinearFormIntegrator
 {
 public:
-   StressIntegrator(const GridFunctionCoefficient &n,
-                    const IntegrationRule &ir, const int m = 0) :
+   ShearStressIntegrator(const GridFunctionCoefficient &n,
+                         const IntegrationRule &ir, const int m = 0) :
       BilinearFormIntegrator(&ir), nu(n), mode(m) {}
 
    void AssemblePA(const FiniteElementSpace &fes) override
@@ -68,30 +68,34 @@ public:
          {
             case 0x22:
             {
-               return StressIntegratorApply2D<2, 2>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply2D<2, 2>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x33:
             {
-               return StressIntegratorApply2D<3, 3>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply2D<3, 3>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x55:
             {
-               return StressIntegratorApply2D<5, 5>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply2D<5, 5>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x77:
             {
-               return StressIntegratorApply2D<7, 7>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply2D<7, 7>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             default:
@@ -105,30 +109,34 @@ public:
          {
             case 0x22:
             {
-               return StressIntegratorApply3D<2, 2>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply3D<2, 2>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x33:
             {
-               return StressIntegratorApply3D<3, 3>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply3D<3, 3>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x55:
             {
-               return StressIntegratorApply3D<5, 5>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply3D<5, 5>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             case 0x77:
             {
-               return StressIntegratorApply3D<7, 7>(ne, maps->B, maps->G, IntRule->GetWeights(),
-                                                    geom->J,
-                                                    geom->detJ, x, y, nu_wrap);
+               return ShearStressIntegratorApply3D<7, 7>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
                break;
             }
             default:
@@ -139,7 +147,7 @@ public:
    };
 
    template <int d1d, int q1d, int dim = 2> static inline
-   void StressIntegratorApply2D(
+   void ShearStressIntegratorApply2D(
       const int ne,
       const Array<double> &B_,
       const Array<double> &G_,
@@ -196,7 +204,7 @@ public:
    }
 
    template <int d1d, int q1d, int dim = 3> static inline
-   void StressIntegratorApply3D(
+   void ShearStressIntegratorApply3D(
       const int ne,
       const Array<double> &B_,
       const Array<double> &G_,

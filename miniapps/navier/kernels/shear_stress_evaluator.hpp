@@ -19,15 +19,15 @@ namespace mfem
 namespace navier
 {
 
-class StressEvaluator
+class ShearStressEvaluator
 {
 public:
-   StressEvaluator(const ParFiniteElementSpace &kvfes,
-                   ParFiniteElementSpace &ufes, const IntegrationRule &i);
+   ShearStressEvaluator(const ParFiniteElementSpace &kvfes,
+                        ParFiniteElementSpace &ufes, const IntegrationRule &i);
 
    void Apply(const Vector &kv, const Vector &u, Vector &y);
 
-   ~StressEvaluator() {};
+   ~ShearStressEvaluator() {};
 
 private:
    const IntegrationRule &ir;

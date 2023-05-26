@@ -17,7 +17,7 @@
 #include "mfem.hpp"
 #include "kernels/curl_evaluator.hpp"
 #include "kernels/mean_evaluator.hpp"
-#include "kernels/stress_evaluator.hpp"
+#include "kernels/shear_stress_evaluator.hpp"
 
 namespace mfem
 {
@@ -508,7 +508,7 @@ protected:
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction u_filter_basis_gf, u_low_modes_gf, hpfrt_gf;
 
-   StressEvaluator *stress_evaluator = nullptr;
+   ShearStressEvaluator *stress_evaluator = nullptr;
    CurlEvaluator *curl_evaluator = nullptr;
    MeanEvaluator *mean_evaluator = nullptr;
 
