@@ -76,6 +76,10 @@ public:
    /// Destructor
    ~PRefinementTransfer();
 
+    /// Update source FiniteElementSpace used to construct the
+    /// PRefinementTransfer operator.
+    void SetSourceFESpace(const FiniteElementSpace& src_);
+
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
    void Transfer(GridFunction &targf);
@@ -91,8 +95,16 @@ PRefinementTransfer::~PRefinementTransfer()
    delete src;
 }
 
+void PRefinementTransfer::SetSourceFESpace(const FiniteElementSpace &src_)
+{
+    if (src) { delete src; }
+    src = new FiniteElementSpace(src_);
+}
+
 void PRefinementTransfer::Transfer(GridFunction &targf)
 {
+    MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
+                "GridFunction should not be updated prior to UpdateGF.");
    Vector srcgf = targf;
    targf.Update();
    PRefinementTransferOperator preft =
@@ -508,7 +520,36 @@ int main(int argc, char *argv[])
       // Now p-refine the elements around the interface
       if (prefine)
       {
-         //TODO
+         // TODO
+         int max_order = fespace->GetMaxElementOrder();
+         for (int i=0; i < mesh->GetNumFaces(); i++)
+         {
+             Array<int> els;
+             mesh->GetFaceAdjacentElements(i, els);
+             if (els.Size() == 2)
+             {
+                 int mat1 = mat(els[0]);
+                 int mat2 = mat(els[1]);
+                 if (mat1 != mat2)
+                 {
+                     fespace->SetElementOrder(els[0], max_order+1);
+                     fespace->SetElementOrder(els[1], max_order+1);
+                     order_gf(els[0]) = max_order+1;
+                     order_gf(els[1]) = max_order+1;
+                 }
+             }
+         }
+
+         fespace->Update(false);
+         surf_fit_fes.CopySpaceElementOrders(*fespace);
+         surf_fit_fes.Update(false);
+
+         preft_fespace.Transfer(x);
+         preft_fespace.Transfer(x0);
+         preft_fespace.Transfer(rdm);
+         preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
+         preft_surf_fit_fes.Transfer(surf_fit_gf0);
+         surf_fit_marker.SetSize(surf_fit_gf0.Size());
       }
 
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
