@@ -297,14 +297,10 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 
 } // test case
 
-namespace
-{
-// Helper functions for testing with
 
 // Given a parallel and a serial mesh, perform an L2 projection and check the
 // solutions match exactly.
-void CheckL2Projection(std::function<double(const Vector&)> exact_soln,
-                       ParMesh& pmesh, Mesh& smesh, int order)
+void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order, std::function<double(Vector const&)> exact_soln)
 {
    REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
    REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -397,8 +393,6 @@ void CheckL2Projection(std::function<double(const Vector&)> exact_soln,
    CHECK(std::abs(serror - perror) < test_tol);
 
 };
-
-}
 
 
 TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
@@ -517,14 +511,79 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       }
 
       // Use P4 to ensure there's a few fully interior DOF.
-      CheckL2Projection(exact_soln, ttmp, sttmp, 4);
+      CheckL2Projection(ttmp, sttmp, 4, exact_soln);
 
       ttmp.ExchangeFaceNbrData();
       ttmp.Rebalance();
 
-      CheckL2Projection(exact_soln, ttmp, sttmp, 4);
+      CheckL2Projection(ttmp, sttmp, 4, exact_soln);
    }
 } // test case
+
+
+TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
+{
+   auto smesh = Mesh("../../../data/p1_prism.msh");
+
+   auto exact_soln = [](const Vector& x)
+   {
+      // sin(|| x - d ||^2) -> non polynomial but very smooth.
+      Vector d(3);
+      d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      d -= x;
+      return std::sin(d * d);
+   };
+
+   for (auto ref : {0,1,2})
+   {
+      if (ref == 1) { smesh.UniformRefinement(); }
+
+      smesh.EnsureNCMesh(true);
+
+      if (ref == 2) { smesh.UniformRefinement(); }
+
+      smesh.Finalize();
+
+      auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
+
+      // P2 ensures there are triangles without dofs
+      CheckL2Projection(pmesh, smesh, 2, exact_soln);
+   }
+
+} // test case
+
+TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
+{
+   auto smesh = Mesh("../../../data/p2_prism.msh");
+
+   auto exact_soln = [](const Vector& x)
+   {
+      // sin(|| x - d ||^2) -> non polynomial but very smooth.
+      Vector d(3);
+      d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      d -= x;
+      return std::sin(d * d);
+   };
+
+   for (auto ref : {0,1,2})
+   {
+      if (ref == 1) { smesh.UniformRefinement(); }
+
+      smesh.EnsureNCMesh(true);
+
+      if (ref == 2) { smesh.UniformRefinement(); }
+
+      smesh.Finalize();
+
+      auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
+
+      for (int p = 1; p < 3; ++p)
+         CheckL2Projection(pmesh, smesh, p, exact_soln);
+   }
+
+
+} // test case
+
 
 /**
  * @brief Test GetVectorValue on face neighbor elements for nonconformal meshes
