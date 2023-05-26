@@ -28,12 +28,12 @@ namespace mfem
 class ParPumiMesh;
 #endif
 
+class ParGridFunction;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
 protected:
-   friend class ParSubMesh;
-
+  friend class ParSubMesh;
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -114,9 +114,6 @@ protected:
                              const Array<unsigned> &codes, int &pos);
 
    STable3D *GetFaceNbrElementToFaceTable(int ret_ftbl = 0);
-
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
 
    void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
@@ -352,6 +349,8 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
+  void GetFaceNbrElementTransformation(int i, IsoparametricTransformation *ElTr);
+  
    /** Map a global element number to a local element number. If the global
        element is not on this processor, return -1. */
    int GetLocalElementNum(long long global_element_num) const;
