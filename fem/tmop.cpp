@@ -3242,7 +3242,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
-                                           const Array<bool> &smarker,
+                                           Array<bool> &smarker,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae,
                                            AdaptivityEvaluator *aegrad,
@@ -3267,6 +3267,22 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_gf_bg = false;
 
    SaveSurfaceFittingWeight();
+
+   //Unify marker array across processor boundaries
+   {
+      ParGridFunction marker_gf(s0);
+      marker_gf = 0.0;
+      for (int i = 0; i < marker_gf.Size(); i++)
+      {
+         marker_gf(i) = smarker[i];
+      }
+      marker_gf.ExchangeFaceNbrData();
+      marker_gf.GroupCommunicatorOp(2);
+      for (int i = 0; i < marker_gf.Size(); i++)
+      {
+         smarker[i] = marker_gf(i) == 1.0;
+      }
+   }
 
    // Store DOF indices that are marked for fitting. Used to reduce work for
    // transferring information between source/background and current mesh.
@@ -3364,7 +3380,7 @@ void TMOP_Integrator::DisableSurfaceFitting()
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
                                                      &s0_bg,
                                                      ParGridFunction &s0,
-                                                     const Array<bool> &smarker,
+                                                     Array<bool> &smarker,
                                                      Coefficient &coeff,
                                                      AdaptivityEvaluator &ae,
                                                      const ParGridFunction &s0_bg_grad,
@@ -3393,6 +3409,22 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
+
+   //Unify marker array across processor boundaries
+   {
+      ParGridFunction marker_gf(s0);
+      marker_gf = 0.0;
+      for (int i = 0; i < marker_gf.Size(); i++)
+      {
+         marker_gf(i) = smarker[i];
+      }
+      marker_gf.ExchangeFaceNbrData();
+      marker_gf.GroupCommunicatorOp(2);
+      for (int i = 0; i < marker_gf.Size(); i++)
+      {
+         smarker[i] = marker_gf(i) == 1.0;
+      }
+   }
 
    surf_fit_gf_bg = true;
    surf_fit_eval->SetParMetaInfo(*s0_bg.ParFESpace()->GetParMesh(),

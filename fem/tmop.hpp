@@ -2080,7 +2080,7 @@ public:
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
-                             const Array<bool> &smarker, Coefficient &coeff,
+                             Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
                              AdaptivityEvaluator *aegrad = NULL,
                              AdaptivityEvaluator *aehess = NULL);
@@ -2108,7 +2108,7 @@ public:
        See the tmop-fitting miniapp for detail on usage. */
    void EnableSurfaceFittingFromSource(const ParGridFunction &s0_bg,
                                        ParGridFunction &s0,
-                                       const Array<bool> &smarker,
+                                       Array<bool> &smarker,
                                        Coefficient &coeff,
                                        AdaptivityEvaluator &ae,
                                        const ParGridFunction &s0_bg_grad,

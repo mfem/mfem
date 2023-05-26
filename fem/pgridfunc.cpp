@@ -663,6 +663,7 @@ void ParGridFunction::GroupCommunicatorOp(int op)
       MFEM_ABORT("Invalid GroupCommunicator option.");
    }
    gcomm.Bcast(gf_array);
+   ExchangeFaceNbrData();
 }
 
 void ParGridFunction::ProjectBdrCoefficient(

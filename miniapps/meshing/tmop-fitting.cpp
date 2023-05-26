@@ -798,7 +798,6 @@ int main (int argc, char *argv[])
             dof_list.Append(dofs);
          }
 
-
          for (int i = 0; i < dof_list.Size(); i++)
          {
             surf_fit_marker[dof_list[i]] = true;
@@ -806,12 +805,7 @@ int main (int argc, char *argv[])
          }
 
          // Unify across processor boundaries
-         GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
-         Array<double> surf_fit_mat_gf_array(surf_fit_mat_gf.GetData(),
-                                             surf_fit_mat_gf.Size());
-         gcomm.Reduce<double>(surf_fit_mat_gf_array, GroupCommunicator::Max);
-         gcomm.Bcast(surf_fit_mat_gf_array);
-
+         surf_fit_mat_gf.GroupCommunicatorOp(2);
          surf_fit_mat_gf.ExchangeFaceNbrData();
 
          for (int i = 0; i < surf_fit_mat_gf.Size(); i++)
