@@ -1217,6 +1217,33 @@ public:
       return vel + sound;
    }
 
+   virtual void ComputeFluxJacobian(const Vector &state,
+                                    ElementTransformation &Tr, DenseTensor &Jacobian, DenseMatrix &eigs)
+   {
+      const int dim = Tr.GetDimension();
+      const int nvars = state.Size();
+
+      const double height = state(0);                   // h
+      const Vector momentum(state.GetData() + 1, dim);  // hu
+
+      Jacobian = 0.0;
+      for (int i=0; i<dim; i++)
+      {
+         // double* current_col = Jacobian.GetData(i);
+         // dF/dh
+         for (int j=0; j<dim; j++) { Jacobian(1 + j, 0, i) = -(momentum[i]/(height*height))*momentum[j]; }
+         Jacobian(1 + i, 0, i) += g*height;
+
+         // dF/d(hu)
+         Jacobian(0, 1 + i, i) = 1.0; // dF_1/d(ρu)
+         for (int j=0; j<dim; j++)
+         {
+            Jacobian(j + 1, i + 1, i) += momentum[j]/height; // (hu * e_i^T)/h, column
+            Jacobian(j + 1, j + 1, i) += momentum[i]/height; // (hu_i / h) I, diagonal
+         }
+      }
+   }
+
    /**
     * @brief Construct a new Shallow Water Element Form Integrator object with
     * given integral order offset
