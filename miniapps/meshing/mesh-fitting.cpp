@@ -550,6 +550,9 @@ int main(int argc, char *argv[])
          preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
          preft_surf_fit_fes.Transfer(surf_fit_gf0);
          surf_fit_marker.SetSize(surf_fit_gf0.Size());
+
+         x.SetTrueVector();
+         x.SetFromTrueVector();
       }
 
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
@@ -608,6 +611,7 @@ int main(int argc, char *argv[])
 
       if (prefine)
       {
+          x_max_order = ProlongToMaxOrder(&x , 0);
          mesh->SetNodalGridFunction(x_max_order);
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
