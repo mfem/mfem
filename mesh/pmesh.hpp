@@ -108,9 +108,6 @@ protected:
 
    STable3D *GetFaceNbrElementToFaceTable(int ret_ftbl = 0);
 
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
-
    void GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
@@ -409,6 +406,9 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
+
+   void GetFaceNbrElementTransformation(
+         int i, IsoparametricTransformation *ElTr);
 
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)

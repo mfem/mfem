@@ -553,14 +553,14 @@ protected:
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
-   double GetElementSize(ElementTransformation *T, int type = 0);
-
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
    void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
 public:
 
    Mesh() { SetEmpty(); }
+
+   double GetElementSize(ElementTransformation *T, int type = 0);
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
