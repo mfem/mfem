@@ -22,6 +22,10 @@ Version 4.5.3 (development)
   338. Added the tmop-metric-magnitude tool for tracking how metrics change
   under geometric perturbations.
 
+- Reorganized files for bilinear form, linear form, and nonlinear form integrators
+  in the fem/integ/ subdirectory.
+
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
@@ -49,6 +53,7 @@ Integrations, testing and documentation
 ---------------------------------------
 - Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
   based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================
