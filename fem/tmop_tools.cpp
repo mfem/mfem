@@ -630,6 +630,34 @@ void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
    }
 }
 
+void TMOPNewtonSolver::UpdatePointWiseSurfaceFittingWeight(Vector &x_loc) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti && ti->IsSurfaceFittingWeightAutomatic())
+      {
+         ti->ComputeInitialFittingWeight(x_loc);
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            if (ati[j]->IsSurfaceFittingWeightAutomatic())
+            {
+               ati[j]->ComputeInitialFittingWeight(x_loc);
+            }
+         }
+      }
+   }
+}
+
 void TMOPNewtonSolver::SaveSurfaceFittingWeight() const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -792,6 +820,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             }
          }
       }
+      if (update_surf_fit_coeff)
+      {
+         UpdatePointWiseSurfaceFittingWeight(x_loc);
+      }
 #endif
    }
    else
@@ -837,6 +869,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             }
          }
       }
+      if (update_surf_fit_coeff)
+      {
+         UpdatePointWiseSurfaceFittingWeight(x_loc);
+      }
    }
 
    // Constant coefficient associated with the surface fitting terms if
@@ -865,6 +901,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
       SaveSurfaceFittingWeight();
+      //      UpdatePointWiseSurfaceFittingWeight(x_loc);
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
          UpdateSurfaceFittingWeight(surf_fit_scale_factor);

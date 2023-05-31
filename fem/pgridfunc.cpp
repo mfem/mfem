@@ -655,9 +655,6 @@ void ParGridFunction::GroupCommunicatorOp(int op)
    {
       gcomm.Reduce<double>(gf_array, GroupCommunicator::Max);
    }
-   //    }    else if (op == 3) {
-   //        gcomm.Reduce<double>(gf_array, GroupCommunicator::BitOR);
-   //    }
    else
    {
       MFEM_ABORT("Invalid GroupCommunicator option.");

@@ -1787,7 +1787,9 @@ protected:
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
+   Array<double> surf_fit_weight_scale;
    double last_active_surf_fit_const;
+   bool fit_weight_point_wise = false;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2122,16 +2124,18 @@ public:
    // the metric term and (unweighted) fitting term. This ensures that the initial
    // weight can be set such that the fitting term dominates the metric term
    // everywhere.
-   double ComputeInitialFittingWeight(ParMesh *pmesh);
+   double ComputeInitialFittingWeight(Vector &x_loc);
 
    // Sets initial fitting weight based on the magnitude of the norm of the
    // gradient of the metric term and the fitting term.
-   void SetInitialFittingWeightAutomatically(ParMesh *pmesh, double offset = 1.0);
+   void SetInitialFittingWeightAutomatically(Vector &x_loc, double offset = 1.0,
+                                             int type = 1);
 
    void DisableSurfaceFitting();
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+   bool IsSurfaceFittingWeightAutomatic() { return fit_weight_point_wise; }
    void UpdateSurfaceFittingCoefficient(Coefficient &coeff) { surf_fit_coeff = &coeff;};
 
    void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);

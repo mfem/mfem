@@ -3596,7 +3596,7 @@ void TMOP_Integrator::ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
    }
 }
 
-double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
+double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
    MFEM_VERIFY(!lim_coeff &&
@@ -3604,7 +3604,8 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
    ParGridFunction *surf_fit_gf_par = dynamic_cast<ParGridFunction *>(surf_fit_gf);
    MFEM_VERIFY(surf_fit_gf_par,"fitting gridfunction must be ParGridFunction.");
 
-   GridFunction *nodes = pmesh->GetNodes();
+   Mesh *mesh = surf_fit_gf->FESpace()->GetMesh();
+   GridFunction *nodes = surf_fit_gf->FESpace()->GetMesh()->GetNodes();
    ParGridFunction *nodes_par = dynamic_cast<ParGridFunction *>(nodes);
    MFEM_VERIFY(nodes_par,"ParMesh Nodes must be ParGridFunction.");
    ParGridFunction *metric_grad = new ParGridFunction(*nodes_par);
@@ -3619,11 +3620,11 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
                "for the fitting term.");
 
    // ReMap Surface Fitting function
-   ReMapSurfaceFittingLevelSetAtNodes(*nodes,
+   ReMapSurfaceFittingLevelSetAtNodes(x_loc,
                                       nodes->FESpace()->GetOrdering());
 
-   const int NE = pmesh->GetNE();
-   const int dim = pmesh->Dimension();
+   const int NE = mesh->GetNE();
+   const int dim = mesh->Dimension();
    DenseMatrix Winv(dim), T(dim), A(dim), dshape, pos;
    Array<int> pos_dofs, grad_dofs;
    DenseTensor W;
@@ -3639,6 +3640,14 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
       metric_coeff_copy = &one;
    }
    DofTransformation *doftrans;
+
+   // returns a constant for scaling the weight
+   // sets pointwise weight if false
+
+   if (fit_weight_point_wise)
+   {
+      surf_fit_weight_scale.SetSize(surf_fit_dof_count.Size());
+   }
 
    for (int i = 0; i < NE; i++)
    {
@@ -3657,7 +3666,7 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
       const int dof = fe_pos->GetDof();
       posV.SetSize(dof*dim);
       doftrans = nodes->FESpace()->GetElementVDofs(i, pos_dofs);
-      nodes->GetSubVector(pos_dofs, posV);
+      x_loc.GetSubVector(pos_dofs, posV);
       if (doftrans) {doftrans->InvTransformPrimal(posV); }
 
       metric_grad->FESpace()->GetElementVDofs(i, grad_dofs);
@@ -3665,6 +3674,10 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
       metric_grad_vals = 0.0;
       double surf_fit_const = fit_const->constant;
       fit_const->constant  = 0.0;
+      if (fit_weight_point_wise)
+      {
+         surf_fit_weight_scale = 0.0;
+      }
       AssembleElementVectorExact(*fe_pos, *T, posV, metric_grad_vals);
       //        metric_grad_vals.Print();
       if (doftrans) {doftrans->TransformDual(metric_grad_vals); }
@@ -3672,6 +3685,10 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
       metric_grad->AddElementVector(grad_dofs, metric_grad_vals);
 
       fit_const->constant  = 1.0;
+      if (fit_weight_point_wise)
+      {
+         surf_fit_weight_scale = 1.0;
+      }
       SetCoefficient(zero);
       fitting_grad_vals.SetSize(dof*dim);
       fitting_grad_vals = 0.0;
@@ -3711,25 +3728,43 @@ double TMOP_Integrator::ComputeInitialFittingWeight(ParMesh *pmesh)
       }
       if (metric_grad_norm > 0.0) { metric_grad_norm = std::pow(metric_grad_norm, 0.5); }
       if (fitting_grad_norm > 0.0) { fitting_grad_norm = std::pow(fitting_grad_norm, 0.5); }
-      max_norm_ratio = std::max(max_norm_ratio, metric_grad_norm/fitting_grad_norm);
+      double grad_ratio = fitting_grad_norm == 0.0 ?
+                          (fit_weight_point_wise ? 1.0 : 0.0) :
+                          metric_grad_norm/fitting_grad_norm;
+      if (fit_weight_point_wise)
+      {
+         surf_fit_weight_scale[dof_index] = grad_ratio;
+      }
+      max_norm_ratio = std::max(max_norm_ratio, grad_ratio);
    }
 
    delete metric_grad;
    delete fitting_grad;
 
+   MPI_Allreduce(MPI_IN_PLACE, &max_norm_ratio, 1, MPI_DOUBLE, MPI_MAX,
+                 nodes_par->ParFESpace()->GetComm());
+   if (nodes_par->ParFESpace()->GetMyRank() == 0)
+   {
+      mfem::out << max_norm_ratio <<  " K10maxnormratio\n";
+   }
+   if (fit_weight_point_wise) { return 0.0; }
    return max_norm_ratio;
 }
 
-void TMOP_Integrator::SetInitialFittingWeightAutomatically(ParMesh *pmesh,
-                                                           double offset)
+void TMOP_Integrator::SetInitialFittingWeightAutomatically(Vector &x_loc,
+                                                           double offset,
+                                                           int type)
 {
    ConstantCoefficient *fit_const = dynamic_cast<ConstantCoefficient *>
                                     (surf_fit_coeff);
    MFEM_VERIFY(fit_const,
                "This approach currently only works for ConstantCoefficient"
                "for the fitting term.");
-
-   double init_fitting_weight = ComputeInitialFittingWeight(pmesh);
+   if (type == 2)
+   {
+      fit_weight_point_wise = true;
+   }
+   double init_fitting_weight = ComputeInitialFittingWeight(x_loc);
    fit_const->constant = init_fitting_weight + offset;
    UpdateSurfaceFittingCoefficient(*fit_const);
    SaveSurfaceFittingWeight();
@@ -3934,8 +3969,12 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          {
             const IntegrationPoint &ip_s = ir_s.IntPoint(s);
             Tpr->SetIntPoint(&ip_s);
-            double surf_fit_energy = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                                     sigma_e(s) * sigma_e(s) * 1.0/surf_fit_dof_count[dofs[s]];
+            double weight_scale = fit_weight_point_wise ?
+                                  surf_fit_weight_scale[dofs[s]]*surf_fit_coeff->Eval(*Tpr, ip_s):
+                                  surf_fit_coeff->Eval(*Tpr, ip_s);
+            double surf_fit_energy = weight_scale * surf_fit_normal *
+                                     sigma_e(s) * sigma_e(s) *
+                                     1.0/surf_fit_dof_count[dofs[s]];
             energy += surf_fit_energy;
          }
       }
@@ -4517,8 +4556,11 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
+      double weight_scale = fit_weight_point_wise ?
+                            surf_fit_weight_scale[sdofs[s]]*surf_fit_coeff->Eval(Tpr, ip):
+                            surf_fit_coeff->Eval(Tpr, ip);
       const double w = 2.0 * surf_fit_normal *
-                       surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s) *
+                       weight_scale * sigma_e(s) *
                        1.0/surf_fit_dof_count[sdofs[s]];
       for (int d = 0; d < dim; d++)
       {
@@ -4587,14 +4629,19 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    {
       if ((*surf_fit_marker)[sdofs[s]] == false) { continue; }
 
+
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
+
+      double weight_scale = fit_weight_point_wise ?
+                            surf_fit_weight_scale[sdofs[s]]*surf_fit_coeff->Eval(Tpr, ip):
+                            surf_fit_coeff->Eval(Tpr, ip);
 
       Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
       surf_fit_hess_e.GetRow(s, gg_ptr);
 
       // Loops over the local matrix.
-      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
+      const double w = surf_fit_normal * weight_scale *
                        1.0/surf_fit_dof_count[sdofs[s]];
       for (int idim = 0; idim < dim; idim++)
       {

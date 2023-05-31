@@ -37,6 +37,16 @@
 //  Fitting to Fischer-Tropsch reactor like domain
 //  * mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 7 -dist
 
+
+// Sample runs:
+// Triangles:
+//     Circle:
+//     make tmop-fitting -j && mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 1 -rs 2 -mid 2 -tid 1 -ni 200 -vl 1 -sfc 10 -rtol 1e-5
+
+//  Tets
+//   Sphere:
+//   make tmop-fitting -j && mpirun -np 6 tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 1 -mid 303 -tid 1 -ni 10 -vl 1 -sfc 100.0 -rtol 1e-5 -marking -st 0 -sfa 10 -sft 1e-10 -adw 1
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -175,6 +185,7 @@ int main (int argc, char *argv[])
    int deactivation_layers = 0;
    bool twopass            = false;
    bool mu_linearization  = false;
+   int adaptive_weight   = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -307,6 +318,10 @@ int main (int argc, char *argv[])
    args.AddOption(&mu_linearization, "-mulin", "--mu-linearization", "-no-mulin",
                   "--no-mu-linearization",
                   "Linearized form of metric.");
+   args.AddOption(&adaptive_weight, "-adw", "--adw",
+                  "0 - initial weight is not adaptive\n"
+                  "1 - initial weight is set adaptively - constant\n"
+                  "2 - pointwise weight updated after each Newton iteration\n");
    args.Parse();
    if (!args.Good())
    {
@@ -590,6 +605,7 @@ int main (int argc, char *argv[])
    HRUpdater.AddGridFunctionForUpdate(&mat);
    HRUpdater.AddGridFunctionForUpdate(&surf_fit_mat_gf);
    HRUpdater.AddGridFunctionForUpdate(&surf_fit_gf0);
+   ParGridFunction NumFaces(&mat_fes);
 
    // Background mesh FECollection, FESpace, and GridFunction
    H1_FECollection *surf_fit_bg_fec = NULL;
@@ -710,6 +726,17 @@ int main (int argc, char *argv[])
          }
       }
 
+      if (surf_bg_mesh)
+      {
+         DataCollection *dc = NULL;
+         dc = new VisItDataCollection("Perturbed-bg",
+                                      pmesh_surf_fit_bg);
+         dc->RegisterField("level-set", surf_fit_bg_gf0);
+         dc->SetCycle(0);
+         dc->SetTime(0.0);
+         dc->Save();
+      }
+
       // Set material gridfunction
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
@@ -729,9 +756,17 @@ int main (int argc, char *argv[])
       // are marked, the element attribute is switched.
       if (adapt_marking)
       {
+         MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+         MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
          ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
+         MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+         ModifyTetAttributeForMarking(pmesh, mat, 0);
+         MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+         ModifyTetAttributeForMarking(pmesh, mat, 1);
       }
+
+      MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
 
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
@@ -874,9 +909,17 @@ int main (int argc, char *argv[])
       }
 
       // Set initial fitting weight automatically
+      if (adaptive_weight > 0)
       {
-         tmop_integ->SetInitialFittingWeightAutomatically(pmesh,
-                                                          surf_fit_coeff.constant);
+         // pointwise weight is only called as a part of the other update
+         // procedure so we  can set it to 1.0 here
+         if (adaptive_weight == 2)
+         {
+            if (surface_fit_adapt == 0.0) { surface_fit_adapt = 1.0; }
+         }
+         tmop_integ->SetInitialFittingWeightAutomatically(x,
+                                                          surf_fit_coeff.constant,
+                                                          adaptive_weight);
          //          double init_fitting_weight = tmop_integ->ComputeInitialFittingWeight(pmesh);
          //          surf_fit_coeff.constant = init_fitting_weight + surface_fit_const;
          if (myid == 0)
@@ -914,6 +957,17 @@ int main (int argc, char *argv[])
             std::cout << "Initial mesh - Avg fitting error: " << err_avg << std::endl
                       << "Initial mesh - Max fitting error: " << err_max << std::endl;
          }
+      }
+
+      {
+         DataCollection *dc = NULL;
+         dc = new VisItDataCollection("Perturbed", pmesh);
+         dc->RegisterField("level-set", &surf_fit_gf0);
+         dc->RegisterField("Marker", &surf_fit_mat_gf);
+         dc->RegisterField("NumFaces", &NumFaces);
+         dc->SetCycle(0);
+         dc->SetTime(0.0);
+         dc->Save();
       }
    }
 
@@ -1163,6 +1217,11 @@ int main (int argc, char *argv[])
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
+   if (surface_fit_const > 0.0)
+   {
+      tmop_integ->ReMapSurfaceFittingLevelSet(surf_fit_gf0);
+   }
+
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
@@ -1226,6 +1285,16 @@ int main (int argc, char *argv[])
       }
    }
 
+   {
+      DataCollection *dc = NULL;
+      dc = new VisItDataCollection("Optimized", pmesh);
+      dc->RegisterField("level-set", &surf_fit_gf0);
+      dc->RegisterField("Marker", &surf_fit_mat_gf);
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
+   }
+
    ParGridFunction x1(x0);
    if (visualization)
    {
@@ -1270,6 +1339,7 @@ int main (int argc, char *argv[])
       solver.Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
    }
+
 
    // 19. Visualize the mesh displacement.
    if (visualization)

@@ -1508,4 +1508,276 @@ void HRefUpdater::Update()
    }
 }
 
+void MakeGridFunctionWithNumberOfInterfaceFaces(
+   mfem::ParMesh *pmesh,
+   mfem::ParGridFunction &mat,
+   mfem::ParGridFunction &NumFaces)
+{
+   mat.ExchangeFaceNbrData();
+   NumFaces = 0.0;
+   NumFaces.ExchangeFaceNbrData();
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      mfem::Array<int> faces, ori;
+      mfem::Array<int> faces_ele2, ori_ele2;
+      mfem::Array<int> faces_ele1, ori_ele1;
+      if (pmesh->Dimension() == 2)
+      {
+         pmesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         pmesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      bool bdr_element = false;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         diff_attr_count = 0;
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 != attr2 )
+            {
+               NumFaces[e] += 1;
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               mfem::Vector dof_vals;
+               mfem::Array<int> dofs;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               if (attr1 != attr2 )
+               {
+                  NumFaces[e] += 1;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+   }
+
+   NumFaces.ExchangeFaceNbrData();
+
+
+   int counter = 0;
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      counter += (NumFaces(e) > 1);
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &counter, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+   if (pmesh->GetMyRank() == 0)
+   {
+      std::cout<<"number of element with more than 1 face for fitting: "<<counter<<std::endl;
+   }
+
+
+}
+
+void ModifyTetAttributeForMarking(
+   mfem::ParMesh *pmesh,
+   mfem::ParGridFunction &mat,
+   int attr_to_switch)
+{
+   mat.ExchangeFaceNbrData();
+   mfem::Array<int> element_attr(pmesh->GetNE());
+   element_attr = 0;
+   int counter = 0;
+   int tet_counter = 0;
+
+   mfem::ParGridFunction NumNeighbours(mat.ParFESpace());
+   NumNeighbours = 0.0;
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      if (pmesh->GetElementType(e) == Element::TETRAHEDRON)
+      {
+         tet_counter++;
+      }
+      element_attr[e] = mat(e);
+   }
+
+   MPI_Allreduce(MPI_IN_PLACE, &tet_counter, 1, MPI_INT, MPI_SUM,
+                 pmesh->GetComm());
+
+   if (tet_counter == 0) { return; }
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      mfem::Array<int> faces, ori;
+      mfem::Array<int> faces_ele2, ori_ele2;
+      mfem::Array<int> faces_ele1, ori_ele1;
+      if (pmesh->Dimension() == 2)
+      {
+         pmesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         pmesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      bool bdr_element = false;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         diff_attr_count = 0;
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 != attr2 )
+            {
+               NumNeighbours[e] += 1;
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               mfem::Vector dof_vals;
+               mfem::Array<int> dofs;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               if (attr1 != attr2 )
+               {
+                  NumNeighbours[e] += 1;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+   }
+
+   NumNeighbours.ExchangeFaceNbrData();
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      mfem::Array<int> faces, ori;
+      mfem::Array<int> faces_ele2, ori_ele2;
+      mfem::Array<int> faces_ele1, ori_ele1;
+      if (pmesh->Dimension() == 2)
+      {
+         pmesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         pmesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      // if (attr1 != attr_to_switch) { continue; }
+      bool bdr_element = false;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         diff_attr_count = 0;
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 == attr2 && attr1 == attr_to_switch && NumNeighbours[elem1] == 2 &&
+                NumNeighbours[elem2] == 2)
+            {
+               element_attr[elem1] = 1-attr_to_switch;
+               element_attr[elem2] = 1-attr_to_switch;
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               mfem::Vector dof_vals;
+               mfem::Vector dof_vals_numN;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+               NumNeighbours.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals_numN);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               int NumN = static_cast<int>(dof_vals_numN(0));
+
+               if (attr1 == attr2 && attr1 == attr_to_switch && NumNeighbours[elem1] == 2 &&
+                   NumN == 2)
+               {
+                  element_attr[elem1] = 1-attr_to_switch;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+   }
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      mat(e) = element_attr[e];
+      pmesh->SetAttribute(e, element_attr[e]+1);
+   }
+   mat.ExchangeFaceNbrData();
+   pmesh->SetAttributes();
+
+   MPI_Allreduce(MPI_IN_PLACE, &counter, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+   if (pmesh->GetMyRank() == 0)
+   {
+      //        std::cout<<"switched num ele: "<<counter<<std::endl;
+   }
+}
+
+
+
 #endif
