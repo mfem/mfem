@@ -441,7 +441,11 @@ static void OccaDeviceSetup(const int dev)
    {
 #if OCCA_CUDA_ENABLED
       std::string mode("mode: 'CUDA', device_id : ");
-      internal::occaDevice.setup(mode.append(1,'0'+dev));
+      internal::occaDevice.setup(
+      {
+         {"mode", "CUDA"},
+         {"device_id", 0 + dev}
+      });
 #else
       MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
 #endif
@@ -449,14 +453,20 @@ static void OccaDeviceSetup(const int dev)
    else if (omp)
    {
 #if OCCA_OPENMP_ENABLED
-      internal::occaDevice.setup("mode: 'OpenMP'");
+      internal::occaDevice.setup(
+      {
+         {"mode", "OpenMP"}
+      });
 #else
       MFEM_ABORT("the OCCA OpenMP backend requires OCCA built with OpenMP!");
 #endif
    }
    else
    {
-      internal::occaDevice.setup("mode: 'Serial'");
+      internal::occaDevice.setup(
+      {
+         {"mode", "Serial"}
+      });
    }
 
    std::string mfemDir;
@@ -474,7 +484,8 @@ static void OccaDeviceSetup(const int dev)
    }
 
    occa::io::addLibraryPath("mfem", mfemDir);
-   occa::loadKernels("mfem");
+   // TODO(dmed): Add kernel loading after cache is fixed in OCCA
+   // occa::loadKernels("mfem");
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_ABORT("the OCCA backends require MFEM built with MFEM_USE_OCCA=YES");
