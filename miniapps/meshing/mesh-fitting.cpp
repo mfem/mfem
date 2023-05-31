@@ -48,7 +48,11 @@
 //    Surface fitting to a circular level-set - no-prefinement right now
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa
 //    Surface fitting to a circular level-set - with p-refinement
+//     make mesh-fitting -j && ./mesh-fitting -m square01_tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
+//    Surface fitting to a circular level-set with p-refinement on a triangular mesh
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
+//    Surface fitting to a spherical level-set - with p-refinement on a hex mesh
+//     make mesh-fitting -j && ./mesh-fitting -m cube.mesh -o 1 -rs 1 -mid 303 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa -pref
 
 
 #include "../../mfem.hpp"
@@ -887,6 +891,7 @@ int main(int argc, char *argv[])
       }
       double err_avg, err_max;
       tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      std::cout << "Nbr DOFs: " << fespace->GetNDofs() << std::endl;
       std::cout << "Avg fitting error: " << err_avg << std::endl
                 << "Max fitting error: " << err_max << std::endl;
    }
