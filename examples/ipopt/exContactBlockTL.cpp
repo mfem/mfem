@@ -483,6 +483,8 @@ ExContactBlockTL::ExContactBlockTL(int argc, char *argv[])
    cout << "Number of finite element unknowns for mesh2: "
         << fespace2->GetTrueVSize() << endl;
 
+
+   nodes0.SetSpace(mesh1->GetNodes()->FESpace());
    nodes0 = *mesh1->GetNodes();
    nodes1 = mesh1->GetNodes();
 
@@ -1155,7 +1157,7 @@ void ExContactBlockTL::finalize_solution(
 int main(int argc, char *argv[])
 {
    // Create an instance of your nlp...
-   SmartPtr<TNLP> mynlp = new ExContactBlockTL(argc, argv);
+   ExContactBlockTL * mynlp = new ExContactBlockTL(argc, argv);
 
    // Create an instance of the IpoptApplication
    //
@@ -1186,6 +1188,45 @@ int main(int argc, char *argv[])
       std::cout << std::endl << std::endl <<
                 "*** The final value of the objective function is " << final_obj << '.'
                 << std::endl;
+   }
+
+   Mesh * mesh_1 = mynlp->GetMesh1();
+   Mesh * mesh_2 = mynlp->GetMesh2();
+
+   for (int i = 0; i<mesh_1->GetNE(); i++)
+   {
+      mesh_1->SetAttribute(i,1);
+   }
+   for (int i = 0; i<mesh_2->GetNE(); i++)
+   {
+      mesh_2->SetAttribute(i,1);
+   }
+   for (int i = 0; i<mesh_1->GetNBE(); i++)
+   {
+      mesh_1->SetBdrAttribute(i,1);
+   }
+   for (int i = 0; i<mesh_2->GetNBE(); i++)
+   {
+      mesh_2->SetBdrAttribute(i,1);
+   }
+
+   mesh_1->SetAttributes();
+   mesh_2->SetAttributes();
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   {
+      socketstream mesh1sock(vishost, visport);
+      // meshsock << "parallel " << 2 << " " << 0 << "\n";
+      mesh1sock.precision(8);
+      mesh1sock << "mesh\n" << *mesh_1 << flush;
+   }
+   {
+      socketstream mesh2sock(vishost, visport);
+      // meshsock << "parallel " << 2 << " " << 1 << "\n";
+      mesh2sock.precision(8);
+      mesh2sock << "mesh\n" << *mesh_2 << flush;
    }
 
    return (int) status;

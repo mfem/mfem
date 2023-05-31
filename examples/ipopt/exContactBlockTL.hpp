@@ -220,6 +220,11 @@ private:
 
    Array<int> Dirichlet_dof;
    Array<double> Dirichlet_val;
+
+public: 
+   Mesh * GetMesh1() {return mesh1;}
+   Mesh * GetMesh2() {return mesh2;}
+
 };
 
 #endif

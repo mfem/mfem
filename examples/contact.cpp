@@ -508,6 +508,17 @@ int main(int argc, char *argv[])
    Mesh mesh1(mesh_file1, 1, 1);
    Mesh mesh2(mesh_file2, 1, 1);
 
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream mesh1a_sock(vishost, visport);
+      mesh1a_sock.precision(8);
+      mesh1a_sock << "mesh\n" << mesh1 << flush;
+      socketstream mesh2a_sock(vishost, visport);
+      mesh2a_sock.precision(8);
+      mesh2a_sock << "mesh\n" << mesh2 << flush;
+   }
+
    const int dim = mesh1.Dimension();
    MFEM_VERIFY(dim == mesh2.Dimension(), "");
 
@@ -771,6 +782,19 @@ int main(int argc, char *argv[])
       Dirichlet_dof.Append(v*dim + 2);
       Dirichlet_val.Append(0.);
    }
+
+
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream mesh1_sock(vishost, visport);
+      mesh1_sock.precision(8);
+      mesh1_sock << "mesh\n" << mesh1 << flush;
+      socketstream mesh2_sock(vishost, visport);
+      mesh2_sock.precision(8);
+      mesh2_sock << "mesh\n" << mesh2 << flush;
+   }
+
    //M.Print();
    /*Vector eps(ndofs);
    Vector sol(ndofs); sol = 0.;
