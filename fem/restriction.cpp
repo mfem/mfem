@@ -837,12 +837,10 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.element[0].index;
 
-   const int * h_vol_dof_map = vol_dof_map.HostRead();
-
    for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
       const int lex_volume_dof = face_map[face_dof];
-      const int s_volume_dof = h_vol_dof_map[lex_volume_dof]; // signed
+      const int s_volume_dof = AsConst(vol_dof_map)[lex_volume_dof]; // signed
       const int volume_dof = absdof(s_volume_dof);
       const int s_global_dof = elem_map[elem_index*elem_dofs + volume_dof];
       const int global_dof = absdof(s_global_dof);
@@ -867,12 +865,10 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    const int* elem_map = e2dTable.GetJ();
    const int elem_index = face.element[0].index;
 
-   const int * h_vol_dof_map = vol_dof_map.HostRead();
-
    for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
       const int lex_volume_dof = face_map[face_dof];
-      const int s_volume_dof = h_vol_dof_map[lex_volume_dof];
+      const int s_volume_dof = AsConst(vol_dof_map)[lex_volume_dof];
       const int volume_dof = absdof(s_volume_dof);
       const int s_global_dof = elem_map[elem_index*elem_dofs + volume_dof];
       const int sgn = (s_global_dof >= 0) ? 1 : -1;
