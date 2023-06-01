@@ -9763,7 +9763,6 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
    t = el->GetType();
    if (t == Element::TETRAHEDRON)
    {
-      int j, type, new_type, old_redges[2], new_redges[2][2], flag;
       Tetrahedron *tet = (Tetrahedron *) el;
 
       MFEM_VERIFY(tet->GetRefinementFlag() != 0,
@@ -9776,7 +9775,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       if (bisect == -1)
       {
          v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[1]);
-         for (j = 0; j < 3; j++)
+         for (int j = 0; j < 3; j++)
          {
             V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[1]](j));
          }
@@ -9789,8 +9788,10 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       // 2. Set the node indices for the new elements in v[2][4] so that
       //    the edge marked for refinement is between the first two nodes.
+      int type, old_redges[2], flag;
       tet->ParseRefinementFlag(old_redges, type, flag);
 
+      int new_type, new_redges[2][2];
       v[0][3] = v_new;
       v[1][3] = v_new;
       new_redges[0][0] = 2;
