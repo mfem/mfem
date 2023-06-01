@@ -25,15 +25,14 @@ namespace internal
 // PA H(curl) x H(div) mass assemble 2D kernel, with factor
 // dF^{-1} C dF for a vector or matrix coefficient C.
 // If transpose, use dF^T C dF^{-T} for H(div) x H(curl).
-MFEM_HOST_DEVICE inline
-void PAHcurlHdivMassSetup2D(const int Q1D,
-                            const int coeffDim,
-                            const int NE,
-                            const bool transpose,
-                            const Array<double> &w_,
-                            const Vector &j,
-                            Vector &coeff_,
-                            Vector &op)
+inline void PAHcurlHdivMassSetup2D(const int Q1D,
+                                   const int coeffDim,
+                                   const int NE,
+                                   const bool transpose,
+                                   const Array<double> &w_,
+                                   const Vector &j,
+                                   Vector &coeff_,
+                                   Vector &op)
 {
    const bool symmetric = (coeffDim != 4);
    auto W = Reshape(w_.Read(), Q1D, Q1D);
@@ -99,15 +98,14 @@ void PAHcurlHdivMassSetup2D(const int Q1D,
 // PA H(curl) x H(div) mass assemble 3D kernel, with factor
 // dF^{-1} C dF for a vector or matrix coefficient C.
 // If transpose, use dF^T C dF^{-T} for H(div) x H(curl).
-MFEM_HOST_DEVICE inline
-void PAHcurlHdivMassSetup3D(const int Q1D,
-                            const int coeffDim,
-                            const int NE,
-                            const bool transpose,
-                            const Array<double> &w_,
-                            const Vector &j,
-                            Vector &coeff_,
-                            Vector &op)
+inline void PAHcurlHdivMassSetup3D(const int Q1D,
+                                   const int coeffDim,
+                                   const int NE,
+                                   const bool transpose,
+                                   const Array<double> &w_,
+                                   const Vector &j,
+                                   Vector &coeff_,
+                                   Vector &op)
 {
    const bool symmetric = (coeffDim != 9);
    auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
@@ -216,21 +214,20 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
 
 // Mass operator for H(curl) and H(div) functions, using Piola transformations
 // u = dF^{-T} \hat{u} in H(curl), v = (1 / det dF) dF \hat{v} in H(div).
-MFEM_HOST_DEVICE inline
-void PAHcurlHdivMassApply2D(const int D1D,
-                            const int D1Dtest,
-                            const int Q1D,
-                            const int NE,
-                            const bool scalarCoeff,
-                            const bool trialHcurl,
-                            const bool transpose,
-                            const Array<double> &Bo_,
-                            const Array<double> &Bc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Bct_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+inline void PAHcurlHdivMassApply2D(const int D1D,
+                                   const int D1Dtest,
+                                   const int Q1D,
+                                   const int NE,
+                                   const bool scalarCoeff,
+                                   const bool trialHcurl,
+                                   const bool transpose,
+                                   const Array<double> &Bo_,
+                                   const Array<double> &Bc_,
+                                   const Array<double> &Bot_,
+                                   const Array<double> &Bct_,
+                                   const Vector &op_,
+                                   const Vector &x_,
+                                   Vector &y_)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -363,21 +360,20 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
 // Mass operator for H(curl) and H(div) functions, using Piola transformations
 // u = dF^{-T} \hat{u} in H(curl), v = (1 / det dF) dF \hat{v} in H(div).
-MFEM_HOST_DEVICE inline
-void PAHcurlHdivMassApply3D(const int D1D,
-                            const int D1Dtest,
-                            const int Q1D,
-                            const int NE,
-                            const bool scalarCoeff,
-                            const bool trialHcurl,
-                            const bool transpose,
-                            const Array<double> &Bo_,
-                            const Array<double> &Bc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Bct_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+inline void PAHcurlHdivMassApply3D(const int D1D,
+                                   const int D1Dtest,
+                                   const int Q1D,
+                                   const int NE,
+                                   const bool scalarCoeff,
+                                   const bool trialHcurl,
+                                   const bool transpose,
+                                   const Array<double> &Bo_,
+                                   const Array<double> &Bc_,
+                                   const Array<double> &Bot_,
+                                   const Array<double> &Bct_,
+                                   const Vector &op_,
+                                   const Vector &x_,
+                                   Vector &y_)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -585,19 +581,18 @@ void PAHcurlHdivMassApply3D(const int D1D,
 // Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void PAHcurlHdivApply3D(const int D1D,
-                        const int D1Dtest,
-                        const int Q1D,
-                        const int NE,
-                        const Array<double> &bo,
-                        const Array<double> &bc,
-                        const Array<double> &bot,
-                        const Array<double> &bct,
-                        const Array<double> &gc,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y)
+inline void PAHcurlHdivApply3D(const int D1D,
+                               const int D1Dtest,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bo,
+                               const Array<double> &bc,
+                               const Array<double> &bot,
+                               const Array<double> &bct,
+                               const Array<double> &gc,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -942,19 +937,18 @@ void PAHcurlHdivApply3D(const int D1D,
 // Apply to x corresponding to DOFs in H(div) (test), integrated against the
 // curl of H(curl) trial functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void PAHcurlHdivApply3DTranspose(const int D1D,
-                                 const int D1Dtest,
-                                 const int Q1D,
-                                 const int NE,
-                                 const Array<double> &bo,
-                                 const Array<double> &bc,
-                                 const Array<double> &bot,
-                                 const Array<double> &bct,
-                                 const Array<double> &gct,
-                                 const Vector &pa_data,
-                                 const Vector &x,
-                                 Vector &y)
+inline void PAHcurlHdivApply3DTranspose(const int D1D,
+                                        const int D1Dtest,
+                                        const int Q1D,
+                                        const int NE,
+                                        const Array<double> &bo,
+                                        const Array<double> &bc,
+                                        const Array<double> &bot,
+                                        const Array<double> &bct,
+                                        const Array<double> &gct,
+                                        const Vector &pa_data,
+                                        const Vector &x,
+                                        Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");

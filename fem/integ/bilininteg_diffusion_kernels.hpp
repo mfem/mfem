@@ -24,14 +24,13 @@ namespace internal
 
 // OCCA 2D Assemble kernel
 #ifdef MFEM_USE_OCCA
-MFEM_HOST_DEVICE inline
-void OccaPADiffusionSetup2D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &W,
-                            const Vector &J,
-                            const Vector &C,
-                            Vector &op)
+inline void OccaPADiffusionSetup2D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &W,
+                                   const Vector &J,
+                                   const Vector &C,
+                                   Vector &op)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -53,14 +52,13 @@ void OccaPADiffusionSetup2D(const int D1D,
    OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
 
-MFEM_HOST_DEVICE inline
-void OccaPADiffusionSetup3D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &W,
-                            const Vector &J,
-                            const Vector &C,
-                            Vector &op)
+inline void OccaPADiffusionSetup3D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &W,
+                                   const Vector &J,
+                                   const Vector &C,
+                                   Vector &op)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -85,7 +83,6 @@ void OccaPADiffusionSetup3D(const int D1D,
 
 // PA Diffusion Assemble 2D kernel
 template<const int T_SDIM>
-MFEM_HOST_DEVICE inline
 void PADiffusionSetup2D(const int Q1D,
                         const int coeffDim,
                         const int NE,
@@ -95,14 +92,13 @@ void PADiffusionSetup2D(const int Q1D,
                         Vector &d);
 
 template<>
-MFEM_HOST_DEVICE inline
-void PADiffusionSetup2D<2>(const int Q1D,
-                           const int coeffDim,
-                           const int NE,
-                           const Array<double> &w,
-                           const Vector &j,
-                           const Vector &c,
-                           Vector &d)
+inline void PADiffusionSetup2D<2>(const int Q1D,
+                                  const int coeffDim,
+                                  const int NE,
+                                  const Array<double> &w,
+                                  const Vector &j,
+                                  const Vector &c,
+                                  Vector &d)
 {
    const bool symmetric = (coeffDim != 4);
    const bool const_c = c.Size() == 1;
@@ -163,14 +159,13 @@ void PADiffusionSetup2D<2>(const int Q1D,
 
 // PA Diffusion Assemble 2D kernel with 3D node coords
 template<>
-MFEM_HOST_DEVICE inline
-void PADiffusionSetup2D<3>(const int Q1D,
-                           const int coeffDim,
-                           const int NE,
-                           const Array<double> &w,
-                           const Vector &j,
-                           const Vector &c,
-                           Vector &d)
+inline void PADiffusionSetup2D<3>(const int Q1D,
+                                  const int coeffDim,
+                                  const int NE,
+                                  const Array<double> &w,
+                                  const Vector &j,
+                                  const Vector &c,
+                                  Vector &d)
 {
    MFEM_VERIFY(coeffDim == 1, "Matrix and vector coefficients not supported");
    constexpr int DIM = 2;
@@ -209,14 +204,13 @@ void PADiffusionSetup2D<3>(const int Q1D,
 }
 
 // PA Diffusion Assemble 3D kernel
-MFEM_HOST_DEVICE inline
-void PADiffusionSetup3D(const int Q1D,
-                        const int coeffDim,
-                        const int NE,
-                        const Array<double> &w,
-                        const Vector &j,
-                        const Vector &c,
-                        Vector &d)
+inline void PADiffusionSetup3D(const int Q1D,
+                               const int coeffDim,
+                               const int NE,
+                               const Array<double> &w,
+                               const Vector &j,
+                               const Vector &c,
+                               Vector &d)
 {
    const bool symmetric = (coeffDim != 9);
    const bool const_c = c.Size() == 1;
@@ -330,17 +324,16 @@ void PADiffusionSetup3D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PADiffusionSetup(const int dim,
-                      const int sdim,
-                      const int D1D,
-                      const int Q1D,
-                      const int coeffDim,
-                      const int NE,
-                      const Array<double> &W,
-                      const Vector &J,
-                      const Vector &C,
-                      Vector &D)
+inline void PADiffusionSetup(const int dim,
+                             const int sdim,
+                             const int D1D,
+                             const int Q1D,
+                             const int coeffDim,
+                             const int NE,
+                             const Array<double> &W,
+                             const Vector &J,
+                             const Vector &C,
+                             Vector &D)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADiffusionSetup"); }
    if (dim == 2)
@@ -371,15 +364,14 @@ void PADiffusionSetup(const int dim,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PADiffusionDiagonal2D(const int NE,
-                           const bool symmetric,
-                           const Array<double> &b,
-                           const Array<double> &g,
-                           const Vector &d,
-                           Vector &y,
-                           const int d1d = 0,
-                           const int q1d = 0)
+inline void PADiffusionDiagonal2D(const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &b,
+                                  const Array<double> &g,
+                                  const Vector &d,
+                                  Vector &y,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -438,15 +430,14 @@ void PADiffusionDiagonal2D(const int NE,
 
 // Shared memory PA Diffusion Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-MFEM_HOST_DEVICE inline
-void SmemPADiffusionDiagonal2D(const int NE,
-                               const bool symmetric,
-                               const Array<double> &b_,
-                               const Array<double> &g_,
-                               const Vector &d_,
-                               Vector &y_,
-                               const int d1d = 0,
-                               const int q1d = 0)
+inline void SmemPADiffusionDiagonal2D(const int NE,
+                                      const bool symmetric,
+                                      const Array<double> &b_,
+                                      const Array<double> &g_,
+                                      const Vector &d_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -533,15 +524,14 @@ void SmemPADiffusionDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PADiffusionDiagonal3D(const int NE,
-                           const bool symmetric,
-                           const Array<double> &b,
-                           const Array<double> &g,
-                           const Vector &d,
-                           Vector &y,
-                           const int d1d = 0,
-                           const int q1d = 0)
+inline void PADiffusionDiagonal3D(const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &b,
+                                  const Array<double> &g,
+                                  const Vector &d,
+                                  Vector &y,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -635,15 +625,14 @@ void PADiffusionDiagonal3D(const int NE,
 
 // Shared memory PA Diffusion Diagonal 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void SmemPADiffusionDiagonal3D(const int NE,
-                               const bool symmetric,
-                               const Array<double> &b_,
-                               const Array<double> &g_,
-                               const Vector &d_,
-                               Vector &y_,
-                               const int d1d = 0,
-                               const int q1d = 0)
+inline void SmemPADiffusionDiagonal3D(const int NE,
+                                      const bool symmetric,
+                                      const Array<double> &b_,
+                                      const Array<double> &g_,
+                                      const Vector &d_,
+                                      Vector &y_,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -753,16 +742,15 @@ void SmemPADiffusionDiagonal3D(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PADiffusionAssembleDiagonal(const int dim,
-                                 const int D1D,
-                                 const int Q1D,
-                                 const int NE,
-                                 const bool symm,
-                                 const Array<double> &B,
-                                 const Array<double> &G,
-                                 const Vector &D,
-                                 Vector &Y)
+inline void PADiffusionAssembleDiagonal(const int dim,
+                                        const int D1D,
+                                        const int Q1D,
+                                        const int NE,
+                                        const bool symm,
+                                        const Array<double> &B,
+                                        const Array<double> &G,
+                                        const Vector &D,
+                                        Vector &Y)
 {
    if (dim == 2)
    {
@@ -801,17 +789,16 @@ void PADiffusionAssembleDiagonal(const int dim,
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion Apply 2D kernel
-MFEM_HOST_DEVICE inline
-void OccaPADiffusionApply2D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &B,
-                            const Array<double> &G,
-                            const Array<double> &Bt,
-                            const Array<double> &Gt,
-                            const Vector &D,
-                            const Vector &X,
-                            Vector &Y)
+inline void OccaPADiffusionApply2D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &B,
+                                   const Array<double> &G,
+                                   const Array<double> &Bt,
+                                   const Array<double> &Gt,
+                                   const Vector &D,
+                                   const Vector &X,
+                                   Vector &Y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -851,17 +838,16 @@ void OccaPADiffusionApply2D(const int D1D,
 }
 
 // OCCA PA Diffusion Apply 3D kernel
-MFEM_HOST_DEVICE inline
-void OccaPADiffusionApply3D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &B,
-                            const Array<double> &G,
-                            const Array<double> &Bt,
-                            const Array<double> &Gt,
-                            const Vector &D,
-                            const Vector &X,
-                            Vector &Y)
+inline void OccaPADiffusionApply3D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &B,
+                                   const Array<double> &G,
+                                   const Array<double> &Bt,
+                                   const Array<double> &Gt,
+                                   const Vector &D,
+                                   const Vector &X,
+                                   Vector &Y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -903,18 +889,17 @@ void OccaPADiffusionApply3D(const int D1D,
 
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PADiffusionApply2D(const int NE,
-                        const bool symmetric,
-                        const Array<double> &b_,
-                        const Array<double> &g_,
-                        const Array<double> &bt_,
-                        const Array<double> &gt_,
-                        const Vector &d_,
-                        const Vector &x_,
-                        Vector &y_,
-                        const int d1d = 0,
-                        const int q1d = 0)
+inline void PADiffusionApply2D(const int NE,
+                               const bool symmetric,
+                               const Array<double> &b_,
+                               const Array<double> &g_,
+                               const Array<double> &bt_,
+                               const Array<double> &gt_,
+                               const Vector &d_,
+                               const Vector &x_,
+                               Vector &y_,
+                               const int d1d = 0,
+                               const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1026,16 +1011,15 @@ void PADiffusionApply2D(const int NE,
 
 // Shared memory PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-MFEM_HOST_DEVICE inline
-void SmemPADiffusionApply2D(const int NE,
-                            const bool symmetric,
-                            const Array<double> &b_,
-                            const Array<double> &g_,
-                            const Vector &d_,
-                            const Vector &x_,
-                            Vector &y_,
-                            const int d1d = 0,
-                            const int q1d = 0)
+inline void SmemPADiffusionApply2D(const int NE,
+                                   const bool symmetric,
+                                   const Array<double> &b_,
+                                   const Array<double> &g_,
+                                   const Vector &d_,
+                                   const Vector &x_,
+                                   Vector &y_,
+                                   const int d1d = 0,
+                                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1185,17 +1169,16 @@ void SmemPADiffusionApply2D(const int NE,
 
 // PA Diffusion Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PADiffusionApply3D(const int NE,
-                        const bool symmetric,
-                        const Array<double> &b,
-                        const Array<double> &g,
-                        const Array<double> &bt,
-                        const Array<double> &gt,
-                        const Vector &d_,
-                        const Vector &x_,
-                        Vector &y_,
-                        int d1d = 0, int q1d = 0)
+inline void PADiffusionApply3D(const int NE,
+                               const bool symmetric,
+                               const Array<double> &b,
+                               const Array<double> &g,
+                               const Array<double> &bt,
+                               const Array<double> &gt,
+                               const Vector &d_,
+                               const Vector &x_,
+                               Vector &y_,
+                               int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1378,16 +1361,15 @@ void PADiffusionApply3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void SmemPADiffusionApply3D(const int NE,
-                            const bool symmetric,
-                            const Array<double> &b_,
-                            const Array<double> &g_,
-                            const Vector &d_,
-                            const Vector &x_,
-                            Vector &y_,
-                            const int d1d = 0,
-                            const int q1d = 0)
+inline void SmemPADiffusionApply3D(const int NE,
+                                   const bool symmetric,
+                                   const Array<double> &b_,
+                                   const Array<double> &g_,
+                                   const Vector &d_,
+                                   const Vector &x_,
+                                   Vector &y_,
+                                   const int d1d = 0,
+                                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1600,19 +1582,18 @@ void SmemPADiffusionApply3D(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PADiffusionApply(const int dim,
-                      const int D1D,
-                      const int Q1D,
-                      const int NE,
-                      const bool symm,
-                      const Array<double> &B,
-                      const Array<double> &G,
-                      const Array<double> &Bt,
-                      const Array<double> &Gt,
-                      const Vector &D,
-                      const Vector &X,
-                      Vector &Y)
+inline void PADiffusionApply(const int dim,
+                             const int D1D,
+                             const int Q1D,
+                             const int NE,
+                             const bool symm,
+                             const Array<double> &B,
+                             const Array<double> &G,
+                             const Array<double> &Bt,
+                             const Array<double> &Gt,
+                             const Vector &D,
+                             const Vector &X,
+                             Vector &Y)
 {
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())

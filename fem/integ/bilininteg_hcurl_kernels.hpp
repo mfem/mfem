@@ -25,15 +25,14 @@ namespace mfem
 namespace internal
 {
 
-MFEM_HOST_DEVICE inline
-void PAHcurlMassAssembleDiagonal2D(const int D1D,
-                                   const int Q1D,
-                                   const int NE,
-                                   const bool symmetric,
-                                   const Array<double> &bo,
-                                   const Array<double> &bc,
-                                   const Vector &pa_data,
-                                   Vector &diag)
+inline void PAHcurlMassAssembleDiagonal2D(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const bool symmetric,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Vector &pa_data,
+                                          Vector &diag)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -83,15 +82,14 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHcurlMassAssembleDiagonal3D(const int D1D,
-                                   const int Q1D,
-                                   const int NE,
-                                   const bool symmetric,
-                                   const Array<double> &bo,
-                                   const Array<double> &bc,
-                                   const Vector &pa_data,
-                                   Vector &diag)
+inline void PAHcurlMassAssembleDiagonal3D(const int D1D,
+                                          const int Q1D,
+                                          const int NE,
+                                          const bool symmetric,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Vector &pa_data,
+                                          Vector &diag)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -157,15 +155,14 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 }
 
 template<int T_D1D = HCURL_MAX_D1D, int T_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
-                                       const int Q1D,
-                                       const int NE,
-                                       const bool symmetric,
-                                       const Array<double> &bo,
-                                       const Array<double> &bc,
-                                       const Vector &pa_data,
-                                       Vector &diag)
+inline void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
+                                              const int Q1D,
+                                              const int NE,
+                                              const bool symmetric,
+                                              const Array<double> &bo,
+                                              const Array<double> &bc,
+                                              const Vector &pa_data,
+                                              Vector &diag)
 {
    MFEM_VERIFY(D1D <= HCURL_MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= HCURL_MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -280,18 +277,17 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHcurlMassApply2D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<double> &bo,
-                        const Array<double> &bc,
-                        const Array<double> &bot,
-                        const Array<double> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y)
+inline void PAHcurlMassApply2D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const bool symmetric,
+                               const Array<double> &bo,
+                               const Array<double> &bc,
+                               const Array<double> &bot,
+                               const Array<double> &bct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -411,18 +407,17 @@ void PAHcurlMassApply2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHcurlMassApply3D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<double> &bo,
-                        const Array<double> &bc,
-                        const Array<double> &bot,
-                        const Array<double> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y)
+inline void PAHcurlMassApply3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const bool symmetric,
+                               const Array<double> &bo,
+                               const Array<double> &bc,
+                               const Array<double> &bot,
+                               const Array<double> &bct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
 {
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -608,18 +603,17 @@ void PAHcurlMassApply3D(const int D1D,
 }
 
 template<int T_D1D = HCURL_MAX_D1D, int T_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void SmemPAHcurlMassApply3D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const bool symmetric,
-                            const Array<double> &bo,
-                            const Array<double> &bc,
-                            const Array<double> &bot,
-                            const Array<double> &bct,
-                            const Vector &pa_data,
-                            const Vector &x,
-                            Vector &y)
+inline void SmemPAHcurlMassApply3D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const bool symmetric,
+                                   const Array<double> &bo,
+                                   const Array<double> &bc,
+                                   const Array<double> &bot,
+                                   const Array<double> &bct,
+                                   const Vector &pa_data,
+                                   const Vector &x,
+                                   Vector &y)
 {
    MFEM_VERIFY(D1D <= HCURL_MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= HCURL_MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -800,13 +794,12 @@ void SmemPAHcurlMassApply3D(const int D1D,
 }
 
 // PA H(curl) curl-curl assemble 2D kernel
-MFEM_HOST_DEVICE inline
-void PACurlCurlSetup2D(const int Q1D,
-                       const int NE,
-                       const Array<double> &w,
-                       const Vector &j,
-                       Vector &coeff,
-                       Vector &op)
+inline void PACurlCurlSetup2D(const int Q1D,
+                              const int NE,
+                              const Array<double> &w,
+                              const Vector &j,
+                              Vector &coeff,
+                              Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -828,14 +821,13 @@ void PACurlCurlSetup2D(const int Q1D,
 }
 
 // PA H(curl) curl-curl assemble 3D kernel
-MFEM_HOST_DEVICE inline
-void PACurlCurlSetup3D(const int Q1D,
-                       const int coeffDim,
-                       const int NE,
-                       const Array<double> &w,
-                       const Vector &j,
-                       Vector &coeff,
-                       Vector &op)
+inline void PACurlCurlSetup3D(const int Q1D,
+                              const int coeffDim,
+                              const int NE,
+                              const Array<double> &w,
+                              const Vector &j,
+                              Vector &coeff,
+                              Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const bool symmetric = (coeffDim != 9);
@@ -928,14 +920,13 @@ void PACurlCurlSetup3D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PACurlCurlAssembleDiagonal2D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const Array<double> &bo,
-                                  const Array<double> &gc,
-                                  const Vector &pa_data,
-                                  Vector &diag)
+inline void PACurlCurlAssembleDiagonal2D(const int D1D,
+                                         const int Q1D,
+                                         const int NE,
+                                         const Array<double> &bo,
+                                         const Array<double> &gc,
+                                         const Vector &pa_data,
+                                         Vector &diag)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
@@ -984,17 +975,16 @@ void PACurlCurlAssembleDiagonal2D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void PACurlCurlAssembleDiagonal3D(const int D1D,
-                                  const int Q1D,
-                                  const bool symmetric,
-                                  const int NE,
-                                  const Array<double> &bo,
-                                  const Array<double> &bc,
-                                  const Array<double> &go,
-                                  const Array<double> &gc,
-                                  const Vector &pa_data,
-                                  Vector &diag)
+inline void PACurlCurlAssembleDiagonal3D(const int D1D,
+                                         const int Q1D,
+                                         const bool symmetric,
+                                         const int NE,
+                                         const Array<double> &bo,
+                                         const Array<double> &bc,
+                                         const Array<double> &go,
+                                         const Array<double> &gc,
+                                         const Vector &pa_data,
+                                         Vector &diag)
 {
    constexpr static int VDIM = 3;
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
@@ -1171,17 +1161,16 @@ void PACurlCurlAssembleDiagonal3D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
-                                      const int Q1D,
-                                      const bool symmetric,
-                                      const int NE,
-                                      const Array<double> &bo,
-                                      const Array<double> &bc,
-                                      const Array<double> &go,
-                                      const Array<double> &gc,
-                                      const Vector &pa_data,
-                                      Vector &diag)
+inline void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
+                                             const int Q1D,
+                                             const bool symmetric,
+                                             const int NE,
+                                             const Array<double> &bo,
+                                             const Array<double> &bc,
+                                             const Array<double> &go,
+                                             const Array<double> &gc,
+                                             const Vector &pa_data,
+                                             Vector &diag)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -1362,17 +1351,16 @@ void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PACurlCurlApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &bo,
-                       const Array<double> &bot,
-                       const Array<double> &gc,
-                       const Array<double> &gct,
-                       const Vector &pa_data,
-                       const Vector &x,
-                       Vector &y)
+inline void PACurlCurlApply2D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const Array<double> &bo,
+                              const Array<double> &bot,
+                              const Array<double> &gc,
+                              const Array<double> &gct,
+                              const Vector &pa_data,
+                              const Vector &x,
+                              Vector &y)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -1484,20 +1472,19 @@ void PACurlCurlApply2D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void PACurlCurlApply3D(const int D1D,
-                       const int Q1D,
-                       const bool symmetric,
-                       const int NE,
-                       const Array<double> &bo,
-                       const Array<double> &bc,
-                       const Array<double> &bot,
-                       const Array<double> &bct,
-                       const Array<double> &gc,
-                       const Array<double> &gct,
-                       const Vector &pa_data,
-                       const Vector &x,
-                       Vector &y)
+inline void PACurlCurlApply3D(const int D1D,
+                              const int Q1D,
+                              const bool symmetric,
+                              const int NE,
+                              const Array<double> &bo,
+                              const Array<double> &bc,
+                              const Array<double> &bot,
+                              const Array<double> &bct,
+                              const Array<double> &gc,
+                              const Array<double> &gct,
+                              const Vector &pa_data,
+                              const Vector &x,
+                              Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -1998,20 +1985,19 @@ void PACurlCurlApply3D(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void SmemPACurlCurlApply3D(const int D1D,
-                           const int Q1D,
-                           const bool symmetric,
-                           const int NE,
-                           const Array<double> &bo,
-                           const Array<double> &bc,
-                           const Array<double> &bot,
-                           const Array<double> &bct,
-                           const Array<double> &gc,
-                           const Array<double> &gct,
-                           const Vector &pa_data,
-                           const Vector &x,
-                           Vector &y)
+inline void SmemPACurlCurlApply3D(const int D1D,
+                                  const int Q1D,
+                                  const bool symmetric,
+                                  const int NE,
+                                  const Array<double> &bo,
+                                  const Array<double> &bc,
+                                  const Array<double> &bot,
+                                  const Array<double> &bct,
+                                  const Array<double> &gc,
+                                  const Array<double> &gct,
+                                  const Vector &pa_data,
+                                  const Vector &x,
+                                  Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -2320,12 +2306,11 @@ void SmemPACurlCurlApply3D(const int D1D,
 }
 
 // PA H(curl)-L2 assemble 2D kernel
-MFEM_HOST_DEVICE inline
-void PAHcurlL2Setup2D(const int Q1D,
-                      const int NE,
-                      const Array<double> &w,
-                      Vector &coeff,
-                      Vector &op)
+inline void PAHcurlL2Setup2D(const int Q1D,
+                             const int NE,
+                             const Array<double> &w,
+                             Vector &coeff,
+                             Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -2341,13 +2326,12 @@ void PAHcurlL2Setup2D(const int Q1D,
 }
 
 // PA H(curl) Mass Assemble 3D kernel
-MFEM_HOST_DEVICE inline
-void PAHcurlL2Setup3D(const int NQ,
-                      const int coeffDim,
-                      const int NE,
-                      const Array<double> &w,
-                      Vector &coeff,
-                      Vector &op)
+inline void PAHcurlL2Setup3D(const int NQ,
+                             const int coeffDim,
+                             const int NE,
+                             const Array<double> &w,
+                             Vector &coeff,
+                             Vector &op)
 {
    auto W = w.Read();
    auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
@@ -2365,18 +2349,17 @@ void PAHcurlL2Setup3D(const int NQ,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAHcurlL2Apply2D(const int D1D,
-                      const int D1Dtest,
-                      const int Q1D,
-                      const int NE,
-                      const Array<double> &bo,
-                      const Array<double> &bot,
-                      const Array<double> &bt,
-                      const Array<double> &gc,
-                      const Vector &pa_data,
-                      const Vector &x, // trial = H(curl)
-                      Vector &y)  // test = L2 or H1
+inline void PAHcurlL2Apply2D(const int D1D,
+                             const int D1Dtest,
+                             const int Q1D,
+                             const int NE,
+                             const Array<double> &bo,
+                             const Array<double> &bot,
+                             const Array<double> &bt,
+                             const Array<double> &gc,
+                             const Vector &pa_data,
+                             const Vector &x, // trial = H(curl)
+                             Vector &y)  // test = L2 or H1
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -2481,18 +2464,17 @@ void PAHcurlL2Apply2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHcurlL2ApplyTranspose2D(const int D1D,
-                               const int D1Dtest,
-                               const int Q1D,
-                               const int NE,
-                               const Array<double> &bo,
-                               const Array<double> &bot,
-                               const Array<double> &b,
-                               const Array<double> &gct,
-                               const Vector &pa_data,
-                               const Vector &x, // trial = H(curl)
-                               Vector &y)  // test = L2 or H1
+inline void PAHcurlL2ApplyTranspose2D(const int D1D,
+                                      const int D1Dtest,
+                                      const int Q1D,
+                                      const int NE,
+                                      const Array<double> &bo,
+                                      const Array<double> &bot,
+                                      const Array<double> &b,
+                                      const Array<double> &gct,
+                                      const Vector &pa_data,
+                                      const Vector &x, // trial = H(curl)
+                                      Vector &y)  // test = L2 or H1
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
@@ -2597,19 +2579,18 @@ void PAHcurlL2ApplyTranspose2D(const int D1D,
 // Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void PAHcurlL2Apply3D(const int D1D,
-                      const int Q1D,
-                      const int coeffDim,
-                      const int NE,
-                      const Array<double> &bo,
-                      const Array<double> &bc,
-                      const Array<double> &bot,
-                      const Array<double> &bct,
-                      const Array<double> &gc,
-                      const Vector &pa_data,
-                      const Vector &x,
-                      Vector &y)
+inline void PAHcurlL2Apply3D(const int D1D,
+                             const int Q1D,
+                             const int coeffDim,
+                             const int NE,
+                             const Array<double> &bo,
+                             const Array<double> &bc,
+                             const Array<double> &bot,
+                             const Array<double> &bct,
+                             const Array<double> &gc,
+                             const Vector &pa_data,
+                             const Vector &x,
+                             Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -2963,17 +2944,16 @@ void PAHcurlL2Apply3D(const int D1D,
 // Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void SmemPAHcurlL2Apply3D(const int D1D,
-                          const int Q1D,
-                          const int coeffDim,
-                          const int NE,
-                          const Array<double> &bo,
-                          const Array<double> &bc,
-                          const Array<double> &gc,
-                          const Vector &pa_data,
-                          const Vector &x,
-                          Vector &y)
+inline void SmemPAHcurlL2Apply3D(const int D1D,
+                                 const int Q1D,
+                                 const int coeffDim,
+                                 const int NE,
+                                 const Array<double> &bo,
+                                 const Array<double> &bc,
+                                 const Array<double> &gc,
+                                 const Vector &pa_data,
+                                 const Vector &x,
+                                 Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
@@ -3274,19 +3254,18 @@ void SmemPAHcurlL2Apply3D(const int D1D,
 // Apply to x corresponding to DOFs in H(curl) (trial), integrated against curl
 // of H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void PAHcurlL2Apply3DTranspose(const int D1D,
-                               const int Q1D,
-                               const int coeffDim,
-                               const int NE,
-                               const Array<double> &bo,
-                               const Array<double> &bc,
-                               const Array<double> &bot,
-                               const Array<double> &bct,
-                               const Array<double> &gct,
-                               const Vector &pa_data,
-                               const Vector &x,
-                               Vector &y)
+inline void PAHcurlL2Apply3DTranspose(const int D1D,
+                                      const int Q1D,
+                                      const int coeffDim,
+                                      const int NE,
+                                      const Array<double> &bo,
+                                      const Array<double> &bc,
+                                      const Array<double> &bot,
+                                      const Array<double> &bct,
+                                      const Array<double> &gct,
+                                      const Vector &pa_data,
+                                      const Vector &x,
+                                      Vector &y)
 {
    // See PAHcurlL2Apply3D for comments.
 
@@ -3638,17 +3617,16 @@ void PAHcurlL2Apply3DTranspose(const int D1D,
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-MFEM_HOST_DEVICE inline
-void SmemPAHcurlL2Apply3DTranspose(const int D1D,
-                                   const int Q1D,
-                                   const int coeffDim,
-                                   const int NE,
-                                   const Array<double> &bo,
-                                   const Array<double> &bc,
-                                   const Array<double> &gc,
-                                   const Vector &pa_data,
-                                   const Vector &x,
-                                   Vector &y)
+inline void SmemPAHcurlL2Apply3DTranspose(const int D1D,
+                                          const int Q1D,
+                                          const int coeffDim,
+                                          const int NE,
+                                          const Array<double> &bo,
+                                          const Array<double> &bc,
+                                          const Array<double> &gc,
+                                          const Vector &pa_data,
+                                          const Vector &x,
+                                          Vector &y)
 {
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
