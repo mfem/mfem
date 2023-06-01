@@ -23,13 +23,12 @@ namespace internal
 {
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PAMassAssembleDiagonal2D(const int NE,
-                              const Array<double> &b,
-                              const Vector &d,
-                              Vector &y,
-                              const int d1d = 0,
-                              const int q1d = 0)
+inline void PAMassAssembleDiagonal2D(const int NE,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -70,13 +69,12 @@ void PAMassAssembleDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-MFEM_HOST_DEVICE inline
-void SmemPAMassAssembleDiagonal2D(const int NE,
-                                  const Array<double> &b_,
-                                  const Vector &d_,
-                                  Vector &y_,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+inline void SmemPAMassAssembleDiagonal2D(const int NE,
+                                         const Array<double> &b_,
+                                         const Vector &d_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -137,13 +135,12 @@ void SmemPAMassAssembleDiagonal2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PAMassAssembleDiagonal3D(const int NE,
-                              const Array<double> &b,
-                              const Vector &d,
-                              Vector &y,
-                              const int d1d = 0,
-                              const int q1d = 0)
+inline void PAMassAssembleDiagonal3D(const int NE,
+                                     const Array<double> &b,
+                                     const Vector &d,
+                                     Vector &y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -207,13 +204,12 @@ void PAMassAssembleDiagonal3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void SmemPAMassAssembleDiagonal3D(const int NE,
-                                  const Array<double> &b_,
-                                  const Vector &d_,
-                                  Vector &y_,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+inline void SmemPAMassAssembleDiagonal3D(const int NE,
+                                         const Array<double> &b_,
+                                         const Vector &d_,
+                                         Vector &y_,
+                                         const int d1d = 0,
+                                         const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -293,12 +289,11 @@ void SmemPAMassAssembleDiagonal3D(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAMassAssembleDiagonal(const int dim, const int D1D,
-                            const int Q1D, const int NE,
-                            const Array<double> &B,
-                            const Vector &D,
-                            Vector &Y)
+inline void PAMassAssembleDiagonal(const int dim, const int D1D,
+                                   const int Q1D, const int NE,
+                                   const Array<double> &B,
+                                   const Vector &D,
+                                   Vector &Y)
 {
    if (dim == 2)
    {
@@ -338,15 +333,14 @@ void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Mass Apply 2D kernel
-MFEM_HOST_DEVICE inline
-void OccaPAMassApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &B,
-                       const Array<double> &Bt,
-                       const Vector &D,
-                       const Vector &X,
-                       Vector &Y)
+inline void OccaPAMassApply2D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const Array<double> &B,
+                              const Array<double> &Bt,
+                              const Vector &D,
+                              const Vector &X,
+                              Vector &Y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -384,15 +378,14 @@ void OccaPAMassApply2D(const int D1D,
 }
 
 // OCCA PA Mass Apply 3D kernel
-MFEM_HOST_DEVICE inline
-void OccaPAMassApply3D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &B,
-                       const Array<double> &Bt,
-                       const Vector &D,
-                       const Vector &X,
-                       Vector &Y)
+inline void OccaPAMassApply3D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const Array<double> &B,
+                              const Array<double> &Bt,
+                              const Vector &D,
+                              const Vector &X,
+                              Vector &Y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
@@ -1034,15 +1027,14 @@ void SmemPAMassApply3D_Element(const int e,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PAMassApply2D(const int NE,
-                   const Array<double> &b_,
-                   const Array<double> &bt_,
-                   const Vector &d_,
-                   const Vector &x_,
-                   Vector &y_,
-                   const int d1d = 0,
-                   const int q1d = 0)
+inline void PAMassApply2D(const int NE,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
    MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
    MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
@@ -1060,15 +1052,14 @@ void PAMassApply2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-MFEM_HOST_DEVICE inline
-void SmemPAMassApply2D(const int NE,
-                       const Array<double> &b_,
-                       const Array<double> &bt_,
-                       const Vector &d_,
-                       const Vector &x_,
-                       Vector &y_,
-                       const int d1d = 0,
-                       const int q1d = 0)
+inline void SmemPAMassApply2D(const int NE,
+                              const Array<double> &b_,
+                              const Array<double> &bt_,
+                              const Vector &d_,
+                              const Vector &x_,
+                              Vector &y_,
+                              const int d1d = 0,
+                              const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -1090,15 +1081,14 @@ void SmemPAMassApply2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void PAMassApply3D(const int NE,
-                   const Array<double> &b_,
-                   const Array<double> &bt_,
-                   const Vector &d_,
-                   const Vector &x_,
-                   Vector &y_,
-                   const int d1d = 0,
-                   const int q1d = 0)
+inline void PAMassApply3D(const int NE,
+                          const Array<double> &b_,
+                          const Array<double> &bt_,
+                          const Vector &d_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
    MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
    MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
@@ -1116,15 +1106,14 @@ void PAMassApply3D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void SmemPAMassApply3D(const int NE,
-                       const Array<double> &b_,
-                       const Array<double> &bt_,
-                       const Vector &d_,
-                       const Vector &x_,
-                       Vector &y_,
-                       const int d1d = 0,
-                       const int q1d = 0)
+inline void SmemPAMassApply3D(const int NE,
+                              const Array<double> &b_,
+                              const Array<double> &bt_,
+                              const Vector &d_,
+                              const Vector &x_,
+                              Vector &y_,
+                              const int d1d = 0,
+                              const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -1143,16 +1132,15 @@ void SmemPAMassApply3D(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAMassApply(const int dim,
-                 const int D1D,
-                 const int Q1D,
-                 const int NE,
-                 const Array<double> &B,
-                 const Array<double> &Bt,
-                 const Vector &D,
-                 const Vector &X,
-                 Vector &Y)
+inline void PAMassApply(const int dim,
+                        const int D1D,
+                        const int Q1D,
+                        const int NE,
+                        const Array<double> &B,
+                        const Array<double> &Bt,
+                        const Vector &D,
+                        const Vector &X,
+                        Vector &Y)
 {
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
