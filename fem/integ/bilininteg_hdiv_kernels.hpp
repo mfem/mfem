@@ -26,14 +26,13 @@ namespace internal
 {
 
 // PA H(div) Mass Assemble 2D kernel
-MFEM_HOST_DEVICE inline
-void PAHdivMassSetup2D(const int Q1D,
-                       const int coeffDim,
-                       const int NE,
-                       const Array<double> &w,
-                       const Vector &j,
-                       Vector &coeff_,
-                       Vector &op)
+inline void PAHdivMassSetup2D(const int Q1D,
+                              const int coeffDim,
+                              const int NE,
+                              const Array<double> &w,
+                              const Vector &j,
+                              Vector &coeff_,
+                              Vector &op)
 {
    const bool symmetric = (coeffDim != 4);
    const int NQ = Q1D*Q1D;
@@ -91,14 +90,13 @@ void PAHdivMassSetup2D(const int Q1D,
 }
 
 // PA H(div) Mass Assemble 3D kernel
-MFEM_HOST_DEVICE inline
-void PAHdivMassSetup3D(const int Q1D,
-                       const int coeffDim,
-                       const int NE,
-                       const Array<double> &w,
-                       const Vector &j,
-                       Vector &coeff_,
-                       Vector &op)
+inline void PAHdivMassSetup3D(const int Q1D,
+                              const int coeffDim,
+                              const int NE,
+                              const Array<double> &w,
+                              const Vector &j,
+                              Vector &coeff_,
+                              Vector &op)
 {
    const bool symmetric = (coeffDim != 9);
    const int NQ = Q1D*Q1D*Q1D;
@@ -179,15 +177,14 @@ void PAHdivMassSetup3D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivMassAssembleDiagonal2D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
-                                  const Vector &op_,
-                                  Vector &diag_)
+inline void PAHdivMassAssembleDiagonal2D(const int D1D,
+                                         const int Q1D,
+                                         const int NE,
+                                         const bool symmetric,
+                                         const Array<double> &Bo_,
+                                         const Array<double> &Bc_,
+                                         const Vector &op_,
+                                         Vector &diag_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
@@ -236,15 +233,14 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivMassAssembleDiagonal3D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
-                                  const Vector &op_,
-                                  Vector &diag_)
+inline void PAHdivMassAssembleDiagonal3D(const int D1D,
+                                         const int Q1D,
+                                         const int NE,
+                                         const bool symmetric,
+                                         const Array<double> &Bo_,
+                                         const Array<double> &Bc_,
+                                         const Vector &op_,
+                                         Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -306,18 +302,17 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivMassApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const bool symmetric,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_)
+inline void PAHdivMassApply2D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const bool symmetric,
+                              const Array<double> &Bo_,
+                              const Array<double> &Bc_,
+                              const Array<double> &Bot_,
+                              const Array<double> &Bct_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -439,18 +434,17 @@ void PAHdivMassApply2D(const int D1D,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void SmemPAHdivMassApply2D(const int NE,
-                           const bool symmetric,
-                           const Array<double> &Bo_,
-                           const Array<double> &Bc_,
-                           const Array<double> &Bot_,
-                           const Array<double> &Bct_,
-                           const Vector &op_,
-                           const Vector &x_,
-                           Vector &y_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+inline void SmemPAHdivMassApply2D(const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Array<double> &Bot_,
+                                  const Array<double> &Bct_,
+                                  const Vector &op_,
+                                  const Vector &x_,
+                                  Vector &y_,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(Bot_);
    MFEM_CONTRACT_VAR(Bct_);
@@ -608,18 +602,17 @@ void SmemPAHdivMassApply2D(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivMassApply3D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const bool symmetric,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_)
+inline void PAHdivMassApply3D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const bool symmetric,
+                              const Array<double> &Bo_,
+                              const Array<double> &Bc_,
+                              const Array<double> &Bot_,
+                              const Array<double> &Bct_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -805,18 +798,17 @@ void PAHdivMassApply3D(const int D1D,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-MFEM_HOST_DEVICE inline
-void SmemPAHdivMassApply3D(const int NE,
-                           const bool symmetric,
-                           const Array<double> &Bo_,
-                           const Array<double> &Bc_,
-                           const Array<double> &Bot_,
-                           const Array<double> &Bct_,
-                           const Vector &op_,
-                           const Vector &x_,
-                           Vector &y_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+inline void SmemPAHdivMassApply3D(const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &Bo_,
+                                  const Array<double> &Bc_,
+                                  const Array<double> &Bot_,
+                                  const Array<double> &Bct_,
+                                  const Vector &op_,
+                                  const Vector &x_,
+                                  Vector &y_,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(Bot_);
    MFEM_CONTRACT_VAR(Bct_);
@@ -1093,19 +1085,18 @@ void SmemPAHdivMassApply3D(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivMassApply(const int dim,
-                     const int D1D,
-                     const int Q1D,
-                     const int NE,
-                     const bool symmetric,
-                     const Array<double> &Bo,
-                     const Array<double> &Bc,
-                     const Array<double> &Bot,
-                     const Array<double> &Bct,
-                     const Vector &op,
-                     const Vector &x,
-                     Vector &y)
+inline void PAHdivMassApply(const int dim,
+                            const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const bool symmetric,
+                            const Array<double> &Bo,
+                            const Array<double> &Bc,
+                            const Array<double> &Bot,
+                            const Array<double> &Bct,
+                            const Vector &op,
+                            const Vector &x,
+                            Vector &y)
 {
    const int id = (D1D << 4) | Q1D;
 
@@ -1139,13 +1130,12 @@ void PAHdivMassApply(const int dim,
 
 // PA H(div) div-div assemble 2D kernel
 // NOTE: this is identical to PACurlCurlSetup2D
-MFEM_HOST_DEVICE inline
-void PADivDivSetup2D(const int Q1D,
-                     const int NE,
-                     const Array<double> &w,
-                     const Vector &j,
-                     Vector &coeff_,
-                     Vector &op)
+inline void PADivDivSetup2D(const int Q1D,
+                            const int NE,
+                            const Array<double> &w,
+                            const Vector &j,
+                            Vector &coeff_,
+                            Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -1166,13 +1156,12 @@ void PADivDivSetup2D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PADivDivSetup3D(const int Q1D,
-                     const int NE,
-                     const Array<double> &w,
-                     const Vector &j,
-                     Vector &coeff_,
-                     Vector &op)
+inline void PADivDivSetup3D(const int Q1D,
+                            const int NE,
+                            const Array<double> &w,
+                            const Vector &j,
+                            Vector &coeff_,
+                            Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -1201,14 +1190,13 @@ void PADivDivSetup3D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PADivDivAssembleDiagonal2D(const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
-                                const Vector &op_,
-                                Vector &diag_)
+inline void PADivDivAssembleDiagonal2D(const int D1D,
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &Bo_,
+                                       const Array<double> &Gc_,
+                                       const Vector &op_,
+                                       Vector &diag_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
@@ -1258,14 +1246,13 @@ void PADivDivAssembleDiagonal2D(const int D1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PADivDivAssembleDiagonal3D(const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
-                                const Vector &op_,
-                                Vector &diag_)
+inline void PADivDivAssembleDiagonal3D(const int D1D,
+                                       const int Q1D,
+                                       const int NE,
+                                       const Array<double> &Bo_,
+                                       const Array<double> &Gc_,
+                                       const Vector &op_,
+                                       Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1325,17 +1312,16 @@ void PADivDivAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PADivDivApply2D(const int D1D,
-                     const int Q1D,
-                     const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &Bot_,
-                     const Array<double> &Gct_,
-                     const Vector &op_,
-                     const Vector &x_,
-                     Vector &y_)
+inline void PADivDivApply2D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &Bot_,
+                            const Array<double> &Gct_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -1445,17 +1431,16 @@ void PADivDivApply2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PADivDivApply3D(const int D1D,
-                     const int Q1D,
-                     const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &Bot_,
-                     const Array<double> &Gct_,
-                     const Vector &op_,
-                     const Vector &x_,
-                     Vector &y_)
+inline void PADivDivApply3D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &Bot_,
+                            const Array<double> &Gct_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1623,12 +1608,11 @@ void PADivDivApply3D(const int D1D,
 }
 
 // PA H(div)-L2 (div u, p) assemble 2D kernel
-MFEM_HOST_DEVICE inline
-void PAHdivL2Setup2D(const int Q1D,
-                     const int NE,
-                     const Array<double> &w,
-                     Vector &coeff_,
-                     Vector &op)
+inline void PAHdivL2Setup2D(const int Q1D,
+                            const int NE,
+                            const Array<double> &w,
+                            Vector &coeff_,
+                            Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -1643,12 +1627,11 @@ void PAHdivL2Setup2D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivL2Setup3D(const int Q1D,
-                     const int NE,
-                     const Array<double> &w,
-                     Vector &coeff_,
-                     Vector &op)
+inline void PAHdivL2Setup3D(const int Q1D,
+                            const int NE,
+                            const Array<double> &w,
+                            Vector &coeff_,
+                            Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -1664,17 +1647,16 @@ void PAHdivL2Setup3D(const int Q1D,
    });
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
-                                      const int Q1D,
-                                      const int L2D1D,
-                                      const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
-                                      const Vector &op_,
-                                      const Vector &D_,
-                                      Vector &diag_)
+inline void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
+                                             const int Q1D,
+                                             const int L2D1D,
+                                             const int NE,
+                                             const Array<double> &L2Bo_,
+                                             const Array<double> &Gct_,
+                                             const Array<double> &Bot_,
+                                             const Vector &op_,
+                                             const Vector &D_,
+                                             Vector &diag_)
 {
    constexpr static int VDIM = 2;
 
@@ -1757,17 +1739,16 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
-                                      const int Q1D,
-                                      const int L2D1D,
-                                      const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
-                                      const Vector &op_,
-                                      const Vector &D_,
-                                      Vector &diag_)
+inline void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
+                                             const int Q1D,
+                                             const int L2D1D,
+                                             const int NE,
+                                             const Array<double> &L2Bo_,
+                                             const Array<double> &Gct_,
+                                             const Array<double> &Bot_,
+                                             const Vector &op_,
+                                             const Vector &D_,
+                                             Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1885,17 +1866,16 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
 
 // Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
-MFEM_HOST_DEVICE inline
-void PAHdivL2Apply3D(const int D1D,
-                     const int Q1D,
-                     const int L2D1D,
-                     const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &L2Bot_,
-                     const Vector &op_,
-                     const Vector &x_,
-                     Vector &y_)
+inline void PAHdivL2Apply3D(const int D1D,
+                            const int Q1D,
+                            const int L2D1D,
+                            const int NE,
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &L2Bot_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -2049,17 +2029,16 @@ void PAHdivL2Apply3D(const int D1D,
 
 // Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
-MFEM_HOST_DEVICE inline
-void PAHdivL2Apply2D(const int D1D,
-                     const int Q1D,
-                     const int L2D1D,
-                     const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &L2Bot_,
-                     const Vector &op_,
-                     const Vector &x_,
-                     Vector &y_)
+inline void PAHdivL2Apply2D(const int D1D,
+                            const int Q1D,
+                            const int L2D1D,
+                            const int NE,
+                            const Array<double> &Bo_,
+                            const Array<double> &Gc_,
+                            const Array<double> &L2Bot_,
+                            const Vector &op_,
+                            const Vector &x_,
+                            Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -2156,17 +2135,16 @@ void PAHdivL2Apply2D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivL2ApplyTranspose3D(const int D1D,
-                              const int Q1D,
-                              const int L2D1D,
-                              const int NE,
-                              const Array<double> &L2Bo_,
-                              const Array<double> &Gct_,
-                              const Array<double> &Bot_,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_)
+inline void PAHdivL2ApplyTranspose3D(const int D1D,
+                                     const int Q1D,
+                                     const int L2D1D,
+                                     const int NE,
+                                     const Array<double> &L2Bo_,
+                                     const Array<double> &Gct_,
+                                     const Array<double> &Bot_,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -2319,17 +2297,16 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
    }); // end of element loop
 }
 
-MFEM_HOST_DEVICE inline
-void PAHdivL2ApplyTranspose2D(const int D1D,
-                              const int Q1D,
-                              const int L2D1D,
-                              const int NE,
-                              const Array<double> &L2Bo_,
-                              const Array<double> &Gct_,
-                              const Array<double> &Bot_,
-                              const Vector &op_,
-                              const Vector &x_,
-                              Vector &y_)
+inline void PAHdivL2ApplyTranspose2D(const int D1D,
+                                     const int Q1D,
+                                     const int L2D1D,
+                                     const int NE,
+                                     const Array<double> &L2Bo_,
+                                     const Array<double> &Gct_,
+                                     const Array<double> &Bot_,
+                                     const Vector &op_,
+                                     const Vector &x_,
+                                     Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
