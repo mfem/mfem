@@ -2016,7 +2016,7 @@ inline void SmemPACurlCurlApply3D(const int D1D,
 
    const int s = symmetric ? 6 : 9;
 
-   auto device_kernel = [=] MFEM_HOST_DEVICE (int e)
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
 
@@ -2965,7 +2965,7 @@ inline void SmemPAHcurlL2Apply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   auto device_kernel = [=] MFEM_HOST_DEVICE (int e)
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int maxCoeffDim = 9;
@@ -3638,7 +3638,7 @@ inline void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   auto device_kernel = [=] MFEM_HOST_DEVICE (int e)
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int maxCoeffDim = 9;
