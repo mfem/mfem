@@ -48,9 +48,9 @@
 //    Surface fitting to a circular level-set - no-prefinement right now
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa
 //    Surface fitting to a circular level-set - with p-refinement
-//     make mesh-fitting -j && ./mesh-fitting -m square01_tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
-//    Surface fitting to a circular level-set with p-refinement on a triangular mesh
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
+//    Surface fitting to a circular level-set with p-refinement on a triangular mesh
+//     make mesh-fitting -j && ./mesh-fitting -m square01_tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
 //    Surface fitting to a spherical level-set - with p-refinement on a hex mesh
 //     make mesh-fitting -j && ./mesh-fitting -m cube.mesh -o 1 -rs 1 -mid 303 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa -pref
 
@@ -173,6 +173,71 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
 
    xInt->MakeOwner(fecInt);
    return xInt;
+}
+
+double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fes, const FunctionCoefficient* ls, const int el)
+{
+    std::cout << "1. " << std::endl;
+    double error = 0.0;
+    double a = 0.0;
+    const FiniteElement *fe = fes->GetFaceElement(el);
+    std::cout << "Element type " << fe->GetGeomType() << std::endl;
+    std::cout << fe->GetNodes()[0].x << std::endl;  // I guess return the pos in the ref element
+    std::cout << fe->GetNodes()[0].y << std::endl;
+    std::cout << fe->GetNodes()[1].x << std::endl;
+    std::cout << fe->GetNodes()[1].y << std::endl;
+    int fdof = fe->GetDof();    // Nomber of Dof of element el
+    std::cout << "Nbr de Dof " << fe->GetDof() << std::endl;
+    int intorder = 2*fe->GetOrder() + 3 ;
+    const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+    Vector shape;   // Will be size fdof
+    Array<int> vdofs;
+    fes->GetFaceVDofs(el, vdofs);   // Get the DOF of the face el in the array vdofs
+    std::cout << "2. " << std::endl;
+
+    // Need to take one of the two adjacent element to the face element el to compute
+    // the jacobian ? Or the method GetElementTransformation can handle faces ?
+    ElementTransformation *transf = fes->GetElementTransformation(el);
+
+    std::cout << "3. " << std::endl;
+
+    for (int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        std::cout << "Integration Point " << ip.x << " " << ip.y << std::endl;
+    }
+
+    for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
+    {
+        std::cout << "4. " << std::endl;
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        std::cout << "Nbr integration points " << ir->GetNPoints() << std::endl;
+        std::cout << "5. Integration Point " << ip.x << " " << ip.y << std::endl;
+        fe->CalcShape(ip, shape);   // Evaluate the values of the shape functions at the integrate point ip
+        std::cout << "6. " << std::endl;
+        for (int dim=0; dim < fes->GetVDim(); dim++)  // For each componant of space (x, y, z)
+        {
+            a = 0;
+            for (int k=0; k < fdof; k++)
+            {
+                if (vdofs[fdof*dim+k] >= 0)
+                {
+                    a += (*x)(vdofs[fdof*dim+k]) * shape(k);
+                }
+                else
+                {
+                    a -= (*x)(-1-vdofs[fdof*dim+k]) * shape(k);
+                }
+                // Here, we don't need to substract the exact solution, because it's the 0 of the level set
+                transf->SetIntPoint(&ip);
+                error += ip.weight * transf->Weight() * a * a;
+            }
+        }
+    }
+    std::cout << "5. " << std::endl;
+
+    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+
 }
 
 int main(int argc, char *argv[])
@@ -528,6 +593,7 @@ int main(int argc, char *argv[])
          int max_order = fespace->GetMaxElementOrder();
          for (int i=0; i < mesh->GetNumFaces(); i++)
          {
+             std::cout << "Integrate Error on edge " << i << ", " << ComputeIntegrateError(&x, fespace, &ls_coeff, i) << std::endl;
              Array<int> els;
              mesh->GetFaceAdjacentElements(i, els);
              if (els.Size() == 2)
