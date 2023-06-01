@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,10 +10,10 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(main
-    MAIN main.cpp
+  add_mfem_miniapp(generate_random_field
+    MAIN generate_random_field.cpp
     EXTRA_SOURCES material_metrics.cpp spde_solver.cpp util.cpp visualizer.cpp
-                  transformation.cpp boundary.cpp
+                  transformation.cpp
     LIBRARIES mfem)
 
   # Copy files to the build folder.

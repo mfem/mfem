@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,11 +12,63 @@
 #ifndef SPDE_SOLVERS_HPP
 #define SPDE_SOLVERS_HPP
 
-#include "boundary.hpp"
+#include <ostream>
+#include <unordered_map>
 #include "mfem.hpp"
 
-namespace mfem {
-namespace spde {
+namespace mfem
+{
+namespace spde
+{
+
+enum class BoundaryType { kNeumann, kDirichlet, kRobin, kPeriodic, kUndefined };
+
+struct Boundary
+{
+   Boundary() = default;
+
+   /// Print the information specifying the boundary conditions.
+   void PrintInfo(std::ostream &os = mfem::out) const;
+
+   /// Verify that all defined boundaries are actually defined on the mesh, i.e.
+   /// if the keys of boundary attributes appear in the boundary attributes of
+   /// the mesh.
+   void VerifyDefinedBoundaries(const Mesh &mesh) const;
+
+   /// Computes the error for each defined boundary attribute by calling back to
+   /// the IntegrateBC.
+   void ComputeBoundaryError(const ParGridFunction &solution);
+
+   /// Helper function to compute the coefficients alpha, beta, gamma (see in
+   /// `IntegrateBC`) for a given boundary attribute.
+   void UpdateIntegrationCoefficients(int i, double &alpha, double &beta,
+                                      double &gamma);
+
+   /// Add a homogeneous boundary condition to the boundary.
+   void AddHomogeneousBoundaryCondition(int boundary, BoundaryType type);
+
+   /// Add a inhomogeneous Dirichlet boundary condition to the boundary.
+   void AddInhomogeneousDirichletBoundaryCondition(int boundary,
+                                                   double coefficient);
+
+   /// Set the robin coefficient for the boundary.
+   void SetRobinCoefficient(double coefficient);
+
+   /// Map to assign homogeneous boundary conditions to defined boundary types.
+   std::map<int, BoundaryType> boundary_attributes;
+   /// Coefficient for inhomogeneous Dirichlet boundary conditions.
+   std::map<int, double> dirichlet_coefficients;
+   /// Coefficient for Robin boundary conditions (n.grad(u) + coeff u = 0) on
+   /// defined boundaries.
+   double robin_coefficient = 1.0;
+};
+
+/// IntegrateBC function from ex27p.cpp. For boundary verification.
+/// Compute the average value of alpha*n.Grad(sol) + beta*sol over the boundary
+/// attributes marked in bdr_marker. Also computes the L2 norm of
+/// alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
+double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
+                   double alpha, double beta, double gamma, double &glb_err);
 
 /// Solver for the SPDE method based on a rational approximation with the AAA
 /// algorithm. The SPDE method is described in the paper
@@ -36,122 +88,129 @@ namespace spde {
 /// constructor. Traditionally, the SPDE method requires the specification of
 /// a white noise right hands side. SPDESolver accepts arbitrary right hand
 /// sides but the solver has only been tested with white noise.
-class SPDESolver {
- public:
-  /// Constructor.
-  /// @param diff_coefficient The diffusion coefficient \Theta.
-  /// @param nu The coefficient nu, smoothness of the solution.
-  /// @param bc Boundary conditions.
-  /// @param fespace Finite element space.
-  SPDESolver(double nu, const Boundary &bc, ParFiniteElementSpace *fespace,
-             double l1 = 0.1, double l2 = 0.1, double l3 = 0.1, double e1 = 0.0,
-             double e2 = 0.0, double e3 = 0.0);
+class SPDESolver
+{
+public:
+   /// Constructor.
+   /// @param diff_coefficient The diffusion coefficient \Theta.
+   /// @param nu The coefficient nu, smoothness of the solution.
+   /// @param bc Boundary conditions.
+   /// @param fespace Finite element space.
+   SPDESolver(double nu, const Boundary &bc, ParFiniteElementSpace *fespace,
+              double l1 = 0.1, double l2 = 0.1, double l3 = 0.1,
+              double e1 = 0.0, double e2 = 0.0, double e3 = 0.0);
 
-  /// Destructor.
-  ~SPDESolver(); 
+   /// Destructor.
+   ~SPDESolver();
 
-  /// Solve the SPDE for a given right hand side b. May alter b if
-  /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
-  /// need b later on, make a copy of it before calling this function.
-  void Solve(ParLinearForm &b, ParGridFunction &x);
+   /// Solve the SPDE for a given right hand side b. May alter b if
+   /// the exponent (alpha) is larger than 1. We avoid copying by default. If
+   /// you need b later on, make a copy of it before calling this function.
+   void Solve(ParLinearForm &b, ParGridFunction &x);
 
-  /** Set up the random field generator. If called more than once it resets the generator */
-  void SetupRandomFieldGenerator(int seed=0);
+   /// Set up the random field generator. If called more than once it resets the
+   /// generator.
+   void SetupRandomFieldGenerator(int seed=0);
 
-  /// Generate a random field. Calls back to solve but generates the stochastic
-  /// load b internally. 
-  void GenerateRandomField(ParGridFunction &x);
+   /// Generate a random field. Calls back to solve but generates the stochastic
+   /// load b internally.
+   void GenerateRandomField(ParGridFunction &x);
 
-  /// Construct the normalization coefficient eta of the white noise right hands
-  /// side.
-  static double ConstructNormalizationCoefficient(double nu, double l1,
-                                                  double l2, double l3,
-                                                  int dim);
+   /// Construct the normalization coefficient eta of the white noise right hands
+   /// side.
+   static double ConstructNormalizationCoefficient(double nu, double l1,
+                                                   double l2, double l3,
+                                                   int dim);
 
-  /// Construct the second order tensor (matrix coefficient) Theta from the
-  /// equation R^T(e1,e2,e3) diag(l1,l2,l3) R (e1,e2,e3).
-  static DenseMatrix ConstructMatrixCoefficient(double l1, double l2, double l3,
-                                                double e1, double e2, double e3,
-                                                double nu, int dim);
+   /// Construct the second order tensor (matrix coefficient) Theta from the
+   /// equation R^T(e1,e2,e3) diag(l1,l2,l3) R (e1,e2,e3).
+   static DenseMatrix ConstructMatrixCoefficient(double l1, double l2, double l3,
+                                                 double e1, double e2, double e3,
+                                                 double nu, int dim);
 
- private:
-  /// The rational approximation of the SPDE results in multiple
-  /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
-  /// (div \Theta grad + \alpha I)^exponent x = \beta b.
-  void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
-             double beta, int exponent = 1);
+   /// Set the print level
+   void SetPrintLevel(int print_level) {print_level_ = print_level;}
 
-  /// Lift the solution to satisfy the inhomogeneous boundary conditions.
-  void LiftSolution(ParGridFunction &x);
+private:
+   /// The rational approximation of the SPDE results in multiple
+   /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
+   /// (div \Theta grad + \alpha I)^exponent x = \beta b.
+   void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
+              double beta, int exponent = 1);
 
-  // Each PDE gives rise to a linear system. This call solves the linear system
-  // with PCG and Boomer AMG preconditioner.
-  void SolveLinearSystem();
+   /// Lift the solution to satisfy the inhomogeneous boundary conditions.
+   void LiftSolution(ParGridFunction &x);
 
-  /// Activate repeated solve capabilities. E.g. if the PDE is of the form
-  /// A^N x = b. This method solves the PDE A x = b for the first time, and
-  /// then uses the solution as RHS for the next solve and so forth.
-  void ActivateRepeatedSolve() { repeated_solve_ = true; }
+   // Each PDE gives rise to a linear system. This call solves the linear system
+   // with PCG and Boomer AMG preconditioner.
+   void SolveLinearSystem(const HypreParMatrix *Op);
 
-  /// Single solve only.
-  void DeactivateRepeatedSolve() { repeated_solve_ = false; }
+   /// Activate repeated solve capabilities. E.g. if the PDE is of the form
+   /// A^N x = b. This method solves the PDE A x = b for the first time, and
+   /// then uses the solution as RHS for the next solve and so forth.
+   void ActivateRepeatedSolve() { repeated_solve_ = true; }
 
-  /// Writes the solution of the PDE from the previous call to Solve() to the
-  /// linear from b (with appropriate transformations).
-  void UpdateRHS(ParLinearForm &b);
+   /// Single solve only.
+   void DeactivateRepeatedSolve() { repeated_solve_ = false; }
 
-  // Compute the coefficients for the rational approximation of the solution.
-  void ComputeRationalCoefficients(double exponent);
+   /// Writes the solution of the PDE from the previous call to Solve() to the
+   /// linear from b (with appropriate transformations).
+   void UpdateRHS(ParLinearForm &b) const;
 
-  // Bilinear forms and corresponding matrices for the solver.
-  ParBilinearForm k_;
-  ParBilinearForm m_;
-  HypreParMatrix stiffness_;
-  HypreParMatrix mass_bc_;
+   // Compute the coefficients for the rational approximation of the solution.
+   void ComputeRationalCoefficients(double exponent);
 
-  // Transformation matrices (needed to construct the linear systems and
-  // solutions)
-  const SparseMatrix *restriction_matrix_;
-  const Operator *prolongation_matrix_;
+   // Bilinear forms and corresponding matrices for the solver.
+   ParBilinearForm k_;
+   ParBilinearForm m_;
+   HypreParMatrix stiffness_;
+   HypreParMatrix mass_bc_;
 
-  // Members to solve the linear system.
-  Vector X_;
-  Vector B_;
-  HypreParMatrix *Op_;
+   // Transformation matrices (needed to construct the linear systems and
+   // solutions)
+   const SparseMatrix *restriction_matrix_ = nullptr;
+   const Operator *prolongation_matrix_ = nullptr;
 
-  // Information of the finite element space.
-  Array<int> ess_tdof_list_;
-  ParFiniteElementSpace *fespace_ptr_;
+   // Members to solve the linear system.
+   Vector X_;
+   Vector B_;
 
-  // Boundary conditions
-  const Boundary &bc_;
-  Array<int> dbc_marker_;  // Markers for Dirichlet boundary conditions.
-  Array<int> rbc_marker_;  // Markers for Robin boundary conditions.
+   // Information of the finite element space.
+   Array<int> ess_tdof_list_;
+   ParFiniteElementSpace *fespace_ptr_;
 
-  // Coefficients for the rational approximation of the solution.
-  Array<double> coeffs_;
-  Array<double> poles_;
+   // Boundary conditions
+   const Boundary &bc_;
+   Array<int> dbc_marker_;  // Markers for Dirichlet boundary conditions.
+   Array<int> rbc_marker_;  // Markers for Robin boundary conditions.
 
-  // Exponents of the operator
-  double nu_ = 0.0;
-  double alpha_ = 0.0;
-  int integer_order_of_exponent_ = 0;
+   // Coefficients for the rational approximation of the solution.
+   Array<double> coeffs_;
+   Array<double> poles_;
 
-  // Correlation length
-  double l1_ = 0.1;
-  double l2_ = 0.1;
-  double l3_ = 0.1;
-  double e1_ = 0.0;
-  double e2_ = 0.0;
-  double e3_ = 0.0;
+   // Exponents of the operator
+   double nu_ = 0.0;
+   double alpha_ = 0.0;
+   int integer_order_of_exponent_ = 0;
 
-  // Member to switch to repeated solve capabilities.
-  bool repeated_solve_ = false;
-  bool integer_order_ = false;
-  bool apply_lift_ = false;
+   // Correlation length
+   double l1_ = 0.1;
+   double l2_ = 0.1;
+   double l3_ = 0.1;
+   double e1_ = 0.0;
+   double e2_ = 0.0;
+   double e3_ = 0.0;
 
-  WhiteGaussianNoiseDomainLFIntegrator *integ = nullptr;
-  ParLinearForm * b = nullptr;
+   // Print level
+   int print_level_ = 1;
+
+   // Member to switch to repeated solve capabilities.
+   bool repeated_solve_ = false;
+   bool integer_order_ = false;
+   bool apply_lift_ = false;
+
+   WhiteGaussianNoiseDomainLFIntegrator *integ = nullptr;
+   ParLinearForm * b_wn = nullptr;
 };
 
 }  // namespace spde

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,7 +16,8 @@
 #include <vector>
 #include "mfem.hpp"
 
-namespace mfem {
+namespace mfem
+{
 
 /// Fills the vector x with random numbers between a and b.
 void FillWithRandomNumbers(std::vector<double> &x, double a = 0.0,

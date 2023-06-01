@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,15 +14,18 @@
 
 #include "mfem.hpp"
 
-namespace mfem {
-namespace spde {
+namespace mfem
+{
+namespace spde
+{
 
 /// Base class to transform a grid function.
-class GFTransformer {
- public:
-  GFTransformer() = default;
-  virtual ~GFTransformer() = default;
-  virtual void Transform(ParGridFunction &x) const = 0;
+class GFTransformer
+{
+public:
+   GFTransformer() = default;
+   virtual ~GFTransformer() = default;
+   virtual void Transform(ParGridFunction &x) const = 0;
 };
 
 /// This transformations is a pointwise transformation to
@@ -34,57 +37,61 @@ class GFTransformer {
 /// collocation methods. Struct Multidisc Optim 46, 597–612 (2012).
 /// https://doi.org/10.1007/s00158-012-0791-7
 /// Equation (19).
-class UniformGRFTransformer : public GFTransformer {
- public:
-  UniformGRFTransformer() = default;
-  UniformGRFTransformer(double min, double max) : min_(min), max_(max) {}
-  virtual ~UniformGRFTransformer() = default;
-  /// Transforms a GridFunction representing a Gaussian random field to a
-  /// uniform random field between a and b.
-  virtual void Transform(ParGridFunction &x) const override;
+class UniformGRFTransformer : public GFTransformer
+{
+public:
+   UniformGRFTransformer() = default;
+   UniformGRFTransformer(double min, double max) : min_(min), max_(max) {}
+   ~UniformGRFTransformer() override = default;
+   /// Transforms a GridFunction representing a Gaussian random field to a
+   /// uniform random field between a and b.
+   void Transform(ParGridFunction &x) const override;
 
- private:
-  double min_ = 0.0;
-  double max_ = 1.0;
+private:
+   double min_ = 0.0;
+   double max_ = 1.0;
 };
 
 /// Adds an constant offset to a grid function, i.e. u(x) = u(x) + offset.
-class OffsetTransformer : public GFTransformer {
- public:
-  OffsetTransformer() = default;
-  OffsetTransformer(double offset) : offset_(offset) {}
-  virtual ~OffsetTransformer() = default;
-  /// Offsets a grid function by an constant offset.
-  virtual void Transform(ParGridFunction &x) const override;
+class OffsetTransformer : public GFTransformer
+{
+public:
+   OffsetTransformer() = default;
+   explicit OffsetTransformer(double offset) : offset_(offset) {}
+   ~OffsetTransformer() override = default;
+   /// Offsets a grid function by an constant offset.
+   void Transform(ParGridFunction &x) const override;
 
- private:
-  double offset_ = 0.0;
+private:
+   double offset_ = 0.0;
 };
 
 /// Transforms a grid function by scaling it by a constant factor.
-class ScaleTransformer : public GFTransformer {
- public:
-  ScaleTransformer() = default;
-  ScaleTransformer(double scale) : scale_(scale) {}
-  virtual ~ScaleTransformer() = default;
-  /// Scales a grid function by an constant factor.
-  virtual void Transform(ParGridFunction &x) const override;
+class ScaleTransformer : public GFTransformer
+{
+public:
+   ScaleTransformer() = default;
+   explicit ScaleTransformer(double scale) : scale_(scale) {}
+   ~ScaleTransformer() override = default;
+   /// Scales a grid function by an constant factor.
+   void Transform(ParGridFunction &x) const override;
 
- private:
-  double scale_ = 1.0;
+private:
+   double scale_ = 1.0;
 };
 
 /// Level Set Transformer, 1 for u(x) >= threshold, 0 otherwise.
-class LevelSetTransformer : public GFTransformer {
- public:
-  LevelSetTransformer() = default;
-  LevelSetTransformer(double threshold) : threshold_(threshold) {}
-  virtual ~LevelSetTransformer() = default;
-  /// Applies a level set to the GridFunction.
-  virtual void Transform(ParGridFunction &x) const override;
+class LevelSetTransformer : public GFTransformer
+{
+public:
+   LevelSetTransformer() = default;
+   explicit LevelSetTransformer(double threshold) : threshold_(threshold) {}
+   ~LevelSetTransformer() override = default;
+   /// Applies a level set to the GridFunction.
+   void Transform(ParGridFunction &x) const override;
 
- private:
-  double threshold_ = 0.0;
+private:
+   double threshold_ = 0.0;
 };
 
 }  // namespace spde

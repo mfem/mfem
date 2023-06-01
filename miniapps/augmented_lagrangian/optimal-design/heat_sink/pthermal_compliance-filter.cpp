@@ -73,7 +73,7 @@
 #include <fstream>
 #include <random>
 #include "../solvers/pde_solvers.hpp"
-#include "../../../spde/boundary.hpp"
+// #include "../../../spde/boundary.hpp"
 #include "../../../spde/spde_solver.hpp"
 
 bool random_seed = true;
@@ -313,6 +313,13 @@ enum prob_type
 };
 prob_type prob;
 
+enum geom_type
+{
+   square,    
+   sphere     
+};
+geom_type geom;
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -341,6 +348,7 @@ int main(int argc, char *argv[])
    bool use_simp = true;
    bool paraview = false;
    int iprob = 0;
+   int igeom = 0;
 
    // save design to a file
    bool save_to_file = false;
@@ -382,6 +390,8 @@ int main(int argc, char *argv[])
                   "Minimum of diffusion diffusion coefficient.");
    args.AddOption(&iprob, "-prob", "--problem", "Problem type"
                   " 0: deterministic, 1: stochastic ");
+   args.AddOption(&igeom, "-g", "--geom", "Geometry type"
+                  "0: square, 1: sphere");
    args.AddOption(&batch_size_min, "-bs", "--batch-size",
                   "batch size for stochastic gradient descent.");     
    args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
@@ -425,6 +435,9 @@ int main(int argc, char *argv[])
    MFEM_VERIFY((iprob == 0 || iprob == 1), "Wrong choice of problem kind");
    prob = (prob_type)iprob;
 
+   MFEM_VERIFY((igeom == 0 || igeom == 1), "Wrong choice of geometry kind");
+   geom = (geom_type)igeom;
+
    ParGridFunction * rho_saved = (restore_from_file) 
                                ? LoadParMeshAndParGridFunction(saved_meshfile,saved_solfile)
                                : nullptr;
@@ -444,55 +457,69 @@ int main(int argc, char *argv[])
            << " Lambda " << endl;
    } 
 
-   Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
 
-   int dim = mesh.Dimension();
-
-   for (int i = 0; i<mesh.GetNBE(); i++)
+   Mesh *mesh;
+   if (geom == geom_type::square)
    {
-      Element * be = mesh.GetBdrElement(i);
-      Array<int> vertices;
-      be->GetVertices(vertices);
-
-      double * coords1 = mesh.GetVertex(vertices[0]);
-      double * coords2 = mesh.GetVertex(vertices[1]);
-
-      Vector center(2);
-      center(0) = 0.5*(coords1[0] + coords2[0]);
-      center(1) = 0.5*(coords1[1] + coords2[1]);
-
-
-      if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
-      {
-         // middle the top edge
-         be->SetAttribute(1);
-      }
-      else if (abs(center(1) - 1.0) < 1e-10)
-      {
-         // the rest of top edge
-         be->SetAttribute(2);
-
-      }
-      else if (abs(center(0)) < 1e-10 || abs(center(0)-1.0) < 1e-10)
-      {
-         // left and right edge
-         be->SetAttribute(4);
-      }
-      else
-      {
-         // bottom edge
-         be->SetAttribute(3);
-      }
+      mesh = new Mesh(Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0));
    }
-   mesh.SetAttributes();
+   else
+   {
+      const char *mesh_file = "spherical_surf.msh";
+      mesh = new Mesh(mesh_file,1,1);
+   }
+
+   int dim = mesh->Dimension();
+
+   if (geom == geom_type::square)
+   {
+      for (int i = 0; i<mesh->GetNBE(); i++)
+      {
+         Element * be = mesh->GetBdrElement(i);
+         Array<int> vertices;
+         be->GetVertices(vertices);
+
+         double * coords1 = mesh->GetVertex(vertices[0]);
+         double * coords2 = mesh->GetVertex(vertices[1]);
+
+         Vector center(2);
+         center(0) = 0.5*(coords1[0] + coords2[0]);
+         center(1) = 0.5*(coords1[1] + coords2[1]);
+
+
+         if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
+         {
+            // middle the top edge
+            be->SetAttribute(1);
+         }
+         else if (abs(center(1) - 1.0) < 1e-10)
+         {
+            // the rest of top edge
+            be->SetAttribute(2);
+
+         }
+         else if (abs(center(0)) < 1e-10 || abs(center(0)-1.0) < 1e-10)
+         {
+            // left and right edge
+            be->SetAttribute(4);
+         }
+         else
+         {
+            // bottom edge
+            be->SetAttribute(3);
+         }
+      }
+      mesh->SetAttributes();
+   }
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh.UniformRefinement();
+      mesh->UniformRefinement();
    }
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   mesh->Clear();
+   delete mesh;
 
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
@@ -535,8 +562,9 @@ int main(int argc, char *argv[])
    double nu = 1.0;
    double e1 = 0.0, e2 = 0.0, e3 = 0.0;
    spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
+   random_load_solver.SetPrintLevel(0);
 
-   ParGridFunction load_gf(&state_fes);
+   ParGridFunction load_gf(&state_fes); 
    random_load_solver.SetupRandomFieldGenerator(myid+1);
    // random_load_solver.SetupRandomFieldGenerator(1);
    random_load_solver.GenerateRandomField(load_gf);
@@ -556,7 +584,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      rho = 0.5;
+      rho = 0.1;
    }
    rho_old = rho;
    // 8. Set up the linear form b(.) for the state and adjoint equations.
@@ -565,7 +593,14 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    if (maxat > 0)
    {
-      ess_bdr[0] = 1;
+      if (geom == geom_type::square)
+      {
+         ess_bdr[0] = 1;
+      }  
+      else
+      {
+         ess_bdr = 7.0;
+      }    
    }
    ConstantCoefficient one(1.0);
    DiffusionSolver * PoissonSolver = new DiffusionSolver();

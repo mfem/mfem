@@ -38,7 +38,7 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-COMMON_O = ../solvers/pde_solvers.o ../../../spde/boundary.o ../../../spde/spde_solver.o ../../../spde/util.o
+COMMON_O = ../solvers/pde_solvers.o ../../../spde/transformation.o ../../../spde/spde_solver.o ../../../spde/util.o
 
 # Remove built-in rules
 %: %.cpp
