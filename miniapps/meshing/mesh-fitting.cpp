@@ -175,66 +175,49 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
-double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fes, const FunctionCoefficient* ls, const int el)
+double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fes, const Mesh* mesh, FunctionCoefficient* ls, const int el)
 {
+    // TODO
     std::cout << "1. " << std::endl;
     double error = 0.0;
     double a = 0.0;
-    const FiniteElement *fe = fes->GetFaceElement(el);
-    std::cout << "Element type " << fe->GetGeomType() << std::endl;
-    std::cout << fe->GetNodes()[0].x << std::endl;  // I guess return the pos in the ref element
-    std::cout << fe->GetNodes()[0].y << std::endl;
-    std::cout << fe->GetNodes()[1].x << std::endl;
-    std::cout << fe->GetNodes()[1].y << std::endl;
-    int fdof = fe->GetDof();    // Nomber of Dof of element el
-    std::cout << "Nbr de Dof " << fe->GetDof() << std::endl;
+    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
+    int fdof = fe->GetDof();    // Number of Dof of element el
     int intorder = 2*fe->GetOrder() + 3 ;
     const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
     Vector shape;   // Will be size fdof
+    shape.SetSize(fdof);
     Array<int> vdofs;
     fes->GetFaceVDofs(el, vdofs);   // Get the DOF of the face el in the array vdofs
     std::cout << "2. " << std::endl;
 
     // Need to take one of the two adjacent element to the face element el to compute
     // the jacobian ? Or the method GetElementTransformation can handle faces ?
-    ElementTransformation *transf = fes->GetElementTransformation(el);
+    Array<int> adj_els;
+    mesh->GetFaceAdjacentElements(el, adj_els);
+    ElementTransformation *transf = fes->GetElementTransformation(adj_els[0]);
 
     std::cout << "3. " << std::endl;
-
-    for (int i=0; i<ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        std::cout << "Integration Point " << ip.x << " " << ip.y << std::endl;
-    }
 
     for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
     {
         std::cout << "4. " << std::endl;
         const IntegrationPoint &ip = ir->IntPoint(i);
-        std::cout << "Nbr integration points " << ir->GetNPoints() << std::endl;
-        std::cout << "5. Integration Point " << ip.x << " " << ip.y << std::endl;
         fe->CalcShape(ip, shape);   // Evaluate the values of the shape functions at the integrate point ip
         std::cout << "6. " << std::endl;
         for (int dim=0; dim < fes->GetVDim(); dim++)  // For each componant of space (x, y, z)
         {
             a = 0;
-            for (int k=0; k < fdof; k++)
+            for (int k=0; k < fdof; k++)    // For each dof
             {
-                if (vdofs[fdof*dim+k] >= 0)
-                {
-                    a += (*x)(vdofs[fdof*dim+k]) * shape(k);
-                }
-                else
-                {
-                    a -= (*x)(-1-vdofs[fdof*dim+k]) * shape(k);
-                }
                 // Here, we don't need to substract the exact solution, because it's the 0 of the level set
                 transf->SetIntPoint(&ip);
+                a += ls->Eval(*transf, ip)*shape(k);    // sigma_i * Phi_i (ip)
                 error += ip.weight * transf->Weight() * a * a;
             }
         }
     }
-    std::cout << "5. " << std::endl;
+    std::cout << "7. " << std::endl;
 
     return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 
@@ -573,6 +556,7 @@ int main(int argc, char *argv[])
    GridFunction *surf_fit_mat_gf_max_order = &surf_fit_mat_gf;
    PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
 
+    std::vector<int> inter_faces;   // Vector to save the faces between two different materials
    if (surface_fit_const > 0.0)
    {
       // Define a function coefficient (based on the analytic description of
@@ -593,7 +577,6 @@ int main(int argc, char *argv[])
          int max_order = fespace->GetMaxElementOrder();
          for (int i=0; i < mesh->GetNumFaces(); i++)
          {
-             std::cout << "Integrate Error on edge " << i << ", " << ComputeIntegrateError(&x, fespace, &ls_coeff, i) << std::endl;
              Array<int> els;
              mesh->GetFaceAdjacentElements(i, els);
              if (els.Size() == 2)
@@ -606,6 +589,7 @@ int main(int argc, char *argv[])
                      fespace->SetElementOrder(els[1], max_order+1);
                      order_gf(els[0]) = max_order+1;
                      order_gf(els[1]) = max_order+1;
+                     inter_faces.push_back(i);
                  }
              }
          }
@@ -623,6 +607,7 @@ int main(int argc, char *argv[])
 
          x.SetTrueVector();
          x.SetFromTrueVector();
+
       }
 
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
@@ -960,6 +945,12 @@ int main(int argc, char *argv[])
       std::cout << "Nbr DOFs: " << fespace->GetNDofs() << std::endl;
       std::cout << "Avg fitting error: " << err_avg << std::endl
                 << "Max fitting error: " << err_max << std::endl;
+
+       FunctionCoefficient ls_coeff(surface_level_set);
+      for (int i=0; i < inter_faces.size(); i++)
+      {
+          std::cout << "Error " << ComputeIntegrateError(&x, fespace, mesh, &ls_coeff, inter_faces[i]) << std::endl;
+      }
    }
 
    // Visualize the mesh displacement.
