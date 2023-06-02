@@ -178,7 +178,6 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
 double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fes, const Mesh* mesh, FunctionCoefficient* ls, const int el)
 {
     // TODO
-    std::cout << "1. " << std::endl;
     double error = 0.0;
     double a = 0.0;
     const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
@@ -189,7 +188,6 @@ double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fe
     shape.SetSize(fdof);
     Array<int> vdofs;
     fes->GetFaceVDofs(el, vdofs);   // Get the DOF of the face el in the array vdofs
-    std::cout << "2. " << std::endl;
 
     // Need to take one of the two adjacent element to the face element el to compute
     // the jacobian ? Or the method GetElementTransformation can handle faces ?
@@ -197,14 +195,10 @@ double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fe
     mesh->GetFaceAdjacentElements(el, adj_els);
     ElementTransformation *transf = fes->GetElementTransformation(adj_els[0]);
 
-    std::cout << "3. " << std::endl;
-
     for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
     {
-        std::cout << "4. " << std::endl;
         const IntegrationPoint &ip = ir->IntPoint(i);
         fe->CalcShape(ip, shape);   // Evaluate the values of the shape functions at the integrate point ip
-        std::cout << "6. " << std::endl;
         for (int dim=0; dim < fes->GetVDim(); dim++)  // For each componant of space (x, y, z)
         {
             a = 0;
@@ -217,7 +211,6 @@ double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fe
             }
         }
     }
-    std::cout << "7. " << std::endl;
 
     return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 
@@ -946,7 +939,9 @@ int main(int argc, char *argv[])
       std::cout << "Avg fitting error: " << err_avg << std::endl
                 << "Max fitting error: " << err_max << std::endl;
 
-       FunctionCoefficient ls_coeff(surface_level_set);
+      int max_order = fespace->GetMaxElementOrder();
+      FunctionCoefficient ls_coeff(surface_level_set);
+
       for (int i=0; i < inter_faces.size(); i++)
       {
           std::cout << "Error " << ComputeIntegrateError(&x, fespace, mesh, &ls_coeff, inter_faces[i]) << std::endl;
