@@ -324,6 +324,13 @@ public:
         double obj=0.0;
         double var=0.0;
         for(int i=0;i<n;i++){
+            if(seeds.size()<(i+1)){
+                int seed = static_cast<int>(std::time(nullptr));
+                seeds.push_back(seed);
+            }
+            gf->Sample(seeds[i]);
+
+
             gf->Sample();
 
             /*
@@ -377,6 +384,8 @@ private:
 
     mfem::RandFieldCoefficient* gf;
     int num_samples;
+
+    std::vector<int> seeds;
 };
 
 
