@@ -231,6 +231,8 @@ public:
         gf->SetCorrelationLen(0.2);
         gf->SetMaternParameter(4.0);
         gf->SetScale(0.2);
+
+        num_samples=100;
     }
 
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
@@ -242,8 +244,14 @@ public:
 
     ~Table()
     {
+        delete gf;
         delete cobj;
         delete esolv;
+    }
+
+    void SetNumSamples(int ns)
+    {
+        num_samples=ns;
     }
 
     void SetCorrelationLen(double l)
@@ -305,19 +313,30 @@ public:
         ff.Set(1,&one,false);
         ff.Set(0,gf,false);
 
-        int n=50;
+        esolv->AddSurfLoad(3,ff);
+        cobj->SetE(&E);
+        cobj->SetDens(vdens);
+        cobj->SetDesignFES(dfes);
+        esolv->AssembleTangent();
+
+        int n=num_samples;
         double obj=0.0;
         double var=0.0;
         for(int i=0;i<n;i++){
             gf->Sample();
 
+            /*
             esolv->AddSurfLoad(3,ff);
-
             cobj->SetE(&E);
             cobj->SetDens(vdens);
             cobj->SetDesignFES(dfes);
+            */
 
-            esolv->FSolve();
+            //esolv->FSolve();
+
+            //esolv->AssembleTangent();
+            esolv->LSolve();
+
             double rez=cobj->Eval(esolv->GetDisplacements());
             cobj->Grad(esolv->GetDisplacements(),lgr);
             grad.Add(1.0,lgr);
@@ -356,6 +375,7 @@ private:
     mfem::ParMesh* pmesh;
 
     mfem::RandFieldCoefficient* gf;
+    int num_samples;
 };
 
 
@@ -375,11 +395,12 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    double rel_tol = 1e-7;
    double abs_tol = 1e-15;
-   double fradius = 0.01;
+   double fradius = 0.04;
    double corr_len = 0.2;
    int tot_iter = 100;
    int max_it = 51;
    int print_level = 1;
+   int num_samples = 10;
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
@@ -422,6 +443,10 @@ int main(int argc, char *argv[])
                   "-mit",
                   "--max-optimization-iterations",
                   "Maximum iterations for the linear optimizer.");
+   args.AddOption(&num_samples,
+                  "-ns",
+                  "--num-samples",
+                  "Number of samples.");
    args.AddOption(&fradius,
                   "-r",
                   "--radius",
@@ -523,6 +548,7 @@ int main(int argc, char *argv[])
    alco->SetDesignFES(pgdens.ParFESpace());
    alco->SetDensity(vdens);
    alco->SetCorrelationLen(corr_len);
+   alco->SetNumSamples(num_samples);
 
    mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    //mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -617,8 +643,8 @@ int main(int argc, char *argv[])
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
-          obj=alco->Compliance(ograd);
-          //obj=alco->MeanCompliance(ograd);
+          //obj=alco->Compliance(ograd);
+          obj=alco->MeanCompliance(ograd);
 
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<obj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;

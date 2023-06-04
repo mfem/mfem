@@ -500,6 +500,13 @@ public:
     /// Solves the forward problem.
     void FSolve();
 
+    /// Forms the tangent matrix
+    void AssembleTangent();
+
+    /// Solves the linearized system Ku=f,
+    /// where K is the assembled tangent matrix
+    void LSolve();
+
     /// Solves the adjoint with the provided rhs.
     void ASolve(mfem::Vector& rhs);
 
@@ -631,6 +638,7 @@ private:
 
     std::vector<mfem::BasicElasticityCoefficient*> materials;
 
+    HypreParMatrix* A;
 };
 
 
