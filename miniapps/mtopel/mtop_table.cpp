@@ -41,6 +41,27 @@ private:
     double period;
 };
 
+class CutCoeff:public mfem::Coefficient
+{
+public:
+    CutCoeff(mfem::Coefficient* co_, double tr_=0.0){
+        co=co_;
+        tres=tr_;
+    }
+
+    virtual
+    double 	Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+    {
+        double val=co->Eval(T,ip);
+        if(val>tres){ return val-tres;}
+        return 0.0;
+    }
+
+private:
+    mfem::Coefficient *co;
+    double tres;
+};
+
 
 class YoungModulusTable:public mfem::YoungModulus
 {
@@ -310,9 +331,11 @@ public:
         mfem::VectorArrayCoefficient ff(pmesh->SpaceDimension());
         mfem::ConstantCoefficient one(1.0);
         mfem::ConstantCoefficient zero(0.0);
+        CutCoeff cut_co(gf,0.0);
         //ff.Set(1,&one,false);
         ff.Set(0,&zero,false);
-        ff.Set(1,gf,false);
+        //ff.Set(1,gf,false);
+        ff.Set(1,&cut_co,false);
 
         esolv->AddSurfLoad(3,ff);
         cobj->SetE(&E);
