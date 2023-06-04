@@ -331,7 +331,7 @@ public:
             gf->Sample(seeds[i]);
 
 
-            gf->Sample();
+            //gf->Sample();
 
             /*
             esolv->AddSurfLoad(3,ff);
