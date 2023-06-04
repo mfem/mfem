@@ -258,11 +258,6 @@ public:
         gf->SetCorrelationLen(l);
     }
     
-    void SetNumSamples(int nn_)
-    {
-       num_samples=nn_;
-    }
-
     void SetSIMP(bool simp_=false){
         E.SetSIMP(simp_);
     }
