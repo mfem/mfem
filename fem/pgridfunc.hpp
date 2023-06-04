@@ -226,6 +226,10 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   /** @brief For each vdof, counts how many elements contain the vdof,
+       as containment is determined by FiniteElementSpace::GetElementVDofs(). */
+   virtual void CountElementsPerVDof(Array<int> &elem_per_vdof) const;
+
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
    void GetDerivative(int comp, int der_comp, ParGridFunction &der);
 
