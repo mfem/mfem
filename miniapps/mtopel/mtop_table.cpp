@@ -231,7 +231,6 @@ public:
         gf->SetCorrelationLen(0.2);
         gf->SetMaternParameter(4.0);
         gf->SetScale(0.2);
-
         num_samples=100;
     }
 
@@ -257,6 +256,11 @@ public:
     void SetCorrelationLen(double l)
     {
         gf->SetCorrelationLen(l);
+    }
+    
+    void SetNumSamples(int nn_)
+    {
+       num_samples=nn_;
     }
 
     void SetSIMP(bool simp_=false){
@@ -310,8 +314,10 @@ public:
 
         mfem::VectorArrayCoefficient ff(pmesh->SpaceDimension());
         mfem::ConstantCoefficient one(1.0);
-        ff.Set(1,&one,false);
-        ff.Set(0,gf,false);
+        mfem::ConstantCoefficient zero(0.0);
+        //ff.Set(1,&one,false);
+        ff.Set(0,&zero,false);
+        ff.Set(1,gf,false);
 
         esolv->AddSurfLoad(3,ff);
         cobj->SetE(&E);
@@ -400,7 +406,7 @@ int main(int argc, char *argv[])
    int tot_iter = 100;
    int max_it = 51;
    int print_level = 1;
-   int num_samples = 10;
+   int num_samples=100;
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
@@ -630,7 +636,7 @@ int main(int argc, char *argv[])
               vobj->SetProjection(0.5,2.0);
               alco->SetDensity(vdens,0.5,8.0,1.0);
               alco->SetSIMP(true);
-          }else if(i<100){
+          }else if(i<250){
               vobj->SetProjection(0.5,2.0);
               alco->SetDensity(vdens,0.5,8.0,3.0);
               alco->SetSIMP(true);
