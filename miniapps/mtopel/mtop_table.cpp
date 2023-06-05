@@ -8,6 +8,33 @@
 
 #include "mtop_coefficients.hpp"
 
+class StripesCoefX:public mfem::Coefficient
+{
+public:
+    StripesCoefX(double dx_=0.2)
+    {
+        dx=dx_;
+    }
+
+    virtual
+    double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+    {
+
+        double x[3];
+        mfem::Vector transip(x, T.GetSpaceDim());
+        T.Transform(ip, transip);
+
+        int nx=x[0]/dx;
+
+        x[0]=x[0]-double(nx)*dx-0.5*dx;
+
+        double r=sqrt(x[0]*x[0]);
+        if(r<(0.5*dx)){return 0.1;}
+        return 0.5;
+    }
+private:
+    double dx;
+};
 
 class CoeffHoles:public mfem::Coefficient
 {
@@ -642,10 +669,12 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
 
       CoeffHoles holes;
-      oddens.ProjectCoefficient(holes);
-      oddens*=0.3;
-      oddens.GetTrueDofs(vtmpv);
-      oddens=0.3;
+      StripesCoefX stripes(corr_len);
+      //oddens.ProjectCoefficient(holes);
+      //oddens*=0.3;
+      //oddens.GetTrueDofs(vtmpv);
+      //oddens=0.3;
+      oddens.ProjectCoefficient(stripes);
       oddens.GetTrueDofs(vtmpv);
 
 
