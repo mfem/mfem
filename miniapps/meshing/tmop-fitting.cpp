@@ -42,11 +42,14 @@
 // Triangles:
 //     Circle:
 //     make tmop-fitting -j && mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 1 -rs 2 -mid 2 -tid 1 -ni 200 -vl 1 -sfc 10 -rtol 1e-5
+//     Fischer-Tropsch
+//     make tmop-fitting -j && mpirun -np 6 tmop-fitting -m square01-tri.mesh -o 1 -rs 3 -mid 2 -tid 4 -vl 2 -rtol 1e-12 -ni -20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-6 -amriter 6 -dist -adw 2 -sfc 10.0
 
 //  Tets
 //   Sphere:
 //   make tmop-fitting -j && mpirun -np 6 tmop-fitting -m ../../data/inline-tet.mesh -o 1 -rs 1 -mid 303 -tid 1 -ni 10 -vl 1 -sfc 100.0 -rtol 1e-5 -marking -st 0 -sfa 10 -sft 1e-10 -adw 1
-
+//  Pointwise fitting weight
+//  make tmop-fitting -j && mpirun -np 6 tmop-fitting -m cube_tet_4x4x4.mesh -o 1 -rs 1 -mid 303 -tid 4 -vl 2 -rtol 1e-12 -ni -20 -ae 1 -bnd -slstype 1 -smtype 0 -sfa 10.0 -sft 1e-6 -adw 2 -sfc 10.0 -marking
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -55,6 +58,28 @@
 
 using namespace mfem;
 using namespace std;
+
+double GetMinDet(ParMesh *pmesh, ParFiniteElementSpace *pfespace,
+                 IntegrationRules *irules, int quad_order)
+{
+    double tauval = infinity();
+    const int NE = pmesh->GetNE();
+    for (int i = 0; i < NE; i++)
+    {
+       const IntegrationRule &ir =
+          irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+       ElementTransformation *transf = pmesh->GetElementTransformation(i);
+       for (int j = 0; j < ir.GetNPoints(); j++)
+       {
+          transf->SetIntPoint(&ir.IntPoint(j));
+          tauval = min(tauval, transf->Jacobian().Det());
+       }
+    }
+    double minJ0;
+    MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    tauval = minJ0;
+    return tauval;
+}
 
 void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
 {
@@ -354,6 +379,10 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(reactor);
    }
+   else if (surf_ls_type == 3) //Circle
+   {
+      ls_coeff = new FunctionCoefficient(squircle_level_set);
+   }
    else if (surf_ls_type == 6) // 3D shape
    {
       ls_coeff = new FunctionCoefficient(csg_cubecylsph);
@@ -586,6 +615,7 @@ int main (int argc, char *argv[])
    }
    pmesh->ExchangeFaceNbrData();
 
+   double surf_fit_err_avg, surf_fit_err_max;
 
    // Surface fitting.
    L2_FECollection mat_coll(0, dim);
@@ -622,6 +652,10 @@ int main (int argc, char *argv[])
    ParGridFunction *surf_fit_grad = NULL;
    ParFiniteElementSpace *surf_fit_hess_fes = NULL;
    ParGridFunction *surf_fit_hess = NULL;
+
+   ParGridFunction *metric_grad = NULL;
+   ParGridFunction *fitting_grad = NULL;
+   ParGridFunction metric_fitting_ratio(&surf_fit_fes);
 
    if (surf_bg_mesh)
    {
@@ -726,6 +760,9 @@ int main (int argc, char *argv[])
          }
       }
 
+      metric_grad = new ParGridFunction(&surf_fit_fes);
+      fitting_grad = new ParGridFunction(&surf_fit_fes);
+
       if (surf_bg_mesh)
       {
          DataCollection *dc = NULL;
@@ -735,6 +772,7 @@ int main (int argc, char *argv[])
          dc->SetCycle(0);
          dc->SetTime(0.0);
          dc->Save();
+         delete dc;
       }
 
       // Set material gridfunction
@@ -905,6 +943,7 @@ int main (int argc, char *argv[])
                                                     *adapt_surface,
                                                     *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
                                                     *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
+         tmop_integ->ReMapSurfaceFittingLevelSet(surf_fit_gf0);
          mat.ExchangeFaceNbrData();
       }
 
@@ -920,8 +959,8 @@ int main (int argc, char *argv[])
          tmop_integ->SetInitialFittingWeightAutomatically(x,
                                                           surf_fit_coeff.constant,
                                                           adaptive_weight);
-         //          double init_fitting_weight = tmop_integ->ComputeInitialFittingWeight(pmesh);
-         //          surf_fit_coeff.constant = init_fitting_weight + surface_fit_const;
+         tmop_integ->GetInitialFittingWeightGrads(x, metric_grad, fitting_grad, &metric_fitting_ratio);
+
          if (myid == 0)
          {
             std::cout << "Initial fitting weight will be: " <<
@@ -929,6 +968,15 @@ int main (int argc, char *argv[])
          }
          //          tmop_integ->UpdateSurfaceFittingCoefficient(surf_fit_coeff);
          //          tmop_integ->SaveSurfaceFittingWeight();
+      }
+
+      {
+          tmop_integ->GetSurfaceFittingErrors(surf_fit_err_avg, surf_fit_err_max);
+          if (myid == 0)
+          {
+             std::cout << "Initial mesh - Avg fitting error: " << surf_fit_err_avg << std::endl
+                       << "Initial mesh - Max fitting error: " << surf_fit_err_max << std::endl;
+          }
       }
 
       if (visualization)
@@ -950,16 +998,6 @@ int main (int argc, char *argv[])
       }
 
       {
-         double err_avg, err_max;
-         tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-         if (myid == 0)
-         {
-            std::cout << "Initial mesh - Avg fitting error: " << err_avg << std::endl
-                      << "Initial mesh - Max fitting error: " << err_max << std::endl;
-         }
-      }
-
-      {
          DataCollection *dc = NULL;
          dc = new VisItDataCollection("Perturbed", pmesh);
          dc->RegisterField("level-set", &surf_fit_gf0);
@@ -968,6 +1006,7 @@ int main (int argc, char *argv[])
          dc->SetCycle(0);
          dc->SetTime(0.0);
          dc->Save();
+         delete dc;
       }
    }
 
@@ -982,22 +1021,7 @@ int main (int argc, char *argv[])
    a.AddDomainIntegrator(tmop_integ);
 
    // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
-   const int NE = pmesh->GetNE();
-   for (int i = 0; i < NE; i++)
-   {
-      const IntegrationRule &ir =
-         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
-      }
-   }
-   double minJ0;
-   MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-   tauval = minJ0;
+   tauval = GetMinDet(pmesh, pfespace, irules, quad_order);
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
 
@@ -1149,20 +1173,7 @@ int main (int argc, char *argv[])
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
-   if (lin_solver == 0)
-   {
-      S = new DSmoother(1, 1.0, max_lin_iter);
-   }
-   else if (lin_solver == 1)
-   {
-      CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-      cg->SetMaxIter(max_lin_iter);
-      cg->SetRelTol(linsol_rtol);
-      cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      S = cg;
-   }
-   else
+   if (lin_solver >= 2)
    {
       MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
       minres->SetMaxIter(max_lin_iter);
@@ -1181,45 +1192,111 @@ int main (int argc, char *argv[])
       }
       S = minres;
    }
+   else {
+       MFEM_ABORT("Invalid lin_solver");
+   }
+
+   {
+      DataCollection *dc = NULL;
+      dc = new VisItDataCollection("Optimized", pmesh);
+      dc->RegisterField("mat", &mat);
+      dc->RegisterField("level-set", &surf_fit_gf0);
+      dc->RegisterField("Marker", &surf_fit_mat_gf);
+      dc->RegisterField("metric_grad", metric_grad);
+      dc->RegisterField("fitting_grad", fitting_grad);
+      dc->RegisterField("gradratio", &metric_fitting_ratio);
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
+      delete dc;
+   }
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   // For untangling, the solver will update the min det(T) values.
+   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
+
    if (surface_fit_adapt > 0.0)
    {
       solver.SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
-      //      solver.SetAdaptiveSurfaceFittingRelativeChangeThreshold(0.01);
+      solver.SetAdaptiveSurfaceFittingRelativeChangeThreshold(0.01);
+      solver.SetTerminationWithMaxSurfaceFittingError(solver_rtol*surf_fit_err_max);
    }
    if (surface_fit_threshold > 0)
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    }
-   // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
    {
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
-   // For untangling, the solver will update the min det(T) values.
-   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
-   solver.SetMaxIter(solver_iter);
-   solver.SetRelTol(solver_rtol);
-   solver.SetAbsTol(0.0);
-   //   solver.SetMinimumDeterminantThreshold(0.001*tauval);
-   if (solver_art_type > 0)
-   {
-      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-   }
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   solver.SetOperator(a);
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
+//   solver.SetMinimumDeterminantThreshold(0.001*tauval);
 
-   if (surface_fit_const > 0.0)
-   {
-      tmop_integ->ReMapSurfaceFittingLevelSet(surf_fit_gf0);
+   if (solver_iter < 0) {
+       for (int iter = 0; iter < -solver_iter; iter++)
+       {
+           solver.SetMaxIter(1);
+           solver.SetRelTol(solver_rtol);
+           solver.SetAbsTol(0.0);
+           if (solver_art_type > 0)
+           {
+              solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+           }
+           solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+           solver.SetOperator(a);
+           solver.Mult(b, x.GetTrueVector());
+           x.SetFromTrueVector();
+
+           {
+               tauval = GetMinDet(pmesh, pfespace, irules, quad_order);
+               if (myid == 0)
+               { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
+           }
+
+           if (surface_fit_const > 0.0)
+           {
+              tmop_integ->ReMapSurfaceFittingLevelSet(surf_fit_gf0);
+              tmop_integ->GetInitialFittingWeightGrads(x, metric_grad, fitting_grad, &metric_fitting_ratio);
+           }
+
+           if (surface_fit_const > 0.0)
+           {
+              DataCollection *dc = NULL;
+              dc = new VisItDataCollection("Optimized", pmesh);
+              dc->RegisterField("mat", &mat);
+              dc->RegisterField("level-set", &surf_fit_gf0);
+              dc->RegisterField("Marker", &surf_fit_mat_gf);
+              dc->RegisterField("metric_grad", metric_grad);
+              dc->RegisterField("fitting_grad", fitting_grad);
+              dc->RegisterField("gradratio", &metric_fitting_ratio);
+              dc->SetCycle(iter+1);
+              dc->SetTime(iter+1);
+              dc->Save();
+              delete dc;
+           }
+       }
+   }
+   else {
+       solver.SetMaxIter(solver_iter);
+       solver.SetRelTol(solver_rtol);
+       solver.SetAbsTol(0.0);
+       if (solver_art_type > 0)
+       {
+          solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+       }
+       solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+       solver.SetOperator(a);
+       solver.Mult(b, x.GetTrueVector());
+       x.SetFromTrueVector();
+
+       if (surface_fit_const > 0.0)
+       {
+          tmop_integ->ReMapSurfaceFittingLevelSet(surf_fit_gf0);
+       }
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1285,14 +1362,19 @@ int main (int argc, char *argv[])
       }
    }
 
-   {
+   if (solver_iter > 0) {
       DataCollection *dc = NULL;
       dc = new VisItDataCollection("Optimized", pmesh);
+      dc->RegisterField("mat", &mat);
       dc->RegisterField("level-set", &surf_fit_gf0);
       dc->RegisterField("Marker", &surf_fit_mat_gf);
-      dc->SetCycle(0);
-      dc->SetTime(0.0);
+      dc->RegisterField("metric_grad", metric_grad);
+      dc->RegisterField("fitting_grad", fitting_grad);
+      dc->RegisterField("gradratio", &metric_fitting_ratio);
+      dc->SetCycle(1);
+      dc->SetTime(1.0);
       dc->Save();
+      delete dc;
    }
 
    ParGridFunction x1(x0);
@@ -1383,6 +1465,8 @@ int main (int argc, char *argv[])
    delete surf_fit_bg_fec;
    delete target_c;
    delete metric;
+   delete metric_grad;
+   delete fitting_grad;
    delete pfespace;
    delete fec;
    delete pmesh;

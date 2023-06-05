@@ -3397,8 +3397,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
    MFEM_VERIFY(s0.FESpace()->GetMesh()->GetNodes()->Size() == dim*s0.Size(),
                "Mesh and level-set polynomial order must be the same.");
    const int dim_bg = s0_bg.FESpace()->GetMesh()->Dimension();
-   MFEM_VERIFY(s0.FESpace()->GetMesh()->GetNodes()->Size() == dim*s0_bg.Size(),
-               "Background Mesh and level-set polynomial order must be the same.");
    MFEM_VERIFY(dim_bg == dim,
                "Background Mesh and mesh being fitted must be same dimension.");
    // Setup for level set function
@@ -3667,8 +3665,6 @@ double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
       posV.SetSize(dof*dim);
       doftrans = nodes->FESpace()->GetElementVDofs(i, pos_dofs);
       x_loc.GetSubVector(pos_dofs, posV);
-      if (doftrans) {doftrans->InvTransformPrimal(posV); }
-
       metric_grad->FESpace()->GetElementVDofs(i, grad_dofs);
       metric_grad_vals.SetSize(dof*dim);
       metric_grad_vals = 0.0;
@@ -3679,9 +3675,6 @@ double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
          surf_fit_weight_scale = 0.0;
       }
       AssembleElementVectorExact(*fe_pos, *T, posV, metric_grad_vals);
-      //        metric_grad_vals.Print();
-      if (doftrans) {doftrans->TransformDual(metric_grad_vals); }
-      //        metric_grad->SetSubVector(grad_dofs, metric_grad_vals);
       metric_grad->AddElementVector(grad_dofs, metric_grad_vals);
 
       fit_const->constant  = 1.0;
@@ -3693,8 +3686,6 @@ double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
       fitting_grad_vals.SetSize(dof*dim);
       fitting_grad_vals = 0.0;
       AssembleElementVectorExact(*fe_pos, *T, posV, fitting_grad_vals);
-      if (doftrans) {doftrans->TransformDual(fitting_grad_vals); }
-      //        fitting_grad->SetSubVector(grad_dofs, fitting_grad_vals);
       fitting_grad->AddElementVector(grad_dofs, fitting_grad_vals);
       SetCoefficient(*metric_coeff_copy);
       fit_const->constant  = surf_fit_const;
@@ -3714,8 +3705,9 @@ double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
    {
       int dof_index = surf_fit_marker_dof_index[i];
       int count = surf_fit_dof_count[dof_index];
-      double metric_grad_norm = 0.0;
-      double fitting_grad_norm = 0.0;
+
+      Vector metric_grad_dof(dim);
+      Vector fitting_grad_dof(dim);
       for (int d = 0; d < dim; d++)
       {
          int dof_index_dir = node_ordering == 0 ?
@@ -3723,19 +3715,62 @@ double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
                              dof_index*dim+d;
          (*metric_grad)(dof_index_dir) *= 1.0/count;
          (*fitting_grad)(dof_index_dir) *= 1.0/count;
-         metric_grad_norm += std::pow((*metric_grad)(dof_index_dir), 2.0);
-         fitting_grad_norm += std::pow((*fitting_grad)(dof_index_dir), 2.0);
+         metric_grad_dof(d) = (*metric_grad)(dof_index_dir);
+         fitting_grad_dof(d) = (*fitting_grad)(dof_index_dir);
       }
-      if (metric_grad_norm > 0.0) { metric_grad_norm = std::pow(metric_grad_norm, 0.5); }
-      if (fitting_grad_norm > 0.0) { fitting_grad_norm = std::pow(fitting_grad_norm, 0.5); }
-      double grad_ratio = fitting_grad_norm == 0.0 ?
-                          (fit_weight_point_wise ? 1.0 : 0.0) :
-                          metric_grad_norm/fitting_grad_norm;
+      double dotp = metric_grad_dof*fitting_grad_dof;
+      double metric_grad_norm = metric_grad_dof.Norml2();
+      double fitting_grad_norm = fitting_grad_dof.Norml2();
+      double grad_ratio;
+      if (metric_grad_norm == 0.0 || dotp >= 0.0 || fitting_grad_norm > metric_grad_norm) {
+          grad_ratio = 2.0;
+      }
+      else {
+          grad_ratio = fitting_grad_norm == 0.0 ?
+                      (fit_weight_point_wise ? 1.0 : 0.0) :
+                      metric_grad_norm/fitting_grad_norm;
+//          if (dotp < 0) {
+//              grad_ratio = fitting_grad_norm == 0.0 ?
+//                          (fit_weight_point_wise ? 1.0 : 0.0) :
+//                          metric_grad_norm/fitting_grad_norm;
+//          }
+//          else {
+//              grad_ratio = 1.0;
+//          }
+      }
+//      std::cout << i << " " << dof_index << " " << dotp << " " <<
+//                   grad_ratio << "  k10dot\n";
+
+//      grad_ratio = std::max(grad_ratio, 1.0);
       if (fit_weight_point_wise)
       {
          surf_fit_weight_scale[dof_index] = grad_ratio;
       }
       max_norm_ratio = std::max(max_norm_ratio, grad_ratio);
+
+//      int count = surf_fit_dof_count[dof_index];
+//      double metric_grad_norm = 0.0;
+//      double fitting_grad_norm = 0.0;
+//      for (int d = 0; d < dim; d++)
+//      {
+//         int dof_index_dir = node_ordering == 0 ?
+//                             dof_index+d*node_count :
+//                             dof_index*dim+d;
+//         (*metric_grad)(dof_index_dir) *= 1.0/count;
+//         (*fitting_grad)(dof_index_dir) *= 1.0/count;
+//         metric_grad_norm += std::pow((*metric_grad)(dof_index_dir), 2.0);
+//         fitting_grad_norm += std::pow((*fitting_grad)(dof_index_dir), 2.0);
+//      }
+//      if (metric_grad_norm > 0.0) { metric_grad_norm = std::pow(metric_grad_norm, 0.5); }
+//      if (fitting_grad_norm > 0.0) { fitting_grad_norm = std::pow(fitting_grad_norm, 0.5); }
+//      double grad_ratio = fitting_grad_norm == 0.0 ?
+//                          (fit_weight_point_wise ? 1.0 : 0.0) :
+//                          metric_grad_norm/fitting_grad_norm;
+//      if (fit_weight_point_wise)
+//      {
+//         surf_fit_weight_scale[dof_index] = std::max(grad_ratio, 1.0);
+//      }
+//      max_norm_ratio = std::max(max_norm_ratio, grad_ratio);
    }
 
    delete metric_grad;
@@ -3747,8 +3782,197 @@ double TMOP_Integrator::ComputeInitialFittingWeight(Vector &x_loc)
    {
       mfem::out << max_norm_ratio <<  " K10maxnormratio\n";
    }
+   MPI_Barrier(nodes_par->ParFESpace()->GetComm());
    if (fit_weight_point_wise) { return 0.0; }
    return max_norm_ratio;
+}
+
+void TMOP_Integrator::GetInitialFittingWeightGrads(Vector &x_loc,
+                                                   ParGridFunction *metric_grad_mag,
+                                                   ParGridFunction *fitting_grad_mag,
+                                                   ParGridFunction *metric_fitting_ratio)
+{
+   MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
+   MFEM_VERIFY(!lim_coeff &&
+               !adapt_lim_gf, "This currently does not support when limiting is active.");
+   ParGridFunction *surf_fit_gf_par = dynamic_cast<ParGridFunction *>(surf_fit_gf);
+   MFEM_VERIFY(surf_fit_gf_par,"fitting gridfunction must be ParGridFunction.");
+
+   Mesh *mesh = surf_fit_gf->FESpace()->GetMesh();
+   GridFunction *nodes = surf_fit_gf->FESpace()->GetMesh()->GetNodes();
+   ParGridFunction *nodes_par = dynamic_cast<ParGridFunction *>(nodes);
+   MFEM_VERIFY(nodes_par,"ParMesh Nodes must be ParGridFunction.");
+   ParGridFunction *metric_grad = new ParGridFunction(*nodes_par);
+   ParGridFunction *fitting_grad = new ParGridFunction(*nodes_par);
+   *metric_grad = 0.0;
+   *fitting_grad = 0.0;
+   *metric_fitting_ratio = 0.0;
+
+   ConstantCoefficient *fit_const = dynamic_cast<ConstantCoefficient *>
+                                    (surf_fit_coeff);
+   MFEM_VERIFY(fit_const,
+               "This approach currently only works for ConstantCoefficient"
+               "for the fitting term.");
+
+   // ReMap Surface Fitting function
+   ReMapSurfaceFittingLevelSetAtNodes(x_loc,
+                                      nodes->FESpace()->GetOrdering());
+
+   const int NE = mesh->GetNE();
+   const int dim = mesh->Dimension();
+   DenseMatrix Winv(dim), T(dim), A(dim), dshape, pos;
+   Array<int> pos_dofs, grad_dofs;
+   DenseTensor W;
+   Vector posV;
+   Vector metric_grad_vals, fitting_grad_vals;
+   ConstantCoefficient zero(0.0);
+   ConstantCoefficient one(1.0);
+   Coefficient *metric_coeff_copy = metric_coeff;
+   bool metric_coeff_set = metric_coeff ? true : false;
+   if (!metric_coeff_set)
+   {
+      SetCoefficient(one);
+      metric_coeff_copy = &one;
+   }
+   DofTransformation *doftrans;
+
+   // returns a constant for scaling the weight
+   // sets pointwise weight if false
+   if (fit_weight_point_wise)
+   {
+      surf_fit_weight_scale.SetSize(surf_fit_dof_count.Size());
+   }
+
+   for (int i = 0; i < NE; i++)
+   {
+      // only do computation for elements that have fitting dofs
+      Array<int> sdofs, dofs;
+      surf_fit_gf->FESpace()->GetElementDofs(i, sdofs);
+      int count = 0;
+      for (int s = 0; s < sdofs.Size() && count == 0; s++)
+      {
+         count += ((*surf_fit_marker)[sdofs[s]]) ? 1 : 0;
+      }
+      if (count == 0) { continue; }
+
+      ElementTransformation *T = nodes->FESpace()->GetElementTransformation(i);
+      const FiniteElement *fe_pos = nodes->FESpace()->GetFE(i);
+      const int dof = fe_pos->GetDof();
+      posV.SetSize(dof*dim);
+      doftrans = nodes->FESpace()->GetElementVDofs(i, pos_dofs);
+      x_loc.GetSubVector(pos_dofs, posV);
+      metric_grad->FESpace()->GetElementVDofs(i, grad_dofs);
+      metric_grad_vals.SetSize(dof*dim);
+      metric_grad_vals = 0.0;
+      double surf_fit_const = fit_const->constant;
+      fit_const->constant  = 0.0;
+      if (fit_weight_point_wise)
+      {
+         surf_fit_weight_scale = 0.0;
+      }
+      AssembleElementVectorExact(*fe_pos, *T, posV, metric_grad_vals);
+      PMatO.UseExternalData(metric_grad_vals.GetData(), sdofs.Size(), dim);
+      for (int d = 0; d < dim; d++) {
+          for (int i = 0; i < sdofs.Size(); i++) {
+              PMatO(i, d) *= ((*surf_fit_marker)[sdofs[i]]) ? 1.0 : 0.0;
+          }
+      }
+      metric_grad->AddElementVector(grad_dofs, metric_grad_vals);
+
+      fit_const->constant  = 1.0;
+      if (fit_weight_point_wise)
+      {
+         surf_fit_weight_scale = 1.0;
+      }
+      SetCoefficient(zero);
+      fitting_grad_vals.SetSize(dof*dim);
+      fitting_grad_vals = 0.0;
+      AssembleElementVectorExact(*fe_pos, *T, posV, fitting_grad_vals);
+      fitting_grad->AddElementVector(grad_dofs, fitting_grad_vals);
+      SetCoefficient(*metric_coeff_copy);
+      fit_const->constant  = surf_fit_const;
+   }
+
+   if (!metric_coeff_set) { metric_coeff = NULL; }
+
+   // Unify across processor boundaries
+   metric_grad->GroupCommunicatorOp(0);
+   fitting_grad->GroupCommunicatorOp(0);
+
+   // Use counting matrix from surf_fit_gf->surf_fit_dof_count
+   int node_ordering = metric_grad->FESpace()->GetOrdering();
+   int node_count = metric_grad->Size()/dim;
+   double max_norm_ratio = 0.0;
+   for (int i = 0; i < surf_fit_marker_dof_index.Size(); i++)
+   {
+      int dof_index = surf_fit_marker_dof_index[i];
+      int count = surf_fit_dof_count[dof_index];
+
+      Vector metric_grad_dof(dim);
+      Vector fitting_grad_dof(dim);
+      for (int d = 0; d < dim; d++)
+      {
+         int dof_index_dir = node_ordering == 0 ?
+                             dof_index+d*node_count :
+                             dof_index*dim+d;
+         (*metric_grad)(dof_index_dir) *= 1.0/count;
+         (*fitting_grad)(dof_index_dir) *= 1.0/count;
+         metric_grad_dof(d) = (*metric_grad)(dof_index_dir);
+         fitting_grad_dof(d) = (*fitting_grad)(dof_index_dir);
+      }
+      double dotp = metric_grad_dof*fitting_grad_dof;
+      double metric_grad_norm = metric_grad_dof.Norml2();
+      double fitting_grad_norm = fitting_grad_dof.Norml2();
+      (*metric_grad_mag)(dof_index) = metric_grad_norm;
+      (*fitting_grad_mag)(dof_index) = fitting_grad_norm;
+//      std::cout << i << " " << dof_index << " " << dotp << "  k10dot\n";
+      double grad_ratio;
+      if (metric_grad_norm == 0.0 || dotp >= 0.0 || fitting_grad_norm > metric_grad_norm) {
+          grad_ratio = 2.0;
+      }
+      else {
+          grad_ratio = fitting_grad_norm == 0.0 ?
+                      (fit_weight_point_wise ? 1.0 : 0.0) :
+                      metric_grad_norm/fitting_grad_norm;
+//          if (dotp < 0) {
+//              grad_ratio = fitting_grad_norm == 0.0 ?
+//                          (fit_weight_point_wise ? 1.0 : 0.0) :
+//                          metric_grad_norm/fitting_grad_norm;
+//          }
+//          else {
+//              grad_ratio = 1.0;
+//          }
+      }
+//      if (metric_grad_norm == 0.0) {
+//          grad_ratio = 1.0;
+//      }
+//      else {
+//          if (dotp < 0) {
+//              grad_ratio = fitting_grad_norm == 0.0 ?
+//                          (fit_weight_point_wise ? 1.0 : 0.0) :
+//                          metric_grad_norm/fitting_grad_norm;
+//          }
+//          else {
+//              grad_ratio = 1.0;
+//          }
+//      }
+//      grad_ratio = std::max(grad_ratio, 1.0);
+      (*metric_fitting_ratio)(dof_index) = grad_ratio;
+      if (fit_weight_point_wise)
+      {
+         surf_fit_weight_scale[dof_index] = grad_ratio;
+      }
+      max_norm_ratio = std::max(max_norm_ratio, grad_ratio);
+   }
+
+   MPI_Allreduce(MPI_IN_PLACE, &max_norm_ratio, 1, MPI_DOUBLE, MPI_MAX,
+                 nodes_par->ParFESpace()->GetComm());
+   if (nodes_par->ParFESpace()->GetMyRank() == 0)
+   {
+      mfem::out << max_norm_ratio <<  " K10maxnormratio2\n";
+   }
+   delete metric_grad;
+   delete fitting_grad;
 }
 
 void TMOP_Integrator::SetInitialFittingWeightAutomatically(Vector &x_loc,

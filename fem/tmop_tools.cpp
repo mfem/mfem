@@ -783,13 +783,14 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
    }
 
+   Vector x_loc;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
       const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
-      Vector x_loc(pfesc->GetVSize());
+      x_loc.SetSize(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
       for (int i = 0; i < integs.Size(); i++)
       {
@@ -830,7 +831,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());
@@ -896,14 +896,25 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                    weights.Min() << " " << weights.Max() << "\n";
       }
 
+      bool max_for_threshold = false;
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      if (max_for_threshold) {
+          change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_max;
+          rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      }
+
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
       SaveSurfaceFittingWeight();
       //      UpdatePointWiseSurfaceFittingWeight(x_loc);
+//      std::cout << surf_fit_err_avg_prvs << " " <<
+//                   surf_fit_err_max << " " <<
+//                   rel_change_surf_fit_err << " " << surf_fit_rel_change_threshold <<
+//                   " k10relchange\n";
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
+//         UpdatePointWiseSurfaceFittingWeight(x_loc);
          UpdateSurfaceFittingWeight(surf_fit_scale_factor);
          adapt_inc_count += 1;
       }
@@ -912,6 +923,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          adapt_inc_count = 0;
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
+      if (max_for_threshold) {
+          surf_fit_err_avg_prvs = surf_fit_err_max;
+      }
       update_surf_fit_coeff = false;
    }
 }

@@ -2125,6 +2125,10 @@ public:
    // weight can be set such that the fitting term dominates the metric term
    // everywhere.
    double ComputeInitialFittingWeight(Vector &x_loc);
+   void GetInitialFittingWeightGrads(Vector &x_loc,
+                                       ParGridFunction *metric_grad_mag,
+                                       ParGridFunction *fitting_grad_mag,
+                                       ParGridFunction *metric_fitting_ratio);
 
    // Sets initial fitting weight based on the magnitude of the norm of the
    // gradient of the metric term and the fitting term.
