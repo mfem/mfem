@@ -560,8 +560,8 @@ int main(int argc, char *argv[])
      bc.VerifyDefinedBoundaries(pmesh);
    }
    double nu = 1.0;
-   double e1 = 0.0, e2 = 0.0, e3 = 0.0;
-   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
+   double e1 = M_PI/4, e2 = 0.0, e3 = 0.0;
+   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2,0.0, e1);
    random_load_solver.SetPrintLevel(0);
 
    ParGridFunction load_gf(&state_fes); 
@@ -664,7 +664,8 @@ int main(int argc, char *argv[])
    {
       ostringstream paraview_file_name;
       paraview_file_name << "Thermal_compliance_alpha_" << alpha 
-                         << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2;
+                         << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2
+                         << "_e1_" << e1;
       paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(order);
