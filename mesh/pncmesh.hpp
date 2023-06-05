@@ -89,7 +89,7 @@ public:
 
    /** Parallel version of NCMesh::CheckDerefinementNCLevel. */
    void CheckDerefinementNCLevel(const Table &deref_table,
-                                         Array<int> &level_ok, int max_nc_level) override;
+                                 Array<int> &level_ok, int max_nc_level) override;
 
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
@@ -98,7 +98,7 @@ public:
    /** Gets partitioning for the coarse mesh if the current fine mesh were to
        be derefined. */
    void GetFineToCoarsePartitioning(const Array<int> &derefs,
-                                            Array<int> &new_ranks) const;
+                                    Array<int> &new_ranks) const;
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
@@ -233,8 +233,8 @@ public:
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
        ghost edges from 'bdr_vertices' and 'bdr_edges'. */
    void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
-                                   Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges) override;
+                           Array<int> &bdr_vertices,
+                           Array<int> &bdr_edges) override;
 
    /// Save memory by releasing all non-essential and cached data.
    void Trim() override;
