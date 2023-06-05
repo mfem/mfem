@@ -524,7 +524,7 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
 
 TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
 {
-   auto smesh = Mesh("../../../data/p1_prism.msh");
+   auto smesh = Mesh("../../data/p1_prism.msh");
 
    auto exact_soln = [](const Vector& x)
    {
@@ -555,7 +555,7 @@ TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
 
 TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
 {
-   auto smesh = Mesh("../../../data/p2_prism.msh");
+   auto smesh = Mesh("../../data/p2_prism.msh");
 
    auto exact_soln = [](const Vector& x)
    {
