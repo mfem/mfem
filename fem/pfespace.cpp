@@ -1845,8 +1845,10 @@ static int bisect(const int* array, int size, int value)
    const int* pos = std::upper_bound(array, end, value);
    MFEM_VERIFY(pos != array, "value not found");
    if (pos == end)
+   {
       MFEM_VERIFY(*(array+size - 1) == value, "Last entry must be exact")
-      return pos - array - 1;
+   }
+   return pos - array - 1;
 }
 
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
