@@ -443,11 +443,11 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
 
       // Locate the next connection that is not from this index
       const auto end = std::find_if(begin, index_rank.end(),
-         [&index](const mfem::Connection &c){ return c.from != index;});
+      [&index](const mfem::Connection &c) { return c.from != index;});
 
       // For each connection from this index, collect the ranks connected.
       group.resize(std::distance(begin, end));
-      std::transform(begin, end, group.begin(), [](const mfem::Connection &c){ return c.to; });
+      std::transform(begin, end, group.begin(), [](const mfem::Connection &c) { return c.to; });
 
       // assign this entity's group and advance the search start
       entity_group[index] = GetGroupId(group);

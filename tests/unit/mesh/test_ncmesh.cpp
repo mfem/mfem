@@ -300,7 +300,8 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 
 // Given a parallel and a serial mesh, perform an L2 projection and check the
 // solutions match exactly.
-void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order, std::function<double(Vector const&)> exact_soln)
+void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
+                       std::function<double(Vector const&)> exact_soln)
 {
    REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
    REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -578,7 +579,9 @@ TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
       auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
 
       for (int p = 1; p < 3; ++p)
+      {
          CheckL2Projection(pmesh, smesh, p, exact_soln);
+      }
    }
 
 

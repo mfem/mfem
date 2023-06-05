@@ -35,14 +35,14 @@ TEST_CASE("Operator", "[Operator]")
       cg.iterative_mode = true;
       REQUIRE_THROWS(ProductOperator(&A, &cg, false, false));
       REQUIRE_THROWS(TripleProductOperator(&A, &cg, &cg, false, false,
-                                                        false));
+                                           false));
       REQUIRE_THROWS(RAPOperator(A, cg, cg));
 
       // Second, test that the correct version does not throw.
       cg.iterative_mode = false;
       REQUIRE_NOTHROW(ProductOperator(&A, &cg, false, false));
       REQUIRE_NOTHROW(TripleProductOperator(&A, &cg, &cg, false, false,
-                                                         false));
+                                            false));
       REQUIRE_NOTHROW(RAPOperator(A, cg, cg));
    }
 }

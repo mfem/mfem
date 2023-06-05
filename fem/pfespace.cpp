@@ -1846,7 +1846,7 @@ static int bisect(const int* array, int size, int value)
    MFEM_VERIFY(pos != array, "value not found");
    if (pos == end)
       MFEM_VERIFY(*(array+size - 1) == value, "Last entry must be exact")
-   return pos - array - 1;
+      return pos - array - 1;
 }
 
 /** Dissect a DOF number to obtain the entity type (0=vertex, 1=edge, 2=face),
@@ -2607,8 +2607,8 @@ int ParFiniteElementSpace
          {
             const bool owned = (dof_owner[dof] == 0);
             if (!finalized[dof]
-               && owned
-               && DofFinalizable(dof, finalized, deps))
+                && owned
+                && DofFinalizable(dof, finalized, deps))
             {
                int ent, idx, edof;
                UnpackDof(dof, ent, idx, edof);
