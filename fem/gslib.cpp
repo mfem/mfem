@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,7 +37,7 @@ FindPointsGSLIB::FindPointsGSLIB()
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
-     avgtype(AvgType::ARITHMETIC)
+     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
    ir_split.SetSize(4);
@@ -84,7 +84,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
-     avgtype(AvgType::ARITHMETIC)
+     avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
    ir_split.SetSize(4);
@@ -108,8 +108,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                             const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
-               "Variable order mesh is not currently supported.");
+   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -117,30 +116,36 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    crystal_init(cr, gsl_comm);
    mesh = &m;
    dim  = mesh->Dimension();
-   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
-   unsigned dof1D = fe->GetOrder() + 1;
+   unsigned dof1D = meshOrder + 1;
 
    SetupSplitMeshes();
    if (dim == 2)
    {
       if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
       ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
+
+      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
+      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
    }
    else if (dim == 3)
    {
+      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
+      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
 
       if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
       ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
 
       if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
       ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], meshOrder);
 
       if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
       ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
    }
 
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
@@ -223,10 +228,12 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
    {
-      if (gsl_code[i] == 2)
+      if (gsl_code[i] == 2 ||
+          (gsl_code[i] == 1 && gsl_dist(i) > bdr_tol))
       {
          gsl_elem[i] = 0;
          for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+         gsl_code[i] = 2;
       }
    }
 
@@ -331,9 +338,14 @@ void FindPointsGSLIB::SetupSplitMeshes()
             (*gf_rst_map[0])(j+k*npt) = quad_v[j][k];
          }
       }
+
+      mesh_split[1] = new Mesh(Mesh::MakeCartesian2D(1, 1,
+                                                     Element::QUADRILATERAL));
    }
    else if (mesh->Dimension() == 3)
    {
+      mesh_split[0] = new Mesh(Mesh::MakeCartesian3D(1, 1, 1,
+                                                     Element::HEXAHEDRON));
       // Tetrahedron
       {
          int Nvert = 15;
@@ -563,21 +575,22 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    const GridFunction *nodes     = gf_in;
    const FiniteElementSpace *fes = nodes->FESpace();
    const int NE                  = mesh->GetNE();
-   const int vdim                = gf_in->FESpace()->GetVDim();
+   const int vdim                = fes->GetVDim();
 
    IntegrationRule *ir_split_temp = NULL;
 
-   const int dof_1D =  nodes->FESpace()->GetFE(0)->GetOrder()+1;
+   const int maxOrder = fes->GetMaxElementOrder();
+   const int dof_1D =  maxOrder+1;
    const int pts_el = std::pow(dof_1D, dim);
    const int pts_cnt = NE_split_total * pts_el;
    node_vals.SetSize(vdim * pts_cnt);
-   node_vals *= 0;
+   node_vals = 0.0;
 
    int gsl_mesh_pt_index = 0;
 
    for (int e = 0; e < NE; e++)
    {
-      const FiniteElement *fe   = nodes->FESpace()->GetFE(e);
+      const FiniteElement *fe   = fes->GetFE(e);
       const Geometry::Type gt   = fe->GetGeomType();
       bool el_to_split = true;
       if (gt == Geometry::TRIANGLE)
@@ -596,16 +609,22 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       {
          ir_split_temp = ir_split[3];
       }
-      else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+      else if (gt == Geometry::SQUARE)
       {
-         el_to_split = false;
+         ir_split_temp = ir_split[1];
+         el_to_split = gf_in->FESpace()->IsVariableOrder();
+      }
+      else if (gt == Geometry::CUBE)
+      {
+         ir_split_temp = ir_split[0];
+         el_to_split = gf_in->FESpace()->IsVariableOrder();
       }
       else
       {
          MFEM_ABORT("Unsupported geometry type.");
       }
 
-      if (el_to_split) // Triangle/Tet/Prism
+      if (el_to_split) // Triangle/Tet/Prism or Quads/Hex but variable order
       {
          // Fill gsl_mesh with location of split points.
          Vector locval(vdim);
@@ -620,7 +639,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
             gsl_mesh_pt_index++;
          }
       }
-      else // Quad/Hex
+      else // Quad/Hex and constant polynomial order
       {
          const int dof_cnt_split = fe->GetDof();
 
@@ -801,8 +820,8 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
-   const int  gf_order   = field_in.FESpace()->GetFE(0)->GetOrder(),
-              mesh_order = mesh->GetNodalFESpace()->GetFE(0)->GetOrder();
+   const int  gf_order   = field_in.FESpace()->GetMaxElementOrder(),
+              mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
 
    const FiniteElementCollection *fec_in =  field_in.FESpace()->FEColl();
    const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
@@ -810,7 +829,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
    if (fec_h1 && gf_order == mesh_order &&
        fec_h1->GetBasisType() == BasisType::GaussLobatto &&
-       !field_in.FESpace()->IsVariableOrder())
+       field_in.FESpace()->IsVariableOrder() ==
+       mesh->GetNodalFESpace()->IsVariableOrder())
    {
       InterpolateH1(field_in, field_out);
       return;
@@ -884,6 +904,14 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
                                     Vector &field_out)
 {
    FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
+   if (field_in.FESpace()->IsVariableOrder())
+   {
+      for (int e = 0; e < ind_fes.GetMesh()->GetNE(); e++)
+      {
+         ind_fes.SetElementOrder(e, field_in.FESpace()->GetElementOrder(e));
+      }
+      ind_fes.Update(false);
+   }
    GridFunction field_in_scalar(&ind_fes);
    Vector node_vals;
 
@@ -1109,8 +1137,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
-               "Variable order mesh is not currently supported.");
+   const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -1126,21 +1153,29 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    {
       if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
       ir_split[0] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
+
+      if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
+      ir_split[1] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
    }
    else if (dim == 3)
    {
+      if (ir_split[0]) { delete ir_split[0]; ir_split[0] = NULL; }
+      ir_split[0] = new IntegrationRule(pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(mesh_split[0], ir_split[0], meshOrder);
+
       if (ir_split[1]) { delete ir_split[1]; ir_split[1] = NULL; }
       ir_split[1] = new IntegrationRule(4*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[1], ir_split[1], meshOrder);
 
       if (ir_split[2]) { delete ir_split[2]; ir_split[2] = NULL; }
       ir_split[2] = new IntegrationRule(3*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[2], ir_split[2], meshOrder);
 
       if (ir_split[3]) { delete ir_split[3]; ir_split[3] = NULL; }
       ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
-      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], fe->GetOrder());
+      SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
    }
 
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
@@ -1153,7 +1188,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    distfint.SetSize(pts_cnt);
    if (!gfmax)
    {
-      distfint = 0.;
+      distfint = 0.0;
    }
    else
    {
@@ -1248,10 +1283,12 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
    {
-      if (gsl_code[i] == 2)
+      if (gsl_code[i] == 2 ||
+          (gsl_code[i] == 1 && gsl_dist(i) > bdr_tol))
       {
          gsl_elem[i] = 0;
          for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
+         gsl_code[i] = 2;
       }
    }
 

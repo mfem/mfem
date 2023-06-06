@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,8 +56,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS, mt);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -74,21 +73,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const bool const_c = coeff.Size() == 1;
       const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
-      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
+      const auto J = Reshape(geom->detJ.Read(), Q1D,Q1D,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+      mfem::forall_2D(NE,Q1D,Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const double J11 = J(qx,qy,0,0,e);
-               const double J12 = J(qx,qy,1,0,e);
-               const double J21 = J(qx,qy,0,1,e);
-               const double J22 = J(qx,qy,1,1,e);
-               const double detJ = (J11*J22)-(J21*J12);
+               const double detJ = J(qx,qy,e);
                const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
                v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
@@ -102,11 +97,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const bool const_c = coeff.Size() == 1;
       const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
-      const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
+      const auto J = Reshape(geom->detJ.Read(), Q1D,Q1D,Q1D,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
                      Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
       auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -114,18 +109,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  const double J11 = J(qx,qy,qz,0,0,e);
-                  const double J21 = J(qx,qy,qz,1,0,e);
-                  const double J31 = J(qx,qy,qz,2,0,e);
-                  const double J12 = J(qx,qy,qz,0,1,e);
-                  const double J22 = J(qx,qy,qz,1,1,e);
-                  const double J32 = J(qx,qy,qz,2,1,e);
-                  const double J13 = J(qx,qy,qz,0,2,e);
-                  const double J23 = J(qx,qy,qz,1,2,e);
-                  const double J33 = J(qx,qy,qz,2,2,e);
-                  const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                  /* */               J21 * (J12 * J33 - J32 * J13) +
-                  /* */               J31 * (J12 * J23 - J22 * J13);
+                  const double detJ = J(qx,qy,qz,e);
                   const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
                   v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
@@ -150,7 +134,7 @@ static void PAMassAssembleDiagonal2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -199,7 +183,7 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -262,7 +246,7 @@ static void PAMassAssembleDiagonal3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -333,7 +317,7 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -568,7 +552,7 @@ static void PAMassApply2D(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApply2D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
@@ -596,9 +580,10 @@ static void SmemPAMassApply2D(const int NE,
    const auto D = d_.Read();
    const auto x = x_.Read();
    auto Y = y_.ReadWrite();
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d, q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d,
+                                                             q1d);
    });
 }
 
@@ -621,7 +606,7 @@ static void PAMassApply3D(const int NE,
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
@@ -648,7 +633,7 @@ static void SmemPAMassApply3D(const int NE,
    auto d = d_.Read();
    auto x = x_.Read();
    auto y = y_.ReadWrite();
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
    });

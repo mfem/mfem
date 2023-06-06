@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -160,8 +160,8 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    auto I = A.WriteI();
 
-   MFEM_FORALL(ii, nvdof + 1, I[ii] = 0;);
-   MFEM_FORALL(i, ndof_per_el*nel_ho,
+   mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int ii) { I[ii] = 0; });
+   mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
    {
       const int ii_el = i%ndof_per_el;
       const int iel_ho = i/ndof_per_el;
@@ -258,12 +258,12 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    // Copy A.I into I, use it as a temporary buffer
    {
       const auto I2 = A.ReadI();
-      MFEM_FORALL(i, nvdof + 1, I[i] = I2[i];);
+      mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i) { I[i] = I2[i]; });
    }
 
    static constexpr int Max = 16;
 
-   MFEM_FORALL(i, ndof_per_el*nel_ho,
+   mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
    {
       const int ii_el = i%ndof_per_el;
       const int iel_ho = i/ndof_per_el;

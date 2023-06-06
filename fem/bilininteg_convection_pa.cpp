@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,7 +41,7 @@ static void PAConvectionSetup2D(const int NQ,
                   Reshape(vel.Read(), DIM,NQ,NE);
    auto y = Reshape(op.Write(), NQ,DIM,NE);
 
-   MFEM_FORALL(q_global, NE*NQ,
+   mfem::forall(NE*NQ, [=] MFEM_HOST_DEVICE (int q_global)
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
@@ -78,7 +78,7 @@ static void PAConvectionSetup3D(const int NQ,
                   Reshape(vel.Read(), 3,1,1) :
                   Reshape(vel.Read(), 3,NQ,NE);
    auto y = Reshape(op.Write(), NQ,3,NE);
-   MFEM_FORALL(q_global, NE*NQ,
+   mfem::forall(NE*NQ, [=] MFEM_HOST_DEVICE (int q_global)
    {
       const int e = q_global / NQ;
       const int q = q_global % NQ;
@@ -159,7 +159,7 @@ void PAConvectionApply2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -279,7 +279,7 @@ void SmemPAConvectionApply2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -406,7 +406,7 @@ void PAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -587,7 +587,7 @@ void SmemPAConvectionApply3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -791,7 +791,7 @@ void PAConvectionApplyT2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -907,7 +907,7 @@ void SmemPAConvectionApplyT2D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1029,7 +1029,7 @@ void PAConvectionApplyT3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1205,7 +1205,7 @@ void SmemPAConvectionApplyT3D(const int ne,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,7 +78,7 @@ public:
    /** This is the MemoryClass that will be used to access the input and output
        vectors in the Mult() and MultTranspose() methods.
 
-       For example, classes using the MFEM_FORALL macro for implementation can
+       For example, classes using the mfem::forall macro for implementation can
        return the value returned by Device::GetMemoryClass().
 
        The default implementation of this method in class Operator returns
