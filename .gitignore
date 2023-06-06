@@ -29,6 +29,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.cmake
 config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
@@ -210,6 +211,7 @@ miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/pmesh-fitting
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
@@ -320,6 +322,16 @@ miniapps/parelag/*.mesh
 
 miniapps/multidomain/multidomain
 miniapps/hooke/hooke
+
+miniapps/dpg/diffusion
+miniapps/dpg/pdiffusion
+miniapps/dpg/convection-diffusion
+miniapps/dpg/pconvection-diffusion
+miniapps/dpg/acoustics
+miniapps/dpg/pacoustics
+miniapps/dpg/maxwell
+miniapps/dpg/pmaxwell
+miniapps/dpg/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes

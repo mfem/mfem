@@ -148,8 +148,8 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridF->FESpace()->GetMesh();
-   //if (T.mesh == gf_mesh)
-   if (T.mesh == gf_mesh || T.mesh->GetNE() == gf_mesh->GetNE())
+
+   if (T.mesh->GetNE() == gf_mesh->GetNE())
    {
       return GridF->GetValue(T, ip, Component);
    }
@@ -397,7 +397,7 @@ void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
-   if (T.mesh == gf_mesh)
+   if (T.mesh->GetNE() == gf_mesh->GetNE())
    {
       GridFunc->GetVectorValue(T, ip, V);
    }
@@ -445,7 +445,7 @@ void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
-   if (T.mesh == gf_mesh)
+   if (T.mesh->GetNE() == gf_mesh->GetNE())
    {
       GridFunc->GetGradient(T, V);
    }
@@ -486,7 +486,7 @@ void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
-   if (T.mesh == gf_mesh)
+   if (T.mesh->GetNE() == gf_mesh->GetNE())
    {
       GridFunc->GetCurl(T, V);
    }
@@ -508,7 +508,7 @@ double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
-   if (T.mesh == gf_mesh)
+   if (T.mesh->GetNE() == gf_mesh->GetNE())
    {
       return GridFunc->GetDivergence(T);
    }
