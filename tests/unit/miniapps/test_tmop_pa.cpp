@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -187,11 +187,14 @@ int tmop(int id, Req &res, int argc, char *argv[])
       case   7: metric = new TMOP_Metric_007; break;
       case  77: metric = new TMOP_Metric_077; break;
       case  80: metric = new TMOP_Metric_080(0.5); break;
+      case  94: metric = new TMOP_Metric_094; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 315: metric = new TMOP_Metric_315; break;
+      case 318: metric = new TMOP_Metric_318; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       default:
       {
          if (id == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -230,16 +233,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          tc->SetAdaptivityEvaluator(new AdvectorCG(al));
-         if (dim == 2)
-         {
-            FunctionCoefficient ind_coeff(discrete_size_2d);
-            size.ProjectCoefficient(ind_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient ind_coeff(discrete_size_3d);
-            size.ProjectCoefficient(ind_coeff);
-         }
+         ConstructSizeGF(size);
          tc->SetDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -796,7 +790,7 @@ static void tmop_tests(int id = 0, bool all = false)
           NORMALIZATION(true).
           POR({1,2}).QOR({4,6}).
           LINEAR_ITERATIONS(150).
-          TID({5}).MID({80}).LS({3})).Run(id,all);
+          TID({5}).MID({80,94}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("Blade").
           MESH("../../miniapps/meshing/blade.mesh").
@@ -836,7 +830,7 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../miniapps/meshing/cube.mesh").
           NORMALIZATION(true).
           POR({1,2}).QOR({4,2}).
-          TID({5}).MID({332})).Run(id,all);
+          TID({5}).MID({332,338})).Run(id,all);
 
    // Note: order 1 has no interior nodes, so all residuals are zero and the
    // Newton iteration exits immediately.

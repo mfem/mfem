@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -198,6 +198,8 @@ void multidomain_test_2d(FECType fec_type)
          CHECK_GLOBAL_NORM(tmp);
       }
    }
+   delete surface_fec;
+   delete fec;
 }
 
 void multidomain_test_3d(FECType fec_type)
@@ -362,6 +364,8 @@ void multidomain_test_3d(FECType fec_type)
          CHECK_GLOBAL_NORM(tmp);
       }
    }
+   delete surface_fec;
+   delete fec;
 }
 
 TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -118,6 +118,37 @@ void EvalH_007(const int e, const int qx, const int qy,
    }
 }
 
+// dP_56 = (0.5 - 0.5/I2b^2)*ddI2b + (1/I2b^3)*(dI2b x dI2b).
+static MFEM_HOST_DEVICE inline
+void EvalH_056(const int e, const int qx, const int qy,
+               const double weight, const double *Jpt,
+               DeviceTensor<7,double> H)
+{
+   constexpr int DIM = 2;
+   double dI2b[4], ddI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt)
+                                     .dI2b(dI2b)
+                                     .ddI2b(ddI2b));
+   const double I2b = ie.Get_I2b();
+   ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               H(r,c,i,j,qx,qy,e) =
+                  weight * (0.5 - 0.5/(I2b*I2b)) * ddi2b(r,c) +
+                  weight / (I2b*I2b*I2b) * di2b(r,c) * di2b(i,j);
+            }
+         }
+      }
+   }
+}
+
 static MFEM_HOST_DEVICE inline
 void EvalH_077(const int e, const int qx, const int qy,
                const double weight, const double *Jpt,
@@ -150,13 +181,12 @@ void EvalH_077(const int e, const int qx, const int qy,
    }
 }
 
+// H_80 = w0 H_2 + w1 H_77.
 static MFEM_HOST_DEVICE inline
 void EvalH_080(const int e, const int qx, const int qy,
-               const double weight, const double gamma, const double *Jpt,
+               const double weight, const double *w, const double *Jpt,
                DeviceTensor<7,double> H)
 {
-   // h_80 = (1-gamma) h_2 + gamma h_77.
-
    constexpr int DIM = 2;
    double ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];
    kernels::InvariantsEvaluator2D ie(Args()
@@ -180,9 +210,45 @@ void EvalH_080(const int e, const int qx, const int qy,
             for (int c = 0; c < DIM; c++)
             {
                H(r,c,i,j,qx,qy,e) =
-                  (1.0 - gamma) * 0.5 * weight * ddi1b(r,c) +
-                  gamma * ( weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c) +
-                            weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
+                  w[0] * 0.5 * weight * ddi1b(r,c) +
+                  w[1] * ( weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c) +
+                           weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
+            }
+         }
+      }
+   }
+}
+
+// H_94 = w0 H_2 + w1 H_56.
+static MFEM_HOST_DEVICE inline
+void EvalH_094(const int e, const int qx, const int qy,
+               const double weight, const double *w, const double *Jpt,
+               DeviceTensor<7,double> H)
+{
+   constexpr int DIM = 2;
+   double ddI1[4], ddI1b[4], dI2b[4], ddI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt)
+                                     .ddI1(ddI1)
+                                     .ddI1b(ddI1b)
+                                     .dI2b(dI2b)
+                                     .ddI2b(ddI2b));
+
+   const double I2b = ie.Get_I2b();
+   ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               H(r,c,i,j,qx,qy,e) =
+                  w[0] * 0.5 * weight * ddi1b(r,c) +
+                  w[1] * ( weight * (0.5 - 0.5/(I2b*I2b)) * ddi2b(r,c) +
+                           weight / (I2b*I2b*I2b) * di2b(r,c) * di2b(i,j) );
             }
          }
       }
@@ -192,7 +258,7 @@ void EvalH_080(const int e, const int qx, const int qy,
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const Vector &x_,
                            const double metric_normal,
-                           const double metric_param,
+                           const Array<double> &metric_param,
                            const int mid,
                            const int NE,
                            const Array<double> &w_,
@@ -203,8 +269,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
-               "Metric not yet implemented!");
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77
+               || mid == 80 || mid == 94,
+               "2D metric not yet implemented!");
 
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -218,7 +285,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
    const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
    auto H = Reshape(h_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   const double *metric_data = metric_param.Read();
+
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -262,7 +331,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
             if (mid ==  2) { EvalH_002(e,qx,qy,weight,Jpt,H); }
             if (mid ==  7) { EvalH_007(e,qx,qy,weight,Jpt,H); }
             if (mid == 77) { EvalH_077(e,qx,qy,weight,Jpt,H); }
-            if (mid == 80) { EvalH_080(e,qx,qy,weight,metric_param,Jpt,H); }
+            if (mid == 56) { EvalH_056(e,qx,qy,weight,Jpt,H); }
+            if (mid == 80) { EvalH_080(e,qx,qy,weight,metric_data,Jpt,H); }
+            if (mid == 94) { EvalH_094(e,qx,qy,weight,metric_data,Jpt,H); }
          } // qx
       } // qy
    });
@@ -282,8 +353,11 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const Array<double> &G = PA.maps->G;
    Vector &H = PA.H;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
 
    MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,mp,M,N,W,B,G,J,H);
 }

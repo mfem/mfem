@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,11 +25,11 @@
 #include <winsock.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
+// Link with ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
 #endif
 typedef int socklen_t;
 #define close closesocket
-// Link with ws2_32.lib
-#pragma comment(lib, "ws2_32.lib")
 #endif
 
 using namespace std;
