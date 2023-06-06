@@ -216,6 +216,10 @@ public:
     memory. */
 SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form, bool set = false);
 
+/** @brief Assemble the CeedOperators from a MixedBilinearForm as an
+    mfem::SparseMatrix */
+SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set = false);
+
 /** @brief Assembles a CeedOperator as an mfem::SparseMatrix
 
     In parallel, this assembles independently on each processor, that is, it

@@ -1022,6 +1022,40 @@ SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form, bool set)
    return mat;
 }
 
+SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set)
+{
+   Array<SparseMatrix *> mat_i;
+   for (BilinearFormIntegrator *integ : *form.GetDBFI())
+   {
+      if (!integ->SupportsCeed()) { continue; }
+      SparseMatrix *mat_integ;
+      int ierr = CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
+                                          &mat_integ, set);
+      PCeedChk(ierr);
+      mat_i.Append(mat_integ);
+   }
+   for (BilinearFormIntegrator *integ : *form.GetBBFI())
+   {
+      if (!integ->SupportsCeed()) { continue; }
+      SparseMatrix *mat_integ;
+      int ierr = CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
+                                          &mat_integ, set);
+      PCeedChk(ierr);
+      mat_i.Append(mat_integ);
+   }
+   MFEM_VERIFY(form.GetTFBFI()->Size() == 0, "AddTraceFaceIntegrator is not "
+               "currently supported in CeedOperatorFullAssemble");
+   MFEM_VERIFY(form.GetBTFBFI()->Size() == 0, "AddBdrTraceFaceIntegrator is not "
+               "currently supported in CeedOperatorFullAssemble");
+
+   SparseMatrix *mat = Add(mat_i);
+   for (SparseMatrix *mat_integ : mat_i)
+   {
+      delete mat_integ;
+   }
+   return mat;
+}
+
 int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat, bool set)
 {
    int ierr;
