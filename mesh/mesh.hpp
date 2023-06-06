@@ -1345,18 +1345,18 @@ public:
    ///  The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
 
-   /** Return the "face"-element Table. Here "face" refers to face (3D),
-       edge (2D), or vertex (1D).
-       The returned Table must be destroyed by the caller. */
+   /// Return the "face"-element Table. Here "face" refers to face (3D),
+   /// edge (2D), or vertex (1D).
+   /// The returned Table should be deleted by the caller.
    Table *GetFaceToElementTable() const;
 
-   /** Return the "face"-element Table. Here "face" refers to face (3D),
-       edge (2D), or vertex (1D).
-       The returned Table should be deleted by the caller. */
-   Table *GetFaceToElementTable() const;
+   /// Returns the face-to-edge Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
+   Table *GetFaceEdgeTable() const;
 
-   /** Returns the edge-to-vertex Table (3D)
-       @note The returned object should NOT be deleted by the caller. */
+   /// Returns the edge-to-vertex Table (3D)
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetEdgeVertexTable() const;
 
    /** Return vertex to vertex table. The connections stored in the table
