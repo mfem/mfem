@@ -374,8 +374,11 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   Xhat = 0.0;
 
 
-  // Use a direct solver (default for now)
   #ifdef MFEM_USE_SUITESPARSE
+    // Direct solve for IP-Newton saddle-point system
+    // A = [ [ Huu   0    Ju^T]
+    //       [  0    D     -I ]
+    //       [ Ju   -I      0 ]]
     if(linSolver == 0)
     {
       BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
@@ -398,44 +401,8 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     }
     else if(linSolver == 1)
     {
-      MFEM_WARNING("using a linear solve strategy that assumes that Ju = Identity");
-      /* reduce onto the 1, 1 block */
-      /* here assuming that Ju = I, not applicable for all problems */
-      /* so that the Schur-complement A = Huu + Ju^T D Ju = Huu + D */
-      SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
-      SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
-      SparseMatrix * Areduced = new SparseMatrix(*Huuloc);
-      Areduced->Add(1.0, *Wmmloc);
-
-      /* prepare the reduced rhs */
-      // breduced = bu + Ju^T (bm + Wmm bl)
-      Vector breduced(dimU); breduced = 0.0;
-      breduced.Set(1.0, b.GetBlock(0)); 
-      breduced.Add(1.0, b.GetBlock(1));
-      Wmmloc->AddMult(b.GetBlock(2), breduced);
-      
-      // solve the reduced linear system
-      UMFPackSolver AreducedSolver;
-      AreducedSolver.SetOperator(*Areduced);
-      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-
-      // now propagate solved uhat to obtain mhat and lhat
-      // xm = xu - bl
-      Xhat.GetBlock(1).Set(1.0, Xhat.GetBlock(0));
-      Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
-
-      // xl = Wmm xm - bm
-      Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-      Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
-
-      delete Wmmloc;
-      delete Huuloc;
-      delete Areduced;
-    }
-    else if(linSolver == 2)
-    {
-      // form A = Huu + Ju^T D Ju, Wmm = D for contact
-      // sparsity of Ju is needed
+      // Direct solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
+      // where Wmm = D for contact problems
       SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
       SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
       SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
@@ -477,12 +444,13 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       delete Areduced;
     }
   #else
-    MFEM_VERIFY(linSolver > 2, "linSolver = 0, 1 and 2 require MFEM_USE_SUITESPARSE=YES");
+    MFEM_VERIFY(linSolver > 1, "linSolver = 0, 1 require MFEM_USE_SUITESPARSE=YES");
   #endif
-  if (linSolver > 2)
+  if (linSolver > 1)
   { 
-    // form A = Huu + Ju^T D Ju, Wmm = D for contact
-    // sparsity of Ju is needed
+    // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
+    // where Wmm = D for contact problems
+    // here the iterative solver is a Jacobi-preconditioned CG-solve
     SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
     SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
     SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
@@ -493,7 +461,6 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
     SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
 
-    
     /* prepare the reduced rhs */
     // breduced = bu + Ju^T (bm + Wmm bl)
     Vector breduced(dimU); breduced = 0.0;
