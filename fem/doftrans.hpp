@@ -22,8 +22,20 @@ namespace mfem
 /** The StatelessDofTransformation class is an abstract base class for a family
     of transformations that map local degrees of freedom (DoFs), contained
     within individual elements, to global degrees of freedom, stored within
-    GridFunction objects. These transformations are necessary to ensure that
-    basis functions in neighboring elements align correctly. Closely related but
+    GridFunction objects.
+
+    In this context "stateless" means that the concrete classes derived from
+    StatelessDofTransformation do not store information about the relative
+    orientations of the faces with respect to their neighboring elements. In
+    other words there is no information specific to a particular element (aside
+    from the element type e.g. tetrahedron, wedge, or pyramid). The
+    StatelessDofTransformation provides access to the transformation operators
+    for specific relative face orientations. These are useful, for example, when
+    relating DoFs associated with distinct overlapping meshes such as
+    parent and sub-meshes. 
+
+    These transformations are necessary to ensure that basis functions in
+    neighboring (or overlapping) elements align correctly. Closely related but
     complementary transformations are required for the entries stored in
     LinearForm and BilinearForm objects. The StatelessDofTransformation class
     is designed to apply the action of both of these types of DoF
