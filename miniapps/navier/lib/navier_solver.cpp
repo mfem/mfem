@@ -27,6 +27,11 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    vfes = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
    pfes = new ParFiniteElementSpace(pmesh, pfec);
 
+   gll_ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
+   gll_ir_face = gll_rules.Get(vfes->GetMesh()->GetFaceGeometry(0), 2 * order - 1);
+   gll_ir_nl = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+                             (int)(ceil(1.5 * (2 * order - 1))));
+
    // Check if fully periodic mesh
    if (!(pmesh->bdr_attributes.Size() == 0))
    {
@@ -116,11 +121,6 @@ void NavierSolver::Setup(double dt)
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
-
-   gll_ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
-   gll_ir_face = gll_rules.Get(vfes->GetMesh()->GetFaceGeometry(0), 2 * order - 1);
-   gll_ir_nl = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                             (int)(ceil(1.5 * (2 * order - 1))));
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
