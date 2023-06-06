@@ -345,6 +345,7 @@ int main(int argc, char *argv[])
    double theta = 0.5;
    int max_cumulative_samples = 1e5;
    double l1 = 0.1, l2 = 0.1, l3 = 1.0;
+   double e1 = 0.0, e2 = 0.0, e3 = 0.0;
    bool use_simp = true;
    bool paraview = false;
    int iprob = 0;
@@ -377,7 +378,13 @@ int main(int argc, char *argv[])
    args.AddOption(&l2, "-l2", "--l2",
                   "Correlation length y");             
    args.AddOption(&l3, "-l3", "--l3",
-                  "Correlation length z");                        
+                  "Correlation length z");                
+   args.AddOption(&e1, "-e1", "--e1",
+                  "Rotation angle in x direction");
+   args.AddOption(&e2, "-e2", "--e2",
+                  "Rotation angle in y direction");             
+   args.AddOption(&e3, "-e3", "--e3",
+                  "Rotation angle in z direction");                               
    args.AddOption(&tol_rho, "-tr", "--tol_rho",
                   "Exit tolerance for ρ ");     
    args.AddOption(&tol_lambda, "-tl", "--tol_lambda",
@@ -560,8 +567,7 @@ int main(int argc, char *argv[])
      bc.VerifyDefinedBoundaries(pmesh);
    }
    double nu = 1.0;
-   double e1 = M_PI/4, e2 = 0.0, e3 = 0.0;
-   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2,0.0, e1);
+   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2,l3, e1,e2,e3);
    random_load_solver.SetPrintLevel(0);
 
    ParGridFunction load_gf(&state_fes); 
