@@ -1318,14 +1318,15 @@ private:
    bool ValidGeomType(Geometry::Type GeomType) const;
 
 public:
-   KernelFECollection(const int D,
-                      const int numPointsD,
-                      const int rbfType,
-                      const int order,
-                      const double h,
-                      const double faceFactor = 1.0, // between 0 (L2) and 1 (H1)
+   KernelFECollection(const int D, // dimension
+                      const int numPointsD, // number of points in each dimension, >= 2
+                      const int rbfType, // type of base radial basis function
+                      const int order, // order for reproducing kernels, -1 for none
+                      const double h, // smoothing parameter
+                      const double faceFactor =
+                         0.0, // 0.0 (points dx/2 from faces) to 1.0 (points on faces)
                       const int intOrder = 2, // num integration points per 1d point
-                      const int distNorm = 2,
+                      const int distNorm = 2, // norm for distance calculation, usually 2
                       const int mapType = FiniteElement::VALUE);
    virtual ~KernelFECollection();
 
