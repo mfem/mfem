@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
    int rk_num_points = 4;
    double rbf_h = 2.01;
    int rbf_type = 6;
+   double rk_face_factor = 0.0;
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
@@ -67,6 +68,8 @@ int main(int argc, char *argv[])
                   "Radial basis function shape parameter (>= RK order)");
    args.AddOption(&rbf_type, "-rbft", "--rbf-type",
                   "Radial basis function type: (0-2) global, (3-7) local");
+   args.AddOption(&rk_face_factor, "-rkf", "--rk-face-factor",
+                  "0.0 = points dx/2 from boundary, 1.0 = points on boundary");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -126,8 +129,8 @@ int main(int argc, char *argv[])
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec =
       rk ?
-      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_h,
-                                                       rbf_type, 2, order) :
+      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_type,
+                                                       order, rbf_h, rk_face_factor) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;

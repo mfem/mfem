@@ -1320,11 +1320,12 @@ private:
 public:
    KernelFECollection(const int D,
                       const int numPointsD,
-                      const double h,
                       const int rbfType,
-                      const int distNorm,
-                      const int order = -1,
+                      const int order,
+                      const double h,
+                      const double faceFactor = 1.0, // between 0 (L2) and 1 (H1)
                       const int intOrder = 2, // num integration points per 1d point
+                      const int distNorm = 2,
                       const int mapType = FiniteElement::VALUE);
    virtual ~KernelFECollection();
 

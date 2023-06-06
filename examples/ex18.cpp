@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
    int rk_num_points = 4;
    double rbf_h = 4.01;
    int rbf_type = 7;
+   double rk_face_factor = 0.0;
    int ode_solver_type = 4;
    double t_final = 2.0;
    double dt = -0.01;
@@ -96,6 +97,8 @@ int main(int argc, char *argv[])
                   "Radial basis function shape parameter (>= RK order)");
    args.AddOption(&rbf_type, "-rbft", "--rbf-type",
                   "Radial basis function type: (0-2) global, (3-7) local");
+   args.AddOption(&rk_face_factor, "-rkf", "--rk-face-factor",
+                  "0.0 = points dx/2 from boundary, 1.0 = points on boundary");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -153,8 +156,8 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    FiniteElementCollection *fec =
       rk ?
-      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_h,
-                                                       rbf_type, 2, order, 2) :
+      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_type,
+                                                       order, rbf_h, rk_face_factor) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    FiniteElementSpace fes(&mesh, fec);

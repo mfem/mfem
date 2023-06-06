@@ -529,10 +529,11 @@ void KernelFiniteElement::Project(
 
 RBFFiniteElement::RBFFiniteElement(const int D,
                                    const int numPointsD,
-                                   const double h,
                                    const int rbfType,
                                    const int distNorm,
-                                   const int intOrder)
+                                   const int intOrder,
+                                   const double h,
+                                   const double faceFactor)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
@@ -547,6 +548,7 @@ RBFFiniteElement::RBFFiniteElement(const int D,
 #endif
      numPointsD(numPointsD),
      h(h),
+     faceFactor(faceFactor),
      rbf(RBFType::GetRBF(rbfType)),
      distance(DistanceMetric::GetDistance(D, distNorm))
 {
@@ -615,11 +617,19 @@ void RBFFiniteElement::DistanceVec(const int i,
 
 void RBFFiniteElement::InitializeGeometry()
 {
-   delta = 1.0 / (static_cast<double>(numPointsD) - 1.0);
+   MFEM_ASSERT(numPointsD >= 2, "must have at least 2 points for rbf to work");
+   double deltaD = 1.0 / static_cast<double>
+                   (numPointsD); // discontinuous: points dx/2 from face
+   double factorD = deltaD * faceFactor;
+   double deltaC = 1.0 / (static_cast<double>(numPointsD) -
+                          1); // continuous: points on face
+   double factorC = deltaC * (1 - faceFactor);
+   delta = deltaD * faceFactor + deltaC * (1 - faceFactor);
    hPhys = delta * h * rbf->HNorm();
    hPhysInv = 1.0 / hPhys;
    radPhys = hPhys * rbf->Radius();
    isCompact = (rbf->CompactSupport() && radPhys < 1.0);
+   MFEM_ASSERT(radPhys > delta, "nPerh too small for to provide connectivity");
    dimPoints[0] = numPointsD;
    dimPoints[1] = dim > 1 ? numPointsD : 1;
    dimPoints[2] = dim > 2 ? numPointsD : 1;
@@ -628,7 +638,8 @@ void RBFFiniteElement::InitializeGeometry()
       case 1:
          for (int i = 0; i < numPointsD; ++i)
          {
-            Nodes.IntPoint(i).x = delta * static_cast<double>(i);
+            Nodes.IntPoint(i).x = 0.5 * factorD + (factorD + factorC) * static_cast<double>
+                                  (i);
          }
          break;
       case 2:
@@ -637,8 +648,10 @@ void RBFFiniteElement::InitializeGeometry()
             for (int j = 0; j < numPointsD; ++j)
             {
                int l = j + numPointsD * i;
-               Nodes.IntPoint(l).x = delta * static_cast<double>(i);
-               Nodes.IntPoint(l).y = delta * static_cast<double>(j);
+               Nodes.IntPoint(l).x = 0.5 * factorD + (factorD + factorC) * static_cast<double>
+                                     (i);
+               Nodes.IntPoint(l).y = 0.5 * factorD + (factorD + factorC) * static_cast<double>
+                                     (j);
             }
          }
          break;
@@ -650,9 +663,12 @@ void RBFFiniteElement::InitializeGeometry()
                for (int k = 0; k < numPointsD; ++k)
                {
                   int l = k + numPointsD * (j + numPointsD * i);
-                  Nodes.IntPoint(l).x = delta * static_cast<double>(i);
-                  Nodes.IntPoint(l).y = delta * static_cast<double>(j);
-                  Nodes.IntPoint(l).z = delta * static_cast<double>(k);
+                  Nodes.IntPoint(l).x = 0.5 * factorD + (factorD + factorC) * static_cast<double>
+                                        (i);
+                  Nodes.IntPoint(l).y = 0.5 * factorD + (factorD + factorC) * static_cast<double>
+                                        (j);
+                  Nodes.IntPoint(l).z = 0.5 * factorD + (factorD + factorC) * static_cast<double>
+                                        (k);
                }
             }
          }
@@ -864,11 +880,12 @@ void RBFFiniteElement::CalcHessian(const IntegrationPoint &ip,
 
 RKFiniteElement::RKFiniteElement(const int D,
                                  const int numPointsD,
-                                 const double h,
                                  const int rbfType,
                                  const int distNorm,
                                  const int order,
-                                 const int intOrder)
+                                 const int intOrder,
+                                 const double h,
+                                 const double faceFactor)
    : KernelFiniteElement(D,
                          TensorBasisElement::GetTensorProductGeometry(D),
                          TensorBasisElement::Pow(numPointsD, D),
@@ -877,8 +894,13 @@ RKFiniteElement::RKFiniteElement(const int D,
      polyOrd(order),
      numPoly(RKFiniteElement::GetNumPoly(order, D)),
      numPoly1d(order+1),
-     baseFE(new RBFFiniteElement(D, numPointsD, h, rbfType, distNorm, intOrder))
+     baseFE(new RBFFiniteElement(D, numPointsD, rbfType, distNorm, intOrder, h,
+                                 faceFactor))
 {
+   if (h < order)
+   {
+      MFEM_WARNING("may run into conditioning issues with h < rk order");
+   }
    Nodes = baseFE->GetNodes();
 #ifndef MFEM_THREAD_SAFE
    x_scr.SetSize(dim);

@@ -349,31 +349,32 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "RBF", 3) || !strncmp(name, "RK", 2))
    {
-      // Example: RK4_G_2_V_2D_0020_4.01
+      // Example: RK4_G_2_V_2D_0020_1.00_4.01
       // (RK order 4, Gaussian, L2 dist, Value map, 2 dimensions,
-      //  20 points across element, smoothing length of 4.01)
+      // 20 points across element, face factor 1.0, smoothing length of 4.01)
       const int dim = atoi(name + 10);
       const int numPoints = atoi(name + 13);
-      const double h = atof(name + 18);
+      const double h = atof(name + 23);
+      const double faceFactor = atof(name + 18);
       const int rbfType = RBFType::GetType(name[4]);
       const int distNorm = atoi(name + 6);
       const int mapType = (name[8] == 'V'
                            ? FiniteElement::VALUE
                            : FiniteElement::INTEGRAL);
-      const int intOrder = 2; // fix this for now
+      const int intOrder = 2; // keep this fixed for now
 
       if (!strncmp(name, "RK", 2))
       {
          int order = atoi(name + 2);
-         fec = new KernelFECollection(dim, numPoints, h,
-                                      rbfType, distNorm, order,
-                                      intOrder, mapType);
+         fec = new KernelFECollection(dim, numPoints, rbfType,
+                                      order, h, faceFactor,
+                                      intOrder, distNorm, mapType);
       }
       else
       {
-         fec = new KernelFECollection(dim, numPoints, h,
-                                      rbfType, distNorm, -1,
-                                      intOrder, mapType);
+         fec = new KernelFECollection(dim, numPoints, rbfType,
+                                      -1, h, faceFactor,
+                                      intOrder, distNorm, mapType);
       }
    }
    else
@@ -3541,11 +3542,12 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 
 KernelFECollection::KernelFECollection(const int dim,
                                        const int numPointsD,
-                                       const double h,
                                        const int rbfType,
-                                       const int distNorm,
                                        const int order,
+                                       const double h,
+                                       const double faceFactor,
                                        const int intOrder,
+                                       const int distNorm,
                                        const int mapType)
 {
    const char *mapStr = NULL;
@@ -3558,15 +3560,15 @@ KernelFECollection::KernelFECollection(const int dim,
    }
    if (order == -1)
    {
-      snprintf(d_name, 32, "RBF_%c_%d_%s_%dD_%04d_%.2f",
+      snprintf(d_name, 32, "RBF_%c_%d_%s_%dD_%04d_%1.2f_%.2f",
                (int)RBFType::GetChar(rbfType), distNorm,
-               mapStr, dim, numPointsD, h);
+               mapStr, dim, numPointsD, faceFactor, h);
    }
    else if (order >= 0)
    {
-      snprintf(d_name, 32, "RK%d_%c_%d_%s_%dD_%04d_%.2f", order,
+      snprintf(d_name, 32, "RK%d_%c_%d_%s_%dD_%04d_%1.2f_%.2f", order,
                (int)RBFType::GetChar(rbfType), distNorm,
-               mapStr, dim, numPointsD, h);
+               mapStr, dim, numPointsD, faceFactor, h);
    }
    else
    {
@@ -3593,14 +3595,14 @@ KernelFECollection::KernelFECollection(const int dim,
       if (order == -1)
       {
          L2_Elements[Geometry::SEGMENT]
-            = new RBFFiniteElement(1, numPointsD, h,
-                                   rbfType, distNorm, intOrder);
+            = new RBFFiniteElement(1, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
       }
       else
       {
          L2_Elements[Geometry::SEGMENT]
-            = new RKFiniteElement(1, numPointsD, h,
-                                  rbfType, distNorm, order, intOrder);
+            = new RKFiniteElement(1, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
       }
       L2_Elements[Geometry::SEGMENT]->SetMapType(mapType);
       Tr_Elements[Geometry::POINT] = new PointFiniteElement;
@@ -3610,20 +3612,20 @@ KernelFECollection::KernelFECollection(const int dim,
       if (order == -1)
       {
          L2_Elements[Geometry::SQUARE]
-            = new RBFFiniteElement(2, numPointsD, h,
-                                   rbfType, distNorm, intOrder);
+            = new RBFFiniteElement(2, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
          Tr_Elements[Geometry::SEGMENT]
-            = new RBFFiniteElement(1, numPointsD, h,
-                                   rbfType, distNorm, intOrder);
+            = new RBFFiniteElement(1, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
       }
       else
       {
          L2_Elements[Geometry::SQUARE]
-            = new RKFiniteElement(2, numPointsD, h,
-                                  rbfType, distNorm, order, intOrder);
+            = new RKFiniteElement(2, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
          Tr_Elements[Geometry::SEGMENT]
-            = new RKFiniteElement(1, numPointsD, h,
-                                  rbfType, distNorm, order, intOrder);
+            = new RKFiniteElement(1, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
       }
       L2_Elements[Geometry::SQUARE]->SetMapType(mapType);
    }
@@ -3632,20 +3634,20 @@ KernelFECollection::KernelFECollection(const int dim,
       if (order == -1)
       {
          L2_Elements[Geometry::CUBE]
-            = new RBFFiniteElement(3, numPointsD, h,
-                                   rbfType, distNorm, intOrder);
+            = new RBFFiniteElement(3, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
          Tr_Elements[Geometry::SQUARE]
-            = new RBFFiniteElement(2, numPointsD, h,
-                                   rbfType, distNorm, intOrder);
+            = new RBFFiniteElement(2, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
       }
       else
       {
          L2_Elements[Geometry::CUBE]
-            = new RKFiniteElement(3, numPointsD, h,
-                                  rbfType, distNorm, order, intOrder);
+            = new RKFiniteElement(3, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
          Tr_Elements[Geometry::SQUARE]
-            = new RKFiniteElement(2, numPointsD, h,
-                                  rbfType, distNorm, order, intOrder);
+            = new RKFiniteElement(2, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
       }
       L2_Elements[Geometry::CUBE]->SetMapType(mapType);
    }

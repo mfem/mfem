@@ -411,6 +411,7 @@ private:
    double hPhys; // Shape parameter times distance between points times HNorm
    double hPhysInv; // Inverse hPhys
    double radPhys; // Radius adjusted by h
+   double faceFactor; // 1.0 = points end on face, 0.0 = points end at dx/2 from face
    const RBFFunction *rbf;
    const DistanceMetric *distance;
    void InitializeGeometry();
@@ -423,10 +424,11 @@ private:
 public:
    RBFFiniteElement(const int D,
                     const int numPointsD,
-                    const double h,
                     const int rbfType,
                     const int distNorm,
-                    const int intOrder);
+                    const int intOrder,
+                    const double h,
+                    const double faceFactor);
    virtual ~RBFFiniteElement() { delete rbf; delete distance; }
 
    virtual bool TensorIndexed() const { return true; }
@@ -524,11 +526,12 @@ private:
 public:
    RKFiniteElement(const int D,
                    const int numPointsD,
-                   const double h,
                    const int rbfType,
                    const int distNorm,
                    const int order,
-                   const int intOrder);
+                   const int intOrder,
+                   const double h,
+                   const double faceFactor);
    virtual ~RKFiniteElement() { delete baseFE; }
 
    virtual bool IsCompact() const { return baseFE->IsCompact(); }
