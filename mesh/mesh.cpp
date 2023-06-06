@@ -5140,6 +5140,57 @@ void Mesh::KnotInsert(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
+void Mesh::NURBSReduceToC0Continuity()
+{
+   if (NURBSext == NULL)
+   {
+      mfem_error("Mesh::NURBSReduceToC0Continuity() : Not a NURBS mesh!");
+   }
+
+   NURBSext->ConvertToPatches(*Nodes);
+
+   NURBSext->ReduceToC0Continuity();
+
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
+   UpdateNURBS();
+}
+
+void Mesh::NURBSReduceToCnContinuity(int n)
+{
+   if (NURBSext == NULL)
+   {
+      mfem_error("Mesh::NURBSReduceToCnContinuity() : Not a NURBS mesh!");
+   }
+
+   NURBSext->ConvertToPatches(*Nodes);
+
+   NURBSext->ReduceToCnContinuity(n);
+
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
+   UpdateNURBS();
+}
+
+void Mesh::NURBSReduceContinuity(int n)
+{
+   if (NURBSext == NULL)
+   {
+      mfem_error("Mesh::NURBSReduceContinuity() : Not a NURBS mesh!");
+   }
+
+   NURBSext->ConvertToPatches(*Nodes);
+
+   NURBSext->ReduceContinuity(n);
+
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
+   UpdateNURBS();
+}
+
 void Mesh::NURBSUniformRefinement()
 {
    // do not check for NURBSext since this method is protected
