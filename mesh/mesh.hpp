@@ -1748,26 +1748,6 @@ public:
 
    /// @}
 
-   /// Check (and optionally attempt to fix) the orientation of the elements
-   /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
-                          elements: triangles, quads, and tets.
-       @return The number of elements with wrong orientation.
-
-       @note For meshes with nodes (e.g. high-order or periodic meshes), fixing
-       the element orientations may require additional permutation of the nodal
-       GridFunction of the mesh which is not performed by this method. Instead,
-       the method Finalize() should be used with the parameter
-       @a fix_orientation set to `true`.
-
-       @note This method performs a simple check if an element is inverted, e.g.
-       for most elements types, it checks if the Jacobian of the mapping from
-       the reference element is non-negative at the center of the element. */
-   int CheckElementOrientation(bool fix_it = true);
-
-   /// Check the orientation of the boundary elements
-   /** @return The number of boundary elements with wrong orientation. */
-   int CheckBdrElementOrientation(bool fix_it = true);
-
    /// @name Methods related to mesh partitioning
    /// @{
 
