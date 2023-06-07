@@ -359,6 +359,71 @@ public:
         return rez;
     }
 
+    double MeanComplCF(mfem::Vector& grad)
+    {
+
+        //set all bc
+        esolv->DelDispBC();
+        esolv->AddDispBC(1,4,0.0);
+        mfem::Vector lgr(grad.Size());
+        grad=0.0;
+
+
+        mfem::VectorArrayCoefficient ff(pmesh->SpaceDimension());
+        mfem::ConstantCoefficient one(1.0);
+        mfem::ConstantCoefficient zero(0.0);
+        mfem::ConstantCoefficient hforce(1.0);
+        ff.Set(0,&hforce,false);
+        ff.Set(1,&one,false);
+
+        esolv->AddSurfLoad(3,ff);
+        cobj->SetE(&E);
+        cobj->SetDens(vdens);
+        cobj->SetDesignFES(dfes);
+        esolv->AssembleTangent();
+
+        std::default_random_engine generator;
+        std::normal_distribution<double> ndistr(0.0,0.2);
+
+
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+
+
+        int n=num_samples;
+        double obj=0.0;
+        double var=0.0;
+        for(int i=0;i<n;i++){
+
+
+            //generate the horizontal force
+
+            hforce.constant=ndistr(generator);
+            MPI_Bcast(&hforce.constant,1,MPI_DOUBLE,
+                      0, pmesh->GetComm());
+
+
+            esolv->LSolve();
+
+            double rez=cobj->Eval(esolv->GetDisplacements());
+            cobj->Grad(esolv->GetDisplacements(),lgr);
+            grad.Add(1.0,lgr);
+            obj=obj+rez;
+            var=var+rez*rez;
+        }
+
+
+        grad/=double(n);
+        var=var/double(n);
+        obj=obj/double(n);
+
+        if(myrank==0){
+            std::cout<<"Var="<<var-obj*obj<<std::endl;}
+
+        return obj;
+    }
+
+
     double MeanCompliance(mfem::Vector& grad){
         //set all bc
         esolv->DelDispBC();
