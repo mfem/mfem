@@ -24,13 +24,17 @@ public:
         mfem::Vector transip(x, T.GetSpaceDim());
         T.Transform(ip, transip);
 
+	return 0.3+0.3*sin(2.0*M_PI*x[0]/dx+M_PI/2.0);
+	
+	/*
         int nx=x[0]/dx;
 
         x[0]=x[0]-double(nx)*dx-0.5*dx;
 
         double r=sqrt(x[0]*x[0]);
-        if(r<(0.5*dx)){return 0.1;}
-        return 0.5;
+        if(r<dx){return 0.1;}
+        return 0.7;
+	*/
     }
 private:
     double dx;
@@ -74,19 +78,26 @@ public:
     CutCoeff(mfem::Coefficient* co_, double tr_=0.0){
         co=co_;
         tres=tr_;
+	sca=1.0;
     }
 
     virtual
     double 	Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
     {
         double val=co->Eval(T,ip);
-        if(val>tres){ return val-tres;}
+        if(val>tres){ return sca*(val-tres);}
         return 0.0;
+    }
+
+    void SetScale(double sca_)
+    {
+	sca=sca_;
     }
 
 private:
     mfem::Coefficient *co;
     double tres;
+    double sca;
 };
 
 
@@ -360,9 +371,11 @@ public:
         mfem::ConstantCoefficient zero(0.0);
         CutCoeff cut_co(gf,0.0);
         //ff.Set(1,&one,false);
-        ff.Set(0,&zero,false);
+        //ff.Set(0,&zero,false);
+        ff.Set(0,&cut_co,false);
         //ff.Set(1,gf,false);
-        ff.Set(1,&cut_co,false);
+        //ff.Set(1,&cut_co,false);
+        ff.Set(1,&one,false);
 
         esolv->AddSurfLoad(3,ff);
         cobj->SetE(&E);
@@ -374,6 +387,9 @@ public:
         double obj=0.0;
         double var=0.0;
         for(int i=0;i<n;i++){
+    
+            if((i%2)==0){ cut_co.SetScale(1.0);}
+            else        { cut_co.SetScale(-1.0);} 
             if(seeds.size()<(i+1)){
                 int seed = static_cast<int>(std::time(nullptr));
                 seeds.push_back(seed);
@@ -666,10 +682,10 @@ int main(int argc, char *argv[])
       paraview_dc.RegisterField("design",&pgdens);
       paraview_dc.RegisterField("E",&emod);
 
-      paraview_dc.Save();
 
       CoeffHoles holes;
-      StripesCoefX stripes(corr_len);
+      //StripesCoefX stripes(corr_len);
+      StripesCoefX stripes(0.25);	
       //oddens.ProjectCoefficient(holes);
       //oddens*=0.3;
       //oddens.GetTrueDofs(vtmpv);
@@ -683,6 +699,8 @@ int main(int argc, char *argv[])
       double nr=mfem::ParNormlp(vdens,2,pmesh.GetComm());
       std::cout<<"nr="<<nr<<std::endl;
 
+      paraview_dc.Save();
+
       double obj;
 
       for(int i=1;i<max_it;i++){
@@ -690,7 +708,7 @@ int main(int argc, char *argv[])
 
           if(i<10){
               vobj->SetProjection(0.5,2.0);
-              alco->SetDensity(vdens,0.5,8.0,1.0);
+              alco->SetDensity(vdens,0.5,8.0,2.0);
               alco->SetSIMP(true);
           }else if(i<250){
               vobj->SetProjection(0.5,2.0);
