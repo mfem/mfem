@@ -79,11 +79,11 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
 /// https://doi.org/10.1111/j.1467-9868.2011.00777.x
 ///
 /// The solver solves the SPDE problem defined as
-/// (A)^-\alpha u = b
+/// (A)^-alpha u = b
 /// where A is
 /// A = div ( Theta(x) grad + Id ) u(x)
-/// and \alpha is given as
-/// \alpha = (2 nu + dim) / 2.
+/// and alpha is given as
+/// alpha = (2 nu + dim) / 2.
 /// Theta (anisotropy tensor) and nu (smoothness) can be specified in the
 /// constructor. Traditionally, the SPDE method requires the specification of
 /// a white noise right hands side. SPDESolver accepts arbitrary right hand
@@ -92,10 +92,15 @@ class SPDESolver
 {
 public:
    /// Constructor.
-   /// @param diff_coefficient The diffusion coefficient \Theta.
    /// @param nu The coefficient nu, smoothness of the solution.
    /// @param bc Boundary conditions.
    /// @param fespace Finite element space.
+   /// @param l1 Correlation length in x
+   /// @param l2 Correlation length in y
+   /// @param l3 Correlation length in z
+   /// @param e1 Rotation angle in x
+   /// @param e2 Rotation angle in y
+   /// @param e3 Rotation angle in z
    SPDESolver(double nu, const Boundary &bc, ParFiniteElementSpace *fespace,
               double l1 = 0.1, double l2 = 0.1, double l3 = 0.1,
               double e1 = 0.0, double e2 = 0.0, double e3 = 0.0);
@@ -134,7 +139,7 @@ public:
 private:
    /// The rational approximation of the SPDE results in multiple
    /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
-   /// (div \Theta grad + \alpha I)^exponent x = \beta b.
+   /// (div Theta grad + alpha I)^exponent x = beta b.
    void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
               double beta, int exponent = 1);
 
