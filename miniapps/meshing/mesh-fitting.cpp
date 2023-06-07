@@ -175,22 +175,14 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
-double ComputeIntegrateError(const FiniteElementSpace* fes, const Mesh* mesh, FunctionCoefficient* ls, GridFunction* lss, const int el)
+double ComputeIntegrateError(const FiniteElementSpace* fes, FunctionCoefficient* ls, GridFunction* lss, const int el)
 {
     // TODO
     double error = 0.0;
-    double a = 0.0;
     const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-    int fdof = fe->GetDof();    // Number of Dof of element el
     int intorder = 2*fe->GetOrder() + 3 ;
     const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-    Vector shape;   // Will be size fdof
-    shape.SetSize(fdof);
-    Array<int> vdofs;
-    fes->GetFaceVDofs(el, vdofs);   // Get the DOF of the face el in the array vdofs
 
-    // Need to take one of the two adjacent element to the face element el to compute
-    // the jacobian ? Or the method GetElementTransformation can handle faces ?
     Vector values ;
     DenseMatrix tr;
     lss->GetFaceValues(el, 0, *ir, values, tr, 1);
@@ -948,24 +940,22 @@ int main(int argc, char *argv[])
       }
       double err_avg, err_max;
       tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-      std::cout << "Nbr DOFs: " << fespace->GetNDofs() << std::endl;
       std::cout << "Avg fitting error: " << err_avg << std::endl
                 << "Max fitting error: " << err_max << std::endl;
 
       // TODO: Compute Integrate Error
-      int max_order = fespace->GetMaxElementOrder();
       FunctionCoefficient ls_coeff(surface_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+      //surf_fit_gf0.ProjectCoefficient(ls_coeff);
+      tmop_integ->CopyGridFunction(surf_fit_gf0);
+      surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
       double error_sum = 0.0;
       for (int i=0; i < inter_faces.size(); i++)
       {
-          double error_face = ComputeIntegrateError(x_max_order->FESpace(), mesh, &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
+          double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
           error_sum += error_face;
-//          std::cout << i << " " << error_face << " k10errorface\n";
-//          std::cout << "Face " << inter_faces[i] << ", Error " << ComputeIntegrateError(x_max_order->FESpace(), mesh, &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]) << std::endl;
       }
-      std::cout << "error " << error_sum << " " << std::endl;
-//                    std::fabs(error_sum - 2.0*M_PI*0.25) << std::endl;
+      std::cout << "Nbr DOFs: " << fespace->GetNDofs() << std::endl;
+      std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
 
    }
 

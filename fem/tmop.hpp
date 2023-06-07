@@ -2197,6 +2197,9 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &x,
                                        const FiniteElementSpace &fes);
+
+   /** @brief Copy the GridFunction values of surf_fit_gf in gf. */
+   void CopyGridFunction(GridFunction &gf);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

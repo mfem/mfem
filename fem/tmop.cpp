@@ -4540,6 +4540,14 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    wcuo->SetMaxMuT(max_muT_all);
 }
 
+void TMOP_Integrator::CopyGridFunction(GridFunction &gf)
+{
+    for (int i=0; i < gf.Size(); i++)
+    {
+        gf[i] = (*surf_fit_gf)[i];
+    }
+}
+
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
                                          const GridFunction &dist,
                                          Coefficient &w0,
