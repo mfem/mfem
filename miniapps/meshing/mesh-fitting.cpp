@@ -175,7 +175,7 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
-double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fes, const Mesh* mesh, FunctionCoefficient* ls, const int el)
+double ComputeIntegrateError(const FiniteElementSpace* fes, const Mesh* mesh, FunctionCoefficient* ls, GridFunction* lss, const int el)
 {
     // TODO
     double error = 0.0;
@@ -191,29 +191,25 @@ double ComputeIntegrateError(const GridFunction* x, const FiniteElementSpace* fe
 
     // Need to take one of the two adjacent element to the face element el to compute
     // the jacobian ? Or the method GetElementTransformation can handle faces ?
-    Array<int> adj_els;
-    mesh->GetFaceAdjacentElements(el, adj_els);
-    ElementTransformation *transf = fes->GetElementTransformation(adj_els[0]);
+    Vector values ;
+    DenseMatrix tr;
+    lss->GetFaceValues(el, 0, *ir, values, tr, 1);
+    FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
 
     for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
     {
         const IntegrationPoint &ip = ir->IntPoint(i);
-        fe->CalcShape(ip, shape);   // Evaluate the values of the shape functions at the integrate point ip
-        for (int dim=0; dim < fes->GetVDim(); dim++)  // For each componant of space (x, y, z)
-        {
-            a = 0;
-            for (int k=0; k < fdof; k++)    // For each dof
-            {
-                // Here, we don't need to substract the exact solution, because it's the 0 of the level set
-                transf->SetIntPoint(&ip);
-                a += ls->Eval(*transf, ip)*shape(k);    // sigma_i * Phi_i (ip)
-                error += ip.weight * transf->Weight() * a * a;
-            }
-        }
+        transf->SetAllIntPoints(&ip);
+        const IntegrationPoint &e1_ip = transf->GetElement1IntPoint();
+        ElementTransformation *e1_tr = transf->Elem1;
+        ElementTransformation *e2_tr = transf->Elem2;
+
+        //double level_set_value = ls->Eval(*e1_tr, e1_ip);   // With exact ls
+        double level_set_value = values(i);   // With GridFunction
+        error += ip.weight * transf->Face->Weight() * std::pow(level_set_value, 2.0);
+//        error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
     }
-
-    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
-
+    return error;
 }
 
 int main(int argc, char *argv[])
@@ -602,6 +598,23 @@ int main(int argc, char *argv[])
          x.SetFromTrueVector();
 
       }
+      else
+      {
+          for (int i=0; i < mesh->GetNumFaces(); i++)
+          {
+              Array<int> els;
+              mesh->GetFaceAdjacentElements(i, els);
+              if (els.Size() == 2)
+              {
+                  int mat1 = mat(els[0]);
+                  int mat2 = mat(els[1]);
+                  if (mat1 != mat2)
+                  {
+                      inter_faces.push_back(i);
+                  }
+              }
+          }
+      }
 
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
 
@@ -939,13 +952,21 @@ int main(int argc, char *argv[])
       std::cout << "Avg fitting error: " << err_avg << std::endl
                 << "Max fitting error: " << err_max << std::endl;
 
+      // TODO: Compute Integrate Error
       int max_order = fespace->GetMaxElementOrder();
       FunctionCoefficient ls_coeff(surface_level_set);
-
+      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+      double error_sum = 0.0;
       for (int i=0; i < inter_faces.size(); i++)
       {
-          std::cout << "Error " << ComputeIntegrateError(&x, fespace, mesh, &ls_coeff, inter_faces[i]) << std::endl;
+          double error_face = ComputeIntegrateError(x_max_order->FESpace(), mesh, &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
+          error_sum += error_face;
+//          std::cout << i << " " << error_face << " k10errorface\n";
+//          std::cout << "Face " << inter_faces[i] << ", Error " << ComputeIntegrateError(x_max_order->FESpace(), mesh, &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]) << std::endl;
       }
+      std::cout << "error " << error_sum << " " << std::endl;
+//                    std::fabs(error_sum - 2.0*M_PI*0.25) << std::endl;
+
    }
 
    // Visualize the mesh displacement.
