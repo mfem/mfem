@@ -344,8 +344,8 @@ int main(int argc, char *argv[])
    delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
-   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
-   dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, &distance_s);
+   dist_solver->ComputeVectorDistance(ls_filt_coeff, &distance_v);
 
    // Send the solution by socket to a GLVis server.
    if (visualization)

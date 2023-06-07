@@ -49,7 +49,7 @@ endif
 
 SEQ_MINIOBJS = mesh_extras.o fem_extras.o
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIOBJS = $(SEQ_MINIOBJS)
+   MINIOBJS = $(SEQ_MINIOBJS) dist_solver.o
 else
    MINIOBJS = $(SEQ_MINIOBJS) pfem_extras.o dist_solver.o
 endif

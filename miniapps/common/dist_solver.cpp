@@ -10,15 +10,14 @@
 // CONTRIBUTING.md for details.
 
 #include "dist_solver.hpp"
-
-#ifdef MFEM_USE_MPI
-
 namespace mfem
 {
 
 namespace common
 {
 
+
+#ifdef MFEM_USE_MPI
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
    // Setup the Laplacian operator.
@@ -43,20 +42,48 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    delete S;
    delete Lap;
 }
+#endif
 
-double AvgElementSize(ParMesh &pmesh)
+void DiffuseField(GridFunction &field, int smooth_steps)
+{
+   // Setup the Laplacian operator
+   BilinearForm *Lap = new BilinearForm(field.FESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
+
+   // Setup the smoothing operator
+   DSmoother *S = new DSmoother(0,1.0,smooth_steps);
+   S->iterative_mode = true;
+   S->SetOperator(Lap->SpMat());
+
+   Vector tmp(field.Size());
+   tmp = 0.0;
+   S->Mult(tmp, field);
+
+   delete S;
+   delete Lap;
+}
+
+double AvgElementSize(Mesh &mesh)
 {
    // Compute average mesh size (assumes similar cells).
-   double dx, loc_area = 0.0;
-   for (int i = 0; i < pmesh.GetNE(); i++)
+   double dx, glob_area = 0.0;
+   double glob_zones = mesh.GetNE();
+   for (int i = 0; i < glob_zones; i++)
    {
-      loc_area += pmesh.GetElementVolume(i);
+      glob_area += mesh.GetElementVolume(i);
    }
-   double glob_area;
-   MPI_Allreduce(&loc_area, &glob_area, 1, MPI_DOUBLE,
-                 MPI_SUM, pmesh.GetComm());
-   const int glob_zones = pmesh.GetGlobalNE();
-   switch (pmesh.GetElementBaseGeometry(0))
+
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh *>(&mesh);
+   if (pmesh) {
+       MPI_Allreduce(MPI_IN_PLACE, &glob_area, 1, MPI_DOUBLE,
+                     MPI_SUM, pmesh->GetComm());
+       glob_zones = pmesh->GetGlobalNE();
+   }
+#endif
+   switch (mesh.GetElementBaseGeometry(0))
    {
       case Geometry::SEGMENT:
          dx = glob_area / glob_zones; break;
@@ -74,6 +101,45 @@ double AvgElementSize(ParMesh &pmesh)
    return dx;
 }
 
+void DistanceSolver::ScalarDistToVector(GridFunction *dist_s,
+                                        GridFunction *dist_v)
+{
+   FiniteElementSpace *fes = dist_s->FESpace();
+   MFEM_VERIFY(fes->GetOrdering()==Ordering::byNODES,
+               "Only Ordering::byNODES is supported.");
+
+   const int dim = fes->GetMesh()->Dimension();
+   const int size = dist_s->Size();
+
+   GridFunction *der = new GridFunction(fes);
+
+   Vector magn(size);
+   magn = 0.0;
+   for (int d = 0; d < dim; d++)
+   {
+      dist_s->GetDerivative(1, d, *der);
+      for (int i = 0; i < size; i++)
+      {
+          double dv = (*der)(i);
+         magn(i) += std::pow(dv, 2.0);
+         // The vector must point towards the level zero set.
+         (*dist_v)(i + d*size) = ((*dist_s)(i) > 0.0) ? -dv : dv;
+      }
+   }
+
+   for (int i = 0; i < size; i++)
+   {
+      const double vec_magn = std::sqrt(magn(i) + 1e-12);
+      for (int d = 0; d < dim; d++)
+      {
+         (*dist_v)(i + d*size) *= fabs((*dist_s)(i)) / vec_magn;
+      }
+   }
+
+   delete der;
+}
+
+#ifdef MFEM_USE_MPI
 void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
                                         ParGridFunction &dist_v)
 {
@@ -107,35 +173,57 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
       }
    }
 }
+#endif
 
 void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
-                                           ParGridFunction &distance)
+                                            GridFunction *distance)
 {
-   ParFiniteElementSpace &pfes = *distance.ParFESpace();
-   MFEM_VERIFY(pfes.GetVDim() == pfes.GetMesh()->Dimension(),
+   FiniteElementSpace *fes = distance->FESpace();
+   MFEM_VERIFY(fes->GetVDim() == fes->GetMesh()->Dimension(),
                "This function expects a vector ParGridFunction!");
 
-   ParFiniteElementSpace pfes_s(pfes.GetParMesh(), pfes.FEColl());
-   ParGridFunction dist_s(&pfes_s);
-   ComputeScalarDistance(zero_level_set, dist_s);
-   ScalarDistToVector(dist_s, distance);
+   FiniteElementSpace *fes_s = NULL;
+   GridFunction *dist_s = NULL;
+   bool serial = true;
+#ifdef MFEM_USE_MPI
+   ParGridFunction *pdistance = dynamic_cast<ParGridFunction *>(distance);
+   if (pdistance) {
+       serial = false;
+       ParFiniteElementSpace *pfes = pdistance->ParFESpace();
+       ParFiniteElementSpace *pfes_s = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl());
+       ParGridFunction *pdist_s = new ParGridFunction(pfes_s);
+       ComputeScalarDistance(zero_level_set, pdist_s);
+       ScalarDistToVector(pdist_s, pdistance);
+       delete pdist_s;
+       delete pfes_s;
+       return;
+   }
+#endif
+   if (serial) {
+       fes_s = new FiniteElementSpace(fes->GetMesh(), fes->FEColl());
+       dist_s = new GridFunction(fes_s);
+       ComputeScalarDistance(zero_level_set, dist_s);
+       ScalarDistToVector(dist_s, distance);
+       delete dist_s;
+       delete fes_s;
+   }
 }
 
-
+#ifdef MFEM_USE_MPI
 void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
-                                               ParGridFunction &distance)
+                                               ParGridFunction *distance)
 {
-   ParFiniteElementSpace &pfes = *distance.ParFESpace();
+   ParFiniteElementSpace *pfes = distance->ParFESpace();
 
-   auto check_h1 = dynamic_cast<const H1_FECollection *>(pfes.FEColl());
-   MFEM_VERIFY(check_h1 && pfes.GetVDim() == 1,
+   auto check_h1 = dynamic_cast<const H1_FECollection *>(pfes->FEColl());
+   MFEM_VERIFY(check_h1 && pfes->GetVDim() == 1,
                "This solver supports only scalar H1 spaces.");
 
    // Compute average mesh size (assumes similar cells).
-   ParMesh &pmesh = *pfes.GetParMesh();
+   ParMesh *pmesh = pfes->GetParMesh();
 
    // Step 0 - transform the input level set into a source-type bump.
-   ParGridFunction source(&pfes);
+   ParGridFunction source(pfes);
    source.ProjectCoefficient(zero_level_set);
    // Optional smoothing of the initial level set.
    if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
@@ -161,17 +249,17 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    Vector B, X;
 
    // Step 1 - diffuse.
-   ParGridFunction diffused_source(&pfes);
+   ParGridFunction diffused_source(pfes);
    for (int i = 0; i < diffuse_iter; i++)
    {
       // Set up RHS.
-      ParLinearForm b(&pfes);
+      ParLinearForm b(pfes);
       GridFunctionCoefficient src_coeff(&source);
       b.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
       b.Assemble();
 
       // Diffusion and mass terms in the LHS.
-      ParBilinearForm a_d(&pfes);
+      ParBilinearForm a_d(pfes);
       a_d.AddDomainIntegrator(new MassIntegrator);
       ConstantCoefficient t_coeff(parameter_t);
       a_d.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
@@ -179,13 +267,13 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       // Solve with Dirichlet BC.
       Array<int> ess_tdof_list;
-      if (pmesh.bdr_attributes.Size())
+      if (pmesh->bdr_attributes.Size())
       {
-         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
          ess_bdr = 1;
-         pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         pfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
-      ParGridFunction u_dirichlet(&pfes);
+      ParGridFunction u_dirichlet(pfes);
       u_dirichlet = 0.0;
       a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
       auto *prec = new HypreBoomerAMG;
@@ -197,13 +285,13 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       delete prec;
 
       // Diffusion and mass terms in the LHS.
-      ParBilinearForm a_n(&pfes);
+      ParBilinearForm a_n(pfes);
       a_n.AddDomainIntegrator(new MassIntegrator);
       a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
       a_n.Assemble();
 
       // Solve with Neumann BC.
-      ParGridFunction u_neumann(&pfes);
+      ParGridFunction u_neumann(pfes);
       ess_tdof_list.DeleteAll();
       a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
       auto *prec2 = new HypreBoomerAMG;
@@ -228,55 +316,201 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    // Step 2 - solve for the distance using the normalized gradient.
    {
       // RHS - normalized gradient.
-      ParLinearForm b2(&pfes);
-      NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
+      ParLinearForm b2(pfes);
+      NormalizedGradCoefficient grad_u(diffused_source, pmesh->Dimension());
       b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
       b2.Assemble();
 
       // LHS - diffusion.
-      ParBilinearForm a2(&pfes);
+      ParBilinearForm a2(pfes);
       a2.AddDomainIntegrator(new DiffusionIntegrator);
       a2.Assemble();
 
       // No BC.
       Array<int> no_ess_tdofs;
 
-      a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
+      a2.FormLinearSystem(no_ess_tdofs, *distance, b2, A, X, B);
 
       auto *prec = new HypreBoomerAMG;
       prec->SetPrintLevel(amg_print_level);
-      OrthoSolver ortho(pfes.GetComm());
+      OrthoSolver ortho(pfes->GetComm());
       ortho.SetSolver(*prec);
       cg.SetPreconditioner(ortho);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      a2.RecoverFEMSolution(X, b2, distance);
+      a2.RecoverFEMSolution(X, b2, *distance);
       delete prec;
    }
 
    // Shift the distance values to have minimum at zero.
-   double d_min_loc = distance.Min();
+   double d_min_loc = distance->Min();
    double d_min_glob;
    MPI_Allreduce(&d_min_loc, &d_min_glob, 1, MPI_DOUBLE,
-                 MPI_MIN, pfes.GetComm());
-   distance -= d_min_glob;
+                 MPI_MIN, pfes->GetComm());
+   (*distance) -= d_min_glob;
 
    if (vis_glvis)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
 
-      ParFiniteElementSpace fespace_vec(&pmesh, pfes.FEColl(),
-                                        pmesh.Dimension());
-      NormalizedGradCoefficient grad_u(diffused_source, pmesh.Dimension());
+      ParFiniteElementSpace fespace_vec(pmesh, pfes->FEColl(),
+                                        pmesh->Dimension());
+      NormalizedGradCoefficient grad_u(diffused_source, pmesh->Dimension());
       ParGridFunction x(&fespace_vec);
       x.ProjectCoefficient(grad_u);
 
       socketstream sol_sock_x(vishost, visport);
-      sol_sock_x << "parallel " << pfes.GetNRanks() << " "
-                 << pfes.GetMyRank() << "\n";
+      sol_sock_x << "parallel " << pfes->GetNRanks() << " "
+                 << pfes->GetMyRank() << "\n";
       sol_sock_x.precision(8);
-      sol_sock_x << "solution\n" << pmesh << x;
+      sol_sock_x << "solution\n" << *pmesh << x;
+      sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
+                 << 500 << " " << 500 << "\n"
+                 << "window_title '" << "Heat Directions" << "'\n"
+                 << "keys evvRj*******A\n" << std::flush;
+   }
+}
+#endif
+
+void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
+                                               GridFunction *distance)
+{
+   FiniteElementSpace *fes = distance->FESpace();
+
+   auto check_h1 = dynamic_cast<const H1_FECollection *>(fes->FEColl());
+   MFEM_VERIFY(check_h1 && fes->GetVDim() == 1,
+               "This solver supports only scalar H1 spaces.");
+
+   // Compute average mesh size (assumes similar cells).
+   Mesh *mesh = fes->GetMesh();
+
+   // Step 0 - transform the input level set into a source-type bump.
+   GridFunction source(fes);
+   source.ProjectCoefficient(zero_level_set);
+   // Optional smoothing of the initial level set.
+   if (smooth_steps > 0) { DiffuseField(source, smooth_steps); }
+   // Transform so that the peak is at 0.
+   // Assumes range [-1, 1].
+   if (transform)
+   {
+      for (int i = 0; i < source.Size(); i++)
+      {
+         const double x = source(i);
+         source(i) = ((x < -1.0) || (x > 1.0)) ? 0.0 : (1.0 - x) * (1.0 + x);
+      }
+   }
+
+   // Solver.
+   CGSolver cg;
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(print_level);
+   OperatorPtr A;
+   Vector B, X;
+
+   // Step 1 - diffuse.
+   GridFunction diffused_source(fes);
+   for (int i = 0; i < diffuse_iter; i++)
+   {
+      // Set up RHS.
+      LinearForm b(fes);
+      GridFunctionCoefficient src_coeff(&source);
+      b.AddDomainIntegrator(new DomainLFIntegrator(src_coeff));
+      b.Assemble();
+
+      // Diffusion and mass terms in the LHS.
+      BilinearForm a_d(fes);
+      a_d.AddDomainIntegrator(new MassIntegrator);
+      ConstantCoefficient t_coeff(parameter_t);
+      a_d.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a_d.Assemble();
+
+      // Solve with Dirichlet BC.
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      GridFunction u_dirichlet(fes);
+      u_dirichlet = 0.0;
+      a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a_d.RecoverFEMSolution(X, b, u_dirichlet);
+
+      // Diffusion and mass terms in the LHS.
+      BilinearForm a_n(fes);
+      a_n.AddDomainIntegrator(new MassIntegrator);
+      a_n.AddDomainIntegrator(new DiffusionIntegrator(t_coeff));
+      a_n.Assemble();
+
+      // Solve with Neumann BC.
+      GridFunction u_neumann(fes);
+      ess_tdof_list.DeleteAll();
+      a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a_n.RecoverFEMSolution(X, b, u_neumann);
+
+      for (int ii = 0; ii < diffused_source.Size(); ii++)
+      {
+         // This assumes that the magnitudes of the two solutions are somewhat
+         // similar; otherwise one of the solutions would dominate and the BC
+         // won't look correct. To avoid this, it's good to have the source
+         // away from the boundary (i.e. have more resolution).
+         diffused_source(ii) = 0.5 * (u_neumann(ii) + u_dirichlet(ii));
+      }
+      source = diffused_source;
+   }
+
+
+
+   // Step 2 - solve for the distance using the normalized gradient.
+   {
+      // RHS - normalized gradient.
+      LinearForm b2(fes);
+      NormalizedGradCoefficient grad_u(diffused_source, mesh->Dimension());
+      b2.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
+      b2.Assemble();
+
+      // LHS - diffusion.
+      BilinearForm a2(fes);
+      a2.AddDomainIntegrator(new DiffusionIntegrator);
+      a2.Assemble();
+
+      // No BC.
+      Array<int> no_ess_tdofs;
+
+      a2.FormLinearSystem(no_ess_tdofs, *distance, b2, A, X, B);
+
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a2.RecoverFEMSolution(X, b2, *distance);
+   }
+
+
+
+   // Shift the distance values to have minimum at zero.
+   double d_min_loc = distance->Min();
+   *distance -= d_min_loc;
+
+   if (vis_glvis)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      FiniteElementSpace fespace_vec(mesh, fes->FEColl(),
+                                     mesh->Dimension());
+      NormalizedGradCoefficient grad_u(diffused_source, mesh->Dimension());
+      GridFunction x(&fespace_vec);
+      x.ProjectCoefficient(grad_u);
+
+      socketstream sol_sock_x(vishost, visport);
+      sol_sock_x.precision(8);
+      sol_sock_x << "solution\n" << *mesh << x;
       sol_sock_x << "window_geometry " << 0 << " " << 0 << " "
                  << 500 << " " << 500 << "\n"
                  << "window_title '" << "Heat Directions" << "'\n"
@@ -296,21 +530,110 @@ Eval(ElementTransformation &T,const IntegrationPoint &ip)
 }
 
 void NormalizationDistanceSolver::ComputeScalarDistance(Coefficient &u_coeff,
-                                                        ParGridFunction &dist)
+                                                        GridFunction *dist)
 {
-   ParFiniteElementSpace &pfes = *dist.ParFESpace();
+   FiniteElementSpace &fes = *dist->FESpace();
+
+   GridFunction u_gf(&fes);
+   u_gf.ProjectCoefficient(u_coeff);
+
+   NormalizationCoeff rv_coeff(u_gf);
+   dist->ProjectDiscCoefficient(rv_coeff, GridFunction::AvgType::ARITHMETIC);
+}
+
+#ifdef MFEM_USE_MPI
+void NormalizationDistanceSolver::ComputeScalarDistance(Coefficient &u_coeff,
+                                                        ParGridFunction *dist)
+{
+   ParFiniteElementSpace &pfes = *dist->ParFESpace();
 
    ParGridFunction u_gf(&pfes);
    u_gf.ProjectCoefficient(u_coeff);
 
    NormalizationCoeff rv_coeff(u_gf);
-   dist.ProjectDiscCoefficient(rv_coeff, GridFunction::AvgType::ARITHMETIC);
+   dist->ProjectDiscCoefficient(rv_coeff, GridFunction::AvgType::ARITHMETIC);
 }
+#endif
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
-                                               ParGridFunction &fdist)
+                                               GridFunction *fdist)
 {
-   ParFiniteElementSpace* fesd=fdist.ParFESpace();
+   FiniteElementSpace* fesd=fdist->FESpace();
+
+   auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
+   auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
+   MFEM_VERIFY((check_h1 || check_l2) && fesd->GetVDim() == 1,
+               "This solver supports only scalar H1 or L2 spaces.");
+
+   Mesh* mesh=fesd->GetMesh();
+   const int dim=mesh->Dimension();
+
+   const int order = fesd->GetOrder(0);
+   H1_FECollection fecp(order, dim);
+   FiniteElementSpace fesp(mesh, &fecp, 1, Ordering::byVDIM);
+
+   GridFunction wf(&fesp);
+   wf.ProjectCoefficient(func);
+   GradientGridFunctionCoefficient gf(&wf); //gradient of wf
+
+
+   GridFunction xf(&fesp);
+   Vector *sv = new Vector(xf.GetTrueVector());
+//   HypreParVector *sv = xf.GetTrueDofs();
+   *sv=1.0;
+
+   NonlinearForm *nf = new NonlinearForm(&fesp);
+
+   PUMPLaplacian* pint = new PUMPLaplacian(&func,&gf,false);
+   nf->AddDomainIntegrator(pint);
+
+   pint->SetPower(2);
+
+   //define the solvers
+   GMRESSolver *gmres;
+   gmres = new GMRESSolver;
+   gmres->SetAbsTol(newton_abs_tol/10);
+   gmres->SetRelTol(newton_rel_tol/10);
+   gmres->SetMaxIter(100);
+   gmres->SetPrintLevel(0);
+
+   NewtonSolver ns;
+   ns.iterative_mode = true;
+   ns.SetSolver(*gmres);
+   ns.SetOperator(*nf);
+   ns.SetPrintLevel(print_level);
+   ns.SetRelTol(newton_rel_tol);
+   ns.SetAbsTol(newton_abs_tol);
+   ns.SetMaxIter(newton_iter);
+
+   Vector b; // RHS is zero
+   ns.Mult(b, *sv);
+
+   for (int pp=3; pp<maxp; pp++)
+   {
+      if ((print_level.summary || print_level.iterations))
+      {
+         std::cout << "pp = " << pp << std::endl;
+      }
+      pint->SetPower(pp);
+      ns.Mult(b, *sv);
+   }
+
+   xf.SetFromTrueDofs(*sv);
+   GridFunctionCoefficient gfx(&xf);
+   PProductCoefficient tsol(func,gfx);
+   fdist->ProjectCoefficient(tsol);
+
+   delete gmres;
+   delete nf;
+   delete sv;
+}
+
+#ifdef MFEM_USE_MPI
+void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
+                                               ParGridFunction *fdist)
+{
+   ParFiniteElementSpace* fesd=fdist->ParFESpace();
 
    auto check_h1 = dynamic_cast<const H1_FECollection *>(fesd->FEColl());
    auto check_l2 = dynamic_cast<const L2_FECollection *>(fesd->FEColl());
@@ -381,14 +704,14 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    xf.SetFromTrueDofs(*sv);
    GridFunctionCoefficient gfx(&xf);
    PProductCoefficient tsol(func,gfx);
-   fdist.ProjectCoefficient(tsol);
+   fdist->ProjectCoefficient(tsol);
 
    delete gmres;
    delete prec;
    delete nf;
    delete sv;
 }
-
+#endif
 
 double ScreenedPoisson::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &trans,
@@ -552,6 +875,32 @@ void ScreenedPoisson::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
+#ifdef MFEM_USE_MPI
+void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
+{
+   if (sint == nullptr)
+   {
+      sint = new ScreenedPoisson(func, rr);
+      pnf->AddDomainIntegrator(sint);
+      *psv = 0.0;
+      gmres->SetOperator(pnf->GetGradient(*psv));
+   }
+   else { sint->SetInput(func); }
+
+   // form RHS
+   *psv = 0.0;
+   Vector rhs(psv->Size());
+   pnf->Mult(*psv, rhs);
+   // filter the input field
+   gmres->Mult(rhs, *psv);
+
+   pgf->SetFromTrueDofs(*psv);
+   pgf->Neg();
+
+   GridFunctionCoefficient gfc(pgf);
+   ffield.ProjectCoefficient(gfc);
+}
+#endif
 
 double PUMPLaplacian::GetElementEnergy(const FiniteElement &el,
                                        ElementTransformation &trans,
@@ -790,8 +1139,7 @@ void PUMPLaplacian::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
-
-void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
+void PDEFilter::Filter(Coefficient &func, GridFunction &ffield)
 {
    if (sint == nullptr)
    {
@@ -809,10 +1157,10 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
    // filter the input field
    gmres->Mult(rhs, *sv);
 
-   gf.SetFromTrueDofs(*sv);
-   gf.Neg();
+   gf->SetFromTrueDofs(*sv);
+   gf->Neg();
 
-   GridFunctionCoefficient gfc(&gf);
+   GridFunctionCoefficient gfc(gf);
    ffield.ProjectCoefficient(gfc);
 }
 
@@ -820,4 +1168,3 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
 
 } // namespace mfem
 
-#endif

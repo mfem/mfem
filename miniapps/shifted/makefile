@@ -29,17 +29,20 @@ DIFFUSION_SRC = diffusion.cpp sbm_solver.cpp marking.cpp
 DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 DISTANCE_SRC = distance.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
+SER_DISTANCE_SRC = ser_distance.cpp
+SER_DISTANCE_OBJ = $(SER_DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 ALGOIM_SRC = integ_algoim.cpp lsf_integral.cpp
 ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion extrapolate lsf_integral
+SEQ_MINIAPPS = ser_distance
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = 
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -68,6 +71,9 @@ lsf_integral: $(ALGOIM_OBJ)
 
 distance: $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+ser_distance: $(SER_DISTANCE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(SER_DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 diffusion: $(DIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
