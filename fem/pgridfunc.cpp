@@ -947,8 +947,10 @@ void ParGridFunction::SaveAsOne(const char *fname, int precision) const
 void ParGridFunction::SaveAsSerial(const char *fname, int precision,
                                    int save_rank) const
 {
-   GridFunction serialgf = GetSerialGridFunction(save_rank);
    ParMesh *pmesh = ParFESpace()->GetParMesh();
+   Mesh serial_mesh = pmesh->GetSerialMesh(save_rank);
+   GridFunction serialgf = GetSerialGridFunction(save_rank, serial_mesh);
+
    if (pmesh->GetMyRank() == save_rank)
    {
       serialgf.Save(fname, precision);
@@ -956,12 +958,11 @@ void ParGridFunction::SaveAsSerial(const char *fname, int precision,
    MPI_Barrier(pmesh->GetComm());
 }
 
-GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
+GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
+                                                    Mesh &serial_mesh) const
 {
    ParFiniteElementSpace *pfespace = ParFESpace();
    ParMesh *pmesh = pfespace->GetParMesh();
-
-   Mesh serial_mesh = pmesh->GetSerialMesh(save_rank);
 
    int vdim = pfespace->GetVDim();
    auto *fec_serial = FiniteElementCollection::New(pfespace->FEColl()->Name());
