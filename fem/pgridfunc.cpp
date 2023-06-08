@@ -961,27 +961,29 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
    ParFiniteElementSpace *pfespace = ParFESpace();
    ParMesh *pmesh = pfespace->GetParMesh();
 
-   Mesh serialmesh = pmesh->GetSerialMesh(save_rank);
+   Mesh serial_mesh = pmesh->GetSerialMesh(save_rank);
 
    int vdim = pfespace->GetVDim();
-   auto *fespace_serial = new FiniteElementSpace(&serialmesh,
-                                                 pfespace->FEColl(),
+   auto *fec_serial = FiniteElementCollection::New(pfespace->FEColl()->Name());
+   auto *fespace_serial = new FiniteElementSpace(&serial_mesh,
+                                                 fec_serial,
                                                  vdim,
                                                  pfespace->GetOrdering());
 
    GridFunction gf_serial(fespace_serial);
+   gf_serial.MakeOwner(fec_serial);
    Array<double> vals;
    Array<int> dofs;
    MPI_Status status;
    int n_send_recv;
 
-   int MyRank = pmesh->GetMyRank(),
-       NRanks = pmesh->GetNRanks();
-   MPI_Comm MyComm = pmesh->GetComm();
+   int my_rank = pmesh->GetMyRank(),
+       nranks = pmesh->GetNRanks();
+   MPI_Comm my_comm = pmesh->GetComm();
 
    int elem_count = 0; // To keep track of element count in serial mesh
 
-   if (MyRank == save_rank)
+   if (my_rank == save_rank)
    {
       Vector nodeval;
       for (int e = 0; e < pmesh->GetNE(); e++)
@@ -991,14 +993,14 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
          gf_serial.SetSubVector(dofs, nodeval);
       }
 
-      for (int p = 0; p < NRanks; p++)
+      for (int p = 0; p < nranks; p++)
       {
          if (p == save_rank) { continue; }
-         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MyComm, &status);
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, my_comm, &status);
          vals.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vals[0], n_send_recv, MPI_DOUBLE, p, 449, MyComm, &status);
+            MPI_Recv(&vals[0], n_send_recv, MPI_DOUBLE, p, 449, my_comm, &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
@@ -1007,7 +1009,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
             i += dofs.Size();
          }
       }
-   } // MyRank == save_rank
+   } // my_rank == save_rank
    else
    {
       n_send_recv = 0;
@@ -1017,7 +1019,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
          const FiniteElement *fe = pfespace->GetFE(e);
          n_send_recv += vdim*fe->GetDof();
       }
-      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, MyComm);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, my_comm);
       vals.Reserve(n_send_recv);
       vals.SetSize(0);
       for (int e = 0; e < pmesh->GetNE(); e++)
@@ -1030,11 +1032,11 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&vals[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MyComm);
+         MPI_Send(&vals[0], n_send_recv, MPI_DOUBLE, save_rank, 449, my_comm);
       }
    }
 
-   MPI_Barrier(MyComm);
+   MPI_Barrier(my_comm);
    return gf_serial;
 }
 
