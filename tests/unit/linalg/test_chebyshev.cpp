@@ -61,5 +61,6 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       REQUIRE(error < 1.e-13);
 
       delete smoother;
+      delete fec;
    }
 }

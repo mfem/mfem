@@ -1319,6 +1319,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
+   os << '\n';
    os << "element[0].location=";
    switch (info.element[0].location)
    {
@@ -1332,7 +1333,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[1].location=";
    switch (info.element[1].location)
    {
@@ -1346,7 +1347,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[0].conformity=";
    switch (info.element[0].conformity)
    {
@@ -1363,7 +1364,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[1].conformity=";
    switch (info.element[1].conformity)
    {
@@ -1380,13 +1381,13 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
-   os << "element[0].index=" << info.element[0].index << std::endl
-      << "element[1].index=" << info.element[1].index << std::endl
-      << "element[0].local_face_id=" << info.element[0].local_face_id << std::endl
-      << "element[1].local_face_id=" << info.element[1].local_face_id << std::endl
-      << "element[0].orientation=" << info.element[0].orientation << std::endl
-      << "element[1].orientation=" << info.element[1].orientation << std::endl
+   os << '\n';
+   os << "element[0].index=" << info.element[0].index << '\n'
+      << "element[1].index=" << info.element[1].index << '\n'
+      << "element[0].local_face_id=" << info.element[0].local_face_id << '\n'
+      << "element[1].local_face_id=" << info.element[1].local_face_id << '\n'
+      << "element[0].orientation=" << info.element[0].orientation << '\n'
+      << "element[1].orientation=" << info.element[1].orientation << '\n'
       << "ncface=" << info.ncface << std::endl;
    return os;
 }
@@ -5221,17 +5222,13 @@ void Mesh::UpdateNURBS()
    if (el_to_edge)
    {
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces();
-      }
    }
 
    if (el_to_face)
    {
       GetElementToFaceTable();
-      GenerateFaces();
    }
+   GenerateFaces();
 }
 
 void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
@@ -5609,6 +5606,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
    }
+#else
+   MFEM_CONTRACT_VAR(fo);
 #endif
    return wo;
 }
@@ -9764,7 +9763,6 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
    t = el->GetType();
    if (t == Element::TETRAHEDRON)
    {
-      int j, type, new_type, old_redges[2], new_redges[2][2], flag;
       Tetrahedron *tet = (Tetrahedron *) el;
 
       MFEM_VERIFY(tet->GetRefinementFlag() != 0,
@@ -9777,7 +9775,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       if (bisect == -1)
       {
          v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[1]);
-         for (j = 0; j < 3; j++)
+         for (int j = 0; j < 3; j++)
          {
             V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[1]](j));
          }
@@ -9790,8 +9788,10 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       // 2. Set the node indices for the new elements in v[2][4] so that
       //    the edge marked for refinement is between the first two nodes.
+      int type, old_redges[2], flag;
       tet->ParseRefinementFlag(old_redges, type, flag);
 
+      int new_type, new_redges[2][2];
       v[0][3] = v_new;
       v[1][3] = v_new;
       new_redges[0][0] = 2;
