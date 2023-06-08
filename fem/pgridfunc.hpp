@@ -440,7 +440,7 @@ public:
    /// Returns a GridFunction on MPI rank @a save_rank that does not have any
    /// duplication of vertices/nodes at processor boundaries.
    /// serial_mesh is obtained using ParMesh::GetSerialMesh(save_rank).
-   /// Note that the @save_rank argument must match for the
+   /// Note that the @ save_rank argument must match for the
    /// ParMesh::GetSerialMesh and GetSerialGridFunction method.
    GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
 
