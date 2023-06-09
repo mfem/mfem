@@ -231,6 +231,7 @@ int main(int argc, char *argv[])
    double surface_fit_threshold = -10;
    int mesh_node_ordering = 0;
    bool prefine          = false;
+   int pref_order_increase = 1;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -305,6 +306,8 @@ int main(int argc, char *argv[])
    args.AddOption(&prefine, "-pref", "--pref", "-no-pref",
                   "--no-pref",
                   "Randomly p-refine the mesh.");
+   args.AddOption(&pref_order_increase, "-oi", "--preforderincrease",
+                   "How much polynomial order to increase for p-refinement.");
 
    args.Parse();
    if (!args.Good())
@@ -566,10 +569,10 @@ int main(int argc, char *argv[])
                  int mat2 = mat(els[1]);
                  if (mat1 != mat2)
                  {
-                     fespace->SetElementOrder(els[0], max_order+1);
-                     fespace->SetElementOrder(els[1], max_order+1);
-                     order_gf(els[0]) = max_order+1;
-                     order_gf(els[1]) = max_order+1;
+                     fespace->SetElementOrder(els[0], max_order+pref_order_increase);
+                     fespace->SetElementOrder(els[1], max_order+pref_order_increase);
+                     order_gf(els[0]) = max_order+pref_order_increase;
+                     order_gf(els[1]) = max_order+pref_order_increase;
                      inter_faces.push_back(i);
                  }
              }
