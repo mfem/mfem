@@ -2933,6 +2933,73 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
 }
 
+void TMOP_Integrator::EnableSurfaceFittingFromSource(
+            const GridFunction &s_bg, GridFunction &s0,
+            const Array<bool> &smarker, Coefficient &coeff, AdaptivityEvaluator &ae,
+            const GridFunction &s_bg_grad,
+            GridFunction &s0_grad, AdaptivityEvaluator &age,
+            const GridFunction &s_bg_hess,
+            GridFunction &s0_hess, AdaptivityEvaluator &ahe)
+            {
+#ifndef MFEM_USE_GSLIB
+        MFEM_ABORT("Surface fitting from source requires GSLIB!");
+#endif
+
+        // Setup for level set function
+        delete surf_fit_gf;
+        surf_fit_gf = new GridFunction(s0);
+        *surf_fit_gf = 0.0;
+        surf_fit_marker = &smarker;
+        surf_fit_coeff = &coeff;
+        surf_fit_eval = &ae;
+
+        surf_fit_gf_bg = true;
+        surf_fit_eval->SetSerialMetaInfo(*s_bg.FESpace()->GetMesh(), *s_bg.FESpace());
+        surf_fit_eval->SetInitialField
+                (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+
+        // Setup for gradient on background mesh
+        MFEM_VERIFY(s_bg_grad.FESpace()->GetOrdering() ==
+                s0_grad.FESpace()->GetOrdering(),
+                "Nodal ordering for gridfunction on source mesh and current mesh"
+                "should be the same.");
+        delete surf_fit_grad;
+        surf_fit_grad = new GridFunction(s0_grad);
+        *surf_fit_grad = 0.0;
+        surf_fit_eval_bg_grad = &age;
+        surf_fit_eval_bg_hess = &ahe;
+        surf_fit_eval_bg_grad->SetSerialMetaInfo(*s_bg_grad.FESpace()->GetMesh(),
+                                                 *s_bg_grad.FESpace());
+        surf_fit_eval_bg_grad->SetInitialField
+                (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
+
+        // Setup for Hessian on background mesh
+        MFEM_VERIFY(s_bg_hess.FESpace()->GetOrdering() ==
+                s0_hess.FESpace()->GetOrdering(),
+                "Nodal ordering for gridfunction on source mesh and current mesh"
+                "should be the same.");
+        delete surf_fit_hess;
+        surf_fit_hess = new GridFunction(s0_hess);
+        *surf_fit_hess = 0.0;
+        surf_fit_eval_bg_hess->SetSerialMetaInfo(*s_bg_hess.FESpace()->GetMesh(),
+                                                 *s_bg_hess.FESpace());
+        surf_fit_eval_bg_hess->SetInitialField
+                (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
+
+        // Count number of zones that share each of the DOFs
+        s0.CountElementsPerVDof(surf_fit_dof_count);
+        // Store DOF indices that are marked for fitting. Used to reduce work for
+        // transferring information between source/background and current mesh.
+        surf_fit_marker_dof_index.SetSize(0);
+        for (int i = 0; i < surf_fit_marker->Size(); i++)
+        {
+            if ((*surf_fit_marker)[i] == true)
+            {
+                surf_fit_marker_dof_index.Append(i);
+            }
+        }
+    }
+
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,

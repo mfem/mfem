@@ -2066,6 +2066,19 @@ public:
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
 
+   void EnableSurfaceFittingFromSource(const GridFunction &s_bg,
+                                            GridFunction &s0,
+                                            const Array<bool> &smarker,
+                                            Coefficient &coeff,
+                                            AdaptivityEvaluator &ae,
+                                            const GridFunction &s_bg_grad,
+                                            GridFunction &s0_grad,
+                                            AdaptivityEvaluator &age,
+                                            const GridFunction &s_bg_hess,
+                                            GridFunction &s0_hess,
+                                            AdaptivityEvaluator &ahe);
+
+
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
