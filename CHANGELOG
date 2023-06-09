@@ -29,6 +29,9 @@ New and updated examples and miniapps
 
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
+- Added a random refinement option to mesh-explorer miniapp to assist users in
+  experimenting with nonconforming meshes.
+
 Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
