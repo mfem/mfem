@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false, 2*M_PI,
                                      2.0*M_PI);
-
+   mesh.EnsureNodes();
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
