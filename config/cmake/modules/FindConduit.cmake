@@ -14,6 +14,8 @@
 #   - CONDUIT_LIBRARIES
 #   - CONDUIT_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) Conduit::Conduit
+
 # check to see if relay requires hdf5, if so make sure to set HDF5
 # as a required dep
 if(EXISTS ${CONDUIT_DIR}/include/conduit/conduit_relay_hdf5.hpp)
@@ -40,3 +42,7 @@ mfem_find_package(Conduit CONDUIT CONDUIT_DIR
     "include;include/conduit" conduit_relay.hpp "lib" conduit_relay
   ADD_COMPONENT blueprint
     "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)
+
+if(CONDUIT_FOUND)
+  mfem_library_to_package(Conduit::Conduit "${CONDUIT_INCLUDE_DIRS}" "${CONDUIT_LIBRARIES}")
+endif()

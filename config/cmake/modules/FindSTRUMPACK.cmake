@@ -14,6 +14,8 @@
 #   - STRUMPACK_INCLUDE_DIRS
 #   - STRUMPACK_LIBRARIES
 
+# It also creates the target (CMake package style) STRUMPACK::STRUMPACK
+
 include(MfemCmakeUtilities)
 mfem_find_package(STRUMPACK STRUMPACK STRUMPACK_DIR
   "include" "StrumpackSparseSolverMPIDist.hpp"
@@ -34,3 +36,7 @@ int main(int argc, char *argv[])
 }
 "
   )
+
+if(STRUMPACK_FOUND)
+  mfem_library_to_package(STRUMPACK::STRUMPACK "${STRUMPACK_INCLUDE_DIRS}" "${STRUMPACK_LIBRARIES}")
+endif()

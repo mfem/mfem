@@ -11,8 +11,11 @@
 
 # Sets the following variables:
 #   - SLEPC_FOUND
+#   - SLEPc_FOUND
 #   - SLEPC_INCLUDE_DIRS
 #   - SLEPC_LIBRARIES
+
+# It also creates the target (CMake package style) SLEPc::SLEPc
 
 set(SLEPc_REQUIRED_PACKAGES "PETSC" CACHE STRING
   "Additional packages required by SLEPc")
@@ -42,3 +45,10 @@ int main()
 }
 "
   )
+
+# We need to set SLEPc_FOUND for the 3rd parties importing MFEM package.
+set(SLEPc_FOUND ${SLEPC_FOUND} CACHE STRING "SLEPc is available" FORCE)
+
+if (SLEPc_FOUND)
+  mfem_library_to_package(SLEPc::SLEPc "${SLEPC_INCLUDE_DIRS}" "${SLEPC_LIBRARIES}")
+endif()

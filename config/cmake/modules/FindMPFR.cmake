@@ -15,6 +15,8 @@
 #   - MPFR_LIBRARIES    (if needed)
 #   - MPFR_INCLUDE_DIRS (if needed)
 
+# It also creates the target (CMake package style) MPFR::MPFR
+
 include(MfemCmakeUtilities)
 set(MPFR_SKIP_STANDARD TRUE)
 set(MPFR_SKIP_FPHSA TRUE)
@@ -37,3 +39,7 @@ set(MPFR_SKIP_LOOKING_MSG TRUE)
 mfem_find_package(MPFR MPFR MPFR_DIR "include" mpfr.h "lib" mpfr
   "Paths to headers required by MPFR." "Libraries required by MPFR.")
 unset(MPFR_SKIP_LOOKING_MSG)
+
+if(MPFR_FOUND)
+  mfem_library_to_package(MPFR::MPFR "${MPFR_INCLUDE_DIRS}" "${MPFR_LIBRARIES}")
+endif()

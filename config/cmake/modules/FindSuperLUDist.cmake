@@ -14,6 +14,8 @@
 #   - SuperLUDist_INCLUDE_DIRS
 #   - SuperLUDist_LIBRARIES
 
+# It also creates the target (CMake package style) SuperLUDist::SuperLUDist
+
 include(MfemCmakeUtilities)
 mfem_find_package(SuperLUDist SuperLUDist SuperLUDist_DIR
   "include;SRC;SuperLU" "superlu_defs.h;slu_ddefs.h"
@@ -29,3 +31,7 @@ int main()
   return 0;
 }
 ")
+
+if(SuperLUDist_FOUND)
+  mfem_library_to_package(SuperLUDist::SuperLUDist "${SuperLUDist_INCLUDE_DIRS}" "${SuperLUDist_LIBRARIES}")
+endif()

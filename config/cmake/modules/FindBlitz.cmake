@@ -14,9 +14,15 @@
 #   - BLITZ_LIBRARIES
 #   - BLITZ_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) Blitz::Blitz
+
 include(MfemCmakeUtilities)
 mfem_find_package(Blitz BLITZ BLITZ_DIR
-       	"include" "blitz/blitz.h"
-       	"lib" "blitz"
-  	"Paths to headers required by Blitz."
-       	"Libraries required by Blitz.")
+       "include" "blitz/blitz.h"
+       "lib" "blitz"
+       "Paths to headers required by Blitz."
+       "Libraries required by Blitz.")
+
+if(BLITZ_FOUND)
+  mfem_library_to_package(Blitz::Blitz "${BLITZ_INCLUDE_DIRS}" "${BLITZ_LIBRARIES}")
+endif()

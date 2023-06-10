@@ -16,7 +16,13 @@
 #   - MFEMBacktrace_LIBRARIES    (if needed)
 #   - MFEMBacktrace_INCLUDE_DIRS (if needed)
 
+# It also creates the target (CMake package style) MFEMBacktrace::MFEMBacktrace
+
 include(MfemCmakeUtilities)
 mfem_find_package(MFEMBacktrace MFEMBacktrace MFEMBacktrace_DIR "" "" "" ""
   "Paths to headers required by MFEM backtrace."
   "Libraries required by MFEM backtrace.")
+
+if(MFEMBacktrace_FOUND)
+  mfem_library_to_package(MFEMBacktrace::MFEMBacktrace "${MFEMBacktrace_INCLUDE_DIRS}" "${MFEMBacktrace_LIBRARIES}")
+endif()

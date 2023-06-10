@@ -14,6 +14,8 @@
 #   - HIOP_INCLUDE_DIRS
 #   - HIOP_LIBRARIES
 
+# It also creates the target (CMake package style) HIOP::HIOP
+
 include(MfemCmakeUtilities)
 mfem_find_package(HIOP HIOP HIOP_DIR
   "include" "hiopInterface.hpp"
@@ -34,3 +36,7 @@ mfem_find_package(HIOP HIOP HIOP_DIR
 #   return 0;
 #}
 #")
+
+if(HIOP_FOUND)
+  mfem_library_to_package(HIOP::HIOP "${HIOP_INCLUDE_DIRS}" "${HIOP_LIBRARIES}")
+endif()

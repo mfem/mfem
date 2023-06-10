@@ -74,7 +74,8 @@ set(XSDK_ENABLE_Fortran OFF)
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
-    MFEM_USE_PETSC)
+    MFEM_USE_PETSC OR
+    MFEM_USE_ADIOS2)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
@@ -82,7 +83,7 @@ if (MFEM_USE_CONDUIT OR
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
-if (MFEM_USE_STRUMPACK)
+if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
@@ -204,6 +205,10 @@ if (WIN32 AND BUILD_SHARED_LIBS)
   # set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 endif()
 
+# Start collecting the packages (which have all the automagic stuff to set
+# dependencies and so on)
+set(TPL_PACKAGES "")
+
 # AMD HIP
 if (MFEM_USE_HIP)
   if (HIP_ARCH)
@@ -215,6 +220,7 @@ if (MFEM_USE_HIP)
   endif()
   find_package(HIP REQUIRED)
   find_package(HIPSPARSE REQUIRED)
+  list(APPEND TPL_PACKAGES HIP::HIP HIPSPARSE::HIPSPARSE)
 endif()
 
 # OpenMP
@@ -247,19 +253,35 @@ if (MFEM_USE_MPI)
   if (MFEM_MPIEXEC_NP)
     string(REPLACE " " ";" MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
   endif()
+  list(APPEND TPL_PACKAGES MPI::MPI_CXX)
+  if (XSDK_ENABLE_C)
+    list(APPEND TPL_PACKAGES MPI::MPI_C)
+  endif()
+  if (XSDK_ENABLE_Fortran)
+    list(APPEND TPL_PACKAGES MPI::MPI_Fortran)
+  endif()
   # Parallel MFEM depends on hypre
+  # The user always can opt to try to use the config provided by HYPRE instead
+  # of the module provided by us with the option
+  # -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=TRUE
   find_package(HYPRE REQUIRED)
-  set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  if (HYPRE_VERSION_MAJOR)
+    math(EXPR MFEM_HYPRE_VERSION "10000 * ${HYPRE_VERSION_MAJOR} + 100 * ${HYPRE_VERSION_MINOR} + ${HYPRE_VERSION_PATCH}" OUTPUT_FORMAT DECIMAL)  
+  else ()
+    set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  endif()
+  list(APPEND TPL_PACKAGES HYPRE::HYPRE)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
     if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.8.0))
       message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
-    set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
+    list(APPEND TPL_PACKAGES PETSc::PETSc)
     if (MFEM_USE_SLEPC)
       find_package(SLEPc REQUIRED config)
       message(STATUS "Found SLEPc version ${SLEPC_VERSION}")
+      list(APPEND TPL_PACKAGES SLEPc::SLEPc)
     endif()
   endif()
 else()
@@ -274,6 +296,7 @@ endif()
 
 if (MFEM_USE_METIS)
   find_package(METIS REQUIRED)
+  list(APPEND TPL_PACKAGES METIS::METIS)
 endif()
 
 if (MFEM_USE_GINKGO)
@@ -294,18 +317,36 @@ endif()
 if (MFEM_USE_LIBUNWIND)
   set(MFEMBacktrace_REQUIRED_PACKAGES "Libunwind" "LIBDL" "CXXABIDemangle")
   find_package(MFEMBacktrace REQUIRED)
+  list(APPEND TPL_PACKAGES MFEMBacktrace::MFEMBacktrace)
 endif()
 
 # BLAS, LAPACK
 if (MFEM_USE_LAPACK)
   find_package(BLAS REQUIRED)
   find_package(LAPACK REQUIRED)
+  list(APPEND TPL_PACKAGES BLAS::BLAS LAPACK::LAPACK)
+endif()
+
+# OpenMP
+if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
+  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
+    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
+  endif()
+  find_package(OpenMP REQUIRED)
+  list(APPEND TPL_PACKAGES OpenMP::OpenMP_CXX)
+  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
 if (MFEM_USE_SUITESPARSE)
   find_package(SuiteSparse REQUIRED
     UMFPACK KLU AMD BTF CHOLMOD COLAMD CAMD CCOLAMD config)
+  list(APPEND TPL_PACKAGES SuiteSparse::SuiteSparse)
 endif()
 
 # SUNDIALS
@@ -318,12 +359,14 @@ if (MFEM_USE_SUNDIALS)
     list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
   endif()
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
+  list(APPEND TPL_PACKAGES SUNDIALS::SUNDIALS)
 endif()
 
 # SuperLU_DIST can only be enabled in parallel
 if (MFEM_USE_SUPERLU)
   if (MFEM_USE_MPI)
     find_package(SuperLUDist REQUIRED)
+    list(APPEND TPL_PACKAGES SuperLUDist::SuperLUDist)
   else()
     message(FATAL_ERROR " *** SuperLU_DIST requires that MPI be enabled.")
   endif()
@@ -333,6 +376,11 @@ endif()
 if (MFEM_USE_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
+    find_package(Scotch OPTIONAL_COMPONENTS scotch scotcherr esmumps)
+    list(APPEND TPL_PACKAGES MUMPS::MUMPS)
+    if(Scotch_FOUND)
+      list(APPEND TPL_PACKAGES Scotch::Scotch)
+    endif()
   else()
     message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
@@ -342,6 +390,7 @@ endif()
 if (MFEM_USE_STRUMPACK)
   if (MFEM_USE_MPI)
     find_package(STRUMPACK REQUIRED)
+    list(APPEND TPL_PACKAGES STRUMPACK::STRUMPACK)
   else()
     message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
   endif()
@@ -350,42 +399,51 @@ endif()
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
+  list(APPEND TPL_PACKAGES GnuTLS::GnuTLS)
 endif()
 
 # GSLIB
 if (MFEM_USE_GSLIB)
   find_package(GSLIB REQUIRED)
+  list(APPEND TPL_PACKAGES GSLIB::GSLIB)
 endif()
 
 # NetCDF
 if (MFEM_USE_NETCDF)
-  find_package(NetCDF REQUIRED)
+  find_package(netCDF REQUIRED)
+  list(APPEND TPL_PACKAGES netCDF::netcdf)
 endif()
 
 # MPFR
 if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
+  list(APPEND TPL_PACKAGES MPFR::MPFR)
 endif()
 
 if (MFEM_USE_CEED)
   find_package(libCEED REQUIRED)
+  list(APPEND TPL_PACKAGES libCEED::libCEED)
 endif()
 
 if (MFEM_USE_AMGX)
   find_package(AMGX REQUIRED)
+  list(APPEND TPL_PACKAGES AMGX::AMGX)
 endif()
 
 if (MFEM_USE_CONDUIT)
-    find_package(Conduit REQUIRED conduit relay blueprint)
+  find_package(Conduit REQUIRED conduit relay blueprint)
+  list(APPEND TPL_PACKAGES Conduit::Conduit)
 endif()
 
 if (MFEM_USE_FMS)
-    find_package(FMS REQUIRED fms)
+  find_package(FMS REQUIRED fms)
+  list(APPEND TPL_PACKAGES FMS::FMS)
 endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Axom)
+  list(APPEND TPL_PACKAGES Axom::Axom)
 endif()
 
 # PUMI
@@ -422,59 +480,68 @@ endif()
 # HiOp optimizer
 if (MFEM_USE_HIOP)
   find_package(HIOP REQUIRED)
-  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
+  list(APPEND TPL_PACKAGES HIOP::HIOP)
 endif()
 
 # CoDiPack package
 if (MFEM_USE_CODIPACK)
   find_package(CODIPACK REQUIRED)
-  # find_package updates CODIPACK_FOUND, CODIPACK_INCLUDE_DIRS, CODIPACK_LIBRARIES
+  list(APPEND TPL_PACKAGES CODIPACK::CODIPACK)
 endif()
 
 # OCCA
 if (MFEM_USE_OCCA)
-   find_package(OCCA REQUIRED)
+  find_package(OCCA REQUIRED)
+  list(APPEND TPL_PACKAGES OCCA::OCCA)
 endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
-   find_package(RAJA REQUIRED)
+  find_package(RAJA REQUIRED)
+  list(APPEND TPL_PACKAGES RAJA::RAJA)
 endif()
 
 # UMPIRE
 if (MFEM_USE_UMPIRE)
-   find_package(UMPIRE REQUIRED)
+  find_package(UMPIRE REQUIRED)
+  list(APPEND TPL_PACKAGES UMPIRE::UMPIRE)
 endif()
 
 # GOOGLE-BENCHMARK
 if (MFEM_USE_BENCHMARK)
-   find_package(Benchmark REQUIRED)
+  find_package(Benchmark REQUIRED)
+  list(APPEND TPL_PACKAGES Benchmark::Benchmark)
 endif()
 
 # Caliper
 if (MFEM_USE_CALIPER)
   find_package(Caliper REQUIRED)
+  list(APPEND TPL_PACKAGES Caliper::Caliper)
 endif()
 
 # Algoim
 if (MFEM_USE_ALGOIM)
   find_package(Algoim REQUIRED)
+  list(APPEND TPL_PACKAGES Algoim::Algoim)
 endif()
 
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
-   find_package(ADIOS2 REQUIRED)
+  find_package(ADIOS2 REQUIRED)
+  list(APPEND TPL_PACKAGES adios2::adios2)
 endif()
 
 if (MFEM_USE_MKL_CPARDISO)
   if (MFEM_USE_MPI)
-   find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+    find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
+    list(APPEND TPL_PACKAGES MKL_CPARDISO::MKL_CPARDISO)
   endif()
 endif()
 
 # PARELAG
 if (MFEM_USE_PARELAG)
-   find_package(PARELAG REQUIRED)
+  find_package(PARELAG REQUIRED)
+  list(APPEND TPL_PACKAGES PARELAG::PARELAG)
 endif()
 
 # Enzyme
@@ -512,19 +579,23 @@ endif()
 #       "Threads::Threads" and call the next line only when that TPL library is
 #       enabled.  -V. Dobrev
 find_package(Threads REQUIRED)
+list(APPEND TPL_PACKAGES Threads::Threads)
 
-# List all possible libraries in order of dependencies.
+foreach(TPL IN LISTS TPL_PACKAGES)
+  message(STATUS "MFEM: using target ${TPL}")
+endforeach(TPL)
+
+
+# List all possible libraries in order of dependencies. Here we are just
+# considering those which are not in TPL_PACKAGES
 # [METIS < SuiteSparse]:
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
-    NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
+set(MFEM_TPLS Ginkgo PUMI POSIXCLOCKS ZLIB CUBLAS CUSPARSE HIP HIPSPARSE
+    MOONOLITH ENZYME)
 
-# Add all *_FOUND libraries in the variable TPL_LIBRARIES.
+# Add all *_FOUND libraries in the variable TPL_PACKAGES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
@@ -539,6 +610,28 @@ list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
+
+# Now split the libraries in directories and files, for the sake of portability
+set(TPL_LIBRARY_DIRS "")
+set(TPL_LIBRARY_FILES "")
+foreach(LIB IN LISTS TPL_LIBRARIES)
+  get_filename_component(DIR ${LIB} DIRECTORY)
+  list(APPEND TPL_LIBRARY_DIRS ${DIR})
+  get_filename_component(FILE ${LIB} NAME)
+  list(APPEND TPL_LIBRARY_FILES ${FILE})
+endforeach(LIB)
+list(REMOVE_DUPLICATES TPL_LIBRARY_DIRS)
+list(REMOVE_DUPLICATES TPL_LIBRARY_FILES)
+message(STATUS "TPL_LIBRARY_DIRS = ${TPL_LIBRARY_DIRS}")
+message(STATUS "TPL_LIBRARY_FILES = ${TPL_LIBRARY_FILES}")
+
+if (OPENMP_FOUND)
+  message(STATUS "MFEM: using package OpenMP")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  if (MFEM_USE_CUDA)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+  endif()
+endif()
 
 message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
@@ -583,8 +676,13 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-# message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
+message(STATUS "TPL_PACKAGES = ${TPL_PACKAGES}")
+message(STATUS "TPL_LIBRARY_DIRS = ${TPL_LIBRARY_DIRS}")
+message(STATUS "TPL_LIBRARY_FILES = ${TPL_LIBRARY_FILES}")
+foreach(LIBDIR IN LISTS TPL_LIBRARY_DIRS)
+  target_link_directories(mfem PUBLIC $<BUILD_INTERFACE:${LIBDIR}>)
+endforeach()
+target_link_libraries(mfem PUBLIC ${TPL_PACKAGES} ${TPL_LIBRARY_FILES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
@@ -595,20 +693,10 @@ message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    # The INSTALL_INTERFACE is handled below
-    ${TPL_INCLUDE_DIRS})
-if (MFEM_USE_MPI)
-  if (MPI_CXX_COMPILE_FLAGS)
-    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
-      "${MPI_CXX_COMPILE_FLAGS}")
-    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
-  endif()
-  if (MPI_CXX_LINK_FLAGS)
-    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
-  endif()
-endif()
-
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+foreach(INC IN LISTS TPL_INCLUDE_DIRS)
+  target_include_directories(mfem PUBLIC $<BUILD_INTERFACE:${INC}>)
+endforeach()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -740,8 +828,8 @@ set(INSTALL_LIB_DIR lib
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
-target_include_directories(mfem BEFORE
-  PUBLIC
+target_include_directories(mfem
+  INTERFACE
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
 # The 'install' target will not depend on 'all'.
@@ -838,7 +926,14 @@ install(FILES
 
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
+    NAMESPACE MFEM::
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+# Install the modules directory, so it can be used to find the dependencies
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/config/cmake/modules
+  DESTINATION ${INSTALL_CMAKE_DIR}
+  FILES_MATCHING PATTERN "*.cmake")
+
 
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and

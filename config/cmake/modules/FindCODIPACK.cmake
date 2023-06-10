@@ -16,9 +16,15 @@
 #   - CODIPACK_INCLUDE_DIRS
 #   - CODIPACK_LIBRARIES
 
+# It also creates the target (CMake package style) CODIPACK::CODIPACK
+
 include(MfemCmakeUtilities)
 mfem_find_package(CODIPACK CODIPACK CODIPACK_DIR
   "include" "codi.h"
   "lib" ""
   "Paths to headers required by CODIPACK."
   "Libraries required by CODIPACK.")
+
+if(CODIPACK_FOUND)
+  mfem_library_to_package(CODIPACK::CODIPACK "${CODIPACK_INCLUDE_DIRS}" "${CODIPACK_LIBRARIES}")
+endif()

@@ -14,6 +14,12 @@
 #   - GSLIB_LIBRARIES
 #   - GSLIB_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) GSLIB::GSLIB
+
 include(MfemCmakeUtilities)
 mfem_find_package(GSLIB GSLIB GSLIB_DIR "include" gslib.h "lib" gs
   "Paths to headers required by GSLIB." "Libraries required by GSLIB.")
+
+if(GSLIB_FOUND)
+  mfem_library_to_package(GSLIB::GSLIB "${GSLIB_INCLUDE_DIRS}" "${GSLIB_LIBRARIES}")
+endif()

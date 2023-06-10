@@ -14,7 +14,13 @@
 #   - FMS_LIBRARIES
 #   - FMS_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) FMS::FMS
+
 include(MfemCmakeUtilities)
 mfem_find_package(FMS FMS FMS_DIR
   "include" fms.h "lib" fms
   "Paths to headers required by FMS." "Libraries required by FMS.")
+
+if(FMS_FOUND)
+  mfem_library_to_package(FMS::FMS "${FMS_INCLUDE_DIRS}" "${FMS_LIBRARIES}")
+endif()

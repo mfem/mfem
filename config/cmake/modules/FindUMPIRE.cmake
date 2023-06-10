@@ -14,6 +14,8 @@
 #   - UMPIRE_LIBRARIES
 #   - UMPIRE_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) UMPIRE::UMPIRE
+
 if (NOT umpire_DIR AND UMPIRE_DIR)
   set(umpire_DIR ${UMPIRE_DIR}/lib/cmake/umpire)
 endif()
@@ -33,4 +35,8 @@ else()
   endif()
   message(${msg}
     "UMPIRE not found. Please set UMPIRE_DIR to the install prefix.")
+endif()
+
+if(UMPIRE_FOUND)
+  mfem_library_to_package(UMPIRE::UMPIRE ${UMPIRE_INCLUDE_DIRS} ${UMPIRE_LIBRARIES})
 endif()

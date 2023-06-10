@@ -17,7 +17,13 @@
 # We need the following libraries:
 #   parmetis
 
+# It also creates the target (CMake package style) PARELAG::PARELAG
+
 include(MfemCmakeUtilities)
 mfem_find_package(ParMETIS ParMETIS ParMETIS_DIR "include" parmetis.h
   "lib" parmetis
   "Paths to headers required by ParMETIS." "Libraries required by ParMETIS.")
+
+if(ParMETIS_FOUND)
+  mfem_library_to_package(ParMETIS::ParMETIS "${ParMETIS_INCLUDE_DIRS}" "${ParMETIS_LIBRARIES}")
+endif()

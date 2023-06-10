@@ -14,6 +14,12 @@
 #   - CEED_LIBRARIES
 #   - CEED_INCLUDE_DIRS
 
+# It also creates the target (CMake package style) libCEED::libCEED
+
 include(MfemCmakeUtilities)
 mfem_find_package(libCEED CEED CEED_DIR "include" ceed.h "lib" ceed
   "Paths to headers required by libCEED." "Libraries required by libCEED.")
+
+if(CEED_FOUND)
+  mfem_library_to_package(libCEED::libCEED "${CEED_INCLUDE_DIRS}" "${CEED_LIBRARIES}")
+endif()
