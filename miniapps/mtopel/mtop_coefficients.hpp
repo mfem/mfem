@@ -69,23 +69,29 @@ public:
     LognormalDistributionCoefficient(Coefficient* gf_,double mu_=0.0, double ss_=1.0):mu(mu_),ss(ss_)
     {
         gf=gf_;
+        scale=1.0;
     }
 
     void SetGaussianCoeff(Coefficient* gf_){
         gf=gf_;
     }
 
+    void SetScale(double sc_){
+        scale=sc_;
+    }
+
     /// Evaluates the coefficient
     virtual
     double Eval(ElementTransformation& T, const IntegrationPoint& ip){
         double val=gf->Eval(T,ip);
-        return std::exp(mu+ss*val);
+        return scale*std::exp(mu+ss*val);
     }
 
 private:
     double mu;
     double ss;
     Coefficient* gf;
+    double scale;
 };
 
 

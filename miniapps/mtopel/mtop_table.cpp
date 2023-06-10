@@ -289,7 +289,7 @@ public:
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
         gf->SetCorrelationLen(0.2);
         gf->SetMaternParameter(4.0);
-        gf->SetScale(0.2);
+        gf->SetScale(1.0);
         num_samples=100;
     }
 
@@ -434,10 +434,13 @@ public:
         mfem::VectorArrayCoefficient ff(pmesh->SpaceDimension());
         mfem::ConstantCoefficient one(1.0);
         mfem::ConstantCoefficient zero(0.0);
+        mfem::LognormalDistributionCoefficient lf(gf,0.0,1.0);
+        lf.SetScale(0.2);
         CutCoeff cut_co(gf,0.0);
         //ff.Set(1,&one,false);
         //ff.Set(0,&zero,false);
-        ff.Set(0,&cut_co,false);
+        //ff.Set(0,&cut_co,false);
+        ff.Set(0,&lf,false);
         //ff.Set(1,gf,false);
         //ff.Set(1,&cut_co,false);
         ff.Set(1,&one,false);
@@ -453,8 +456,14 @@ public:
         double var=0.0;
         for(int i=0;i<n;i++){
     
-            if((i%2)==0){ cut_co.SetScale(1.0);}
-            else        { cut_co.SetScale(-1.0);} 
+            if((i%2)==0){ //cut_co.SetScale(1.0);
+                lf.SetScale(0.2);
+            }
+            else
+            { //cut_co.SetScale(-1.0);
+                lf.SetScale(-0.2);
+            }
+
             if(seeds.size()<(i+1)){
                 int seed = static_cast<int>(std::time(nullptr));
                 seeds.push_back(seed);
