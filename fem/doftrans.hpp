@@ -31,8 +31,8 @@ namespace mfem
     from the element type e.g. tetrahedron, wedge, or pyramid). The
     StatelessDofTransformation provides access to the transformation operators
     for specific relative face orientations. These are useful, for example, when
-    relating DoFs associated with distinct overlapping meshes such as
-    parent and sub-meshes. 
+    relating DoFs associated with distinct overlapping meshes such as parent and
+    sub-meshes.
 
     These transformations are necessary to ensure that basis functions in
     neighboring (or overlapping) elements align correctly. Closely related but
