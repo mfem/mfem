@@ -93,7 +93,7 @@ public:
     * Indicates whether the ParSubMesh has been created from a domain or
     * surface.
     */
-   SubMesh::From GetFrom()
+   SubMesh::From GetFrom() const
    {
       return from_;
    }
