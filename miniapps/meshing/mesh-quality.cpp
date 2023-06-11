@@ -9,20 +9,20 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//            --------------------------------------------------
-//                          Mesh Quality Miniapp
-//            --------------------------------------------------
+//          ------------------------------------------------------
+//          Mesh Quality Miniapp: Visualize and Check Mesh Quality
+//          ------------------------------------------------------
 //
-// This miniapp extracts geometrics parameters from the Jacobian transformation
+// This miniapp extracts geometric parameters from the Jacobian transformation
 // at each degree-of-freedom of the mesh, and visualizes it. The geometric
-// parameters size, skewness, and aspect-ratio can help assess the
-// quality of a mesh.
+// parameters size, skewness, and aspect-ratio can help assess the quality of a
+// mesh.
 //
 // Compile with: make mesh-quality
+//
 // Sample runs:
-// Visualize using GLVis and VisIt the geometric parameters for blade.mesh
-// mesh-quality -m blade.mesh -size -aspr -skew -vis -visit
-// mesh-quality -m ../../data/square-disc.mesh  -o 2 -size -aspr -skew -vis
+//   mesh-quality -m blade.mesh -size -aspr -skew -vis -visit
+//   mesh-quality -m ../../data/square-disc.mesh  -o 2 -size -aspr -skew -vis
 
 #include "mfem.hpp"
 #include <iostream>
@@ -66,7 +66,6 @@ int main(int argc, char *argv[])
    args.AddOption(&skewness, "-skew", "--skew", "-no-skew",
                   "--no-skew",
                   "Visualize skewness parameter.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -82,9 +81,7 @@ int main(int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   int nSize = 1,
-       nAspr = 1,
-       nSkew = 1;
+   int nSize = 1, nAspr = 1, nSkew = 1;
    if (dim == 3)
    {
       nAspr = 2;
@@ -99,10 +96,10 @@ int main(int argc, char *argv[])
               mesh->GetNodes()->FESpace()->GetFE(0)->GetOrder();
    }
 
-   // Define a GridFunction for all geometric parameters associated
-   // with the mesh.
+   // Define a GridFunction for all geometric parameters associated with the
+   // mesh.
    L2_FECollection l2fec(order, mesh->Dimension());
-   FiniteElementSpace fespace(mesh, &l2fec, nTotalParams); //must order byNodes
+   FiniteElementSpace fespace(mesh, &l2fec, nTotalParams); // must order byNodes
    GridFunction quality(&fespace);
 
    DenseMatrix jacobian(dim);
@@ -192,7 +189,8 @@ int main(int argc, char *argv[])
          {
             cx += gap+visw;
             common::VisualizeField(vis3, "localhost", 19916, skew_gf,
-                                   "Skewness (radians)", cx, cy, visw, vish, "Rjmc");
+                                   "Skewness (radians)", cx, cy, visw, vish,
+                                   "Rjmc");
          }
          double min_skew = skew_gf.Min(),
                 max_skew = skew_gf.Max();
@@ -211,6 +209,7 @@ int main(int argc, char *argv[])
       GridFunction size_gf, aspr_gf1, aspr_gf2,
                    skew_gf1, skew_gf2, skew_gf3;
       socketstream vis1, vis2, vis3, vis4, vis5, vis6;
+
       if (size)
       {
          size_gf.MakeRef(&scfespace, quality.GetData());
@@ -226,6 +225,7 @@ int main(int argc, char *argv[])
          cout << "Max size:            " << max_size << endl;
       }
       idx++;
+
       if (aspect_ratio)
       {
          aspr_gf1.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
@@ -267,6 +267,7 @@ int main(int argc, char *argv[])
          cout << "(in any direction)" << endl;
       }
       else { idx += 2; }
+
       if (skewness)
       {
          skew_gf1.MakeRef(&scfespace, quality.GetData() + (idx++)*ndofs);
@@ -307,6 +308,7 @@ int main(int argc, char *argv[])
          cout << "Max skew 3 (in deg): " << max_skew3*180/M_PI << endl;
       }
       else { idx += 3; }
+
       if (visit)
       {
          visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
