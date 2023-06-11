@@ -65,6 +65,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
    }
 
    SetSize(s);
+   HostWrite();
 
    int p = 0;
    for (i = 0; i < np; i++)
@@ -85,6 +86,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
 void Vector::Load(std::istream &in, int Size)
 {
    SetSize(Size);
+   HostWrite();
 
    for (int i = 0; i < size; i++)
    {
@@ -534,6 +536,19 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       }
 #endif
    }
+}
+
+void Vector::cross3D(const Vector &vin, Vector &vout) const
+{
+   HostRead();
+   vin.HostRead();
+   vout.HostWrite();
+   MFEM_VERIFY(size == 3, "Only 3D vectors supported in cross.");
+   MFEM_VERIFY(vin.Size() == 3, "Only 3D vectors supported in cross.");
+   vout.SetSize(3);
+   vout(0) = data[1]*vin(2)-data[2]*vin(1);
+   vout(1) = data[2]*vin(0)-data[0]*vin(2);
+   vout(2) = data[0]*vin(1)-data[1]*vin(0);
 }
 
 void Vector::median(const Vector &lo, const Vector &hi)
