@@ -27,6 +27,42 @@ namespace internal
 namespace quadrature_interpolator
 {
 
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+static void Derivatives1D(const int NE,
+                          const double *g_,
+                          const double *j_,
+                          const double *x_,
+                          double *y_,
+                          const int vdim,
+                          const int d1d,
+                          const int q1d)
+{
+   const auto g = Reshape(g_, q1d, d1d);
+   const auto j = Reshape(j_, q1d, NE);
+   const auto x = Reshape(x_, d1d, vdim, NE);
+   auto y = Q_LAYOUT == QVectorLayout::byNODES ?
+            Reshape(y_, q1d, vdim, NE):
+            Reshape(y_, vdim, q1d, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         for (int q = 0; q < q1d; q++)
+         {
+            double u = 0.0;
+            for (int d = 0; d < d1d; d++)
+            {
+               u += g(q, d) * x(d, c, e);
+            }
+            if (GRAD_PHYS) { u /= j(q, e); }
+            if (Q_LAYOUT == QVectorLayout::byVDIM)  { y(c, q, e) = u; }
+            if (Q_LAYOUT == QVectorLayout::byNODES) { y(q, c, e) = u; }
+         }
+      }
+   });
+}
+
 // Template compute kernel for derivatives in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
