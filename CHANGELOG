@@ -21,11 +21,16 @@ Version 4.5.3 (development)
   These functions can take the place of the MFEM_FORALL macros, which have been
   preserved for backwards compatibility.
 
+- TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
+  338. Added the tmop-metric-magnitude tool for tracking how metrics change
+  under geometric perturbations.
+
 New and updated examples and miniapps
 -------------------------------------
-- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary fitting to implicit domains defined using level-set functions.
+- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
+  fitting to implicit domains defined using level-set functions.
 
-- Moved the distance solver methods from miniapps/shifted to miniapps/common. 
+- Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
 Discretization improvements
 ---------------------------
@@ -35,6 +40,16 @@ Discretization improvements
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
 - Added support for p-refined meshes in FindPointsGSLIB.
+
+New and updated examples and miniapps
+-------------------------------------
+
+- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
+  serial and parallel examples for diffusion, convection-diffusion, acoustics
+  and Maxwell equations. The miniapp also includes new classes such as 
+  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and 
+  ComplexBlockStaticCondensation. Three new integrators are added in support of 
+  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangentTraceIntegrator
 
 Integrations, testing and documentation
 ---------------------------------------
