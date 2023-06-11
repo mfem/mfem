@@ -11,28 +11,34 @@
 Version 4.5.3 (development)
 ===========================
 
-- Added new methods in the Mesh class to set and get attributes on NURBS patches
-  and patch boundaries.
-
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example code, Example 34/34p, to demonstrate the solution of
   the obstacle problem.
-  
-- Improved lambda body debugging with the addition of mfem::forall functions.
-  These functions can take the place of the MFEM_FORALL macros, which have been
-  preserved for backwards compatibility.
+
+- Added a new miniapp, Mesh Quality, for evaluating mesh quality using size,
+  skewness, and aspect-ratio computed from the Jacobian of the transformation.
+
+- Added a new miniapp for interface and boundary fitting to implicit domains
+  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp
+
+- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes serial
+  and parallel examples for diffusion, convection-diffusion, acoustics and
+  Maxwell equations. The miniapp includes new classes such as (Par)DPGWeakForm,
+  (Par)ComplexDPGWeakForm and (Complex)BlockStaticCondensation. Three new
+  integrators are added in support of DPG systems: TraceIntegrator,
+  NormalTraceIntegrator and TangentTraceIntegrator.
+
+- Moved the distance solver methods from miniapps/shifted to miniapps/common.
+
+Meshing improvements
+--------------------
+- Added new methods in the Mesh class to set and get attributes on NURBS patches
+  and patch boundaries.
 
 - TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
   338. Added the tmop-metric-magnitude tool for tracking how metrics change
   under geometric perturbations.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
-  fitting to implicit domains defined using level-set functions.
-
-- Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
 Discretization improvements
 ---------------------------
@@ -43,20 +49,17 @@ Discretization improvements
 
 - Added support for p-refined meshes in FindPointsGSLIB.
 
-New and updated examples and miniapps
--------------------------------------
-
-- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
-  serial and parallel examples for diffusion, convection-diffusion, acoustics
-  and Maxwell equations. The miniapp also includes new classes such as 
-  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and 
-  ComplexBlockStaticCondensation. Three new integrators are added in support of 
-  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangentTraceIntegrator
-
 Integrations, testing and documentation
 ---------------------------------------
 - Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
   based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
+
+Miscellaneous
+-------------
+- Improved lambda body debugging with the addition of mfem::forall functions.
+  These functions can take the place of the MFEM_FORALL macros, which have been
+  preserved for backwards compatibility.
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================
