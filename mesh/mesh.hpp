@@ -1964,12 +1964,12 @@ public:
 
    /** @brief Computes geometric parameters associated with a Jacobian matrix
        in 2D/3D. These parameters are
-       (i) Area/Volume,
-       (ii) Aspect-ratio (1 in 2D, and 2 non-dimensional and 2 dimensional
-                          parameters in 3D. Dimensional parameters are used
-                          for target construction in TMOP),
-       (iii) skewness (1 in 2D and 3 in 3D), and finally
-       (iv) orientation (1 in 2D and 3 in 3D).
+       (1) Area/Volume,
+       (2) Aspect-ratio (1 in 2D, and 2 non-dimensional and 2 dimensional
+                         parameters in 3D. Dimensional parameters are used
+                         for target construction in TMOP),
+       (3) skewness (1 in 2D and 3 in 3D), and finally
+       (4) orientation (1 in 2D and 3 in 3D).
     */
    void GetGeometricParametersFromJacobian(const DenseMatrix &J,
                                            double &volume,

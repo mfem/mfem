@@ -12214,7 +12214,7 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
          Iden -= rot;
          if (Iden.FNorm2() != 0)
          {
-            // Todo: Handling of these cases.
+            // TODO: Handling of these cases.
             rot.Print();
             MFEM_ABORT("Invalid rotation matrix. Contact TMOP Developers.");
          }
