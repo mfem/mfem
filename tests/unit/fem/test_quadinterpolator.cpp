@@ -38,9 +38,8 @@ static bool testQuadratureInterpolator(const int dim,
    const int seed = 0x100001b3;
    const int ordering = Ordering::byNODES;
 
-   REQUIRE((dim == 2 || dim == 3));
    Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(nx, Element::SEGMENT) :
-               dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL):
+               dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL) :
                Mesh::MakeCartesian3D(nx,nx,nz, Element::HEXAHEDRON);
 
    const H1_FECollection fec(p, dim);
@@ -241,12 +240,12 @@ TEST_CASE("QuadratureInterpolator",
           "[QuadratureInterpolator]"
           "[CUDA]")
 {
-   const auto d = GENERATE(2,3); // dimension
+   const auto dim = GENERATE(1,2,3); // dimension
    const auto p = GENERATE(range(1,7)); // element order, 1 <= p < 7
    const auto q = GENERATE_COPY(p+1,p+2); // 1D quadrature points
    const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
    const auto nx = 3; // number of element in x
    const auto ny = 3; // number of element in y
    const auto nz = 3; // number of element in z
-   testQuadratureInterpolator(d, p, q, l, nx, ny, nz);
+   testQuadratureInterpolator(dim, p, q, l, nx, ny, nz);
 } // TEST_CASE "QuadratureInterpolator"
