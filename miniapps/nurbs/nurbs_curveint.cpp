@@ -1,12 +1,26 @@
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//        ------------------------------------------------------------
+//        NURBS CurveInt Miniapp: Interpolate a Curve in a NURBS Patch
+//        ------------------------------------------------------------
+//
 // Compile with: make nurbs_curveint
 //
 // Sample runs:  ./nurbs_curveint -uw -n 9
 //               ./nurbs_curveint -nw -n 9
-
 //
-// Description:  This example code demonstrates the use of MFEM to interpolate
-//               a curve in a NURBS patch. We first define a square shaped
-//               NURBS patch. We then interpolate a sine function on the bottom
+// Description:  This example code demonstrates the use of MFEM to interpolate a
+//               curve in a NURBS patch. We first define a square shaped NURBS
+//               patch. We then interpolate a sine function on the bottom
 //               edge. The results can be viewed in VisIt.
 //
 //               We use curve interpolation for curves with all weights being 1,
@@ -73,7 +87,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
 
-   // Parse and print commandline options
+   // Parse and print command line options
    args.Parse();
    if (!args.Good())
    {
@@ -136,9 +150,8 @@ int main(int argc, char *argv[])
    }
    patch.KnotInsert(0, *kv);
 
-   // We locate the controlpoints at the location of the
-   // maxima of the knotvectors. This works very well
-   // for patches with unit weights.
+   // We locate the control points at the location of the maxima of the
+   // knot vectors. This works very well for patches with unit weights.
    kv->FindMaxima(i_args,xi_args, u_args);
 
    for (int i = 0; i < ncp; i++)
@@ -160,7 +173,7 @@ int main(int argc, char *argv[])
    if (!ifbspline)
    {
       // Convert to homogeneous coordinates. FindInterpolant returns
-      // cartesian coordinates.
+      // Cartesian coordinates.
       for (int i = 0; i < ncp; i++)
       {
          patch(i,0,0) *= patch(i,0,2);
@@ -219,7 +232,7 @@ int main(int argc, char *argv[])
 
    if (visit)
    {
-      // Print mesh to file for visualisation
+      // Print mesh to file for visualization
       VisItDataCollection dc = VisItDataCollection("mesh", mesh);
       dc.SetPrefixPath("CurveInt");
       dc.SetCycle(0);
