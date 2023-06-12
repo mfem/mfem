@@ -301,6 +301,12 @@ public:
       bfi->AssemblePA(fes);
    }
 
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes)
+   {
+      bfi->AssemblePA(test_fes, trial_fes); // Reverse test and trial
+   }
+
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
    {
       bfi->AssemblePAInteriorFaces(fes);
