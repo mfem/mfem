@@ -48,11 +48,13 @@
 //    Surface fitting to a circular level-set - no-prefinement right now
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa
 //    Surface fitting to a circular level-set - with p-refinement
-//     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
+//     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa -oi 1
+//    Surface fitting to a circular level-set - with p-refinement by increasing of 2 the element order around the interface
+//     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa -oi 2
 //    Surface fitting to a circular level-set with p-refinement on a triangular mesh
-//     make mesh-fitting -j && ./mesh-fitting -m square01_tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa
+//     make mesh-fitting -j && ./mesh-fitting -m square01_tri.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1  -pref -sfa -oi 1
 //    Surface fitting to a spherical level-set - with p-refinement on a hex mesh
-//     make mesh-fitting -j && ./mesh-fitting -m cube.mesh -o 1 -rs 1 -mid 303 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa -pref
+//     make mesh-fitting -j && ./mesh-fitting -m cube.mesh -o 1 -rs 1 -mid 303 -tid 1 -ni 20 -vl 1 -sfc 10 -rtol 1e-5 -ae 1 -sfa -pref -oi 1
 
 
 #include "../../mfem.hpp"
@@ -232,6 +234,7 @@ int main(int argc, char *argv[])
    int mesh_node_ordering = 0;
    bool prefine          = false;
    int pref_order_increase = 1;
+   bool surf_bg_mesh     = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -308,6 +311,9 @@ int main(int argc, char *argv[])
                   "Randomly p-refine the mesh.");
    args.AddOption(&pref_order_increase, "-oi", "--preforderincrease",
                    "How much polynomial order to increase for p-refinement.");
+   args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
+                   "-no-sbgmesh","--no-surf-bg-mesh",
+                   "Use background mesh for surface fitting.");
 
    args.Parse();
    if (!args.Good())
@@ -535,18 +541,122 @@ int main(int argc, char *argv[])
    Array<bool> surf_fit_marker(surf_fit_gf0.Size());
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
+   AdaptivityEvaluator *adapt_grad_surface = NULL;
+   AdaptivityEvaluator *adapt_hess_surface = NULL;
 
    GridFunction *surf_fit_gf0_max_order = &surf_fit_gf0;
    GridFunction *surf_fit_mat_gf_max_order = &surf_fit_mat_gf;
    PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
 
-    std::vector<int> inter_faces;   // Vector to save the faces between two different materials
+    // Background mesh FECollection, FESpace, and GridFunction
+    H1_FECollection *surf_fit_bg_fec = NULL;
+    FiniteElementSpace *surf_fit_bg_fes = NULL;
+    GridFunction *surf_fit_bg_gf0 = NULL;
+    FiniteElementSpace *surf_fit_bg_grad_fes = NULL;
+    GridFunction *surf_fit_bg_grad = NULL;
+    FiniteElementSpace *surf_fit_bg_hess_fes = NULL;
+    GridFunction *surf_fit_bg_hess = NULL;
+
+    // If a background mesh is used, we interpolate the Gradient and Hessian
+    // from that mesh to the current mesh being optimized.
+    FiniteElementSpace *surf_fit_grad_fes = NULL;
+    GridFunction *surf_fit_grad = NULL;
+    FiniteElementSpace *surf_fit_hess_fes = NULL;
+    GridFunction *surf_fit_hess = NULL;
+
+    // Setup background mesh for surface fitting
+    Mesh *mesh_surf_fit_bg = NULL;
+    std::cout << "1. " << std::endl;
+    if (surf_bg_mesh)
+    {
+        mesh_surf_fit_bg = new Mesh(*mesh);
+        for (int ref = 0; ref < 3; ref++) { mesh->UniformRefinement(); } // Refine the mesh in an uniform way 10 times
+    }
+    std::cout << "2. " << std::endl;
+
+    if (surf_bg_mesh)
+    {
+        mesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
+
+        Vector p_min(dim), p_max(dim);
+        mesh->GetBoundingBox(p_min, p_max);
+        GridFunction &x_bg = *mesh_surf_fit_bg->GetNodes();
+        const int num_nodes = x_bg.Size() / dim;
+        for (int i = 0; i < num_nodes; i++)
+        {
+            for (int d = 0; d < dim; d++)
+            {
+                double length_d = p_max(d) - p_min(d),
+                        extra_d = 0.2 * length_d;
+                x_bg(i + d*num_nodes) = p_min(d) - extra_d +
+                                        x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
+            }
+        }
+        surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
+        surf_fit_bg_fes = new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec);
+        surf_fit_bg_gf0 = new GridFunction(surf_fit_bg_fes);
+    }
+
+    std::cout << "3. " << std::endl;
+
+   std::vector<int> inter_faces;   // Vector to save the faces between two different materials
    if (surface_fit_const > 0.0)
    {
       // Define a function coefficient (based on the analytic description of
       // the level-set)
       FunctionCoefficient ls_coeff(surface_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+       std::cout << "3.1 " << std::endl;
+      surf_fit_gf0.ProjectCoefficient(ls_coeff); // Needed if !surf_bf_mesh
+       std::cout << "3.2. " << std::endl;
+      if (surf_bg_mesh)
+       {
+           std::cout << "3.1. " << std::endl;
+           surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
+
+           surf_fit_bg_grad_fes =
+                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim);
+           surf_fit_bg_grad = new GridFunction(surf_fit_bg_grad_fes);
+
+           surf_fit_grad_fes =
+                   new FiniteElementSpace(mesh, &surf_fit_fec, dim);
+           surf_fit_grad = new GridFunction(surf_fit_grad_fes);
+
+           surf_fit_bg_hess_fes =
+                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim * dim);
+           surf_fit_bg_hess = new GridFunction(surf_fit_bg_hess_fes);
+
+           surf_fit_hess_fes =
+                   new FiniteElementSpace(mesh, &surf_fit_fec, dim * dim);
+           surf_fit_hess = new GridFunction(surf_fit_hess_fes);
+           std::cout << "3.2. " << std::endl;
+           //Setup gradient of the background mesh
+           const int size_bg = surf_fit_bg_gf0->Size();
+           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
+           {
+               GridFunction surf_fit_bg_grad_comp(
+                       surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
+           }
+           std::cout << "3.3. " << std::endl;
+           //Setup Hessian on background mesh
+           int id = 0;
+           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
+           {
+               for (int idir = 0; idir < mesh_surf_fit_bg->Dimension(); idir++)
+               {
+                   GridFunction surf_fit_bg_grad_comp(
+                           surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+                   GridFunction surf_fit_bg_hess_comp(
+                           surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
+                   surf_fit_bg_grad_comp.GetDerivative(1, idir,
+                                                       surf_fit_bg_hess_comp);
+                   id++;
+               }
+           }
+           std::cout << "3.4. " << std::endl;
+       }
+
+       std::cout << "4. " << std::endl;
 
       for (int i = 0; i < mesh->GetNE(); i++)
       {
@@ -558,7 +668,9 @@ int main(int argc, char *argv[])
       if (prefine)
       {
          // TODO
+          std::cout << "4.2. " << std::endl;
          int max_order = fespace->GetMaxElementOrder();
+          std::cout << "4.3. " << std::endl;
          for (int i=0; i < mesh->GetNumFaces(); i++)
          {
              Array<int> els;
@@ -577,17 +689,18 @@ int main(int argc, char *argv[])
                  }
              }
          }
-
+          std::cout << "4.4. " << std::endl;
          fespace->Update(false);
          surf_fit_fes.CopySpaceElementOrders(*fespace);
          surf_fit_fes.Update(false);
-
+          std::cout << "4.5. " << std::endl;
          preft_fespace.Transfer(x);
          preft_fespace.Transfer(x0);
          preft_fespace.Transfer(rdm);
          preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
          preft_surf_fit_fes.Transfer(surf_fit_gf0);
          surf_fit_marker.SetSize(surf_fit_gf0.Size());
+          std::cout << "4.6. " << std::endl;
 
          x.SetTrueVector();
          x.SetFromTrueVector();
@@ -655,15 +768,32 @@ int main(int argc, char *argv[])
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
+          if (surf_bg_mesh)
+          {
+              adapt_grad_surface = new InterpolatorFP;
+              adapt_hess_surface = new InterpolatorFP;
+          }
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
       }
       else { MFEM_ABORT("Bad interpolation option."); }
-
-      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
+       std::cout << "5. " << std::endl;
+       if (!surf_bg_mesh)
+       {
+            tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
                                        surf_fit_coeff, *adapt_surface);
+       }
+       else
+       {
+           tmop_integ->EnableSurfaceFittingFromSource(
+                   *surf_fit_bg_gf0, surf_fit_gf0,
+                   surf_fit_marker, surf_fit_coeff, *adapt_surface,
+                   *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
+                   *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
+       }
 
+       std::cout << "6. " << std::endl;
 
       if (prefine)
       {
@@ -674,7 +804,7 @@ int main(int argc, char *argv[])
       }
       if (visualization)
       {
-         socketstream vis1, vis2, vis3;
+         socketstream vis1, vis2, vis3, vis4;
          common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
                                 "Level Set 0",
                                 300, 600, 300, 300);
@@ -683,6 +813,12 @@ int main(int argc, char *argv[])
          common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
                                 "Dofs to Move",
                                 900, 600, 300, 300);
+         if (surf_bg_mesh)
+         {
+             common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
+                                     "Level Set - Background",
+                                     0, 400, 300, 300);
+         }
       }
       mesh->SetNodalGridFunction(&x);
    }
@@ -957,7 +1093,7 @@ int main(int argc, char *argv[])
           double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
           error_sum += error_face;
       }
-      std::cout << "Nbr DOFs: " << fespace->GetNDofs() << std::endl;
+      std::cout << "Nbr DOFs: " << fespace->GetNDofs() << ", Max order: " << fespace->GetMaxElementOrder() <<  std::endl;
       std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
 
    }
@@ -982,10 +1118,24 @@ int main(int argc, char *argv[])
    delete S;
    delete S_prec;
    delete adapt_surface;
+   delete adapt_grad_surface;
+   delete adapt_hess_surface;
+   delete surf_fit_hess;
+   delete surf_fit_hess_fes;
+   delete surf_fit_bg_hess;
+   delete surf_fit_bg_hess_fes;
+   delete surf_fit_grad;
+   delete surf_fit_grad_fes;
+   delete surf_fit_bg_grad;
+   delete surf_fit_bg_grad_fes;
+   delete surf_fit_bg_gf0;
+   delete surf_fit_bg_fes;
+   delete surf_fit_bg_fec;
    delete target_c;
    delete metric;
    delete fespace;
    delete fec;
+   delete mesh_surf_fit_bg;
    delete mesh;
 
    return 0;
