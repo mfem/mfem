@@ -994,7 +994,9 @@ public:
 
    /// @brief Returns indices of degrees of freedom for the @a i'th element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
-   /// not necessarily equal to 1. See also GetElementDofs().
+   /// not necessarily equal to 1. The returned indexes are always ordered
+   /// byNODES, irrespective of whether the space is byNODES or byVDIM.
+   /// See also GetElementDofs().
    ///
    /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
