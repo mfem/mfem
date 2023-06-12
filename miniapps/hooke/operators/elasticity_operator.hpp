@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,7 +65,7 @@ public:
     * that memory is kept alive during successive call. The data layout of the
     * outputs will be
     *
-    * @a Ke_diag: #dofs x #dofs x #dofs x dim x ne x dim
+    * @a Ke_diag: dofs x dofs x dofs x dim x ne x dim
     *
     * @a K_diag_local: width(H1_Restriction) x dim
     *

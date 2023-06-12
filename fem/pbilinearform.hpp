@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,9 +31,8 @@ class ParBilinearForm : public BilinearForm
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
-   /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction Xaux, Yaux;
-   mutable Vector Ytmp;
+   /// Auxiliary vectors used in TrueAddMult(): L-, L-, and T-vector, resp.
+   mutable Vector Xaux, Yaux, Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 

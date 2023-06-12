@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -70,13 +70,6 @@ if (MFEM_USE_MPI)
     pncmesh.hpp
     submesh/ptransfermap.hpp
     submesh/psubmesh.hpp)
-endif()
-
-if (MFEM_USE_MESQUITE)
-  list(APPEND SRCS mesquite.cpp)
-  # If this list (HDRS -> HEADERS) is used for install, we probably want the
-  # header added all the time.
-  list(APPEND HDRS mesquite.hpp)
 endif()
 
 if (MFEM_USE_PUMI)

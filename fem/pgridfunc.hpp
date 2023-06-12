@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -225,6 +225,10 @@ public:
    virtual void GetVectorValue(ElementTransformation &T,
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
+
+   /** @brief For each vdof, counts how many elements contain the vdof,
+       as containment is determined by FiniteElementSpace::GetElementVDofs(). */
+   virtual void CountElementsPerVDof(Array<int> &elem_per_vdof) const;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
    void GetDerivative(int comp, int der_comp, ParGridFunction &der);

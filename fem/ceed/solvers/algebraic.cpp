@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -275,9 +275,14 @@ CeedOperator CoarsenCeedCompositeOperator(
                                       &op_coarse); PCeedChk(ierr);
 
    int nsub;
-   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    CeedOperator *subops;
+#if CEED_VERSION_GE(0, 10, 2)
+   ierr = CeedCompositeOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
+   ierr = CeedCompositeOperatorGetSubList(op, &subops); PCeedChk(ierr);
+#else
+   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    ierr = CeedOperatorGetSubList(op, &subops); PCeedChk(ierr);
+#endif
    for (int isub=0; isub<nsub; ++isub)
    {
       CeedOperator subop = subops[isub];
@@ -514,7 +519,7 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
    ierr = CeedVectorGetArray(a, mem, &a_data); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(b, mem, &b_data); CeedChk(ierr);
    MFEM_VERIFY(int(length) == length, "length overflow");
-   MFEM_FORALL(i, length,
+   mfem::forall(length, [=] MFEM_HOST_DEVICE (int i)
    {a_data[i] *= b_data[i];});
 
    ierr = CeedVectorRestoreArray(a, &a_data); CeedChk(ierr);
@@ -588,7 +593,7 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
                                  &multiplicitydata); PCeedChk(ierr);
    ierr = CeedVectorGetArrayWrite(fine_work, mem, &workdata); PCeedChk(ierr);
    MFEM_VERIFY((int)length == length, "length overflow");
-   MFEM_FORALL(i, length,
+   mfem::forall(length, [=] MFEM_HOST_DEVICE (int i)
    {workdata[i] = in_ptr[i] * multiplicitydata[i];});
    ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
                                      &multiplicitydata);
@@ -676,7 +681,6 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       const SparseMatrix *R = fespaces[ilevel+1]->GetRestrictionMatrix();
       if (R)
       {
-         R->EnsureMultTranspose();
          R_tr[ilevel] = new TransposeOperator(*R);
       }
       else

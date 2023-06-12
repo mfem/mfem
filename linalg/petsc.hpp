@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -239,16 +239,24 @@ public:
    /// Set constant values
    PetscParVector& operator= (PetscScalar d);
 
+   /** @brief Set block size of a vector.
+
+       @note This will error if the local size of the vector is not a multiple
+       of the block size @a bs.
+       @note This is a logically collective operation, so all processes need
+       to call it. */
+   void SetBlockSize(PetscInt bs);
+
    /** @brief Set values in a vector.
 
-       @note any process can insert in any location
-       @note This is a collective operation, so all process needs to call it  */
+       @note Any process can insert in any location.
+       @note This is a collective operation, so all processes need to call it.  */
    PetscParVector& SetValues(const Array<PetscInt>&, const Array<PetscScalar>&);
 
    /** @brief Add values in a vector.
 
-       @note any process can add to any location
-       @note This is a collective operation, so all process needs to call it  */
+       @note Any process can add to any location.
+       @note This is a collective operation, so all processes need to call it.  */
    PetscParVector& AddValues(const Array<PetscInt>&, const Array<PetscScalar>&);
 
    /// Define operators for PETSc vectors.
@@ -433,11 +441,19 @@ public:
    /// Matvec transpose: @a y = @a a A^T @a x + @a b @a y.
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
+
+   void AddMult(const Vector &x, Vector &y,
+                const double a = 1.0) const override
+   { Mult(a, x, 1.0, y); }
+
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override
+   { MultTranspose(a, x, 1.0, y); }
 
    /// Get the associated MPI communicator
    MPI_Comm GetComm() const;
@@ -525,6 +541,14 @@ public:
 
    /** @brief Eliminate only the rows from the matrix */
    void EliminateRows(const Array<int> &rows);
+
+   /** @brief Set row and column block sizes of a matrix.
+
+       @note This will error if the local sizes of the matrix are not a
+       multiple of the block sizes.
+       @note This is a logically collective operation, so all processes need
+       to call it.  */
+   void SetBlockSize(PetscInt rbs,PetscInt cbs=-1);
 
    /// Makes this object a reference to another PetscParMatrix
    void MakeRef(const PetscParMatrix &master);
@@ -728,16 +752,16 @@ private:
 
 public:
    PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
-                     bool wrap = true);
+                     bool wrap = true, bool iter_mode = false);
    PetscLinearSolver(const PetscParMatrix &A,
-                     const std::string &prefix = std::string());
+                     const std::string &prefix = std::string(), bool iter_mode = false);
    /// Constructs a solver using a HypreParMatrix.
    /** If @a wrap is true, then the MatMult ops of HypreParMatrix are wrapped.
        No preconditioner can be automatically constructed from PETSc. If
        @a wrap is false, the HypreParMatrix is converted into a the AIJ
        PETSc format, which is suitable for most preconditioning methods. */
    PetscLinearSolver(const HypreParMatrix &A, bool wrap = true,
-                     const std::string &prefix = std::string());
+                     const std::string &prefix = std::string(), bool iter_mode = false);
    virtual ~PetscLinearSolver();
 
    /// Sets the operator to be used for mat-vec operations and
@@ -764,10 +788,12 @@ public:
 class PetscPCGSolver : public PetscLinearSolver
 {
 public:
-   PetscPCGSolver(MPI_Comm comm, const std::string &prefix = std::string());
-   PetscPCGSolver(PetscParMatrix &A, const std::string &prefix = std::string());
-   PetscPCGSolver(HypreParMatrix &A,bool wrap=true,
-                  const std::string &prefix = std::string());
+   PetscPCGSolver(MPI_Comm comm, const std::string &prefix = std::string(),
+                  bool iter_mode = false);
+   PetscPCGSolver(PetscParMatrix &A, const std::string &prefix = std::string(),
+                  bool iter_mode = false);
+   PetscPCGSolver(HypreParMatrix &A, bool wrap = true,
+                  const std::string &prefix = std::string(), bool iter_mode = false);
 };
 
 

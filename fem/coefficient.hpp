@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1319,7 +1319,6 @@ public:
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   using MatrixCoefficient::Eval;
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a dense matrix @a K. */
    /** This function allows the use of SymmetricMatrixCoefficient in situations
@@ -1348,7 +1347,6 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
@@ -1400,7 +1398,6 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
@@ -2239,7 +2236,7 @@ public:
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(MatrixCoefficient &coeff, bool transpose=false);
 
-   /// @brief Project the tranpose of @a coeff.
+   /// @brief Project the transpose of @a coeff.
    ///
    /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
    void ProjectTranspose(MatrixCoefficient &coeff);

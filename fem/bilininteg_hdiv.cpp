@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,7 +40,7 @@ void PAHdivSetup2D(const int Q1D,
    auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 3 : 4, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -103,7 +103,7 @@ void PAHdivSetup3D(const int Q1D,
    auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -117,8 +117,8 @@ void PAHdivSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
          const double c_detJ = W[q] / detJ;
 
          // (1/detJ) J^T C J
@@ -199,7 +199,7 @@ void PAHdivMassApply2D(const int D1D,
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -333,7 +333,7 @@ void SmemPAHdivMassApply2D(const int NE,
    const auto x = Reshape(x_.Read(), D1D*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
+   mfem::forall_3D(NE, Q1D, Q1D, VDIM, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
 
@@ -492,7 +492,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
    auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -549,7 +549,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -624,7 +624,7 @@ void PAHdivMassApply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D][VDIM];
 
@@ -822,7 +822,7 @@ void SmemPAHdivMassApply3D(const int NE,
    const auto x = Reshape(x_.Read(), D1D*(D1D-1)*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
+   mfem::forall_3D(NE, Q1D, Q1D, VDIM, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
 
@@ -1140,7 +1140,7 @@ static void PADivDivSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1167,7 +1167,7 @@ static void PADivDivSetup3D(const int Q1D,
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1181,8 +1181,8 @@ static void PADivDivSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
          y(q,e) = W[q] * coeff(q, e) / detJ;
       }
    });
@@ -1211,7 +1211,7 @@ static void PADivDivApply2D(const int D1D,
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[MAX_Q1D][MAX_Q1D];
 
@@ -1330,7 +1330,7 @@ static void PADivDivApply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
 
@@ -1561,7 +1561,7 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
    auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
    auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -1618,7 +1618,7 @@ static void PADivDivAssembleDiagonal3D(const int D1D,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
    auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -1692,7 +1692,7 @@ static void PADivL2Setup2D(const int Q1D,
    auto W = w.Read();
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1712,7 +1712,7 @@ static void PADivL2Setup3D(const int Q1D,
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1797,7 +1797,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
@@ -1821,7 +1821,7 @@ static void PAHdivL2Apply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
 
@@ -1960,7 +1960,7 @@ static void PAHdivL2Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,
@@ -1984,7 +1984,7 @@ static void PAHdivL2Apply2D(const int D1D,
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), L2D1D, L2D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[MAX_Q1D][MAX_Q1D];
 
@@ -2090,7 +2090,7 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
    auto x = Reshape(x_.Read(), L2D1D, L2D1D, L2D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
 
@@ -2252,7 +2252,7 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
    auto x = Reshape(x_.Read(), L2D1D, L2D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double div[MAX_Q1D][MAX_Q1D];
 
@@ -2387,7 +2387,7 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
    auto D = Reshape(D_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int rz = 0; rz < L2D1D; ++rz)
       {
@@ -2510,7 +2510,7 @@ static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
    auto D = Reshape(D_.Read(), 2*(D1D-1)*D1D, NE);
    auto diag = Reshape(diag_.ReadWrite(), L2D1D, L2D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int ry = 0; ry < L2D1D; ++ry)
       {

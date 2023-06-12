@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,24 +43,23 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
    pfes = pf;
 }
 
-void ParLinearForm::Assemble(bool use_device)
+void ParLinearForm::Assemble()
 {
-   bool all_supports_device = use_device;
-
-   if (use_device)
-   {
-      bool supports_device = SupportsDevice();
-      MPI_Allreduce(&supports_device, &all_supports_device, 1,
-                    MPI_C_BOOL, MPI_LAND, pfes->GetComm());
-   }
-
-   LinearForm::Assemble(all_supports_device);
+   LinearForm::Assemble();
 
    if (interior_face_integs.Size())
    {
       pfes->ExchangeFaceNbrData();
       AssembleSharedFaces();
    }
+}
+
+bool ParLinearForm::SupportsDevice() const
+{
+   bool parallel;
+   bool local = LinearForm::SupportsDevice();
+   MPI_Allreduce(&local, &parallel, 1, MPI_C_BOOL, MPI_LAND, pfes->GetComm());
+   return parallel;
 }
 
 void ParLinearForm::AssembleSharedFaces()

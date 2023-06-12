@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,7 +16,7 @@ namespace mfem
 
 QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
                                          const IntegrationRule &ir)
-   : mesh(mesh_)
+   : mesh(mesh_), order(ir.GetOrder())
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {

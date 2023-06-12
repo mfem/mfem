@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,17 +33,17 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
 
       // There is no immediate relation and both src and dst come from a
       // SubMesh, check if they have an equivalent root parent.
-      if (SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*src_sm) !=
-          SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*dst_sm))
+      if (SubMeshUtils::GetRootParent(*src_sm) !=
+          SubMeshUtils::GetRootParent(*dst_sm))
       {
          MFEM_ABORT("Can't find a relation between the two GridFunctions");
       }
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new ParFiniteElementSpace(*src.ParFESpace(),
-                                            *const_cast<ParMesh *>(SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>
-                                                                   (*src_sm)));
+      root_fes_.reset(new ParFiniteElementSpace(
+                         *src.ParFESpace(),
+                         *const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm))));
       subfes1 = src.ParFESpace();
       subfes2 = dst.ParFESpace();
 
@@ -183,7 +183,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    // TODO: do the reduce only on dofs of interest
-   root_gc_->Reduce<double>(f, GroupCommunicator::Sum);
+   root_gc_->Reduce<double>(f.HostReadWrite(), GroupCommunicator::Sum);
 
    // Indices that were set from this rank or other ranks have been summed up
    // and therefore need to be "averaged". Note that this results in the exact
@@ -211,12 +211,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
       }
    }
 
-   root_gc_->Bcast<double>(f);
-}
-
-ParTransferMap::~ParTransferMap()
-{
-   delete root_fes_;
+   root_gc_->Bcast<double>(f.HostReadWrite());
 }
 
 #endif // MFEM_USE_MPI

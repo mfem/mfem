@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,7 +11,12 @@
 
 #include "dist_solver.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
+{
+
+namespace common
 {
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
@@ -93,10 +98,9 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
       }
    }
 
-   const double eps = 1e-16;
    for (int i = 0; i < size; i++)
    {
-      const double vec_magn = std::sqrt(magn(i) + eps);
+      const double vec_magn = std::sqrt(magn(i) + 1e-12);
       for (int d = 0; d < dim; d++)
       {
          dist_v(i + d*size) *= fabs(dist_s(i)) / vec_magn;
@@ -146,14 +150,13 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       }
    }
 
-   const int cg_print_lvl  = (print_level > 0) ? 1 : 0,
-             amg_print_lvl = (print_level > 1) ? 1 : 0;
+   int amg_print_level = 0;
 
    // Solver.
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(100);
-   cg.SetPrintLevel(cg_print_lvl);
+   cg.SetPrintLevel(print_level);
    OperatorPtr A;
    Vector B, X;
 
@@ -186,7 +189,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       u_dirichlet = 0.0;
       a_d.FormLinearSystem(ess_tdof_list, u_dirichlet, b, A, X, B);
       auto *prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(amg_print_lvl);
+      prec->SetPrintLevel(amg_print_level);
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -204,7 +207,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       ess_tdof_list.DeleteAll();
       a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
       auto *prec2 = new HypreBoomerAMG;
-      prec2->SetPrintLevel(amg_print_lvl);
+      prec2->SetPrintLevel(amg_print_level);
       cg.SetPreconditioner(*prec2);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -241,8 +244,10 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       a2.FormLinearSystem(no_ess_tdofs, distance, b2, A, X, B);
 
       auto *prec = new HypreBoomerAMG;
-      prec->SetPrintLevel(amg_print_lvl);
-      cg.SetPreconditioner(*prec);
+      prec->SetPrintLevel(amg_print_level);
+      OrthoSolver ortho(pfes.GetComm());
+      ortho.SetSolver(*prec);
+      cg.SetPreconditioner(ortho);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a2.RecoverFEMSolution(X, b2, distance);
@@ -279,6 +284,28 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    }
 }
 
+double NormalizationDistanceSolver::NormalizationCoeff::
+Eval(ElementTransformation &T,const IntegrationPoint &ip)
+{
+   T.SetIntPoint(&ip);
+   Vector u_grad;
+   u.GetGradient(T, u_grad);
+   const double u_value  = u.GetValue(T, ip);
+
+   return u_value / sqrt(u_value * u_value + u_grad * u_grad + 1e-12);
+}
+
+void NormalizationDistanceSolver::ComputeScalarDistance(Coefficient &u_coeff,
+                                                        ParGridFunction &dist)
+{
+   ParFiniteElementSpace &pfes = *dist.ParFESpace();
+
+   ParGridFunction u_gf(&pfes);
+   u_gf.ProjectCoefficient(u_coeff);
+
+   NormalizationCoeff rv_coeff(u_gf);
+   dist.ProjectDiscCoefficient(rv_coeff, GridFunction::AvgType::ARITHMETIC);
+}
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)
@@ -319,21 +346,21 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
 
    //define the solvers
    HypreBoomerAMG *prec = new HypreBoomerAMG();
-   prec->SetPrintLevel((print_level > 1) ? 1 : 0);
+   prec->SetPrintLevel(0);
 
    GMRESSolver *gmres;
    gmres = new GMRESSolver(lcomm);
    gmres->SetAbsTol(newton_abs_tol/10);
    gmres->SetRelTol(newton_rel_tol/10);
    gmres->SetMaxIter(100);
-   gmres->SetPrintLevel((print_level > 1) ? 1 : 0);
+   gmres->SetPrintLevel(0);
    gmres->SetPreconditioner(*prec);
 
    NewtonSolver ns(lcomm);
    ns.iterative_mode = true;
    ns.SetSolver(*gmres);
    ns.SetOperator(*nf);
-   ns.SetPrintLevel((print_level == 0) ? -1 : 0);
+   ns.SetPrintLevel(print_level);
    ns.SetRelTol(newton_rel_tol);
    ns.SetAbsTol(newton_abs_tol);
    ns.SetMaxIter(newton_iter);
@@ -343,7 +370,10 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
 
    for (int pp=3; pp<maxp; pp++)
    {
-      if (myrank == 0 && print_level > 0) { std::cout<<"pp="<<pp<<std::endl; }
+      if (myrank == 0 && (print_level.summary || print_level.iterations))
+      {
+         std::cout << "pp = " << pp << std::endl;
+      }
       pint->SetPower(pp);
       ns.Mult(b, *sv);
    }
@@ -352,12 +382,6 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
    GridFunctionCoefficient gfx(&xf);
    PProductCoefficient tsol(func,gfx);
    fdist.ProjectCoefficient(tsol);
-
-   // (optional) Force positive distances everywhere.
-   // for (int i = 0; i < fdist.Size(); i++)
-   // {
-   //    fdist(i) = fabs(fdist(i));
-   // }
 
    delete gmres;
    delete prec;
@@ -792,4 +816,8 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
    ffield.ProjectCoefficient(gfc);
 }
 
-}
+} // namespace common
+
+} // namespace mfem
+
+#endif

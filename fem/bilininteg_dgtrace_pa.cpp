@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ static void PADGTraceSetup2D(const int Q1D,
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
-   MFEM_FORALL(tid, Q1D*NF,
+   mfem::forall(Q1D*NF, [=] MFEM_HOST_DEVICE (int tid)
    {
       const int f = tid / Q1D;
       const int q = tid % Q1D;
@@ -87,7 +87,7 @@ static void PADGTraceSetup3D(const int Q1D,
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
-   MFEM_FORALL(tid, Q1D*Q1D*NF,
+   mfem::forall(Q1D*Q1D*NF, [=] MFEM_HOST_DEVICE (int tid)
    {
       int f = tid / (Q1D * Q1D);
       int q2 = (tid / Q1D) % Q1D;
@@ -99,7 +99,7 @@ static void PADGTraceSetup3D(const int Q1D,
             const double v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
             const double v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
             const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
-            /* */              n(q1,q2,2,f) * v2;
+                               n(q1,q2,2,f) * v2;
             const double abs = dot > 0.0 ? dot : -dot;
             const double w = W[q1+q2*Q1D]*r*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
@@ -145,7 +145,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el =
-      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
    FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
@@ -267,7 +267,7 @@ void PADGTraceApply2D(const int NF,
    auto x = Reshape(x_.Read(), D1D, VDIM, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, VDIM, 2, NF);
 
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -358,7 +358,7 @@ void PADGTraceApply3D(const int NF,
    auto x = Reshape(x_.Read(), D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, 2, NF);
 
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -503,7 +503,7 @@ void SmemPADGTraceApply3D(const int NF,
    auto x = Reshape(x_.Read(), D1D, D1D, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NF);
 
-   MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NF, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int f)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -668,7 +668,7 @@ void PADGTraceApplyTranspose2D(const int NF,
    auto x = Reshape(x_.Read(), D1D, VDIM, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, VDIM, 2, NF);
 
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -764,7 +764,7 @@ void PADGTraceApplyTranspose3D(const int NF,
    auto x = Reshape(x_.Read(), D1D, D1D, VDIM, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, 2, NF);
 
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       const int VDIM = 1;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -920,7 +920,7 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
    auto x = Reshape(x_.Read(), D1D, D1D, 2, NF);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NF);
 
-   MFEM_FORALL_2D(f, NF, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NF, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int f)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;

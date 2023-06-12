@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@ void BLFEvalAssemble2D(const int vdim, const int nbe, const int d, const int q,
    const auto C = cst ? Reshape(F,cvdim,1,1) : Reshape(F,cvdim,q,nbe);
    auto Y = Reshape(y, d, vdim, nbe);
 
-   MFEM_FORALL(e, nbe,
+   mfem::forall(nbe, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -86,7 +86,7 @@ void BLFEvalAssemble3D(const int vdim, const int nbe, const int d, const int q,
    const auto C = cst ? Reshape(F,cvdim,1,1,1) : Reshape(F,cvdim,q,q,nbe);
    auto Y = Reshape(y, d, d, vdim, nbe);
 
-   MFEM_FORALL_2D(e, nbe, q, q, 1,
+   mfem::forall_2D(nbe, q, q, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -216,40 +216,10 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
-   const int nq = ir.GetNPoints();
    Mesh &mesh = *fes.GetMesh();
-   const int nbe = mesh.GetNFbyType(FaceType::Boundary);
-   const int dim = mesh.Dimension();
-   const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
-   Vector coeff;
-   if (ConstantCoefficient *cQ =
-          dynamic_cast<ConstantCoefficient*>(&Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else
-   {
-      coeff.SetSize(nq * nbe);
-      auto C = Reshape(coeff.HostWrite(), nq, nbe);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         const Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-         if (!face.IsBoundary()) { continue; }
-         ElementTransformation &Tr = *mesh.GetFaceElementTransformations(f);
-         for (int q = 0; q < nq; ++q)
-         {
-            int iq = ToLexOrdering(dim, face.element[0].local_face_id,
-                                   maps.nqpt, q);
-            const IntegrationPoint &ip = ir[iq];
-            Tr.SetIntPoint(&ip);
-            C(q,f_ind) = Q.Eval(Tr, ip);
-         }
-         f_ind++;
-      }
-   }
+   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    BLFEvalAssemble(fes, ir, markers, coeff, false, b);
 }
 
@@ -261,41 +231,10 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
-   const int nq = ir.GetNPoints();
    Mesh &mesh = *fes.GetMesh();
-   const int nbe = mesh.GetNFbyType(FaceType::Boundary);
-   const int dim = mesh.Dimension();
-   const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
-   Vector coeff;
-   if (const auto *cQ = dynamic_cast<VectorConstantCoefficient*>(&Q))
-   {
-      coeff = cQ->GetVec();
-   }
-   else
-   {
-
-      Vector coeff_val(dim);
-      coeff.SetSize(dim * nq * nbe);
-      auto C = Reshape(coeff.HostWrite(), dim, nq, nbe);
-      int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         const Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-         if (!face.IsBoundary()) { continue; }
-         ElementTransformation &Tr = *mesh.GetFaceElementTransformations(f);
-         for (int q = 0; q < nq; ++q)
-         {
-            int iq = ToLexOrdering(dim, face.element[0].local_face_id,
-                                   maps.nqpt, q);
-            const IntegrationPoint &ip = ir[iq];
-            Tr.SetIntPoint(&ip);
-            Q.Eval(coeff_val, Tr, ip);
-            for (int d=0; d<dim; ++d) { C(d,q,f_ind) = coeff_val[d]; }
-         }
-         f_ind++;
-      }
-   }
+   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    BLFEvalAssemble(fes, ir, markers, coeff, true, b);
 }
 

@@ -39,7 +39,7 @@ namespace mfem {
  * - Device
  * - Memory
  * - MemoryManager
- * - MFEM_FORALL macro in forall.hpp
+ * - mfem::forall functions in forall.hpp
  *
  * <H3>Example codes</H3>
  * - <a class="el" href="ex0_8cpp_source.html">Example 0</a>: simplest example, nodal H1 FEM for the Laplace problem
@@ -186,6 +186,7 @@ namespace mfem {
  * - <a class="el" href="extruder_8cpp_source.html">Extruder</a>: extrude a low-dimensional mesh into a higher dimension
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
  * - <a class="el" href="mesh-optimizer_8cpp_source.html">Mesh Optimizer</a>: optimize high-order meshes, <a class="el" href="mesh-optimizer_8cpp_source.html">serial</a> and <a class="el" href="pmesh-optimizer_8cpp_source.html">parallel</a> versions
+ * - <a class="el" href="mesh-quality_8cpp_source.html">Mesh Quality</a>: visualize and check mesh quality
  * - <a class="el" href="trimmer_8cpp_source.html">Trimmer</a>: trim elements from existing meshes
  * - <a class="el" href="display-basis_8cpp_source.html">Display Basis</a>: visualize finite element basis functions
  * - <a class="el" href="get-values_8cpp_source.html">Get Values</a>: extract field values via DataCollection classes

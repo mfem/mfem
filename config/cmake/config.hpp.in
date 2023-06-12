@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,6 +39,9 @@
 // Description of the git commit used to build MFEM.
 #cmakedefine MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
+// Enable shared library build of MFEM.
+#cmakedefine MFEM_SHARED_BUILD
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 #cmakedefine MFEM_USE_MPI
@@ -76,9 +79,6 @@
 
 // Internal MFEM option: enable group/batch allocation for some small objects.
 #cmakedefine MFEM_USE_MEMALLOC
-
-// Enable MFEM functionality based on the Mesquite library.
-#cmakedefine MFEM_USE_MESQUITE
 
 // Enable MFEM functionality based on the SuiteSparse library.
 #cmakedefine MFEM_USE_SUITESPARSE
