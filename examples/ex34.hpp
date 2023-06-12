@@ -46,23 +46,34 @@ void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
    ndof1 = el1.GetDof();
 
    nor.SetSize(dim);
+   nor = 0.0;
    nh.SetSize(dim);
+   nh = 0.0;
    ni.SetSize(dim);
+   ni = 0.0;
    adjJ.SetSize(dim);
+   adjJ = 0.0;
    if (MQ)
    {
       mq.SetSize(dim);
+      mq = 0.0;
    }
 
    shape1.SetSize(ndof1);
+   shape1 = 0.0;
    dshape1.SetSize(ndof1, dim);
+   dshape1 = 0.0;
    dshape1dn.SetSize(ndof1);
+   dshape1dn = 0.0;
    if (Trans.Elem2No >= 0)
    {
       ndof2 = el2.GetDof();
       shape2.SetSize(ndof2);
+      shape2 = 0.0;
       dshape2.SetSize(ndof2, dim);
+      dshape2 = 0.0;
       dshape2dn.SetSize(ndof2);
+      dshape2dn = 0.0;
    }
    else
    {
@@ -343,17 +354,25 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
    ndof = el.GetDof();
 
    nor.SetSize(dim);
+   nor = 0.0;
    nh.SetSize(dim);
+   nh = 0.0;
    ni.SetSize(dim);
+   ni = 0.0;
    adjJ.SetSize(dim);
+   adjJ = 0.0;
    if (MQ)
    {
       mq.SetSize(dim);
+      mq = 0.0;
    }
 
    shape.SetSize(ndof);
+   shape = 0.0;
    dshape.SetSize(ndof, dim);
+   dshape = 0.0;
    dshape_dn.SetSize(ndof);
+   dshape_dn = 0.0;
 
    Vector elvect;
    elvect.SetSize(ndof);
@@ -491,11 +510,16 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
    elmat.SetSize(te_ndofs*vdim, tr_ndofs);
    elmat = 0.0;
 
-   Vector ortho(dim), nor(dim);
+   Vector nor(dim);
+   nor = 0.0;
    Vector tr_s1(tr_ndof1);
+   tr_s1 = 0.0;
    Vector tr_s2(tr_ndof2);
+   tr_s2 = 0.0;
    Vector te_s1(te_ndof1);
+   te_s1 = 0.0;
    Vector te_s2(te_ndof2);
+   te_s2 = 0.0;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -523,6 +547,10 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
    DenseMatrix A12(te_ndof1*vdim, tr_ndof2);
    DenseMatrix A21(te_ndof2*vdim, tr_ndof1);
    DenseMatrix A22(te_ndof2*vdim, tr_ndof2);
+   A11 = 0.0;
+   A12 = 0.0;
+   A21 = 0.0;
+   A22 = 0.0;
    double w, detJ;
    for (int n=0; n<ir->GetNPoints(); n++)
    {
@@ -665,9 +693,12 @@ void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
 {
    int dim = el.GetDim();
    int dof = el.GetDof();
-   Vector nor(dim), Qvec;
+   Vector nor(dim), Qvec(dim);
+   nor = 0.0;
+   Qvec = 0.0;
 
    shape.SetSize(dof);
+   shape = 0.0;
    elvect.SetSize(dof);
    elvect = 0.0;
 

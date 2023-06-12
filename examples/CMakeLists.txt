@@ -78,6 +78,7 @@ if (MFEM_USE_MPI)
     ex31p.cpp
     ex32p.cpp
     ex33p.cpp
+    ex34p.cpp
     )
 endif()
 

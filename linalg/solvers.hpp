@@ -1185,10 +1185,21 @@ private:
  */
 class BlockOrthoSolver : public Solver
 {
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm mycomm;
+   mutable HYPRE_BigInt global_size;
+   const bool parallel;
+#else
+   mutable int global_size;
+#endif
+   Array<int> bOffsets, vblock, pblock;
+
 public:
    BlockOrthoSolver(Array<int> &bOffsets_);
-
-   int global_size;
+#ifdef MFEM_USE_MPI
+   BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_);
+#endif
 
    void SetSolver(Solver &s);
 
@@ -1199,11 +1210,7 @@ public:
 private:
    Solver *solver = nullptr;
 
-   mutable Vector p_ortho, p_vec, v_vec;
-
-   mutable Vector temp;
-
-   Array<int> bOffsets, vblock, pblock;
+   mutable Vector b_ortho, p_ortho, p_vec, temp;
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
