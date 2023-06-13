@@ -142,7 +142,7 @@ public:
    void SetSize(int s, MemoryType mt);
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
-   void SetSize(int s, Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+   void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
