@@ -144,6 +144,13 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
+double CartesianCoefficient::Eval(ElementTransformation & T,
+                                  const IntegrationPoint & ip)
+{
+   T.Transform(ip, transip);
+   return transip[comp];
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
