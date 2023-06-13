@@ -180,6 +180,8 @@ public:
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
 
+   int GetMeshFaceIndex(int idx) const { return face_indices[idx]; }
+
    /// Write the FaceQuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const override;
 };
