@@ -634,11 +634,19 @@ DenseMatrix SPDESolver::ConstructMatrixCoefficient(double l1, double l2,
    }
    else if (dim == 2)
    {
+      const double c1 = cos(e1);
+      const double s1 = sin(e1);
+      DenseMatrix Rt(2, 2);
+      Rt(0, 0) =  c1;
+      Rt(0, 1) =  s1;
+      Rt(1, 0) = -s1;
+      Rt(1, 1) =  c1;
+      Vector l(2);
+      l(0) = std::pow(l1, 2);
+      l(1) = std::pow(l2, 2);
+      l *= (1 / (2.0 * nu));
       DenseMatrix res(2, 2);
-      res(0, 0) = std::pow(l1, 2) / (2.0 * nu);
-      res(1, 1) = std::pow(l2, 2) / (2.0 * nu);
-      res(0, 1) = 0;
-      res(1, 0) = 0;
+      MultADAt(Rt,l,res);
       return res;
    }
    else
@@ -767,7 +775,7 @@ void SPDESolver::SolveLinearSystem(const HypreParMatrix *Op)
 {
    HypreBoomerAMG prec(*Op);
    prec.SetPrintLevel(-1);
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(fespace_ptr_->GetComm());
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);
