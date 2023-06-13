@@ -982,8 +982,8 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
       loc_gamma_delta(0) = r * u; //local inner product
       loc_gamma_delta(1) = w * u; //local inner product
 
-      MPI_Iallreduce(loc_gamma_delta.HostRead(), glo_gamma_delta.HostWrite(), 2, MPI_DOUBLE, MPI_SUM, GetComm(), &request);      
-      
+      MPI_Iallreduce(loc_gamma_delta.HostRead(), glo_gamma_delta.HostWrite(), 2, MPI_DOUBLE, MPI_SUM, GetComm(), &request);
+
       //Do products computation may be overlapped with the following below
       prec->Mult(w, m);
       oper->Mult(m, n);
@@ -1003,7 +1003,7 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                       << gamma << (print_options.first_and_last ? " ...\n" : "\n");
          }
-         Monitor(0, gamma, r, x);
+         //Monitor(0, gamma, r, x);
 
          if (gamma < 0.0)
          {
@@ -1030,11 +1030,13 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
          MFEM_ASSERT(IsFinite(delta), "delta = " << delta);
          if (delta <= 0.0)
          {
+           /*
             if (Dot(w, w) > 0.0 && print_options.warnings)
             {
                mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                          << delta << '\n';
             }
+           */
             if (delta == 0.0)
             {
                converged = false;
@@ -1068,7 +1070,7 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
                       << gamma << std::endl;
          }
 
-         Monitor(i, gamma, r, x);
+         //Monitor(i, gamma, r, x);
 
          if (gamma <= r0)
          {
@@ -1144,7 +1146,7 @@ void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
 
    final_norm = sqrt(gamma);
 
-   Monitor(final_iter, final_norm, r, x, true);
+   ///Monitor(final_iter, final_norm, r, x, true);
 }
 
 inline void GeneratePlaneRotation(double &dx, double &dy,
