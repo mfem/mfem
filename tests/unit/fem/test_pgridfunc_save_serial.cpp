@@ -62,7 +62,7 @@ TEST_CASE("ParGridFunction in Serial",
    px.ProjectCoefficient(squaredFC);
 
    // Get the ParMesh and ParGridFunction on 1 of the mpi ranks. Check the
-   // L2 error on that rank and save the mesh and gridfunction.
+   // L2 error on that rank and save gridfunction.
    Mesh par_to_ser_mesh = pmesh.GetSerialMesh(save_rank);
    GridFunction x_par_to_ser = px.GetSerialGridFunction(save_rank,
                                                         par_to_ser_mesh);
@@ -74,11 +74,12 @@ TEST_CASE("ParGridFunction in Serial",
 
       // Save
       par_to_ser_mesh.Save("parallel_in_serial.mesh");
-      x_par_to_ser.Save("parallel_in_serial.gf");
    }
    MPI_Barrier(MPI_COMM_WORLD);
 
-   // Load the saved mesh and gridfunction, and check the L2 error on all ranks.
+   // Save the mesh and then load the saved mesh and gridfunction, and check
+   // the L2 error on all ranks.
+   px.SaveAsSerial("parallel_in_serial.gf", 16, save_rank);
    Mesh par_to_ser_mesh_read = Mesh("parallel_in_serial.mesh");
    named_ifgzstream gfstream("parallel_in_serial.gf");
    GridFunction x_par_to_ser_read = GridFunction(&par_to_ser_mesh_read,
