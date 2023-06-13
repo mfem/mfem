@@ -258,6 +258,43 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/// A common base class for returning individual components of the domain's
+/// Cartesian coordinates.
+class CartesianCoefficient : public Coefficient
+{
+protected:
+   int comp;
+   mutable Vector transip;
+
+   /// @a comp_ index of the desired component (0 -> x, 1 -> y, 2 -> z)
+   CartesianCoefficient(int comp_) : comp(comp_), transip(3) {}
+
+public:
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the x-component of the evaluation point
+class CartesianXCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianXCoefficient() : CartesianCoefficient(0) {}
+};
+
+/// Scalar coefficient which returns the y-component of the evaluation point
+class CartesianYCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianYCoefficient() : CartesianCoefficient(1) {}
+};
+
+/// Scalar coefficient which returns the z-component of the evaluation point
+class CartesianZCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianZCoefficient() : CartesianCoefficient(2) {}
+};
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.
