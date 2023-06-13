@@ -151,6 +151,20 @@ double CartesianCoefficient::Eval(ElementTransformation & T,
    return transip[comp];
 }
 
+double CylindricalRadialCoefficient::Eval(ElementTransformation & T,
+                                          const IntegrationPoint & ip)
+{
+   T.Transform(ip, transip);
+   return sqrt(transip[0] * transip[0] + transip[1] * transip[1]);
+}
+
+double CylindricalAzimuthalCoefficient::Eval(ElementTransformation & T,
+                                             const IntegrationPoint & ip)
+{
+   T.Transform(ip, transip);
+   return atan2(transip[1], transip[0]);
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
