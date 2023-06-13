@@ -433,6 +433,16 @@ void MyParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    y.SyncMemory(ys_true);
 }
 
+/** This computes the action of a 2x2 block operator applied within a
+    single element. The full operator will computed by summing
+    contributions from all elements in the mesh.
+
+   /       0             <u_j, u_{i,x}>      \    /n_j\
+   |                                         | * |     |
+   \ <u_j, u_{i,x}>  < -d u_{j,x}, u_{i,x} > /    \q_j/
+
+   Where u_i is the i-th basis function and u_{i,x} is its derivative.
+ */
 void LinearAdvDiff1DIntegrator::AssembleElementVector(
    const Array<const FiniteElement *> &el,
    ElementTransformation &Tr,
@@ -494,6 +504,15 @@ void LinearAdvDiff1DIntegrator::AssembleElementVector(
    }
 }
 
+/**
+
+    - <{q}.nor + 0.5 alpha [n], [u]>
+
+    - <{n}.nor + 0.5 alpha [q], [u]> - < {-d q_{,x}},[u]>
+        + sigma <[q],{-d u_{,x}}> - kappa < {d / h} [q], [u]>
+
+
+*/
 void LinearAdvDiff1DIntegrator::AssembleFaceVector(
    const Array<const FiniteElement *> &el1,
    const Array<const FiniteElement *> &el2,
