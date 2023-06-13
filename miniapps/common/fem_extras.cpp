@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -484,7 +484,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
          sock.precision(8);
          newly_opened = true;
       }
-      sock << "solution\n";
+      sock << "mesh\n";
 
       mesh.Print(sock);
 
@@ -494,8 +494,6 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
               << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc\n"; }
-         if ( vec ) { sock << "vvv"; }
          sock << endl;
       }
 

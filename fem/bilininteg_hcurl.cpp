@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,7 +52,7 @@ void PAHcurlMassApply2D(const int D1D,
    auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -175,7 +175,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto D = Reshape(diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -236,7 +236,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -305,7 +305,7 @@ void SmemPAHcurlMassAssembleDiagonal3D(const int D1D,
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int tD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
@@ -439,7 +439,7 @@ void PAHcurlMassApply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -631,7 +631,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int tD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
@@ -813,7 +813,7 @@ static void PACurlCurlSetup2D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto C = Reshape(coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -843,7 +843,7 @@ static void PACurlCurlSetup3D(const int Q1D,
    auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -857,8 +857,8 @@ static void PACurlCurlSetup3D(const int Q1D,
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
+                             J21 * (J12 * J33 - J32 * J13) +
+                             J31 * (J12 * J23 - J22 * J13);
 
          const double c_detJ = W[q] / detJ;
 
@@ -938,7 +938,7 @@ static void PACurlL2Setup2D(const int Q1D,
    auto W = w.Read();
    auto C = Reshape(coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -1029,7 +1029,7 @@ static void PACurlCurlApply2D(const int D1D,
    auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double curl[MAX_Q1D][MAX_Q1D];
 
@@ -1161,7 +1161,7 @@ static void PACurlCurlApply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
@@ -1985,7 +1985,7 @@ static void PACurlL2Apply2D(const int D1D,
    auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1Dtest, D1Dtest, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double curl[MAX_Q1D][MAX_Q1D];
 
@@ -2100,7 +2100,7 @@ static void PACurlL2ApplyTranspose2D(const int D1D,
    auto X = Reshape(x.Read(), D1Dtest, D1Dtest, NE);
    auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D];
 
@@ -2243,7 +2243,7 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
    auto D = Reshape(diag.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       int osc = 0;
 
@@ -2315,7 +2315,7 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
    const int i32 = symmetric ? i23 : 7;
    const int i33 = symmetric ? 5 : 8;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
       // (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
@@ -2500,7 +2500,7 @@ static void SmemPACurlCurlAssembleDiagonal3D(const int D1D,
    const int i32 = symmetric ? i23 : 7;
    const int i33 = symmetric ? 5 : 8;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get
       // (\nabla\times u) \cdot (\nabla\times u) = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{u}
@@ -2710,7 +2710,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
    }
 }
 
-// Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
+// Apply to x corresponding to DOFs in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
@@ -2739,7 +2739,7 @@ void PAHcurlH1Apply3D(const int D1D,
    auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -2900,7 +2900,7 @@ void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(curl), integrated
+// Apply to x corresponding to DOFs in H(curl), integrated
 // against gradients of H^1 functions corresponding to y.
 void PAHcurlH1ApplyTranspose3D(const int D1D,
                                const int Q1D,
@@ -2929,7 +2929,7 @@ void PAHcurlH1ApplyTranspose3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -3099,7 +3099,7 @@ void PAHcurlH1ApplyTranspose3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
+// Apply to x corresponding to DOFs in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply2D(const int D1D,
                       const int Q1D,
@@ -3124,7 +3124,7 @@ void PAHcurlH1Apply2D(const int D1D,
    auto X = Reshape(x.Read(), D1D, D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -3223,7 +3223,7 @@ void PAHcurlH1Apply2D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(curl), integrated
+// Apply to x corresponding to DOFs in H(curl), integrated
 // against gradients of H^1 functions corresponding to y.
 void PAHcurlH1ApplyTranspose2D(const int D1D,
                                const int Q1D,
@@ -3248,7 +3248,7 @@ void PAHcurlH1ApplyTranspose2D(const int D1D,
    auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -3360,7 +3360,7 @@ void PAHcurlL2Setup(const int NQ,
    auto C = Reshape(coeff.Read(), coeffDim, NQ, NE);
    auto y = Reshape(op.Write(), coeffDim, NQ, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -3543,7 +3543,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlL2Apply3D(const int D1D,
@@ -3579,7 +3579,7 @@ static void PAHcurlL2Apply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
@@ -3906,7 +3906,7 @@ static void PAHcurlL2Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void SmemPAHcurlL2Apply3D(const int D1D,
@@ -4216,7 +4216,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlHdivApply3D(const int D1D,
@@ -4252,7 +4252,7 @@ static void PAHcurlHdivApply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
@@ -4572,7 +4572,7 @@ static void PAHcurlHdivApply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(div) (test), integrated against the
+// Apply to x corresponding to DOFs in H(div) (test), integrated against the
 // curl of H(curl) trial functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlHdivApply3DTranspose(const int D1D,
@@ -4608,7 +4608,7 @@ static void PAHcurlHdivApply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];  // Assuming HDIV_MAX_D1D <= HCURL_MAX_D1D
 
@@ -5067,7 +5067,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    }
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), integrated against curl
+// Apply to x corresponding to DOFs in H(curl) (trial), integrated against curl
 // of H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlL2Apply3DTranspose(const int D1D,
@@ -5099,7 +5099,7 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -5759,7 +5759,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -5835,7 +5835,7 @@ static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -5903,7 +5903,7 @@ static void PAHcurlApplyGradientTranspose2D(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -5978,7 +5978,7 @@ static void PAHcurlApplyGradientTranspose2DBId(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[MAX_D1D][MAX_D1D];
 
@@ -6049,7 +6049,7 @@ static void PAHcurlApplyGradient3D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -6236,7 +6236,7 @@ static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -6403,7 +6403,7 @@ static void PAHcurlApplyGradientTranspose3D(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -6587,7 +6587,7 @@ static void PAHcurlApplyGradientTranspose3DBId(
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[MAX_D1D][MAX_D1D][MAX_D1D];
@@ -6877,7 +6877,7 @@ static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
@@ -7091,7 +7091,7 @@ static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
       double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
@@ -7316,7 +7316,7 @@ static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[2][MAX_D1D][MAX_D1D];
 
@@ -7416,7 +7416,7 @@ static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
 
    MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       double w[2][MAX_D1D][MAX_D1D];
 

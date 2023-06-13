@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,10 @@ const int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 
 // derefinement tables
+// The first n numbers in each line are the refined elements that contain
+// the vertices of the parent element.  The next m numbers in each line
+// are the refined elements that contain the faces attributes of the parent
+// element.
 
 const int quad_deref_table[3][4 + 4] =
 {
@@ -49,6 +53,16 @@ const int prism_deref_table[7][6 + 5] =
    { 0, 1, 2, 4, 5, 6, /**/  0, 5, 0, 5, 0 }  // 7 - iso
 };
 
+const int pyramid_deref_table[7][5 + 5] =
+{
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 2
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 3
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 4
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 5
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 6
+   { 0, 1, 2, 3, 5, /**/  0, 5, 5, 5, 5 }  // 7 - iso
+};
 
 // child ordering tables
 
@@ -140,8 +154,17 @@ const RefCoord prism_corners[6][3] =
    {    0, T_ONE, T_ONE}
 };
 
+const RefCoord pyramid_corners[5][3] =
+{
+   {    0,     0,     0},
+   {T_ONE,     0,     0},
+   {T_ONE, T_ONE,     0},
+   {    0, T_ONE,     0},
+   {    0,     0, T_ONE}
+};
+
 typedef RefCoord RefPoint[3];
-const RefPoint* geom_corners[7] =
+const RefPoint* geom_corners[8] =
 {
    NULL, // point
    NULL, // segment
@@ -149,7 +172,8 @@ const RefPoint* geom_corners[7] =
    quad_corners,
    NULL, // tetrahedron
    hex_corners,
-   prism_corners
+   prism_corners,
+   pyramid_corners
 };
 
 // reference domain transform: 3 scales, 3 translations

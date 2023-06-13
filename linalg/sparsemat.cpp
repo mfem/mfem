@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/backends.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -462,25 +463,112 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
-   const int * Ip=HostReadI();
-   HostReadWriteJ();
-   HostReadWriteData();
-
-   Array<Pair<int,double> > row;
-   for (int j = 0, i = 0; i < height; i++)
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if ( Device::Allows( Backend::CUDA_MASK ))
    {
-      int end = Ip[i+1];
-      row.SetSize(end - j);
-      for (int k = 0; k < row.Size(); k++)
+#if defined(MFEM_USE_CUDA)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
+      csru2csrInfo_t sortInfoA;
+
+      cusparseMatDescr_t matA_descr;
+      cusparseCreateMatDescr( &matA_descr );
+      cusparseSetMatIndexBase( matA_descr, CUSPARSE_INDEX_BASE_ZERO );
+      cusparseSetMatType( matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL );
+
+      cusparseCreateCsru2csrInfo( &sortInfoA );
+
+      cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
+                                       d_ja_sorted, sortInfoA,
+                                       &pBufferSizeInBytes);
+
+      CuMemAlloc( &pBuffer, pBufferSizeInBytes );
+
+      cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
+                         d_ja_sorted, sortInfoA, pBuffer);
+
+      // The above call is (at least in some cases) asynchronous, so we need to
+      // wait for it to finish before we can free device temporaries.
+      MFEM_STREAM_SYNC;
+
+      cusparseDestroyCsru2csrInfo( sortInfoA );
+      cusparseDestroyMatDescr( matA_descr );
+
+      CuMemFree( pBuffer );
+#endif
+   }
+   else if ( Device::Allows( Backend::HIP_MASK ))
+   {
+#if defined(MFEM_USE_HIP)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+      int *P = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
+
+      hipsparseMatDescr_t descrA;
+      hipsparseCreateMatDescr( &descrA );
+      // FIXME: There is not in-place version of csr sort in hipSPARSE currently, so we make
+      //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
+      //        back to the array being returned. Where there is an in-place version available,
+      //        we should use it.
+      Array< double > a_tmp( nnzA );
+      double *d_a_tmp = a_tmp.Write();
+
+      hipsparseXcsrsort_bufferSizeExt(handle, n, m, nnzA, d_ia, d_ja_sorted,
+                                      &pBufferSizeInBytes);
+
+      HipMemAlloc( &pBuffer, pBufferSizeInBytes );
+      HipMemAlloc( (void**)&P, nnzA * sizeof(int) );
+
+      hipsparseCreateIdentityPermutation(handle, nnzA, P);
+      hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+
+      hipsparseDgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
+                     HIPSPARSE_INDEX_BASE_ZERO);
+
+      A.CopyFrom( a_tmp.GetMemory(), nnzA );
+      hipsparseDestroyMatDescr( descrA );
+
+      HipMemFree( pBuffer );
+      HipMemFree( P );
+#endif
+   }
+   else
+#endif // MFEM_USE_CUDA_OR_HIP
+   {
+      const int * Ip=HostReadI();
+      HostReadWriteJ();
+      HostReadWriteData();
+
+      Array<Pair<int,double> > row;
+      for (int j = 0, i = 0; i < height; i++)
       {
-         row[k].one = J[j+k];
-         row[k].two = A[j+k];
-      }
-      row.Sort();
-      for (int k = 0; k < row.Size(); k++, j++)
-      {
-         J[j] = row[k].one;
-         A[j] = row[k].two;
+         int end = Ip[i+1];
+         row.SetSize(end - j);
+         for (int k = 0; k < row.Size(); k++)
+         {
+            row[k].one = J[j+k];
+            row[k].two = A[j+k];
+         }
+         row.Sort();
+         for (int k = 0; k < row.Size(); k++, j++)
+         {
+            J[j] = row[k].one;
+            A[j] = row[k].two;
+         }
       }
    }
    isSorted = true;
@@ -591,7 +679,7 @@ void SparseMatrix::GetDiag(Vector & d) const
    const auto AA = this->ReadData();
    auto dd = d.Write();
 
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       const int begin = II[i];
       const int end = II[i+1];
@@ -785,7 +873,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    else
    {
       // Native version
-      MFEM_FORALL(i, height,
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
          double d = 0.0;
          const int end = d_I[i+1];
@@ -849,15 +937,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AddMult(x, y, a);
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -906,7 +992,7 @@ void SparseMatrix::PartMult(
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.Write();
-   MFEM_FORALL(i, n,
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
@@ -951,7 +1037,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    auto d_J = Read(J, nnz);
    auto d_x = Read(x.GetMemory(), x.Size());
    auto d_y = Write(y.GetMemory(), y.Size());
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       bool d_yi = false;
       const int end = d_I[i+1];
@@ -1027,7 +1113,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       double d = 0.0;
       const int end = d_I[i+1];
@@ -1064,15 +1150,13 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AbsMult(x, y);
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];
@@ -2237,7 +2321,7 @@ void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
    const auto dJ = ReadJ();
    auto dA = ReadWriteData();
 
-   MFEM_FORALL(i, n_ess_dofs,
+   mfem::forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int idof = ess_dofs_d[i];
       for (int j=dI[idof]; j<dI[idof+1]; ++j)
@@ -2549,7 +2633,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
    const auto bp = b.Read(use_dev);
    auto xp = x.Write(use_dev);
 
-   MFEM_FORALL_SWITCH(use_dev, i, H,
+   mfem::forall_switch(use_dev, H, [=] MFEM_HOST_DEVICE (int i)
    {
       const int end = Ip[i+1];
       for (int j = Ip[i]; true; j++)
@@ -2588,7 +2672,7 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
    const auto Jp = Read(J, J.Capacity(), useDevice);
    const auto Ap = Read(A, J.Capacity(), useDevice);
 
-   MFEM_FORALL_SWITCH(useDevice, i, height,
+   mfem::forall_switch(useDevice, height, [=] MFEM_HOST_DEVICE (int i)
    {
       double resi = bp[i], norm = 0.0;
       for (int j = Ip[i]; j < Ip[i+1]; j++)

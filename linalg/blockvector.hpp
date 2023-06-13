@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,6 +74,9 @@ public:
 
    /// Wrap a Vector as a BlockVector
    BlockVector(Vector &v, const Array<int> &bOffsets);
+
+   /// Wrap a Vector as a BlockVector with offset
+   BlockVector(Vector &v, int offset,  const Array<int> &bOffsets);
 
    //! Return the number of blocks
    int NumBlocks() const { return numBlocks; }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -271,7 +271,7 @@ ComplexDenseMatrix * Mult(const ComplexDenseMatrix &A,
    int h = A.Height()/2;
    int w = B.Width()/2;
 
-   MFEM_VERIFY(A.Width() == B.Height(), "Incompatible matrix dimenions");
+   MFEM_VERIFY(A.Width() == B.Height(), "Incompatible matrix dimensions");
 
    //only real case (imag is null)
    DenseMatrix * C_r = nullptr;
@@ -334,7 +334,7 @@ ComplexDenseMatrix * MultAtB(const ComplexDenseMatrix &A,
    int h = A.Width()/2;
    int w = B.Width()/2;
 
-   MFEM_VERIFY(A.Height() == B.Height(), "Incompatible matrix dimenions");
+   MFEM_VERIFY(A.Height() == B.Height(), "Incompatible matrix dimensions");
 
    //only real case (imag is null)
    DenseMatrix * C_r = nullptr;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,7 @@ static void EADGTraceAssemble1DInt(const int NF,
    auto D = Reshape(padata.Read(), 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), 2, NF);
    auto A_ext = Reshape(eadata_ext.ReadWrite(), 2, NF);
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       double val_int0, val_int1, val_ext01, val_ext10;
       val_int0  = D(0, 0, f);
@@ -58,7 +58,7 @@ static void EADGTraceAssemble1DBdr(const int NF,
 {
    auto D = Reshape(padata.Read(), 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), NF);
-   MFEM_FORALL(f, NF,
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       if (add)
       {
@@ -89,7 +89,7 @@ static void EADGTraceAssemble2DInt(const int NF,
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, 2, NF);
    auto A_ext = Reshape(eadata_ext.ReadWrite(), D1D, D1D, 2, NF);
-   MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
+   mfem::forall_2D(NF, D1D, D1D, [=] MFEM_HOST_DEVICE (int f)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -143,7 +143,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, NF);
-   MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
+   mfem::forall_2D(NF, D1D, D1D, [=] MFEM_HOST_DEVICE (int f)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -187,7 +187,7 @@ static void EADGTraceAssemble3DInt(const int NF,
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, D1D, D1D, 2, NF);
    auto A_ext = Reshape(eadata_ext.ReadWrite(), D1D, D1D, D1D, D1D, 2, NF);
-   MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
+   mfem::forall_2D(NF, D1D, D1D, [=] MFEM_HOST_DEVICE (int f)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -283,7 +283,7 @@ static void EADGTraceAssemble3DBdr(const int NF,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, D1D, D1D, NF);
-   MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
+   mfem::forall_2D(NF, D1D, D1D, [=] MFEM_HOST_DEVICE (int f)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -540,12 +540,12 @@ const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
 }
 
 const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering f_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   auto key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
@@ -558,22 +558,22 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
       {
          if (Conforming())
          {
-            res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+            res = new ParL2FaceRestriction(*this, f_ordering, type, m);
          }
          else
          {
-            res = new ParNCL2FaceRestriction(*this, e_ordering, type, m);
+            res = new ParNCL2FaceRestriction(*this, f_ordering, type, m);
          }
       }
       else
       {
          if (Conforming())
          {
-            res = new H1FaceRestriction(*this, e_ordering, type);
+            res = new ConformingFaceRestriction(*this, f_ordering, type);
          }
          else
          {
-            res = new ParNCH1FaceRestriction(*this, e_ordering, type);
+            res = new ParNCH1FaceRestriction(*this, f_ordering, type);
          }
       }
       L2F[key] = res;
@@ -959,10 +959,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
-
-   // The following call ensures that the action of the transpose of P is
-   // performed fast when HYPRE is built for GPUs.
-   P->EnsureMultTranspose();
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
@@ -1540,7 +1536,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
 
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   Geometry::Type face_geom = pmesh->GetFaceGeometryType(i);
+   Geometry::Type face_geom = pmesh->GetFaceGeometry(i);
    return fec->FiniteElementForGeometry(face_geom);
 }
 
@@ -2610,7 +2606,7 @@ int ParFiniteElementSpace
       if (dump < 10)
       {
          char fname[100];
-         sprintf(fname, "dofs%02d.txt", MyRank);
+         snprintf(fname, 100, "dofs%02d.txt", MyRank);
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
@@ -2628,10 +2624,6 @@ int ParFiniteElementSpace
    {
       *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
                                 dof_offs, tdof_offs);
-
-      // The following call ensures that the action of the transpose of *P_ is
-      // performed fast when HYPRE is built for GPUs.
-      (*P_)->EnsureMultTranspose();
    }
 
    // clean up possible remaining messages in the queue to avoid receiving
@@ -3033,6 +3025,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<char> mark(diag->Height());
    mark = 0;
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
+
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -3061,7 +3055,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   diag->SetRow(r, old_vdofs, row);
@@ -3113,7 +3107,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
 
-               if (!mark[m])
+               if (is_dg || !mark[m])
                {
                   lR.GetRow(i, row);
                   MFEM_ASSERT(ldof[geom] == row.Size(), "");
@@ -3130,6 +3124,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          }
       }
    }
+
    messages.clear();
    offd->Finalize(0);
    offd->SetWidth(col_map.size());
@@ -3626,7 +3621,10 @@ static void ExtractSubVector(const Array<int> &indices,
    auto y = vout.Write();
    const auto x = vin.Read();
    const auto I = indices.Read();
-   MFEM_FORALL(i, indices.Size(), y[i] = x[I[i]];); // indices can be repeated
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   }); // indices can be repeated
 }
 
 void DeviceConformingProlongationOperator::BcastBeginCopy(
@@ -3648,7 +3646,10 @@ static void SetSubVector(const Array<int> &indices,
    auto y = vout.ReadWrite();
    const auto x = vin.Read();
    const auto I = indices.Read();
-   MFEM_FORALL(i, indices.Size(), y[I[i]] = x[i];);
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
 }
 
 void DeviceConformingProlongationOperator::BcastLocalCopy(
@@ -3752,7 +3753,7 @@ static void AddSubVector(const Array<int> &unique_dst_indices,
    const auto DST_I = unique_dst_indices.Read();
    const auto SRC_O = unique_to_src_offsets.Read();
    const auto SRC_I = unique_to_src_indices.Read();
-   MFEM_FORALL(i, unique_dst_indices.Size(),
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int dst_idx = DST_I[i];
       double sum = y[dst_idx];

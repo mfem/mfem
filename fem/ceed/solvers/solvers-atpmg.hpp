@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -66,6 +66,7 @@ int CeedBasisATPMGCoarsen(CeedBasis basisin, CeedBasis* basisout,
     @param[in] coarse_er         CeedElemRestriction for coarse operator
                                  (see CeedATPMGElemRestriction)
     @param[out] coarse_basis_out CeedBasis for coarser operator
+    @param[out] basis_ctof_out   CeedBasis describing interpolation from coarse to fine
     @param[out] out              coarsened CeedOperator
 */
 int CeedATPMGOperator(CeedOperator oper, int order_reduction,

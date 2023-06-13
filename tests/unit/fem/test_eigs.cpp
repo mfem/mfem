@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -197,7 +197,7 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
 
       H1_FECollection fec(order, dim);
       ParFiniteElementSpace fespace(&pmesh, &fec);
-      HYPRE_Int size = fespace.GlobalTrueVSize();
+      HYPRE_BigInt size = fespace.GlobalTrueVSize();
       CAPTURE(mt, size);
 
       Array<int> ess_bdr;

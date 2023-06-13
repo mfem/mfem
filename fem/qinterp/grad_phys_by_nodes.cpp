@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -50,6 +50,10 @@ void TensorPhysDerivatives<QVectorLayout::byNODES>(const int NE,
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      return Derivatives1D<L,P>(NE,G,J,X,Y,vdim,D1D,Q1D);
+   }
    if (dim == 2)
    {
       switch (id)

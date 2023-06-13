@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,10 +76,10 @@
 #include "sbm_aux.hpp"
 #include "sbm_solver.hpp"
 #include "marking.hpp"
-#include "dist_solver.hpp"
 
 using namespace mfem;
 using namespace std;
+using namespace common;
 
 int main(int argc, char *argv[])
 {
@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
       }
 
       HeatDistanceSolver dist_func(2.0 * dx * dx);
-      dist_func.print_level = 1;
+      dist_func.print_level.FirstAndLast().Summary();
       dist_func.smooth_steps = 1;
       dist_func.ComputeVectorDistance(ls_filt_coeff, distance);
       dist_vec = new VectorGridFunctionCoefficient(&distance);

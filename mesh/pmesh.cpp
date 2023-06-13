@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2689,6 +2689,20 @@ STable3D *ParMesh::GetSharedFacesTable()
             }
             break;
          }
+         case Element::PYRAMID:
+         {
+            for (int j = 0; j < 1; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               sfaces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+            }
+            for (int j = 1; j < 5; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               sfaces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]);
+            }
+            break;
+         }
          case Element::HEXAHEDRON:
          {
             // find the face by the vertices with the smallest 3 numbers
@@ -2787,6 +2801,61 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
                if (lf < 0)
                {
                   lf = sfaces_tbl->Index(v0, v1, v2);
+                  if (lf >= 0)
+                  {
+                     lf += NumOfFaces;
+                  }
+               }
+               face_nbr_el_to_face->Push(i, lf);
+            }
+            break;
+         }
+         case Element::PYRAMID:
+         {
+            for (int j = 0; j < 1; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               int k = 0;
+               int max = v[fv[0]];
+
+               if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
+               if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
+               if (max < v[fv[3]]) { k = 3; }
+
+               int v0 = -1, v1 = -1, v2 = -1;
+               switch (k)
+               {
+                  case 0:
+                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
+                     break;
+                  case 1:
+                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
+                     break;
+                  case 2:
+                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
+                     break;
+                  case 3:
+                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
+                     break;
+               }
+               int lf = faces_tbl->Index(v0, v1, v2);
+               if (lf < 0)
+               {
+                  lf = sfaces_tbl->Index(v0, v1, v2);
+                  if (lf >= 0)
+                  {
+                     lf += NumOfFaces;
+                  }
+               }
+               face_nbr_el_to_face->Push(i, lf);
+            }
+            for (int j = 1; j < 5; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
+               if (lf < 0)
+               {
+                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
                   if (lf >= 0)
                   {
                      lf += NumOfFaces;
@@ -3034,7 +3103,7 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
 
    int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
    Element::Type  face_type = GetFaceElementType(local_face);
-   Geometry::Type face_geom = GetFaceGeometryType(local_face);
+   Geometry::Type face_geom = GetFaceGeometry(local_face);
 
    // setup the transformation for the first element
    FaceElemTr.Elem1No = face_info.Elem1No;
@@ -6099,8 +6168,10 @@ void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
    gp_min.SetSize(sdim);
    gp_max.SetSize(sdim);
 
-   MPI_Allreduce(p_min.GetData(), gp_min, sdim, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(p_max.GetData(), gp_max, sdim, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim, MPI_DOUBLE,
+                 MPI_MIN, MyComm);
+   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim, MPI_DOUBLE,
+                 MPI_MAX, MyComm);
 }
 
 void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,

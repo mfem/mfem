@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,8 +60,10 @@ using namespace mfem;
 
 void parseFieldNames(const char * field_name_c_str, set<string> &field_names);
 void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts);
+/// @cond Suppress_Doxygen_warnings
 void writeLegend(const DataCollection::FieldMapType &fields,
                  const set<string> & field_names, int spaceDim);
+/// @endcond
 
 int main(int argc, char *argv[])
 {
@@ -74,6 +76,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *coll_name = NULL;
    int cycle = 0;
+   int pad_digits_cycle = 6;
+   int pad_digits_rank = 6;
 
    const char *field_name_c_str = "ALL";
    const char *pts_file_c_str = "";
@@ -85,6 +89,10 @@ int main(int argc, char *argv[])
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
+   args.AddOption(&pad_digits_cycle, "-pdc", "--pad-digits-cycle",
+                  "Number of digits in cycle.");
+   args.AddOption(&pad_digits_rank, "-pdr", "--pad-digits-rank",
+                  "Number of digits in MPI rank.");
    args.AddOption(&pts, "-p", "--points", "List of points.");
    args.AddOption(&field_name_c_str, "-fn", "--field-names",
                   "List of field names to get values from.");
@@ -105,9 +113,11 @@ int main(int argc, char *argv[])
 #else
    VisItDataCollection dc(coll_name);
 #endif
+   dc.SetPadDigitsCycle(pad_digits_cycle);
+   dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
-   if (dc.Error() != DataCollection::NO_ERROR)
+   if (dc.Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading VisIt data collection: " << coll_name << endl;
       return 1;

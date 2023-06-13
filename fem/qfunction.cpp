@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,6 +31,7 @@ QuadratureFunction &QuadratureFunction::operator=(const Vector &v)
 
 
 QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
+   : QuadratureFunction()
 {
    const char *msg = "invalid input stream";
    std::string ident;
@@ -42,31 +43,6 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    in >> vdim;
 
    Load(in, vdim*qspace->GetSize());
-}
-
-void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_, int vdim_)
-{
-   if (qspace_ != qspace)
-   {
-      if (own_qspace) { delete qspace; }
-      qspace = qspace_;
-      own_qspace = false;
-   }
-   vdim = (vdim_ < 0) ? vdim : vdim_;
-   SetSize(vdim*qspace->GetSize());
-}
-
-void QuadratureFunction::SetSpace(
-   QuadratureSpaceBase *qspace_, double *qf_data, int vdim_)
-{
-   if (qspace_ != qspace)
-   {
-      if (own_qspace) { delete qspace; }
-      qspace = qspace_;
-      own_qspace = false;
-   }
-   vdim = (vdim_ < 0) ? vdim : vdim_;
-   NewDataAndSize(qf_data, vdim*qspace->GetSize());
 }
 
 void QuadratureFunction::Save(std::ostream &os) const
@@ -96,7 +72,8 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       R->Mult(gf, e_vec);
 
       // Use quadrature interpolator to go from E-vector to Q-vector
-      const QuadratureInterpolator *qi = gf_fes.GetQuadratureInterpolator(*qs_elem);
+      const QuadratureInterpolator *qi =
+         gf_fes.GetQuadratureInterpolator(*qs_elem);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);

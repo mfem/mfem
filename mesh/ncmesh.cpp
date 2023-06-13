@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,10 +33,11 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
    {
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
-      case Geometry::SQUARE: elem = new Quadrilateral; break;
-      case Geometry::SEGMENT: elem = new Segment; break;
-      case Geometry::TRIANGLE: elem = new Triangle; break;
       case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
+      case Geometry::PYRAMID: elem = new Pyramid; break;
+      case Geometry::SQUARE: elem = new Quadrilateral; break;
+      case Geometry::TRIANGLE: elem = new Triangle; break;
+      case Geometry::SEGMENT: elem = new Segment; break;
       default: MFEM_ABORT("unsupported geometry " << geom);
    }
 
@@ -62,7 +63,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       }
    }
 
-   // in 1D & 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
+   // in 1D/2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
    if (!nf)
    {
       if (ne)
@@ -97,7 +98,7 @@ static void CheckSupportedGeom(Geometry::Type geom)
    MFEM_VERIFY(geom == Geometry::SEGMENT ||
                geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
                geom == Geometry::CUBE || geom == Geometry::PRISM ||
-               geom == Geometry::TETRAHEDRON,
+               geom == Geometry::PYRAMID || geom == Geometry::TETRAHEDRON,
                "Element type " << geom << " is not supported by NCMesh.");
 }
 
@@ -118,6 +119,12 @@ NCMesh::NCMesh(const Mesh *mesh)
       Geometry::Type geom = elem->GetGeometryType();
       CheckSupportedGeom(geom);
       GI[geom].InitGeom(geom);
+
+      // if we have pyramids we will need tets after refinement
+      if (geom == Geometry::PYRAMID)
+      {
+         GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
+      }
 
       // create NCMesh::Element for this mfem::Element
       int root_id = AddElement(Element(geom, elem->GetAttribute()));
@@ -454,9 +461,10 @@ NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
 {
-   for (int i = 0; i < 8; i++) { node[i] = -1; }
+   for (int i = 0; i < MaxElemNodes; i++) { node[i] = -1; }
+   for (int i = 0; i < MaxElemChildren; i++) { child[i] = -1; }
 
-   // NOTE: in 2D the 8-element node/child arrays are not optimal, however,
+   // NOTE: in 2D the 8/10-element node/child arrays are not optimal, however,
    // testing shows we would only save 17% of the total NCMesh memory if
    // 4-element arrays were used (e.g. through templates); we thus prefer to
    // keep the code as simple as possible.
@@ -476,7 +484,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
    el.node[4] = n4, el.node[5] = n5, el.node[6] = n6, el.node[7] = n7;
 
    // get faces and assign face attributes
-   Face* f[6];
+   Face* f[MaxElemFaces];
    const GeomInfo &gi_hex = GI[Geometry::CUBE];
    for (int i = 0; i < gi_hex.nf; i++)
    {
@@ -546,6 +554,35 @@ int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
    f[1]->attribute = fattr1;
    f[2]->attribute = fattr2;
    f[3]->attribute = fattr3;
+
+   return new_id;
+}
+int NCMesh::NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
+                       int fattr0, int fattr1, int fattr2, int fattr3,
+                       int fattr4)
+{
+   // create new element, initialize nodes
+   int new_id = AddElement(Element(Geometry::PYRAMID, attr));
+   Element &el = elements[new_id];
+
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+   el.node[4] = n4;
+
+   // get faces and assign face attributes
+   Face* f[5];
+   const GeomInfo &gi_pyr = GI[Geometry::PYRAMID];
+   for (int i = 0; i < gi_pyr.nf; i++)
+   {
+      const int* fv = gi_pyr.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+                       el.node[fv[2]], el.node[fv[3]]);
+   }
+
+   f[0]->attribute = fattr0;
+   f[1]->attribute = fattr1;
+   f[2]->attribute = fattr2;
+   f[3]->attribute = fattr3;
+   f[4]->attribute = fattr4;
 
    return new_id;
 }
@@ -895,7 +932,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       char remaining = ref_type & ~el.ref_type;
 
       // do the remaining splits on the children
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < MaxElemChildren; i++)
       {
          if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
       }
@@ -912,11 +949,11 @@ void NCMesh::RefineElement(int elem, char ref_type)
    int* no = el.node;
    int attr = el.attribute;
 
-   int child[8];
-   for (int i = 0; i < 8; i++) { child[i] = -1; }
+   int child[MaxElemChildren];
+   for (int i = 0; i < MaxElemChildren; i++) { child[i] = -1; }
 
    // get parent's face attributes
-   int fa[6];
+   int fa[MaxElemFaces];
    GeomInfo& gi = GI[el.Geom()];
    for (int i = 0; i < gi.nf; i++)
    {
@@ -1404,6 +1441,65 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                    -1, -1, fa[3], -1);
       }
    }
+   else if (el.Geom() == Geometry::PYRAMID)
+   {
+      // Pyramid vertex numbering:
+      //
+      //    4
+      //     + \_                       Faces: 0 bottom (3,2,1,0)
+      //     |\\_ \_                           1 front (0, 1, 4)
+      //     ||  \_ \__                        2 right (1, 2, 4)
+      //     | \   \_   \__                    3 back (2, 3, 4)
+      //     |  +____\_ ____\                  4 left (3, 0, 4)
+      //     | /3      \_   2   Z  Y
+      //     |/          \ /    | /
+      //     +------------+     *--X
+      //    0              1
+
+      ref_type = Refinement::XYZ; // for consistence
+
+      int mid01 = GetMidEdgeNode(no[0], no[1]);
+      int mid12 = GetMidEdgeNode(no[1], no[2]);
+      int mid23 = GetMidEdgeNode(no[2], no[3]);
+      int mid03 = GetMidEdgeNode(no[0], no[3]);
+      int mid04 = GetMidEdgeNode(no[0], no[4]);
+      int mid14 = GetMidEdgeNode(no[1], no[4]);
+      int mid24 = GetMidEdgeNode(no[2], no[4]);
+      int mid34 = GetMidEdgeNode(no[3], no[4]);
+      int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid03);
+
+      child[0] = NewPyramid(no[0], mid01, midf0, mid03, mid04,
+                            attr, fa[0], fa[1], -1, -1, fa[4]);
+
+      child[1] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
+                            attr, fa[0], fa[1], fa[2], -1, -1);
+
+      child[2] = NewPyramid(midf0, mid12, no[2], mid23, mid24,
+                            attr, fa[0], -1, fa[2], fa[3], -1);
+
+      child[3] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
+                            attr, fa[0], -1, -1, fa[3], fa[4]);
+
+      child[4] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
+                            attr, -1, -1, -1, -1, -1);
+
+      child[5] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
+                            attr, -1, fa[1], fa[2], fa[3], fa[4]);
+
+      child[6] = NewTetrahedron(mid01, midf0, mid04, mid14,
+                                attr, -1, -1, -1, fa[1]);
+
+      child[7] = NewTetrahedron(midf0, mid14, mid12, mid24,
+                                attr, -1, -1, fa[2], -1);
+
+      child[8] = NewTetrahedron(midf0, mid23, mid34, mid24,
+                                attr, -1, -1, fa[3], -1);
+
+      child[9] = NewTetrahedron(mid03, mid04, midf0, mid34,
+                                attr, -1, fa[4], -1, -1);
+
+      CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid03, midf0);
+   }
    else if (el.Geom() == Geometry::SQUARE)
    {
       ref_type &= 0x3; // ignore Z bit
@@ -1486,20 +1582,20 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
 
    // start using the nodes of the children, create edges & faces
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       ReferenceElement(child[i]);
    }
 
-   int buf[6];
-   Array<int> parentFaces(buf, 6);
+   int buf[MaxElemFaces];
+   Array<int> parentFaces(buf, MaxElemFaces);
    parentFaces.SetSize(0);
 
    // sign off of all nodes of the parent, clean up unused nodes, but keep faces
    UnreferenceElement(elem, parentFaces);
 
    // register the children in their faces
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       RegisterFaces(child[i]);
    }
@@ -1508,7 +1604,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    DeleteUnusedFaces(parentFaces);
 
    // make the children inherit our rank; set the parent element
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       Element &ch = elements[child[i]];
       ch.rank = el.rank;
@@ -1556,6 +1652,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
    mfem::out << "Refined " << refinements.Size() << " + " << nforced
              << " elements" << std::endl;
+#else
+   MFEM_CONTRACT_VAR(nforced);
 #endif
 
    ref_stack.DeleteAll();
@@ -1586,6 +1684,12 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          ch = el.child[ch];
          break;
 
+      case Geometry::PYRAMID:
+         ch = pyramid_deref_table[el.ref_type - 1][index];
+         MFEM_ASSERT(ch != -1, "");
+         ch = el.child[ch];
+         break;
+
       case Geometry::SQUARE:
          ch = el.child[quad_deref_table[el.ref_type - 1][index]];
          break;
@@ -1608,11 +1712,11 @@ void NCMesh::DerefineElement(int elem)
    Element &el = elements[elem];
    if (!el.ref_type) { return; }
 
-   int child[8];
+   int child[MaxElemChildren];
    std::memcpy(child, el.child, sizeof(child));
 
    // first make sure that all children are leaves, derefine them if not
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       if (elements[child[i]].ref_type)
       {
@@ -1620,10 +1724,10 @@ void NCMesh::DerefineElement(int elem)
       }
    }
 
-   int faces_attribute[6];
+   int faces_attribute[MaxElemFaces];
    int ref_type_key = el.ref_type - 1;
 
-   for (int i = 0; i < 8; i++) { el.node[i] = -1; }
+   for (int i = 0; i < MaxElemNodes; i++) { el.node[i] = -1; }
 
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
@@ -1670,6 +1774,34 @@ void NCMesh::DerefineElement(int elem)
       {
          const int child_local_index = prism_deref_table[ref_type_key]
                                        [i + nb_prism_childs];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
+         const int* fv = GI[el.Geom()].faces[i];
+         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                         ch.node[fv[2]], ch.node[fv[3]])
+                              ->attribute;
+      }
+   }
+   else if (el.Geom() == Geometry::PYRAMID)
+   {
+      MFEM_ASSERT(pyramid_deref_table[ref_type_key][0] != -1,
+                  "invalid pyramid refinement");
+      constexpr int nb_pyramid_childs = 5;
+      for (int i = 0; i < nb_pyramid_childs; i++)
+      {
+         const int child_local_index = pyramid_deref_table[ref_type_key][i];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
+         el.node[i] = ch.node[i];
+      }
+      el.node[5] = el.node[6] = el.node[7] = -1;
+
+
+      constexpr int nb_pyramid_faces = 5;
+      for (int i = 0; i < nb_pyramid_faces; i++)
+      {
+         const int child_local_index = pyramid_deref_table[ref_type_key]
+                                       [i + nb_pyramid_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
@@ -1745,13 +1877,13 @@ void NCMesh::DerefineElement(int elem)
    // sign in to all nodes
    ReferenceElement(elem);
 
-   int buf[8*6];
-   Array<int> childFaces(buf, 8*6);
+   int buf[MaxElemChildren*MaxElemFaces];
+   Array<int> childFaces(buf, MaxElemChildren*MaxElemFaces);
    childFaces.SetSize(0);
 
    // delete children, determine rank
    el.rank = std::numeric_limits<int>::max();
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       el.rank = std::min(el.rank, elements[child[i]].rank);
       UnreferenceElement(child[i], childFaces);
@@ -1775,7 +1907,7 @@ void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
    if (!el.ref_type) { return; }
 
    int total = 0, ref = 0, ghost = 0;
-   for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
    {
       total++;
       Element &ch = elements[el.child[i]];
@@ -1787,7 +1919,7 @@ void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
    {
       // can be derefined, add to list
       int next_row = list.Size() ? (list.Last().from + 1) : 0;
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          Element &ch = elements[el.child[i]];
          list.Append(Connection(next_row, ch.index));
@@ -1795,7 +1927,7 @@ void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
    }
    else
    {
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          CollectDerefinements(el.child[i], list);
       }
@@ -1905,7 +2037,7 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 {
    // encode the ref_type and child number for GetDerefinementTransforms()
    Element &prn = elements[parent];
-   for (int i = 0; i < 8 && prn.child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && prn.child[i] >= 0; i++)
    {
       Element &ch = elements[prn.child[i]];
       if (ch.index >= 0)
@@ -1977,7 +2109,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
       }
       else // no space filling curve tables yet for remaining cases
       {
-         for (int i = 0; i < 8; i++)
+         for (int i = 0; i < MaxElemChildren; i++)
          {
             if (el.child[i] >= 0)
             {
@@ -2231,7 +2363,8 @@ void NCMesh::InitRootState(int root_count)
       if (v_in < 0) { v_in = 0; }
 
       // determine which nodes are shared with the next element
-      bool shared[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+      bool shared[MaxElemNodes];
+      for (int ni = 0; ni < MaxElemNodes; ++ni) { shared[ni] = 0; }
       if (i+1 < root_count)
       {
          Element &next = elements[i+1];
@@ -2265,6 +2398,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    {
       case Geometry::CUBE: return new mfem::Hexahedron;
       case Geometry::PRISM: return new mfem::Wedge;
+      case Geometry::PYRAMID: return new mfem::Pyramid;
       case Geometry::TETRAHEDRON: return new mfem::Tetrahedron;
       case Geometry::SQUARE: return new mfem::Quadrilateral;
       case Geometry::TRIANGLE: return new mfem::Triangle;
@@ -2315,8 +2449,16 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
+   for (int i = 0; i < mesh.NumOfElements; i++)
+   {
+      mesh.FreeElement(mesh.elements[i]);
+   }
    mesh.elements.SetSize(0);
 
+   for (int i = 0; i < mesh.NumOfBdrElements; i++)
+   {
+      mesh.FreeElement(mesh.boundary[i]);
+   }
    mesh.boundary.SetSize(0);
 
    // create an mfem::Element for each leaf Element
@@ -2347,7 +2489,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
          if (face->Boundary())
          {
             if ((nc_elem.geom == Geometry::CUBE) ||
-                (nc_elem.geom == Geometry::PRISM && nfv == 4))
+                ((nc_elem.geom == Geometry::PRISM ||
+                  nc_elem.geom == Geometry::PYRAMID) && nfv == 4))
             {
                auto* quad = (Quadrilateral*) mesh.NewElement(Geometry::SQUARE);
                quad->SetAttribute(face->attribute);
@@ -2358,6 +2501,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                mesh.boundary.Append(quad);
             }
             else if (nc_elem.geom == Geometry::PRISM ||
+                     nc_elem.geom == Geometry::PYRAMID ||
                      nc_elem.geom == Geometry::TETRAHEDRON)
             {
                MFEM_ASSERT(nfv == 3, "");
@@ -2603,7 +2747,7 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
 
 int NCMesh::find_node(const Element &el, int node)
 {
-   for (int i = 0; i < 8; i++)
+   for (int i = 0; i < MaxElemNodes; i++)
    {
       if (el.node[i] == node) { return i; }
    }
@@ -3570,19 +3714,27 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
 
 static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
 {
-   if (!na || !nb) { return false; }
-   int a_last = a[na-1], b_last = b[nb-1];
-   if (*b < *a) { goto l2; }  // woo-hoo! I always wanted to use a goto! :)
-l1:
-   if (a_last < *b) { return false; }
-   while (*a < *b) { a++; }
-   if (*a == *b) { return true; }
-l2:
-   if (b_last < *a) { return false; }
-   while (*b < *a) { b++; }
-   if (*a == *b) { return true; }
-   goto l1;
+   // pointers to "end" sentinel, not last entry. Not for dereferencing.
+   const int * const a_end = a + na;
+   const int * const b_end = b + nb;
+   while (a != a_end && b != b_end)
+   {
+      if (*a < *b)
+      {
+         ++a;
+      }
+      else if (*b < *a)
+      {
+         ++b;
+      }
+      else
+      {
+         return true; // neither *a < *b nor *b < *a thus a == b
+      }
+   }
+   return false; // no common element found
 }
+
 
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
                            const Array<int> *search_set)
@@ -3625,7 +3777,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
       }
       else
       {
-         for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+         for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
          {
             stack.Append(el.child[i]);
          }
@@ -3737,8 +3889,8 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       MFEM_ASSERT(pa.ref_type, "internal error");
 
       int ch = 0;
-      while (ch < 8 && pa.child[ch] != elem) { ch++; }
-      MFEM_ASSERT(ch < 8, "internal error");
+      while (ch < MaxElemChildren && pa.child[ch] != elem) { ch++; }
+      MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
       MFEM_ASSERT(geom_parent[el.Geom()], "unsupported geometry");
       const RefTrf &tr = geom_parent[el.Geom()][(int) pa.ref_type][ch];
@@ -3768,6 +3920,11 @@ static bool RefPointInside(Geometry::Type geom, const RefCoord pt[3])
          return (pt[0] >= 0) && (pt[1] >= 0) && (pt[0] + pt[1] <= T_ONE) &&
                 (pt[2] >= 0) && (pt[2] <= T_ONE);
 
+      case Geometry::PYRAMID:
+         return (pt[0] >= 0) && (pt[1] >= 0) && (pt[2] >= 0.0) &&
+                (pt[0] + pt[2] <= T_ONE) && (pt[1] + pt[2] <= T_ONE) &&
+                (pt[2] <= T_ONE);
+
       default:
          MFEM_ABORT("unsupported geometry");
          return false;
@@ -3785,7 +3942,7 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
    }
 
    RefCoord tcoord[3];
-   for (int ch = 0; ch < 8 && el.child[ch] >= 0; ch++)
+   for (int ch = 0; ch < MaxElemChildren && el.child[ch] >= 0; ch++)
    {
       const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
       tr.Apply(coord, tcoord);
@@ -3856,6 +4013,10 @@ NCMesh::PointMatrix NCMesh::pm_prism_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(0, 1, 1)
 );
+NCMesh::PointMatrix NCMesh::pm_pyramid_identity(
+   Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0),
+   Point(0, 1, 0), Point(0, 0, 1)
+);
 NCMesh::PointMatrix NCMesh::pm_hex_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(1, 1, 1), Point(0, 1, 1)
@@ -3870,6 +4031,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
       case Geometry::SQUARE:      return pm_quad_identity;
       case Geometry::TETRAHEDRON: return pm_tet_identity;
       case Geometry::PRISM:       return pm_prism_identity;
+      case Geometry::PYRAMID:     return pm_pyramid_identity;
       case Geometry::CUBE:        return pm_hex_identity;
       default:
          MFEM_ABORT("unsupported geometry " << geom);
@@ -4174,6 +4336,55 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             }
          }
       }
+      else if (geom == Geometry::PYRAMID)
+      {
+         Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+         Point mid03(pm(0), pm(3)), mid12(pm(1), pm(2));
+         Point mid04(pm(0), pm(4)), mid14(pm(1), pm(4));
+         Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
+         Point midf0(mid23, mid12, mid01, mid03);
+
+         if (child == 0)        // Pyramid
+         {
+            pm = PointMatrix(pm(0), mid01, midf0, mid03, mid04);
+         }
+         else if (child == 1)   // Pyramid
+         {
+            pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
+         }
+         else if (child == 2)   // Pyramid
+         {
+            pm = PointMatrix(midf0, mid12, pm(2), mid23, mid24);
+         }
+         else if (child == 3)   // Pyramid
+         {
+            pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
+         }
+         else if (child == 4)   // Pyramid
+         {
+            pm = PointMatrix(mid24, mid14, mid04, mid34, midf0);
+         }
+         else if (child == 5)   // Pyramid
+         {
+            pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
+         }
+         else if (child == 6)   // Tet
+         {
+            pm = PointMatrix(mid01, midf0, mid04, mid14);
+         }
+         else if (child == 7)   // Tet
+         {
+            pm = PointMatrix(midf0, mid14, mid12, mid24);
+         }
+         else if (child == 8)   // Tet
+         {
+            pm = PointMatrix(midf0, mid23, mid34, mid24);
+         }
+         else if (child == 9)   // Tet
+         {
+            pm = PointMatrix(mid03, mid04, midf0, mid34);
+         }
+      }
       else if (geom == Geometry::TETRAHEDRON)
       {
          Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
@@ -4285,6 +4496,19 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             pm = PointMatrix(mid12, mid20, mid01);
          }
       }
+      else if (geom == Geometry::SEGMENT)
+      {
+         Point mid01(pm(0), pm(1));
+
+         if (child == 0)
+         {
+            pm = PointMatrix(pm(0), mid01);
+         }
+         else if (child == 1)
+         {
+            pm = PointMatrix(mid01, pm(1));
+         }
+      }
    }
 
    // write the points to the matrix
@@ -4333,7 +4557,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < MaxElemChildren; i++)
       {
          if (el.child[i] >= 0)
          {
@@ -5091,14 +5315,14 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    const int* node = el.node;
    GeomInfo& gi = GI[el.Geom()];
 
-   int elevel[12];
+   int elevel[MaxElemEdges];
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   int flevel[6][2];
+   int flevel[MaxElemFaces][2];
    if (Dim >= 3)
    {
       for (int i = 0; i < gi.nf; i++)
@@ -5141,6 +5365,18 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
 
       splits[2] = max6(flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[6], elevel[7], elevel[8]);
+   }
+   else if (el.Geom() == Geometry::PYRAMID)
+   {
+      splits[0] = std::max(
+                     max6(flevel[0][0], flevel[1][0], 0,
+                          flevel[2][0], flevel[3][0], flevel[4][0]),
+                     max8(elevel[0], elevel[1], elevel[2],
+                          elevel[3], elevel[4], elevel[5],
+                          elevel[6], elevel[7]));
+
+      splits[1] = splits[0];
+      splits[2] = splits[0];
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
@@ -5404,7 +5640,8 @@ void NCMesh::Print(std::ostream &os) const
       "# SQUARE      = 3\n"
       "# TETRAHEDRON = 4\n"
       "# CUBE        = 5\n"
-      "# PRISM       = 6\n";
+      "# PRISM       = 6\n"
+      "# PYRAMID     = 7\n";
 
    os << "\ndimension\n" << Dim << "\n";
 
@@ -5425,7 +5662,7 @@ void NCMesh::Print(std::ostream &os) const
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < 8 && el.node[j] >= 0; j++)
+      for (int j = 0; j < MaxElemNodes && el.node[j] >= 0; j++)
       {
          os << " " << el.node[j];
       }
@@ -5482,7 +5719,7 @@ void NCMesh::InitRootElements()
       Element &el = elements[i];
       if (el.ref_type)
       {
-         for (int j = 0; j < 8 && el.child[j] >= 0; j++)
+         for (int j = 0; j < MaxElemChildren && el.child[j] >= 0; j++)
          {
             int child = el.child[j];
             MFEM_VERIFY(child < elements.Size(), "invalid mesh file: "
@@ -5704,7 +5941,7 @@ void NCMesh::CopyElements(int elem,
    Element &el = elements[elem];
    if (el.ref_type)
    {
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          int old_id = el.child[i];
          // here we know 'free_element_ids' is empty
@@ -5964,6 +6201,7 @@ void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
       }
    }
    MFEM_ASSERT(count == order.Size(), "");
+   MFEM_CONTRACT_VAR(count);
 }
 
 
@@ -5984,9 +6222,9 @@ void NCMesh::Trim()
    // maybe also of 'nodes' and 'faces'.
 }
 
-std::size_t NCMesh::NCList::MemoryUsage() const
+long NCMesh::NCList::MemoryUsage() const
 {
-   std::size_t pm_size = 0;
+   int pm_size = 0;
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       for (int j = 0; j < point_matrices[i].Size(); i++)
@@ -6002,9 +6240,9 @@ std::size_t NCMesh::NCList::MemoryUsage() const
           pm_size;
 }
 
-std::size_t CoarseFineTransformations::MemoryUsage() const
+long CoarseFineTransformations::MemoryUsage() const
 {
-   std::size_t mem = embeddings.MemoryUsage();
+   long mem = embeddings.MemoryUsage();
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       mem += point_matrices[i].MemoryUsage();
@@ -6012,7 +6250,7 @@ std::size_t CoarseFineTransformations::MemoryUsage() const
    return mem;
 }
 
-std::size_t NCMesh::MemoryUsage() const
+long NCMesh::MemoryUsage() const
 {
    return nodes.MemoryUsage() +
           faces.MemoryUsage() +
@@ -6073,7 +6311,7 @@ void NCMesh::DebugLeafOrder(std::ostream &os) const
       {
          double sum = 0.0;
          int count = 0;
-         for (int k = 0; k < 8; k++)
+         for (int k = 0; k < MaxElemNodes; k++)
          {
             if (elem->node[k] >= 0)
             {
