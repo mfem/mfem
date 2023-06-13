@@ -2786,10 +2786,12 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
-   MFEM_ASSERT(mesh->GetNE(),"Empty Partition");
-   MFEM_VERIFY(i >= 0 && i < mesh->GetNE(),
-               "Invalid element id:" << i << "; minimum allowed:" << 0 << ", maximum allowed:"
-               << mesh->GetNE()-1);
+   if (i < 0 || i >= mesh->GetNE())
+   {
+      if (mesh->GetNE() == 0) { MFEM_ABORT("Empty MPI partition."); }
+      MFEM_ABORT("Invalid element id:" << i << "; minimum allowed:" << 0 <<
+                 ", maximum allowed:" << mesh->GetNE()-1);
+   }
 
    const FiniteElement *FE =
       fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
