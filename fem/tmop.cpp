@@ -2944,7 +2944,12 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 #ifndef MFEM_USE_GSLIB
         MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
-
+        const int dim = s0.FESpace()->GetMesh()->Dimension();
+        MFEM_VERIFY(s0.FESpace()->GetMesh()->GetNodes()->Size() == dim*s0.Size(),
+                "Mesh and level-set polynomial order must be the same.");
+        const int dim_bg = s_bg.FESpace()->GetMesh()->Dimension();
+        MFEM_VERIFY(dim_bg == dim,
+                "Background Mesh and mesh being fitted must be same dimension.");
         // Setup for level set function
         delete surf_fit_gf;
         surf_fit_gf = new GridFunction(s0);

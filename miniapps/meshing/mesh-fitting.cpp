@@ -335,7 +335,7 @@ int main(int argc, char *argv[])
     if (surf_bg_mesh)
     {
         mesh_surf_fit_bg = new Mesh(*mesh);
-        for (int ref = 0; ref < 2; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
+        for (int ref = 0; ref < 4; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
     }
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
@@ -589,49 +589,6 @@ int main(int argc, char *argv[])
       // the level-set)
       FunctionCoefficient ls_coeff(surface_level_set);
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
-      if (surf_bg_mesh)
-       {
-           surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
-
-           surf_fit_bg_grad_fes =
-                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim);
-           surf_fit_bg_grad = new GridFunction(surf_fit_bg_grad_fes);
-
-           surf_fit_grad_fes =
-                   new FiniteElementSpace(mesh, &surf_fit_fec, dim);
-           surf_fit_grad = new GridFunction(surf_fit_grad_fes);
-
-           surf_fit_bg_hess_fes =
-                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim * dim);
-           surf_fit_bg_hess = new GridFunction(surf_fit_bg_hess_fes);
-
-           surf_fit_hess_fes =
-                   new FiniteElementSpace(mesh, &surf_fit_fec, dim * dim);
-           surf_fit_hess = new GridFunction(surf_fit_hess_fes);
-           //Setup gradient of the background mesh
-           const int size_bg = surf_fit_bg_gf0->Size();
-           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
-           {
-               GridFunction surf_fit_bg_grad_comp(
-                       surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
-               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
-           }
-           //Setup Hessian on background mesh
-           int id = 0;
-           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
-           {
-               for (int idir = 0; idir < mesh_surf_fit_bg->Dimension(); idir++)
-               {
-                   GridFunction surf_fit_bg_grad_comp(
-                           surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
-                   GridFunction surf_fit_bg_hess_comp(
-                           surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
-                   surf_fit_bg_grad_comp.GetDerivative(1, idir,
-                                                       surf_fit_bg_hess_comp);
-                   id++;
-               }
-           }
-       }
 
       for (int i = 0; i < mesh->GetNE(); i++)
       {
@@ -694,6 +651,52 @@ int main(int argc, char *argv[])
       }
 
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
+      if (surf_bg_mesh)
+       {
+           surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
+
+           surf_fit_bg_grad_fes =
+                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim);
+           surf_fit_bg_grad = new GridFunction(surf_fit_bg_grad_fes);
+
+           surf_fit_grad_fes =
+                   new FiniteElementSpace(mesh, &surf_fit_fec, dim);
+           surf_fit_grad_fes->CopySpaceElementOrders(*fespace);
+           surf_fit_grad = new GridFunction(surf_fit_grad_fes);
+
+           surf_fit_bg_hess_fes =
+                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim * dim);
+           surf_fit_bg_hess = new GridFunction(surf_fit_bg_hess_fes);
+
+           surf_fit_hess_fes =
+                   new FiniteElementSpace(mesh, &surf_fit_fec, dim * dim);
+           surf_fit_hess_fes->CopySpaceElementOrders(*fespace);
+           surf_fit_hess = new GridFunction(surf_fit_hess_fes);
+
+           //Setup gradient of the background mesh
+           const int size_bg = surf_fit_bg_gf0->Size();
+           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
+           {
+               GridFunction surf_fit_bg_grad_comp(
+                       surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
+           }
+           //Setup Hessian on background mesh
+           int id = 0;
+           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
+           {
+               for (int idir = 0; idir < mesh_surf_fit_bg->Dimension(); idir++)
+               {
+                   GridFunction surf_fit_bg_grad_comp(
+                           surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+                   GridFunction surf_fit_bg_hess_comp(
+                           surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
+                   surf_fit_bg_grad_comp.GetDerivative(1, idir,
+                                                       surf_fit_bg_hess_comp);
+                   id++;
+               }
+           }
+       }
 
       for (int j = 0; j < surf_fit_marker.Size(); j++)
       {
@@ -771,7 +774,7 @@ int main(int argc, char *argv[])
       }
       if (visualization)
       {
-         socketstream vis1, vis2, vis3, vis4;
+         socketstream vis1, vis2, vis3, vis4, vis5, vis6;
          common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
                                 "Level Set 0",
                                 300, 600, 300, 300);
@@ -785,6 +788,12 @@ int main(int argc, char *argv[])
              common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
                                      "Level Set - Background",
                                      1200, 600, 300, 300);
+             common::VisualizeField(vis5, "localhost", 19916, *surf_fit_grad,
+                                    "Grad",
+                                    1500, 600, 300, 300);
+             common::VisualizeField(vis6, "localhost", 19916, *surf_fit_bg_grad,
+                                    "Grad on background",
+                                    1500, 600, 300, 300);
          }
       }
       mesh->SetNodalGridFunction(&x);
