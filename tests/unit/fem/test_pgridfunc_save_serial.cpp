@@ -50,33 +50,42 @@ TEST_CASE("ParGridFunction in Serial",
    H1_FECollection fec(order, mesh.Dimension());
 
    double ser_l2_err = 0.0;
-   if (my_rank == save_rank)
-   {
-      FiniteElementSpace fespace(&mesh, &fec);
-      GridFunction x(&fespace);
-      x.ProjectCoefficient(squaredFC);
-      ser_l2_err = x.ComputeL2Error(squaredFC);
-      //x.Save("serial.gf");
-   }
+   FiniteElementSpace fespace(&mesh, &fec);
+   GridFunction x(&fespace);
+   x.ProjectCoefficient(squaredFC);
+   ser_l2_err = x.ComputeL2Error(squaredFC);
 
    // Define a parallel mesh by a partitioning of the serial mesh.
-   // Define a ParGridFunction and visualize/save it in serial.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ParFiniteElementSpace pfespace(&pmesh, &fec);
    ParGridFunction px(&pfespace);
    px.ProjectCoefficient(squaredFC);
 
-   Mesh x_ser_mesh = pmesh.GetSerialMesh(save_rank);
-   GridFunction x_par_to_ser = px.GetSerialGridFunction(save_rank, x_ser_mesh);
+   // Get the ParMesh and ParGridFunction on 1 of the mpi ranks. Check the
+   // L2 error on that rank and save the mesh and gridfunction.
+   Mesh par_to_ser_mesh = pmesh.GetSerialMesh(save_rank);
+   GridFunction x_par_to_ser = px.GetSerialGridFunction(save_rank,
+                                                        par_to_ser_mesh);
    double par_to_ser_l2_err = 0.0;
    if (my_rank == save_rank)
    {
       par_to_ser_l2_err = x_par_to_ser.ComputeL2Error(squaredFC);
       REQUIRE(std::fabs(par_to_ser_l2_err-ser_l2_err) == MFEM_Approx(0.0));
+
+      // Save
+      par_to_ser_mesh.Save("parallel_in_serial.mesh");
+      x_par_to_ser.Save("parallel_in_serial.gf");
    }
-   //px.SaveAsSerial("paralleltoserial.gf");
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   // Load the saved mesh and gridfunction, and check the L2 error on all ranks.
+   Mesh par_to_ser_mesh_read = Mesh("parallel_in_serial.mesh");
+   named_ifgzstream gfstream("parallel_in_serial.gf");
+   GridFunction x_par_to_ser_read = GridFunction(&par_to_ser_mesh_read,
+                                                 gfstream);
+   double par_to_ser_l2_read_err = x_par_to_ser_read.ComputeL2Error(squaredFC);
+   REQUIRE(std::fabs(par_to_ser_l2_read_err-ser_l2_err) == MFEM_Approx(0.0));
 }
 #endif // MFEM_USE_MPI
-
 
 } // namespace pgridfunc_save_in_serial
