@@ -582,6 +582,9 @@ public:
    int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
+   int GetMinElementOrder() const
+   { return IsVariableOrder() ? elem_order.Min() : fec->GetOrder(); }
+
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
 

@@ -34,6 +34,29 @@ double circle_level_set(const Vector &x)
    }
 }
 
+double squircle_level_set(const Vector &x)
+{
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.25, 4.0);
+   }
+   else
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      return r-0.3;
+   }
+}
+
+double inclined_line(const Vector &x)
+{
+   double xv = x(0), yv = x(1);
+   double dy = 0.2*(x(0)-0.0)/1.0;
+   return yv - 0.5 - dy;
+}
+
 double in_circle(const Vector &x, const Vector &x_center, double radius)
 {
    Vector x_current = x;
@@ -478,3 +501,148 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetFromTrueVector();
 }
 #endif
+
+void OptimizeMeshWithAMRAroundZeroLevelSet(Mesh &mesh,
+                                           FunctionCoefficient &ls_coeff,
+                                           int amr_iter,
+                                           GridFunction &distance_s,
+                                           const int quad_order = 5,
+                                           Array<GridFunction *> *gf_to_update = NULL)
+{
+   mfem::H1_FECollection h1fec(distance_s.FESpace()->FEColl()->GetOrder(),
+                               mesh.Dimension());
+   mfem::FiniteElementSpace h1fespace(&mesh, &h1fec);
+   mfem::GridFunction x(&h1fespace);
+
+   mfem::L2_FECollection l2fec(0, mesh.Dimension());
+   mfem::FiniteElementSpace l2fespace(&mesh, &l2fec);
+   mfem::GridFunction el_to_refine(&l2fespace);
+
+   mfem::H1_FECollection lhfec(1, mesh.Dimension());
+   mfem::FiniteElementSpace lhfespace(&mesh, &lhfec);
+   mfem::GridFunction lhx(&lhfespace);
+
+   x.ProjectCoefficient(ls_coeff);
+
+   IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
+   for (int iter = 0; iter < amr_iter; iter++)
+   {
+      el_to_refine = 0.0;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Array<int> dofs;
+         Vector x_vals;
+         DenseMatrix x_grad;
+         h1fespace.GetElementDofs(e, dofs);
+         const IntegrationRule &ir = irRules.Get(mesh.GetElementGeometry(e),
+                                                 quad_order);
+         x.GetValues(e, ir, x_vals);
+         double min_val = x_vals.Min();
+         double max_val = x_vals.Max();
+         // If the zero level set cuts the elements, mark it for refinement
+         if (min_val < 0 && max_val >= 0)
+         {
+            el_to_refine(e) = 1.0;
+         }
+      }
+
+      // Refine an element if its neighbor will be refined
+      for (int inner_iter = 0; inner_iter < 2; inner_iter++)
+      {
+         GridFunctionCoefficient field_in_dg(&el_to_refine);
+         lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            Array<int> dofs;
+            Vector x_vals;
+            lhfespace.GetElementDofs(e, dofs);
+            const IntegrationRule &ir =
+               irRules.Get(mesh.GetElementGeometry(e), quad_order);
+            lhx.GetValues(e, ir, x_vals);
+            double max_val = x_vals.Max();
+            if (max_val > 0)
+            {
+               el_to_refine(e) = 1.0;
+            }
+         }
+      }
+
+      // Make the list of elements to be refined
+      Array<int> el_to_refine_list;
+      for (int e = 0; e < el_to_refine.Size(); e++)
+      {
+         if (el_to_refine(e) > 0.0)
+         {
+            el_to_refine_list.Append(e);
+         }
+      }
+
+      int loc_count = el_to_refine_list.Size();
+      int glob_count = loc_count;
+      if (glob_count > 0)
+      {
+         mesh.GeneralRefinement(el_to_refine_list, 1);
+      }
+
+      // Update
+      h1fespace.Update();
+      x.Update();
+      x.ProjectCoefficient(ls_coeff);
+
+      l2fespace.Update();
+      el_to_refine.Update();
+
+      lhfespace.Update();
+      lhx.Update();
+
+      distance_s.FESpace()->Update();
+      distance_s.Update();
+
+      if (gf_to_update != NULL)
+      {
+         for (int i = 0; i < gf_to_update->Size(); i++)
+         {
+            (*gf_to_update)[i]->FESpace()->Update();
+            (*gf_to_update)[i]->Update();
+         }
+      }
+   }
+}
+
+void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
+                                       FunctionCoefficient &ls_coeff,
+                                       GridFunction &distance_s,
+                                       const int nDiffuse = 2,
+                                       const int pLapOrder = 5,
+                                       const int pLapNewton = 50,
+                                       bool nfilter = true)
+{
+   mfem::H1_FECollection h1fec(distance_s.FESpace()->FEColl()->GetOrder(),
+                               mesh.Dimension());
+   mfem::FiniteElementSpace h1fespace(&mesh, &h1fec);
+   mfem::GridFunction x(&h1fespace);
+
+   x.ProjectCoefficient(ls_coeff);
+
+   //Now determine distance
+   const double dx = AvgElementSize(mesh);
+   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
+//   NormalizationDistanceSolver dist_solver();
+
+   FiniteElementSpace pfes_s(*distance_s.FESpace());
+
+   // Smooth-out Gibbs oscillations from the input level set. The smoothing
+   // parameter here is specified to be mesh dependent with length scale dx.
+   GridFunction filt_gf(&pfes_s);
+   PDEFilter filter(mesh, nfilter ? 1.0 * dx : 0.0);
+   filter.Filter(ls_coeff, filt_gf);
+   GridFunctionCoefficient ls_filt_coeff(&filt_gf);
+
+   dist_solver.ComputeScalarDistance(ls_filt_coeff, &distance_s);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+
+   DiffuseField(distance_s, nDiffuse);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+}

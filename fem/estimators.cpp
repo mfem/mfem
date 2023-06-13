@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "estimators.hpp"
+#include "transfer.hpp"
 
 namespace mfem
 {
@@ -496,6 +497,54 @@ void LpErrorEstimator::ComputeEstimates()
 #endif // MFEM_USE_MPI
    total_error = pow(total_error, 1.0/local_norm_p);
    current_sequence = sol->FESpace()->GetMesh()->GetSequence();
+}
+
+PRefDiffEstimator::PRefDiffEstimator(GridFunction& sol_, int p_comp_,
+                                     bool normalization)
+   : solution(&sol_), p_comp(p_comp_), normalization_(normalization)
+{ }
+
+void PRefDiffEstimator::ComputeEstimates()
+{
+   const int nelem = solution->FESpace()->GetNE();
+   error_estimates.SetSize(nelem);
+
+   FiniteElementSpace *fespace = solution->FESpace();
+   FiniteElementSpace fespaceComp = FiniteElementSpace(*(solution->FESpace()));
+
+   for (int e = 0; e < nelem; e++)
+   {
+      fespaceComp.SetElementOrder(e, solution->FESpace()->GetElementOrder(e));
+   }
+   fespaceComp.Update(false);
+
+   GridFunction solutionComp(&fespaceComp);
+   solutionComp = *solution;
+
+   for (int e = 0; e < nelem; e++)
+   {
+      int setOrder = p_comp >= 0 ? p_comp : fespace->GetElementOrder(e)+p_comp;
+      fespaceComp.SetElementOrder(e, setOrder);
+   }
+   fespaceComp.Update(false);
+   solutionComp.Update();
+
+   PRefinementTransferOperator Transfer(*fespace, fespaceComp);
+   Transfer.Mult(*solution, solutionComp);
+
+   GridFunctionCoefficient solutionCompCoeff(&solutionComp);
+   solution->ComputeElementL2Errors(solutionCompCoeff, error_estimates);
+
+   if (normalization_) {
+       ConstantCoefficient zero(0.0);
+       Vector solutionnorm(nelem);
+       solution->ComputeElementL2Errors(zero, solutionnorm);
+       for (int e = 0; e < nelem; e++) {
+           error_estimates(e) *=  1.0/solutionnorm(e);
+       }
+   }
+
+   total_error = error_estimates.Norml2();
 }
 
 } // namespace mfem
