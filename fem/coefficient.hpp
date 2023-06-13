@@ -331,6 +331,51 @@ public:
 /// the evaluation point in the cylindrical coordinate system
 typedef CartesianZCoefficient CylindricalZCoefficient;
 
+/// Scalar coefficient which returns the radial distance from the origin of
+/// the evaluation point in the spherical coordinate system
+class SphericalRadialCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalRadialCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the azimuthal angle (often denoted by phi)
+/// of the evaluation point in the spherical coordinate system
+class SphericalAzimuthalCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalAzimuthalCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the polar angle (often denoted by theta)
+/// of the evaluation point in the spherical coordinate system
+class SphericalPolarCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalPolarCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.

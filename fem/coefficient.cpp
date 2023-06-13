@@ -165,6 +165,28 @@ double CylindricalAzimuthalCoefficient::Eval(ElementTransformation & T,
    return atan2(transip[1], transip[0]);
 }
 
+double SphericalRadialCoefficient::Eval(ElementTransformation & T,
+                                        const IntegrationPoint & ip)
+{
+   T.Transform(ip, transip);
+   return sqrt(transip * transip);
+}
+
+double SphericalAzimuthalCoefficient::Eval(ElementTransformation & T,
+                                           const IntegrationPoint & ip)
+{
+   T.Transform(ip, transip);
+   return atan2(transip[1], transip[0]);
+}
+
+double SphericalPolarCoefficient::Eval(ElementTransformation & T,
+                                       const IntegrationPoint & ip)
+{
+   T.Transform(ip, transip);
+   return atan2(sqrt(transip[0] * transip[0] + transip[1] * transip[1]),
+                transip[2]);
+}
+
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
