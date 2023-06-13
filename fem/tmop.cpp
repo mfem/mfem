@@ -2950,6 +2950,14 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
         const int dim_bg = s_bg.FESpace()->GetMesh()->Dimension();
         MFEM_VERIFY(dim_bg == dim,
                 "Background Mesh and mesh being fitted must be same dimension.");
+        MFEM_VERIFY(s0_grad.Size() == dim*s0.Size(),
+                "Gradient is not dim * size of the level-set function.");
+        MFEM_VERIFY(s0_hess.Size() == dim*dim*s0.Size(),
+                "Hessian is not dim * size of the level-set function.");
+        MFEM_VERIFY(s_bg_grad.Size() == dim*s_bg.Size(),
+                "Background Gradient is not dim * size of the level-set function.");
+        MFEM_VERIFY(s_bg_hess.Size() == dim*dim*s_bg.Size(),
+                "Brackground Hessian is not dim * size of the level-set function.");
         // Setup for level set function
         delete surf_fit_gf;
         surf_fit_gf = new GridFunction(s0);
