@@ -13,6 +13,7 @@
 #include "gridfunc.hpp"
 #include "fespace.hpp"
 #include "../general/forall.hpp"
+#include "qspace.hpp"
 #include <climits>
 
 #ifdef MFEM_USE_MPI
@@ -1568,6 +1569,170 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
       gather_indices[gather_offsets[global_dof_elem2]++] = nfdofs +
                                                            restriction_dof_elem2;
    }
+}
+
+L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes_,
+                                      const ElementDofOrdering ordering,
+                                      const FaceQuadratureSpace& fqs_)
+    : fes(fes_),
+      fqs(fqs_),
+      irs(0, Quadrature1D::GaussLobatto),
+      sdim(fes.GetMesh()->Dimension()),
+      nf(fes.GetNFbyType(fqs.GetFaceType())),
+      ne(fes.GetNE()),
+      vdim(fes.GetVDim()),
+      byvdim(fes.GetOrdering() == Ordering::byVDIM),
+      face_to_elem(nf * 2)
+{
+
+    FaceType face_type = fqs.GetFaceType();
+
+    Mesh& mesh = *fes.GetMesh();
+
+    auto f2e = Reshape(face_to_elem.Write(), nf, 2);
+
+    int f_ind = 0;
+    for (int f = 0; f < fes.GetNF(); ++f)
+    {
+        Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+
+        if (face.IsOfFaceType(face_type))
+        {
+            f2e(f_ind, 0) = face.element[0].index;
+            f2e(f_ind, 1) = (face_type == FaceType::Interior) ? face.element[1].index : -1;
+            
+            f_ind++;
+        }
+    }
+}
+
+void L2NormalDerivativeFaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+    if (nf == 0)
+        return;
+
+    switch (sdim)
+    {
+    case 2:
+        Mult2D(x, y);
+        break;
+    case 3:
+        Mult3D(x, y);
+        break;
+    
+    default:
+        /* TODO: Error */
+        break;
+    }
+}
+
+void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int num_faces = nf;
+
+   Mesh& mesh = *fes.GetMesh();
+   const IntegrationRule& face_ir = fqs.GetFaceIntRule(0);
+   const int nq1d = face_ir.Size();
+   auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*nq1d-3);
+    
+   MFEM_VERIFY(vol_ir.Size() == nq1d*nq1d, "Volume quadrature rule size does not match the size of the tensor product of the 1D quadrature rule.");
+    
+   const GeometricFactors& geom = *mesh.GetGeometricFactors(vol_ir, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
+   auto face_geom = *mesh.GetFaceGeometricFactors(face_ir, FaceGeometricFactors::NORMALS, fqs.GetFaceType());
+
+   const FiniteElement& fe = *fes.GetFE(0);
+   const DofToQuad& maps = fe.GetDofToQuad(vol_ir, DofToQuad::TENSOR);
+
+   MFEM_VERIFY(maps.nqpt == nq1d, "");
+    
+   const int q = maps.nqpt;
+   const int d = maps.ndof;
+   auto B = Reshape(maps.B.Read(), q, d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
+   auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
+   auto J = Reshape(geom.J.Read(), q, q, 2, 2, ne); // jacobian on each element
+   auto detJ = Reshape(geom.detJ.Read(), q, q, ne); // determinant of Jacobians on each element
+
+   auto ns = Reshape(face_geom.normal.Read(), nq1d, 2, nf);
+
+   auto f2e = Reshape(face_to_elem.Read(), num_faces, 2); // f2e(f, 0) = index of element0 on face f, similarly for element1, if no element1, then f2e(f, 1) = -1
+
+   // if byvdim -> d_x : (vdim, nddof, nddof, ne)
+   // else -> d_x : (nddof, nddof, ne, vdim)
+   auto d_x = Reshape(x.Read(), t?vd:d, d, t?d:ne, t?ne:vd); // reshape x for convinient indexing
+   auto d_y = Reshape(y.Write(), q, vd, 2, nf); // reshape y for convinient indexing
+    
+   for (int f = 0; f < num_faces; ++f)
+   {
+      Mesh::FaceInformation face_info = mesh.GetFaceInformation(fqs.GetMeshFaceIndex(f));
+
+      for (int side = 0; side < 2; ++side)
+      {
+         const int el = f2e(f, side);
+
+         if (el < 0)
+               continue;
+
+         const int face_id = face_info.element[side].local_face_id;
+
+         for (int p = 0; p < q; ++p)
+         {
+            const int edge_idx = side == 0 ? p : PermuteFace2D(face_info.element[0].local_face_id, face_info.element[1].local_face_id, side, q, p);
+            int i, j;
+            if (face_id == 0 || face_id == 2)
+            {
+               i = edge_idx;
+               j = (face_id == 0) ? 0 : (q-1);
+            }
+            else
+            {
+               j = edge_idx;
+               i = (face_id == 3) ? 0 : (q-1);
+            }
+
+            for (int c=0; c < vd; ++c)
+            {
+               double grad_s = 0, grad_t = 0;
+
+               for (int k=0; k < d; ++k)
+               {
+                  for (int l=0; l < d; ++l)
+                  {
+                        grad_s += G(i, k) * B(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
+                        grad_t += B(i, k) * G(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
+                  } // for k
+               } // for j
+
+               const double grad_x =  J(i,j,   1,1,   el) * grad_s - J(i,j,   1,0,   el) * grad_t; // dy/dt * du/ds - dy/ds * du/dt
+               const double grad_y = -J(i,j,   0,1,   el) * grad_s + J(i,j,   0,0,   el) * grad_t; // -dx/dt * du/ds + dx/ds * du/dt
+
+               d_y(p, c, side, f) = (grad_x * ns(p, 0, f) + grad_y * ns(p, 1, f)) / detJ(i, j, el);
+               std::cout << ns(p, 0, f) << " " << ns(p, 1, f) << " " << (grad_x * ns(p, 0, f) + grad_y * ns(p, 1, f)) / detJ(i, j, el) << std::endl;
+            } // for c
+         } // for p
+      } // for side
+   } // for f
+}
+
+void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector& x, Vector& y, const double a) const
+{
+
+}
+
+void L2NormalDerivativeFaceRestriction::Mult3D(const Vector& x, Vector& y) const
+{
+
+}
+
+void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& x, Vector& y) const
+{
+
+}
+
+void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& x, Vector& y) const
+{
+
 }
 
 InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
