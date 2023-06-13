@@ -600,6 +600,22 @@ public:
    using VectorCoefficient::Eval;
 };
 
+/// A vector coefficient which returns the physical location of the
+/// evaluation point in the Cartesian coordinate system.
+class PositionVectorCoefficient : public VectorCoefficient
+{
+public:
+
+   PositionVectorCoefficient(int dim) : VectorCoefficient(dim) {}
+
+   using VectorCoefficient::Eval;
+   /// Evaluate the vector coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~PositionVectorCoefficient() { }
+};
+
 /// A general vector function coefficient
 class VectorFunctionCoefficient : public VectorCoefficient
 {

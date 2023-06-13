@@ -313,6 +313,13 @@ void PWVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
    V = 0.0;
 }
 
+void PositionVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                     const IntegrationPoint &ip)
+{
+   V.SetSize(vdim);
+   T.Transform(ip, V);
+}
+
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
