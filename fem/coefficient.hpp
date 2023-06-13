@@ -295,6 +295,42 @@ class CartesianZCoefficient : public CartesianCoefficient
 public:
    CartesianZCoefficient() : CartesianCoefficient(2) {}
 };
+
+/// Scalar coefficient which returns the radial distance from the axis of
+/// the evaluation point in the cylindrical coordinate system
+class CylindricalRadialCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   CylindricalRadialCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the angular position or azimuth (often
+/// denoted by theta) of the evaluation point in the cylindrical coordinate
+/// system
+class CylindricalAzimuthalCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   CylindricalAzimuthalCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the height or altitude of
+/// the evaluation point in the cylindrical coordinate system
+typedef CartesianZCoefficient CylindricalZCoefficient;
+
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.
