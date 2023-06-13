@@ -639,7 +639,8 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
    {
       if (nrhs_ < 1)
       {
-         sol_.SetSize(X.Size() * ldx);
+         MFEM_ASSERT(X[0], "Missing Vector in SuperLUSolver::Mult!");
+         sol_.SetSize(X.Size() * ldx, *X[0]);
          nrhs_ = X.Size();
       }
       for (int i = 0; i < nrhs_; i++)
@@ -679,7 +680,11 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
 
    // Copy solution into output (no need to do anything for single RHS since
    // solution is written directly into output Vector)
-   if (nrhs_ > 1)
+   if (nrhs_ == 1)
+   {
+      sol_.SyncAliasMemory(*Y[0]);
+   }
+   else
    {
       for (int i = 0; i < nrhs_; i++)
       {
