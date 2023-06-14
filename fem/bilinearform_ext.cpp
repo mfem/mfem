@@ -247,6 +247,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    elem_restrict = NULL;
    int_face_restrict_lex = NULL;
    bdr_face_restrict_lex = NULL;
+   int_face_normal_deriv = NULL;
+   bdr_face_normal_deriv = NULL;
 }
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
@@ -273,6 +275,26 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
+
+      bool needs_normal_derivs = false;
+      auto &integs = *a->GetFBFI();
+      for (int i = 0; i < integs.Size(); ++i)
+      {
+         if (integs[i]->RequiresFaceNormalDerivatives())
+         {
+            needs_normal_derivs = true;
+            break;
+         }
+      }
+      if (needs_normal_derivs)
+      {
+         int_face_normal_deriv = new L2NormalDerivativeFaceRestriction(
+            *trial_fes, ElementDofOrdering::LEXICOGRAPHIC,
+            FaceType::Interior
+         );
+         int_face_dXdn.SetSize(int_face_normal_deriv->Width());
+         int_face_dXdn.SetSize(int_face_normal_deriv->Height());
+      }
    }
 
    if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
@@ -284,6 +306,26 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       bdr_face_X.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
+
+      bool needs_normal_derivs = false;
+      auto &integs = *a->GetBFBFI();
+      for (int i = 0; i < integs.Size(); ++i)
+      {
+         if (integs[i]->RequiresFaceNormalDerivatives())
+         {
+            needs_normal_derivs = true;
+            break;
+         }
+      }
+      if (needs_normal_derivs)
+      {
+         bdr_face_normal_deriv = new L2NormalDerivativeFaceRestriction(
+            *trial_fes, ElementDofOrdering::LEXICOGRAPHIC,
+            FaceType::Boundary
+         );
+         bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Width());
+         bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Height());
+      }
    }
 }
 
@@ -411,14 +453,30 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_normal_deriv)
+      {
+         int_face_normal_deriv->Mult(x, int_face_dXdn);
+      }
       if (int_face_X.Size()>0)
       {
          int_face_Y = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
-            intFaceIntegrators[i]->AddMultPA(int_face_X, int_face_Y);
+            if (intFaceIntegrators[i]->RequiresFaceNormalDerivatives())
+            {
+               intFaceIntegrators[i]->AddMultPAFaceNormalDerivatives(int_face_X, int_face_dXdn,
+                                                                     int_face_Y, int_face_dYdn);
+            }
+            else
+            {
+               intFaceIntegrators[i]->AddMultPA(int_face_X, int_face_Y);
+            }
          }
          int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
+         if (int_face_normal_deriv)
+         {
+            int_face_normal_deriv->AddMultTranspose(int_face_dYdn, y);
+         }
       }
    }
 
@@ -427,14 +485,30 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (bdr_face_restrict_lex && bFISz>0)
    {
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_normal_deriv)
+      {
+         bdr_face_normal_deriv->Mult(x, bdr_face_dXdn);
+      }
       if (bdr_face_X.Size()>0)
       {
          bdr_face_Y = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            bdrFaceIntegrators[i]->AddMultPA(bdr_face_X, bdr_face_Y);
+            if (intFaceIntegrators[i]->RequiresFaceNormalDerivatives())
+            {
+               bdrFaceIntegrators[i]->AddMultPAFaceNormalDerivatives(bdr_face_X, bdr_face_dXdn,
+                                                                     bdr_face_Y, bdr_face_dYdn);
+            }
+            else
+            {
+               bdrFaceIntegrators[i]->AddMultPA(bdr_face_X, bdr_face_Y);
+            }
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
+         if (bdr_face_normal_deriv)
+         {
+            bdr_face_normal_deriv->AddMultTranspose(bdr_face_dYdn, y);
+         }
       }
    }
 }

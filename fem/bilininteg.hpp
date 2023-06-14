@@ -260,6 +260,11 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   virtual bool RequiresFaceNormalDerivatives() const { return false; }
+
+   virtual void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                               Vector &y, Vector &dydn) const;
+
    virtual ~BilinearFormIntegrator() { }
 };
 
