@@ -1053,9 +1053,9 @@ protected:
     /// @param y 
     void Mult3D(const Vector& x, Vector& y) const;
 
-    void AddMultTranspose2D(const Vector& x, Vector& y) const;
+    void AddMultTranspose2D(const Vector& x, Vector& y, const double a) const;
 
-    void AddMultTranspose3D(const Vector& x, Vector& y) const;
+    void AddMultTranspose3D(const Vector& x, Vector& y, const double a) const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic
