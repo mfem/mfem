@@ -1009,51 +1009,53 @@ public:
 class L2NormalDerivativeFaceRestriction : public FaceRestriction
 {
 protected:
-    const FiniteElementSpace& fes;
-    const int sdim; // spatial dimension
-    const int nf; // number of faces
-    const int ne; // number of elements
-    const int vdim; // dimension of functions in fes
-    const bool byvdim; // ordering of dofs. e.g. byvdim == true -> (u[0], v[0], ..., u[n-1], v[n-1]). byvdim == false -> (u[0], ..., u[n-1], v[0], ..., v[n-1])
+   const FiniteElementSpace& fes;
+   const int sdim; // spatial dimension
+   const int nf; // number of faces
+   const int ne; // number of elements
+   const int vdim; // dimension of functions in fes
+   const bool
+   byvdim; // ordering of dofs. e.g. byvdim == true -> (u[0], v[0], ..., u[n-1], v[n-1]). byvdim == false -> (u[0], ..., u[n-1], v[0], ..., v[n-1])
 
-    Array<int> face_to_elem; // nf x 2
+   Array<int> face_to_elem; // nf x 2
 
 public:
-    /// @brief constructs an L2NormalDerivativeFaceRestriction
-    /// @param[in] fes The FiniteElementSpace on which this operates
-    /// @param[in] ordering ordering of dofs
-    /// @param type type of faces to compute restriction for (interior or boundary)
-    L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes,
-                                      const ElementDofOrdering ordering,
-                                      const FaceType ftype);
+   /// @brief constructs an L2NormalDerivativeFaceRestriction
+   /// @param[in] fes The FiniteElementSpace on which this operates
+   /// @param[in] ordering ordering of dofs
+   /// @param type type of faces to compute restriction for (interior or boundary)
+   L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes,
+                                     const ElementDofOrdering ordering,
+                                     const FaceType ftype);
 
-    /// @brief Computes the normal derivatives on the @a type faces of the mesh.
-    /// @param[in] x The L-vector degrees of freedom.
-    /// @param[out] y The face E(like)-vector degrees of freedom of the format
-    /// (face_dofs x vdim x 2 x nf) where nf is the number of @a type faces. The
-    /// face_dofs are ordered according to @a ordering specified on
-    /// construction.
-    void Mult(const Vector& x, Vector& y) const override;
+   /// @brief Computes the normal derivatives on the @a type faces of the mesh.
+   /// @param[in] x The L-vector degrees of freedom.
+   /// @param[out] y The face E(like)-vector degrees of freedom of the format
+   /// (face_dofs x vdim x 2 x nf) where nf is the number of @a type faces. The
+   /// face_dofs are ordered according to @a ordering specified on
+   /// construction.
+   void Mult(const Vector& x, Vector& y) const override;
 
-    /// @brief Gather the degrees of freedom, i.e. goes from face E-Vector to L-Vector.
-    /// @param x The face E-Vector degrees of freedom.
-    /// @param y The L-Vector degrees of freedom.
-    void AddMultTranspose(const Vector& x, Vector& y, const double a = 1.0) const override;
+   /// @brief Gather the degrees of freedom, i.e. goes from face E-Vector to L-Vector.
+   /// @param x The face E-Vector degrees of freedom.
+   /// @param y The L-Vector degrees of freedom.
+   void AddMultTranspose(const Vector& x, Vector& y,
+                         const double a = 1.0) const override;
 
 protected:
-    /// @brief Mult in 2 dimensions
-    /// @param x
-    /// @param y
-    void Mult2D(const Vector& x, Vector& y) const;
+   /// @brief Mult in 2 dimensions
+   /// @param x
+   /// @param y
+   void Mult2D(const Vector& x, Vector& y) const;
 
-    /// @brief Mult in 3 dimensions
-    /// @param x
-    /// @param y
-    void Mult3D(const Vector& x, Vector& y) const;
+   /// @brief Mult in 3 dimensions
+   /// @param x
+   /// @param y
+   void Mult3D(const Vector& x, Vector& y) const;
 
-    void AddMultTranspose2D(const Vector& x, Vector& y, const double a) const;
+   void AddMultTranspose2D(const Vector& x, Vector& y, const double a) const;
 
-    void AddMultTranspose3D(const Vector& x, Vector& y, const double a) const;
+   void AddMultTranspose3D(const Vector& x, Vector& y, const double a) const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic
