@@ -1620,7 +1620,7 @@ void L2NormalDerivativeFaceRestriction::Mult(const Vector& x, Vector& y) const
          break;
 
       default:
-         /* TODO: Error */
+         MFEM_ABORT("Not yet implemented");
          break;
    }
 }
@@ -1731,7 +1731,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector& x,
          AddMultTranspose3D(x, y, a);
          break;
       default:
-         /* TODO: Error */
+         MFEM_ABORT("Not yet implemented");
          break;
    }
 }
@@ -1809,11 +1809,11 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                   {
                      if (face_id == 0 || face_id == 2)
                      {
-                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += G(i, k) * B(j, l) * d_y(p, c, side, f);
+                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * B(i, k) * G(j, l) * d_y(p, c, side, f);
                      }
                      else
                      {
-                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += B(i, k) * G(j, l) * d_y(p, c, side, f);
+                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * G(i, k) * B(j, l) * d_y(p, c, side, f);
                      }
                   } // for l
                } // for k
