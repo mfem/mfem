@@ -3100,6 +3100,12 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;             ///< Not owned
+   const FaceGeometricFactors *geom;  ///< Not owned
+   int dim, nf, nq, dofs1D, quad1D;
+
 public:
    DGDiffusionIntegrator(const double s, const double k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
@@ -3112,6 +3118,25 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   virtual bool RequiresFaceNormalDerivatives() const { return true; }
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
+                                               Vector &y, Vector &dydn) const;
+
+   //    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         FaceElementTransformations &T);
+
+private:
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
