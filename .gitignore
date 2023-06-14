@@ -29,6 +29,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.cmake
 config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
@@ -214,6 +215,7 @@ miniapps/meshing/pmesh-fitting
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
+miniapps/meshing/mesh-quality
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
