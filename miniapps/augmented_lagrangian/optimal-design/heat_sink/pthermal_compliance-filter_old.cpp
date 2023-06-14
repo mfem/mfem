@@ -18,29 +18,6 @@
 // srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 5 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4 -paraview
 // srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 5 -o 2 -bs 5 -theta 2.0 -mi 100 -mf 0.4 -paraview
 
-
-// Runs for the paper
-// Determnistic design
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 1 -mi 100 -mf 0.5 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -save-to-file -prob 0
-
-// Stochastic design
-// Adaptive sampling 
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 5 -mi 100 -mf 0.5 -theta 2.5 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
-
-// Constant number of samples
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 10 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 100 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 1000 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 10000 -mi 100 -mf 0.5 -theta -1.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -prob 1
-
-
-
-// Restore from saved design and evaluate compliance on random loads
-// mpirun -np 8 pthermal_compliance-filter -epsilon 0.01 -beta 2.0 -r 5 -o 2 -bs 100 -mi 1 -mf 0.5 -theta 2.0 -alpha 0.1 -l1 0.2 -l2 0.2 -ms 1000000 -paraview -restore -prob 1 -m output_design/mesh. -g output_design/rho.
-
-
-
-
 //         min J(K) = <g,u>
 //                            
 //                        Γ_2           Γ_1            Γ_2
@@ -73,9 +50,160 @@
 #include <fstream>
 #include <random>
 #include "../solvers/pde_solvers.hpp"
+#include "../../../spde/boundary.hpp"
 #include "../../../spde/spde_solver.hpp"
 
+// class EpsilonMatrixCoefficient : public MatrixArrayCoefficient
+// {
+// private:
+//    Mesh * mesh = nullptr;
+//    ParMesh * pmesh = nullptr;
+//    Array<ParGridFunction * > pgfs;
+//    Array<GridFunctionCoefficient * > gf_cfs;
+//    GridFunction * vgf = nullptr;
+//    int dim;
+// public:
+//    EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
+//                             double scale = 1.0)
+//       : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
+//         dim(mesh_->Dimension())
+//    {
+//       std::filebuf fb;
+//       fb.open(filename,std::ios::in);
+//       std::istream is(&fb);
+//       vgf = new GridFunction(mesh,is);
+//       fb.close();
+//       FiniteElementSpace * vfes = vgf->FESpace();
+//       int vdim = vfes->GetVDim();
+//       const FiniteElementCollection * fec = vfes->FEColl();
+//       FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
+//       int num_procs = Mpi::WorldSize();
+//       int * partitioning = mesh->GeneratePartitioning(num_procs);
+//       double *data = vgf->GetData();
+//       GridFunction gf;
+//       pgfs.SetSize(vdim);
+//       gf_cfs.SetSize(vdim);
+//       for (int i = 0; i<dim; i++)
+//       {
+//          for (int j = 0; j<dim; j++)
+//          {
+//             int k = i*dim+j;
+//             // int k = j*dim+i;
+//             gf.MakeRef(fes,&data[k*fes->GetVSize()]);
+//             pgfs[k] = new ParGridFunction(pmesh,&gf,partitioning);
+//             (*pgfs[k])*=scale;
+//             gf_cfs[k] = new GridFunctionCoefficient(pgfs[k]);
+//             Set(i,j,gf_cfs[k], true);
+//          }
+//       }
+//    }
+//    ~EpsilonMatrixCoefficient()
+//    {
+//       for (int i = 0; i<pgfs.Size(); i++)
+//       {
+//          delete pgfs[i];
+//       }
+//       pgfs.DeleteAll();
+//    }
+
+// };
+
+// read ParGridFunction 
+
+ParGridFunction * LoadParMeshAndParGridFunction(const char * mesh_filename, const char * gf_filename);
+
+
 bool random_seed = true;
+
+class RandomUniformConstantCoefficient : public ConstantCoefficient
+{
+private:
+   std::default_random_engine generator;
+   std::uniform_real_distribution<double> * distribution;
+public:
+   RandomUniformConstantCoefficient(double a=0.4, double b=0.6, int seed = 0) 
+   {
+      generator.seed(seed);
+      distribution = new std::uniform_real_distribution<double> (a,b);
+      constant = (*distribution)(generator);
+   }
+   void resample()
+   {
+      constant = (*distribution)(generator);
+   }
+};
+
+class RandomNormalConstantCoefficient : public ConstantCoefficient
+{
+private:
+   std::default_random_engine generator;
+   std::normal_distribution<double> * distribution;
+public:
+   RandomNormalConstantCoefficient(double mu=0.0, double sigma=1.0, int seed = 0) 
+   {
+      generator.seed(seed);
+      distribution = new std::normal_distribution<double> (mu,sigma);
+      constant = (*distribution)(generator);
+   }
+   void resample()
+   {
+      constant = (*distribution)(generator);
+   }
+};
+
+
+class SigmoidDiffusionCoefficient : public Coefficient
+{
+protected:
+   GridFunction *rho_filter; // grid function
+   Coefficient * eta;
+   double min_val;
+   double max_val;
+   double beta;
+
+public:
+   SigmoidDiffusionCoefficient(GridFunction &rho_filter_, Coefficient * eta_, 
+   double min_val_= 1e-3, double max_val_=1.0, double beta_ = 8.0)
+      : rho_filter(&rho_filter_), eta(eta_), min_val(min_val_), max_val(max_val_),beta(beta_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      double val_rho = rho_filter->GetValue(T, ip);
+      double val_eta = eta->Eval(T,ip);
+      double val = std::tanh(beta*val_eta);
+      double numer = val + std::tanh(beta*(val_rho-val_eta));
+      double denom = val + std::tanh(beta*(1.0-val_eta)); 
+      return min_val + numer/denom * (max_val - min_val);
+   }
+};
+class GradientSigmoidRHSCoefficient : public Coefficient
+{
+protected:
+   GridFunction *u; // grid function
+   GridFunction *rho_filter; // grid function
+   Coefficient * eta;
+   double min_val;
+   double max_val;
+   double beta;
+
+public:
+   GradientSigmoidRHSCoefficient(GridFunction &u_, GridFunction & rho_filter_, Coefficient * eta_,
+      double min_val_= 1e-3, double max_val_=1.0, double beta_ = 8.0)
+      : u(&u_), rho_filter(&rho_filter_), eta(eta_), min_val(min_val_), max_val(max_val_), 
+         beta(beta_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.SetIntPoint(&ip);
+      double val_rho = rho_filter->GetValue(T,ip);
+      double val_eta = eta->Eval(T,ip);
+      Vector gradu;
+      u->GetGradient(T,gradu);
+      double denom = std::tanh(beta * val_eta) + std::tanh(beta*(1.0-val_eta));
+      denom *= pow(std::cosh(beta*(val_rho-val_eta)),2);
+      return - beta/denom * (max_val - min_val) * (gradu * gradu); 
+   }
+};
 
 class DiffusionCoefficient : public Coefficient
 {
@@ -106,6 +234,7 @@ protected:
    double min_val;
    double max_val;
    double exponent;
+
 public:
    GradientRHSCoefficient(GridFunction &u_, GridFunction & rho_filter_, 
       double min_val_= 1e-3, double max_val_=1.0, double exponent_ = 3.0)
@@ -121,6 +250,51 @@ public:
       return -exponent * pow(val, exponent-1.0) * (max_val-min_val) * (gradu * gradu); 
    }
 };
+
+class RandomFunctionCoefficient : public Coefficient
+{
+private:
+   double a = 0.4;
+   double b = 0.6;
+   double x,y;
+   std::default_random_engine generator;
+   std::uniform_real_distribution<double> * distribution;
+   double (*Function)(const Vector &, double, double);
+public:
+   RandomFunctionCoefficient(double (*F)(const Vector &, double, double), int seed = 0) 
+   : Function(F) 
+   {
+      generator.seed(seed);
+      distribution = new std::uniform_real_distribution<double> (a,b);
+      x = (*distribution)(generator);
+      y = (*distribution)(generator);
+   }
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector transip(3);
+      T.Transform(ip, transip);
+      return ((*Function)(transip, x,y));
+   }
+   void resample()
+   {
+      x = (*distribution)(generator);
+      y = (*distribution)(generator);
+   }
+};
+
+double randomload(const Vector & X, double x0, double y0)
+{
+   double x = X(0);
+   double y = X(1);
+   double sigma = 0.3;
+   double sigma2 = sigma*sigma;
+   double alpha = 1.0/(2.0*M_PI*sigma2);
+   double r2 = (x-x0)*(x-x0) + (y-y0)*(y-y0);
+   double beta = -0.5/sigma2 * r2;
+   return alpha * exp(beta);
+   // return 1.0;
+}
 
 using namespace std;
 using namespace mfem;
@@ -152,20 +326,6 @@ using namespace mfem;
  *  w ∈ L^2 (order p - 1)
  */
 
-enum prob_type
-{
-   deterministic,    
-   stochastic     
-};
-prob_type prob;
-
-enum geom_type
-{
-   square,    
-   sphere     
-};
-geom_type geom;
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -176,7 +336,6 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
-   bool mirror = true;
    double alpha = 1.0;
    double beta = 1.0;
    double epsilon = 1.0;
@@ -190,20 +349,14 @@ int main(int argc, char *argv[])
    double K_min = 1e-3;
    int batch_size_min = 2;
    double theta = 0.5;
+
    int max_cumulative_samples = 1e5;
+
    double l1 = 0.1, l2 = 0.1, l3 = 1.0;
-   double e1 = 0.0, e2 = 0.0, e3 = 0.0;
+
+
+   bool use_simp = true;
    bool paraview = false;
-   int iprob = 0;
-   int igeom = 0;
-
-   // save design to a file
-   bool save_to_file = false;
-   // restore precomputed design from file
-   bool restore_from_file = false;
-   const char *saved_meshfile = "output_design/mesh.";
-   const char *saved_solfile = "output_design/rho.";
-
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
@@ -224,13 +377,8 @@ int main(int argc, char *argv[])
    args.AddOption(&l2, "-l2", "--l2",
                   "Correlation length y");             
    args.AddOption(&l3, "-l3", "--l3",
-                  "Correlation length z");                
-   args.AddOption(&e1, "-e1", "--e1",
-                  "Rotation angle in x direction");
-   args.AddOption(&e2, "-e2", "--e2",
-                  "Rotation angle in y direction");             
-   args.AddOption(&e3, "-e3", "--e3",
-                  "Rotation angle in z direction");                               
+                  "Correlation length z");                        
+
    args.AddOption(&tol_rho, "-tr", "--tol_rho",
                   "Exit tolerance for ρ ");     
    args.AddOption(&tol_lambda, "-tl", "--tol_lambda",
@@ -241,37 +389,23 @@ int main(int argc, char *argv[])
                   "Maximum of diffusion diffusion coefficient.");
    args.AddOption(&K_min, "-Kmin", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
-   args.AddOption(&iprob, "-prob", "--problem", "Problem type"
-                  " 0: deterministic, 1: stochastic ");
-   args.AddOption(&igeom, "-g", "--geom", "Geometry type"
-                  "0: square, 1: sphere");
    args.AddOption(&batch_size_min, "-bs", "--batch-size",
                   "batch size for stochastic gradient descent.");     
    args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
                   "Sampling ratio theta");       
+   args.AddOption(&use_simp, "-simp", "--simp", "-no-simp",
+                  "--no-simp",
+                  "Use SIMP.");                    
    args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
                   "--no-random-seed",
                   "Enable or disable random seed.");                                                     
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&mirror, "-mirror", "--mirror", "-no-mirror",
-                  "--no-mirror",
-                  "Enable or disable symmetric optimization.");
-
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
-                  "Enable or disable paraview export.");       
-   args.AddOption(&save_to_file, "-save-to-file", "--save-to-file", "-no-save",
-                  "--no-save",
-                  "Enable or disable saving design to a file.");                       
-   args.AddOption(&restore_from_file, "-restore", "--restore", "-no-restore",
-                  "--no-restore",
-                  "Enable or disable restore from file.");                         
-   args.AddOption(&saved_meshfile, "-m", "--mesh",
-                  "Load precomputed design mesh.");
-   args.AddOption(&saved_solfile, "-g", "--gf",
-                  "Load precomputed design GridFunction.");                  
+                  "Enable or disable paraview export.");               
+
    args.Parse();
    if (!args.Good())
    {
@@ -286,13 +420,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
-   MFEM_VERIFY((iprob == 0 || iprob == 1), "Wrong choice of problem kind");
-   prob = (prob_type)iprob;
-
-   MFEM_VERIFY((igeom == 0 || igeom == 1), "Wrong choice of geometry kind");
-   geom = (geom_type)igeom;
-
    int batch_size = batch_size_min;
    if (theta < 0.0) { theta = std::numeric_limits<double>::infinity(); }
 
@@ -308,107 +435,55 @@ int main(int argc, char *argv[])
            << " Lambda " << endl;
    } 
 
-   Mesh *mesh;
-   if (geom == geom_type::square)
-   {
-      if (mirror)
-      {
-         mesh = new Mesh(Mesh::MakeCartesian2D(3,6,mfem::Element::Type::QUADRILATERAL,true,0.5,1.0));
+   Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
 
+   int dim = mesh.Dimension();
+
+   for (int i = 0; i<mesh.GetNBE(); i++)
+   {
+      Element * be = mesh.GetBdrElement(i);
+      Array<int> vertices;
+      be->GetVertices(vertices);
+
+      double * coords1 = mesh.GetVertex(vertices[0]);
+      double * coords2 = mesh.GetVertex(vertices[1]);
+
+      Vector center(2);
+      center(0) = 0.5*(coords1[0] + coords2[0]);
+      center(1) = 0.5*(coords1[1] + coords2[1]);
+
+
+      if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
+      {
+         // middle the top edge
+         be->SetAttribute(1);
+      }
+      else if (abs(center(1) - 1.0) < 1e-10)
+      {
+         // the rest of top edge
+         be->SetAttribute(2);
+
+      }
+      else if (abs(center(0)) < 1e-10 || abs(center(0)-1.0) < 1e-10)
+      {
+         // left and right edge
+         be->SetAttribute(4);
       }
       else
       {
-         mesh = new Mesh(Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0));
+         // bottom edge
+         be->SetAttribute(3);
       }
-
    }
-   else
-   {
-      const char *mesh_file = "spherical_surf.msh";
-      mesh = new Mesh(mesh_file,1,1);
-   }
-
-   int dim = mesh->Dimension();
-
-   if (geom == geom_type::square)
-   {
-      for (int i = 0; i<mesh->GetNBE(); i++)
-      {
-         Element * be = mesh->GetBdrElement(i);
-         Array<int> vertices;
-         be->GetVertices(vertices);
-
-         double * coords1 = mesh->GetVertex(vertices[0]);
-         double * coords2 = mesh->GetVertex(vertices[1]);
-
-         Vector center(2);
-         center(0) = 0.5*(coords1[0] + coords2[0]);
-         center(1) = 0.5*(coords1[1] + coords2[1]);
-
-         if (mirror)
-         {
-            if (abs(center(1) - 1.0) < 1e-10 && center(0)>=1.0/3.0)
-            {
-               // top edge on the right
-               be->SetAttribute(1);
-            }
-            else if (abs(center(1) - 1.0) < 1e-10)
-            {
-               // the rest of top edge
-               be->SetAttribute(2);
-            }
-            else if (abs(center(0)) < 1e-10)
-            {
-               // left edge
-               be->SetAttribute(3);
-            }
-            else if (abs(center(0)-0.5) < 1e-10)
-            {
-               // right edge
-               be->SetAttribute(4);
-            }
-            else
-            {
-               // bottom edge
-               be->SetAttribute(3);
-            }
-         }
-         else
-         {
-            if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
-            {
-               // middle of the top edge
-               be->SetAttribute(1);
-            }
-            else if (abs(center(1) - 1.0) < 1e-10)
-            {
-               // the rest of top edge
-               be->SetAttribute(2);
-
-            }
-            else if (abs(center(0)) < 1e-10 || abs(center(0)-1.0) < 1e-10)
-            {
-               // left and right edge
-               be->SetAttribute(4);
-            }
-            else
-            {
-               // bottom edge
-               be->SetAttribute(3);
-            }
-         }
-      }
-      mesh->SetAttributes();
-   }
+   mesh.SetAttributes();
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   mesh->Clear();
-   delete mesh;
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
@@ -429,36 +504,35 @@ int main(int argc, char *argv[])
       cout << "Number of control unknowns: " << control_size << endl;
    }
 
+
    // Setup SPDE for random load generation
    spde::Boundary bc;
-   spde::Boundary bc1;
-   bc1.AddHomogeneousBoundaryCondition(4,spde::BoundaryType::kDirichlet);
+
+   // RandomUniformConstantCoefficient rand_bc(-2.0, 2.0);
+   // RandomNormalConstantCoefficient rand_bc(0.0, 0.5);
+   // rand_bc.resample();
+   // // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+   // // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+   // // bc.AddHomogeneousBoundaryCondition(3,spde::BoundaryType::kDirichlet);
+
+   // bc.AddInhomogeneousDirichletBoundaryCondition(3,rand_bc.constant);
+   // bc.AddHomogeneousBoundaryCondition(1,spde::BoundaryType::kDirichlet);
+   // bc.AddHomogeneousBoundaryCondition(2,spde::BoundaryType::kDirichlet);
 
    if (Mpi::Root()) 
    {
      bc.PrintInfo();
      bc.VerifyDefinedBoundaries(pmesh);
-
-     bc1.PrintInfo();
-     bc1.VerifyDefinedBoundaries(pmesh);
    }
    double nu = 1.0;
-   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2,l3, e1,e2,e3);
-   spde::SPDESolver random_load_solver1(nu, bc1, &state_fes, l1, l2,l3, e1,e2,e3);
-   random_load_solver.SetPrintLevel(0);
-   random_load_solver1.SetPrintLevel(0);
+   double e1 = 0.0, e2 = 0.0, e3 = 0.0;
+   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
 
-   ParGridFunction load_gf(&state_fes); 
-   ParGridFunction load_gf1(&state_fes); 
+   ParGridFunction load_gf(&state_fes);
    random_load_solver.SetupRandomFieldGenerator(myid+1);
    random_load_solver.GenerateRandomField(load_gf);
 
-   random_load_solver1.SetupRandomFieldGenerator(myid+3000);
-   random_load_solver1.GenerateRandomField(load_gf1);
-
-
    GridFunctionCoefficient load_cf(&load_gf);
-   GridFunctionCoefficient load_cf1(&load_gf1);
 
    // 7. Set the initial guess for f and the boundary conditions for u.
    ParGridFunction u(&state_fes);
@@ -468,25 +542,14 @@ int main(int argc, char *argv[])
    u = 0.0;
    rho_filter = 0.0;
    rho = 0.5;
-   rho_old = rho;
+   rho_old = 0.5;
    // 8. Set up the linear form b(.) for the state and adjoint equations.
    int maxat = pmesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
-   Array<int> ess_bdr1(maxat);
    ess_bdr = 0;
-   ess_bdr1 = 0;
    if (maxat > 0)
    {
-      if (geom == geom_type::square)
-      {
-         ess_bdr[0] = 1;
-         ess_bdr1[0] = 1;
-         ess_bdr1[3] = 1;
-      }  
-      else
-      {
-         ess_bdr = 1; // 
-      }    
+      ess_bdr[0] = 1;
    }
    ConstantCoefficient one(1.0);
    DiffusionSolver * PoissonSolver = new DiffusionSolver();
@@ -494,18 +557,11 @@ int main(int argc, char *argv[])
    PoissonSolver->SetOrder(state_fec.GetOrder());
    PoissonSolver->SetupFEM();
 
-   DiffusionSolver * PoissonSolver1 = new DiffusionSolver();
-   PoissonSolver1->SetMesh(&pmesh);
-   PoissonSolver1->SetOrder(state_fec.GetOrder());
-   PoissonSolver1->SetupFEM();
-
    int seed = (random_seed) ? rand()%100 + myid : myid;
    
    PoissonSolver->SetRHSCoefficient(&load_cf);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
 
-   PoissonSolver1->SetRHSCoefficient(&load_cf1);
-   PoissonSolver1->SetEssentialBoundary(ess_bdr1);
 
    ConstantCoefficient eps2_cf(epsilon*epsilon);
    DiffusionSolver * FilterSolver = new DiffusionSolver();
@@ -558,8 +614,7 @@ int main(int argc, char *argv[])
    {
       ostringstream paraview_file_name;
       paraview_file_name << "Thermal_compliance_alpha_" << alpha 
-                         << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2
-                         << "_e1_" << e1 << "_bs_" << batch_size_min;
+                         << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2;
       paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(order);
@@ -576,13 +631,24 @@ int main(int argc, char *argv[])
    bool first_iteration = true;
    int cumulative_samples = 0;
    double lambda = 0.0;
+   // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
+   RandomUniformConstantCoefficient eta_cf(0.5,0.5,1);
+   // RandomConstantCoefficient eta_cf(0.2,0.2,1);
    Coefficient * K_cf = nullptr;
    Coefficient * rhs_cf = nullptr;
+   bool eval_deterministic = false;
    for (int k = 1; k <= max_it; k++)
    {
+      if (myid == 0)
+      {
+         cout << "\nk = " << k << endl;
+      }
+      if (k == max_it) eval_deterministic = true;
       // A. Form state equation
       if (k > 1) { tol_rho *= (double (k-1))/(double (k)) ; }
       double ratio_avg = 0.0;
+      if (eval_deterministic) max_it = 1;
+
       for (int l = 1; l <= max_it; l++)
       {
          step++;
@@ -609,51 +675,70 @@ int main(int argc, char *argv[])
          double avg_compliance = 0.;
 
          double mf = vol_form(rho)/domain_volume;
-         K_cf = new DiffusionCoefficient(rho_filter,K_min,K_max);
-         rhs_cf = new GradientRHSCoefficient(u,rho_filter,K_min, K_max);
+         if (use_simp)
+         {
+            if (!eval_deterministic)
+               K_cf = new DiffusionCoefficient(rho_filter,K_min,K_max);
+            rhs_cf = new GradientRHSCoefficient(u,rho_filter,K_min, K_max);
+         }
+         else
+         {
+            K_cf = new SigmoidDiffusionCoefficient(rho_filter,&eta_cf,K_min,K_max,8.0);
+            rhs_cf = new GradientSigmoidRHSCoefficient(u,rho_filter,&eta_cf,K_min, K_max, 8.0);
+         }
          PoissonSolver->SetDiffusionCoefficient(K_cf);
-         PoissonSolver1->SetDiffusionCoefficient(K_cf);
          FilterSolver->SetRHSCoefficient(rhs_cf);
+         if (eval_deterministic) batch_size = 10;
          for (int ib = 0; ib<batch_size; ib++)
          {
-            if (prob == prob_type::stochastic)
+            if (!use_simp)
             {
-               random_load_solver.GenerateRandomField(load_gf);
-               if (mirror) random_load_solver1.GenerateRandomField(load_gf1);
+               eta_cf.resample();
             }
             else
             {
-               load_gf = 1.0;
+               // rand_bc.resample();
+               // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+               // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+               if (eval_deterministic)
+               {
+                  random_load_solver.GenerateRandomField(load_gf);
+               }
+               else   
+               {
+                  load_gf = 1.0;
+               }
             }
             PoissonSolver->Solve();
             u = *PoissonSolver->GetFEMSolution();
-            if (mirror)
-            {
-               PoissonSolver1->Solve();
-               u += *PoissonSolver1->GetFEMSolution();
-               u/=2.0;
-            }
-
+            // if (myid == 0)
+            // {
+            //    cout << "norm of u = " << u.Norml2() << endl;
+            // }
             // ------------------------------------------------------------------
             // Step 4 - Adjoint Solve
             FilterSolver->Solve();
             w_filter = *FilterSolver->GetFEMSolution();
-
+            // Step 5 - get grad of w
             GridFunctionCoefficient w_cf(&w_filter);
+            // ParLinearForm w_rhs(&control_fes);
+            // w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
+            // w_rhs.Assemble();
+            // M.Mult(w_rhs,w);
             w.ProjectCoefficient(w_cf); // This might need to change to L2-projection
             // ------------------------------------------------------------------
+
             // step 6-update  ρ 
             w -= lambda;
             w += beta * (mf - mass_fraction)/domain_volume;
             avg_w += w;
             double w_norm = w.ComputeL2Error(zero);
             avg_w_norm += w_norm*w_norm;
-            avg_compliance += (*(PoissonSolver->GetParLinearForm()))(u);
+            avg_compliance += (*(PoissonSolver->GetLinearForm()))(u);
          } // end of loop through batch samples
 
          avg_w_norm /= (double)batch_size;  
          avg_w /= (double)batch_size;
-
          avg_compliance /= (double)batch_size;  
 
          double norm_avg_w = pow(avg_w.ComputeL2Error(zero),2);
@@ -704,11 +789,11 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient tmp(&rho_old);
          double norm_rho = rho.ComputeL2Error(tmp)/alpha;
          rho_old = rho;
-         
+         double compliance = (*(PoissonSolver->GetLinearForm()))(u);
          if (myid == 0)
          {
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
-            mfem::out << "avg_compliance = " << avg_compliance << endl;
+            mfem::out << "compliance = " << compliance << endl;
             mfem::out << "variance = " << variance << std::endl;
             mfem::out << "stationarity = " << stationarity_norm << std::endl;
          }
@@ -729,19 +814,28 @@ int main(int argc, char *argv[])
                  << lambda << endl;
          }
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
-         if (myid == 0)
-         {
-            mfem::out << "ratio_avg = " << ratio_avg << std::endl;
-         }
-         if (ratio > theta && !first_iteration)
-         {
-            batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
-         }
-         else if (ratio < 0.1 * theta && !first_iteration)
-         {
-            batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
-         }
-         first_iteration = false;
+         // if (l%batch_size_min!=0)
+         // {
+            // ratio_avg += ratio;
+         // }
+         // else
+         // {
+            // ratio_avg /= batch_size_min;
+            // ratio_avg = ratio;
+            if (myid == 0)
+            {
+               mfem::out << "ratio_avg = " << ratio_avg << std::endl;
+            }
+            if (ratio > theta and !first_iteration)
+            {
+               batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
+            }
+            else if (ratio < 0.1 * theta and !first_iteration)
+            {
+               batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
+            }
+            first_iteration = false;
+         // }
 
          if (visualization)
          {
@@ -778,14 +872,17 @@ int main(int argc, char *argv[])
       double lambda_inc = mass/domain_volume - mass_fraction;
 
       lambda -= beta*lambda_inc;
+      // batch_size = batch_size_min;
       if (myid == 0)
       {
          mfem::out << "lambda_inc = " << lambda_inc << endl;
          mfem::out << "lambda = " << lambda << endl;
       }
 
+
       if (visualization)
       {
+
          sout_u << "parallel " << num_procs << " " << myid << "\n";
          sout_u << "solution\n" << pmesh << u
                << "window_title 'State u'" << flush;
