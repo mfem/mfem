@@ -1307,6 +1307,140 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
    Interpolate(field_in, field_out);
 }
 
+#ifdef MFEM_USE_MPI
+GSLIBCommunicator::GSLIBCommunicator(MPI_Comm comm_)
+   : cr(NULL), gsl_comm(NULL)
+{
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
+   crystal_init(cr, gsl_comm);
+}
+
+void GSLIBCommunicator::ExchangeNormal(Array<unsigned int> &gsl_proc,
+                                       Array<unsigned int> &gsl_mfem_elem,
+                                       Vector &gsl_mfem_ref,
+                                       Vector &recv_normals,
+                                       const int & dim)
+{
+   int nptsend = gsl_proc.Size();
+   int nptElem   = gsl_mfem_elem.Size();
+   int nptRST    = gsl_mfem_ref.Size();
+
+   recv_normals.SetSize(nptRST);
+   int nptNormal    = recv_normals.Size();
+
+   MFEM_VERIFY(nptElem == nptsend,
+               "Incompatible Elem size.");
+   MFEM_VERIFY(nptsend*dim == nptRST,
+               "Incompatible nptRST size.");
+   MFEM_VERIFY(dim <= 3,
+               "Incompatible dimension.");
+
+   // Pack data to send via crystal router
+   struct gslib::array *outpt = new gslib::array;
+
+   struct out_pt { double rst[3]; uint index, elem, proc; };
+   struct out_pt *pt;
+   array_init(struct out_pt, outpt, nptsend);
+   outpt->n=nptsend;
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < nptsend; index++)
+   {
+      pt->index = index;
+      pt->elem = gsl_mfem_elem[index];
+      pt->proc  = gsl_proc[index];
+      for (int d = 0; d < dim; ++d)
+      {
+         pt->rst[d]= gsl_mfem_ref(index*dim + d);
+      }
+      ++pt;
+   }
+
+   // Transfer data to target MPI ranks
+   sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+   // Get normal vector
+   int npt = outpt->n;
+   pt = (struct out_pt *)outpt->ptr;
+   Vector normal(npt*dim);
+   for (int index = 0; index < npt; index++)
+   {
+      IntegrationPoint ip;
+      ip.Set3(&pt->rst[0]);
+      Vector localval(normal.GetData()+index*dim, dim);
+      // get the normal at this integration point here
+      // for now I just put back this proc's rank + the input rst coordinates
+      for (int d = 0; d < dim; d++)
+      {
+         localval(d) = gsl_comm->id + pt->rst[d];
+      }
+      ++pt;
+   }
+
+   // Save index and proc data in a struct
+   struct gslib::array *savpt = new gslib::array;
+   struct sav_pt { uint index, proc; };
+   struct sav_pt *spt;
+   array_init(struct sav_pt, savpt, npt);
+   savpt->n=npt;
+   spt = (struct sav_pt *)savpt->ptr;
+   pt  = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < npt; index++)
+   {
+      spt->index = pt->index;
+      spt->proc  = pt->proc;
+      ++pt; ++spt;
+   }
+
+   array_free(outpt);
+   delete outpt;
+
+   // Copy data from save struct to send struct and send component wise
+   struct gslib::array *sendpt = new gslib::array;
+   struct send_pt { double ival; uint index, proc; };
+   struct send_pt *sdpt;
+   for (int j = 0; j < dim; j++)
+   {
+      array_init(struct send_pt, sendpt, npt);
+      sendpt->n=npt;
+      spt  = (struct sav_pt *)savpt->ptr;
+      sdpt = (struct send_pt *)sendpt->ptr;
+      for (int index = 0; index < npt; index++)
+      {
+         sdpt->index = spt->index;
+         sdpt->proc  = spt->proc;
+         sdpt->ival  = normal(j + index*dim);
+         ++sdpt; ++spt;
+      }
+
+      sarray_transfer(struct send_pt, sendpt, proc, 1, cr);
+      sdpt = (struct send_pt *)sendpt->ptr;
+      for (int index = 0; index < static_cast<int>(sendpt->n); index++)
+      {
+         int idx = sdpt->index*dim + j;
+         recv_normals(idx) = sdpt->ival;
+         ++sdpt;
+      }
+      array_free(sendpt);
+   }
+   array_free(savpt);
+   delete sendpt;
+   delete savpt;
+}
+
+void GSLIBCommunicator::FreeData()
+{
+   crystal_free(cr);
+}
+
+GSLIBCommunicator::~GSLIBCommunicator()
+{
+   delete gsl_comm;
+   delete cr;
+}
+#endif
+
 
 } // namespace mfem
 
