@@ -163,6 +163,12 @@ void BilinearFormIntegrator::AssembleTraceFaceMatrix (int elem,
               " Integrator class.");
 }
 
+void BilinearFormIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
+                                                            const Vector &dxdn, Vector &y, Vector &dydn) const
+{
+   MFEM_ABORT("Not implemented.");
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
