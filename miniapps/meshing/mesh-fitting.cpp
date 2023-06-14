@@ -222,7 +222,10 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
     int dim = fes->GetMesh()->Dimension();
     Vector vxyz(dim*ir->GetNPoints());  // Coordinated of the quadrature points in the physical space
     Vector interp_values(ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
+    std::cout << "Ordre " << intorder << std::endl;
+    std::cout << "Nbr de points de quadrature: " << ir->GetNPoints() << std::endl;
 
+    // Compute the coords of the quadrature points in the physical space
     for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
     {
         const IntegrationPoint &ip = ir->IntPoint(i);
@@ -236,7 +239,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
         {
             vxyz(i*dim+2) = xyz(2);
         }
-
+        std::cout << "Ref space " << ip.x << ", " << ip.y << ", Physical space " << xyz(0) << ", " << xyz(1) << std::endl;
     }
 
     // Compute the interpolated values of the level set grid function on the
