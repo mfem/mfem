@@ -63,6 +63,13 @@ Discretization improvements
 
 - Added support for p-refined meshes in FindPointsGSLIB.
 
+Linear and nonlinear solvers
+____________________________
+
+- Updated interface to MUMPS direct solver to support multiple right-hand
+  sides, block low-rank compression, builds using 64-bit integers, and other
+  improvements.
+
 Integrations, testing and documentation
 ---------------------------------------
 - Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
