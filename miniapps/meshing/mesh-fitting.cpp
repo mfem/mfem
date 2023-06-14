@@ -215,7 +215,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
     const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 
     //Vector values ;
-    DenseMatrix tr;
+    //DenseMatrix tr;
     //ls_bg->GetFaceValues(el, 0, *ir, values, tr, 1);
     FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
 
@@ -243,7 +243,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
     // physical coords of the quadrature points
     int point_ordering(0);
     FindPointsGSLIB finder;
-    finder.Setup(*fes->GetMesh());
+    finder.Setup(*ls_bg->FESpace()->GetMesh());
     finder.SetL2AvgType(FindPointsGSLIB::NONE);
     finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
 
@@ -1117,14 +1117,17 @@ int main(int argc, char *argv[])
       tmop_integ->CopyGridFunction(surf_fit_gf0);
       surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
       double error_sum = 0.0;
+      double error_bg_sum = 0.0;
       for (int i=0; i < inter_faces.size(); i++)
       {
-          //double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
-          double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_bg_gf0, inter_faces[i]);
+          double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
           error_sum += error_face;
+          double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(), surf_fit_bg_gf0, inter_faces[i]);
+          error_bg_sum += error_bg_face;
       }
       std::cout << "Nbr DOFs: " << fespace->GetNDofs() << ", Max order: " << fespace->GetMaxElementOrder() <<  std::endl;
       std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
+      std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " << std::endl;
 
    }
 
