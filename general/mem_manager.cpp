@@ -47,6 +47,10 @@
 #endif
 #endif // MFEM_USE_UMPIRE
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
 
