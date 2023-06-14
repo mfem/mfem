@@ -2996,10 +2996,7 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    for (int i = 0; i < nprocs; ++i)
    {
       globalNum += all_num_loc[i];
-      if (rank == 0)
-      {
-         MFEM_VERIFY(globalNum >= 0, "overflow in global size");
-      }
+      MFEM_VERIFY(globalNum >= 0, "overflow in global size");
       if (i < rank)
       {
          firstLocal += all_num_loc[i];
@@ -3064,9 +3061,6 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             const int nrows = blocks(i,j)->NumRows();
             const int ncols = blocks(i,j)->NumCols();
 
-            MFEM_VERIFY(nrows > 0 &&
-                        ncols > 0, "Invalid block in HypreParMatrixFromBlocks");
-
             if (rowOffsets[i+1] == 0)
             {
                rowOffsets[i+1] = nrows;
@@ -3088,14 +3082,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             }
          }
       }
-
-      MFEM_VERIFY(rowOffsets[i+1] > 0, "Invalid input blocks");
       rowOffsets[i+1] += rowOffsets[i];
    }
 
    for (int j=0; j<numBlockCols; ++j)
    {
-      MFEM_VERIFY(colOffsets[j+1] > 0, "Invalid input blocks");
       colOffsets[j+1] += colOffsets[j];
    }
 
