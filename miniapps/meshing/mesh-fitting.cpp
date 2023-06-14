@@ -207,6 +207,59 @@ double ComputeIntegrateError(const FiniteElementSpace* fes, FunctionCoefficient*
     return error;
 }
 
+double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_bg, const int el)
+{
+    double error = 0.0;
+    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
+    int intorder = 2*fe->GetOrder() + 3 ;
+    const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+
+    //Vector values ;
+    DenseMatrix tr;
+    //ls_bg->GetFaceValues(el, 0, *ir, values, tr, 1);
+    FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
+
+    int dim = fes->GetMesh()->Dimension();
+    Vector vxyz(dim*ir->GetNPoints());  // Coordinated of the quadrature points in the physical space
+    Vector interp_values(ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
+
+    for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+
+        Vector xyz(dim);
+        transf->Transform(ip, xyz);
+
+        vxyz(i*dim) = xyz(0);
+        vxyz(i*dim+1) = xyz(1);
+        if (dim==3)
+        {
+            vxyz(i*dim+2) = xyz(2);
+        }
+
+    }
+
+    // Compute the interpolated values of the level set grid function on the
+    // physical coords of the quadrature points
+    int point_ordering(0);
+    FindPointsGSLIB finder;
+    finder.Setup(*fes->GetMesh());
+    finder.SetL2AvgType(FindPointsGSLIB::NONE);
+    finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
+
+    for (int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        transf->SetAllIntPoints(&ip);
+
+        double level_set_value = interp_values(i) ;
+        error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
+        // error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
+    }
+
+    return error;
+}
+
 int main(int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
@@ -1066,7 +1119,8 @@ int main(int argc, char *argv[])
       double error_sum = 0.0;
       for (int i=0; i < inter_faces.size(); i++)
       {
-          double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
+          //double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
+          double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_bg_gf0, inter_faces[i]);
           error_sum += error_face;
       }
       std::cout << "Nbr DOFs: " << fespace->GetNDofs() << ", Max order: " << fespace->GetMaxElementOrder() <<  std::endl;
@@ -1094,7 +1148,6 @@ int main(int argc, char *argv[])
    delete S;
    delete S_prec;
    delete adapt_surface;
-   /*
    delete adapt_grad_surface;
    delete adapt_hess_surface;
    delete surf_fit_hess;
@@ -1108,7 +1161,6 @@ int main(int argc, char *argv[])
    delete surf_fit_bg_gf0;
    delete surf_fit_bg_fes;
    delete surf_fit_bg_fec;
-   */
    delete target_c;
    delete metric;
    delete fespace;
