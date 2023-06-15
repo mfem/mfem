@@ -3094,7 +3094,7 @@ class DGDiffusionIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
-   double sigma, kappa;
+   double sigma, kappa, lambda;
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
@@ -3114,12 +3114,12 @@ protected:
    int dim, nf, nq, dofs1D, quad1D;
 
 public:
-   DGDiffusionIntegrator(const double s, const double k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k), irs(0, Quadrature1D::GaussLobatto) { }
-   DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), irs(0, Quadrature1D::GaussLobatto) { }
-   DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k), irs(0, Quadrature1D::GaussLobatto) { }
+   DGDiffusionIntegrator(const double s, const double k, const double l)
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k), lambda(l), irs(0, Quadrature1D::GaussLobatto) { }
+   DGDiffusionIntegrator(Coefficient &q, const double s, const double k, const double l)
+      : Q(&q), MQ(NULL), sigma(s), kappa(k), lambda(l), irs(0, Quadrature1D::GaussLobatto) { }
+   DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k, const double l)
+      : Q(NULL), MQ(&q), sigma(s), kappa(k), lambda(l), irs(0, Quadrature1D::GaussLobatto) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
