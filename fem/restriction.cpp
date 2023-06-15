@@ -1670,6 +1670,13 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
 
          if (el < 0)
          {
+            for (int p = 0; p < q; ++p)
+            {
+               for (int c = 0; c < vd; ++c)
+               {
+                  d_y(p, c, side, f) = 0.0;
+               }
+            }
             continue;
          }
 
