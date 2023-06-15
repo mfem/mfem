@@ -40,9 +40,12 @@ private:
    // Problem info.
    const OptimizationProblem &problem;
 
-   // Local and global number of variables and constraints.
-   const hiop::size_type ntdofs_loc, m_total;
+   // Local (to the MPI process) number of variables
+   hiop::size_type ntdofs_loc;
+   // Global number of variables
    hiop::size_type ntdofs_glob;
+   // Number of constraints
+   hiop::size_type m_total;
 
    // Initial guess.
    const Vector *x_start;
