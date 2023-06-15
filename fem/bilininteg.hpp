@@ -3109,7 +3109,8 @@ protected:
    Vector pa_hi; // 1 / h
    Vector pa_nJi; // dot(n, inv(J))
    const DofToQuad *maps;             ///< Not owned
-   const FaceGeometricFactors *geom;  ///< Not owned
+   const FaceGeometricFactors *fgeom;  ///< Not owned
+   const GeometricFactors* elgeom; ///< Not owned
    int dim, nf, nq, dofs1D, quad1D;
 
 public:

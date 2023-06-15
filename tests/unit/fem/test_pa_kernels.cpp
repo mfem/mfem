@@ -590,33 +590,29 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
-   const IntegrationRule *ir = &mfem::IntRules.Get(mesh.GetElementGeometry(0), q_order);
-
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
-
    ConstantCoefficient pi(M_PI);
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, 1.0, 1.0));
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, 0.0, 1.0));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, 1.0, 1.0));
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, 0.0, 1.0));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
-   // double C = y_fa[4] / y_pa[4];
-   // y_pa *= C;
-   y_fa -= y_pa;
+   y_fa.Print(std::cout, 1);
+   std::cout << "\n-------\n";
+   y_pa.Print(std::cout, 1);
 
-   // std::cout << std::setprecision(2);
-   // y_fa.Print(std::cout,1);
-   // std::cout << "\n\n\n------\n\n\n";
-   // y_pa.Print(std::cout,1);
+   // std::cout << y_fa.Sum() << " " << y_pa.Sum();
+
+   y_fa -= y_pa;
 
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
