@@ -580,12 +580,11 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 
 TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
 {
-   const int order = 1;
-   const int nx = 4;
-   const int dim = 2;
+   const int order = 4;
 
-   Mesh mesh = Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, true);
-   // Mesh mesh("../../data/star.mesh");
+   Mesh mesh("../../data/star.mesh");
+   const int dim = mesh.Dimension();
+
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 

@@ -128,10 +128,8 @@ static void PADGDiffusionsetup2D(const int Q1D,
 
             auto [i, j] = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], side);
 
-            const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j,
-                                                                                     0,1,  el[side]);
-            const double nJi1 = -n(p, 0, f) * J(i,j,  1,0,  el[side]) + n(p,1, f) * J(i,j,
-                                                                                      0,0,  el[side]);
+            const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j, 0,1,  el[side]);
+            const double nJi1 = -n(p, 0, f) * J(i,j, 1,0,  el[side]) + n(p,1, f) * J(i,j, 0,0,  el[side]);
             const double dJe = detJe(i,j,el[side]);
 
             nJi(flip[side], p, side, f) = lambda * nJi0 / dJe * Qp * W[p] * detJf(p, f);
