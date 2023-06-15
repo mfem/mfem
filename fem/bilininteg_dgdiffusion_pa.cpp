@@ -85,7 +85,6 @@ static void PADGDiffusionsetup2D(const int Q1D,
                                  const Vector& q,
                                  const double sigma,
                                  const double kappa,
-                                 const double lambda,
                                  Vector& pa_Q,
                                  Vector& pa_hi,
                                  Vector& pa_nJi,
@@ -160,7 +159,6 @@ static void PADGDiffusionSetup(const int dim,
                                const Vector &q,
                                const double sigma,
                                const double kappa,
-                               const double lambda,
                                Vector &pa_Q,
                                Vector &pa_hi,
                                Vector &pa_nJi,
@@ -170,7 +168,7 @@ static void PADGDiffusionSetup(const int dim,
    if (dim == 2)
    {
       PADGDiffusionsetup2D(Q1D, NE, NF, W, jacE, detE, detF, nor, q, sigma, kappa,
-                           lambda, pa_Q, pa_hi, pa_nJi, iwork);
+                           pa_Q, pa_hi, pa_nJi, iwork);
    }
    if (dim == 3)
    {
@@ -272,7 +270,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    PADGDiffusionSetup(dim, dofs1D, quad1D, ne, nf,
                       ir->GetWeights(), elgeom->J, elgeom->detJ, fgeom->detJ,
-                      fgeom->normal, q, sigma, kappa, lambda, pa_Q, pa_hi, pa_nJi, iwork_);
+                      fgeom->normal, q, sigma, kappa, pa_Q, pa_hi, pa_nJi, iwork_);
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&
@@ -295,7 +293,6 @@ void PADGDiffusionApply2D(const int NF,
                           const Array<double>& gt,
                           const double sigma,
                           const double kappa,
-                          const double lambda,
                           const Vector &pa_Q,
                           const Vector &pa_hi,
                           const Vector &pa_nJi,
@@ -412,7 +409,7 @@ void PADGDiffusionApply2D(const int NF,
             // std::cout << std::setw(16) << std::setprecision(4) << std::left << dudn0
             //           << std::setw(16) << std::setprecision(4) << std::left << dudn1 << '\n';
 
-            v[p][c] = lambda * (dudn0 + dudn1);
+            v[p][c] = dudn0 + dudn1;
          }
       }
 
@@ -547,7 +544,6 @@ static void PADGDiffusionApply(const int dim,
                                const Array<double> &Gt,
                                const double sigma,
                                const double kappa,
-                               const double lambda,
                                const Vector &pa_Q,
                                const Vector &pa_hi,
                                const Vector &pa_nJi,
@@ -560,23 +556,23 @@ static void PADGDiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,
+         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,lambda,pa_Q,pa_hi,pa_nJi,
+         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,pa_nJi,
                                                    x,dxdn,y,dydn,D1D,Q1D);
       }
    }
@@ -592,7 +588,7 @@ void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
 {
    PADGDiffusionApply(dim, dofs1D, quad1D, nf,
                       maps->B, maps->Bt, maps->G, maps->Gt,
-                      sigma, kappa, lambda, pa_Q, pa_hi, pa_nJi, x, dxdn, y, dydn);
+                      sigma, kappa, pa_Q, pa_hi, pa_nJi, x, dxdn, y, dydn);
 }
 
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
