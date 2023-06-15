@@ -20,8 +20,8 @@
 //              specified tolerance, the numerical solution is compared to
 //              a closed-form exact solution to assess accuracy.
 //
-//              The problem is discretized and solved using the entropic
-//              finite element method (EFEM) introduced by Keith and
+//              The problem is discretized and solved using the proximal
+//              Galerkin finite element method, introduced by Keith and
 //              Surowiec [1].
 //
 //              This example highlights the ability of MFEM to deliver high-
@@ -29,7 +29,8 @@
 //              showcases how to set up and solve nonlinear mixed methods.
 //
 //
-// [1] Keith, B. and Surowiec, T. (2023) The entropic finite element method
+// [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
+//     preserving finite element method for pointwise bound constraints
 //     (in preparation).
 
 
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
    mesh.EnsureNCMesh();
 
    // 4. Define the necessary finite element spaces on the mesh.
-   H1_FECollection H1fec(order, dim);
+   H1_FECollection H1fec(order+1, dim);
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
    L2_FECollection L2fec(order-1, dim);
@@ -207,8 +208,8 @@ int main(int argc, char *argv[])
    GridFunction u_alt_gf(&L2fes);
    GridFunction error_gf(&L2fes);
 
-   ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
-   u_alt_gf.ProjectCoefficient(exp_psi);
+   ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
+   u_alt_gf.ProjectCoefficient(u_alt_cf);
 
    if (visualization)
    {
@@ -224,7 +225,8 @@ int main(int argc, char *argv[])
    double increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
-      double alpha = alpha0 * (k+1);
+      double alpha = alpha0;
+      // double alpha = alpha0 * (k+1);
 
       GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
@@ -301,7 +303,7 @@ int main(int argc, char *argv[])
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
 
-         GMRES(A,prec,rhs,x,0,200, 50, 1e-12,0.0);
+         GMRES(A,prec,rhs,x,0,500, 100, 1e-12,1e-8);
 
          u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
          delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
@@ -369,14 +371,12 @@ int main(int argc, char *argv[])
    }
 
    {
-      ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
-      u_alt_gf.ProjectCoefficient(exp_psi);
+      // ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
+      u_alt_gf.ProjectCoefficient(u_alt_cf);
       error_gf = 0.0;
       error_gf.ProjectCoefficient(exact_coef);
       error_gf -= u_alt_gf;
       error_gf *= -1.0;
-
-      mfem::out << psi_gf.ComputeL2Error(zero);
 
       double L2_error = u_gf.ComputeL2Error(exact_coef);
       double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
