@@ -3486,11 +3486,11 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
       dshape1.Mult(nh, dshape1dn);
-      // for (int i = 0; i < ndof1; i++)
-      //    for (int j = 0; j < ndof1; j++)
-      //    {
-      //       elmat(i, j) += shape1(i) * dshape1dn(j);
-      //    }
+      for (int i = 0; i < ndof1; i++)
+         for (int j = 0; j < ndof1; j++)
+         {
+            elmat(i, j) += shape1(i) * dshape1dn(j);
+         }
 
       if (ndof2)
       {
@@ -3526,23 +3526,23 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
          dshape2.Mult(nh, dshape2dn);
 
-         // for (int i = 0; i < ndof1; i++)
-         //    for (int j = 0; j < ndof2; j++)
-         //    {
-         //       elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
-         //    }
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < ndof2; j++)
+            {
+               elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
+            }
 
-         // for (int i = 0; i < ndof2; i++)
-         //    for (int j = 0; j < ndof1; j++)
-         //    {
-         //       elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
-         //    }
+         for (int i = 0; i < ndof2; i++)
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
+            }
 
-         // for (int i = 0; i < ndof2; i++)
-         //    for (int j = 0; j < ndof2; j++)
-         //    {
-         //       elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
-         //    }
+         for (int i = 0; i < ndof2; i++)
+            for (int j = 0; j < ndof2; j++)
+            {
+               elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
+            }
       }
 
       if (kappa_is_nonzero)
