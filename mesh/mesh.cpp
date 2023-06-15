@@ -57,11 +57,18 @@ using namespace std;
 namespace mfem
 {
 
-void Mesh::GetElementJacobian(int i, DenseMatrix &J)
+void Mesh::GetElementJacobian(int i, DenseMatrix &J, const IntegrationPoint *ip)
 {
    Geometry::Type geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->SetIntPoint(&Geometries.GetCenter(geom));
+   if (ip == NULL)
+   {
+      eltransf->SetIntPoint(&Geometries.GetCenter(geom));
+   }
+   else
+   {
+      eltransf->SetIntPoint(ip);
+   }
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
@@ -9763,7 +9770,6 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
    t = el->GetType();
    if (t == Element::TETRAHEDRON)
    {
-      int j, type, new_type, old_redges[2], new_redges[2][2], flag;
       Tetrahedron *tet = (Tetrahedron *) el;
 
       MFEM_VERIFY(tet->GetRefinementFlag() != 0,
@@ -9776,7 +9782,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
       if (bisect == -1)
       {
          v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[1]);
-         for (j = 0; j < 3; j++)
+         for (int j = 0; j < 3; j++)
          {
             V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[1]](j));
          }
@@ -9789,8 +9795,10 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       // 2. Set the node indices for the new elements in v[2][4] so that
       //    the edge marked for refinement is between the first two nodes.
+      int type, old_redges[2], flag;
       tet->ParseRefinementFlag(old_redges, type, flag);
 
+      int new_type, new_redges[2][2];
       v[0][3] = v_new;
       v[1][3] = v_new;
       new_redges[0][0] = 2;
@@ -12105,6 +12113,120 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
       MFEM_WARNING((npts-pts_found) << " points were not found");
    }
    return pts_found;
+}
+
+void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
+                                              double &volume,
+                                              Vector &aspr,
+                                              Vector &skew,
+                                              Vector &ori) const
+{
+   J.HostRead();
+   aspr.HostWrite();
+   skew.HostWrite();
+   ori.HostWrite();
+   MFEM_VERIFY(Dim == 2 || Dim == 3, "Only 2D/3D meshes supported right now.");
+   MFEM_VERIFY(Dim == spaceDim, "Surface meshes not currently supported.");
+   if (Dim == 2)
+   {
+      aspr.SetSize(1);
+      skew.SetSize(1);
+      ori.SetSize(1);
+      Vector col1, col2;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+
+      // Area/Volume
+      volume = J.Det();
+
+      // Aspect-ratio
+      aspr(0) = col2.Norml2()/col1.Norml2();
+
+      // Skewness
+      skew(0) = std::atan2(J.Det(), col1 * col2);
+
+      // Orientation
+      ori(0) = std::atan2(J(1,0), J(0,0));
+   }
+   else if (Dim == 3)
+   {
+      aspr.SetSize(4);
+      skew.SetSize(3);
+      ori.SetSize(4);
+      Vector col1, col2, col3;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+      J.GetColumn(2, col3);
+      double len1 = col1.Norml2(),
+             len2 = col2.Norml2(),
+             len3 = col3.Norml2();
+
+      Vector col1unit = col1,
+             col2unit = col2,
+             col3unit = col3;
+      col1unit *= 1.0/len1;
+      col2unit *= 1.0/len2;
+      col3unit *= 1.0/len3;
+
+      // Area/Volume
+      volume = J.Det();
+
+      // Aspect-ratio - non-dimensional
+      aspr(0) = len1/std::sqrt(len2*len3),
+      aspr(1) = len2/std::sqrt(len1*len3);
+
+      // Aspect-ratio - dimensional - needed for TMOP
+      aspr(2) = std::sqrt(len1/(len2*len3)),
+      aspr(3) = std::sqrt(len2/(len1*len3));
+
+      // Skewness
+      Vector crosscol12, crosscol13;
+      col1.cross3D(col2, crosscol12);
+      col1.cross3D(col3, crosscol13);
+      skew(0) = std::acos(col1unit*col2unit);
+      skew(1) = std::acos(col1unit*col3unit);
+      skew(2) = std::atan(len1*volume/(crosscol12*crosscol13));
+
+      // Orientation
+      // First we define the rotation matrix
+      DenseMatrix rot(Dim);
+      // First column
+      for (int d=0; d<Dim; d++) { rot(d, 0) = col1unit(d); }
+      // Second column
+      Vector rot2 = col2unit;
+      Vector rot1 = col1unit;
+      rot1 *= col1unit*col2unit;
+      rot2 -= rot1;
+      col1unit.cross3D(col2unit, rot1);
+      rot2 /= rot1.Norml2();
+      for (int d=0; d < Dim; d++) { rot(d, 1) = rot2(d); }
+      // Third column
+      rot1 /= rot1.Norml2();
+      for (int d=0; d < Dim; d++) { rot(d, 2) = rot1(d); }
+      double delta = sqrt(pow(rot(2,1)-rot(1,2), 2.0) +
+                          pow(rot(0,2)-rot(2,0), 2.0) +
+                          pow(rot(1,0)-rot(0,1), 2.0));
+      ori = 0.0;
+      if (delta == 0.0)   // Matrix is symmetric. Check if it is Identity.
+      {
+         DenseMatrix Iden(Dim);
+         for (int d = 0; d < Dim; d++) { Iden(d, d) = 1.0; };
+         Iden -= rot;
+         if (Iden.FNorm2() != 0)
+         {
+            // TODO: Handling of these cases.
+            rot.Print();
+            MFEM_ABORT("Invalid rotation matrix. Contact TMOP Developers.");
+         }
+      }
+      else
+      {
+         ori(0) = (1./delta)*(rot(2,1)-rot(1,2));
+         ori(1) = (1./delta)*(rot(0,2)-rot(2,0));
+         ori(2) = (1./delta)*(rot(1,0)-rot(0,1));
+         ori(3) = std::acos(0.5*(rot.Trace()-1.0));
+      }
+   }
 }
 
 
