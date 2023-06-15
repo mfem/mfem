@@ -95,7 +95,7 @@ double fexact(const Vector &x) // returns -\Delta u
 TEST_CASE("Serial Direct Solvers", "[CUDA]")
 {
    const int ne = 2;
-   for (dim = 1; dim < 4; ++dim)
+   for (int dim = 1; dim < 4; ++dim)
    {
       Mesh mesh;
       if (dim == 1)
