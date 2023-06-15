@@ -39,10 +39,65 @@ protected:
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e6)
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e7)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+//  Class of performing L²-projections:
+//
+//       Find Πu ∈ Vₕ such that
+//       (Πu,v) = (u,v) for all v ∈ Vₕ
+//
+class L2Projection
+{
+   private:
+   ParFiniteElementSpace * fes = nullptr;
+   ParBilinearForm * mass = nullptr;
+   // HypreParMatrix * M = nullptr;
+   // ParGridFunction * u_gf = nullptr;
+
+   public:
+   L2Projection(ParFiniteElementSpace *fes_)
+   {
+      fes = fes_;
+      mass = new ParBilinearForm(fes);
+      // ParBilinearForm mass(fes);
+      mass->AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
+      mass->Assemble();
+      // Array<int> empty;
+      // M = new HypreParMatrix();
+      // mass.FormSystemMatrix(empty,*M);
+      // u_gf = new ParGridFunction(fes);
+
+
+      // ParLinearForm rhs(fes);
+      // ConstantCoefficient u_cf(1);
+      // rhs.AddDomainIntegrator(new DomainLFIntegrator(u_cf));
+      // rhs.Assemble();
+      // // ParGridFunction u_gf(fes);
+
+      // cout << rhs.Size() << endl;
+      // cout << u_gf->Size() << endl;
+      // M->Mult(rhs,*u_gf);
+   }
+
+   // void Project(FunctionCoefficient &u_cf)
+   // void Project()
+   void Project(Coefficient &u_cf, ParGridFunction &u_gf)
+   {
+      ParLinearForm rhs(fes);
+      rhs.AddDomainIntegrator(new DomainLFIntegrator(u_cf));
+      rhs.Assemble();
+      Array<int> empty;
+      HypreParMatrix M;
+      mass->FormSystemMatrix(empty,M);
+
+      // cout << rhs.Size() << endl;
+      // cout << u_gf->Size() << endl;
+      M.Mult(rhs,u_gf);
+   }
 };
 
 int main(int argc, char *argv[])
@@ -98,7 +153,8 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   mesh.SetCurvature(2);
+   int curvature_order = max(order,2);
+   mesh.SetCurvature(curvature_order);
    mesh.EnsureNCMesh();
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -106,17 +162,17 @@ int main(int argc, char *argv[])
 
    // Need help from Socratis to use AMR
 
+   // H1_FECollection H1fec(order+1, dim);
+   // ParFiniteElementSpace H1fes(&pmesh, &H1fec);
+
+   // L2_FECollection L2fec(order-1, dim);
+   // ParFiniteElementSpace L2fes(&pmesh, &L2fec);
+
    H1_FECollection H1fec(order, dim);
    ParFiniteElementSpace H1fes(&pmesh, &H1fec);
 
-   L2_FECollection L2fec(order-1, dim);
+   H1_FECollection L2fec(order, dim);
    ParFiniteElementSpace L2fes(&pmesh, &L2fec);
-
-   // H1_FECollection H1fec(order, dim);
-   // ParFiniteElementSpace H1fes(&pmesh, &H1fec);
-
-   // H1_FECollection L2fec(order, dim);
-   // ParFiniteElementSpace L2fes(&pmesh, &L2fec);
 
    cout << "Number of finite element unknowns: "
         << H1fes.GetTrueVSize() 
@@ -204,6 +260,9 @@ int main(int argc, char *argv[])
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
+   L2Projection StateProjection(&H1fes);
+   L2Projection ControlProjection(&L2fes);
+
    /////////// Example 1   
    // FunctionCoefficient f(rhs_func);
    // FunctionCoefficient IC_coef(IC_func);
@@ -219,10 +278,12 @@ int main(int argc, char *argv[])
    // FunctionCoefficient IC_coef(IC_func);
    // ConstantCoefficient f(0.0);
    // FunctionCoefficient obstacle(spherical_obstacle);
+   // // StateProjection.Project(IC_coef, u_gf);
+   // // StateProjection.Project();
    // u_gf.ProjectCoefficient(IC_coef);
    // u_old_gf = u_gf;
    // double alpha0 = 1.0;
-   // // double alpha0 = 0.1;
+   // // // double alpha0 = 0.1;
 
    /////////// Example 3
    u_gf = 0.0;
@@ -251,6 +312,7 @@ int main(int argc, char *argv[])
    // double alpha0 = 1.0;
 
    LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
+   // ControlProjection.Project(ln_u, psi_gf);
    psi_gf.ProjectCoefficient(ln_u);
    psi_old_gf = psi_gf;
    // psi_old_gf = 0.0;
@@ -263,15 +325,15 @@ int main(int argc, char *argv[])
    double total_error = u_gf.ComputeL2Error(exact_coef);
    mfem::out << "total_error = " << total_error << endl;
 
-   GridFunction u_alt_gf(&L2fes);
-   GridFunction error_gf(&L2fes);
+   ParGridFunction u_alt_gf(&L2fes);
+   ParGridFunction error_gf(&L2fes);
 
    ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
    u_alt_gf.ProjectCoefficient(exp_psi);
 
    sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   sol_sock << "solution\n" << pmesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
-   // sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
+   // sol_sock << "solution\n" << pmesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
+   sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
 
    // cin.get();
 
@@ -293,7 +355,7 @@ int main(int argc, char *argv[])
    // 12. Iterate
    int k;
    int total_iterations = 0;
-   double tol = 1e-12;
+   double tol = 1e-8;
    double increment_u = 0.1;
    double comp;
    double entropy;
@@ -375,11 +437,11 @@ int main(int argc, char *argv[])
 
          ParBilinearForm a11(&L2fes);
          // a11.SetDiagonalPolicy(mfem::Operator::DIAG_ZERO);
-         const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0), 2*order + 4);
-         MassIntegrator * integ = new MassIntegrator(neg_exp_psi);
-         integ->SetIntegrationRule(ir);
-         a11.AddDomainIntegrator(integ);
-         // a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+         // const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0), 2*order + 4);
+         // MassIntegrator * integ = new MassIntegrator(neg_exp_psi);
+         // integ->SetIntegrationRule(ir);
+         // a11.AddDomainIntegrator(integ);
+         a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
          ConstantCoefficient eps_cf(-1e-6);
          a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
          a11.Assemble();
@@ -432,22 +494,39 @@ int main(int argc, char *argv[])
          double Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         // double gamma = 0.1;
-         // double gamma = 0.5;
-         double gamma = 1.0;
-         delta_psi_gf *= gamma;
-         psi_gf += delta_psi_gf;
 
+         ParGridFunction residual_gf(&L2fes);
+         GridFunctionCoefficient u_cf(&u_gf);
+         // SumCoefficient exp_psi_ostacle(exp_psi,obstacle);
+         ExponentialGridFunctionCoefficient exp_psi_ostacle(psi_gf,obstacle);
+         SumCoefficient residual_cf(exp_psi_ostacle, u_cf, 1.0, -1.0);
+         // residual_gf.ProjectCoefficient(residual_cf);
+         ControlProjection.Project(residual_cf, residual_gf);
+         ControlProjection.Project(exp_psi_ostacle, u_alt_gf);
+         // u_alt_gf.ProjectCoefficient(exp_psi_ostacle);
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock << "solution\n" << pmesh << psi_gf << "window_title 'Discrete solution'" << flush;
+         // sol_sock << "solution\n" << pmesh << psi_gf << "window_title 'Discrete solution'" << flush;
+         // sol_sock << "solution\n" << pmesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
+         sol_sock << "solution\n" << pmesh << residual_gf << "window_title 'Discrete solution'" << flush;
          // sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
          // psi_sock << "solution\n" << mesh << delta_psi_gf << "window_title 'delta psi'" << flush;
          mfem::out << endl;
          
          mfem::out << "Newton_update_size = " << Newton_update_size << endl;
 
+         double Newton_update_size_2 = residual_gf.ComputeL2Error(zero);
+
+         mfem::out << "Newton_update_size_2 = " << Newton_update_size_2 << endl;
+
+         // double gamma = 0.1;
+         // double gamma = 0.5;
+         double gamma = 1.0;
+         delta_psi_gf *= gamma;
+         psi_gf += delta_psi_gf;
+
          // double update_tol = 1e-10;
-         if (Newton_update_size < increment_u)
+         if (Newton_update_size*Newton_update_size + Newton_update_size_2*Newton_update_size_2 < increment_u*increment_u)
+         // if (Newton_update_size < increment_u)
          // if (Newton_update_size < increment_u/10.0)
          {
             break;
