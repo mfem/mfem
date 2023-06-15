@@ -126,7 +126,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
                continue;
             }
 
-            auto [i, j] = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], 0);
+            auto [i, j] = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], side);
 
             const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j,
                                                                                      0,1,  el[side]);
