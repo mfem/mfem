@@ -292,7 +292,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
             *trial_fes, ElementDofOrdering::LEXICOGRAPHIC,
             FaceType::Interior
          );
-         int_face_dXdn.SetSize(int_face_normal_deriv->Width());
+         int_face_dXdn.SetSize(int_face_normal_deriv->Height());
          int_face_dYdn.SetSize(int_face_normal_deriv->Height());
       }
    }
@@ -323,7 +323,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
             *trial_fes, ElementDofOrdering::LEXICOGRAPHIC,
             FaceType::Boundary
          );
-         bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Width());
+         bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Height());
          bdr_face_dYdn.SetSize(bdr_face_normal_deriv->Height());
       }
    }
