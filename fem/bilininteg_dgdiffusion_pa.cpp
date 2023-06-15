@@ -95,7 +95,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
                                IntRule:
-                               &GetRule(el.GetGeomType(), el.GetOrder(), T0);
+                               &GetRule(el.GetOrder(), T0);
    // const int symmDims = 4;
    nq = ir->GetNPoints();
    dim = mesh->Dimension();
@@ -300,10 +300,10 @@ void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
 }
 
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
-   Geometry::Type geom, int order, FaceElementTransformations &T)
+   int order, FaceElementTransformations &T)
 {
    int int_order = T.Elem1->OrderW() + 2*order;
-   return IntRules.Get(geom, int_order);
+   return irs.Get(T.GetGeometryType(), int_order);
 }
 
 } // namespace mfem

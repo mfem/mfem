@@ -3100,6 +3100,8 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+   IntegrationRules irs;
+
    // PA extension
    Vector pa_data;
 
@@ -3112,11 +3114,11 @@ protected:
 
 public:
    DGDiffusionIntegrator(const double s, const double k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k), irs(0, Quadrature1D::GaussLobatto) { }
    DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+      : Q(&q), MQ(NULL), sigma(s), kappa(k), irs(0, Quadrature1D::GaussLobatto) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+      : Q(NULL), MQ(&q), sigma(s), kappa(k), irs(0, Quadrature1D::GaussLobatto) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -3136,8 +3138,7 @@ public:
 
    //    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
-   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
-                                         FaceElementTransformations &T);
+   const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);

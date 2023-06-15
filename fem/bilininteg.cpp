@@ -3421,17 +3421,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
-      int order;
-      if (ndof2)
-      {
-         order = 2*max(el1.GetOrder(), el2.GetOrder());
-      }
-      else
-      {
-         order = 2*el1.GetOrder();
-      }
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      ir = &GetRule(el1.GetOrder(), Trans);
    }
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
