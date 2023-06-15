@@ -27,7 +27,7 @@ using namespace std;
 
 const int KnotVector::MaxOrder = 10;
 
-KnotVector::KnotVector(std::istream &input)
+KnotVector::KnotVector(istream &input)
 {
    input >> Order >> NumOfControlPoints;
    bool spacingFormula = (NumOfControlPoints < 0);
@@ -973,6 +973,8 @@ void NURBSPatch::DegreeElevate(int dir, int t)
                                          oldkv.GetNCP() + oldkv.GetNE()*t);
    NURBSPatch &newp  = *newpatch;
    KnotVector &newkv = *newp.GetKV(dir);
+
+   if (oldkv.spacing) { newkv.spacing = oldkv.spacing; }
 
    int size = oldp.SetLoopDirection(dir);
    if (size != newp.SetLoopDirection(dir))
