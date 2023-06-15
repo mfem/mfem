@@ -599,37 +599,22 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
 
    ConstantCoefficient pi(M_PI);
 
-   const double sigma = 1.0;
-   const double kappa = 1.0;
-   const double lambda = 1.0;
+   const double sigma = -1.0;
+   const double kappa = 20.0;
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
-   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
-   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
-
-   for (int i = 0; i < y_pa.Size(); ++i)
-   {
-      const double er = std::abs(y_pa[i] - y_fa[i]);
-      std::cout << std::setw(16) << std::setprecision(4) << std::left << y_fa[i]
-                << std::setw(16) << std::setprecision(4) << std::left << y_pa[i]
-                << std::setw(16) << std::setprecision(4) << std::left << er << '\n';
-   }
-
-   // y_fa.Print(std::cout, 1);
-   // std::cout << "\n-------\n";
-   // y_pa.Print(std::cout, 1);
-
-   // std::cout << y_fa.Sum() << " " << y_pa.Sum();
 
    y_fa -= y_pa;
 

@@ -3379,8 +3379,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    int dim, ndof1, ndof2, ndofs;
-   // bool kappa_is_nonzero = (kappa != 0.);
-   bool kappa_is_nonzero = true;
+   bool kappa_is_nonzero = (kappa != 0.);
    double w, wq = 0.0;
 
    dim = el1.GetDim();
@@ -3519,12 +3518,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             wq += ni * nor;
          }
 
-         // wq = ip.weight * Trans.Weight();
-         // if (Q)
-         // {
-         //    wq *= Q->Eval(*Trans.Elem1, eip1);
-         // }
-
          dshape2.Mult(nh, dshape2dn);
 
          for (int i = 0; i < ndof1; i++)
@@ -3585,28 +3578,24 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - lambda*aij + mij;
-            elmat(j,i) = sigma*aij - lambda*aji + mij;
-
-            // elmat(i,j) = mij;
-            // elmat(j,i) = mij;
+            elmat(i,j) = sigma*aji - aij + mij;
+            elmat(j,i) = sigma*aij - aji + mij;
          }
-         elmat(i,i) = (sigma - lambda)*elmat(i,i) + jmat(i,i);
-         // elmat(i,i) = jmat(i,i);
+         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
       }
    }
    else
    {
-      // for (int i = 0; i < ndofs; i++)
-      // {
-      //    for (int j = 0; j < i; j++)
-      //    {
-      //       double aij = elmat(i,j), aji = elmat(j,i);
-      //       elmat(i,j) = sigma*aji - aij;
-      //       elmat(j,i) = sigma*aij - aji;
-      //    }
-      //    elmat(i,i) *= (sigma - 1.);
-      // }
+      for (int i = 0; i < ndofs; i++)
+      {
+         for (int j = 0; j < i; j++)
+         {
+            double aij = elmat(i,j), aji = elmat(j,i);
+            elmat(i,j) = sigma*aji - aij;
+            elmat(j,i) = sigma*aij - aji;
+         }
+         elmat(i,i) *= (sigma - 1.);
+      }
    }
 }
 
