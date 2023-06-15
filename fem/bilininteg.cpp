@@ -3379,7 +3379,8 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    int dim, ndof1, ndof2, ndofs;
-   bool kappa_is_nonzero = (kappa != 0.);
+   // bool kappa_is_nonzero = (kappa != 0.);
+   bool kappa_is_nonzero = true;
    double w, wq = 0.0;
 
    dim = el1.GetDim();
