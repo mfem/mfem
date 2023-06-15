@@ -3116,13 +3116,13 @@ protected:
 public:
    DGDiffusionIntegrator(const double s, const double k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k), irs(0,
-                                                              Quadrature1D::GaussLobatto) { }
+                                                   Quadrature1D::GaussLobatto) { }
    DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
       : Q(&q), MQ(NULL), sigma(s), kappa(k), irs(0,
-                                                            Quadrature1D::GaussLobatto) { }
+                                                 Quadrature1D::GaussLobatto) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k), irs(0,
-                                                            Quadrature1D::GaussLobatto) { }
+                                                 Quadrature1D::GaussLobatto) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,

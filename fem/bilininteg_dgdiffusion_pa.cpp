@@ -131,8 +131,10 @@ static void PADGDiffusionsetup2D(const int Q1D,
 
             auto [i, j] = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], side);
 
-            const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j, 0,1,  el[side]);
-            const double nJi1 = -n(p, 0, f) * J(i,j, 1,0,  el[side]) + n(p,1, f) * J(i,j, 0,0,  el[side]);
+            const double nJi0 = n(p,0,f)*J(i,j, 1,1, el[side])
+                                - n(p,1,f)*J(i,j,0,1,el[side]);
+            const double nJi1 = -n(p,0,f)*J(i,j,1,0, el[side])
+                                + n(p,1,f)*J(i,j,0,0,el[side]);
 
             const double dJe = detJe(i,j,el[side]);
             const double dJf = detJf(p, f);
@@ -406,9 +408,6 @@ void PADGDiffusionApply2D(const int NF,
             const double dudn0 = Je0[0] * Bdu0[p][c] + Je0[1] * ut0[p][c];
             const double dudn1 = Je1[0] * Bdu1[p][c] + Je1[1] * ut1[p][c];
 
-            // std::cout << std::setw(16) << std::setprecision(4) << std::left << dudn0
-            //           << std::setw(16) << std::setprecision(4) << std::left << dudn1 << '\n';
-
             v[p][c] = dudn0 + dudn1;
          }
       }
@@ -572,7 +571,8 @@ static void PADGDiffusionApply(const int dim,
                                                         pa_nJi,x,dxdn,y,dydn);
          case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,pa_nJi,
+         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+                                                   pa_nJi,
                                                    x,dxdn,y,dydn,D1D,Q1D);
       }
    }

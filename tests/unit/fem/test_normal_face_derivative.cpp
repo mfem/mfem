@@ -65,7 +65,8 @@ TEST_CASE("Normal Face Derivative", "[FaceRestriction]")
          const double val = n_x + 2*n_y;
 
          qfref[p + ir.Size() * (0 + 2 * f)] = val/nx;
-         qfref[p + ir.Size() * (1 + 2 * f)] = (face_type == FaceType::Interior) ? (val/nx) : 0.0;
+         qfref[p + ir.Size() * (1 + 2 * f)] = (face_type == FaceType::Interior) ?
+                                              (val/nx) : 0.0;
       }
    }
 
@@ -76,11 +77,14 @@ TEST_CASE("Normal Face Derivative", "[FaceRestriction]")
    {
       for (int p = 0; p < ir.Size(); ++p)
       {
-         std::cout << std::setw(8) << qf[p + ir.Size() * (0 + 2 * f)] << " " << std::setw(8) << qf[p + ir.Size() * (1 + 2 * f)] << " | " << qfref[p + ir.Size() * (0 + 2 * f)] << " " << std::setw(8) << qfref[p + ir.Size() * (1 + 2 * f)] << "\n";
+         std::cout << std::setw(8) << qf[p + ir.Size() * (0 + 2 * f)] << " " <<
+                   std::setw(8) << qf[p + ir.Size() * (1 + 2 * f)] << " | " << qfref[p + ir.Size()
+                                                                                     * (0 + 2 * f)] << " " << std::setw(8) << qfref[p + ir.Size() *
+                                                                                             (1 + 2 * f)] << "\n";
       }
    }
 
    qf -= qfref;
-   
+
    REQUIRE(qf.Normlinf() == MFEM_Approx(0.0));
 }
