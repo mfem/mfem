@@ -220,7 +220,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
     FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
 
     int dim = fes->GetMesh()->Dimension();
-    Vector vxyz(dim*ir->GetNPoints());  // Coordinated of the quadrature points in the physical space
+    Vector vxyz(dim*ir->GetNPoints());  // Coordinates of the quadrature points in the physical space
     Vector interp_values(ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
     //std::cout << "Ordre " << intorder << std::endl;
     //std::cout << "Nbr de points de quadrature: " << ir->GetNPoints() << std::endl;
@@ -257,8 +257,8 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
 
         double level_set_value = interp_values(i) ;
         error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
-        // error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
-        //std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
+        //error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
+        std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
     }
 
     return error;
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
     if (surf_bg_mesh)
     {
         mesh_surf_fit_bg = new Mesh(*mesh);
-        for (int ref = 0; ref < 4; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
+        for (int ref = 0; ref < 2; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
     }
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
