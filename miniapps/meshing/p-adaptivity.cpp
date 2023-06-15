@@ -4,8 +4,60 @@
 #include <iostream>
 #include "mesh-fitting.hpp"
 //make p-adaptivity -j && ./p-adaptivity -slstype 4 -rs 0 -hiter 3 -o 5 -n 0 -dist
+// make p-adaptivity -j && ./p-adaptivity -slstype 5 -rs 2 -hiter 0 -o 5 -n 4
+// make p-adaptivity -j && ./p-adaptivity -slstype 6 -rs 3 -hiter 0 -o 5 -n 0 -ndiff 1
 using namespace mfem;
 using namespace std;
+
+
+//rectangle at center xc,yc with length lx and width ly
+double r_rectangle(const Vector &x, Vector &x_center, Vector &lengths)
+{
+    double xc = x_center(0);
+    double yc = x_center(1);
+    double xv = x(0),
+           yv = x(1);
+    double lx = lengths(0);
+    double ly = lengths(1);
+    double phi_vertical = std::pow(lx*0.5, 2.0) - std::pow(xv-xc, 2.0);
+    double phi_horizontal = std::pow(ly*0.5, 2.0) - std::pow(yv-yc, 2.0);
+
+    double phi_rectangle = r_intersect(phi_vertical, phi_horizontal);
+    return phi_rectangle;
+}
+
+double r_circle(const Vector &x, Vector &x_center, double radius)
+{
+    double xc = x_center(0);
+    double yc = x_center(1);
+    double xv = x(0),
+           yv = x(1);
+    return std::pow(xc-xv, 2.0) + std::pow(yc-yv, 2.0) - std::pow(radius, 2.0);
+}
+
+double rectangle(const Vector &x)
+{
+    Vector xc(x.Size());
+    xc = 0.5;
+    Vector lengths(x.Size());
+    lengths(0) = 0.2;
+    lengths(1) = 0.4;
+    return r_rectangle(x, xc, lengths);
+}
+
+double rectangle_and_circle(const Vector &x)
+{
+    int op = 1;
+    Vector xc(x.Size());
+    xc = 0.5;
+    Vector lengths(x.Size());
+    lengths(0) = 0.3;
+    lengths(1) = 0.8;
+
+    return op == 0 ? r_intersect(r_rectangle(x, xc, lengths), -r_circle(x, xc, 0.3)) :
+                     r_union(r_rectangle(x, xc, lengths), -r_circle(x, xc, 0.3));
+}
+
 
 class PRefinementTransfer
 {
@@ -153,6 +205,7 @@ int main(int argc, char *argv[])
    double e_upper        = 1e-05;
    double e_lower        = 1e-13;
    int n_iters           = 10;
+   int ndiff             = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -186,6 +239,8 @@ int main(int argc, char *argv[])
                   "Derefine until error reaches this limit.");
    args.AddOption(&n_iters, "-n", "--niters",
                   "Number of iterations.");
+   args.AddOption(&ndiff, "-ndiff", "--ndiff",
+                  "Number of diffusion iterations.");
 
    args.Parse();
    if (!args.Good())
@@ -228,11 +283,13 @@ int main(int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(inclined_line);
    }
-   else if (surf_ls_type == 6) // 3D shape
+   else if (surf_ls_type == 5) // inclined_line
    {
-      ls_coeff = new FunctionCoefficient(csg_cubecylsph);
-      std::cout << "Forcing comp dist to true for cubecylsph level-set\n";
-      comp_dist = true;
+      ls_coeff = new FunctionCoefficient(rectangle);
+   }
+   else if (surf_ls_type == 6) // inclined_line
+   {
+      ls_coeff = new FunctionCoefficient(rectangle_and_circle);
    }
    else
    {
@@ -247,6 +304,10 @@ int main(int argc, char *argv[])
    {
       OptimizeMeshWithAMRAroundZeroLevelSet(mesh, *ls_coeff,
                                             h_iters, x);
+   }
+   if (ndiff > 0)
+   {
+       DiffuseField(x, ndiff);
    }
 
 

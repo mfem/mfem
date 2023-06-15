@@ -53,7 +53,7 @@ double squircle_level_set(const Vector &x)
 double inclined_line(const Vector &x)
 {
    double xv = x(0), yv = x(1);
-   double dy = 0.2*(x(0)-0.0)/1.0;
+   double dy = 0.2*(xv-0.0)/1.0;
    return yv - 0.5 - dy;
 }
 

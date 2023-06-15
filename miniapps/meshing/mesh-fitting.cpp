@@ -58,11 +58,12 @@
 //    Surface fitting to a circular level-set - with p-refinement by increasing of 1 the element order around the interface and using a background mesh
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 50 -vl 1 -sfc 1 -rtol 1e-5 -ae 1 -sfa -pref -oi 1 -sbgmesh
 
+//    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 3 -o 1 -oi 1
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
-#include "mesh-optimizer.hpp"
+#include "mesh-fitting.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -183,7 +184,7 @@ double ComputeIntegrateError(const FiniteElementSpace* fes, FunctionCoefficient*
     // TODO
     double error = 0.0;
     const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-    int intorder = 2*fe->GetOrder() + 3 ;
+    int intorder = 2*fe->GetOrder() + 3;
     const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 
     Vector values ;
@@ -207,12 +208,16 @@ double ComputeIntegrateError(const FiniteElementSpace* fes, FunctionCoefficient*
     return error;
 }
 
-double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_bg, const int el)
+double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_bg,
+                               const int el, GridFunction *lss, FindPointsGSLIB &finder)
 {
+//    std::cout << el << "  k10el\n";
     double error = 0.0;
     const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-    int intorder = 2*fe->GetOrder() + 3 ;
+//    int intorder = 2*fe->GetOrder() + 3 ;
+    int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 3;
     const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+//    const IntegrationRule *ir = &(fe->GetNodes());
 
     //Vector values ;
     //DenseMatrix tr;
@@ -245,21 +250,27 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
     // Compute the interpolated values of the level set grid function on the
     // physical coords of the quadrature points
     int point_ordering(1);
-    FindPointsGSLIB finder;
-    finder.Setup(*ls_bg->FESpace()->GetMesh());
-    finder.SetL2AvgType(FindPointsGSLIB::NONE);
+//    FindPointsGSLIB finder;
+//    finder.Setup(*ls_bg->FESpace()->GetMesh());
+//    finder.SetL2AvgType(FindPointsGSLIB::NONE);
     finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
 
     for (int i=0; i<ir->GetNPoints(); i++)
     {
         const IntegrationPoint &ip = ir->IntPoint(i);
         transf->SetAllIntPoints(&ip);
+//        std::cout << ip.x << " " << ip.y << " "  << ip.weight << " " <<
+//                     vxyz(i*dim) << " "  << vxyz(i*dim+1) << " " <<
+//                     interp_values(i) << " " <<
+//                     transf->Face->Weight() << " k10info\n";
 
         double level_set_value = interp_values(i) ;
         error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
         //error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
         std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
     }
+//    std::cout << el << " " << error << " k10facel2error\n";
+//    MFEM_ABORT(" ");
 
     return error;
 }
@@ -271,28 +282,28 @@ int main(int argc, char *argv[])
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    double jitter         = 0.0;
-   int metric_id         = 1;
+   int metric_id         = 2;
    int target_id         = 1;
-   double surface_fit_const = 0.0;
+   double surface_fit_const = 0.1;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
-   int solver_iter       = 20;
+   int solver_iter       = 200;
    double solver_rtol    = 1e-10;
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    bool visualization    = true;
-   int verbosity_level   = 0;
-   int adapt_eval        = 0;
+   int verbosity_level   = 2;
+   int adapt_eval        = 1;
    bool exactaction      = false;
-   bool surface_fit_adapt = false;
-   double surface_fit_threshold = -10;
+   bool surface_fit_adapt = true;
+   double surface_fit_threshold = 1e-14;
    int mesh_node_ordering = 0;
-   bool prefine          = false;
+   bool prefine          = true;
    int pref_order_increase = 1;
-   bool surf_bg_mesh     = false;
+   bool surf_bg_mesh     = true;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -386,6 +397,7 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
    if (prefine) { mesh->EnsureNCMesh(true); }
+   FindPointsGSLIB finder;
 
     // Setup background mesh for surface fitting: copy then refine the mesh
     Mesh *mesh_surf_fit_bg = NULL;
@@ -393,6 +405,7 @@ int main(int argc, char *argv[])
     {
         mesh_surf_fit_bg = new Mesh(*mesh);
         for (int ref = 0; ref < 2; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
+        finder.Setup(*mesh_surf_fit_bg);
     }
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
@@ -644,14 +657,30 @@ int main(int argc, char *argv[])
    {
       // Define a function coefficient (based on the analytic description of
       // the level-set)
-      FunctionCoefficient ls_coeff(surface_level_set);
+      FunctionCoefficient ls_coeff(squircle_level_set);
+//       FunctionCoefficient ls_coeff(circle_level_set);
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
 
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
          mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
+         {
+             Vector center(mesh->Dimension());
+             mesh->GetElementCenter(i, center);
+             if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                 center(1) < 0.75)
+             {
+                mat(i) = 0;
+             }
+             else
+             {
+                mat(i) = 1;
+             }
+             mesh->SetAttribute(i, mat(i) + 1);
+         }
       }
+
 
       // Now p-refine the elements around the interface
       if (prefine)
@@ -1126,7 +1155,11 @@ int main(int argc, char *argv[])
       {
           double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
           error_sum += error_face;
-          double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(), surf_fit_bg_gf0, inter_faces[i]);
+          double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                         surf_fit_bg_gf0,
+                                                         inter_faces[i],
+                                                         surf_fit_gf0_max_order,
+                                                         finder);
           error_bg_sum += error_bg_face;
       }
       std::cout << "Nbr DOFs: " << fespace->GetNDofs() << ", Max order: " << fespace->GetMaxElementOrder() <<  std::endl;
@@ -1152,6 +1185,8 @@ int main(int argc, char *argv[])
            << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
            << "keys jRmclA" << endl;
    }
+
+   finder.FreeData();
 
    delete S;
    delete S_prec;
