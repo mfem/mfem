@@ -795,6 +795,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
                          @MFEM_SOURCE_DIR@/miniapps/gslib \
+                         @MFEM_SOURCE_DIR@/miniapps/hdiv-linear-solver \
                          @MFEM_SOURCE_DIR@/miniapps/hooke \
                          @MFEM_SOURCE_DIR@/miniapps/hooke/kernels \
                          @MFEM_SOURCE_DIR@/miniapps/hooke/materials \
