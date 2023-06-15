@@ -3519,11 +3519,11 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             wq += ni * nor;
          }
 
-         wq = ip.weight * Trans.Weight();
-         if (Q)
-         {
-            wq *= Q->Eval(*Trans.Elem1, eip1);
-         }
+         // wq = ip.weight * Trans.Weight();
+         // if (Q)
+         // {
+         //    wq *= Q->Eval(*Trans.Elem1, eip1);
+         // }
 
          dshape2.Mult(nh, dshape2dn);
 

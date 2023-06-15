@@ -599,8 +599,8 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
 
    ConstantCoefficient pi(M_PI);
 
-   const double sigma = 0.0;
-   const double kappa = 0.0;
+   const double sigma = 1.0;
+   const double kappa = 1.0;
    const double lambda = 1.0;
 
    BilinearForm blf_fa(&fes);
