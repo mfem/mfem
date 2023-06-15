@@ -302,6 +302,7 @@ int main(int argc, char *argv[])
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
+         prec.owns_blocks = 1;
 
          GMRES(A,prec,rhs,x,0,500, 100, 1e-12,1e-8);
 
@@ -346,8 +347,8 @@ int main(int argc, char *argv[])
          break;
       }
 
-      double L2_error = u_gf.ComputeL2Error(exact_coef);
-      mfem::out << "L2-error  (|| u - uₕ||)       = " << L2_error << endl;
+      double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
 
    }
 

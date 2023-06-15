@@ -397,10 +397,10 @@ int main(int argc, char *argv[])
          break;
       }
 
-      double L2_error = u_gf.ComputeL2Error(exact_coef);
+      double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
       if (myid == 0)
       {
-         mfem::out << "L2-error  (|| u - uₕ||)       = " << L2_error << endl;
+         mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
       }
 
    }
