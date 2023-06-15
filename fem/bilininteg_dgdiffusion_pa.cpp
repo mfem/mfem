@@ -53,10 +53,12 @@ static int PermuteFace2D(const int face_id1, const int face_id2,
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
-static std::pair<int, int> EdgeQuad2Lex(const int qi, const int nq, const int face_id0, const int face_id1, const int side)
+static std::pair<int, int> EdgeQuad2Lex(const int qi, const int nq,
+                                        const int face_id0, const int face_id1, const int side)
 {
    const int face_id = (side == 0) ? face_id0 : face_id1;
-   const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1, side, nq, qi);
+   const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1, side,
+                                                         nq, qi);
    int i, j;
    if (face_id == 0 || face_id == 2)
    {
@@ -83,6 +85,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
                                  const Vector& q,
                                  const double sigma,
                                  const double kappa,
+                                 const double lambda,
                                  Vector& pa_Q,
                                  Vector& pa_hi,
                                  Vector& pa_nJi,
@@ -96,13 +99,14 @@ static void PADGDiffusionsetup2D(const int Q1D,
    const bool const_q = (q.Size() == 1);
    auto Q =
       const_q ? Reshape(q.Read(), 1,1) : Reshape(q.Read(), Q1D,NF);
-   
+
    auto W = w.Read();
 
    auto d_q = Reshape(pa_Q.Write(), Q1D, NF);
    auto hi = Reshape(pa_hi.Write(), Q1D, NF);
    auto nJi = Reshape(pa_nJi.Write(), 2, Q1D, 2, NF);
-   auto iwork = Reshape(iwork_.Read(), 6, NF); // (flip0, flip1, e0, e1, fid0, fid1)
+   auto iwork = Reshape(iwork_.Read(), 6,
+                        NF); // (flip0, flip1, e0, e1, fid0, fid1)
 
    for (int f = 0; f < NF; ++f)
    {
@@ -113,21 +117,25 @@ static void PADGDiffusionsetup2D(const int Q1D,
          const int fid[] = {iwork(4, f), iwork(5, f)};
 
          const double Qp = const_q ? Q(0,0) : Q(p, f);
-         d_q(p, f) = Qp * W[p] * detJf(p, f);
+         d_q(p, f) = kappa * Qp * W[p] * detJf(p, f);
 
          for (int side = 0; side < 2; ++side)
          {
             if (el[side] < 0)
+            {
                continue;
+            }
 
             auto [i, j] = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], 0);
 
-            const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j,  1,0,  el[side]);
-            const double nJi1 = -n(p, 0, f) * J(i,j,  0,1,  el[side]) + n(p,1, f) * J(i,j,  0,0,  el[side]);
+            const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j,
+                                                                                     0,1,  el[side]);
+            const double nJi1 = -n(p, 0, f) * J(i,j,  1,0,  el[side]) + n(p,1, f) * J(i,j,
+                                                                                      0,0,  el[side]);
             const double dJe = detJe(i,j,el[side]);
 
-            nJi(flip[side], p, side, f) = nJi0 / dJe * Qp * W[p] * detJf(p, f);
-            nJi(1-flip[side], p, side, f) = nJi1 / dJe * Qp * W[p] * detJf(p, f);
+            nJi(flip[side], p, side, f) = lambda * nJi0 / dJe * Qp * W[p] * detJf(p, f);
+            nJi(1-flip[side], p, side, f) = lambda * nJi1 / dJe * Qp * W[p] * detJf(p, f);
          }
       }
    }
@@ -146,6 +154,7 @@ static void PADGDiffusionSetup(const int dim,
                                const Vector &q,
                                const double sigma,
                                const double kappa,
+                               const double lambda,
                                Vector &pa_Q,
                                Vector &pa_hi,
                                Vector &pa_nJi,
@@ -154,7 +163,8 @@ static void PADGDiffusionSetup(const int dim,
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGTraceSetup"); }
    if (dim == 2)
    {
-      PADGDiffusionsetup2D(Q1D, NE, NF, W, jacE, detE, detF, nor, q, sigma, kappa, pa_Q, pa_hi, pa_nJi, iwork);
+      PADGDiffusionsetup2D(Q1D, NE, NF, W, jacE, detE, detF, nor, q, sigma, kappa,
+                           lambda, pa_Q, pa_hi, pa_nJi, iwork);
    }
    if (dim == 3)
    {
@@ -177,23 +187,25 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       *fes.GetTraceElement(0, mesh->GetFaceGeometry(0));
    FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
-   const IntegrationRule *ir = IntRule?
-                               IntRule:
+   const IntegrationRule *ir = IntRule ?
+                               IntRule :
                                &GetRule(el.GetOrder(), T0);
    // const int symmDims = 4;
-   nq = ir->GetNPoints();
    dim = mesh->Dimension();
+   nq = ir->Size();
+   const int nq1d = pow(double(ir->Size()), 1.0/(dim - 1));
+   // nq = ir->GetNPoints();
 
-   auto vol_ir = irs.Get(mesh->GetElementGeometry(0), 2*nq-3);
+   auto vol_ir = irs.Get(mesh->GetElementGeometry(0), 2*nq1d - 3);
    elgeom = mesh->GetGeometricFactors(
-      vol_ir,
-      GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
-      mt);
+               vol_ir,
+               GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
+               mt);
 
    fgeom = mesh->GetFaceGeometricFactors(
-             *ir,
-             FaceGeometricFactors::DETERMINANTS |
-             FaceGeometricFactors::NORMALS, type, mt);
+              *ir,
+              FaceGeometricFactors::DETERMINANTS |
+              FaceGeometricFactors::NORMALS, type, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -221,24 +233,25 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    int fidx = 0;
    Array<int> iwork_(6 * nf);
-   auto iwork = Reshape(iwork_.Write(), 6, nf); // (flip0, flip1, e0, e1, fid0, fid1)
+   auto iwork = Reshape(iwork_.Write(), 6,
+                        nf); // (flip0, flip1, e0, e1, fid0, fid1)
    for (int f = 0; f < mesh->GetNumFaces(); ++f)
    {
       auto info = mesh->GetFaceInformation(f);
 
       if (info.IsOfFaceType(type))
       {
-         int face_id = info.element[0].local_face_id;
-         iwork(0, fidx) = (face_id == 0 || face_id == 2) ? 1 : 0;
+         const int face_id_1 = info.element[0].local_face_id;
+         iwork(0, fidx) = (face_id_1 == 0 || face_id_1 == 2) ? 1 : 0;
          iwork(2, fidx) = info.element[0].index;
-         iwork(4, fidx) = face_id;
+         iwork(4, fidx) = face_id_1;
 
          if (info.IsInterior())
          {
-            face_id = info.element[1].local_face_id;
-            iwork(1, fidx) = (face_id == 0 || face_id == 2) ? 1 : 0;
+            const int face_id_2 = info.element[1].local_face_id;
+            iwork(1, fidx) = (face_id_2 == 0 || face_id_2 == 2) ? 1 : 0;
             iwork(3, fidx) = info.element[1].index;
-            iwork(5, fidx) = face_id;
+            iwork(5, fidx) = face_id_2;
          }
          else
          {
@@ -252,8 +265,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    }
 
    PADGDiffusionSetup(dim, dofs1D, quad1D, ne, nf,
-      ir->GetWeights(), elgeom->J, elgeom->detJ, fgeom->detJ,
-      fgeom->normal, q, sigma, kappa, pa_Q, pa_hi, pa_nJi, iwork_);
+                      ir->GetWeights(), elgeom->J, elgeom->detJ, fgeom->detJ,
+                      fgeom->normal, q, sigma, kappa, lambda, pa_Q, pa_hi, pa_nJi, iwork_);
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&
@@ -294,10 +307,10 @@ void PADGDiffusionApply2D(const int NF,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
-   
+
    auto Q = Reshape(pa_Q.Read(), Q1D, NF);
    auto J = Reshape(pa_nJi.Read(), 2, Q1D, 2, NF);
-   
+
    auto x =    Reshape(x_.Read(),         D1D, VDIM, 2, NF);
    auto y =    Reshape(y_.ReadWrite(),    D1D, VDIM, 2, NF);
    auto dxdn = Reshape(dxdn_.Read(),      D1D, VDIM, 2, NF);
@@ -352,7 +365,7 @@ void PADGDiffusionApply2D(const int NF,
       }
 
       // term - < {Q du/dn}, [v] >
-      
+
       // --> compute reference tangential derivative from face values
       double ut0[max_Q1D][VDIM];
       double ut1[max_Q1D][VDIM];
@@ -386,11 +399,14 @@ void PADGDiffusionApply2D(const int NF,
             const double dudn0 = Je0[0] * Bdu0[p][c] + Je0[1] * ut0[p][c];
             const double dudn1 = Je1[0] * Bdu1[p][c] + Je1[1] * ut1[p][c];
 
+            std::cout << std::setw(16) << std::setprecision(4) << std::left << dudn0
+                      << std::setw(16) << std::setprecision(4) << std::left << dudn1 << '\n';
+
             v[p][c] = 0.5 * (dudn0 + dudn1);
          }
       }
 
-      double Bv[max_Q1D][VDIM]; // B' * v
+      double Bv[max_D1D][VDIM]; // B' * v
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; ++c)
@@ -403,7 +419,7 @@ void PADGDiffusionApply2D(const int NF,
             double bt = Bt(d, p);
             for (int c = 0; c < VDIM; ++c)
             {
-               Bv[p][c] += bt * v[p][c];
+               Bv[d][c] += bt * v[p][c];
             }
          }
       }
@@ -480,15 +496,24 @@ static void PADGDiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn);
-         default:   return PADGDiffusionApply2D(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,x,dxdn,y,dydn,D1D,Q1D);
+         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,
+                                                        pa_nJi,x,dxdn,y,dydn);
+         default:   return PADGDiffusionApply2D(NF,B,Bt,G,sigma,kappa,pa_Q,pa_hi,pa_nJi,
+                                                   x,dxdn,y,dydn,D1D,Q1D);
       }
    }
    else if (dim == 3)
