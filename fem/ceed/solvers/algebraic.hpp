@@ -32,7 +32,7 @@ class AlgebraicCoarseSpace : public FiniteElementSpace
 {
 public:
    AlgebraicCoarseSpace(FiniteElementSpace &fine_fes, CeedElemRestriction fine_er,
-                        int order, int dim, int order_reduction_);
+                        int order, int dim, int order_reduction);
    ~AlgebraicCoarseSpace();
 
    int GetOrderReduction() const { return order_reduction; }
@@ -163,11 +163,9 @@ public:
        @param[in] form       partially assembled BilinearForm on finest level
        @param[in] ess_tdofs  List of essential true dofs on finest level
     */
-   AlgebraicMultigrid(
-      AlgebraicSpaceHierarchy &hierarchy,
-      BilinearForm &form,
-      const Array<int> &ess_tdofs
-   );
+   AlgebraicMultigrid(AlgebraicSpaceHierarchy &hierarchy,
+                      BilinearForm &form,
+                      const Array<int> &ess_tdofs);
    ~AlgebraicMultigrid();
 
    virtual void SetOperator(const mfem::Operator &op) override {}
@@ -187,8 +185,8 @@ class AlgebraicSolver : public Solver
 {
 private:
 #ifdef MFEM_USE_CEED
-   AlgebraicSpaceHierarchy * fespaces;
-   AlgebraicMultigrid * multigrid;
+   AlgebraicSpaceHierarchy *fespaces;
+   AlgebraicMultigrid *multigrid;
 #endif
 
 public:
@@ -218,7 +216,8 @@ SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form, bool set = false);
 
 /** @brief Assemble the CeedOperators from a MixedBilinearForm as an
     mfem::SparseMatrix */
-SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set = false);
+SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form,
+                                       bool set = false);
 
 /** @brief Assembles a CeedOperator as an mfem::SparseMatrix
 
@@ -226,8 +225,7 @@ SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set = false
     assembles at the L-vector level. The assembly procedure is always performed
     on the host, but this works also for operators stored on device by copying
     memory. */
-int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat,
-                             bool set = false);
+SparseMatrix *CeedOperatorFullAssemble(CeedOperator op, bool set = false);
 #endif
 
 } // namespace ceed

@@ -999,7 +999,6 @@ void test_ceed_full_assembly(const char *input, int order,
    Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
-   H1_FECollection fec(order, dim);
 
    DenseMatrix val(dim);
    val = 0.0;
@@ -1010,30 +1009,79 @@ void test_ceed_full_assembly(const char *input, int order,
    MatrixConstantCoefficient diff_coeff(val);
    ConstantCoefficient mass_coeff(1.0);
 
-   FiniteElementSpace fes(&mesh, &fec, 1);
-   BilinearForm k_test(&fes);
-   BilinearForm k_ref(&fes);
+   for (int t = 0; t < 3; t++)
+   {
+      FiniteElementCollection *fec = nullptr;
+      switch (t)
+      {
+         case 0:
+            fec = new H1_FECollection(order, dim);
+            break;
+         case 1:
+            fec = new ND_FECollection(order, dim);
+            break;
+         case 2:
+            fec = new RT_FECollection(order - 1, dim);
+            break;
+         default:
+            MFEM_ABORT("Unexpected problem type.");
+      }
 
-   k_ref.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-   k_test.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-   k_ref.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
-   k_test.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
-   k_ref.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   k_test.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+      FiniteElementSpace fes(&mesh, fec, 1);
+      BilinearForm k_test(&fes);
+      BilinearForm k_ref(&fes);
 
-   k_ref.Assemble();
-   k_ref.Finalize();
+      switch (t)
+      {
+         case 0:
+            k_ref.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+            k_test.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+            k_ref.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
+            k_test.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
+            k_ref.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+            k_test.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+            break;
+         case 1:
+            k_ref.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            k_test.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            k_ref.AddBoundaryIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            k_test.AddBoundaryIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            if (dim < 3)
+            {
+               k_ref.AddDomainIntegrator(new CurlCurlIntegrator(mass_coeff));
+               k_test.AddDomainIntegrator(new CurlCurlIntegrator(mass_coeff));
+            }
+            else
+            {
+               k_ref.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+               k_test.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+            }
+            break;
+         case 2:
+            k_ref.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            k_test.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            k_ref.AddDomainIntegrator(new DivDivIntegrator(mass_coeff));
+            k_test.AddDomainIntegrator(new DivDivIntegrator(mass_coeff));
+            break;
+         default:
+            MFEM_ABORT("Unexpected problem type.");
+      }
 
-   k_test.SetAssemblyLevel(assembly);
-   k_test.Assemble();
+      k_ref.Assemble();
+      k_ref.Finalize();
 
-   SparseMatrix *mat_ref = &k_ref.SpMat();
-   SparseMatrix *mat_test = ceed::CeedOperatorFullAssemble(k_test);
-   SparseMatrix *mat_diff = Add(1.0, *mat_ref, -1.0, *mat_test);
+      k_test.SetAssemblyLevel(assembly);
+      k_test.Assemble();
 
-   REQUIRE(mat_diff->MaxNorm() < 1.e-12 * std::max(mat_ref->MaxNorm(), 1.0));
-   delete mat_diff;
-   delete mat_test;
+      SparseMatrix *mat_ref = &k_ref.SpMat();
+      SparseMatrix *mat_test = ceed::CeedOperatorFullAssemble(k_test);
+      SparseMatrix *mat_diff = Add(1.0, *mat_ref, -1.0, *mat_test);
+
+      REQUIRE(mat_diff->MaxNorm() < 1.e-12 * std::max(mat_ref->MaxNorm(), 1.0));
+      delete mat_diff;
+      delete mat_test;
+      delete fec;
+   }
 }
 
 void test_ceed_linear_interpolator(const char *input, int order)
@@ -1383,8 +1431,7 @@ TEST_CASE("CEED p-adaptivity", "[CEED]")
    test_ceed_operator(mesh, order, coeff_type, pb, assembly, mixed_p, bdr_integ);
 } // test case
 
-TEST_CASE("CEED vector and matrix coefficients and vector FE operators",
-          "[CEED], [VectorFE]")
+TEST_CASE("CEED vector FE operators", "[CEED], [VectorFE]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Quad,

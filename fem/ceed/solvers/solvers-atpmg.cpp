@@ -11,11 +11,11 @@
 
 #include "solvers-atpmg.hpp"
 
-#include <math.h>
 #include "../interface/util.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
 #endif
+#include <math.h>
 
 #ifdef MFEM_USE_CEED
 

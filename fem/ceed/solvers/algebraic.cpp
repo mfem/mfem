@@ -21,6 +21,9 @@
 #ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
 #endif
+#ifdef MFEM_USE_OPENMP
+#include <omp.h>
+#endif
 
 namespace mfem
 {
@@ -43,14 +46,16 @@ class ConstrainedOperator : public mfem::Operator
 {
 public:
    /// This object takes ownership of oper and will delete it
-   ConstrainedOperator(CeedOperator oper, const Array<int> &ess_tdofs_,
-                       const mfem::Operator *P_);
-   ConstrainedOperator(CeedOperator oper, const mfem::Operator *P_);
+   ConstrainedOperator(CeedOperator oper, const Array<int> &ess_tdofs,
+                       const mfem::Operator *P);
+   ConstrainedOperator(CeedOperator oper, const mfem::Operator *P);
    ~ConstrainedOperator();
-   void Mult(const Vector& x, Vector& y) const;
-   CeedOperator GetCeedOperator() const;
+
    const Array<int> &GetEssentialTrueDofs() const;
    const mfem::Operator *GetProlongation() const;
+   operator CeedOperator() const { return (CeedOperator)*unconstrained_op; }
+   void Mult(const Vector& x, Vector& y) const;
+
 private:
    Array<int> ess_tdofs;
    const mfem::Operator *P;
@@ -58,11 +63,10 @@ private:
    mfem::Operator *constrained_op;
 };
 
-ConstrainedOperator::ConstrainedOperator(
-   CeedOperator oper,
-   const Array<int> &ess_tdofs_,
-   const mfem::Operator *P_)
-   : ess_tdofs(ess_tdofs_), P(P_)
+ConstrainedOperator::ConstrainedOperator(CeedOperator oper,
+                                         const Array<int> &ess_tdofs,
+                                         const mfem::Operator *P)
+   : ess_tdofs(ess_tdofs), P(P)
 {
    unconstrained_op = new ceed::Operator(oper);
    unconstrained_op->FormSystemOperator(ess_tdofs, constrained_op);
@@ -70,9 +74,9 @@ ConstrainedOperator::ConstrainedOperator(
 }
 
 ConstrainedOperator::ConstrainedOperator(CeedOperator oper,
-                                         const mfem::Operator *P_)
-   : ConstrainedOperator(oper, Array<int>(), P_)
-{ }
+                                         const mfem::Operator *P)
+   : ConstrainedOperator(oper, Array<int>(), P)
+{}
 
 ConstrainedOperator::~ConstrainedOperator()
 {
@@ -83,11 +87,6 @@ ConstrainedOperator::~ConstrainedOperator()
 void ConstrainedOperator::Mult(const Vector& x, Vector& y) const
 {
    constrained_op->Mult(x, y);
-}
-
-CeedOperator ConstrainedOperator::GetCeedOperator() const
-{
-   return unconstrained_op->GetCeedOperator();
 }
 
 const Array<int> &ConstrainedOperator::GetEssentialTrueDofs() const
@@ -104,14 +103,13 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
 {
    int ierr;
 
-   CeedOperator ceed_op = op.GetCeedOperator();
    const Array<int> &ess_tdofs = op.GetEssentialTrueDofs();
    const mfem::Operator *P = op.GetProlongation();
 
    // Assemble the a local diagonal, in the sense of L-vector
    CeedVector diagceed;
    CeedSize l_in, l_out;
-   ierr = CeedOperatorGetActiveVectorLengths(ceed_op, &l_in, &l_out);
+   ierr = CeedOperatorGetActiveVectorLengths(op, &l_in, &l_out);
    PCeedChk(ierr);
    MFEM_VERIFY(l_in == l_out, "Not a square CeedOperator.");
    MFEM_VERIFY((CeedInt)l_in == l_in, "Size overflow.");
@@ -128,7 +126,7 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
                      local_diag.Write(true);
    ierr = CeedVectorSetArray(diagceed, mem, CEED_USE_POINTER, ptr);
    PCeedChk(ierr);
-   ierr = CeedOperatorLinearAssembleDiagonal(ceed_op, diagceed,
+   ierr = CeedOperatorLinearAssembleDiagonal(op, diagceed,
                                              CEED_REQUEST_IMMEDIATE);
    PCeedChk(ierr);
    ierr = CeedVectorTakeArray(diagceed, mem, NULL); PCeedChk(ierr);
@@ -168,24 +166,19 @@ public:
    {
       MFEM_ASSERT(P != NULL, "Provided HypreParMatrix is invalid!");
       height = width = oper.Height();
-
-      int ierr;
-      const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
-
-      ierr = CeedOperatorFullAssemble(oper.GetCeedOperator(), &mat_local);
-      PCeedChk(ierr);
-
+      mat_local = CeedOperatorFullAssemble(oper);
       {
          HypreParMatrix hypre_local(
             P->GetComm(), P->GetGlobalNumRows(), P->RowPart(), mat_local);
          op_assembled = RAP(&hypre_local, P);
       }
+      const Array<int> ess_tdofs = oper.GetEssentialTrueDofs();
       HypreParMatrix *mat_e = op_assembled->EliminateRowsCols(ess_tdofs);
       delete mat_e;
       amg = new HypreBoomerAMG(*op_assembled);
       amg->SetPrintLevel(0);
    }
-   void SetOperator(const mfem::Operator &op) override { }
+   void SetOperator(const mfem::Operator &op) override {}
    void Mult(const Vector &x, Vector &y) const override { amg->Mult(x, y); }
    ~AssembledAMG()
    {
@@ -224,17 +217,29 @@ void CoarsenEssentialDofs(const mfem::Operator &interp,
    }
 }
 
-void AddToCompositeOperator(BilinearFormIntegrator *integ, CeedOperator op)
+namespace
 {
-   if (integ->SupportsCeed())
+
+inline void CompositeOperatorAddSub(BilinearFormIntegrator &integ,
+                                    CeedOperator op)
+{
+   MFEM_VERIFY(integ.SupportsCeed(), "This integrator does not support Ceed!");
+#ifndef MFEM_USE_OPENMP
+   CeedCompositeOperatorAddSub(op, integ.GetCeedOp());
+#else
+   #pragma omp parallel
    {
-      CeedCompositeOperatorAddSub(op, integ->GetCeedOp().GetCeedOperator());
+      const int tid = omp_get_thread_num();
+      if (integ.GetCeedOp()[tid])
+      {
+         #pragma omp critical
+         CeedCompositeOperatorAddSub(op, integ.GetCeedOp()[tid]);
+      }
    }
-   else
-   {
-      MFEM_ABORT("This integrator does not support Ceed!");
-   }
+#endif
 }
+
+} // namespace
 
 CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
 {
@@ -243,11 +248,11 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
    ierr = CeedCompositeOperatorCreate(internal::ceed, &op); PCeedChk(ierr);
    for (BilinearFormIntegrator *integ : *form.GetDBFI())
    {
-      AddToCompositeOperator(integ, op);
+      CompositeOperatorAddSub(*integ, op);
    }
    for (BilinearFormIntegrator *integ : *form.GetBBFI())
    {
-      AddToCompositeOperator(integ, op);
+      CompositeOperatorAddSub(*integ, op);
    }
    MFEM_VERIFY(form.GetFBFI()->Size() == 0, "AddInteriorFaceIntegrator is not "
                "currently supported in CreateCeedCompositeOperatorFromBilinearForm");
@@ -260,8 +265,7 @@ CeedOperator CoarsenCeedCompositeOperator(
    CeedOperator op,
    CeedElemRestriction er,
    CeedBasis c2f,
-   int order_reduction
-)
+   int order_reduction)
 {
    int ierr;
    bool isComposite;
@@ -303,8 +307,8 @@ CeedOperator CoarsenCeedCompositeOperator(
 AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
-   const Array<int> &ess_tdofs
-) : GeometricMultigrid(hierarchy)
+   const Array<int> &ess_tdofs)
+   : GeometricMultigrid(hierarchy)
 {
    int nlevels = fespaces.GetNumLevels();
    ceed_operators.SetSize(nlevels);
@@ -343,14 +347,14 @@ AlgebraicMultigrid::AlgebraicMultigrid(
          if (nlevels == 1)
          {
             // Only one level -- no coarsening, finest level
-            ParFiniteElementSpace *pfes
-               = dynamic_cast<ParFiniteElementSpace*>(&space);
+            ParFiniteElementSpace *pfes =
+               dynamic_cast<ParFiniteElementSpace*>(&space);
             if (pfes) { P_mat = pfes->Dof_TrueDof_Matrix(); }
          }
          else
          {
-            ParAlgebraicCoarseSpace *pspace
-               = dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
+            ParAlgebraicCoarseSpace *pspace =
+               dynamic_cast<ParAlgebraicCoarseSpace*>(&space);
             if (pspace) { P_mat = pspace->GetProlongationHypreParMatrix(); }
          }
          if (P_mat) { smoother = new AssembledAMG(*op, P_mat); }
@@ -373,8 +377,7 @@ int AlgebraicInterpolation::Initialize(
    Ceed ceed, CeedBasis basisctof,
    CeedElemRestriction erestrictu_coarse, CeedElemRestriction erestrictu_fine)
 {
-   int ierr = 0;
-
+   int ierr;
    CeedSize height, width;
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width);
    PCeedChk(ierr);
@@ -531,7 +534,7 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
 
 void AlgebraicInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 {
-   int ierr = 0;
+   int ierr;
    const CeedScalar *in_ptr;
    CeedScalar *out_ptr;
    CeedMemType mem;
@@ -564,7 +567,7 @@ void AlgebraicInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
 void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
                                            mfem::Vector& y) const
 {
-   int ierr = 0;
+   int ierr;
    CeedMemType mem;
    ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    const CeedScalar *in_ptr;
@@ -595,7 +598,9 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
    ierr = CeedVectorGetArrayWrite(fine_work, mem, &workdata); PCeedChk(ierr);
    MFEM_VERIFY((int)length == length, "Length overflow.");
    mfem::forall(length, [=] MFEM_HOST_DEVICE (int i)
-   {workdata[i] = in_ptr[i] * multiplicitydata[i];});
+   {
+      workdata[i] = in_ptr[i] * multiplicitydata[i];
+   });
    ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
                                      &multiplicitydata);
    ierr = CeedVectorRestoreArray(fine_work, &workdata); PCeedChk(ierr);
@@ -638,8 +643,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
 
    current_order = order;
 
-   Ceed ceed = internal::ceed;
-   InitRestriction(fes, false, ceed, &fine_er);
+   InitRestriction(fes, internal::ceed, &fine_er);
    CeedElemRestriction er = fine_er;
 
    int dim = fes.GetMesh()->Dimension();
@@ -674,7 +678,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       current_order = current_order/2;
       fespaces[ilevel] = space;
       ceed_interpolations[ilevel] = new AlgebraicInterpolation(
-         ceed,
+         internal::ceed,
          space->GetCeedCoarseToFine(),
          space->GetCeedElemRestriction(),
          er
@@ -702,11 +706,10 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
    CeedElemRestriction fine_er,
    int order,
    int dim,
-   int order_reduction_
-) : order_reduction(order_reduction_)
+   int order_reduction)
+   : order_reduction(order_reduction)
 {
    int ierr;
-   order_reduction = order_reduction_;
 
    ierr = CeedATPMGElemRestriction(order, order_reduction, fine_er,
                                    &ceed_elem_restriction, dof_map);
@@ -951,7 +954,7 @@ AlgebraicSolver::AlgebraicSolver(BilinearForm &form,
                                  const Array<int>& ess_tdofs)
 {
    MFEM_VERIFY(DeviceCanUseCeed(),
-               "AlgebraicSolver requires a Ceed device");
+               "AlgebraicSolver requires a Ceed device.");
    MFEM_VERIFY(form.GetAssemblyLevel() == AssemblyLevel::PARTIAL ||
                form.GetAssemblyLevel() == AssemblyLevel::NONE,
                "AlgebraicSolver requires partial assembly or fully matrix-free.");
@@ -988,38 +991,50 @@ void AlgebraicSolver::SetOperator(const mfem::Operator& op)
 }
 
 #ifdef MFEM_USE_CEED
+namespace
+{
+
+inline void OperatorFullAssemble(BilinearFormIntegrator &integ, bool set,
+                                 Array<SparseMatrix *> &mat_i)
+{
+   if (!integ.SupportsCeed()) { return; }
+#ifndef MFEM_USE_OPENMP
+   mat_i.Append(CeedOperatorFullAssemble(integ.GetCeedOp(), set));
+#else
+   #pragma omp parallel
+   {
+      SparseMatrix *mat_integ;
+      const int tid = omp_get_thread_num();
+      if (integ.GetCeedOp()[tid])
+      {
+         mat_integ = CeedOperatorFullAssemble(integ.GetCeedOp()[tid], set);
+         #pragma omp critical
+         mat_i.Append(mat_integ);
+      }
+   }
+#endif
+}
+
+} // namespace
+
 SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form, bool set)
 {
    Array<SparseMatrix *> mat_i;
    for (BilinearFormIntegrator *integ : *form.GetDBFI())
    {
-      if (!integ->SupportsCeed()) { continue; }
-      SparseMatrix *mat_integ;
-      int ierr = CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
-                                          &mat_integ, set);
-      PCeedChk(ierr);
-      mat_i.Append(mat_integ);
+      OperatorFullAssemble(*integ, set, mat_i);
    }
    for (BilinearFormIntegrator *integ : *form.GetBBFI())
    {
-      if (!integ->SupportsCeed()) { continue; }
-      SparseMatrix *mat_integ;
-      int ierr = CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
-                                          &mat_integ, set);
-      PCeedChk(ierr);
-      mat_i.Append(mat_integ);
+      OperatorFullAssemble(*integ, set, mat_i);
    }
    MFEM_VERIFY(form.GetFBFI()->Size() == 0, "AddInteriorFaceIntegrator is not "
-               "currently supported in CeedOperatorFullAssemble");
+               "currently supported in CeedOperatorFullAssemble.");
    MFEM_VERIFY(form.GetBFBFI()->Size() == 0, "AddBdrFaceIntegrator is not "
-               "currently supported in CeedOperatorFullAssemble");
+               "currently supported in CeedOperatorFullAssemble.");
 
-   SparseMatrix *mat = Add(mat_i);
-   for (SparseMatrix *mat_integ : mat_i)
-   {
-      delete mat_integ;
-   }
-   return mat;
+   // This method frees all the no longer used memory from mat_i
+   return Add(mat_i);
 }
 
 SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set)
@@ -1027,36 +1042,22 @@ SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set)
    Array<SparseMatrix *> mat_i;
    for (BilinearFormIntegrator *integ : *form.GetDBFI())
    {
-      if (!integ->SupportsCeed()) { continue; }
-      SparseMatrix *mat_integ;
-      int ierr = CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
-                                          &mat_integ, set);
-      PCeedChk(ierr);
-      mat_i.Append(mat_integ);
+      OperatorFullAssemble(*integ, set, mat_i);
    }
    for (BilinearFormIntegrator *integ : *form.GetBBFI())
    {
-      if (!integ->SupportsCeed()) { continue; }
-      SparseMatrix *mat_integ;
-      int ierr = CeedOperatorFullAssemble(integ->GetCeedOp().GetCeedOperator(),
-                                          &mat_integ, set);
-      PCeedChk(ierr);
-      mat_i.Append(mat_integ);
+      OperatorFullAssemble(*integ, set, mat_i);
    }
    MFEM_VERIFY(form.GetTFBFI()->Size() == 0, "AddTraceFaceIntegrator is not "
-               "currently supported in CeedOperatorFullAssemble");
+               "currently supported in CeedOperatorFullAssemble.");
    MFEM_VERIFY(form.GetBTFBFI()->Size() == 0, "AddBdrTraceFaceIntegrator is not "
-               "currently supported in CeedOperatorFullAssemble");
+               "currently supported in CeedOperatorFullAssemble.");
 
-   SparseMatrix *mat = Add(mat_i);
-   for (SparseMatrix *mat_integ : mat_i)
-   {
-      delete mat_integ;
-   }
-   return mat;
+   // This method frees all the no longer used memory from mat_i
+   return Add(mat_i);
 }
 
-int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat, bool set)
+SparseMatrix *CeedOperatorFullAssemble(CeedOperator op, bool set)
 {
    int ierr;
    Ceed ceed;
@@ -1065,7 +1066,6 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat, bool set)
    CeedSize l_in, l_out;
    ierr = CeedOperatorGetActiveVectorLengths(op, &l_in, &l_out); PCeedChk(ierr);
    MFEM_VERIFY((int)l_in == l_in && (int)l_out == l_out, "Size overflow.");
-   *mat = new SparseMatrix(l_out, l_in);
 
    CeedSize nnz;
    CeedInt *rows, *cols;
@@ -1076,17 +1076,19 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat, bool set)
    ierr = CeedVectorCreate(ceed, nnz, &vals); PCeedChk(ierr);
    ierr = CeedOperatorLinearAssemble(op, vals); PCeedChk(ierr);
 
+   mfem::SparseMatrix *mat = new SparseMatrix(l_out, l_in);
+
    const CeedScalar *val_array;
    ierr = CeedVectorGetArrayRead(vals, CEED_MEM_HOST, &val_array); PCeedChk(ierr);
    for (CeedSize k = 0; k < nnz; ++k)
    {
-      if (!set)
+      if (set)
       {
-         (*mat)->Add(rows[k], cols[k], val_array[k]);
+         mat->Set(rows[k], cols[k], val_array[k]);
       }
       else
       {
-         (*mat)->Set(rows[k], cols[k], val_array[k]);
+         mat->Add(rows[k], cols[k], val_array[k]);
       }
    }
    ierr = CeedVectorRestoreArrayRead(vals, &val_array); PCeedChk(ierr);
@@ -1097,9 +1099,9 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat, bool set)
 
    // Enforce structurally symmetric for later elimination
    const int skip_zeros = 0;
-   (*mat)->Finalize(skip_zeros);
+   mat->Finalize(skip_zeros);
 
-   return 0;
+   return mat;
 }
 #endif
 
