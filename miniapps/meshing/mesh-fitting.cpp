@@ -222,9 +222,9 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
     int dim = fes->GetMesh()->Dimension();
     Vector vxyz(dim*ir->GetNPoints());  // Coordinated of the quadrature points in the physical space
     Vector interp_values(ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
-    std::cout << "Ordre " << intorder << std::endl;
-    std::cout << "Nbr de points de quadrature: " << ir->GetNPoints() << std::endl;
-
+    //std::cout << "Ordre " << intorder << std::endl;
+    //std::cout << "Nbr de points de quadrature: " << ir->GetNPoints() << std::endl;
+    //std::cout << "Face " << el << std::endl;
     // Compute the coords of the quadrature points in the physical space
     for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
     {
@@ -239,12 +239,12 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
         {
             vxyz(i*dim+2) = xyz(2);
         }
-        std::cout << "Ref space " << ip.x << ", " << ip.y << ", Physical space " << xyz(0) << ", " << xyz(1) << std::endl;
+        //std::cout << "Ref space " << ip.x << ", " << ip.y << ", Physical space " << xyz(0) << ", " << xyz(1) << std::endl;
     }
 
     // Compute the interpolated values of the level set grid function on the
     // physical coords of the quadrature points
-    int point_ordering(0);
+    int point_ordering(1);
     FindPointsGSLIB finder;
     finder.Setup(*ls_bg->FESpace()->GetMesh());
     finder.SetL2AvgType(FindPointsGSLIB::NONE);
@@ -258,6 +258,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
         double level_set_value = interp_values(i) ;
         error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
         // error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
+        //std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
     }
 
     return error;
@@ -1131,7 +1132,8 @@ int main(int argc, char *argv[])
       std::cout << "Nbr DOFs: " << fespace->GetNDofs() << ", Max order: " << fespace->GetMaxElementOrder() <<  std::endl;
       std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
       std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " << std::endl;
-
+      std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" << std::endl;
+      std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " " << error_bg_sum << std::endl;
    }
 
    // Visualize the mesh displacement.
