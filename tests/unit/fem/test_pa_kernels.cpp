@@ -580,18 +580,24 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 
 TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
 {
-   const int order = 4;
+   const int order = 1;
    const int nx = 4;
    const int dim = 2;
 
-   const int q_order = 2 * order + 1;
-
    Mesh mesh = Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, true);
+   // Mesh mesh("../../data/star.mesh");
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
+
+   FunctionCoefficient coeff([](const Vector& x)
+   {
+      return x[0] + 2 * x[1];
+   });
+   // x.ProjectCoefficient(coeff);
+
    ConstantCoefficient pi(M_PI);
 
    const double sigma = 0.0;
@@ -599,20 +605,30 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
    const double lambda = 1.0;
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa,
+                                                              lambda));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa,
+                                                              lambda));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
-   y_fa.Print(std::cout, 1);
-   std::cout << "\n-------\n";
-   y_pa.Print(std::cout, 1);
+   for (int i = 0; i < y_pa.Size(); ++i)
+   {
+      const double er = std::abs(y_pa[i] - y_fa[i]);
+      std::cout << std::setw(16) << std::setprecision(4) << std::left << y_fa[i]
+                << std::setw(16) << std::setprecision(4) << std::left << y_pa[i]
+                << std::setw(16) << std::setprecision(4) << std::left << er << '\n';
+   }
+
+   // y_fa.Print(std::cout, 1);
+   // std::cout << "\n-------\n";
+   // y_pa.Print(std::cout, 1);
 
    // std::cout << y_fa.Sum() << " " << y_pa.Sum();
 

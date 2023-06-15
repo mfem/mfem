@@ -462,7 +462,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          int_face_Y = 0.0;
 
          if (int_face_normal_deriv)
+         {
             int_face_dYdn = 0.0;
+         }
 
          for (int i = 0; i < iFISz; ++i)
          {
@@ -498,7 +500,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_Y = 0.0;
 
          if (bdr_face_normal_deriv)
+         {
             bdr_face_dYdn = 0.0;
+         }
 
          for (int i = 0; i < bFISz; ++i)
          {

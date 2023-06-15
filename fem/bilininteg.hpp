@@ -3115,11 +3115,16 @@ protected:
 
 public:
    DGDiffusionIntegrator(const double s, const double k, const double l)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k), lambda(l), irs(0, Quadrature1D::GaussLobatto) { }
-   DGDiffusionIntegrator(Coefficient &q, const double s, const double k, const double l)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), lambda(l), irs(0, Quadrature1D::GaussLobatto) { }
-   DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k, const double l)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k), lambda(l), irs(0, Quadrature1D::GaussLobatto) { }
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k), lambda(l), irs(0,
+                                                              Quadrature1D::GaussLobatto) { }
+   DGDiffusionIntegrator(Coefficient &q, const double s, const double k,
+                         const double l)
+      : Q(&q), MQ(NULL), sigma(s), kappa(k), lambda(l), irs(0,
+                                                            Quadrature1D::GaussLobatto) { }
+   DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k,
+                         const double l)
+      : Q(NULL), MQ(&q), sigma(s), kappa(k), lambda(l), irs(0,
+                                                            Quadrature1D::GaussLobatto) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,

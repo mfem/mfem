@@ -3584,10 +3584,14 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          for (int j = 0; j < i; j++)
          {
             double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-            elmat(i,j) = sigma*aji - aij + mij;
-            elmat(j,i) = sigma*aij - aji + mij;
+            elmat(i,j) = sigma*aji - lambda*aij + mij;
+            elmat(j,i) = sigma*aij - lambda*aji + mij;
+
+            // elmat(i,j) = mij;
+            // elmat(j,i) = mij;
          }
-         elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
+         elmat(i,i) = (sigma - lambda)*elmat(i,i) + jmat(i,i);
+         // elmat(i,i) = jmat(i,i);
       }
    }
    else
