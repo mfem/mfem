@@ -1585,6 +1585,12 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
 {
    Mesh& mesh = *fes.GetMesh();
 
+   const FiniteElement& fe = *fes.GetFE(0);
+   const int d = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR).ndof;
+
+   height = 2 * nf * vdim * d;
+   width = ne * vdim * d * d;
+
    auto f2e = Reshape(face_to_elem.Write(), nf, 3);
 
    int f_ind = 0;
