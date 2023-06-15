@@ -293,7 +293,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
             FaceType::Interior
          );
          int_face_dXdn.SetSize(int_face_normal_deriv->Width());
-         int_face_dXdn.SetSize(int_face_normal_deriv->Height());
+         int_face_dYdn.SetSize(int_face_normal_deriv->Height());
       }
    }
 
@@ -324,7 +324,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
             FaceType::Boundary
          );
          bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Width());
-         bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Height());
+         bdr_face_dYdn.SetSize(bdr_face_normal_deriv->Height());
       }
    }
 }
@@ -460,6 +460,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       if (int_face_X.Size()>0)
       {
          int_face_Y = 0.0;
+
+         if (int_face_normal_deriv)
+            int_face_dYdn = 0.0;
+
          for (int i = 0; i < iFISz; ++i)
          {
             if (intFaceIntegrators[i]->RequiresFaceNormalDerivatives())
@@ -492,6 +496,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       if (bdr_face_X.Size()>0)
       {
          bdr_face_Y = 0.0;
+
+         if (bdr_face_normal_deriv)
+            bdr_face_dYdn = 0.0;
+
          for (int i = 0; i < bFISz; ++i)
          {
             if (intFaceIntegrators[i]->RequiresFaceNormalDerivatives())
