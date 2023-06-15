@@ -604,16 +604,16 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
    const double lambda = 1.0;
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa,
-                                                              lambda));
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa,
-                                                              lambda));
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa, lambda));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 

@@ -119,6 +119,8 @@ static void PADGDiffusionsetup2D(const int Q1D,
          const double Qp = const_q ? Q(0,0) : Q(p, f);
          d_q(p, f) = kappa * Qp * W[p] * detJf(p, f);
 
+         const bool interior = el[1] >= 0;
+         const double factor = interior ? 0.5 : 1.0;
          hi(p, f) = 0.0;
 
          for (int side = 0; side < 2; ++side)
@@ -132,14 +134,14 @@ static void PADGDiffusionsetup2D(const int Q1D,
 
             const double nJi0 = n(p, 0, f) * J(i,j,  1,1,  el[side]) - n(p,1, f) * J(i,j, 0,1,  el[side]);
             const double nJi1 = -n(p, 0, f) * J(i,j, 1,0,  el[side]) + n(p,1, f) * J(i,j, 0,0,  el[side]);
-            
+
             const double dJe = detJe(i,j,el[side]);
             const double dJf = detJf(p, f);
 
-            nJi(flip[side], p, side, f) = nJi0 / dJe * Qp * W[p] * dJf;
-            nJi(1-flip[side], p, side, f) = nJi1 / dJe * Qp * W[p] * dJf;
+            nJi(flip[side], p, side, f) = factor * nJi0 / dJe * Qp * W[p] * dJf;
+            nJi(1-flip[side], p, side, f) = factor * nJi1 / dJe * Qp * W[p] * dJf;
 
-            hi(p, f) += 0.5 * dJf / dJe;
+            hi(p, f) += factor * dJf / dJe;
          }
       }
    }
@@ -410,7 +412,7 @@ void PADGDiffusionApply2D(const int NF,
             // std::cout << std::setw(16) << std::setprecision(4) << std::left << dudn0
             //           << std::setw(16) << std::setprecision(4) << std::left << dudn1 << '\n';
 
-            v[p][c] = 0.5 * lambda * (dudn0 + dudn1);
+            v[p][c] = lambda * (dudn0 + dudn1);
          }
       }
 
@@ -453,8 +455,8 @@ void PADGDiffusionApply2D(const int NF,
             for (int c = 0; c < VDIM; ++c)
             {
                const double jump = Bu0[p][c] - Bu1[p][c];
-               w1[side][p][c] = 0.5 * Je[0] * jump;
-               w2[side][p][c] = 0.5 * Je[1] * jump;
+               w1[side][p][c] = Je[0] * jump;
+               w2[side][p][c] = Je[1] * jump;
             }
          }
       }
@@ -532,7 +534,6 @@ void PADGDiffusionApply2D(const int NF,
             y(d, c, 1, f) += -Br[c];
          } // for c
       } // for d
-
    } // for f
 }
 
