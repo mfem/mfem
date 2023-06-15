@@ -29,6 +29,11 @@ New and updated examples and miniapps
   integrators are added in support of DPG systems: TraceIntegrator,
   NormalTraceIntegrator and TangentTraceIntegrator.
 
+- Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
+  demonstrating the use of a matrix-free saddle-point solver methodology,
+  suitable for high-order discretizations and for GPU acceleration. Examples
+  illustrating the solution of Darcy and grad-div problems are included.
+
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
 Meshing improvements
