@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
          prec.owns_blocks = 1;
 
-         GMRES(A,prec,rhs,x,0,500, 100, 1e-12,1e-8);
+         GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
 
          u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
          delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
