@@ -3102,6 +3102,10 @@ protected:
 
    // PA extension
    Vector pa_data;
+
+   Vector pa_Q; // Q * det(J)
+   Vector pa_hi; // 1 / h
+   Vector pa_nJi; // dot(n, inv(J))
    const DofToQuad *maps;             ///< Not owned
    const FaceGeometricFactors *geom;  ///< Not owned
    int dim, nf, nq, dofs1D, quad1D;
