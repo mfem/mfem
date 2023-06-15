@@ -90,9 +90,9 @@ double div_non_solenoidal_field3d(const Vector &x)
    return 2*(x(0) + x(1) + x(2));
 }
 
-double pa_divergence_testnd(int dim,
-                            void (*f1)(const Vector &, Vector &),
-                            double (*divf1)(const Vector &))
+void pa_divergence_testnd(int dim,
+                          void (*f1)(const Vector &, Vector &),
+                          double (*divf1)(const Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -124,7 +124,44 @@ double pa_divergence_testnd(int dim,
    lf.Assemble();
    field2 -= lf;
 
-   return field2.Norml2();
+   REQUIRE(field2.Normlinf() == MFEM_Approx(0.0));
+}
+
+void pa_divergence_transpose_testnd(int dim)
+{
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   int order = 4;
+
+   // Scalar
+   H1_FECollection fec1(order, dim);
+   FiniteElementSpace fes1(&mesh, &fec1);
+
+   // Vector valued
+   H1_FECollection fec2(order, dim);
+   FiniteElementSpace fes2(&mesh, &fec2, dim);
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+
+   MixedBilinearForm d_pa(&fes1, &fes2);
+   d_pa.AddDomainIntegrator(
+      new TransposeIntegrator(new VectorDivergenceIntegrator));
+   d_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   d_pa.Assemble();
+
+   MixedBilinearForm d_fa(&fes1, &fes2);
+   d_fa.AddDomainIntegrator(
+      new TransposeIntegrator(new VectorDivergenceIntegrator));
+   d_fa.Assemble();
+   d_fa.Finalize();
+
+   x.Randomize(1);
+
+   d_pa.Mult(x, y_pa);
+   d_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
@@ -132,29 +169,21 @@ TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
    SECTION("2D")
    {
       // Check if div([y, -x]) == 0
-      REQUIRE(pa_divergence_testnd(2, solenoidal_field2d, zero_field)
-              == MFEM_Approx(0.0));
-
+      pa_divergence_testnd(2, solenoidal_field2d, zero_field);
       // Check if div([x*y, -x+y]) == 1 + y
-      REQUIRE(pa_divergence_testnd(2,
-                                   non_solenoidal_field2d,
-                                   div_non_solenoidal_field2d)
-              == MFEM_Approx(0.0));
+      pa_divergence_testnd(2, non_solenoidal_field2d, div_non_solenoidal_field2d);
+      // Check transpose
+      pa_divergence_transpose_testnd(2);
    }
 
    SECTION("3D")
    {
-      // Check if
-      // div([-x^2, xy, xz]) == 0
-      REQUIRE(pa_divergence_testnd(3, solenoidal_field3d, zero_field)
-              == MFEM_Approx(0.0));
-
-      // Check if
-      // div([x^2, y^2, z^2]) == 2(x + y + z)
-      REQUIRE(pa_divergence_testnd(3,
-                                   non_solenoidal_field3d,
-                                   div_non_solenoidal_field3d)
-              == MFEM_Approx(0.0));
+      // Check if div([-x^2, xy, xz]) == 0
+      pa_divergence_testnd(3, solenoidal_field3d, zero_field);
+      // Check if div([x^2, y^2, z^2]) == 2(x + y + z)
+      pa_divergence_testnd(3, non_solenoidal_field3d, div_non_solenoidal_field3d);
+      // Check transpose
+      pa_divergence_transpose_testnd(3);
    }
 }
 
