@@ -388,23 +388,18 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    gslcomm.SendData(dim,procs,elems,refcrd,xyz, proc_recv,index_recv,elems_recv,ref_recv, xyz_recv);
 
 
-   PrintVector(refcrd, "ref send", 0);
-   PrintVector(refcrd, "ref send", 1);
-
-   PrintVector(ref_recv, "ref recv", 0);
-   PrintVector(ref_recv, "ref recv", 1);
-
    // PrintArray(elems, "elems", 0);
    // PrintArray(elems, "elems", 1);
    // PrintArray(elems_recv, "elems_recv", 0);
    // PrintArray(elems_recv, "elems_recv", 1);
    // PrintArray(elems_recv, "elements", 1);
-   PrintVector(xyz, "xyz ", 0);
-   PrintVector(xyz, "xyz ", 1);
-   PrintVector(xyz_recv, "xyz_recv ", 0);
-   PrintVector(xyz_recv, "xyz_recv ", 1);
-   mfem::out << "np = " << np << endl;
+   // PrintVector(xyz, "xyz ", 0);
+   // PrintVector(xyz, "xyz ", 1);
+   // PrintVector(xyz_recv, "xyz_recv ", 0);
+   // PrintVector(xyz_recv, "xyz_recv ", 1);
+   // mfem::out << "np = " << np << endl;
    int np_loc = elems_recv.Size();
+   Vector xi_send(np_loc*dim);
    for (int i=0; i<elems_recv.Size(); ++i)
    {
       int refFace, refNormal, refNormalSide;
@@ -424,14 +419,14 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
          Array<int> cbdrVert;
          mesh.GetFaceVertices(phyFace, cbdrVert);
 	      Vector xs(dim);
-         // xs[0] = xyz_recv[i + 0*np_loc];
-         // xs[1] = xyz_recv[i + 1*np_loc];
-         // xs[2] = xyz_recv[i + 2*np_loc];
+         xs[0] = xyz_recv[i + 0*np_loc];
+         xs[1] = xyz_recv[i + 1*np_loc];
+         xs[2] = xyz_recv[i + 2*np_loc];
   
 
 
-         PrintVector(xs,"xs = ", 0);
-         PrintVector(xs,"xs = ", 1);
+         // PrintVector(xs,"xs = ", 0);
+         // PrintVector(xs,"xs = ", 1);
 
 	      Vector xi_tmp(dim-1);
          // // get nodes!
@@ -445,38 +440,45 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
                coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
 	         }
 	      }
-	      // SlaveToMaster(coords, xs, xi_tmp);
+	      SlaveToMaster(coords, xs, xi_tmp);
+         // PrintVector(xi_tmp, "xitemp" , 0);
+         // PrintVector(xi_tmp, "xitemp" , 1);
 
-         // for (int j=0; j<dim-1; ++j)
-         // {
-	      //    xi[i*(dim-1)+j] = xi_tmp[j];
-         // }
-	//       // now get get the projection to the surface 
+         
+         for (int j=0; j<dim-1; ++j)
+         {
+	         xi_send[i*(dim-1)+j] = xi_tmp[j];
+         }
+
+         PrintVector(xi_send, "xi_send" , 0);
+         PrintVector(xi_send, "xi_send" , 1);
+
+	      // now get get the projection to the surface 
       }
       else
       {
-   //       Vector faceRefCrd(dim-1);
-   //       {
-   //          int fd = 0;
-   //          for (int j=0; j<dim; ++j)
-   //          {
-   //             if (j == refNormal)
-   //             {
-   //                refNormalSide = (refcrd[(i*dim) + j] > 0.5);
-   //             }
-   //             else
-   //             {
-   //                faceRefCrd[fd] = refcrd[(i*dim) + j];
-   //                fd++;
-   //             }
-   //          }
-   //          MFEM_VERIFY(fd == dim-1, "");
-   //       }
+         Vector faceRefCrd(dim-1);
+         {
+            int fd = 0;
+            for (int j=0; j<dim; ++j)
+            {
+               if (j == refNormal)
+               {
+                  refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+               }
+               else
+               {
+                  faceRefCrd[fd] = refcrd[(i*dim) + j];
+                  fd++;
+               }
+            }
+            MFEM_VERIFY(fd == dim-1, "");
+         }
 
-   //       for (int j=0; j<dim-1; ++j)
-   //       {
-	//          xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
-   //       }
+         for (int j=0; j<dim-1; ++j)
+         {
+	         xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
+         }
       }
    //    // Get the element face
    //    Array<int> faces;

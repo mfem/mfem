@@ -1322,7 +1322,7 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
       for (int d = 0; d < dim; ++d)
       {
          pt->rst[d]= ref_send(index*dim + d);
-         pt->coords[d]= coords_send(index*dim + d);
+         pt->coords[d]= coords_send(index + d*nptsend);
       }
       ++pt;
    }
@@ -1346,8 +1346,8 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
       proc_recv[index] = pt->proc;
       for (int d = 0; d < dim; ++d)
       {
-         ref_recv(index*dim + d)= pt->rst[d];
-         coords_recv(index*dim + d)= pt->coords[d];
+         ref_recv(index*dim + d)= pt->rst[d]; // by VDIM
+         coords_recv(index + d*npt)= pt->coords[d]; // by NODES
       }
       ++pt;
    }
