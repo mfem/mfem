@@ -1580,7 +1580,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
             f2e(1, f_ind) = -1;
             f2e(3, f_ind) = -1;
          }
-         
+
          f_ind++;
       }
    }
@@ -1627,7 +1627,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
    auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
 
    auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
-   
+
    // if byvdim -> d_x : (vdim, nddof, nddof, ne)
    // else -> d_x : (nddof, nddof, ne, vdim)
    auto d_x = Reshape(x.Read(), t?vd:d, d, t?d:ne,
@@ -1635,7 +1635,8 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), q, vd, 2,
                       nf); // reshape y for convinient indexing
 
-   mfem::forall(num_faces, [=](int f) -> void {
+   mfem::forall(num_faces, [=] MFEM_HOST_DEVICE (int f) -> void
+   {
       for (int side = 0; side < 2; ++side)
       {
          const int el = f2e(side, f);
@@ -1658,8 +1659,8 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
 
             for (int p = 0; p < q; ++p)
             {
-               std::pair<int, int> ij = internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side);
-               const int i = ij.first, j = ij.second;
+               int i, j;
+               internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
 
                for (int c=0; c < vd; ++c)
                {
@@ -1742,7 +1743,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                       t?ne:vd); // reshape x for convinient indexing
    auto d_y = Reshape(y.Read(), q, vd, 2, nf); // reshape y for convinient indexing
 
-   mfem::forall(num_faces, [=](int f) -> void {
+   mfem::forall(num_faces, [=] MFEM_HOST_DEVICE (int f) -> void
+   {
       const int nsides = (f2e(1, f) < 0) ? 1 : 2;
 
       for (int side = 0; side < nsides; ++side)
@@ -1755,8 +1757,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
 
          for (int p = 0; p < q; ++p)
          {
-            std::pair<int, int> ij = internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side);
-            const int i = ij.first, j = ij.second;
+            int i, j;
+            internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
 
             for (int c = 0; c < vd; ++c)
             {

@@ -53,7 +53,8 @@ static void PADGDiffusionsetup2D(const int Q1D,
    auto iwork = Reshape(iwork_.Read(), 6,
                         NF); // (flip0, flip1, e0, e1, fid0, fid1)
 
-   mfem::forall(NF, [=](int f) -> void {
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f) -> void
+   {
       for (int p = 0; p < Q1D; ++p)
       {
          const int flip[] = {iwork(0, f), iwork(1, f)};
@@ -71,9 +72,8 @@ static void PADGDiffusionsetup2D(const int Q1D,
 
          for (int side = 0; side < nsides; ++side)
          {
-            std::pair<int,int> ij = internal::EdgeQuad2Lex2D(p, Q1D, fid[0], fid[1], side);
-            const int i = ij.first;
-            const int j = ij.second;
+            int i, j;
+            internal::EdgeQuad2Lex2D(p, Q1D, fid[0], fid[1], side, i, j);
 
             const double nJi0 = n(p,0,f)*J(i,j, 1,1, el[side])
                                 - n(p,1,f)*J(i,j,0,1,el[side]);
@@ -268,7 +268,7 @@ void PADGDiffusionApply2D(const int NF,
    auto dxdn = Reshape(dxdn_.Read(),      D1D, 2, NF);
    auto dydn = Reshape(dydn_.ReadWrite(), D1D, 2, NF);
 
-   for (int f = 0; f < NF; ++f)
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f) -> void
    {
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -422,7 +422,7 @@ void PADGDiffusionApply2D(const int NF,
          y(d, 0, f) +=  Br;
          y(d, 1, f) += -Br;
       } // for d
-   } // for f
+   }); // mfem::forall
 }
 
 static void PADGDiffusionApply(const int dim,

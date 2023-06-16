@@ -92,13 +92,13 @@ inline int PermuteFace2D(const int face_id1, const int face_id2,
 
 // maps quadrature index on face to (row, col) index pair
 MFEM_HOST_DEVICE
-inline std::pair<int, int> EdgeQuad2Lex2D(const int qi, const int nq,
-                                        const int face_id0, const int face_id1, const int side)
+inline void EdgeQuad2Lex2D(const int qi, const int nq,
+                           const int face_id0, const int face_id1, const int side,
+                           int &i, int &j)
 {
    const int face_id = (side == 0) ? face_id0 : face_id1;
    const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1, side,
                                                          nq, qi);
-   int i, j;
    if (face_id == 0 || face_id == 2)
    {
       i = edge_idx;
@@ -109,8 +109,6 @@ inline std::pair<int, int> EdgeQuad2Lex2D(const int qi, const int nq,
       j = edge_idx;
       i = (face_id == 3) ? 0 : (nq-1);
    }
-
-   return std::make_pair(i, j);
 }
 
 } // namespace internal
