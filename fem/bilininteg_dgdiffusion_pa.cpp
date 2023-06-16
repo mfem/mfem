@@ -19,6 +19,7 @@ using namespace std;
 
 namespace mfem
 {
+
 static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
 {
    if (face_id==2 || face_id==3)
@@ -129,7 +130,9 @@ static void PADGDiffusionsetup2D(const int Q1D,
                continue;
             }
 
-            auto [i, j] = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], side);
+            std::pair<int,int> ij = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], side);
+            const int i = ij.first;
+            const int j = ij.second;
 
             const double nJi0 = n(p,0,f)*J(i,j, 1,1, el[side])
                                 - n(p,1,f)*J(i,j,0,1,el[side]);
@@ -305,7 +308,6 @@ void PADGDiffusionApply2D(const int NF,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
@@ -320,163 +322,127 @@ void PADGDiffusionApply2D(const int NF,
    auto J = Reshape(pa_nJi.Read(), 2, Q1D, 2, NF);
    auto Hi = Reshape(pa_hi.Read(), Q1D, NF);
 
-   auto x =    Reshape(x_.Read(),         D1D, VDIM, 2, NF);
-   auto y =    Reshape(y_.ReadWrite(),    D1D, VDIM, 2, NF);
-   auto dxdn = Reshape(dxdn_.Read(),      D1D, VDIM, 2, NF);
-   auto dydn = Reshape(dydn_.ReadWrite(), D1D, VDIM, 2, NF);
+   auto x =    Reshape(x_.Read(),         D1D, 2, NF);
+   auto y =    Reshape(y_.ReadWrite(),    D1D, 2, NF);
+   auto dxdn = Reshape(dxdn_.Read(),      D1D, 2, NF);
+   auto dydn = Reshape(dydn_.ReadWrite(), D1D, 2, NF);
 
    for (int f = 0; f < NF; ++f)
    {
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double u0[max_D1D][VDIM];
-      double u1[max_D1D][VDIM];
-      double du0[max_D1D][VDIM];
-      double du1[max_D1D][VDIM];
+      double u0[max_D1D];
+      double u1[max_D1D];
+      double du0[max_D1D];
+      double du1[max_D1D];
 
       // copy edge values to u0, u1 and copy edge normals to du0, du1
       for (int d = 0; d < D1D; ++d)
       {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            u0[d][c] = x(d, c, 0, f);
-            u1[d][c] = x(d, c, 1, f);
-            du0[d][c] = dxdn(d, c, 0, f);
-            du1[d][c] = dxdn(d, c, 1, f);
-         }
+         u0[d] = x(d, 0, f);
+         u1[d] = x(d, 1, f);
+         du0[d] = dxdn(d, 0, f);
+         du1[d] = dxdn(d, 1, f);
       }
 
       // eval @ quad points
-      double Bu0[max_Q1D][VDIM];
-      double Bu1[max_Q1D][VDIM];
-      double Bdu0[max_Q1D][VDIM];
-      double Bdu1[max_Q1D][VDIM];
+      double Bu0[max_Q1D];
+      double Bu1[max_Q1D];
+      double Bdu0[max_Q1D];
+      double Bdu1[max_Q1D];
       for (int p = 0; p < Q1D; ++p)
       {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            Bu0[p][c] = 0.0;
-            Bu1[p][c] = 0.0;
-            Bdu0[p][c] = 0.0;
-            Bdu1[p][c] = 0.0;
-         }
+         Bu0[p] = 0.0;
+         Bu1[p] = 0.0;
+         Bdu0[p] = 0.0;
+         Bdu1[p] = 0.0;
          for (int d = 0; d < D1D; ++d)
          {
             const double b = B(p,d);
-            for (int c = 0; c < VDIM; ++c)
-            {
-               Bu0[p][c] += b*u0[d][c];
-               Bu1[p][c] += b*u1[d][c];
-               Bdu0[p][c] += b*du0[d][c];
-               Bdu1[p][c] += b*du1[d][c];
-            }
+            Bu0[p] += b*u0[d];
+            Bu1[p] += b*u1[d];
+            Bdu0[p] += b*du0[d];
+            Bdu1[p] += b*du1[d];
          }
       }
 
       // term - < {Q du/dn}, [v] >
 
       // --> compute reference tangential derivative from face values
-      double ut0[max_Q1D][VDIM];
-      double ut1[max_Q1D][VDIM];
+      double ut0[max_Q1D];
+      double ut1[max_Q1D];
       for (int p = 0; p < Q1D; ++p)
       {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            ut0[p][c] = 0.0;
-            ut1[p][c] = 0.0;
-         }
+         ut0[p] = 0.0;
+         ut1[p] = 0.0;
 
          for (int d = 0; d < D1D; ++d)
          {
-            for (int c = 0; c < VDIM; ++c)
-            {
-               ut0[p][c] += G(p, d) * u0[d][c];
-               ut1[p][c] += G(p, d) * u1[d][c];
-            }
+            ut0[p] += G(p, d) * u0[d];
+            ut1[p] += G(p, d) * u1[d];
          }
       }
 
       // --> compute physical normal derivatives from reference gradient
-      double v[max_Q1D][VDIM]; // {Q du/dn} * w * det(J)
+      double v[max_Q1D]; // {Q du/dn} * w * det(J)
       for (int p = 0; p < Q1D; ++p)
       {
          const double Je0[] = {J(0, p, 0, f), J(1, p, 0, f)};
          const double Je1[] = {J(0, p, 1, f), J(1, p, 1, f)};
 
-         for (int c = 0; c < VDIM; ++c)
-         {
-            const double dudn0 = Je0[0] * Bdu0[p][c] + Je0[1] * ut0[p][c];
-            const double dudn1 = Je1[0] * Bdu1[p][c] + Je1[1] * ut1[p][c];
+         const double dudn0 = Je0[0] * Bdu0[p] + Je0[1] * ut0[p];
+         const double dudn1 = Je1[0] * Bdu1[p] + Je1[1] * ut1[p];
 
-            v[p][c] = dudn0 + dudn1;
-         }
+         v[p] = dudn0 + dudn1;
       }
 
-      double Bv[max_D1D][VDIM]; // B' * v
+      double Bv[max_D1D]; // B' * v
       for (int d = 0; d < D1D; ++d)
       {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            Bv[d][c] = 0.0;
-         }
+         Bv[d] = 0.0;
 
          for (int p = 0; p < Q1D; ++p)
          {
             double bt = Bt(d, p);
-            for (int c = 0; c < VDIM; ++c)
-            {
-               Bv[d][c] += bt * v[p][c];
-            }
+            Bv[d] += bt * v[p];
          }
       }
 
       for (int d = 0; d < D1D; ++d)
       {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            y(d, c, 0, f) += -Bv[d][c];
-            y(d, c, 1, f) +=  Bv[d][c];
-         }
+         y(d, 0, f) += -Bv[d];
+         y(d, 1, f) +=  Bv[d];
       }
 
       // term sigma * < [u], {Q dv/dn} >
 
-      double w1[2][max_Q1D][VDIM];
-      double w2[2][max_Q1D][VDIM];
+      double w1[2][max_Q1D];
+      double w2[2][max_Q1D];
       for (int side = 0; side < 2; ++side)
       {
          for (int p = 0; p < Q1D; ++p)
          {
             const double Je[] = {J(0, p, side, f), J(1, p, side, f)};
-            for (int c = 0; c < VDIM; ++c)
-            {
-               const double jump = Bu0[p][c] - Bu1[p][c];
-               w1[side][p][c] = Je[0] * jump;
-               w2[side][p][c] = Je[1] * jump;
-            }
+            const double jump = Bu0[p] - Bu1[p];
+            w1[side][p] = Je[0] * jump;
+            w2[side][p] = Je[1] * jump;
          }
       }
 
-      double Bw1[2][max_D1D][VDIM]; // B' * w1
-      double Gw2[2][max_D1D][VDIM]; // G' * w2
+      double Bw1[2][max_D1D]; // B' * w1
+      double Gw2[2][max_D1D]; // G' * w2
 
       for (int side = 0; side < 2; ++side)
       {
          for (int d = 0; d < D1D; ++d)
          {
-            for (int c = 0; c < VDIM; ++c)
-            {
-               Bw1[side][d][c] = 0.0;
-               Gw2[side][d][c] = 0.0;
-            }
+            Bw1[side][d] = 0.0;
+            Gw2[side][d] = 0.0;
 
             for (int p = 0; p < Q1D; ++p)
             {
-               for (int c = 0; c < VDIM; ++c)
-               {
-                  Bw1[side][d][c] += Bt(d, p) * w1[side][p][c];
-                  Gw2[side][d][c] += Gt(d, p) * w2[side][p][c];
-               }
+               Bw1[side][d] += Bt(d, p) * w1[side][p];
+               Gw2[side][d] += Gt(d, p) * w2[side][p];
             }
          }
       }
@@ -485,50 +451,35 @@ void PADGDiffusionApply2D(const int NF,
       {
          for (int d = 0; d < D1D; ++d)
          {
-            for (int c = 0; c < VDIM; ++c)
-            {
-               dydn(d, c, side, f) += sigma * Bw1[side][d][c];
-               y(d, c, side, f) += sigma * Gw2[side][d][c];
-            }
+            dydn(d, side, f) += sigma * Bw1[side][d];
+            y(d, side, f) += sigma * Gw2[side][d];
          }
       }
 
       // term kappa * < {Q/h} [u], [v] >:
 
-      double r[max_Q1D][VDIM]; //  Q * [u] * w * det(J)
+      double r[max_Q1D]; //  Q * [u] * w * det(J)
       for (int p=0; p < Q1D; ++p)
       {
          const double q = Q(p, f);
          const double hi = Hi(p, f);
-         for (int c=0; c < VDIM; ++c)
-         {
-            const double jump = Bu0[p][c] - Bu1[p][c];
-            r[p][c] = hi * q * jump;
-         }
+         const double jump = Bu0[p] - Bu1[p];
+         r[p] = hi * q * jump;
       }
 
-      double Br[VDIM]; // B' * r
+      double Br; // B' * r
       for (int d = 0; d < D1D; ++d)
       {
-         for (int c = 0; c < VDIM; ++c)
-         {
-            Br[c] = 0.0;
-         }
+         Br = 0.0;
 
          for (int p = 0; p < Q1D; ++p)
          {
             double bt = Bt(d, p);
-            for (int c = 0; c < VDIM; ++c)
-            {
-               Br[c] += bt * r[p][c];
-            }
+            Br += bt * r[p];
          }
 
-         for (int c = 0; c < VDIM; ++c)
-         {
-            y(d, c, 0, f) +=  Br[c];
-            y(d, c, 1, f) += -Br[c];
-         } // for c
+         y(d, 0, f) +=  Br;
+         y(d, 1, f) += -Br;
       } // for d
    } // for f
 }
