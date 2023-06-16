@@ -13,6 +13,7 @@
 #define MFEM_FACE_MAP_UTILS_HPP
 
 #include "../../general/array.hpp"
+#include "../../general/backends.hpp"
 #include <utility> // std::pair
 #include <vector>
 
@@ -50,6 +51,67 @@ void FillFaceMap(const int n_face_dofs_per_component,
 /// Return the face map for nodal tensor elements (H1, L2, and Bernstein basis).
 void GetTensorFaceMap(const int dim, const int order, const int face_id,
                       Array<int> &face_map);
+
+// maps face index (in counter-clockwise order) to Lexocographic index
+MFEM_HOST_DEVICE
+inline int ToLexOrdering2D(const int face_id, const int size1d, const int i)
+{
+   if (face_id==2 || face_id==3)
+   {
+      return size1d-1-i;
+   }
+   else
+   {
+      return i;
+   }
+}
+
+// permutes face index from native ordering to lexocographic
+MFEM_HOST_DEVICE
+inline int PermuteFace2D(const int face_id1, const int face_id2,
+                         const int orientation,
+                         const int size1d, const int index)
+{
+   int new_index;
+   // Convert from lex ordering
+   if (face_id1==2 || face_id1==3)
+   {
+      new_index = size1d-1-index;
+   }
+   else
+   {
+      new_index = index;
+   }
+   // Permute based on face orientations
+   if (orientation==1)
+   {
+      new_index = size1d-1-new_index;
+   }
+   return ToLexOrdering2D(face_id2, size1d, new_index);
+}
+
+// maps quadrature index on face to (row, col) index pair
+MFEM_HOST_DEVICE
+inline std::pair<int, int> EdgeQuad2Lex2D(const int qi, const int nq,
+                                        const int face_id0, const int face_id1, const int side)
+{
+   const int face_id = (side == 0) ? face_id0 : face_id1;
+   const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1, side,
+                                                         nq, qi);
+   int i, j;
+   if (face_id == 0 || face_id == 2)
+   {
+      i = edge_idx;
+      j = (face_id == 0) ? 0 : (nq-1);
+   }
+   else
+   {
+      j = edge_idx;
+      i = (face_id == 3) ? 0 : (nq-1);
+   }
+
+   return std::make_pair(i, j);
+}
 
 } // namespace internal
 
