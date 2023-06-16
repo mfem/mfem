@@ -42,7 +42,6 @@ using namespace std;
 using namespace mfem;
 
 double spherical_obstacle(const Vector &pt);
-void spherical_obstacle_gradient(const Vector &pt, Vector &grad);
 double exact_solution_obstacle(const Vector &pt);
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad);
 
@@ -430,29 +429,6 @@ double spherical_obstacle(const Vector &pt)
    else
    {
       return sqrt(r0*r0 - r*r);
-   }
-}
-
-void spherical_obstacle_gradient(const Vector &pt, Vector &grad)
-{
-   double x = pt(0), y = pt(1);
-   double r = sqrt(x*x + y*y);
-   double r0 = 0.5;
-   double beta = 0.9;
-
-   double b = r0*beta;
-   double tmp = sqrt(r0*r0-b*b);
-   double C = -b/tmp;
-
-   if (r > b)
-   {
-      grad(0) = C * x / r;
-      grad(1) = C * y / r;
-   }
-   else
-   {
-      grad(0) = - x / sqrt( r0*r0 - r*r );
-      grad(1) = - y / sqrt( r0*r0 - r*r );
    }
 }
 
