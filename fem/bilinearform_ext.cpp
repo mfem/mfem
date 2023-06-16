@@ -56,9 +56,6 @@ void MFBilinearFormExtension::Assemble()
    {
       integrators[i]->AssembleMF(*a->FESpace());
    }
-
-   MFEM_VERIFY(a->GetBBFI()->Size() == 0, "AddBoundaryIntegrator is not "
-               "currently supported in MFBilinearFormExtension");
 }
 
 void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
@@ -278,9 +275,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
    }
 
-   const bool has_bdr_integs = (a->GetBFBFI()->Size() > 0 ||
-                                a->GetBBFI()->Size() > 0);
-   if (bdr_face_restrict_lex == NULL && has_bdr_integs)
+   if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
    {
       bdr_face_restrict_lex = trial_fes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
@@ -297,27 +292,27 @@ void PABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   for (BilinearFormIntegrator *integ : integrators)
+   const int integratorCount = integrators.Size();
+   for (int i = 0; i < integratorCount; ++i)
    {
-      integ->AssemblePA(*a->FESpace());
+      integrators[i]->AssemblePA(*a->FESpace());
    }
 
-   Array<BilinearFormIntegrator*> &bdr_integrators = *a->GetBBFI();
-   for (BilinearFormIntegrator *integ : bdr_integrators)
-   {
-      integ->AssemblePABoundary(*a->FESpace());
-   }
+   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
+               "Partial assembly does not support AddBoundaryIntegrator yet.");
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   for (BilinearFormIntegrator *integ : intFaceIntegrators)
+   const int intFaceIntegratorCount = intFaceIntegrators.Size();
+   for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
-      integ->AssemblePAInteriorFaces(*a->FESpace());
+      intFaceIntegrators[i]->AssemblePAInteriorFaces(*a->FESpace());
    }
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   for (BilinearFormIntegrator *integ : bdrFaceIntegrators)
+   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
+   for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {
-      integ->AssemblePABoundaryFaces(*a->FESpace());
+      bdrFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
 }
 
@@ -328,27 +323,20 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
-      if (iSz > 0)
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
       {
-         localY = 0.0;
-         for (int i = 0; i < iSz; ++i)
-         {
-            integrators[i]->AssembleDiagonalPA(localY);
-         }
-         const ElementRestriction* H1elem_restrict =
-            dynamic_cast<const ElementRestriction*>(elem_restrict);
-         if (H1elem_restrict)
-         {
-            H1elem_restrict->MultTransposeUnsigned(localY, y);
-         }
-         else
-         {
-            elem_restrict->MultTranspose(localY, y);
-         }
+         integrators[i]->AssembleDiagonalPA(localY);
+      }
+      const ElementRestriction* H1elem_restrict =
+         dynamic_cast<const ElementRestriction*>(elem_restrict);
+      if (H1elem_restrict)
+      {
+         H1elem_restrict->MultTransposeUnsigned(localY, y);
       }
       else
       {
-         y = 0.0;
+         elem_restrict->MultTranspose(localY, y);
       }
    }
    else
@@ -359,18 +347,6 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalPA(y);
       }
-   }
-
-   Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
-   const int n_bdr_integs = bdr_integs.Size();
-   if (bdr_face_restrict_lex && n_bdr_integs > 0)
-   {
-      bdr_face_Y = 0.0;
-      for (int i = 0; i < n_bdr_integs; ++i)
-      {
-         bdr_integs[i]->AssembleDiagonalPA(bdr_face_Y);
-      }
-      bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_Y, y);
    }
 }
 
@@ -421,20 +397,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      if (iSz)
+      elem_restrict->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
       {
-         elem_restrict->Mult(x, localX);
-         localY = 0.0;
-         for (int i = 0; i < iSz; ++i)
-         {
-            integrators[i]->AddMultPA(localX, localY);
-         }
-         elem_restrict->MultTranspose(localY, y);
+         integrators[i]->AddMultPA(localX, localY);
       }
-      else
-      {
-         y = 0.0;
-      }
+      elem_restrict->MultTranspose(localY, y);
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
@@ -453,24 +422,17 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
-   Array<BilinearFormIntegrator*> &bdr_face_integs = *a->GetBFBFI();
-   const int n_bdr_integs = bdr_integs.Size();
-   const int n_bdr_face_integs = bdr_face_integs.Size();
-   const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
-   if (bdr_face_restrict_lex && has_bdr_integs)
+   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   const int bFISz = bdrFaceIntegrators.Size();
+   if (bdr_face_restrict_lex && bFISz>0)
    {
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
       {
          bdr_face_Y = 0.0;
-         for (int i = 0; i < n_bdr_integs; ++i)
+         for (int i = 0; i < bFISz; ++i)
          {
-            bdr_integs[i]->AddMultPA(bdr_face_X, bdr_face_Y);
-         }
-         for (int i = 0; i < n_bdr_face_integs; ++i)
-         {
-            bdr_face_integs[i]->AddMultPA(bdr_face_X, bdr_face_Y);
+            bdrFaceIntegrators[i]->AddMultPA(bdr_face_X, bdr_face_Y);
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
       }
