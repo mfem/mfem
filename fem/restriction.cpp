@@ -1672,29 +1672,26 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), q, vd, 2,
                       nf); // reshape y for convinient indexing
 
-   mfem::forall(num_faces, [=] MFEM_HOST_DEVICE (int f) -> void
+   mfem::forall_2D(num_faces, 2, q, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      for (int side = 0; side < 2; ++side)
+      MFEM_FOREACH_THREAD(side, x, 2)
       {
          const int el = f2e(side, f);
 
-         if (el < 0)
+         const int face_id = f2e(2 + side, f);
+         const int fid0 = f2e(2, f);
+         const int fid1 = f2e(3, f);
+
+         MFEM_FOREACH_THREAD(p, y, q)
          {
-            for (int p = 0; p < q; ++p)
+            if (el < 0)
             {
                for (int c = 0; c < vd; ++c)
                {
                   d_y(p, c, side, f) = 0.0;
                }
             }
-         }
-         else
-         {
-            const int face_id = f2e(2 + side, f);
-            const int fid0 = f2e(2, f);
-            const int fid1 = f2e(3, f);
-
-            for (int p = 0; p < q; ++p)
+            else
             {
                int i, j;
                internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
@@ -1722,9 +1719,9 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
 
                   d_y(p, c, side, f) = grad_n;
                } // for c
-            } // for p
-         }
-      } // for side
+            }
+         } // for each p
+      } // for each side
    }); // mfem::forall
 }
 
