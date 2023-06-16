@@ -13,6 +13,85 @@
 using namespace std;
 using namespace mfem;
 
+void PrintElementVertices(Mesh * mesh, int elem,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   Array<int> vertices;
+   if (myid == printid)
+   {
+      mfem::out << "myid = " << myid <<":   " <<  "elem: " << elem << ". Vertices = \n" ;
+      mesh->GetElementVertices(elem,vertices);
+      for (int i = 0; i<vertices.Size(); i++)
+      {
+         double * coords = mesh->GetVertex(vertices[i]);
+         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")" << endl;
+      }
+      mfem::out << endl;
+   }
+}
+
+void PrintFaceVertices(Mesh * mesh, int face,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   Array<int> vertices;
+   if (myid == printid)
+   {
+      mfem::out << "myid = " << myid <<":   " <<  "face: " << face << ". Vertices = \n" ;
+      mesh->GetFaceVertices(face,vertices);
+      for (int i = 0; i<vertices.Size(); i++)
+      {
+         double *coords = mesh->GetVertex(vertices[i]);
+         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")" << endl;
+      }
+      mfem::out << endl;
+   }
+}
+
+template <class T>
+void PrintArray(const Array<T> & a, const char *aname,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   if (myid == printid)
+   {
+      int sz = a.Size();
+      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
+      for (int i = 0; i<sz; i++)
+      {
+         mfem::out << a[i] << "  ";
+      }
+      mfem::out << endl;
+   }
+}
+
+void PrintSet(const std::set<int> & a, const char *aname,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   if (myid == printid)
+   {
+      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
+      for (std::set<int>::iterator it = a.begin(); it!= a.end(); it++)
+      {
+         mfem::out << *it << "  ";
+      }
+      mfem::out << endl;
+   }
+}
+
+void PrintVector(const Vector & a, const char *aname,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   if (myid == printid)
+   {
+      int sz = a.Size();
+      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
+      for (int i = 0; i<sz; i++)
+      {
+         mfem::out << a[i] << "  ";
+      }
+      mfem::out << endl;
+   }
+}
+
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {
    Array<int> attr;
@@ -293,7 +372,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 
    MFEM_VERIFY(allfound, "A point was not found");
 
-   cout << "Maximum distance of projected points: " << dist.Max() << endl;
+   // cout << "Maximum distance of projected points: " << dist.Max() << endl;
 
    // extract information
    int myid = Mpi::WorldRank();
@@ -301,47 +380,31 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 
    Array<unsigned int> index_recv, elems_recv, proc_recv;
    Vector ref_recv;
-   Array<int> proc(procs.Size());
-
-   for (int i = 0; i<procs.Size(); i++)
-   {
-      proc[i] = procs[i];
-   }
    
-   // if (myid == 1)
-   // {
-   //    proc.Print(mfem::out, proc.Size());
-   // }
+   // PrintArray(procs,"procs", 0);
+   PrintArray(procs,"procs", 1);
 
    Vector xyz_recv;
    gslcomm.SendData(dim,procs,elems,refcrd,xyz, proc_recv,index_recv,elems_recv,ref_recv, xyz_recv);
 
 
-   // proc.SetSize(proc_recv.Size());
-   // for (int i = 0; i<proc_recv.Size(); i++)
-   // {
-      // proc[i] = proc_recv[i];
-   // }
-   // if (myid == 0)
-   // {
-   //    proc.Print(mfem::out, proc.Size());
-   // }
-   // ref_recv.Print();
+   PrintVector(refcrd, "ref send", 0);
+   PrintVector(refcrd, "ref send", 1);
 
-   // return;
+   PrintVector(ref_recv, "ref recv", 0);
+   PrintVector(ref_recv, "ref recv", 1);
 
-   // recv_normals.Print();
-
+   // PrintArray(elems, "elems", 0);
+   // PrintArray(elems, "elems", 1);
+   // PrintArray(elems_recv, "elems_recv", 0);
+   // PrintArray(elems_recv, "elems_recv", 1);
+   // PrintArray(elems_recv, "elements", 1);
+   PrintVector(xyz, "xyz ", 0);
+   PrintVector(xyz, "xyz ", 1);
+   PrintVector(xyz_recv, "xyz_recv ", 0);
+   PrintVector(xyz_recv, "xyz_recv ", 1);
    mfem::out << "np = " << np << endl;
-   mfem::out << "xyz size  = " << xyz.Size() << endl;
-
-   Array<int> elements(elems_recv.Size());
-   for (int i = 0; i<elements.Size(); i++)
-   {
-      elements[i] = elems_recv[i];
-   }
-   elements.Print(mfem::out, elements.Size());
-
+   int np_loc = elems_recv.Size();
    for (int i=0; i<elems_recv.Size(); ++i)
    {
       int refFace, refNormal, refNormalSide;
@@ -349,32 +412,39 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
       
       Vector normal = GetNormalVector(mesh, elems_recv[i], ref_recv.GetData() + (i*dim),
                                       refFace, refNormal, is_interior);
+
+      // PrintElementVertices(&mesh,elems_recv[i],1);                                      
       int phyFace;
-      if (myid == 0)
-      {
       if(is_interior)
       {
          phyFace = -1; // the id of the face that has the closest point
-         FindSurfaceToProject(mesh, elems_recv[i], phyFace);
+         FindSurfaceToProject(mesh, elems_recv[i], phyFace); // seems that this works
 
-         // Array<int> cbdrVert;
-         // mesh.GetFaceVertices(phyFace, cbdrVert);
-	      // Vector xs(dim);
-         // xs[0] = xyz[i + 0*np];
-         // xs[1] = xyz[i + 1*np];
-         // xs[2] = xyz[i + 2*np];
-	      // Vector xi_tmp(dim-1);
+         // PrintFaceVertices(&mesh,phyFace,1);
+         Array<int> cbdrVert;
+         mesh.GetFaceVertices(phyFace, cbdrVert);
+	      Vector xs(dim);
+         // xs[0] = xyz_recv[i + 0*np_loc];
+         // xs[1] = xyz_recv[i + 1*np_loc];
+         // xs[2] = xyz_recv[i + 2*np_loc];
+  
+
+
+         PrintVector(xs,"xs = ", 0);
+         PrintVector(xs,"xs = ", 1);
+
+	      Vector xi_tmp(dim-1);
          // // get nodes!
 
-         // GridFunction *nodes = mesh.GetNodes();
-         // DenseMatrix coords(4,3); 
-         // for (int i=0; i<4; i++)
-	      // {
-	      //    for (int j=0; j<3; j++)
-	      //    {
-         //       coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
-	      //    }
-	      // }
+         GridFunction *nodes = mesh.GetNodes();
+         DenseMatrix coords(4,3); 
+         for (int i=0; i<4; i++)
+	      {
+	         for (int j=0; j<3; j++)
+	         {
+               coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
+	         }
+	      }
 	      // SlaveToMaster(coords, xs, xi_tmp);
 
          // for (int j=0; j<dim-1; ++j)
@@ -407,7 +477,6 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    //       {
 	//          xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
    //       }
-      }
       }
    //    // Get the element face
    //    Array<int> faces;
@@ -570,16 +639,15 @@ int main(int argc, char *argv[])
 
    // Construct node to segment contact constraint. 
    attr.Sort();
-   cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
-   for (auto a : attr)  cout << a << endl;
+   // cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
+   // for (auto a : attr)  cout << a << endl;
 
    pmesh2.ExchangeFaceNbrData();
 
    std::set<int> bdryVerts2;  
-   mfem::out << "NBE = " << pmesh2.GetNBE() << endl;
    for (int b=0; b<pmesh2.GetNBE(); ++b)
    {
-      mfem::Mesh::FaceInformation info = pmesh2.GetFaceInformation(pmesh2.GetBdrFace(b));
+      // mfem::Mesh::FaceInformation info = pmesh2.GetFaceInformation(pmesh2.GetBdrFace(b));
    
       if (attr.FindSorted(pmesh2.GetBdrAttribute(b)) >= 0)
       {
@@ -592,16 +660,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   for (std::set<int>::iterator it = bdryVerts2.begin(); it!= bdryVerts2.end(); it++)
-   {
-      mfem::out << *it << endl;
-   }
-
+   PrintSet(bdryVerts2, "bdrVerts2", 0);
+   PrintSet(bdryVerts2, "bdrVerts2", 1);
 
    int npoints = bdryVerts2.size();
-
-   mfem::out << "npoints = " << npoints << endl;
-
 
 
    Array<int> s_conn(npoints); // connectivity of the second/slave mesh 
@@ -627,11 +689,7 @@ int main(int argc, char *argv[])
       count++;
    }
 
-
-
    MFEM_VERIFY(count == npoints, "");
-
-
 
    // gap function
    Vector g(npoints*dim);
@@ -669,7 +727,7 @@ int main(int argc, char *argv[])
 	      }
       }
    }
-   //coordsm.Print(); 
+
    SparseMatrix M(nnd,ndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
    
