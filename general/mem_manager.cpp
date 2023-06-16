@@ -16,6 +16,7 @@
 #include <cstring> // std::memcpy, std::memcmp
 #include <unordered_map>
 #include <algorithm> // std::max
+#include <cstdint>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -45,6 +46,10 @@
 #error "HIP is not enabled in Umpire!"
 #endif
 #endif // MFEM_USE_UMPIRE
+
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
