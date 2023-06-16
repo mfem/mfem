@@ -1601,7 +1601,9 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    for (int el = 0; el < ne; ++el)
    {
       if (elem_indicator[el])
+      {
          elem_indicator[el] = e++;
+      }
    }
 
    const int nsides = (face_type == FaceType::Interior) ? 2 : 1;
@@ -1771,7 +1773,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                     d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
    auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
 
-   auto e2f = Reshape(elem_to_face.Read(), 9, net); // (el, f0, f1, f2, f3, s0, s1, s2, s3)
+   auto e2f = Reshape(elem_to_face.Read(), 9, net); // (el,f0,f1,f2,f3,s0,s1,s2,s3)
    auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
 
    // if byvdim -> d_x : (vdim, nddof, nddof, ne)
@@ -1780,46 +1782,55 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                       t?ne:vd); // reshape x for convinient indexing
    auto d_y = Reshape(y.Read(), q, vd, 2, nf); // reshape y for convinient indexing
 
-   mfem::forall(net, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(net, d, d, [=] MFEM_HOST_DEVICE (int e)
    {
       const int el = e2f(0, e); // global element index
-      
-      for (int face_id=0; face_id < 4; ++face_id)
+
+      MFEM_FOREACH_THREAD(k,x,d)
       {
-         const int f = e2f(1+face_id, e);
-
-         if (f < 0)
-            continue;
-
-         const int side = e2f(5+face_id, e);
-         const int fid0 = f2e(2, f);
-         const int fid1 = f2e(3, f);
-
-         for (int p = 0; p < q; ++p)
+         MFEM_FOREACH_THREAD(l,y,d)
          {
-            int i, j;
-            internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+            double BGf = 0.0;
 
-            for (int c = 0; c < vd; ++c)
+            for (int face_id=0; face_id < 4; ++face_id)
             {
-               const double yp = d_y(p, c, side, f);
-               for (int k = 0; k < d; ++k)
+               const int f = e2f(1+face_id, e);
+
+               if (f < 0)
                {
-                  for (int l = 0; l < d; ++l)
+                  continue;
+               }
+
+               const int side = e2f(5+face_id, e);
+               const int fid0 = f2e(2, f);
+               const int fid1 = f2e(3, f);
+
+               for (int p = 0; p < q; ++p)
+               {
+                  int i, j;
+                  internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+
+                  for (int c = 0; c < vd; ++c)
                   {
+                     const double yp = d_y(p, c, side, f);
                      if (face_id == 0 || face_id == 2)
                      {
-                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * B(i, k) * G(j, l) * yp;
+                        BGf += a * B(i, k) * G(j, l) * yp;
                      }
                      else
                      {
-                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * G(i, k) * B(j, l) * yp;
+                        BGf += a * G(i, k) * B(j, l) * yp;
                      }
-                  } // for l
-               } //for k
-            } // for c
-         } // for p
-      } // for fid
+                  } // for c
+               } // for p
+            } // for fid
+
+            for (int c = 0; c < vd; ++c)
+            {
+               d_x(t?c:k, t?k:l, t?l:el, t?el:c) += BGf;
+            }
+         }
+      }
    }); // for e
 }
 
