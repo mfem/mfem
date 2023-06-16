@@ -1042,7 +1042,6 @@ public:
    void AddMultTranspose(const Vector& x, Vector& y,
                          const double a = 1.0) const override;
 
-protected:
    /// @brief Mult in 2 dimensions
    /// @param x
    /// @param y
