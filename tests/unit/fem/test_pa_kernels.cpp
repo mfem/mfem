@@ -578,7 +578,7 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
 
-TEST_CASE("PA DG Diffusion", "[PartialAssembly]")
+TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
    const int order = 4;
 
