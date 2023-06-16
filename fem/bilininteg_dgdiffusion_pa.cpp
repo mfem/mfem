@@ -293,6 +293,9 @@ void PADGDiffusionApply2D(const int NF,
       double Bdu1[max_Q1D];
       for (int p = 0; p < Q1D; ++p)
       {
+         const double Je0[] = {J(0, p, 0, f), J(1, p, 0, f)};
+         const double Je1[] = {J(0, p, 1, f), J(1, p, 1, f)};
+
          Bu0[p] = 0.0;
          Bu1[p] = 0.0;
          Bdu0[p] = 0.0;
@@ -300,118 +303,30 @@ void PADGDiffusionApply2D(const int NF,
          for (int d = 0; d < D1D; ++d)
          {
             const double b = B(p,d);
+            const double g = G(p,d);
+      
             Bu0[p] += b*u0[d];
             Bu1[p] += b*u1[d];
-            Bdu0[p] += b*du0[d];
-            Bdu1[p] += b*du1[d];
+
+            Bdu0[p] += Je0[0] * b * du0[d] + Je0[1] * g * u0[d];
+            Bdu1[p] += Je1[0] * b * du1[d] + Je1[1] * g * u1[d];
          }
       }
 
-      // term - < {Q du/dn}, [v] >
-
-      // --> compute reference tangential derivative from face values
-      double ut0[max_Q1D];
-      double ut1[max_Q1D];
+      // term - < {Q du/dn}, [v] > +  kappa * < {Q/h} [u], [v] >:
+      double r[max_Q1D]; // 
       for (int p = 0; p < Q1D; ++p)
-      {
-         ut0[p] = 0.0;
-         ut1[p] = 0.0;
-
-         for (int d = 0; d < D1D; ++d)
-         {
-            ut0[p] += G(p, d) * u0[d];
-            ut1[p] += G(p, d) * u1[d];
-         }
-      }
-
-      // --> compute physical normal derivatives from reference gradient
-      double v[max_Q1D]; // {Q du/dn} * w * det(J)
-      for (int p = 0; p < Q1D; ++p)
-      {
-         const double Je0[] = {J(0, p, 0, f), J(1, p, 0, f)};
-         const double Je1[] = {J(0, p, 1, f), J(1, p, 1, f)};
-
-         const double dudn0 = Je0[0] * Bdu0[p] + Je0[1] * ut0[p];
-         const double dudn1 = Je1[0] * Bdu1[p] + Je1[1] * ut1[p];
-
-         v[p] = dudn0 + dudn1;
-      }
-
-      double Bv[max_D1D]; // B' * v
-      for (int d = 0; d < D1D; ++d)
-      {
-         Bv[d] = 0.0;
-
-         for (int p = 0; p < Q1D; ++p)
-         {
-            double bt = Bt(d, p);
-            Bv[d] += bt * v[p];
-         }
-      }
-
-      for (int d = 0; d < D1D; ++d)
-      {
-         y(d, 0, f) += -Bv[d];
-         y(d, 1, f) +=  Bv[d];
-      }
-
-      // term sigma * < [u], {Q dv/dn} >
-
-      double w1[2][max_Q1D];
-      double w2[2][max_Q1D];
-      for (int side = 0; side < 2; ++side)
-      {
-         for (int p = 0; p < Q1D; ++p)
-         {
-            const double Je[] = {J(0, p, side, f), J(1, p, side, f)};
-            const double jump = Bu0[p] - Bu1[p];
-            w1[side][p] = Je[0] * jump;
-            w2[side][p] = Je[1] * jump;
-         }
-      }
-
-      double Bw1[2][max_D1D]; // B' * w1
-      double Gw2[2][max_D1D]; // G' * w2
-
-      for (int side = 0; side < 2; ++side)
-      {
-         for (int d = 0; d < D1D; ++d)
-         {
-            Bw1[side][d] = 0.0;
-            Gw2[side][d] = 0.0;
-
-            for (int p = 0; p < Q1D; ++p)
-            {
-               Bw1[side][d] += Bt(d, p) * w1[side][p];
-               Gw2[side][d] += Gt(d, p) * w2[side][p];
-            }
-         }
-      }
-
-      for (int side = 0; side < 2; ++side)
-      {
-         for (int d = 0; d < D1D; ++d)
-         {
-            dydn(d, side, f) += sigma * Bw1[side][d];
-            y(d, side, f) += sigma * Gw2[side][d];
-         }
-      }
-
-      // term kappa * < {Q/h} [u], [v] >:
-
-      double r[max_Q1D]; //  Q * [u] * w * det(J)
-      for (int p=0; p < Q1D; ++p)
       {
          const double q = Q(p, f);
          const double hi = Hi(p, f);
          const double jump = Bu0[p] - Bu1[p];
-         r[p] = hi * q * jump;
+         const double avg = Bdu0[p] + Bdu1[p]; // = {Q du/dn} * w * det(J)
+         r[p] = -avg + hi * q * jump;
       }
 
-      double Br; // B' * r
       for (int d = 0; d < D1D; ++d)
       {
-         Br = 0.0;
+         double Br = 0.0;
 
          for (int p = 0; p < Q1D; ++p)
          {
@@ -422,6 +337,34 @@ void PADGDiffusionApply2D(const int NF,
          y(d, 0, f) +=  Br;
          y(d, 1, f) += -Br;
       } // for d
+
+      // term sigma * < [u], {Q dv/dn} >
+      double w[max_Q1D];
+      for (int side = 0; side < 2; ++side)
+      {
+         for (int p = 0; p < Q1D; ++p)
+         {
+            const double Je[] = {J(0, p, side, f), J(1, p, side, f)};
+            const double jump = Bu0[p] - Bu1[p];
+            r[p] = Je[0] * jump;
+            w[p] = Je[1] * jump;
+         }
+
+         for (int d = 0; d < D1D; ++d)
+         {
+            double Br = 0.0;
+            double Gw = 0.0;
+
+            for (int p = 0; p < Q1D; ++p)
+            {
+               Br += Bt(d, p) * r[p];
+               Gw += Gt(d, p) * w[p];
+            }
+
+            dydn(d, side, f) += sigma * Br;
+            y(d, side, f) += sigma * Gw;  
+         }
+      }
    }); // mfem::forall
 }
 
@@ -447,25 +390,24 @@ static void PADGDiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return PADGDiffusionApply2D<2,2>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x23: return PADGDiffusionApply2D<2,3>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x33: return PADGDiffusionApply2D<3,3>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x34: return PADGDiffusionApply2D<3,4>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x44: return PADGDiffusionApply2D<4,4>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x45: return PADGDiffusionApply2D<4,5>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x55: return PADGDiffusionApply2D<5,5>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x56: return PADGDiffusionApply2D<5,6>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x66: return PADGDiffusionApply2D<6,6>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x67: return PADGDiffusionApply2D<6,7>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x77: return PADGDiffusionApply2D<7,7>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x78: return PADGDiffusionApply2D<7,8>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x88: return PADGDiffusionApply2D<8,8>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x89: return PADGDiffusionApply2D<8,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
-         case 0x99: return PADGDiffusionApply2D<9,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
+         case 0x9A: return PADGDiffusionApply2D<9,10>(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
                                                         pa_nJi,x,dxdn,y,dydn);
          default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_Q,pa_hi,
-                                                   pa_nJi,
-                                                   x,dxdn,y,dydn,D1D,Q1D);
+                                                        pa_nJi,x,dxdn,y,dydn,D1D,Q1D);
       }
    }
    else if (dim == 3)
