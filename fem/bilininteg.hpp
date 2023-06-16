@@ -3103,11 +3103,7 @@ protected:
    IntegrationRules irs;
 
    // PA extension
-   Vector pa_data;
-
-   Vector pa_Q; // Q * det(J)
-   Vector pa_hi; // 1 / h
-   Vector pa_nJi; // dot(n, inv(J))
+   Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
    const DofToQuad *maps;             ///< Not owned
    const FaceGeometricFactors *fgeom;  ///< Not owned
    const GeometricFactors* elgeom; ///< Not owned
