@@ -14,6 +14,7 @@
 #include "fespace.hpp"
 #include "../general/forall.hpp"
 #include "qspace.hpp"
+#include "fe/face_map_utils.hpp"
 #include <climits>
 
 #ifdef MFEM_USE_MPI
@@ -881,40 +882,6 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    }
 }
 
-static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
-{
-   if (face_id==2 || face_id==3)
-   {
-      return size1d-1-i;
-   }
-   else
-   {
-      return i;
-   }
-}
-
-static int PermuteFace2D(const int face_id1, const int face_id2,
-                         const int orientation,
-                         const int size1d, const int index)
-{
-   int new_index;
-   // Convert from lex ordering
-   if (face_id1==2 || face_id1==3)
-   {
-      new_index = size1d-1-index;
-   }
-   else
-   {
-      new_index = index;
-   }
-   // Permute based on face orientations
-   if (orientation==1)
-   {
-      new_index = size1d-1-new_index;
-   }
-   return ToLexOrdering2D(face_id2, size1d, new_index);
-}
-
 static int ToLexOrdering3D(const int face_id, const int size1d, const int i,
                            const int j)
 {
@@ -997,7 +964,7 @@ int PermuteFaceL2(const int dim, const int face_id1,
       case 1:
          return 0;
       case 2:
-         return PermuteFace2D(face_id1, face_id2, orientation, size1d, index);
+         return internal::PermuteFace2D(face_id1, face_id2, orientation, size1d, index);
       case 3:
          return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
       default:
@@ -2320,7 +2287,7 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
       case 1:
          return 0;
       case 2:
-         return ToLexOrdering2D(face_id, size1d, index);
+         return internal::ToLexOrdering2D(face_id, size1d, index);
       case 3:
          return ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
       default:
