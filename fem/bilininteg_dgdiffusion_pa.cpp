@@ -183,7 +183,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    int fidx = 0;
    Array<int> iwork_(6 * nf);
-   auto iwork = Reshape(iwork_.Write(), 6,
+   auto iwork = Reshape(iwork_.HostWrite(), 6,
                         nf); // (flip0, flip1, e0, e1, fid0, fid1)
    for (int f = 0; f < mesh->GetNumFaces(); ++f)
    {
