@@ -1548,7 +1548,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     face_to_elem(nf * 3)
+     face_to_elem(nf * 4)
 {
    Mesh& mesh = *fes.GetMesh();
 
@@ -1558,7 +1558,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    height = 2 * nf * vdim * d;
    width = ne * vdim * d * d;
 
-   auto f2e = Reshape(face_to_elem.Write(), nf, 3);
+   auto f2e = Reshape(face_to_elem.Write(), 4, nf);
 
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
@@ -1567,10 +1567,20 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
 
       if (face.IsOfFaceType(face_type))
       {
-         f2e(f_ind, 0) = face.element[0].index;
-         f2e(f_ind, 1) = (face_type == FaceType::Interior) ? face.element[1].index : -1;
-         f2e(f_ind, 2) = f;
+         f2e(0, f_ind) = face.element[0].index;
+         f2e(2, f_ind) = face.element[0].local_face_id;
 
+         if (face_type == FaceType::Interior)
+         {
+            f2e(1, f_ind) = face.element[1].index;
+            f2e(3, f_ind) = face.element[1].local_face_id;
+         }
+         else
+         {
+            f2e(1, f_ind) = -1;
+            f2e(3, f_ind) = -1;
+         }
+         
          f_ind++;
       }
    }
@@ -1604,7 +1614,6 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
    const bool t = byvdim;
    const int num_faces = nf;
 
-   Mesh& mesh = *fes.GetMesh();
    const FiniteElement& fe = *fes.GetFE(0);
    const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
@@ -1617,9 +1626,8 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
                     d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
    auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
 
-   auto f2e = Reshape(face_to_elem.Read(), num_faces,
-                      3); // f2e(f, 0) = index of element0 on face f, similarly for element1, if no element1, then f2e(f, 1) = -1
-
+   auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
+   
    // if byvdim -> d_x : (vdim, nddof, nddof, ne)
    // else -> d_x : (nddof, nddof, ne, vdim)
    auto d_x = Reshape(x.Read(), t?vd:d, d, t?d:ne,
@@ -1627,13 +1635,10 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), q, vd, 2,
                       nf); // reshape y for convinient indexing
 
-   for (int f = 0; f < num_faces; ++f)
-   {
-      Mesh::FaceInformation face_info = mesh.GetFaceInformation(f2e(f, 2));
-
+   mfem::forall(num_faces, [=](int f) -> void {
       for (int side = 0; side < 2; ++side)
       {
-         const int el = f2e(f, side);
+         const int el = f2e(side, f);
 
          if (el < 0)
          {
@@ -1644,54 +1649,45 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
                   d_y(p, c, side, f) = 0.0;
                }
             }
-            continue;
          }
-
-         const int face_id = face_info.element[side].local_face_id;
-
-         for (int p = 0; p < q; ++p)
+         else
          {
-            const int edge_idx = (side == 0) ? p : PermuteFace2D(
-                                    face_info.element[0].local_face_id, face_info.element[1].local_face_id, side, q,
-                                    p);
-            int i, j;
-            if (face_id == 0 || face_id == 2)
-            {
-               i = edge_idx;
-               j = (face_id == 0) ? 0 : (q-1);
-            }
-            else
-            {
-               j = edge_idx;
-               i = (face_id == 3) ? 0 : (q-1);
-            }
+            const int face_id = f2e(2 + side, f);
+            const int fid0 = f2e(2, f);
+            const int fid1 = f2e(3, f);
 
-            for (int c=0; c < vd; ++c)
+            for (int p = 0; p < q; ++p)
             {
-               double grad_n = 0;
+               std::pair<int, int> ij = internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side);
+               const int i = ij.first, j = ij.second;
 
-               for (int k=0; k < d; ++k)
+               for (int c=0; c < vd; ++c)
                {
-                  for (int l=0; l < d; ++l)
-                  {
-                     if (face_id == 0 || face_id == 2)
-                     {
-                        // grad_n = dx/dt
-                        grad_n += B(i, k) * G(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
-                     }
-                     else
-                     {
-                        // grad_n = dx/ds
-                        grad_n += G(i, k) * B(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
-                     }
-                  } // for l
-               } // for k
+                  double grad_n = 0;
 
-               d_y(p, c, side, f) = grad_n;
-            } // for c
-         } // for p
+                  for (int k=0; k < d; ++k)
+                  {
+                     for (int l=0; l < d; ++l)
+                     {
+                        if (face_id == 0 || face_id == 2)
+                        {
+                           // grad_n = dx/dt
+                           grad_n += B(i, k) * G(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
+                        }
+                        else
+                        {
+                           // grad_n = dx/ds
+                           grad_n += G(i, k) * B(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
+                        }
+                     } // for l
+                  } // for k
+
+                  d_y(p, c, side, f) = grad_n;
+               } // for c
+            } // for p
+         }
       } // for side
-   } // for f
+   }); // mfem::forall
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector& x,
@@ -1728,8 +1724,6 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
    const bool t = byvdim;
    const int num_faces = nf;
 
-   Mesh& mesh = *fes.GetMesh();
-
    const FiniteElement& fe = *fes.GetFE(0);
    const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
@@ -1740,8 +1734,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                     d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
    auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
 
-   auto f2e = Reshape(face_to_elem.Read(), num_faces,
-                      3); // f2e(f, 0) = index of element0 on face f, similarly for element1, if no element1, then f2e(f, 1) = -1
+   auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
 
    // if byvdim -> d_x : (vdim, nddof, nddof, ne)
    // else -> d_x : (nddof, nddof, ne, vdim)
@@ -1749,37 +1742,21 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                       t?ne:vd); // reshape x for convinient indexing
    auto d_y = Reshape(y.Read(), q, vd, 2, nf); // reshape y for convinient indexing
 
-   for (int f = 0; f < num_faces; ++f)
-   {
-      Mesh::FaceInformation face_info = mesh.GetFaceInformation(f2e(f, 2));
+   mfem::forall(num_faces, [=](int f) -> void {
+      const int nsides = (f2e(1, f) < 0) ? 1 : 2;
 
-      for (int side = 0; side < 2; ++side)
+      for (int side = 0; side < nsides; ++side)
       {
-         const int el = f2e(f, side);
+         const int el = f2e(side, f);
 
-         if (el < 0)
-         {
-            continue;
-         }
-
-         const int face_id = face_info.element[side].local_face_id;
+         const int face_id = f2e(2+side, f);
+         const int fid0 = f2e(2, f);
+         const int fid1 = f2e(3, f);
 
          for (int p = 0; p < q; ++p)
          {
-            const int edge_idx = (side == 0) ? p : PermuteFace2D(
-                                    face_info.element[0].local_face_id, face_info.element[1].local_face_id, side, q,
-                                    p);
-            int i, j;
-            if (face_id == 0 || face_id == 2)
-            {
-               i = edge_idx;
-               j = (face_id == 0) ? 0 : (q-1);
-            }
-            else
-            {
-               j = edge_idx;
-               i = (face_id == 3) ? 0 : (q-1);
-            }
+            std::pair<int, int> ij = internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side);
+            const int i = ij.first, j = ij.second;
 
             for (int c = 0; c < vd; ++c)
             {
@@ -1800,7 +1777,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
             } // for c
          } // for p
       } // for side
-   } // for f
+   }); // mfem::forall
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& x,

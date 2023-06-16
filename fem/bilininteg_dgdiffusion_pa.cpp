@@ -14,67 +14,12 @@
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
 #include "restriction.hpp"
+#include "fe/face_map_utils.hpp"
 
 using namespace std;
 
 namespace mfem
 {
-
-static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
-{
-   if (face_id==2 || face_id==3)
-   {
-      return size1d-1-i;
-   }
-   else
-   {
-      return i;
-   }
-}
-
-static int PermuteFace2D(const int face_id1, const int face_id2,
-                         const int orientation,
-                         const int size1d, const int index)
-{
-   int new_index;
-   // Convert from lex ordering
-   if (face_id1==2 || face_id1==3)
-   {
-      new_index = size1d-1-index;
-   }
-   else
-   {
-      new_index = index;
-   }
-   // Permute based on face orientations
-   if (orientation==1)
-   {
-      new_index = size1d-1-new_index;
-   }
-   return ToLexOrdering2D(face_id2, size1d, new_index);
-}
-
-static std::pair<int, int> EdgeQuad2Lex(const int qi, const int nq,
-                                        const int face_id0, const int face_id1, const int side)
-{
-   const int face_id = (side == 0) ? face_id0 : face_id1;
-   const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1, side,
-                                                         nq, qi);
-   int i, j;
-   if (face_id == 0 || face_id == 2)
-   {
-      i = edge_idx;
-      j = (face_id == 0) ? 0 : (nq-1);
-   }
-   else
-   {
-      j = edge_idx;
-      i = (face_id == 3) ? 0 : (nq-1);
-   }
-
-   return std::make_pair(i, j);
-}
-
 static void PADGDiffusionsetup2D(const int Q1D,
                                  const int NE,
                                  const int NF,
@@ -108,8 +53,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
    auto iwork = Reshape(iwork_.Read(), 6,
                         NF); // (flip0, flip1, e0, e1, fid0, fid1)
 
-   for (int f = 0; f < NF; ++f)
-   {
+   mfem::forall(NF, [=](int f) -> void {
       for (int p = 0; p < Q1D; ++p)
       {
          const int flip[] = {iwork(0, f), iwork(1, f)};
@@ -123,14 +67,11 @@ static void PADGDiffusionsetup2D(const int Q1D,
          const double factor = interior ? 0.5 : 1.0;
          hi(p, f) = 0.0;
 
-         for (int side = 0; side < 2; ++side)
-         {
-            if (el[side] < 0)
-            {
-               continue;
-            }
+         const int nsides = (interior) ? 2 : 1;
 
-            std::pair<int,int> ij = EdgeQuad2Lex(p, Q1D, fid[0], fid[1], side);
+         for (int side = 0; side < nsides; ++side)
+         {
+            std::pair<int,int> ij = internal::EdgeQuad2Lex2D(p, Q1D, fid[0], fid[1], side);
             const int i = ij.first;
             const int j = ij.second;
 
@@ -148,7 +89,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
             hi(p, f) += factor * dJf / dJe;
          }
       }
-   }
+   });
 }
 
 static void PADGDiffusionSetup(const int dim,
