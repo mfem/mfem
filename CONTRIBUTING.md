@@ -137,6 +137,7 @@ The MFEM source code has the following structure:
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib
+  │   ├── hdiv-linear-solver
   │   ├── hooke
   │   ├── meshing
   │   ├── mtop

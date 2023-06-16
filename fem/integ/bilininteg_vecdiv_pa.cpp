@@ -1038,11 +1038,25 @@ static void PADivergenceApply(const int dim,
 {
    if (dim == 2)
    {
-      return PADivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      if (transpose)
+      {
+         return PADivergenceApplyTranspose2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
+      else
+      {
+         return PADivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
    }
    if (dim == 3)
    {
-      return PADivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      if (transpose)
+      {
+         return PADivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
+      else
+      {
+         return PADivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
    }
    MFEM_ABORT("Unknown kernel.");
 }
