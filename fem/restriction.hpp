@@ -1013,11 +1013,13 @@ protected:
    const int sdim; // spatial dimension
    const int nf; // number of faces
    const int ne; // number of elements
+   int ne_type; // number of elements with faces of type face type
    const int vdim; // dimension of functions in fes
-   const bool
-   byvdim; // ordering of dofs. e.g. byvdim == true -> (u[0], v[0], ..., u[n-1], v[n-1]). byvdim == false -> (u[0], ..., u[n-1], v[0], ..., v[n-1])
+   const bool byvdim;
+   // ordering of dofs. e.g. byvdim == true -> (u[0], v[0], ..., u[n-1], v[n-1]). byvdim == false -> (u[0], ..., u[n-1], v[0], ..., v[n-1])
 
-   Array<int> face_to_elem; // nf x 2
+   Array<int> face_to_elem; // nf x 4
+   Array<int> elem_to_face; // ne_type x 9
 
 public:
    /// @brief constructs an L2NormalDerivativeFaceRestriction
