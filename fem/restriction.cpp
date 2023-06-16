@@ -1780,7 +1780,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                       t?ne:vd); // reshape x for convinient indexing
    auto d_y = Reshape(y.Read(), q, vd, 2, nf); // reshape y for convinient indexing
 
-   for (int e = 0; e < net; ++e)
+   mfem::forall(net, [=] MFEM_HOST_DEVICE (int e)
    {
       const int el = e2f(0, e); // global element index
       
@@ -1820,7 +1820,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
             } // for c
          } // for p
       } // for fid
-   } // for e
+   }); // for e
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& x,
