@@ -272,10 +272,19 @@ void PADGDiffusionApply2D(const int NF,
    {
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      
       double u0[max_D1D];
       double u1[max_D1D];
       double du0[max_D1D];
       double du1[max_D1D];
+
+      double Bu0[max_Q1D];
+      double Bu1[max_Q1D];
+      double Bdu0[max_Q1D];
+      double Bdu1[max_Q1D];
+
+      double r[max_Q1D];
+      double w[max_Q1D];
 
       // copy edge values to u0, u1 and copy edge normals to du0, du1
       for (int d = 0; d < D1D; ++d)
@@ -287,10 +296,6 @@ void PADGDiffusionApply2D(const int NF,
       }
 
       // eval @ quad points
-      double Bu0[max_Q1D];
-      double Bu1[max_Q1D];
-      double Bdu0[max_Q1D];
-      double Bdu1[max_Q1D];
       for (int p = 0; p < Q1D; ++p)
       {
          const double Je0[] = {J(0, p, 0, f), J(1, p, 0, f)};
@@ -300,6 +305,7 @@ void PADGDiffusionApply2D(const int NF,
          Bu1[p] = 0.0;
          Bdu0[p] = 0.0;
          Bdu1[p] = 0.0;
+
          for (int d = 0; d < D1D; ++d)
          {
             const double b = B(p,d);
@@ -314,7 +320,6 @@ void PADGDiffusionApply2D(const int NF,
       }
 
       // term - < {Q du/dn}, [v] > +  kappa * < {Q/h} [u], [v] >:
-      double r[max_Q1D]; // 
       for (int p = 0; p < Q1D; ++p)
       {
          const double q = Q(p, f);
@@ -330,18 +335,20 @@ void PADGDiffusionApply2D(const int NF,
 
          for (int p = 0; p < Q1D; ++p)
          {
-            double bt = Bt(d, p);
-            Br += bt * r[p];
+            Br += Bt(d, p) * r[p];
          }
 
-         y(d, 0, f) +=  Br;
-         y(d, 1, f) += -Br;
+         u0[d] =  Br; // overwrite u0, u1
+         u1[d] = -Br;
       } // for d
 
       // term sigma * < [u], {Q dv/dn} >
-      double w[max_Q1D];
+      MFEM_UNROLL(2)
       for (int side = 0; side < 2; ++side)
       {
+         double * const du = (side == 0) ? du0 : du1;
+         double * const u = (side == 0) ? u0 : u1;
+
          for (int p = 0; p < Q1D; ++p)
          {
             const double Je[] = {J(0, p, side, f), J(1, p, side, f)};
@@ -361,9 +368,17 @@ void PADGDiffusionApply2D(const int NF,
                Gw += Gt(d, p) * w[p];
             }
 
-            dydn(d, side, f) += sigma * Br;
-            y(d, side, f) += sigma * Gw;  
+            du[d] = sigma * Br; // overwrite du0, du1
+            u[d] += sigma * Gw;  
          }
+      }
+
+      for (int d = 0; d < D1D; ++d)
+      {
+         y(d, 0, f) += u0[d];
+         y(d, 1, f) += u1[d];
+         dydn(d, 0, f) += du0[d];
+         dydn(d, 1, f) += du1[d];
       }
    }); // mfem::forall
 }
