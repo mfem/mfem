@@ -1560,6 +1560,9 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
 
    auto f2e = Reshape(face_to_elem.HostWrite(), 4, nf);
 
+   Array<int> elem_indicator(ne);
+   elem_indicator = 0.0;
+
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
@@ -1570,10 +1573,14 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
          f2e(0, f_ind) = face.element[0].index;
          f2e(2, f_ind) = face.element[0].local_face_id;
 
+         elem_indicator[face.element[0].index] = 1;
+
          if (face_type == FaceType::Interior)
          {
             f2e(1, f_ind) = face.element[1].index;
             f2e(3, f_ind) = face.element[1].local_face_id;
+
+            elem_indicator[face.element[1].index] = 1;
          }
          else
          {
@@ -1582,6 +1589,34 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
          }
 
          f_ind++;
+      }
+   }
+
+   ne_type = elem_indicator.Sum();
+   elem_to_face.SetSize(9 * ne_type);
+   elem_to_face = -1;
+
+   auto e2f = Reshape(elem_to_face.HostWrite(), 9, ne_type);
+   int e = 0;
+   for (int el = 0; el < ne; ++el)
+   {
+      if (elem_indicator[el])
+         elem_indicator[el] = e++;
+   }
+
+   const int nsides = (face_type == FaceType::Interior) ? 2 : 1;
+   for (int f = 0; f < nf; ++f)
+   {
+      for (int side = 0; side < nsides; ++side)
+      {
+         const int el = f2e(side, f);
+         const int face_id = f2e(2 + side, f);
+
+         const int e = elem_indicator[el];
+
+         e2f(0, e) = el;
+         e2f(1 + face_id, e) = f;
+         e2f(5 + face_id, e) = side;
       }
    }
 }
@@ -1724,6 +1759,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
    const int vd = vdim;
    const bool t = byvdim;
    const int num_faces = nf;
+   const int net = ne_type; // number of elements with faces of face type
 
    const FiniteElement& fe = *fes.GetFE(0);
    const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
@@ -1735,6 +1771,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                     d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
    auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
 
+   auto e2f = Reshape(elem_to_face.Read(), 9, net); // (el, f0, f1, f2, f3, s0, s1, s2, s3)
    auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
 
    // if byvdim -> d_x : (vdim, nddof, nddof, ne)
@@ -1743,15 +1780,18 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                       t?ne:vd); // reshape x for convinient indexing
    auto d_y = Reshape(y.Read(), q, vd, 2, nf); // reshape y for convinient indexing
 
-   mfem::forall(num_faces, [=] MFEM_HOST_DEVICE (int f) -> void
+   for (int e = 0; e < net; ++e)
    {
-      const int nsides = (f2e(1, f) < 0) ? 1 : 2;
-
-      for (int side = 0; side < nsides; ++side)
+      const int el = e2f(0, e); // global element index
+      
+      for (int face_id=0; face_id < 4; ++face_id)
       {
-         const int el = f2e(side, f);
+         const int f = e2f(1+face_id, e);
 
-         const int face_id = f2e(2+side, f);
+         if (f < 0)
+            continue;
+
+         const int side = e2f(5+face_id, e);
          const int fid0 = f2e(2, f);
          const int fid1 = f2e(3, f);
 
@@ -1762,26 +1802,25 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
 
             for (int c = 0; c < vd; ++c)
             {
-               for (int k=0; k < d; ++k)
+               const double yp = d_y(p, c, side, f);
+               for (int k = 0; k < d; ++k)
                {
-                  for (int l=0; l < d; ++l)
+                  for (int l = 0; l < d; ++l)
                   {
                      if (face_id == 0 || face_id == 2)
                      {
-                        AtomicAdd(d_x(t?c:k, t?k:l, t?l:el, t?el:c), a * B(i, k) * G(j, l) * d_y(p, c, side, f));
-                        // d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * B(i, k) * G(j, l) * d_y(p, c, side, f);
+                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * B(i, k) * G(j, l) * yp;
                      }
                      else
                      {
-                        AtomicAdd(d_x(t?c:k, t?k:l, t?l:el, t?el:c), a * G(i, k) * B(j, l) * d_y(p, c, side, f));
-                        // d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * G(i, k) * B(j, l) * d_y(p, c, side, f);
+                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * G(i, k) * B(j, l) * yp;
                      }
                   } // for l
-               } // for k
+               } //for k
             } // for c
          } // for p
-      } // for side
-   }); // mfem::forall
+      } // for fid
+   } // for e
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& x,
