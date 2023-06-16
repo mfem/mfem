@@ -1768,11 +1768,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
                   {
                      if (face_id == 0 || face_id == 2)
                      {
-                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * B(i, k) * G(j, l) * d_y(p, c, side, f);
+                        AtomicAdd(d_x(t?c:k, t?k:l, t?l:el, t?el:c), a * B(i, k) * G(j, l) * d_y(p, c, side, f));
+                        // d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * B(i, k) * G(j, l) * d_y(p, c, side, f);
                      }
                      else
                      {
-                        d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * G(i, k) * B(j, l) * d_y(p, c, side, f);
+                        AtomicAdd(d_x(t?c:k, t?k:l, t?l:el, t?el:c), a * G(i, k) * B(j, l) * d_y(p, c, side, f));
+                        // d_x(t?c:k, t?k:l, t?l:el, t?el:c) += a * G(i, k) * B(j, l) * d_y(p, c, side, f);
                      }
                   } // for l
                } // for k
