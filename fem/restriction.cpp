@@ -1558,7 +1558,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    height = 2 * nf * vdim * d;
    width = ne * vdim * d * d;
 
-   auto f2e = Reshape(face_to_elem.Write(), 4, nf);
+   auto f2e = Reshape(face_to_elem.HostWrite(), 4, nf);
 
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
