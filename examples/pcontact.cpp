@@ -345,6 +345,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    finder.Setup(mesh, bb_t);
 
    finder.FindPoints(xyz);
+
    Array<unsigned int> procs = finder.GetProc();
 
    /// Return code for each point searched by FindPoints: inside element (0), on
@@ -381,26 +382,13 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    Array<unsigned int> index_recv, elems_recv, proc_recv;
    Vector ref_recv;
    
-   // PrintArray(procs,"procs", 0);
-   PrintArray(procs,"procs", 1);
-
    Vector xyz_recv;
    gslcomm.SendData(dim,procs,elems,refcrd,xyz, proc_recv,index_recv,elems_recv,ref_recv, xyz_recv);
 
-
-   // PrintArray(elems, "elems", 0);
-   // PrintArray(elems, "elems", 1);
-   // PrintArray(elems_recv, "elems_recv", 0);
-   // PrintArray(elems_recv, "elems_recv", 1);
-   // PrintArray(elems_recv, "elements", 1);
-   // PrintVector(xyz, "xyz ", 0);
-   // PrintVector(xyz, "xyz ", 1);
-   // PrintVector(xyz_recv, "xyz_recv ", 0);
-   // PrintVector(xyz_recv, "xyz_recv ", 1);
-   // mfem::out << "np = " << np << endl;
    int np_loc = elems_recv.Size();
-   Vector xi_send(np_loc*dim);
-   for (int i=0; i<elems_recv.Size(); ++i)
+   Array<int> conn_loc(np_loc*4);
+   Vector xi_send(np_loc*(dim-1));
+   for (int i=0; i<np_loc; ++i)
    {
       int refFace, refNormal, refNormalSide;
       bool is_interior = -1;
@@ -408,14 +396,13 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
       Vector normal = GetNormalVector(mesh, elems_recv[i], ref_recv.GetData() + (i*dim),
                                       refFace, refNormal, is_interior);
 
-      // PrintElementVertices(&mesh,elems_recv[i],1);                                      
+      // continue;
       int phyFace;
       if(is_interior)
       {
          phyFace = -1; // the id of the face that has the closest point
          FindSurfaceToProject(mesh, elems_recv[i], phyFace); // seems that this works
 
-         // PrintFaceVertices(&mesh,phyFace,1);
          Array<int> cbdrVert;
          mesh.GetFaceVertices(phyFace, cbdrVert);
 	      Vector xs(dim);
@@ -423,13 +410,8 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
          xs[1] = xyz_recv[i + 1*np_loc];
          xs[2] = xyz_recv[i + 2*np_loc];
   
-
-
-         // PrintVector(xs,"xs = ", 0);
-         // PrintVector(xs,"xs = ", 1);
-
 	      Vector xi_tmp(dim-1);
-         // // get nodes!
+         // get nodes!
 
          GridFunction *nodes = mesh.GetNodes();
          DenseMatrix coords(4,3); 
@@ -441,18 +423,11 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 	         }
 	      }
 	      SlaveToMaster(coords, xs, xi_tmp);
-         // PrintVector(xi_tmp, "xitemp" , 0);
-         // PrintVector(xi_tmp, "xitemp" , 1);
-
          
          for (int j=0; j<dim-1; ++j)
          {
 	         xi_send[i*(dim-1)+j] = xi_tmp[j];
          }
-
-         PrintVector(xi_send, "xi_send" , 0);
-         PrintVector(xi_send, "xi_send" , 1);
-
 	      // now get get the projection to the surface 
       }
       else
@@ -464,11 +439,11 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
             {
                if (j == refNormal)
                {
-                  refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+                  refNormalSide = (ref_recv[(i*dim) + j] > 0.5);
                }
                else
                {
-                  faceRefCrd[fd] = refcrd[(i*dim) + j];
+                  faceRefCrd[fd] = ref_recv[(i*dim) + j];
                   fd++;
                }
             }
@@ -477,32 +452,54 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 
          for (int j=0; j<dim-1; ++j)
          {
-	         xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
+	         xi_send[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
          }
       }
-   //    // Get the element face
-   //    Array<int> faces;
-   //    Array<int> ori;
-   //    int face;
+      // Get the element face
+      Array<int> faces;
+      Array<int> ori;
+      int face;
 
-   //    if(is_interior)
-   //    {
-   //       face = phyFace;
-   //    }
-   //    else
-   //    {
-   //       mesh.GetElementFaces(elems[i], faces, ori);
-   //       face = faces[refFace];
-   //    }
+      if(is_interior)
+      {
+         face = phyFace;
+      }
+      else
+      {
+         mesh.GetElementFaces(elems_recv[i], faces, ori);
+         face = faces[refFace];
+      }
 
-   //    Array<int> faceVert;
-   //    mesh.GetFaceVertices(face, faceVert);
+      Array<int> faceVert;
+      mesh.GetFaceVertices(face, faceVert);
 
-   //    for (int p=0; p<4; p++)
-   //    {
-   //       conn[4*i+p] = faceVert[p];
-   //    }
+      for (int p=0; p<4; p++)
+      {
+         conn_loc[4*i+p] = faceVert[p];
+      }
    }
+
+   if (myid == 1)
+   {
+      int sz = xi_send.Size()/2;
+      for (int i = 0; i<sz; i++)
+      {
+         mfem::out << "("<<xi_send[i*(dim-1)]<<","<<xi_send[i*(dim-1)+1]<<"): -> ";
+         for (int j = 0; j<4; j++)
+         {
+            double * vc = mesh.GetVertex(conn_loc[4*i+j]);
+            if (j<3)
+            {
+               mfem::out << "("<<vc[0]<<","<<vc[1]<<","<<vc[2]<<"), ";
+            }
+            else
+            {
+               mfem::out << "("<<vc[0]<<","<<vc[1]<<","<<vc[2]<<") \n " << endl;
+            }
+         }
+      }
+   }
+
 }
 
 int main(int argc, char *argv[])
@@ -713,10 +710,11 @@ int main(int argc, char *argv[])
    DenseMatrix coordsm(npoints*4, dim);
  
    // adding displacement to mesh1 using a fixed grid function from mesh1
-   x1 = 1e-4; // x1 order: [xyz xyz... xyz]
+   x1 = 0.0; // x1 order: [xyz xyz... xyz]
    add(nodes0, x1, *nodes1);
    
    FindPointsInMesh(pmesh1, xyz, m_conn, m_xi);
+
    return 0;
 
    for (int i=0; i<npoints; i++)
