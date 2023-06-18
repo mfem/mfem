@@ -53,17 +53,6 @@ protected:
    Array<int> indices;
    Array<int> gather_map;
 
-   friend class BatchedLORAssembly;
-   friend class BatchedLOR_ADS;
-   friend class BatchedLOR_AMS;
-
-   /// @name Low-level access to the underlying element-dof mappings
-   ///@{
-   const Array<int> &GatherMap() const { return gather_map; }
-   const Array<int> &Indices() const { return indices; }
-   const Array<int> &Offsets() const { return offsets; }
-   ///@}
-
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const override;
@@ -102,6 +91,13 @@ public:
    /// Performs either MultTranspose or AddMultTranspose depending on the
    /// boolean template parameter @a ADD.
    template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
+
+   /// @name Low-level access to the underlying element-dof mappings
+   ///@{
+   const Array<int> &GatherMap() const { return gather_map; }
+   const Array<int> &Indices() const { return indices; }
+   const Array<int> &Offsets() const { return offsets; }
+   ///@}
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
