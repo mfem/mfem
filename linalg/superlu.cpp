@@ -205,12 +205,22 @@ SuperLURowLocMatrix::SuperLURowLocMatrix(const Operator &op)
    int_t nnz_loc = csr_op->num_nonzeros;
    int_t m_loc   = csr_op->num_rows;
 
-   double *nzval  = csr_op->data;
+   // We copy the data from the hypre_CSRMatrix because SuperLU_DIST will
+   // free the memory assuming it has been allocated with its *Malloc_dist
+   // wrappers
+   double *nzval  = NULL;
    int_t  *colind = NULL;
    int_t  *rowptr = NULL;
 
-   // Some machines don't like HYPRE_BigInt to int_t
-#if defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT)
+   if (!(nzval = doubleMalloc_dist(nnz_loc)))
+   {
+      MFEM_ABORT("SuperLURowLocMatrix: Malloc failed for nzval!");
+   }
+   for (int_t i = 0; i < nnz_loc; i++)
+   {
+      nzval[i] = csr_op->data[i];
+   }
+
    if (!(colind = intMalloc_dist(nnz_loc)))
    {
       MFEM_ABORT("SuperLURowLocMatrix: Malloc failed for colind!")
@@ -219,31 +229,23 @@ SuperLURowLocMatrix::SuperLURowLocMatrix(const Operator &op)
    {
       colind[i] = Jptr[i];
    }
-#else
-   colind = Jptr;
-#endif
 
-   // The "i" array cannot be stolen from the hypre_CSRMatrix so we'll copy it
    if (!(rowptr = intMalloc_dist(m_loc+1)))
    {
       MFEM_ABORT("SuperLURowLocMatrix: Malloc failed for rowptr!")
    }
    for (int_t i = 0; i <= m_loc; i++)
    {
-      rowptr[i] = (int_t)Iptr[i];  // Promotion for HYPRE_MIXEDINT
+      rowptr[i] = Iptr[i];
    }
 
-   // Assign he matrix data to SuperLU's SuperMatrix structure
+   // Assign the matrix data to SuperLU's SuperMatrix structure
    dCreate_CompRowLoc_Matrix_dist(A, m, n, nnz_loc, m_loc, fst_row,
                                   nzval, colind, rowptr,
                                   SLU_NR_loc, SLU_D, SLU_GE);
 
-   // SuperLU will free the passed CSR data arrays
-   hypre_CSRMatrixSetDataOwner(csr_op, 0);
+   // Everything has been copied so delete the structure
    hypre_CSRMatrixDestroy(csr_op);
-#if defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT)
-   delete Jptr;
-#endif
 
    // Save global number of rows and columns of the matrix
    num_global_rows_ = m;
