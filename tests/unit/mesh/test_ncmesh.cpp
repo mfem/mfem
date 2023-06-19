@@ -393,7 +393,6 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
    CHECK(std::abs(serror - perror) < test_tol);
 };
 
-
 TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
 {
    constexpr int refining_rank = 0;
