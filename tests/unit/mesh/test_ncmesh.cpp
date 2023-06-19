@@ -294,7 +294,6 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
-
 } // test case
 
 
@@ -392,7 +391,6 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
 
    constexpr double test_tol = 1e-9;
    CHECK(std::abs(serror - perror) < test_tol);
-
 };
 
 
@@ -500,14 +498,12 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       for (int iface = 0; iface < sttmp.GetNumFaces(); ++iface)
       {
          const auto face_transform = sttmp.GetFaceElementTransformations(iface);
-
          CHECK(face_transform->CheckConsistency(0) < 1e-12);
       }
 
       for (int iface = 0; iface < ttmp.GetNumFacesWithGhost(); ++iface)
       {
          const auto face_transform = ttmp.GetFaceElementTransformations(iface);
-
          CHECK(face_transform->CheckConsistency(0) < 1e-12);
       }
 
@@ -550,7 +546,6 @@ TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
       // P2 ensures there are triangles without dofs
       CheckL2Projection(pmesh, smesh, 2, exact_soln);
    }
-
 } // test case
 
 TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
@@ -583,11 +578,7 @@ TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
          CheckL2Projection(pmesh, smesh, p, exact_soln);
       }
    }
-
-
 } // test case
-
-
 
 #endif // MFEM_USE_MPI
 
