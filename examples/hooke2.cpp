@@ -171,16 +171,14 @@ template <auto quadrature_function>
 class ElasticityOperator : public ADOperator
 {
 public:
-   ElasticityOperator(ParMesh &mesh, const int order, bool matfree,
+   ElasticityOperator(ParMesh &mesh, ParFiniteElementSpace &h1_fes, bool matfree,
                       bool dump_matrices) :
       ADOperator(),
       mesh(mesh),
-      order(order),
       dim(mesh.Dimension()),
       vdim(mesh.Dimension()),
       num_el(mesh.GetNE()),
-      h1_fec(order, dim),
-      h1_fes(&mesh, &h1_fec, vdim, Ordering::byVDIM),
+      h1_fes(h1_fes),
       matfree(matfree),
       dump_matrices(dump_matrices)
    {
@@ -405,9 +403,15 @@ public:
                                  {
                                     // dN^A/dX_k (D_ijkl dN^C/dX_l)
                                     s += dphidx(a,k) * D(i,k,q,l,qp,e) * dphidx(b,l);
+
+                                    // diagonal test
+                                    // s += dphidx(a,k) * D(i,k,q,l,qp,e) * dphidx(a,l);
                                  }
                               }
                               A_e(a, i, b, q, e) += s * JxW;
+
+                              // diagonal test
+                              // A_e(a, i, a, q, e) += s * JxW;
                            }
                         }
                      }
@@ -444,6 +448,8 @@ public:
                std::ofstream assembled_jacobian_out("assembled_jacobian.txt");
                Amat->PrintMatlab(assembled_jacobian_out);
                assembled_jacobian_out.close();
+               out << "exiting after writing jacobian matrices to disk...\n";
+               exit(0);
             }
 
             return *Amat;
@@ -531,16 +537,13 @@ public:
    }
 
    ParMesh &mesh;
-   const int order;
    const int dim;
    const int vdim;
    /// Number of elements in the mesh (rank local)
    int num_el;
    int num_qp = 0;
-   /// H1 finite element collection
-   H1_FECollection h1_fec;
    /// H1 finite element space
-   mutable ParFiniteElementSpace h1_fes;
+   ParFiniteElementSpace &h1_fes;
    // Integration rule
    IntegrationRule *ir = nullptr, *ir_face = nullptr;
    const Operator *h1_element_restriction;
@@ -621,10 +624,6 @@ int main(int argc, char *argv[])
    cali::ConfigManager caliper_mgr;
    caliper_mgr.add(caliper_options);
 
-   const double length = 1.0;
-   const double height = 1.0;
-   // const double meas_tol = 1e-8;
-
    caliper_mgr.start();
    CALI_MARK_FUNCTION_BEGIN;
 
@@ -644,7 +643,27 @@ int main(int argc, char *argv[])
       out << "#elements: " << num_el_global << "\n";
    }
 
-   ElasticityOperator<finite_stress_qf> hooke(pmesh, polynomial_degree, matfree,
+   auto *fec = new H1_FECollection(1, dim);
+   auto *coarse_fespace = new ParFiniteElementSpace(&pmesh, fec, dim);
+
+   Array<FiniteElementCollection*> collections;
+   collections.Append(fec);
+   auto* fespaces = new ParFiniteElementSpaceHierarchy(&pmesh, coarse_fespace,
+                                                       true, true);
+   for (int level = 0; level < polynomial_degree; ++level)
+   {
+      collections.Append(new H1_FECollection((int)std::pow(2, level+1), dim));
+      fespaces->AddOrderRefinedLevel(collections.Last(), dim);
+   }
+
+   HYPRE_BigInt size = fespaces->GetFinestFESpace().GlobalTrueVSize();
+   if (Mpi::Root())
+   {
+      cout << "#dofs: " << size << endl;
+   }
+
+   ElasticityOperator<finite_stress_qf> hooke(pmesh,
+                                              fespaces->GetFinestFESpace(), matfree,
                                               dump_matrices);
 
    if (pmesh.bdr_attributes.Size())
@@ -712,7 +731,7 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient boundary_load_coeff(2, [&](const Vector &, Vector &u)
       {
          u(0) = 0.0;
-         u(1) = -1.0e-2 * ramp_scale;
+         u(1) = -1.0e-3 * ramp_scale;
       });
       boundary_load->ProjectBdrCoefficient(boundary_load_coeff, boundary_load_attr);
    };
@@ -782,7 +801,7 @@ int main(int argc, char *argv[])
    Multigrid pmg_solver;
 
    GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetRelTol(1e-14);
+   gmres.SetRelTol(1e-8);
    gmres.SetMaxIter(1000);
    gmres.SetPrintLevel(2);
    if (pmg)
@@ -803,7 +822,7 @@ int main(int argc, char *argv[])
    newton.iterative_mode = true;
    newton.SetSolver(gmres);
    newton.SetOperator(hooke);
-   newton.SetRelTol(1e-12);
+   newton.SetRelTol(1e-10);
    newton.SetMaxIter(50);
    newton.SetPrintLevel(1);
 
