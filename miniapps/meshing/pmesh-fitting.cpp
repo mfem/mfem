@@ -282,7 +282,7 @@ int main (int argc, char *argv[])
       case 58: metric = new TMOP_Metric_058; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 303: metric = new TMOP_Metric_303; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 328: metric = new TMOP_Metric_328; break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
