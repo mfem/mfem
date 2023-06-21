@@ -1533,6 +1533,17 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    }
 }
 
+const L2NormalDerivativeFaceRestriction
+&L2FaceRestriction::GetNormalDerivativeRestriction() const
+{
+   if (!normal_deriv_restr)
+   {
+      normal_deriv_restr.reset(new L2NormalDerivativeFaceRestriction(fes, ordering,
+                                                                     type));
+   }
+   return *normal_deriv_restr;
+}
+
 L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    const FiniteElementSpace& fes_,
    const ElementDofOrdering ordering,
