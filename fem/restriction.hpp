@@ -482,8 +482,7 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
-   virtual const L2NormalDerivativeFaceRestriction
-   &GetNormalDerivativeRestriction() const;
+   const L2NormalDerivativeFaceRestriction &GetNormalDerivativeRestriction() const;
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.

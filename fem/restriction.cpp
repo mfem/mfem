@@ -12,7 +12,7 @@
 #include "restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
-#include "pfespace.hpp"
+#include "pgridfunc.hpp"
 #include "../general/forall.hpp"
 #include "qspace.hpp"
 #include "fe/face_map_utils.hpp"
@@ -1660,36 +1660,59 @@ void L2NormalDerivativeFaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
 {
+   int ne_shared = 0;
+   const double *face_nbr_data = nullptr;
+   std::unique_ptr<GridFunction> x_gf;
+
+#ifdef MFEM_USE_MPI
+   if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      ParGridFunction *x_pgf = new ParGridFunction;
+      x_gf.reset(x_pgf);
+      x_pgf->MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
+                     const_cast<Vector&>(x), 0);
+      x_pgf->ExchangeFaceNbrData();
+
+      face_nbr_data = x_pgf->FaceNbrData().Read();
+      ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
+   }
+#endif
+
    const int vd = vdim;
    const bool t = byvdim;
    const int num_faces = nf;
+   const int num_elem = ne;
 
-   const FiniteElement& fe = *fes.GetFE(0);
-   const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
+   const FiniteElement &fe = *fes.GetFE(0);
+   const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
    const int d = maps.ndof;
 
    MFEM_ASSERT(q == d, "");
 
-   auto B = Reshape(maps.B.Read(), q,
-                    d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
-   auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
-
-   auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
+   // 1D basis function B(i, j) = j-th basis @ i-th quad point
+   const auto B = Reshape(maps.B.Read(), q, d);
+   // derivative of 1D basis function
+   const auto G = Reshape(maps.G.Read(), q, d);
+   // (el0, el1, fid0, fid1)
+   const auto f2e = Reshape(face_to_elem.Read(), 4, num_faces);
 
    // if byvdim -> d_x : (vdim, nddof, nddof, ne)
    // else -> d_x : (nddof, nddof, ne, vdim)
-   auto d_x = Reshape(x.Read(), t?vd:d, d, t?d:ne,
-                      t?ne:vd); // reshape x for convinient indexing
-   auto d_y = Reshape(y.Write(), q, vd, 2,
-                      nf); // reshape y for convinient indexing
+   const auto d_x = Reshape(x.Read(), t?vd:d, d, t?d:ne, t?ne:vd);
+   const auto d_x_shared = Reshape(face_nbr_data,
+                                   t?vd:d, d, t?d:ne_shared, t?ne_shared:vd);
+   auto d_y = Reshape(y.Write(), q, vd, 2, nf);
 
    mfem::forall_2D(num_faces, 2, q, [=] MFEM_HOST_DEVICE (int f) -> void
    {
       MFEM_FOREACH_THREAD(side, x, 2)
       {
          const int el = f2e(side, f);
+         const bool shared = (el >= num_elem);
+         const auto &d_x_e = shared ? d_x_shared : d_x;
+         const int el_idx = shared ? el - num_elem : el;
 
          const int face_id = f2e(2 + side, f);
          const int fid0 = f2e(2, f);
@@ -1718,7 +1741,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
                   {
                      for (int l=0; l < d; ++l)
                      {
-                        grad_n += B1(i, k) * B2(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
+                        grad_n += B1(i, k) * B2(j, l) * d_x_e(t?c:k, t?k:l, t?l:el_idx, t?el_idx:c);
                      } // for l
                   } // for k
                   d_y(p, c, side, f) = grad_n;
