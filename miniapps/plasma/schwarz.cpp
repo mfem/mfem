@@ -647,7 +647,8 @@ const
    return p;
 }
 
-SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
+SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
+                                                VectorCoefficient &BCoef)
 {
    const int distance = 1;
    double threshold = 1.5;
@@ -656,9 +657,6 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
    const int dim = 2;
 
    Vector bvec(dim);
-   bvec[0] = 1.0;
-   bvec[1] = 1.0;
-
    bvec = 0.0;
 
    const int nv = pmesh->GetNV();
@@ -671,6 +669,7 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
    SparseMatrix *G = new SparseMatrix(nv);
 
    // Set an entry of A for each edge in pmesh, connecting the two vertices
+   std::map<std::pair<int,int>, int> edge_by_verts;
    for (int i=0; i<pmesh->GetNEdges(); ++i)
    {
       Array<int> vert;
@@ -678,6 +677,9 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
       MFEM_VERIFY(vert.Size() == 2, "");
       A.SetEntry(vert[0], vert[1]);
       A.SetEntry(vert[1], vert[0]);
+
+      edge_by_verts[std::make_pair(std::min(vert[0], vert[1]),
+                                                                    std::max(vert[0], vert[1]))] = i;
    }
 
    if (distance == 1)  // Not using algebraic distance
@@ -725,8 +727,14 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
             midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
          }
 
-         TotBFunc(midpoint, bvec);
-
+         {
+            int edge_no = edge_by_verts[std::make_pair(std::min(v0,v1),
+                                                       std::max(v0,v1))];
+            ElementTransformation* T = pmesh->GetEdgeTransformation(edge_no);
+            IntegrationPoint eip; eip.x = 0.5;
+            T->SetIntPoint(&eip);
+            BCoef.Eval(bvec, *T, eip);
+         }
          {
             // Rotate bvec
             const double tmp = bvec[0];
@@ -978,9 +986,11 @@ std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
 }
 
 int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh,
-                                          ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+                                          ParFiniteElementSpace *fespace,
+                                          VectorCoefficient &BCoef,
+                                          Array<int> & cdofToGlobalLine)
 {
-   SparseMatrix *G = GetAnisotropicGraph_with_distance(pmesh);
+   SparseMatrix *G = GetAnisotropicGraph_with_distance(pmesh, BCoef);
    //G = solver.GetAnisotropicGraph_with_distance(mesh, Gmesh, coord, b, distance, threshold)
 
    int npaths = 0;
@@ -1135,7 +1145,8 @@ void ReadPatches(string filename, vector<vector<int>> &patches)
 }
 
 int SetCoarseVertexLinePatches_Matlab(ParMesh *pmesh,
-                                      ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+                                      ParFiniteElementSpace *fespace,
+                                      Array<int> & cdofToGlobalLine)
 {
    Vector linecrd;
    double tol = 1.0e-3;
@@ -1160,8 +1171,9 @@ int SetCoarseVertexLinePatches_Matlab(ParMesh *pmesh,
    return nlines;
 }
 
-LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
-   : pmesh(pmesh_), ref_levels(ref_levels_)
+LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
+                             int ref_levels_)
+   : pmesh(pmesh_), BCoef(BCoef_), ref_levels(ref_levels_)
 {
    int dim = pmesh->Dimension();
 
@@ -1179,6 +1191,7 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
 
    //int nlines = SetCoarseVertexLinePatches_Matlab(pmesh, aux_fespace, cdofToGlobalLine);
    int nlines = SetCoarseVertexLinePatches_GraphBased(pmesh, aux_fespace,
+                                                      BCoef,
                                                       cdofToGlobalLine);
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
@@ -1491,11 +1504,11 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    delete aux_fec;
 }
 
-PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_,
-                           ParFiniteElementSpace *fespace)
+PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
+                           int ref_levels_, ParFiniteElementSpace *fespace)
 {
    //VertexPatchInfo *patch_nodes = new VertexPatchInfo(pmesh_, ref_levels_);
-   LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, ref_levels_);
+   LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, BCoef_, ref_levels_);
 
    int num_procs, myid;
    comm = pmesh_->GetComm();
@@ -1642,8 +1655,9 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_,
    }
 }
 
-PatchAssembly::PatchAssembly(ParMesh *cpmesh_, int ref_levels_,
-                             ParFiniteElementSpace *fespace_, HypreParMatrix * A_)
+PatchAssembly::PatchAssembly(ParMesh *cpmesh_, VectorCoefficient &BCoef_,
+                             int ref_levels_, ParFiniteElementSpace *fespace_,
+                             HypreParMatrix * A_)
    :  A(A_), fespace(fespace_)
 {
    comm = A->GetComm();
@@ -1664,7 +1678,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, int ref_levels_,
    int *row_startT = At->GetRowStarts();
    diag.SortColumnIndices();
 
-   patch_tdof_info = new PatchDofInfo(cpmesh_, ref_levels_,fespace);
+   patch_tdof_info = new PatchDofInfo(cpmesh_, BCoef_, ref_levels_,fespace);
 
    nrpatch = patch_tdof_info->nrpatch;
    host_rank.SetSize(nrpatch); host_rank = -1;
@@ -2187,11 +2201,13 @@ void CheckSPD(SparseMatrix *S)
    MFEM_VERIFY(minev > 0.0, "");
 }
 
-SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
-                                 ParFiniteElementSpace *fespace_, HypreParMatrix * A_)
+SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, VectorCoefficient & BCoef_,
+                                 int ref_levels_,
+                                 ParFiniteElementSpace *fespace_,
+                                 HypreParMatrix * A_)
    : Solver(A_->Height(), A_->Width()), A(A_)
 {
-   P = new PatchAssembly(cpmesh_,ref_levels_, fespace_, A_);
+   P = new PatchAssembly(cpmesh_, BCoef_, ref_levels_, fespace_, A_);
 
    comm = A->GetComm();
    nrpatch = P->nrpatch;

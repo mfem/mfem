@@ -58,6 +58,7 @@ class LinePatchInfo
 {
 private:
    ParMesh * pmesh = nullptr;
+   VectorCoefficient &BCoef;
    int ref_levels=0;
 public:
    int mynrpatch;
@@ -70,7 +71,7 @@ public:
    Array<int> patch_natural_order_idx;
    //Array<int> patch_global_dofs_ids;
 
-   LinePatchInfo(ParMesh * pmesh_, int ref_levels_);
+   LinePatchInfo(ParMesh * pmesh_, VectorCoefficient & BCoef_, int ref_levels_);
    ~LinePatchInfo() {}
 };
 
@@ -82,7 +83,10 @@ public:
    Array<int> host_rank;
    std::vector<Array<int>> patch_tdofs;
    std::vector<Array<int>> patch_local_tdofs;
-   PatchDofInfo(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
+   PatchDofInfo(ParMesh * cpmesh_,
+                VectorCoefficient & BCoef_,
+                int ref_levels_,
+                ParFiniteElementSpace *fespace);
    ~PatchDofInfo() {};
 };
 
@@ -102,7 +106,7 @@ public:
    HypreParMatrix * A = nullptr;
    int get_rank(int tdof);
    // constructor
-   PatchAssembly(ParMesh * cpmesh_, int ref_levels_,
+   PatchAssembly(ParMesh * cpmesh_, VectorCoefficient & BCoef_, int ref_levels_,
                  ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
    ~PatchAssembly();
 private:
@@ -171,8 +175,9 @@ private:
    PatchAssembly * P;
    PatchRestriction * R= nullptr;
 public:
-   SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
-                   ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
+   SchwarzSmoother(ParMesh * cpmesh_, VectorCoefficient & BCoef_,
+                   int ref_levels_, ParFiniteElementSpace * fespace_,
+                   HypreParMatrix * A_);
    void SetNumSmoothSteps(const int iter) {maxit = iter;}
    void SetDampingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {}

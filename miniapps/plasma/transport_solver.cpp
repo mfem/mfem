@@ -3100,6 +3100,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                        const string & field_name,
                                        ParGridFunctionArray & yGF,
                                        ParGridFunctionArray & kGF,
+                                       VectorCoefficient & B3Coef,
                                        int term_flag, int vis_flag,
                                        int logging,
                                        const string & log_prefix)
@@ -3115,6 +3116,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      pmesh_(*fes_.GetParMesh()),
      yGF_(yGF),
      kGF_(kGF),
+     B3Coef_(B3Coef),
      yCoefPtrs_(yGF_.Size()),
      kCoefPtrs_(kGF_.Size()),
      ykCoefPtrs_(kGF_.Size()),
@@ -3743,7 +3745,9 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             {
 
                D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
-                                                0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this pointer
+                                                B3Coef_, 0,
+                                                cgblf_[i]->ParFESpace(),
+                                                D_cg_);  // TODO: delete this pointer
                D_mult_ = new MultiplicativePreconditioner(*D_amg_,
                                                           *D_schwarz_);  // TODO: delete this pointer
 
@@ -3807,7 +3811,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
                                          int logging,
                                          const std::string & log_prefix)
    : NLOperator(mpi, dg, index, eqn_name, field_name,
-                yGF, kGF, term_flag, vis_flag, logging, log_prefix),
+                yGF, kGF, B3Coef, term_flag, vis_flag, logging, log_prefix),
      coefGF_(yGF[0]->ParFESpace()),
      vfes_(vfes),
      h1_fes_(h1_fes),

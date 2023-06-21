@@ -5548,6 +5548,8 @@ private:
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
 
+      VectorCoefficient & B3Coef_;
+
       Array<StateVariableGridFunctionCoef*>  yCoefPtrs_;
       Array<StateVariableGridFunctionCoef*>  kCoefPtrs_;
       Array<StateVariableSumCoef*>          ykCoefPtrs_;
@@ -5613,6 +5615,7 @@ private:
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
+                 VectorCoefficient & B3Coef,
                  int term_flag, int vis_flag, int logging,
                  const std::string & log_prefix);
 
