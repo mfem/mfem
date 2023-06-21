@@ -349,6 +349,8 @@ protected:
 /// as base class for ParNCH1FaceRestriction.
 using H1FaceRestriction = ConformingFaceRestriction;
 
+class L2NormalDerivativeFaceRestriction;
+
 /// Operator that extracts Face degrees of freedom for L2 spaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
@@ -371,6 +373,7 @@ protected:
    Array<int> scatter_indices2; // Scattering indices for element 2 on each face
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
+   mutable std::unique_ptr<L2NormalDerivativeFaceRestriction> normal_deriv_restr;
 
    /** @brief Constructs an L2FaceRestriction.
 
@@ -479,6 +482,8 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
+   virtual const L2NormalDerivativeFaceRestriction
+   &GetNormalDerivativeRestriction() const;
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.

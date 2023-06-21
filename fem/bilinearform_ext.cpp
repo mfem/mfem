@@ -288,12 +288,13 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       }
       if (needs_normal_derivs)
       {
-         int_face_normal_deriv = new L2NormalDerivativeFaceRestriction(
-            *trial_fes, ElementDofOrdering::LEXICOGRAPHIC,
-            FaceType::Interior
-         );
-         int_face_dXdn.SetSize(int_face_normal_deriv->Height());
-         int_face_dYdn.SetSize(int_face_normal_deriv->Height());
+         if (const auto *l2_face_restr = dynamic_cast<const L2FaceRestriction*>
+                                         (int_face_restrict_lex))
+         {
+            int_face_normal_deriv = &l2_face_restr->GetNormalDerivativeRestriction();
+            int_face_dXdn.SetSize(int_face_normal_deriv->Height());
+            int_face_dYdn.SetSize(int_face_normal_deriv->Height());
+         }
       }
    }
 
@@ -319,12 +320,13 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       }
       if (needs_normal_derivs)
       {
-         bdr_face_normal_deriv = new L2NormalDerivativeFaceRestriction(
-            *trial_fes, ElementDofOrdering::LEXICOGRAPHIC,
-            FaceType::Boundary
-         );
-         bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Height());
-         bdr_face_dYdn.SetSize(bdr_face_normal_deriv->Height());
+         if (const auto *l2_face_restr = dynamic_cast<const L2FaceRestriction*>
+                                         (bdr_face_restrict_lex))
+         {
+            bdr_face_normal_deriv = &l2_face_restr->GetNormalDerivativeRestriction();
+            bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Height());
+            bdr_face_dYdn.SetSize(bdr_face_normal_deriv->Height());
+         }
       }
    }
 }
