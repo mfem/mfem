@@ -12,16 +12,11 @@
 #include "restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
+#include "pfespace.hpp"
 #include "../general/forall.hpp"
 #include "qspace.hpp"
 #include "fe/face_map_utils.hpp"
 #include <climits>
-
-#ifdef MFEM_USE_MPI
-
-#include "pfespace.hpp"
-
-#endif
 
 namespace mfem
 {
