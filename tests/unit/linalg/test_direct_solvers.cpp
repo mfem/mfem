@@ -95,7 +95,7 @@ double fexact(const Vector &x) // returns -\Delta u
 TEST_CASE("Serial Direct Solvers", "[CUDA]")
 {
    const int ne = 2;
-   for (dim = 1; dim < 4; ++dim)
+   for (int dim = 1; dim < 4; ++dim)
    {
       Mesh mesh;
       if (dim == 1)
@@ -260,10 +260,28 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
          superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
          superlu.Mult(B, X);
+
          Vector Y(X.Size());
          A->Mult(X, Y);
          Y -= B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         // SuperLUSolver requires constant number of RHS across solves
+         SuperLURowLocMatrix SA2(*A.As<HypreParMatrix>());
+         SuperLUSolver superlu2(MPI_COMM_WORLD);
+         superlu2.SetPrintStatistics(false);
+         superlu2.SetSymmetricPattern(false);
+         superlu2.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+         superlu2.SetOperator(SA2);
+         superlu2.ArrayMult(BB, XX);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i], Y);
+            Y -= *BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
+
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim, gradexact);
          double error = x.ComputeH1Error(&uex, &grad);
