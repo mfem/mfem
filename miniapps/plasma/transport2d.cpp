@@ -2876,14 +2876,14 @@ void InitialCondition(const Vector &x, Vector &y)
 class Linear1D: public Coefficient
 {
 private:
-  double a_, b_;
-  int comp_;
+   double a_, b_;
+   int comp_;
 
    mutable Vector x_;
 
 public:
-  Linear1D(double a, double b, int comp)
-    : a_(a), b_(a), comp_(comp), x_(3) {}
+   Linear1D(double a, double b, int comp)
+      : a_(a), b_(a), comp_(comp), x_(3) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {

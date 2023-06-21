@@ -610,7 +610,7 @@ public:
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
    MyGridFunctionCoefficient (const GridFunction *gf, int comp = 1)
-  { GridF = gf; mesh = gf->FESpace()->GetMesh(); Component = comp; }
+   { GridF = gf; mesh = gf->FESpace()->GetMesh(); Component = comp; }
 
    /// Set the internal GridFunction
    void SetGridFunction(const GridFunction *gf) { GridF = gf; }
@@ -622,11 +622,11 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-     int elem = T.ElementNo;
-     
-     ElementTransformation * Tr1d = mesh->GetElementTransformation(elem);
+      int elem = T.ElementNo;
 
-     return GridF->GetValue(*Tr1d, ip, Component);
+      ElementTransformation * Tr1d = mesh->GetElementTransformation(elem);
+
+      return GridF->GetValue(*Tr1d, ip, Component);
    }
 };
 
@@ -739,7 +739,7 @@ int main(int argc, char *argv[])
 
    // Create a 2D copy of the mesh for visualizing in VisIt.
    Mesh *mesh2d = Extrude1D(&pmesh, 1, .1);
-   
+
    cout << "Number of elements:       " << pmesh.GetNE() << endl;
    cout << "Number of faces:          " << pmesh.GetNumFaces() << endl;
    cout << "Number of boundary faces: " << pmesh.GetNBE() << endl;
@@ -782,10 +782,10 @@ int main(int argc, char *argv[])
 
    MyGridFunctionCoefficient nCoef(&n);
    MyGridFunctionCoefficient qCoef(&q);
-   
+
    GridFunction n2d(&fes2d);
    GridFunction q2d(&fes2d);
-   
+
    // Initialize the state.
    VectorFunctionCoefficient u0(num_equation, InitialCondition);
    ParGridFunction sol(&vfes, u_block.GetData());
@@ -828,27 +828,27 @@ int main(int argc, char *argv[])
 
    // Visualize the density
    // VisIt cannot currently make use of GridFunction data from 1D meshes
-   // so we need to project the solutions onto a 2D mesh. 
+   // so we need to project the solutions onto a 2D mesh.
    // DataCollection *dc = NULL;
    DataCollection *dc2d = NULL;
    int cycle = 0;
    if (visit)
    {
-      if (binary) 
-      {           
+      if (binary)
+      {
 #ifdef MFEM_USE_SIDRE
-        // dc = new SidreDataCollection("linear_hyp_1d-Parallel", &pmesh);
+         // dc = new SidreDataCollection("linear_hyp_1d-Parallel", &pmesh);
          dc2d = new SidreDataCollection("linear_hyp_1d", mesh2d);
-#else             
+#else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
-      else  
+      else
       {
          // dc = new VisItDataCollection("linear_hyp_1d-Parallel", &pmesh);
-	 // dc->SetPrecision(precision);
+         // dc->SetPrecision(precision);
          dc2d = new VisItDataCollection("linear_hyp_1d", mesh2d);
-	 dc2d->SetPrecision(precision);
+         dc2d->SetPrecision(precision);
          //dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
       /*
@@ -858,10 +858,10 @@ int main(int argc, char *argv[])
       dc->SetTime(0.0);
       dc->Save();
       */
-      
+
       q2d.ProjectCoefficient(qCoef);
       n2d.ProjectCoefficient(nCoef);
-      
+
       dc2d->RegisterField("flux", &q2d);
       dc2d->RegisterField("density", &n2d);
       dc2d->SetCycle(cycle);
@@ -1036,18 +1036,18 @@ int main(int argc, char *argv[])
          if (visit)
          {
             cycle++;
-	    /*
-            dc->SetCycle(cycle);
-            dc->SetTime(t);
-            dc->Save();
-	    */
-	    q2d.ProjectCoefficient(qCoef);
-	    n2d.ProjectCoefficient(nCoef);
+            /*
+                 dc->SetCycle(cycle);
+                 dc->SetTime(t);
+                 dc->Save();
+            */
+            q2d.ProjectCoefficient(qCoef);
+            n2d.ProjectCoefficient(nCoef);
 
             dc2d->SetCycle(cycle);
             dc2d->SetTime(t);
             dc2d->Save();
-	 }
+         }
       }
    }
 
