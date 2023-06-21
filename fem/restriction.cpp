@@ -979,6 +979,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      const L2FaceValues m,
                                      bool build)
    : fes(fes),
+     ordering(f_ordering),
      nf(fes.GetNFbyType(type)),
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
@@ -1001,11 +1002,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    width = fes.GetVSize();
    if (!build) { return; }
 
-   CheckFESpace(f_ordering);
-
-   ComputeScatterIndicesAndOffsets(f_ordering,type);
-
-   ComputeGatherIndices(f_ordering, type);
+   CheckFESpace();
+   ComputeScatterIndicesAndOffsets();
+   ComputeGatherIndices();
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
@@ -1267,7 +1266,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
    }
 }
 
-void L2FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
+void L2FaceRestriction::CheckFESpace()
 {
 #ifdef MFEM_USE_MPI
 
@@ -1291,7 +1290,7 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "L2FaceRestriction.");
    if (nf==0) { return; }
-   const bool dof_reorder = (f_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
       MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
@@ -1311,9 +1310,7 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering f_ordering)
 #endif
 }
 
-void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType face_type)
+void L2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
    // Initialization of the offsets
@@ -1329,16 +1326,16 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in L2FaceRestriction.");
-      if ( face.IsOfFaceType(face_type) )
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
-            if ( face_type==FaceType::Interior && face.IsInterior() )
+            if ( type==FaceType::Interior && face.IsInterior() )
             {
                PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
             }
-            else if ( face_type==FaceType::Boundary && face.IsBoundary() )
+            else if ( type==FaceType::Boundary && face.IsBoundary() )
             {
                SetBoundaryDofsScatterIndices2(face,f_ind);
             }
@@ -1355,9 +1352,7 @@ void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
    }
 }
 
-void L2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType face_type)
+void L2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
    // Computation of gather_indices
@@ -1367,11 +1362,11 @@ void L2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in L2FaceRestriction.");
-      if ( face.IsOfFaceType(face_type) )
+      if ( face.IsOfFaceType(type) )
       {
          SetFaceDofsGatherIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued &&
-              face_type==FaceType::Interior &&
+              type==FaceType::Interior &&
               face.IsLocal())
          {
             PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
@@ -2014,11 +2009,11 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    if (!build) { return; }
    x_interp.UseDevice(true);
 
-   CheckFESpace(f_ordering);
+   CheckFESpace();
 
-   ComputeScatterIndicesAndOffsets(f_ordering, type);
+   ComputeScatterIndicesAndOffsets();
 
-   ComputeGatherIndices(f_ordering, type);
+   ComputeGatherIndices();
 }
 
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
@@ -2324,9 +2319,7 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
    }
 }
 
-void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -2389,9 +2382,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    interpolations.InitializeNCInterpConfig();
 }
 
-void NCL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void NCL2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
    // Computation of gather_indices
