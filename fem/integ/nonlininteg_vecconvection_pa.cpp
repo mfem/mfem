@@ -13,8 +13,6 @@
 #include "../nonlininteg.hpp"
 #include "../ceed/integrators/nlconvection/nlconvection.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 

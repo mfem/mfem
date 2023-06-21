@@ -15,8 +15,6 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 

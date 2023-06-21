@@ -14,8 +14,6 @@
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 

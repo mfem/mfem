@@ -14,8 +14,6 @@
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 
