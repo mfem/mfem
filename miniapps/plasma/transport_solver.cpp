@@ -9570,40 +9570,41 @@ DGAdvDiffBdrIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
 void
 DGAdvDiffDirichletLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el,
-   FaceElementTransformations &Tr,
+   const FiniteElement &el1,
+   FaceElementTransformations &Trans,
    Vector &elvect)
 {
-   int dim, ndof;
+   int dim, ndof1;
    bool kappa_is_nonzero = (kappa1 != 0.);
-   double w, bn, q, u;
+   double w, q1, b1n, u, nQ1n;
 
-   dim = el.GetDim();
-   ndof = el.GetDof();
+   dim = el1.GetDim();
+   Vector nor(dim);
+   Vector B1(dim);
+   DenseMatrix Q1(dim);
+   Vector nQ1(dim);
 
-   nor.SetSize(dim);
-   nh.SetSize(dim);
-   ni.SetSize(dim);
-   adjJ.SetSize(dim);
-   if (MQ)
-   {
-      mq.SetSize(dim);
-   }
-   vb.SetSize(dim);
+   ndof1 = el1.GetDof();
 
-   shape.SetSize(ndof);
-   dshape.SetSize(ndof, dim);
-   dshape_dn.SetSize(ndof);
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1(ndof1);
+   DenseMatrix dshape1(ndof1, dim);
+   Vector nQdshape1(ndof1);
+#else
+   shape1.SetSize(ndof1);
+   dshape1.SetSize(ndof1, dim);
+   nQdshape1.SetSize(ndof1);
+#endif
 
-   elvect.SetSize(ndof);
+   elvect.SetSize(ndof1);
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
-      int order = 2*el.GetOrder();
-      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+      // Assuming order(u)==order(mesh)
+      int order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -9611,65 +9612,79 @@ DGAdvDiffDirichletLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(p);
 
       // Set the integration point in the face and the neighboring element
-      Tr.SetAllIntPoints(&ip);
+      Trans.SetAllIntPoints(&ip);
+
+      double vol1 = Trans.Elem1->Weight();
 
       // Access the neighboring element's integration point
-      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
 
-      if (dim == 1)
-      {
-         nor(0) = 2*eip.x - 1.0;
-      }
-      else
-      {
-         CalcOrtho(Tr.Jacobian(), nor);
-      }
+      el1.CalcShape(eip1, shape1);
 
-      el.CalcShape(eip, shape);
-      el.CalcDShape(eip, dshape);
+      el1.CalcPhysDShape(*Trans.Elem1, dshape1);
 
       // compute uD through the face transformation
-      u = uD->Eval(Tr, ip);
-      w = ip.weight * u / Tr.Elem1->Weight();
+      u = uD->Eval(Trans, ip);
+
       if (Q)
       {
-         q = Q->Eval(*Tr.Elem1, eip);
-         w *= q;
-         ni.Set(w, nor);
+         q1 = Q->Eval(*Trans.Elem1, eip1);
       }
-      else
+      else if (MQ)
       {
-         nh.Set(w, nor);
-         MQ->Eval(mq, *Tr.Elem1, eip);
-         mq.MultTranspose(nh, ni);
+         MQ->Eval(Q1, *Trans.Elem1, eip1);
 
-         double qPara = 0.0, qPerp = 0.0;
+         double qPara1 = 0.0, qPerp1 = 0.0;
          if (QPara)
          {
-            qPara = QPara->Eval(*Tr.Elem1, eip);
+            qPara1 = QPara->Eval(*Trans.Elem1, eip1);
          }
          if (QPerp)
          {
-            qPerp = QPerp->Eval(*Tr.Elem1, eip);
+            qPerp1 = QPerp->Eval(*Trans.Elem1, eip1);
          }
-         q = std::max(qPara, qPerp);
+         q1 = std::max(qPara1, qPerp1);
       }
-      beta->Eval(vb, *Tr.Elem1, eip);
-      bn = vb * nor;
 
-      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-      adjJ.Mult(ni, nh);
+      beta->Eval(B1, *Trans.Elem1, eip1);
 
-      dshape.Mult(nh, dshape_dn);
-      elvect.Add(sigma, dshape_dn);
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      if (MQ)
+      {
+         Q1.MultTranspose(nor, nQ1);
+      }
+      else
+      {
+         nQ1.Set(q1, nor);
+      }
+
+      nQ1n = q1 * (nor * nor) / vol1;
+
+      b1n = B1 * nor;
+
+      double pen = kappa1 * nQ1n + kappa2 * fabs(b1n);
+
+      dshape1.Mult(nQ1, nQdshape1);
+
+      w = ip.weight;
+
+      elvect.Add(w * u * sigma, nQdshape1);
 
       if (kappa_is_nonzero)
       {
-         elvect.Add(kappa1*q*w*(nor*nor), shape);
+         elvect.Add(pen * w * u, shape1);
       }
-      if (bn < 0.0)
+      if (b1n < 0.0)
       {
-         elvect.Add(-ip.weight * bn * u, shape);
+         elvect.Add(-ip.weight * b1n * u, shape1);
 
       }
    }

@@ -7499,11 +7499,12 @@ class DGAdvDiffDirichletLFIntegrator : public LinearFormIntegrator,
    DGAdvDiffBaseIntegrator
 {
 private:
-   Coefficient *uD;
+#ifndef MFEM_THREAD_SAFE
+   Vector shape1, shape2, nQdshape1, nQdshape2;
+   DenseMatrix dshape1, dshape2;
+#endif
 
-   // these are not thread-safe!
-   Vector shape, dshape_dn, nor, nh, ni, vb;
-   DenseMatrix dshape, mq, adjJ;
+   Coefficient *uD;
 
 public:
    DGAdvDiffDirichletLFIntegrator(Coefficient &u,
