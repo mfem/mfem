@@ -591,12 +591,6 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   FunctionCoefficient coeff([](const Vector& x)
-   {
-      return x[0] + 2 * x[1];
-   });
-   // x.ProjectCoefficient(coeff);
-
    ConstantCoefficient pi(M_PI);
 
    const double sigma = -1.0;
@@ -620,5 +614,51 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
+{
+   const int order = 4;
+
+   Mesh serial_mesh("../../data/star.mesh");
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   ParGridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(M_PI);
+
+   const double sigma = -1.0;
+   const double kappa = 20.0;
+
+   ParBilinearForm blf_fa(&fes);
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   OperatorHandle A_fa(Operator::Hypre_ParCSR);
+   blf_fa.ParallelAssemble(A_fa);
+   A_fa->Mult(x, y_fa);
+
+   ParBilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+#endif
 
 } // namespace pa_kernels
