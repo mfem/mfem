@@ -1682,6 +1682,9 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
          const int fid0 = f2e(2, f);
          const int fid1 = f2e(3, f);
 
+         auto &B1 = (face_id == 0 || face_id == 2) ? B : G;
+         auto &B2 = (face_id == 0 || face_id == 2) ? G : B;
+
          MFEM_FOREACH_THREAD(p, y, q)
          {
             if (el < 0)
@@ -1695,43 +1698,18 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
             {
                int i, j;
                internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
-
-               if (face_id == 0 || face_id == 2)
+               for (int c=0; c < vd; ++c)
                {
-                  for (int c=0; c < vd; ++c)
+                  double grad_n = 0;
+                  for (int k=0; k < d; ++k)
                   {
-                     double grad_n = 0;
-
-                     for (int k=0; k < d; ++k)
+                     for (int l=0; l < d; ++l)
                      {
-                        for (int l=0; l < d; ++l)
-                        {
-                           // grad_n = dx/dt
-                           grad_n += B(i, k) * G(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
-                        } // for l
-                     } // for k
-
-                     d_y(p, c, side, f) = grad_n;
-                  } // for c
-               }
-               else
-               {
-                  for (int c=0; c < vd; ++c)
-                  {
-                     double grad_n = 0;
-
-                     for (int k=0; k < d; ++k)
-                     {
-                        for (int l=0; l < d; ++l)
-                        {
-                           // grad_n = dx/ds
-                           grad_n += G(i, k) * B(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
-                        } // for l
-                     } // for k
-
-                     d_y(p, c, side, f) = grad_n;
-                  } // for c
-               }
+                        grad_n += B1(i, k) * B2(j, l) * d_x(t?c:k, t?k:l, t?l:el, t?el:c);
+                     } // for l
+                  } // for k
+                  d_y(p, c, side, f) = grad_n;
+               } // for c
             }
          } // for each p
       } // for each side
