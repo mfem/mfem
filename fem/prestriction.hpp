@@ -233,8 +233,7 @@ private:
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
@@ -243,8 +242,7 @@ private:
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
@@ -385,8 +383,7 @@ private:
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
@@ -395,8 +392,7 @@ private:
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to

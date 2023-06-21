@@ -356,6 +356,7 @@ class L2FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
+   const ElementDofOrdering ordering;
    const int nf; // Number of faces of the requested type
    const int ne; // Number of elements
    const int vdim; // vdim
@@ -485,8 +486,7 @@ private:
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
@@ -495,8 +495,7 @@ private:
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
@@ -505,7 +504,7 @@ protected:
 
        @param[in] f_ordering The requested face dof ordering.
    */
-   void CheckFESpace(const ElementDofOrdering f_ordering);
+   void CheckFESpace();
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face. The ordering of the face dofs of elem1
@@ -929,22 +928,14 @@ private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
        coarse to fine face for master non-comforming faces.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
