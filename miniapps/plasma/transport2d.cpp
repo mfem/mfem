@@ -1418,7 +1418,10 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
       mesh->SetCurvature(2);
    }
-   mesh->EnsureNCMesh();
+   if (amr)
+   {
+      mesh->EnsureNCMesh();
+   }
 
    // num_species_   = ion_charges.Size();
    // num_equations_ = (num_species_ + 1) * (dim + 2);
@@ -1521,6 +1524,18 @@ int main(int argc, char *argv[])
       ifstream icfs(ic_file);
       ics.LoadICs(coefFact, icfs);
    }
+   {
+      if (ics[0] == NULL)
+      { ics[0] = new FunctionCoefficient(nnFunc); ics.SetOwnership(0, true); }
+      if (ics[1] == NULL)
+      { ics[1] = new FunctionCoefficient(niFunc); ics.SetOwnership(1, true); }
+      if (ics[2] == NULL)
+      { ics[2] = new FunctionCoefficient(viFunc); ics.SetOwnership(2, true); }
+      if (ics[3] == NULL)
+      { ics[3] = new FunctionCoefficient(TiFunc); ics.SetOwnership(3, true); }
+      if (ics[4] == NULL)
+      { ics[4] = new FunctionCoefficient(TeFunc); ics.SetOwnership(4, true); }
+   }
 
    if (mpi.Root())
    {
@@ -1543,16 +1558,6 @@ int main(int argc, char *argv[])
       ParGridFunctionArray coef_gf(5, &fes);
       Array<Coefficient*> coef(5);
 
-      if (ics[0] == NULL)
-      { ics[0] = new FunctionCoefficient(nnFunc); ics.SetOwnership(0, true); }
-      if (ics[1] == NULL)
-      { ics[1] = new FunctionCoefficient(niFunc); ics.SetOwnership(1, true); }
-      if (ics[2] == NULL)
-      { ics[2] = new FunctionCoefficient(viFunc); ics.SetOwnership(2, true); }
-      if (ics[3] == NULL)
-      { ics[3] = new FunctionCoefficient(TiFunc); ics.SetOwnership(3, true); }
-      if (ics[4] == NULL)
-      { ics[4] = new FunctionCoefficient(TeFunc); ics.SetOwnership(4, true); }
       for (int i=0; i<5; i++) { coef[i] = ics[i]; }
 
       coef_gf.ProjectCoefficient(coef);
