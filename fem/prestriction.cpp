@@ -276,12 +276,13 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    gather_offsets[0] = 0;
 }
 
-ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
+ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &pfes_,
                                            ElementDofOrdering f_ordering,
                                            FaceType type,
                                            L2FaceValues m,
                                            bool build)
-   : L2FaceRestriction(fes, f_ordering, type, m, false)
+   : L2FaceRestriction(pfes_, f_ordering, type, m, false),
+     pfes(pfes_)
 {
    if (!build) { return; }
    if (nf==0) { return; }
@@ -306,8 +307,6 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    MFEM_ASSERT(
       m == L2FaceValues::DoubleValued,
       "This method should be called when m == L2FaceValues::DoubleValued.");
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
@@ -564,8 +563,6 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
 void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
 
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)

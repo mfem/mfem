@@ -139,6 +139,8 @@ public: // For nvcc
 class ParL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
+   const ParFiniteElementSpace &pfes;
+
    /** @brief Constructs an ParL2FaceRestriction.
 
        @param[in] fes        The ParFiniteElementSpace on which this operates
@@ -149,7 +151,7 @@ protected:
        @param[in] build      Request the ParL2FaceRestriction to compute the
                              scatter/gather indices. False should only be used
                              when inheriting from ParL2FaceRestriction. */
-   ParL2FaceRestriction(const ParFiniteElementSpace& fes,
+   ParL2FaceRestriction(const ParFiniteElementSpace &pfes_,
                         ElementDofOrdering f_ordering,
                         FaceType type,
                         L2FaceValues m,
