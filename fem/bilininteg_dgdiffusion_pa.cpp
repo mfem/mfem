@@ -114,7 +114,8 @@ static void PADGDiffusionSetup(const int dim,
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGTraceSetup"); }
    if (dim == 2)
    {
-      PADGDiffusionsetup2D(Q1D, NE, NF, W, jacE, detE, detF, nor, q, sigma, kappa, pa_data, iwork);
+      PADGDiffusionsetup2D(Q1D, NE, NF, W, jacE, detE, detF, nor, q, sigma, kappa,
+                           pa_data, iwork);
    }
    if (dim == 3)
    {
@@ -265,7 +266,7 @@ void PADGDiffusionApply2D(const int NF,
    {
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      
+
       double u0[max_D1D];
       double u1[max_D1D];
       double du0[max_D1D];
@@ -303,7 +304,7 @@ void PADGDiffusionApply2D(const int NF,
          {
             const double b = B(p,d);
             const double g = G(p,d);
-      
+
             Bu0[p] += b*u0[d];
             Bu1[p] += b*u1[d];
 
@@ -362,7 +363,7 @@ void PADGDiffusionApply2D(const int NF,
             }
 
             du[d] = sigma * Br; // overwrite du0, du1
-            u[d] += sigma * Gw;  
+            u[d] += sigma * Gw;
          }
       }
 
@@ -396,15 +397,24 @@ static void PADGDiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return PADGDiffusionApply2D<2,3>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x34: return PADGDiffusionApply2D<3,4>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x45: return PADGDiffusionApply2D<4,5>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x56: return PADGDiffusionApply2D<5,6>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x67: return PADGDiffusionApply2D<6,7>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x78: return PADGDiffusionApply2D<7,8>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x89: return PADGDiffusionApply2D<8,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         case 0x9A: return PADGDiffusionApply2D<9,10>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn);
-         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,y,dydn,D1D,Q1D);
+         case 0x23: return PADGDiffusionApply2D<2,3>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x34: return PADGDiffusionApply2D<3,4>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x45: return PADGDiffusionApply2D<4,5>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x56: return PADGDiffusionApply2D<5,6>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x67: return PADGDiffusionApply2D<6,7>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x78: return PADGDiffusionApply2D<7,8>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x89: return PADGDiffusionApply2D<8,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                        dxdn,y,dydn);
+         case 0x9A: return PADGDiffusionApply2D<9,10>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
+                                                         dxdn,y,dydn);
+         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,
+                                                   y,dydn,D1D,Q1D);
       }
    }
    else if (dim == 3)
