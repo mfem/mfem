@@ -228,6 +228,9 @@ public:
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
 
+   const L2NormalDerivativeFaceRestriction &GetNormalDerivativeRestriction() const
+   override;
+
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
@@ -422,6 +425,19 @@ public:
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
    void DoubleValuedNonconformingMult(const Vector& x, Vector& y) const override;
+};
+
+class ParL2NormalDerivativeFaceRestriction : public
+   L2NormalDerivativeFaceRestriction
+{
+public:
+   ParL2NormalDerivativeFaceRestriction(const ParFiniteElementSpace& fes,
+                                        const ElementDofOrdering ordering,
+                                        const FaceType ftype);
+
+   void Mult2D(const Vector& x, Vector& y) const override;
+
+   void Mult3D(const Vector& x, Vector& y) const override;
 };
 
 }

@@ -1034,21 +1034,12 @@ public:
    /// construction.
    void Mult(const Vector& x, Vector& y) const override;
 
-   /// @brief Gather the degrees of freedom, i.e. goes from face E-Vector to L-Vector.
-   /// @param x The face E-Vector degrees of freedom.
-   /// @param y The L-Vector degrees of freedom.
    void AddMultTranspose(const Vector& x, Vector& y,
                          const double a = 1.0) const override;
 
-   /// @brief Mult in 2 dimensions
-   /// @param x
-   /// @param y
-   void Mult2D(const Vector& x, Vector& y) const;
+   virtual void Mult2D(const Vector& x, Vector& y) const;
 
-   /// @brief Mult in 3 dimensions
-   /// @param x
-   /// @param y
-   void Mult3D(const Vector& x, Vector& y) const;
+   virtual void Mult3D(const Vector& x, Vector& y) const;
 
    void AddMultTranspose2D(const Vector& x, Vector& y, const double a) const;
 
