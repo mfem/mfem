@@ -132,7 +132,7 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
       GridFunction x(&fespace);
       FunctionCoefficient uex(uexact);
       x = 0.0;
-      x.ProjectBdrCoefficient(uex,ess_bdr);
+      x.ProjectBdrCoefficient(uex, ess_bdr);
 
       OperatorPtr A;
       Vector B, X;
@@ -207,7 +207,7 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
       ParGridFunction x(&fespace);
       FunctionCoefficient uex(uexact);
       x = 0.0;
-      x.ProjectBdrCoefficient(uex,ess_bdr);
+      x.ProjectBdrCoefficient(uex, ess_bdr);
 
       OperatorPtr A;
       Vector B, X;
@@ -235,7 +235,7 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
          Y -= B;
          REQUIRE(Y.Norml2() < 1.e-12);
 
-         mumps.ArrayMult(BB,XX);
+         mumps.ArrayMult(BB, XX);
 
          for (int i = 0; i < XX.Size(); i++)
          {
