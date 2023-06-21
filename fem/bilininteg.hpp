@@ -3105,8 +3105,6 @@ protected:
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
    const DofToQuad *maps;             ///< Not owned
-   const FaceGeometricFactors *fgeom;  ///< Not owned
-   const GeometricFactors* elgeom; ///< Not owned
    int dim, nf, nq, dofs1D, quad1D;
 
 public:

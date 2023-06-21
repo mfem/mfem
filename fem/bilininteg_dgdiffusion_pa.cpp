@@ -10,75 +10,88 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
-#include "bilininteg.hpp"
+#include "../mesh/face_nbr_geom.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
 #include "restriction.hpp"
+#include "pfespace.hpp"
 #include "fe/face_map_utils.hpp"
+
+#include "../general/communication.hpp"
 
 using namespace std;
 
 namespace mfem
 {
+
 static void PADGDiffusionsetup2D(const int Q1D,
                                  const int NE,
                                  const int NF,
-                                 const Array<double>& w,
-                                 const Vector& jacE,
-                                 const Vector& detE,
-                                 const Vector& detF,
-                                 const Vector& nor,
-                                 const Vector& q,
+                                 const Array<double> &w,
+                                 const GeometricFactors &el_geom,
+                                 const FaceGeometricFactors &face_geom,
+                                 const FaceNeighborGeometricFactors &nbr_geom,
+                                 const Vector &q,
                                  const double sigma,
                                  const double kappa,
-                                 Vector& pa_data,
-                                 const Array<int>& iwork_)
+                                 Vector &pa_data,
+                                 const Array<int> &iwork_)
 {
-   auto J = Reshape(jacE.Read(), Q1D, Q1D, 2, 2, NE);
-   auto detJe = Reshape(detE.Read(), Q1D, Q1D, NE);
-   auto detJf = Reshape(detF.Read(), Q1D, NF);
-   auto n = Reshape(nor.Read(), Q1D, 2, NF);
+   const auto J = Reshape(el_geom.J.Read(), Q1D, Q1D, 2, 2, NE);
+   const auto detJe = Reshape(el_geom.detJ.Read(), Q1D, Q1D, NE);
+
+   const int n_nbr = nbr_geom.num_neighbor_elems;
+   const auto J_shared = Reshape(nbr_geom.J.Read(), Q1D, Q1D, 2, 2, n_nbr);
+   const auto detJ_shared = Reshape(nbr_geom.detJ.Read(), Q1D, Q1D, n_nbr);
+
+   const auto detJf = Reshape(face_geom.detJ.Read(), Q1D, NF);
+   const auto n = Reshape(face_geom.normal.Read(), Q1D, 2, NF);
 
    const bool const_q = (q.Size() == 1);
-   auto Q =
-      const_q ? Reshape(q.Read(), 1,1) : Reshape(q.Read(), Q1D,NF);
+   const auto Q = const_q ? Reshape(q.Read(), 1,1) : Reshape(q.Read(), Q1D,NF);
 
-   auto W = w.Read();
+   const auto W = w.Read();
 
-   auto pa = Reshape(pa_data.Write(), 6, Q1D, NF); // (q, 1/h, J00, J01, J10, J11)
-   auto iwork = Reshape(iwork_.Read(), 6,
-                        NF); // (flip0, flip1, e0, e1, fid0, fid1)
+   // (flip0, flip1, e0, e1, fid0, fid1)
+   const auto iwork = Reshape(iwork_.Read(), 6, NF);
+
+   // (q, 1/h, J00, J01, J10, J11)
+   auto pa = Reshape(pa_data.Write(), 6, Q1D, NF);
 
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f) -> void
    {
+      const int flip[] = {iwork(0, f), iwork(1, f)};
+      const int el[] = {iwork(2, f), iwork(3, f)};
+      const int fid[] = {iwork(4, f), iwork(5, f)};
+
+      const bool interior = el[1] >= 0;
+      const int nsides = (interior) ? 2 : 1;
+      const double factor = interior ? 0.5 : 1.0;
+
+      const bool shared = el[1] >= NE;
+      const int el_1 = shared ? el[1] - NE : el[1];
+
       for (int p = 0; p < Q1D; ++p)
       {
-         const int flip[] = {iwork(0, f), iwork(1, f)};
-         const int el[] = {iwork(2, f), iwork(3, f)};
-         const int fid[] = {iwork(4, f), iwork(5, f)};
-
          const double Qp = const_q ? Q(0,0) : Q(p, f);
-         // d_q(p, f) = kappa * Qp * W[p] * detJf(p, f);
          pa(0, p, f) = kappa * Qp * W[p] * detJf(p, f);
 
-         const bool interior = el[1] >= 0;
-         const double factor = interior ? 0.5 : 1.0;
-         // hi(p, f) = 0.0;
          double hi = 0.0;
-
-         const int nsides = (interior) ? 2 : 1;
-
          for (int side = 0; side < nsides; ++side)
          {
             int i, j;
             internal::EdgeQuad2Lex2D(p, Q1D, fid[0], fid[1], side, i, j);
 
-            const double nJi0 = n(p,0,f)*J(i,j, 1,1, el[side])
-                                - n(p,1,f)*J(i,j,0,1,el[side]);
-            const double nJi1 = -n(p,0,f)*J(i,j,1,0, el[side])
-                                + n(p,1,f)*J(i,j,0,0,el[side]);
+            const int el_idx = (side == 0) ? el[0] : el_1;
+            auto J_el = (side == 1 && shared) ? J_shared : J;
+            auto detJ_el = (side == 1 && shared) ? detJ_shared : detJe;
 
-            const double dJe = detJe(i,j,el[side]);
+            const double nJi0 = n(p,0,f)*J_el(i,j, 1,1, el_idx)
+                                - n(p,1,f)*J_el(i,j,0,1,el_idx);
+            const double nJi1 = -n(p,0,f)*J_el(i,j,1,0, el_idx)
+                                + n(p,1,f)*J_el(i,j,0,0,el_idx);
+
+            const double dJe = detJ_el(i,j,el_idx);
             const double dJf = detJf(p, f);
 
             // nJi(flip[side], p, side, f) = factor * nJi0 / dJe * Qp * W[p] * dJf;
@@ -90,37 +103,15 @@ static void PADGDiffusionsetup2D(const int Q1D,
             hi += factor * dJf / dJe;
          }
 
+         if (nsides == 1)
+         {
+            pa(4, p, f) = 0.0;
+            pa(5, p, f) = 0.0;
+         }
+
          pa(1, p, f) = hi;
       }
    });
-}
-
-static void PADGDiffusionSetup(const int dim,
-                               const int D1D,
-                               const int Q1D,
-                               const int NE,
-                               const int NF,
-                               const Array<double> &W,
-                               const Vector& jacE,
-                               const Vector& detE,
-                               const Vector& detF,
-                               const Vector &nor,
-                               const Vector &q,
-                               const double sigma,
-                               const double kappa,
-                               Vector &pa_data,
-                               Array<int>& iwork)
-{
-   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGTraceSetup"); }
-   if (dim == 2)
-   {
-      PADGDiffusionsetup2D(Q1D, NE, NF, W, jacE, detE, detF, nor, q, sigma, kappa,
-                           pa_data, iwork);
-   }
-   if (dim == 3)
-   {
-      MFEM_ABORT("Not yet implemented");
-   }
 }
 
 void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
@@ -129,41 +120,39 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
-   int ne = fes.GetNE();
+   const int ne = fes.GetNE();
    nf = fes.GetNFbyType(type);
-   if (nf==0) { return; }
-   // // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
+   if (nf == 0) { return; }
+   // Assumes tensor-product elements
+   Mesh &mesh = *fes.GetMesh();
    const FiniteElement &el =
-      *fes.GetTraceElement(0, mesh->GetFaceGeometry(0));
+      *fes.GetTraceElement(0, mesh.GetFaceGeometry(0));
    FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
-   const IntegrationRule *ir = IntRule ?
-                               IntRule :
-                               &GetRule(el.GetOrder(), T0);
-   // const int symmDims = 4;
-   dim = mesh->Dimension();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el.GetOrder(), T0);
+   dim = mesh.Dimension();
    nq = ir->Size();
    const int nq1d = pow(double(ir->Size()), 1.0/(dim - 1));
-   // nq = ir->GetNPoints();
 
-   auto vol_ir = irs.Get(mesh->GetElementGeometry(0), 2*nq1d - 3);
-   elgeom = mesh->GetGeometricFactors(
-               vol_ir,
-               GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
-               mt);
+   auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*nq1d - 3);
+   auto el_geom = mesh.GetGeometricFactors(
+                     vol_ir,
+                     GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
+                     mt);
 
-   fgeom = mesh->GetFaceGeometricFactors(
-              *ir,
-              FaceGeometricFactors::DETERMINANTS |
-              FaceGeometricFactors::NORMALS, type, mt);
+   FaceNeighborGeometricFactors nbr_geom(*el_geom);
+
+   auto face_geom = mesh.GetFaceGeometricFactors(
+                       *ir,
+                       FaceGeometricFactors::DETERMINANTS |
+                       FaceGeometricFactors::NORMALS, type, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    pa_data.SetSize(6 * nq * nf, Device::GetMemoryType());
 
-   FaceQuadratureSpace fqs(*mesh, *ir, type);
+   FaceQuadratureSpace fqs(mesh, *ir, type);
    CoefficientVector q(fqs, CoefficientStorage::COMPRESSED);
    if (Q)
    {
@@ -181,24 +170,31 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    int fidx = 0;
    Array<int> iwork_(6 * nf);
-   auto iwork = Reshape(iwork_.HostWrite(), 6,
-                        nf); // (flip0, flip1, e0, e1, fid0, fid1)
-   for (int f = 0; f < mesh->GetNumFaces(); ++f)
+   // (flip0, flip1, e0, e1, fid0, fid1)
+   auto iwork = Reshape(iwork_.HostWrite(), 6, nf);
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
-      auto info = mesh->GetFaceInformation(f);
+      auto face_info = mesh.GetFaceInformation(f);
 
-      if (info.IsOfFaceType(type))
+      if (face_info.IsOfFaceType(type))
       {
-         const int face_id_1 = info.element[0].local_face_id;
+         const int face_id_1 = face_info.element[0].local_face_id;
          iwork(0, fidx) = (face_id_1 == 0 || face_id_1 == 2) ? 1 : 0;
-         iwork(2, fidx) = info.element[0].index;
+         iwork(2, fidx) = face_info.element[0].index;
          iwork(4, fidx) = face_id_1;
 
-         if (info.IsInterior())
+         if (face_info.IsInterior())
          {
-            const int face_id_2 = info.element[1].local_face_id;
+            const int face_id_2 = face_info.element[1].local_face_id;
             iwork(1, fidx) = (face_id_2 == 0 || face_id_2 == 2) ? 1 : 0;
-            iwork(3, fidx) = info.element[1].index;
+            if (face_info.IsShared())
+            {
+               iwork(3, fidx) = ne + face_info.element[1].index;
+            }
+            else
+            {
+               iwork(3, fidx) = face_info.element[1].index;
+            }
             iwork(5, fidx) = face_id_2;
          }
          else
@@ -212,9 +208,20 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       }
    }
 
-   PADGDiffusionSetup(dim, dofs1D, quad1D, ne, nf,
-                      ir->GetWeights(), elgeom->J, elgeom->detJ, fgeom->detJ,
-                      fgeom->normal, q, sigma, kappa, pa_data, iwork_);
+
+   if (dim == 1)
+   {
+      MFEM_ABORT("dim==1 not supported in PADGTraceSetup");
+   }
+   else if (dim == 2)
+   {
+      PADGDiffusionsetup2D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
+                           nbr_geom, q, sigma, kappa, pa_data, iwork_);
+   }
+   else if (dim == 3)
+   {
+      MFEM_ABORT("Not yet implemented");
+   }
 }
 
 void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&
