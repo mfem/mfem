@@ -157,7 +157,8 @@ int main(int argc, char *argv[])
 
    // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one.
+   //    non-symmetric one. (Note that tolerances are squared: 1e-24 corresponds
+   //    to a relative tolerance of 1e-12).
    //
    //    If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    if (pa)
@@ -165,7 +166,7 @@ int main(int argc, char *argv[])
       const Operator &A = a;
       if (sigma == -1.0)
       {
-         CG(A, b, x, 1, 500, 1e-12, 0.0);
+         CG(A, b, x, 1, 500, 1e-24, 0.0);
       }
       else
       {
@@ -179,11 +180,11 @@ int main(int argc, char *argv[])
       GSSmoother M(A);
       if (sigma == -1.0)
       {
-         PCG(A, M, b, x, 1, 500, 1e-12, 0.0);
+         PCG(A, M, b, x, 1, 500, 1e-24, 0.0);
       }
       else
       {
-         GMRES(A, M, b, x, 1, 500, 10, 1e-12, 0.0);
+         GMRES(A, M, b, x, 1, 500, 10, 1e-24, 0.0);
       }
 #else
       UMFPackSolver umf_solver;
