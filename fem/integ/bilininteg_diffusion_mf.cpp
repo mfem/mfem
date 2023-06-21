@@ -13,8 +13,6 @@
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 

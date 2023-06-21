@@ -15,8 +15,6 @@
 #include "../qfunction.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 
