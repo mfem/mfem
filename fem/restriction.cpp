@@ -840,7 +840,7 @@ void ConformingFaceRestriction::SetFaceDofsScatterIndices(
    for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
       const int lex_volume_dof = face_map[face_dof];
-      const int s_volume_dof = vol_dof_map[lex_volume_dof]; // signed
+      const int s_volume_dof = AsConst(vol_dof_map)[lex_volume_dof]; // signed
       const int volume_dof = absdof(s_volume_dof);
       const int s_global_dof = elem_map[elem_index*elem_dofs + volume_dof];
       const int global_dof = absdof(s_global_dof);
@@ -868,7 +868,7 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
       const int lex_volume_dof = face_map[face_dof];
-      const int s_volume_dof = vol_dof_map[lex_volume_dof];
+      const int s_volume_dof = AsConst(vol_dof_map)[lex_volume_dof];
       const int volume_dof = absdof(s_volume_dof);
       const int s_global_dof = elem_map[elem_index*elem_dofs + volume_dof];
       const int sgn = (s_global_dof >= 0) ? 1 : -1;
