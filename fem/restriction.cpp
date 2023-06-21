@@ -1551,9 +1551,9 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      face_to_elem(nf * 4)
 {
-   Mesh& mesh = *fes.GetMesh();
+   Mesh &mesh = *fes.GetMesh();
 
-   const FiniteElement& fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetFE(0);
    const int d = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR).ndof;
 
    height = 2 * nf * vdim * d;
@@ -1578,10 +1578,19 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
 
          if (face_type == FaceType::Interior)
          {
-            f2e(1, f_ind) = face.element[1].index;
+            const int el_idx_1 = face.element[1].index;
+            if (face.IsShared())
+            {
+               // Indicate shared face by index >= ne
+               f2e(1, f_ind) = ne + el_idx_1;
+            }
+            else
+            {
+               // Face is not shared
+               f2e(1, f_ind) = el_idx_1;
+               elem_indicator[el_idx_1] = 1;
+            }
             f2e(3, f_ind) = face.element[1].local_face_id;
-
-            elem_indicator[face.element[1].index] = 1;
          }
          else
          {
@@ -1613,13 +1622,16 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
       for (int side = 0; side < nsides; ++side)
       {
          const int el = f2e(side, f);
-         const int face_id = f2e(2 + side, f);
+         // Skip shared faces
+         if (el < ne)
+         {
+            const int face_id = f2e(2 + side, f);
 
-         const int e = elem_indicator[el];
-
-         e2f(0, e) = el;
-         e2f(1 + face_id, e) = f;
-         e2f(5 + face_id, e) = side;
+            const int e = elem_indicator[el];
+            e2f(0, e) = el;
+            e2f(1 + face_id, e) = f;
+            e2f(5 + face_id, e) = side;
+         }
       }
    }
 }
@@ -1834,9 +1846,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& x,
                                                            Vector& y, const double a) const
-{
-
-}
+{ }
 
 InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
                                            ElementDofOrdering ordering,
