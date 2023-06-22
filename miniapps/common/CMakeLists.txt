@@ -19,13 +19,15 @@ list(APPEND HDRS
   mfem-common.hpp
   )
 
+list(APPEND SRCS
+        pfem_extras.cpp
+        dist_solver.cpp)
+list(APPEND HDRS
+        pfem_extras.hpp
+        dist_solver.hpp)
+
 if (MFEM_USE_MPI)
-  list(APPEND SRCS
-    pfem_extras.cpp
-    dist_solver.cpp)
-  list(APPEND HDRS
-    pfem_extras.hpp
-    dist_solver.hpp)
+
 endif()
 
 if (MFEM_USE_CUDA)

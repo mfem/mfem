@@ -267,7 +267,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
         double level_set_value = interp_values(i) ;
         error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
         //error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
-        std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
+        //std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
     }
 //    std::cout << el << " " << error << " k10facel2error\n";
 //    MFEM_ABORT(" ");
@@ -643,6 +643,9 @@ int main(int argc, char *argv[])
     FiniteElementSpace *surf_fit_hess_fes = NULL;
     GridFunction *surf_fit_hess = NULL;
 
+    //FunctionCoefficient ls_coeff(circle_level_set);
+    FunctionCoefficient ls_coeff(squircle_level_set);
+
     if (surf_bg_mesh)
     {
         // Init the FEC, FES and GridFunction of uniform order = 6
@@ -657,34 +660,41 @@ int main(int argc, char *argv[])
    {
       // Define a function coefficient (based on the analytic description of
       // the level-set)
-      FunctionCoefficient ls_coeff(squircle_level_set);
-//       FunctionCoefficient ls_coeff(circle_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+       //FunctionCoefficient ls_coeff(circle_level_set);
+        std::cout << "1.1. " << std::endl;
+        std::cout << "FES Dofs: " << fespace->GetNDofs() << std::endl;
+       std::cout << "Surf fit Dofs: " << surf_fit_gf0.FESpace()->GetNDofs() << std::endl;
+       surf_fit_gf0.ProjectCoefficient(ls_coeff);
+       std::cout << "1.2. " << std::endl;
 
       for (int i = 0; i < mesh->GetNE(); i++)
-      {
-         mat(i) = material_id(i, surf_fit_gf0);
-         mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-         {
-             Vector center(mesh->Dimension());
-             mesh->GetElementCenter(i, center);
-             if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                 center(1) < 0.75)
-             {
-                mat(i) = 0;
-             }
-             else
-             {
-                mat(i) = 1;
-             }
-             mesh->SetAttribute(i, mat(i) + 1);
-         }
-      }
-
+       {
+           mat(i) = material_id(i, surf_fit_gf0);
+           mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
+           {
+               Vector center(mesh->Dimension());
+               mesh->GetElementCenter(i, center);
+               if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                   center(1) < 0.75)
+               {
+                   mat(i) = 0;
+               }
+               else
+               {
+                   mat(i) = 1;
+               }
+               mesh->SetAttribute(i, mat(i) + 1);
+           }
+       }
 
       // Now p-refine the elements around the interface
       if (prefine)
       {
+          // TODO: BOUCLE
+          //for (int iter_pref=0; iter_pref<2; iter_pref++)
+          //{
+          //    std::cout << "BOUCLE j: " << iter_pref << std::endl;
+              //    std::cout << "1. " << std::endl;
          // TODO
          int max_order = fespace->GetMaxElementOrder();
          for (int i=0; i < mesh->GetNumFaces(); i++)
@@ -702,6 +712,7 @@ int main(int argc, char *argv[])
                      order_gf(els[0]) = max_order+pref_order_increase;
                      order_gf(els[1]) = max_order+pref_order_increase;
                      inter_faces.push_back(i);
+                     //if (iter_pref==0){inter_faces.push_back(i);}
                  }
              }
          }
@@ -716,6 +727,21 @@ int main(int argc, char *argv[])
 
          x.SetTrueVector();
          x.SetFromTrueVector();
+
+         //mesh->SetNodalGridFunction(&x);
+        /*
+         if (visualization)
+         {
+             x_max_order = ProlongToMaxOrder(&x , 0);
+             mesh->SetNodalGridFunction(x_max_order);
+             socketstream vis1;
+             common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order in loop",
+                                         00, 600, 300, 300);
+             mesh->SetNodalGridFunction(&x);
+         }
+        */
+
+        //  }
 
       }
       else
@@ -735,7 +761,6 @@ int main(int argc, char *argv[])
               }
           }
       }
-
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
       if (surf_bg_mesh)
        {
@@ -836,7 +861,9 @@ int main(int argc, char *argv[])
 #endif
       }
       else { MFEM_ABORT("Bad interpolation option."); }
-
+       std::cout << "1.6. " << std::endl;
+      std::cout << "surf fit bg mesh size " << surf_fit_bg_gf0->FESpace()->GetMesh()->GetNodes()->Size() << std::endl;
+      std::cout << "surf fit bg fes dofs " << surf_fit_bg_gf0->FESpace()->GetNDofs() << std::endl;
        if (!surf_bg_mesh)
        {
             tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
@@ -884,6 +911,8 @@ int main(int argc, char *argv[])
       }
       mesh->SetNodalGridFunction(&x);
    }
+
+        std::cout << "2. " << std::endl;
 
    if (visualization)
    {
@@ -1090,6 +1119,7 @@ int main(int argc, char *argv[])
    delete x_max_order;
    x_max_order = ProlongToMaxOrder(&x, 0);
    mesh->SetNodalGridFunction(x_max_order);
+
    // 15. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
@@ -1145,8 +1175,9 @@ int main(int argc, char *argv[])
                 << "Max fitting error: " << err_max << std::endl;
 
       // TODO: Compute Integrate Error
-      FunctionCoefficient ls_coeff(surface_level_set);
+      //FunctionCoefficient ls_coeff(squircle_level_set);
       //surf_fit_gf0.ProjectCoefficient(ls_coeff);
+       surf_fit_gf0.ProjectCoefficient(ls_coeff);
       tmop_integ->CopyGridFunction(surf_fit_gf0);
       surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
       double error_sum = 0.0;
@@ -1162,7 +1193,6 @@ int main(int argc, char *argv[])
                                                          finder);
           error_bg_sum += error_bg_face;
       }
-      std::cout << "Nbr DOFs: " << fespace->GetNDofs() << ", Max order: " << fespace->GetMaxElementOrder() <<  std::endl;
       std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
       std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " << std::endl;
       std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" << std::endl;
@@ -1170,6 +1200,7 @@ int main(int argc, char *argv[])
    }
 
    // Visualize the mesh displacement.
+   /*
    if (visualization)
    {
       osockstream sock(19916, "localhost");
@@ -1185,6 +1216,9 @@ int main(int argc, char *argv[])
            << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
            << "keys jRmclA" << endl;
    }
+    */
+
+   mesh->SetNodalGridFunction(&x); // Need this for the loop
 
    finder.FreeData();
 
