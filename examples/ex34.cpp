@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
          a10.Finalize();
          SparseMatrix &A10 = a10.SpMat();
 
-         SparseMatrix &A01 = *Transpose(A10);
+         SparseMatrix *A01 = Transpose(A10);
 
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
          BlockOperator A(offsets);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
-         A.SetBlock(0,1,&A01);
+         A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
          BlockDiagonalPreconditioner prec(offsets);
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
 
          GMRES(A,prec,rhs,x,0,200, 50, 1e-12,0.0);
-
+         delete A01;
          u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
          delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
 

@@ -3,8 +3,8 @@
 //
 // Compile with: make ex34p
 //
-// Sample runs: mpirun -np 2 ex34p -o 2
-//              mpirun -np 2 ex34p -o 2 -r 4
+// Sample runs: mpirun -np 4 ex34p -o 2
+//              mpirun -np 4 ex34p -o 2 -r 4
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
                                          rhs.GetBlock(1),
                                          A10, tx.GetBlock(0), trhs.GetBlock(1));
 
-         HypreParMatrix &A01 = *A10.Transpose();
+         HypreParMatrix *A01 = A10.Transpose();
 
          ParBilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
          BlockOperator A(toffsets);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
-         A.SetBlock(0,1,&A01);
+         A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
          BlockDiagonalPreconditioner prec(toffsets);
@@ -345,6 +345,8 @@ int main(int argc, char *argv[])
          gmres.SetOperator(A);
          gmres.SetPreconditioner(prec);
          gmres.Mult(trhs,tx);
+
+         delete A01;
 
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          delta_psi_gf.SetFromTrueDofs(tx.GetBlock(1));
