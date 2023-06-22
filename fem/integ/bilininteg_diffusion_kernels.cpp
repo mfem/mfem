@@ -140,7 +140,6 @@ void PADiffusionSetup2D<2>(const int Q1D,
    });
 }
 
-// PA Diffusion Assemble 2D kernel with 3D node coords
 template<>
 void PADiffusionSetup2D<3>(const int Q1D,
                            const int coeffDim,

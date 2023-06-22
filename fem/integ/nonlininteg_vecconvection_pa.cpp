@@ -565,7 +565,7 @@ static void PAConvectionNLApply3D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D =0, int T_MAX_Q1D =0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D = 0, int T_MAX_Q1D = 0>
 static void SmemPAConvectionNLApply3D(const int NE,
                                       const Array<double> &b_,
                                       const Array<double> &g_,
