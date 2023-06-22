@@ -285,10 +285,10 @@ ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib\
       -lsuperlu_dist_5.1.0
 else
-   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_8.1.2
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64\
-      -lsuperlu_dist -lblas
+      -lsuperlu_dist $(LAPACK_LIB)
 endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
