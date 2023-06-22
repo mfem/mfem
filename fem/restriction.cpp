@@ -1542,8 +1542,9 @@ const L2NormalDerivativeFaceRestriction
 L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    const FiniteElementSpace& fes_,
    const ElementDofOrdering ordering,
-   const FaceType face_type)
+   const FaceType face_type_)
    : fes(fes_),
+     face_type(face_type_),
      sdim(fes.GetMesh()->Dimension()),
      nf(fes.GetNFbyType(face_type)),
      ne(fes.GetNE()),
@@ -1636,7 +1637,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    }
 }
 
-void L2NormalDerivativeFaceRestriction::Mult(const Vector& x, Vector& y) const
+void L2NormalDerivativeFaceRestriction::Mult(const Vector &x, Vector &y) const
 {
    if (nf == 0)
    {
@@ -1658,7 +1659,7 @@ void L2NormalDerivativeFaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
+void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 {
    int ne_shared = 0;
    const double *face_nbr_data = nullptr;
@@ -1667,14 +1668,17 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
 #ifdef MFEM_USE_MPI
    if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
    {
-      ParGridFunction *x_pgf = new ParGridFunction;
-      x_gf.reset(x_pgf);
-      x_pgf->MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                     const_cast<Vector&>(x), 0);
-      x_pgf->ExchangeFaceNbrData();
+      if (face_type == FaceType::Interior)
+      {
+         ParGridFunction *x_pgf = new ParGridFunction;
+         x_gf.reset(x_pgf);
+         x_pgf->MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
+                        const_cast<Vector&>(x), 0);
+         x_pgf->ExchangeFaceNbrData();
 
-      face_nbr_data = x_pgf->FaceNbrData().Read();
-      ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
+         face_nbr_data = x_pgf->FaceNbrData().Read();
+         ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
+      }
    }
 #endif
 
@@ -1752,8 +1756,8 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector& x, Vector& y) const
    }); // mfem::forall
 }
 
-void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector& x,
-                                                         Vector& y, const double a) const
+void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector &x,
+                                                         Vector &y, const double a) const
 {
    if (nf == 0)
    {
@@ -1774,13 +1778,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector& x,
    }
 }
 
-void L2NormalDerivativeFaceRestriction::Mult3D(const Vector& x, Vector& y) const
+void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 {
 
 }
 
-void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector& y,
-                                                           Vector& x, const double a) const
+void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
+                                                           Vector &x, const double a) const
 {
    const int vd = vdim;
    const bool t = byvdim;

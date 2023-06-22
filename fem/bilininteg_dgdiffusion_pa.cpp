@@ -30,7 +30,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
                                  const Array<double> &w,
                                  const GeometricFactors &el_geom,
                                  const FaceGeometricFactors &face_geom,
-                                 const FaceNeighborGeometricFactors &nbr_geom,
+                                 const FaceNeighborGeometricFactors *nbr_geom,
                                  const Vector &q,
                                  const double sigma,
                                  const double kappa,
@@ -40,9 +40,11 @@ static void PADGDiffusionsetup2D(const int Q1D,
    const auto J = Reshape(el_geom.J.Read(), Q1D, Q1D, 2, 2, NE);
    const auto detJe = Reshape(el_geom.detJ.Read(), Q1D, Q1D, NE);
 
-   const int n_nbr = nbr_geom.num_neighbor_elems;
-   const auto J_shared = Reshape(nbr_geom.J.Read(), Q1D, Q1D, 2, 2, n_nbr);
-   const auto detJ_shared = Reshape(nbr_geom.detJ.Read(), Q1D, Q1D, n_nbr);
+   const int n_nbr = nbr_geom ? nbr_geom->num_neighbor_elems : 0;
+   const auto J_shared = Reshape(nbr_geom ? nbr_geom->J.Read() : nullptr, Q1D, Q1D,
+                                 2, 2, n_nbr);
+   const auto detJ_shared = Reshape(nbr_geom ? nbr_geom->detJ.Read() : nullptr,
+                                    Q1D, Q1D, n_nbr);
 
    const auto detJf = Reshape(face_geom.detJ.Read(), Q1D, NF);
    const auto n = Reshape(face_geom.normal.Read(), Q1D, 2, NF);
@@ -122,7 +124,9 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    const int ne = fes.GetNE();
    nf = fes.GetNFbyType(type);
-   if (nf == 0) { return; }
+
+   // if (nf == 0) { return; }
+
    // Assumes tensor-product elements
    Mesh &mesh = *fes.GetMesh();
    const FiniteElement &el =
@@ -140,7 +144,12 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
                      GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
                      mt);
 
-   FaceNeighborGeometricFactors nbr_geom(*el_geom);
+   std::unique_ptr<FaceNeighborGeometricFactors> nbr_geom;
+
+   if (type == FaceType::Interior)
+   {
+      nbr_geom.reset(new FaceNeighborGeometricFactors(*el_geom));
+   }
 
    auto face_geom = mesh.GetFaceGeometricFactors(
                        *ir,
@@ -216,7 +225,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    else if (dim == 2)
    {
       PADGDiffusionsetup2D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
-                           nbr_geom, q, sigma, kappa, pa_data, iwork_);
+                           nbr_geom.get(), q, sigma, kappa, pa_data, iwork_);
    }
    else if (dim == 3)
    {
