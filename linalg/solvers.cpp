@@ -3567,8 +3567,8 @@ NNLS::NNLS(double const_tol, int min_nnz, int max_nnz, int verbosity,
    : Solver(0), mat(nullptr), const_tol_(const_tol), min_nnz_(min_nnz),
      max_nnz_(max_nnz), verbosity_(verbosity),
      res_change_termination_tol_(res_change_termination_tol),
-     zero_tol_(zero_tol), rhs_delta_(rhs_delta), normalize_(normalize),
-     n_outer_(n_outer), n_inner_(n_inner), nStallCheck_(n_stallCheck),
+     zero_tol_(zero_tol), rhs_delta_(rhs_delta), n_outer_(n_outer),
+     n_inner_(n_inner), nStallCheck_(n_stallCheck), normalize_(normalize),
      NNLS_qrres_on_(false), qr_residual_mode_(QRresidualMode::hybrid)
 {
 }
@@ -3607,7 +3607,6 @@ void NNLS::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
 {
    // Scale everything so that rescaled half gap is the same for all constraints
    const int m = mat->NumRows();
-   const int n = mat->NumCols();
 
    MFEM_VERIFY(rhs_lb.Size() == m && rhs_ub.Size() == m, "");
 
