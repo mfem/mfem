@@ -5,9 +5,9 @@
 //
 // Sample runs:
 // mpirun -np 4 ex35p -lambda 0.1 -mu 0.1
-// mpirun -np 6 ex35p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
-// mpirun -np 8 ex35p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
-// mpirun -np 8 ex35p -r 7 -o 1 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex35p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex35p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex35p -r 7 -o 1 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve a
@@ -425,12 +425,9 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("filtered_density",&rho_filter);
 
    // 11. Iterate
-   int step = 0;
-   double c0 = 0.0;
    for (int k = 1; k < max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
-      step++;
 
       if (myid == 0)
       {

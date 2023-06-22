@@ -398,12 +398,9 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("filtered_density",&rho_filter);
 
    // 11. Iterate
-   int step = 0;
-   double c0 = 0.0;
    for (int k = 1; k < max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
-      step++;
 
       mfem::out << "\nStep = " << k << std::endl;
 
