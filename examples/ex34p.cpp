@@ -335,7 +335,7 @@ int main(int argc, char *argv[])
          P00.SetPrintLevel(0);
          HypreSmoother P11(A11);
          prec.SetDiagonalBlock(0,&P00);
-         prec.SetDiagonalBlock(1,new HypreSmoother(A11));
+         prec.SetDiagonalBlock(1,&P11);
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetPrintLevel(-1);
