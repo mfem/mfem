@@ -429,9 +429,9 @@ void PACurlCurlAssembleDiagonal2D(const int D1D,
                                   Vector &diag);
 
 // PA H(curl) curl-curl Diagonal 3D kernel
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-inline void PACurlCurlAssembleDiagonal3D(const int D1D,
-                                         const int Q1D,
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void PACurlCurlAssembleDiagonal3D(const int d1d,
+                                         const int q1d,
                                          const bool symmetric,
                                          const int NE,
                                          const Array<double> &bo,
@@ -441,9 +441,10 @@ inline void PACurlCurlAssembleDiagonal3D(const int D1D,
                                          const Vector &pa_data,
                                          Vector &diag)
 {
-   constexpr static int VDIM = 3;
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
@@ -474,6 +475,12 @@ inline void PACurlCurlAssembleDiagonal3D(const int D1D,
       // For each c, we will keep 9 arrays for derivatives multiplied by the 9 entries of the 3x3 matrix (dF^T C dF),
       // which may be non-symmetric depending on a possibly non-symmetric matrix coefficient.
 
+      constexpr int VDIM = 3;
+      constexpr int MD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
+      constexpr int MQ1D = T_Q1D ? T_Q1D : HCURL_MAX_Q1D;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       int osc = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
@@ -482,7 +489,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         double zt[MAX_Q1D][MAX_Q1D][MAX_D1D][9][3];
+         double zt[MQ1D][MQ1D][MD1D][9][3];
 
          // z contraction
          for (int qx = 0; qx < Q1D; ++qx)
@@ -515,7 +522,7 @@ inline void PACurlCurlAssembleDiagonal3D(const int D1D,
             }
          }  // end of z contraction
 
-         double yt[MAX_Q1D][MAX_D1D][MAX_D1D][9][3][3];
+         double yt[MQ1D][MD1D][MD1D][9][3][3];
 
          // y contraction
          for (int qx = 0; qx < Q1D; ++qx)
@@ -826,9 +833,9 @@ void PACurlCurlApply2D(const int D1D,
                        Vector &y);
 
 // PA H(curl) curl-curl Apply 3D kernel
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-inline void PACurlCurlApply3D(const int D1D,
-                              const int Q1D,
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void PACurlCurlApply3D(const int d1d,
+                              const int q1d,
                               const bool symmetric,
                               const int NE,
                               const Array<double> &bo,
@@ -841,17 +848,10 @@ inline void PACurlCurlApply3D(const int D1D,
                               const Vector &x,
                               Vector &y)
 {
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
-   // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk),
-   // we get:
-   // (\nabla\times u) \cdot (\nabla\times v)
-   //     = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{v}
-   // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-   // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-   // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
-
-   constexpr static int VDIM = 3;
+   MFEM_VERIFY(T_D1D || d1d <= HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
@@ -865,7 +865,21 @@ inline void PACurlCurlApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+      // Using (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk),
+      // we get:
+      // (\nabla\times u) \cdot (\nabla\times v)
+      //     = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{\nabla}\times\hat{v}
+      // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+      // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+      // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+      constexpr int VDIM = 3;
+      constexpr int MD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
+      constexpr int MQ1D = T_Q1D ? T_Q1D : HCURL_MAX_Q1D;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double curl[MQ1D][MQ1D][MQ1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -894,7 +908,7 @@ inline void PACurlCurlApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MAX_Q1D][MAX_Q1D][2];
+            double gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -908,7 +922,7 @@ inline void PACurlCurlApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MAX_Q1D];
+               double massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -963,7 +977,7 @@ inline void PACurlCurlApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MAX_Q1D][MAX_Q1D][2];
+            double gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -977,7 +991,7 @@ inline void PACurlCurlApply3D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double massY[MAX_Q1D];
+               double massY[MQ1D];
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   massY[qy] = 0.0;
@@ -1032,7 +1046,7 @@ inline void PACurlCurlApply3D(const int D1D,
 
          for (int dx = 0; dx < D1Dx; ++dx)
          {
-            double gradYZ[MAX_Q1D][MAX_Q1D][2];
+            double gradYZ[MQ1D][MQ1D][2];
             for (int qz = 0; qz < Q1D; ++qz)
             {
                for (int qy = 0; qy < Q1D; ++qy)
@@ -1046,7 +1060,7 @@ inline void PACurlCurlApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massZ[MAX_Q1D];
+               double massZ[MQ1D];
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   massZ[qz] = 0.0;
@@ -1132,8 +1146,8 @@ inline void PACurlCurlApply3D(const int D1D,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY12[MAX_D1D][MAX_D1D];
-            double gradXY21[MAX_D1D][MAX_D1D];
+            double gradXY12[MD1D][MD1D];
+            double gradXY21[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -1145,7 +1159,7 @@ inline void PACurlCurlApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MAX_D1D][2];
+               double massX[MD1D][2];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   for (int n = 0; n < 2; ++n)
@@ -1204,8 +1218,8 @@ inline void PACurlCurlApply3D(const int D1D,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY02[MAX_D1D][MAX_D1D];
-            double gradXY20[MAX_D1D][MAX_D1D];
+            double gradXY02[MD1D][MD1D];
+            double gradXY20[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -1217,7 +1231,7 @@ inline void PACurlCurlApply3D(const int D1D,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               double massY[MAX_D1D][2];
+               double massY[MD1D][2];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   massY[dy][0] = 0.0;
@@ -1274,8 +1288,8 @@ inline void PACurlCurlApply3D(const int D1D,
 
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            double gradYZ01[MAX_D1D][MAX_D1D];
-            double gradYZ10[MAX_D1D][MAX_D1D];
+            double gradYZ01[MD1D][MD1D];
+            double gradYZ10[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -1287,7 +1301,7 @@ inline void PACurlCurlApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massZ[MAX_D1D][2];
+               double massZ[MD1D][2];
                for (int dz = 0; dz < D1Dz; ++dz)
                {
                   for (int n = 0; n < 2; ++n)
@@ -1710,9 +1724,9 @@ void PAHcurlL2ApplyTranspose2D(const int D1D,
                                Vector &y);
 
 // PA H(curl)-L2 Apply 3D kernel
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-inline void PAHcurlL2Apply3D(const int D1D,
-                             const int Q1D,
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void PAHcurlL2Apply3D(const int d1d,
+                             const int q1d,
                              const int coeffDim,
                              const int NE,
                              const Array<double> &bo,
@@ -1724,18 +1738,10 @@ inline void PAHcurlL2Apply3D(const int D1D,
                              const Vector &x,
                              Vector &y)
 {
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
-   // Using u = dF^{-T} \hat{u} and (\nabla\times u) F =
-   // 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get:
-   // (\nabla\times u) \cdot v
-   //    = 1/det(dF) \hat{\nabla}\times\hat{u}^T dF^T dF^{-T} \hat{v}
-   //    = 1/det(dF) \hat{\nabla}\times\hat{u}^T \hat{v}
-   // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-   // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-   // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
-
-   constexpr static int VDIM = 3;
+   MFEM_VERIFY(T_D1D || d1d <= HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
@@ -1748,7 +1754,22 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double curl[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+      // Using u = dF^{-T} \hat{u} and (\nabla\times u) F =
+      // 1/det(dF) dF \hat{\nabla}\times\hat{u} (p. 78 of Monk), we get:
+      // (\nabla\times u) \cdot v
+      //    = 1/det(dF) \hat{\nabla}\times\hat{u}^T dF^T dF^{-T} \hat{v}
+      //    = 1/det(dF) \hat{\nabla}\times\hat{u}^T \hat{v}
+      // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+      // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+      // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+      constexpr int VDIM = 3;
+      constexpr int MD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
+      constexpr int MQ1D = T_Q1D ? T_Q1D : HCURL_MAX_Q1D;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double curl[MQ1D][MQ1D][MQ1D][VDIM];
       // curl[qz][qy][qx] will be computed as the vector curl at each quadrature point.
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -1777,7 +1798,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MAX_Q1D][MAX_Q1D][2];
+            double gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1791,7 +1812,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MAX_Q1D];
+               double massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -1846,7 +1867,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double gradXY[MAX_Q1D][MAX_Q1D][2];
+            double gradXY[MQ1D][MQ1D][2];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1860,7 +1881,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               double massY[MAX_Q1D];
+               double massY[MQ1D];
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   massY[qy] = 0.0;
@@ -1915,7 +1936,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
          for (int dx = 0; dx < D1Dx; ++dx)
          {
-            double gradYZ[MAX_Q1D][MAX_Q1D][2];
+            double gradYZ[MQ1D][MQ1D][2];
             for (int qz = 0; qz < Q1D; ++qz)
             {
                for (int qy = 0; qy < Q1D; ++qy)
@@ -1929,7 +1950,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massZ[MAX_Q1D];
+               double massZ[MQ1D];
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   massZ[qz] = 0.0;
@@ -2013,7 +2034,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[MAX_D1D][MAX_D1D];
+         double massXY[MD1D][MD1D];
 
          osc = 0;
 
@@ -2032,7 +2053,7 @@ inline void PAHcurlL2Apply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MAX_D1D];
+               double massX[MD1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0.0;
@@ -2389,9 +2410,9 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
 }
 
 // PA H(curl)-L2 Apply Transpose 3D kernel
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-inline void PAHcurlL2Apply3DTranspose(const int D1D,
-                                      const int Q1D,
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void PAHcurlL2ApplyTranspose3D(const int d1d,
+                                      const int q1d,
                                       const int coeffDim,
                                       const int NE,
                                       const Array<double> &bo,
@@ -2404,11 +2425,10 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
                                       Vector &y)
 {
    // See PAHcurlL2Apply3D for comments.
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
-
-   constexpr static int VDIM = 3;
+   MFEM_VERIFY(T_D1D || d1d <= HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
@@ -2421,7 +2441,13 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+      constexpr int VDIM = 3;
+      constexpr int MD1D = T_D1D ? T_D1D : HCURL_MAX_D1D;
+      constexpr int MQ1D = T_Q1D ? T_Q1D : HCURL_MAX_Q1D;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double mass[MQ1D][MQ1D][MQ1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -2447,7 +2473,7 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double massXY[MAX_Q1D][MAX_Q1D];
+            double massXY[MQ1D][MQ1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -2458,7 +2484,7 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MAX_Q1D];
+               double massX[MQ1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -2545,8 +2571,8 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY12[MAX_D1D][MAX_D1D];
-            double gradXY21[MAX_D1D][MAX_D1D];
+            double gradXY12[MD1D][MD1D];
+            double gradXY21[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -2558,7 +2584,7 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[MAX_D1D][2];
+               double massX[MD1D][2];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   for (int n = 0; n < 2; ++n)
@@ -2617,8 +2643,8 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY02[MAX_D1D][MAX_D1D];
-            double gradXY20[MAX_D1D][MAX_D1D];
+            double gradXY02[MD1D][MD1D];
+            double gradXY20[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -2630,7 +2656,7 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               double massY[MAX_D1D][2];
+               double massY[MD1D][2];
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   massY[dy][0] = 0.0;
@@ -2687,8 +2713,8 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            double gradYZ01[MAX_D1D][MAX_D1D];
-            double gradYZ10[MAX_D1D][MAX_D1D];
+            double gradYZ01[MD1D][MD1D];
+            double gradYZ10[MD1D][MD1D];
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
@@ -2700,7 +2726,7 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massZ[MAX_D1D][2];
+               double massZ[MD1D][2];
                for (int dz = 0; dz < D1Dz; ++dz)
                {
                   for (int n = 0; n < 2; ++n)
@@ -2754,7 +2780,7 @@ inline void PAHcurlL2Apply3DTranspose(const int D1D,
 
 // PA H(curl)-L2 Apply Transpose 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAHcurlL2Apply3DTranspose(const int d1d,
+inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                                           const int q1d,
                                           const int coeffDim,
                                           const int NE,

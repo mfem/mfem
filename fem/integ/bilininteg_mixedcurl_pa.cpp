@@ -255,7 +255,7 @@ void MixedVectorCurlIntegrator::AddMultTransposePA(const Vector &x,
    if (testType == mfem::FiniteElement::DIV &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      internal::PAHcurlHdivApply3DTranspose(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
+      internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
                                             mapsC->B, mapsOtest->Bt, mapsCtest->Bt,
                                             mapsC->Gt, pa_data, x, y);
    }
@@ -358,27 +358,27 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
          switch (ID)
          {
             case 0x23:
-               return internal::SmemPAHcurlL2Apply3DTranspose<2,3>(
+               return internal::SmemPAHcurlL2ApplyTranspose3D<2,3>(
                          dofs1D, quad1D, ndata,
                          ne, mapsO->B, mapsC->B,
                          mapsC->G, pa_data, x, y);
             case 0x34:
-               return internal::SmemPAHcurlL2Apply3DTranspose<3,4>(
+               return internal::SmemPAHcurlL2ApplyTranspose3D<3,4>(
                          dofs1D, quad1D, ndata,
                          ne, mapsO->B, mapsC->B,
                          mapsC->G, pa_data, x, y);
             case 0x45:
-               return internal::SmemPAHcurlL2Apply3DTranspose<4,5>(
+               return internal::SmemPAHcurlL2ApplyTranspose3D<4,5>(
                          dofs1D, quad1D, ndata,
                          ne, mapsO->B, mapsC->B,
                          mapsC->G, pa_data, x, y);
             case 0x56:
-               return internal::SmemPAHcurlL2Apply3DTranspose<5,6>(
+               return internal::SmemPAHcurlL2ApplyTranspose3D<5,6>(
                          dofs1D, quad1D, ndata,
                          ne, mapsO->B, mapsC->B,
                          mapsC->G, pa_data, x, y);
             default:
-               return internal::SmemPAHcurlL2Apply3DTranspose(
+               return internal::SmemPAHcurlL2ApplyTranspose3D(
                          dofs1D, quad1D, ndata, ne,
                          mapsO->B, mapsC->B,
                          mapsC->G, pa_data, x, y);
@@ -386,7 +386,7 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else
       {
-         internal::PAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne, mapsO->B,
+         internal::PAHcurlL2ApplyTranspose3D(dofs1D, quad1D, ndata, ne, mapsO->B,
                                              mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt,
                                              pa_data, x, y);
       }
@@ -394,7 +394,7 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (testType == mfem::FiniteElement::CURL &&
             trialType == mfem::FiniteElement::DIV && dim == 3)
    {
-      internal::PAHcurlHdivApply3DTranspose(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+      internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
                                             mapsC->B, mapsO->Bt, mapsC->Bt,
                                             mapsC->Gt, pa_data, x, y);
    }
