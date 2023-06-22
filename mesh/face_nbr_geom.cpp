@@ -60,8 +60,8 @@ void FaceNeighborGeometricFactors::ExchangeFaceNbrData(const Vector &x_local,
    x_shared.SetSize(ndof_per_el * num_neighbor_elems);
    send_offsets.SetSize(n_face_nbr + 1);
    send_data.SetSize(ndof_per_el * ne_send);
-   auto d_send_data = Reshape(send_data.Write(), ndof_per_el, ne_send);
-   const auto d_x_local = Reshape(x_local.Read(), ndof_per_el, mesh->GetNE());
+   auto h_send_data = Reshape(send_data.HostWrite(), ndof_per_el, ne_send);
+   const auto h_x_local = Reshape(x_local.HostRead(), ndof_per_el, mesh->GetNE());
    int idx = 0;
    Array<int> row;
    for (int i = 0; i < n_face_nbr; ++i)
@@ -72,7 +72,7 @@ void FaceNeighborGeometricFactors::ExchangeFaceNbrData(const Vector &x_local,
       {
          for (int j = 0; j < ndof_per_el; ++j)
          {
-            d_send_data(j, idx) = d_x_local(j, el);
+            h_send_data(j, idx) = h_x_local(j, el);
          }
          ++idx;
       }
