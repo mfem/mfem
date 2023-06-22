@@ -29,7 +29,7 @@ SPDE_COMMON_SRC = material_metrics.cpp spde_solver.cpp transformation.cpp util.c
 
 SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = 
+SEQ_MINIAPPS =
 PAR_MINIAPPS = generate_random_field
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -73,4 +73,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf ParaView 
+	@rm -rf ParaView

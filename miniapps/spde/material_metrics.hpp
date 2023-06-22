@@ -48,11 +48,10 @@ class ParticleTopology : public MaterialTopology
 {
 public:
    /// Constructor. The length of the vectors random_positions and
-   /// random_rotations must be 3 * number_of_particles and
-   /// 9 * number_of_particles, respectively. They implicitly define the the
-   /// number of the particles.
+   /// random_rotations must be 3x and 9x number_of_particles,
+   /// respectively. They implicitly define the number of the particles.
    /// @param[in]  (length_x, length_y, length_z) - particle shape
-   /// @param[in]  random_positions - vector with random positions for partices
+   /// @param[in]  random_positions - vector with random positions for particles
    /// @param[in]  random_rotations - vector with random rotations for particles
    ParticleTopology(double length_x, double length_y, double length_z,
                     std::vector<double> &random_positions,
