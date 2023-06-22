@@ -42,7 +42,7 @@ void FillWithRandomRotations(std::vector<double> &x)
       const double s3 = sin(e3);
 
       // Fill the rotation matrix R with the Euler angles. See for instance
-      // the definition in wikipedia.
+      // the definition in Wikipedia.
       x[i + 0] = c1 * c3 - c2 * s1 * s3;
       x[i + 1] = -c1 * s3 - c2 * c3 * s1;
       x[i + 2] = s1 * s2;
