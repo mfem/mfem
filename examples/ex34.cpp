@@ -298,6 +298,7 @@ int main(int argc, char *argv[])
          A.SetBlock(1,1,&A11);
 
          BlockDiagonalPreconditioner prec(offsets);
+         prec.owns_blocks = 1;
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
 
