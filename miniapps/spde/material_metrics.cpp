@@ -198,7 +198,7 @@ void OctetTrussTopology::CreatePeriodicPoints(
    const Vector &x, std::vector<Vector> &periodic_points) const
 {
    Vector xx(x);
-   // Compute the diplaced ghost points. Computation assumes domain [0,1]^3.
+   // Compute the displaced ghost points. Computation assumes domain [0,1]^3.
    double d_x[3] = {1, 0, 0};
    double d_y[3] = {0, 1, 0};
    double d_z[3] = {0, 0, 1};

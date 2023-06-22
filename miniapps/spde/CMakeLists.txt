@@ -20,6 +20,6 @@ if (MFEM_USE_MPI)
   file(COPY ${PROJECT_SOURCE_DIR}/miniapps/spde/README.md
        DESTINATION ${PROJECT_BINARY_DIR}/miniapps/spde)
 else ()
-  message("This miniapp requires MPI to be enabled." 
+  message("This miniapp requires MPI to be enabled."
           "Please compile with MFEM_USE_MPI.")
 endif()

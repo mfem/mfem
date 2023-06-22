@@ -8,31 +8,30 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
-
-// ===========================================================================
 //
-//   Mini-App: Gaussian Random Fields of Matérn Covariance for Imperfect
-//   Materials
+//     -------------------------------------------------------------------
+//     Gaussian Random Fields of Matern Covariance for Imperfect Materials
+//     -------------------------------------------------------------------
 //
-//  Details: refer to README.md
+//  See README.md for detailed description.
 //
-//  Runs:
-//   -> Basic usage:
+// Compile with: make generate_random_field
+//
+//  Sample runs:
+//     (Basic usage)
 //     mpirun -np 4 generate_random_field
 //
-//   -> Generate 5 particles with random imperfections
+//     (Generate 5 particles with random imperfections)
 //     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 -l1 0.015 -l2 0.015 -l3 0.015 -s 0.01 -t 0.08 -n 5 -pl2 3 -top 0 -rs
 //
-//   -> Generate an Octet-Truss with random imperfections
+//     (Generate an Octet-Truss with random imperfections)
 //     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 -l1 0.02 -l2 0.02 -l3 0.02 -s 0.01 -t 0.08 -top 1 -rs
 //
-//   -> Generate an Octet-Truss with random imperfections following a uniform
-//      distribution
+//     (Generate an Octet-Truss with random imperfections following a uniform distribution)
 //     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 2 -l1 0.02 -l2 0.02 -l3 0.02 -umin 0.01 -umax 0.05 -t 0.08 -top 1 -urf -rs
 //
-//   -> A 2D random field with anisotropy
+//     (2D random field with anisotropy)
 //     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 4 -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh
-// ===========================================================================
 
 #include <math.h>
 #include <fstream>
@@ -53,7 +52,7 @@ enum TopologicalSupport { kParticles, kOctetTruss };
 
 int main(int argc, char *argv[])
 {
-   // 0. Initialize MPI.
+3   // 0. Initialize MPI.
    Mpi::Init(argc, argv);
    Hypre::Init();
 
@@ -299,7 +298,7 @@ int main(int argc, char *argv[])
    }
 
    // ========================================================================
-   // VI. Export visualization to ParaView and GLVis
+   // IV. Export visualization to ParaView and GLVis
    // ========================================================================
 
    spde::Visualizer vis(pmesh, order, u, v, w, level_set, is_3d);
