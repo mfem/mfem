@@ -234,8 +234,8 @@ int main(int argc, char *argv[])
    ParGridFunction u_alt_gf(&L2fes);
    ParGridFunction error_gf(&L2fes);
 
-   ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
-   u_alt_gf.ProjectCoefficient(exp_psi);
+   ExponentialGridFunctionCoefficient exp_psi_obstacle(psi_gf,obstacle);
+   u_alt_gf.ProjectCoefficient(exp_psi_obstacle);
 
    if (visualization)
    {
@@ -273,8 +273,8 @@ int main(int argc, char *argv[])
          b0.Update(&H1fes,rhs.GetBlock(0),0);
          b1.Update(&L2fes,rhs.GetBlock(1),0);
 
-         ExponentialGridFunctionCoefficient exp_psi(psi_gf, zero);
-         ProductCoefficient neg_exp_psi(-1.0,exp_psi);
+         ExponentialGridFunctionCoefficient exp_psi_zero(psi_gf, zero);
+         ProductCoefficient neg_exp_psi(-1.0,exp_psi_zero);
          GradientGridFunctionCoefficient grad_u_old(&u_old_gf);
          ProductCoefficient alpha_f(alpha, f);
          GridFunctionCoefficient psi_cf(&psi_gf);
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
          b0.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
          b0.Assemble();
 
-         b1.AddDomainIntegrator(new DomainLFIntegrator(exp_psi));
+         b1.AddDomainIntegrator(new DomainLFIntegrator(exp_psi_zero));
          b1.AddDomainIntegrator(new DomainLFIntegrator(obstacle));
          b1.Assemble();
 
