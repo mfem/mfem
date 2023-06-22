@@ -814,7 +814,6 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/toys \
                          @MFEM_SOURCE_DIR@/miniapps/spde \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
-                         @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util
 
 # This tag can be used to specify the character encoding of the source files
