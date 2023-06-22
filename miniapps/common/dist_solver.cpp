@@ -11,7 +11,12 @@
 
 #include "dist_solver.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
+{
+
+namespace common
 {
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
@@ -811,4 +816,8 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
    ffield.ProjectCoefficient(gfc);
 }
 
-}
+} // namespace common
+
+} // namespace mfem
+
+#endif
