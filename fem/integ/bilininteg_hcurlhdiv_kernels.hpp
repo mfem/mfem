@@ -513,9 +513,9 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
-         const int D1Dz = (c == 2) ? D1D : D1D - 1;
-         const int D1Dy = (c == 1) ? D1D : D1D - 1;
-         const int D1Dx = (c == 0) ? D1D : D1D - 1;
+         const int D1Dz = (c == 2) ? D1Dtest : D1Dtest - 1;
+         const int D1Dy = (c == 1) ? D1Dtest : D1Dtest - 1;
+         const int D1Dx = (c == 0) ? D1Dtest : D1Dtest - 1;
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
