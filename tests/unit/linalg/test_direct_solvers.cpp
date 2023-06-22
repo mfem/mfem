@@ -228,7 +228,7 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
 
 #ifdef MFEM_USE_MUMPS
       {
-         MUMPSSolver mumps;
+         MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
          mumps.SetOperator(*A.As<HypreParMatrix>());
          mumps.Mult(B, X);
@@ -237,6 +237,15 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
          A->Mult(X, Y);
          Y -= B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         mumps.ArrayMult(BB, XX);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i], Y);
+            Y -= *BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim, gradexact);
