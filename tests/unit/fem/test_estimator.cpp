@@ -248,7 +248,7 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       {
          REQUIRE(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);;
+      REQUIRE(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Y")
@@ -655,7 +655,6 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
       }
-      // REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Perfect Approximation Y")
@@ -674,7 +673,6 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
       }
-      // REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Perfect Approximation Z")
@@ -693,7 +691,6 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       {
          REQUIRE(local_errors(i) == MFEM_Approx(0.0));
       }
-      // REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Nonsmooth Approximation X")
