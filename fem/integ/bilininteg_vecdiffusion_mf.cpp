@@ -9,12 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
-
-using namespace std;
 
 namespace mfem
 {

@@ -13,8 +13,6 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 
