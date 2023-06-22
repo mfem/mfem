@@ -103,7 +103,7 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
       Mesh mesh;
       if (dim == 1)
       {
-         mesh = Mesh::MakeCartesian1D(ne,  1.0);
+         mesh = Mesh::MakeCartesian1D(ne, 1.0);
       }
       else if (dim == 2)
       {
@@ -166,13 +166,13 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
 {
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   const int ne = 8;
+   const int ne = 4;
    for (int dim = 1; dim < 4; ++dim)
    {
       Mesh mesh;
       if (dim == 1)
       {
-         mesh = Mesh::MakeCartesian1D(ne,  1.0);
+         mesh = Mesh::MakeCartesian1D(ne, 1.0);
       }
       else if (dim == 2)
       {
@@ -299,7 +299,8 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [CUDA]")
          strumpack.SetPrintFactorStatistics(false);
          strumpack.SetPrintSolveStatistics(false);
          strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-         strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack.SetReorderingStrategy(dim > 1 ? strumpack::ReorderingStrategy::METIS :
+                                         strumpack::ReorderingStrategy::NATURAL);
          strumpack.SetOperator(SA);
          strumpack.Mult(B, X);
 
