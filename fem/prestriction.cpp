@@ -311,7 +311,9 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
-   x_gf.ExchangeFaceNbrData();
+   // Face-neighbor information is only needed for interior faces. For boundary
+   // faces, no communication is required.
+   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
 
    // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
    // otherwise MPI communication can hang.
