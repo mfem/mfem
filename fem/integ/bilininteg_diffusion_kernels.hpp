@@ -37,7 +37,7 @@ void PADiffusionSetup(const int dim,
                       Vector &D);
 
 // PA Diffusion Assemble 2D kernel
-template<const int T_SDIM>
+template<int T_SDIM>
 void PADiffusionSetup2D(const int Q1D,
                         const int coeffDim,
                         const int NE,

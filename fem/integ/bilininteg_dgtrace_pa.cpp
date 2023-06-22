@@ -15,8 +15,6 @@
 #include "../qfunction.hpp"
 #include "../restriction.hpp"
 
-using namespace std;
-
 namespace mfem
 {
 
