@@ -52,7 +52,7 @@ enum TopologicalSupport { kParticles, kOctetTruss };
 
 int main(int argc, char *argv[])
 {
-3   // 0. Initialize MPI.
+   // 0. Initialize MPI.
    Mpi::Init(argc, argv);
    Hypre::Init();
 
