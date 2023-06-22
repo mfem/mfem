@@ -42,7 +42,7 @@ PardisoSolver::PardisoSolver()
    // to be equal to 1. See MKL documentation.
    mnum = 1;
    // Print statistical information in file
-   msglvl = 1;
+   msglvl = 0;
    // Initialize error flag
    error = 0;
    // Real nonsymmetric matrix
