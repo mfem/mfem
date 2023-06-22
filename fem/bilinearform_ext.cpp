@@ -410,7 +410,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 
    MFEM_VERIFY(!(somePatchwise && !allPatchwise),
-               "All or none should be patchwise");
+               "All or none of the integrators should be patchwise");
 
    if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
    {

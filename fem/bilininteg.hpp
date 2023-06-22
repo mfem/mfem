@@ -2194,11 +2194,6 @@ public:
    void AssemblePatchMatrix_reducedQuadrature(const int patch, Mesh *mesh,
                                               SparseMatrix*& smat);
 
-   /// TODO: remove this before merging PR?
-   void AssemblePatchMatrix_simpleButInefficient(const int patch,
-                                                 Mesh *mesh,
-                                                 DenseMatrix &pmat);
-
    virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
 
    void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
@@ -2238,9 +2233,6 @@ public:
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
    virtual void AddMultNURBSPA(const Vector&, Vector&) const;
-
-   void AddMultPatchPA_inefficient(const int patch, const Vector &x,
-                                   Vector &y) const;
 
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 

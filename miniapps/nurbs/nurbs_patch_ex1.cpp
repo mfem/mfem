@@ -27,8 +27,7 @@ using namespace std;
 using namespace mfem;
 
 void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
-                      Array<int> const& ess_tdof_list,
-                      const bool pa, const bool static_cond,
+                      Array<int> const& ess_tdof_list, const bool pa,
                       const bool algebraic_ceed, GridFunction & x);
 
 int main(int argc, char *argv[])
@@ -36,7 +35,6 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
    int order = -1;
-   bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -51,8 +49,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -85,6 +81,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
+
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -104,17 +102,10 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
+   // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    FiniteElementCollection *fec;
    bool delete_fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
-   }
-   else if (mesh.GetNodes())
+   if (mesh.GetNodes())
    {
       fec = mesh.GetNodes()->OwnFEC();
       delete_fec = false;
@@ -122,8 +113,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
+      MFEM_ABORT("Mesh must have nodes");
    }
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
@@ -158,7 +148,6 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-
    DiffusionIntegrator *di = new DiffusionIntegrator(one, nullptr, patchAssembly,
                                                      reducedIntegration && !pa);
 
@@ -194,7 +183,7 @@ int main(int argc, char *argv[])
 
    // 10. Assemble and solve the linear system
    cout << "Assembling system patch-wise and solving" << endl;
-   AssembleAndSolve(b, di, ess_tdof_list, pa, static_cond, algebraic_ceed, x);
+   AssembleAndSolve(b, di, ess_tdof_list, pa, algebraic_ceed, x);
 
    delete patchRule;
 
@@ -228,8 +217,7 @@ int main(int argc, char *argv[])
       DiffusionIntegrator *d = new DiffusionIntegrator(one);
       // Element-wise partial assembly is not supported on NURBS meshes, so we
       // pass pa = false here.
-      AssembleAndSolve(b, d, ess_tdof_list, false, static_cond, algebraic_ceed,
-                       x);
+      AssembleAndSolve(b, d, ess_tdof_list, false, algebraic_ceed, x);
 
       x.GetTrueDofs(x_ew);
 
@@ -253,8 +241,7 @@ int main(int argc, char *argv[])
 // This function deletes bfi when the BilinearForm goes out of scope.
 void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
                       Array<int> const& ess_tdof_list, const bool pa,
-                      const bool static_cond, const bool algebraic_ceed,
-                      GridFunction & x)
+                      const bool algebraic_ceed, GridFunction & x)
 {
    FiniteElementSpace *fespace = b.FESpace();
    BilinearForm a(fespace);
@@ -267,9 +254,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    // Assemble the bilinear form and the corresponding linear system, applying
    // any necessary transformations such as: eliminating boundary conditions,
-   // applying conforming constraints for non-conforming AMR, static
-   // condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
+   // applying conforming constraints for non-conforming AMR, etc.
    a.Assemble();
 
    sw.Stop();
