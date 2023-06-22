@@ -311,7 +311,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
-   x_gf.ExchangeFaceNbrData();
+   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
 
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;

@@ -33,6 +33,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   mesh->EnsureNodes();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation *T0 = mesh->GetElementTransformation(0);
@@ -53,8 +56,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       return;
    }
    int map_type = el.GetMapType();
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -392,6 +393,7 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
                                    const Vector &D,
                                    Vector &Y)
 {
+   if (NE == 0) { return; }
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
@@ -649,6 +651,7 @@ static void PAMassApply(const int dim,
                         const Vector &X,
                         Vector &Y)
 {
+   if (NE == 0) { return; }
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {

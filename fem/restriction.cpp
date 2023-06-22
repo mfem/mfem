@@ -1018,7 +1018,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      face_dofs(nf > 0 ?
                fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
                : 0),
-     elem_dofs(fes.GetFE(0)->GetDof()),
+     elem_dofs(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
      nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
      type(type),

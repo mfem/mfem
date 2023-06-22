@@ -1289,7 +1289,8 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
    const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
    // Potential issue: empty local mesh --> no element 0.
    return !mixed &&
-          dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+          (fes.GetNE() == 0 ||
+           dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr);
 }
 
 }

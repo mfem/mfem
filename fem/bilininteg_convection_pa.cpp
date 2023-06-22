@@ -124,6 +124,7 @@ static void PAConvectionSetup(const int dim,
                               const double alpha,
                               Vector &op)
 {
+   if (NE == 0) { return; }
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PAConvectionSetup"); }
    if (dim == 2)
    {
@@ -1377,10 +1378,13 @@ void SmemPAConvectionApplyT3D(const int ne,
 
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   Mesh *mesh = fes.GetMesh();
+   dim = mesh->Dimension();
+   ne = fes.GetNE();
+   if (fes.GetNE() == 0) { return; }
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);
    ElementTransformation &Trans = *fes.GetElementTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
@@ -1402,8 +1406,6 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el.GetDim();
    const int symmDims = dims;
    nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
@@ -1429,6 +1431,7 @@ static void PAConvectionApply(const int dim,
                               const Vector &x,
                               Vector &y)
 {
+   if (NE == 0) { return; }
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
