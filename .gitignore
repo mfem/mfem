@@ -319,6 +319,9 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/hdiv-linear-solver/darcy
+miniapps/hdiv-linear-solver/grad_div
+
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
@@ -334,6 +337,9 @@ miniapps/dpg/pacoustics
 miniapps/dpg/maxwell
 miniapps/dpg/pmaxwell
 miniapps/dpg/ParaView
+
+miniapps/spde/generate_random_field
+miniapps/spde/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes
