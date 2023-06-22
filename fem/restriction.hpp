@@ -1005,6 +1005,7 @@ class L2NormalDerivativeFaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace& fes;
+   const FaceType face_type;
    const int sdim; // spatial dimension
    const int nf; // number of faces
    const int ne; // number of elements
@@ -1021,9 +1022,9 @@ public:
    /// @param[in] fes The FiniteElementSpace on which this operates
    /// @param[in] ordering ordering of dofs
    /// @param type type of faces to compute restriction for (interior or boundary)
-   L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes,
+   L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes_,
                                      const ElementDofOrdering ordering,
-                                     const FaceType ftype);
+                                     const FaceType face_type_);
 
    /// @brief Computes the normal derivatives on the @a type faces of the mesh.
    /// @param[in] x The L-vector degrees of freedom.
@@ -1031,18 +1032,18 @@ public:
    /// (face_dofs x vdim x 2 x nf) where nf is the number of @a type faces. The
    /// face_dofs are ordered according to @a ordering specified on
    /// construction.
-   void Mult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   void AddMultTranspose(const Vector& x, Vector& y,
+   void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
 
-   virtual void Mult2D(const Vector& x, Vector& y) const;
+   virtual void Mult2D(const Vector &x, Vector &y) const;
 
-   virtual void Mult3D(const Vector& x, Vector& y) const;
+   virtual void Mult3D(const Vector &x, Vector &y) const;
 
-   void AddMultTranspose2D(const Vector& x, Vector& y, const double a) const;
+   void AddMultTranspose2D(const Vector &x, Vector &y, const double a) const;
 
-   void AddMultTranspose3D(const Vector& x, Vector& y, const double a) const;
+   void AddMultTranspose3D(const Vector &x, Vector &y, const double a) const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic
