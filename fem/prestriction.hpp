@@ -143,7 +143,7 @@ protected:
 
    /** @brief Constructs an ParL2FaceRestriction.
 
-       @param[in] fes        The ParFiniteElementSpace on which this operates
+       @param[in] pfes_      The ParFiniteElementSpace on which this operates
        @param[in] f_ordering Request a specific face dof ordering
        @param[in] type       Request internal or boundary faces dofs
        @param[in] m          Request the face dofs for elem1, or both elem1 and

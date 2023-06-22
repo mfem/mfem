@@ -505,8 +505,6 @@ protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
    /** @brief Verify that L2FaceRestriction is built from an L2 FESpace.
-
-       @param[in] f_ordering The requested face dof ordering.
    */
    void CheckFESpace();
 
@@ -1019,9 +1017,9 @@ protected:
 
 public:
    /// @brief constructs an L2NormalDerivativeFaceRestriction
-   /// @param[in] fes The FiniteElementSpace on which this operates
+   /// @param[in] fes_ The FiniteElementSpace on which this operates
    /// @param[in] ordering ordering of dofs
-   /// @param type type of faces to compute restriction for (interior or boundary)
+   /// @param[in] face_type_ type of faces to compute restriction for (interior or boundary)
    L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes_,
                                      const ElementDofOrdering ordering,
                                      const FaceType face_type_);
