@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,8 +13,9 @@
 
 #include <array>
 
-// A very simple example of an external mesh class with a baby mesh in it.
-//The element and vertex ids are as follows:
+// A very simple example of an external mesh class with a minimal 
+// non-conforming mesh in it.
+// The element and vertex ids are as follows:
 // 6-----7-----8
 // |     |     |
 // |  3  |  4  |
@@ -74,7 +75,7 @@ public:
    DummyMesh() : num_vertices(11), num_elements(5), num_belements(9),
       num_vparents(2)
    {
-      //Vertices
+      // Vertices
       V[6].Set(0.0, 2.0);  V[7].Set(1.0, 2.0);  V[8].Set(2.0, 2.0);
       V[3].Set(0.0, 1.0);  V[4].Set(1.0, 1.0);  V[5].Set(2.0, 1.0);
       V[0].Set(0.0, 0.0);  V[1].Set(1.0, 0.0);  V[2].Set(2.0, 0.0);
@@ -90,19 +91,17 @@ public:
       E[3].Set(3,4,6,7);
       E[4].Set(4,5,7,8);
 
-      //Boundary Elements
-      //Bottom
+      // Boundary Elements
+      // Bottom
       B[0].Set(0,1);       B[1].Set(1,2);
-      //Top
+      // Top
       B[2].Set(6,7);       B[3].Set(7,8);
-      //Left
+      // Left
       B[4].Set(0,9);       B[5].Set(9,3);       B[6].Set(3,6);
-      //Right
+      // Right
       B[7].Set(2,5);       B[8].Set(5,8);
 
-      //Set the vertex parents
-      //In the future replace this with element parents and demonstrate
-      //computation of vertex parents
+      // Set the vertex parents
       VP[0] = std::make_tuple(9,0,3);
       VP[1] = std::make_tuple(10,1,4);
    }
@@ -111,8 +110,8 @@ public:
    const int num_elements;
    const int num_belements;
    const int num_vparents;
-   Vertex V[11];                    //Mesh vertices
-   Element E[5];                    //Mesh elements
-   BElement B[9];                   //Mesh boundary elements
-   std::tuple<int,int,int> VP[2];   //Vertex parents (vid, parent1id, parent2id)
+   Vertex V[11];                    // Mesh vertices
+   Element E[5];                    // Mesh elements
+   BElement B[9];                   // Mesh boundary elements
+   std::tuple<int,int,int> VP[2];   // Vertex parents (vid, par1id, par2id)
 };

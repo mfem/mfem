@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,14 +13,16 @@
 //                       External Mesh Mapping Miniapp
 //             ---------------------------------------------------
 //
-// This miniapp starts with a serial non-conforming mesh in a dummy format and demonstrates
-// how to build up a corresponding non-conforming MFEM Mesh and then decompose it
-// into a parallel ParMesh.  As part of this process we will demonstrate how to obtain
-// and compose the vertex ID mappings from the various steps that can shuffle the
-// vertices.  In the end this will let us map between the vertex ID numbers in the
-// external dummy mesh and the parallel non-conforming mesh constructed in MFEM.  This
-// is the sort of thing you will have to do if you intend to add MFEM meshes to an existing
-// simulation code and need them to exist and share data with other kinds of meshes in that
+// This miniapp starts with a serial non-conforming mesh in a dummy format and
+// demonstrates how to build up a corresponding non-conforming MFEM Mesh and
+// then decompose it into a parallel ParMesh.  As part of this process we will
+// demonstrate how to obtain and compose the vertex ID mappings from the
+// various steps that can shuffle the vertices.  In the end this will let us
+// map between the vertex ID numbers in the external dummy mesh and the 
+// parallel non-conforming mesh constructed in MFEM.  This is the sort of
+// map you will need to maintain if you intend to add MFEM to an existing 
+// simulation code and share data between the MFEM mesh and the  and the 
+// field data in  and need them to exist and share data with other kinds of meshes in that
 // code.  If you are starting a new MFEM code, it makes much more sense to do everything with
 // MFEM meshes.
 //
@@ -48,7 +50,7 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   //This miniapp is designed to work on the test mesh with exactly 4 ranks
+   // This miniapp is designed to work on the test mesh with exactly 4 ranks
    if (Mpi::WorldSize() != 4)
    {
       if (Mpi::Root())
@@ -58,58 +60,63 @@ int main(int argc, char *argv[])
       exit(0);
    }
 
-   //Initilize our dummy mesh and display the coordinates of the vertices
+   // Initilize our dummy mesh and display the coordinates of the vertices
    DummyMesh *dmesh = new DummyMesh();
    print_dmesh_verts(dmesh);
 
-   //Now build the mfem Mesh object with all of the elements in it on all processors and capture the vertex id mapping
-   //that occurs when non-conforming meshes are finalized.
+   // Now build the mfem Mesh object with all of the elements in it on all
+   // processors and capture the vertex id mapping that occurs when
+   // non-conforming meshes are finalized.
    Mesh * mesh = build_mfem_mesh(dmesh);
    Array<int> mesh_to_dmesh_vmap;
    const Array<int> vmap = mesh->ncmesh->GetVertexIDMap();
    mesh_to_dmesh_vmap = vmap;
-   print_mesh_verts(mesh,
-                    mesh_to_dmesh_vmap);     //Print the vertices reordered using the vmap
 
-   //Now enable parallel, given the following partition of the elements.
-   //Note that we only have local vertex ids in the pmesh object.
-   //The partition is the MPI Rank that each element lives on.
+   // Print the vertices reordered using the vmap
+   print_mesh_verts(mesh, mesh_to_dmesh_vmap);
+
+   // Now enable parallel, given the following partition of the elements.
+   // Note that we only have local vertex ids in the pmesh object.
+   // The partition is the MPI Rank that each element lives on.
    Array<int> partition({3,3,1,2,0});
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition.GetData());
 
-   //Compute the mappings between the local element ids on each processor in pmesh
-   //and the original global IDs in the mesh.  This can be computed from the element
-   //partition array.
+   // Compute the mappings between the local element ids on each processor
+   // in pmesh and the original global IDs in the mesh.  This can be
+   // computed from the element partition array.
    Array<int> pmesh_to_mesh_emap;
    create_pmesh_to_mesh_emaps(partition, pmesh, pmesh_to_mesh_emap);
 
-   //Now compute the mappings between the local vertex ids on each processor in pmesh
-   //and the global ids in mesh.
+   // Now compute the mappings between the local vertex ids on each
+   // processor in pmesh and the global ids in mesh.
    Array<int> pmesh_to_mesh_vmap;
    create_pmesh_to_mesh_vmaps(pmesh, mesh, pmesh_to_mesh_emap, pmesh_to_mesh_vmap);
 
-   //Now compose the maps to create a final map between the local vertex numbering in the
-   //pmesh object on this processor and the original dmesh vertex numbering
+   // Now compose the maps to create a final map between the local vertex 
+   // numbering in the pmesh object on this processor and the original
+   // dmesh vertex numbering.
    Array<int> final_vmap(pmesh->GetNV());
    for (int local_vi = 0; local_vi < pmesh->GetNV(); ++local_vi)
    {
       final_vmap[local_vi] = mesh_to_dmesh_vmap[pmesh_to_mesh_vmap[local_vi]];
    }
-   print_pmesh_verts(pmesh,
-                     final_vmap);           //Print the vertices with global IDs from the final_vmap
+
+   // Print the vertices with global IDs from the final_vmap
+   print_pmesh_verts(pmesh, final_vmap); 
 }
 
 // Build up an MFEM Mesh from the data in the Dummy Mesh.  Since we are
 // building the vertex and element lists in the same order as we found them
-// in the dmesh, the element id and vertex id mappings will be the identity maps.
+// in the dmesh, the element id and vertex id mappings will be the 
+// identity maps.
 Mesh *build_mfem_mesh(DummyMesh *dmesh)
 {
-   //Initilize the the dimension and memory for the mesh
+   // Initilize the the dimension and memory for the mesh
    Mesh *mesh = new Mesh(2,    // The dimension of the mesh
                          dmesh->num_vertices,
                          dmesh->num_elements,
                          dmesh->num_belements,
-                         2    // The dimension of the space the mesh lives in (different for surface meshes)
+                         2    // The dimension of the space the mesh lives in
                         );
 
 
