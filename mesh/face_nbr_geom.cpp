@@ -26,9 +26,9 @@ FaceNeighborGeometricFactors::FaceNeighborGeometricFactors(
       const int dim = par_mesh->Dimension();
       const int sdim = par_mesh->SpaceDimension();
 
-      num_neighbor_elems = par_mesh->GetNFaceNeighborElements();
-
       const_cast<ParMesh*>(par_mesh)->ExchangeFaceNbrData();
+
+      num_neighbor_elems = par_mesh->GetNFaceNeighborElements();
 
       if (flags & GeometricFactors::COORDINATES)
       {
@@ -78,12 +78,14 @@ void FaceNeighborGeometricFactors::ExchangeFaceNbrData(const Vector &x_local,
       }
    }
    send_offsets[n_face_nbr] = ndof_per_el*idx;
+   MFEM_ASSERT(send_offsets[n_face_nbr] == send_data.Size(), "");
 
    recv_offsets.SetSize(n_face_nbr + 1);
    for (int i = 0; i < n_face_nbr + 1; ++i)
    {
       recv_offsets[i] = ndof_per_el * mesh->face_nbr_elements_offset[i];
    }
+   MFEM_ASSERT(recv_offsets[n_face_nbr] == x_shared.Size(), "");
 
    MPI_Comm comm = mesh->GetComm();
    std::vector<MPI_Request> send_reqs(n_face_nbr);
