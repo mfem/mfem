@@ -156,6 +156,7 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim, gradexact);
          double error = x.ComputeH1Error(&uex, &grad);
+         REQUIRE(error < 1.e-12);
       }
 #endif
 #ifdef MFEM_USE_MKL_PARDISO
@@ -172,10 +173,9 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim, gradexact);
          double error = x.ComputeH1Error(&uex, &grad);
+         REQUIRE(error < 1.e-12);
       }
 #endif
-
-      REQUIRE(error < 1.e-12);
    }
 }
 
