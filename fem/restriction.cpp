@@ -1807,9 +1807,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
    const int q = maps.nqpt;
    const int d = maps.ndof;
 
-   auto B = Reshape(maps.B.Read(), q,
-                    d); // 1D basis function B(i, j) = j-th basis @ i-th quad point
-   auto G = Reshape(maps.G.Read(), q, d); // derivative of 1D basis function
+   // derivative of 1D basis function
+   auto G_ = Reshape(maps.G.Read(), q, d);
 
    auto e2f = Reshape(elem_to_face.Read(), 9, net); // (el,f0,f1,f2,f3,s0,s1,s2,s3)
    auto f2e = Reshape(face_to_elem.Read(), 4, num_faces); // (el0, el1, fid0, fid1)
@@ -1824,58 +1823,77 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
    {
       const int el = e2f(0, e); // global element index
 
+      MFEM_SHARED double y_s[MAX_D1D];
+      MFEM_SHARED double pp[MAX_D1D];
+      MFEM_SHARED double jj;
+      MFEM_SHARED double BG[MAX_D1D*MAX_D1D];
+      DeviceMatrix G(BG + d*q, q, d);
+
+      MFEM_SHARED double x_s[MAX_D1D*MAX_D1D];
+      DeviceMatrix xx(x_s, d, d);
+
+      MFEM_FOREACH_THREAD(i,x,d)
+      {
+         MFEM_FOREACH_THREAD(p,y,q)
+         {
+            G(p,i) = a * G_(p,i);
+            xx(p,i) = 0.0;
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int face_id=0; face_id < 4; ++face_id)
+      {
+         const int f = e2f(1+face_id, e);
+
+         if (f < 0) { continue; }
+
+         const int side = e2f(5+face_id, e);
+         const int fid0 = f2e(2, f);
+         const int fid1 = f2e(3, f);
+
+         if (MFEM_THREAD_ID(y) == 0)
+         {
+            MFEM_FOREACH_THREAD(p,x,d)
+            {
+               y_s[p] = d_y(p, 0, side, f);
+
+               int i, j;
+               internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+
+               if (face_id == 0 || face_id == 2)
+               {
+                  pp[i] = p;
+                  jj = j;
+               }
+               else
+               {
+                  pp[j] = p;
+                  jj = i;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(k,x,d)
+         {
+            MFEM_FOREACH_THREAD(l,y,d)
+            {
+               const int p = (face_id == 0 || face_id == 2) ? pp[k] : pp[l];
+               const int kk = (face_id == 0 || face_id == 2) ? l : k;
+               const double g = G(jj, kk);
+               xx(k,l) += g * y_s[p];
+            } // for fid
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       MFEM_FOREACH_THREAD(k,x,d)
       {
          MFEM_FOREACH_THREAD(l,y,d)
          {
-            double BGf = 0.0;
-
-            for (int face_id=0; face_id < 4; ++face_id)
-            {
-               const int f = e2f(1+face_id, e);
-
-               if (f < 0)
-               {
-                  continue;
-               }
-
-               const int side = e2f(5+face_id, e);
-               const int fid0 = f2e(2, f);
-               const int fid1 = f2e(3, f);
-
-
-               if (face_id == 0 || face_id == 2)
-               {
-                  for (int p = 0; p < q; ++p)
-                  {
-                     int i, j;
-                     internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
-
-                     for (int c = 0; c < vd; ++c)
-                     {
-                        BGf += a * B(i, k) * G(j, l) * d_y(p, c, side, f);
-                     } // for c
-                  } // for p
-               }
-               else
-               {
-                  for (int p = 0; p < q; ++p)
-                  {
-                     int i, j;
-                     internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
-
-                     for (int c = 0; c < vd; ++c)
-                     {
-                        BGf += a * G(i, k) * B(j, l) * d_y(p, c, side, f);
-                     } // for c
-                  } // for p
-               }
-            } // for fid
-
-            for (int c = 0; c < vd; ++c)
-            {
-               d_x(t?c:k, t?k:l, t?l:el, t?el:c) += BGf;
-            }
+            const int c = 0;
+            d_x(t?c:k, t?k:l, t?l:el, t?el:c) += xx(k,l);
          }
       }
    }); // for e
