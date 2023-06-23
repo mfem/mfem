@@ -392,21 +392,19 @@ void PADGDiffusionApply2D(const int NF,
       MFEM_SYNC_THREAD;
 
       // term sigma * < [u], {Q dv/dn} >
-      MFEM_UNROLL(2)
-      for (int side = 0; side < 2; ++side)
+      MFEM_FOREACH_THREAD(side,y,2)
       {
          double * const du = (side == 0) ? du0 : du1;
          double * const u = (side == 0) ? u0 : u1;
 
-         for (int p = 0; p < Q1D; ++p)
+         MFEM_FOREACH_THREAD(d,x,D1D)
          {
-            const double Je[] = {pa(2 + 2*side, p, f), pa(2 + 2*side + 1, p, f)};
-            const double jump = Bu0[p] - Bu1[p];
-            const double r_p = Je[0] * jump;
-            const double w_p = Je[1] * jump;
-
-            for (int d = 0; d < D1D; ++d)
+            for (int p = 0; p < Q1D; ++p)
             {
+               const double Je[] = {pa(2 + 2*side, p, f), pa(2 + 2*side + 1, p, f)};
+               const double jump = Bu0[p] - Bu1[p];
+               const double r_p = Je[0] * jump;
+               const double w_p = Je[1] * jump;
                du[d] += sigma * B(p, d) * r_p;
                u[d] += sigma * G(p, d) * w_p;
             }
