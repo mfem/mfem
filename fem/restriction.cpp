@@ -1695,10 +1695,8 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 
    MFEM_ASSERT(q == d, "");
 
-   // 1D basis function B(i, j) = j-th basis @ i-th quad point
-   const auto B = Reshape(maps.B.Read(), q, d);
    // derivative of 1D basis function
-   const auto G = Reshape(maps.G.Read(), q, d);
+   const auto G_ = Reshape(maps.G.Read(), q, d);
    // (el0, el1, fid0, fid1)
    const auto f2e = Reshape(face_to_elem.Read(), 4, num_faces);
 
@@ -1711,6 +1709,21 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 
    mfem::forall_2D(num_faces, 2, q, [=] MFEM_HOST_DEVICE (int f) -> void
    {
+      MFEM_SHARED double G_s[MAX_D1D*MAX_D1D];
+      DeviceMatrix G(G_s, q, d);
+
+      if (MFEM_THREAD_ID(x) == 0)
+      {
+         MFEM_FOREACH_THREAD(j, y, d)
+         {
+            for (int i = 0; i < q; ++i)
+            {
+               G(i, j) = G_(i, j);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       MFEM_FOREACH_THREAD(side, x, 2)
       {
          const int el = f2e(side, f);
@@ -1721,9 +1734,6 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
          const int face_id = f2e(2 + side, f);
          const int fid0 = f2e(2, f);
          const int fid1 = f2e(3, f);
-
-         auto &B1 = (face_id == 0 || face_id == 2) ? B : G;
-         auto &B2 = (face_id == 0 || face_id == 2) ? G : B;
 
          MFEM_FOREACH_THREAD(p, y, q)
          {
@@ -1741,12 +1751,12 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
                for (int c=0; c < vd; ++c)
                {
                   double grad_n = 0;
-                  for (int k=0; k < d; ++k)
+                  for (int kk=0; kk < d; ++kk)
                   {
-                     for (int l=0; l < d; ++l)
-                     {
-                        grad_n += B1(i, k) * B2(j, l) * d_x_e(t?c:k, t?k:l, t?l:el_idx, t?el_idx:c);
-                     } // for l
+                     const int k = (face_id == 0 || face_id == 2) ? i : kk;
+                     const int l = (face_id == 0 || face_id == 2) ? kk : j;
+                     const double g = (face_id == 0 || face_id == 2) ? G(j,l) : G(i,k);
+                     grad_n += g * d_x_e(t?c:k, t?k:l, t?l:el_idx, t?el_idx:c);
                   } // for k
                   d_y(p, c, side, f) = grad_n;
                } // for c
