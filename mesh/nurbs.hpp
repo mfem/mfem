@@ -477,7 +477,7 @@ public:
        @a elem, in the knot-span tensor product ordering for its patch. */
    void GetElementIJK(int elem, Array<int> & ijk);
 
-   // Returns an array of degrees of freedom for patch index
+   // Returns the degrees of freedom on the patch, in Cartesian order.
    void GetPatchDofs(const int patch, Array<int> &dofs);
 
    const Array<int>& GetPatchElements(int patch);

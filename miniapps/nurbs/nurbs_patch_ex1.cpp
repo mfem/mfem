@@ -148,16 +148,24 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   DiffusionIntegrator *di = new DiffusionIntegrator(one, nullptr, patchAssembly,
-                                                     reducedIntegration && !pa);
+   DiffusionIntegrator *di = new DiffusionIntegrator(one);
 
-   NURBSPatchRule *patchRule = nullptr;
+   if (patchAssembly && reducedIntegration && !pa)
+   {
+      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
+   }
+   else if (patchAssembly)
+   {
+      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+   }
+
+   NURBSMeshRules *patchRule = nullptr;
    if (order < 0)
    {
       if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
       cout << "Using ir_order " << ir_order << endl;
 
-      patchRule = new NURBSPatchRule(mesh.NURBSext->GetNP(), dim);
+      patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
       // Loop over patches and set a different rule for each patch.
       for (int p=0; p<mesh.NURBSext->GetNP(); ++p)
       {

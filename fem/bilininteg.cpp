@@ -865,14 +865,14 @@ void DiffusionIntegrator::AssembleElementMatrix
       dynamic_cast<const NURBSFiniteElement *>(&el);
 
    bool deleteRule = false;
-   if (NURBSFE && patchRule)
+   if (NURBSFE && patchRules)
    {
       const int patch = NURBSFE->GetPatch();
       int ijk[3];
       NURBSFE->GetIJK(ijk);
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
-      ir = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
-                                      deleteRule);
+      ir = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
+                                       deleteRule);
    }
 
    elmat = 0.0;

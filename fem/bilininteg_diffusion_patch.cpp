@@ -285,8 +285,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
          for (int qx=0; qx<Q1D[0]; ++qx)
          {
             const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-            patchRule->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-            const int e = patchRule->GetPointElement(patch, qx, qy, qz);
+            patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
+            const int e = patchRules->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
 
             weights[p] = ip.weight;
@@ -320,9 +320,9 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRule->GetPointElement(patch, qx, qy, qz);
+               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
                ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRule->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
+               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
 
                SMQ->Eval(sym_mat, *tr, ip);
                int cnt = 0;
@@ -355,9 +355,9 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRule->GetPointElement(patch, qx, qy, qz);
+               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
                ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRule->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
+               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
 
                MQ->Eval(mat, *tr, ip);
                for (int i=0; i<dim; ++i)
@@ -383,9 +383,9 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRule->GetPointElement(patch, qx, qy, qz);
+               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
                ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRule->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
+               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
 
                VQ->Eval(DM, *tr, ip);
                for (int i=0; i<coeffDim; ++i)
@@ -421,9 +421,9 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRule->GetPointElement(patch, qx, qy, qz);
+               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
                ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRule->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
+               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
 
                C(p) = Q->Eval(*tr, ip);
             }
@@ -441,36 +441,34 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    numPatches = mesh->NURBSext->GetNP();
 
-   if (!reducedRule)
+   if (integrationMode != PATCHWISE_REDUCED)
    {
       return;
    }
 
    // Solve for reduced 1D quadrature rules
-   reducedWeights.resize(numPatches);
+   reducedWeights.resize(numPatches * dim * numTypes);
    reducedIDs.resize(numPatches);
-   reducedWeights[patch].resize(dim);
    reducedIDs[patch].resize(dim);
 
-   const int numTypes = 2;  // Number of rule types
+   auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
 
    for (int d=0; d<dim; ++d)
    {
       // The reduced rules could be cached to avoid repeated computation, but
       // the cost of this setup seems low.
-      reducedWeights[patch][d].resize(numTypes);
       reducedIDs[patch][d].resize(numTypes);
 
       GetReducedRule(Q1D[d], D1D[d], B[d], G[d],
                      minQ[d], maxQ[d],
                      minD[d], maxD[d],
                      minDD[d], maxDD[d], ir1d[d], true,
-                     reducedWeights[patch][d][0], reducedIDs[patch][d][0]);
+                     rw(0,d,patch), reducedIDs[patch][d][0]);
       GetReducedRule(Q1D[d], D1D[d], B[d], G[d],
                      minQ[d], maxQ[d],
                      minD[d], maxD[d],
                      minDD[d], maxDD[d], ir1d[d], false,
-                     reducedWeights[patch][d][1], reducedIDs[patch][d][1]);
+                     rw(1,d,patch), reducedIDs[patch][d][1]);
    }
 }
 
@@ -479,8 +477,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    const int patch, Mesh *mesh, SparseMatrix*& smat)
 {
-   MFEM_VERIFY(patchRule, "patchRule must be defined");
-   dim = patchRule->GetDim();
+   MFEM_VERIFY(patchRules, "patchRules must be defined");
+   dim = patchRules->GetDim();
    const int spaceDim = dim;  // TODO: generalize?
 
    if (VQ)
@@ -778,7 +776,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 
    for (int d=0; d<dim; ++d)
    {
-      ir1d[d] = patchRule->GetPatchRule1D(patch, d);
+      ir1d[d] = patchRules->GetPatchRule1D(patch, d);
 
       Q1D[d] = ir1d[d]->GetNPoints();
 
@@ -800,7 +798,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
       B[d] = 0.0;
       G[d] = 0.0;
 
-      const Array<int>& knotSpan1D = patchRule->GetPatchRule1D_KnotSpan(patch, d);
+      const Array<int>& knotSpan1D = patchRules->GetPatchRule1D_KnotSpan(patch, d);
       MFEM_VERIFY(knotSpan1D.Size() == Q1D[d], "");
 
       for (int i = 0; i < Q1D[d]; i++)
@@ -875,8 +873,8 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    const int patch, Mesh *mesh, SparseMatrix*& smat)
 {
-   MFEM_VERIFY(patchRule, "patchRule must be defined");
-   dim = patchRule->GetDim();
+   MFEM_VERIFY(patchRules, "patchRules must be defined");
+   dim = patchRules->GetDim();
    const int spaceDim = dim;  // TODO: generalize?
 
    if (VQ)
@@ -905,7 +903,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    // Setup quadrature point data.
-   // For each point in patchRule, get the corresponding element and element
+   // For each point in patchRules, get the corresponding element and element
    // reference point, in order to use element transformations. This requires
    // data set up in NURBSPatchRule::SetPointToElement.
    SetupPatchPA(patch, mesh, true);
@@ -928,6 +926,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    {
       ndof *= D1D[d];
    }
+
+   auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
 
    const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
@@ -1041,7 +1041,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
          for (int irz=0; irz < nwz; ++irz)
          {
             const int qz = reducedIDs[patch][2][zquad][jdz][irz] + minD[2][jdz];
-            const double zw = reducedWeights[patch][2][zquad][jdz][irz];
+            const double zw = rw(zquad,2,patch)[jdz][irz];
 
             const double gwz  = B[2](qz,jdz);
             const double gwDz = G[2](qz,jdz);
@@ -1064,7 +1064,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                for (int iry=0; iry < nwy; ++iry)
                {
                   const int qy = reducedIDs[patch][1][yquad][jdy][iry] + minD[1][jdy];
-                  const double yw = reducedWeights[patch][1][yquad][jdy][iry];
+                  const double yw = rw(yquad,1,patch)[jdy][iry];
 
                   const double gwy  = B[1](qy,jdy);
                   const double gwDy = G[1](qy,jdy);
@@ -1122,7 +1122,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
 
                      const double gY = grad[1](qx,qy,qz);
                      const double gZ = grad[2](qx,qy,qz);
-                     const double xw = reducedWeights[patch][0][0][jdx][irx];
+                     const double xw = rw(0,0,patch)[jdx][irx];
                      for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                      {
                         const double wx  = B[0](qx,dx);
@@ -1145,7 +1145,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                      const int qx = reducedIDs[patch][0][1][jdx][irx] + minD[0][jdx];
 
                      const double gX = grad[0](qx,qy,qz);
-                     const double xw = reducedWeights[patch][0][1][jdx][irx];
+                     const double xw = rw(1,0,patch)[jdx][irx];
                      for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                      {
                         const double wDx = G[0](qx,dx);
@@ -1232,7 +1232,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
 void DiffusionIntegrator::AssemblePatchMatrix(
    const int patch, Mesh *mesh, SparseMatrix*& smat)
 {
-   if (reducedRule)
+   if (integrationMode == PATCHWISE_REDUCED)
    {
       AssemblePatchMatrix_reducedQuadrature(patch, mesh, smat);
    }
