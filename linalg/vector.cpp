@@ -58,6 +58,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
    }
 
    SetSize(s);
+   HostWrite();
 
    int p = 0;
    for (i = 0; i < np; i++)
@@ -78,6 +79,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
 void Vector::Load(std::istream &in, int Size)
 {
    SetSize(Size);
+   HostWrite();
 
    for (int i = 0; i < size; i++)
    {
@@ -154,7 +156,7 @@ Vector &Vector::operator=(double value)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = Write(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = value; });
    return *this;
 }
 
@@ -163,7 +165,7 @@ Vector &Vector::operator*=(double c)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= c;);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= c; });
    return *this;
 }
 
@@ -175,7 +177,7 @@ Vector &Vector::operator*=(const Vector &v)
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= x[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= x[i]; });
    return *this;
 }
 
@@ -185,7 +187,7 @@ Vector &Vector::operator/=(double c)
    const int N = size;
    const double m = 1.0/c;
    auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] *= m;);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= m; });
    return *this;
 }
 
@@ -197,7 +199,7 @@ Vector &Vector::operator/=(const Vector &v)
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] /= x[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] /= x[i]; });
    return *this;
 }
 
@@ -206,7 +208,7 @@ Vector &Vector::operator-=(double c)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= c;);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= c; });
    return *this;
 }
 
@@ -218,7 +220,7 @@ Vector &Vector::operator-=(const Vector &v)
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] -= x[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= x[i]; });
    return *this;
 }
 
@@ -227,7 +229,7 @@ Vector &Vector::operator+=(double c)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += c;);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += c; });
    return *this;
 }
 
@@ -239,7 +241,7 @@ Vector &Vector::operator+=(const Vector &v)
    const int N = size;
    auto y = ReadWrite(use_dev);
    auto x = v.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += x[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += x[i]; });
    return *this;
 }
 
@@ -253,7 +255,7 @@ Vector &Vector::Add(const double a, const Vector &Va)
       const bool use_dev = UseDevice() || Va.UseDevice();
       auto y = ReadWrite(use_dev);
       auto x = Va.Read(use_dev);
-      MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += a * x[i];);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += a * x[i]; });
    }
    return *this;
 }
@@ -266,7 +268,7 @@ Vector &Vector::Set(const double a, const Vector &Va)
    const int N = size;
    auto x = Va.Read(use_dev);
    auto y = Write(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = a * x[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = a * x[i]; });
    return *this;
 }
 
@@ -301,7 +303,7 @@ void Vector::Neg()
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = -y[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
@@ -316,7 +318,7 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    auto x1 = v1.Read(use_dev);
    auto x2 = v2.Read(use_dev);
    auto y = v.Write(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = x1[i] + x2[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = x1[i] + x2[i]; });
 #else
    #pragma omp parallel for
    for (int i = 0; i < v.size; i++)
@@ -348,7 +350,10 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       auto d_x = v1.Read(use_dev);
       auto d_y = v2.Read(use_dev);
       auto d_z = v.Write(use_dev);
-      MFEM_FORALL_SWITCH(use_dev, i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_z[i] = d_x[i] + alpha * d_y[i];
+      });
 #else
       const double *v1p = v1.data, *v2p = v2.data;
       double *vp = v.data;
@@ -384,7 +389,10 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       auto xd = x.Read(use_dev);
       auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
-      MFEM_FORALL_SWITCH(use_dev, i, N, zd[i] = a * (xd[i] + yd[i]););
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         zd[i] = a * (xd[i] + yd[i]);
+      });
 #else
       const double *xp = x.data;
       const double *yp = y.data;
@@ -436,7 +444,10 @@ void add(const double a, const Vector &x,
       auto xd = x.Read(use_dev);
       auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
-      MFEM_FORALL_SWITCH(use_dev, i, N, zd[i] = a * xd[i] + b * yd[i];);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         zd[i] = a * xd[i] + b * yd[i];
+      });
 #else
       const double *xp = x.data;
       const double *yp = y.data;
@@ -463,7 +474,10 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    auto xd = x.Read(use_dev);
    auto yd = y.Read(use_dev);
    auto zd = z.Write(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, zd[i] = xd[i] - yd[i];);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      zd[i] = xd[i] - yd[i];
+   });
 #else
    const double *xp = x.data;
    const double *yp = y.data;
@@ -499,7 +513,10 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       auto xd = x.Read(use_dev);
       auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
-      MFEM_FORALL_SWITCH(use_dev, i, N, zd[i] = a * (xd[i] - yd[i]););
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         zd[i] = a * (xd[i] - yd[i]);
+      });
 #else
       const double *xp = x.data;
       const double *yp = y.data;
@@ -514,6 +531,19 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
    }
 }
 
+void Vector::cross3D(const Vector &vin, Vector &vout) const
+{
+   HostRead();
+   vin.HostRead();
+   vout.HostWrite();
+   MFEM_VERIFY(size == 3, "Only 3D vectors supported in cross.");
+   MFEM_VERIFY(vin.Size() == 3, "Only 3D vectors supported in cross.");
+   vout.SetSize(3);
+   vout(0) = data[1]*vin(2)-data[2]*vin(1);
+   vout(1) = data[2]*vin(0)-data[0]*vin(2);
+   vout(2) = data[0]*vin(1)-data[1]*vin(0);
+}
+
 void Vector::median(const Vector &lo, const Vector &hi)
 {
    MFEM_ASSERT(size == lo.size && size == hi.size,
@@ -525,7 +555,7 @@ void Vector::median(const Vector &lo, const Vector &hi)
    auto l = lo.Read(use_dev);
    auto h = hi.Read(use_dev);
    auto m = Write(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N,
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    {
       if (m[i] < l[i])
       {
@@ -546,7 +576,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
    auto d_y = elemvect.Write(use_dev);
    auto d_X = Read(use_dev);
    auto d_dofs = dofs.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, n,
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof_i = d_dofs[i];
       d_y[i] = dof_i >= 0 ? d_X[dof_i] : -d_X[-dof_i-1];
@@ -571,7 +601,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
    // Use read+write access for *this - we only modify some of its entries
    auto d_X = ReadWrite(use_dev);
    auto d_dofs = dofs.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, n,
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_dofs[i];
       if (j >= 0)
@@ -597,7 +627,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
    auto d_X = ReadWrite(use_dev);
    auto d_y = elemvect.Read(use_dev);
    auto d_dofs = dofs.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, n,
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof_i = d_dofs[i];
       if (dof_i >= 0)
@@ -641,7 +671,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    auto d_y = elemvect.Read(use_dev);
    auto d_X = ReadWrite(use_dev);
    auto d_dofs = dofs.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, n,
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_dofs[i];
       if (j >= 0)
@@ -685,7 +715,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
    auto d_y = ReadWrite(use_dev);
    auto d_x = elemvect.Read(use_dev);
    auto d_dofs = dofs.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, n,
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_dofs[i];
       if (j >= 0)
@@ -710,9 +740,9 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
    auto d_data = ReadWrite(use_dev);
    auto d_dofs_vals = dofs_vals.Write(use_dev);
    auto d_dofs = dofs.Read(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, n, d_dofs_vals[i] = d_data[d_dofs[i]];);
-   MFEM_FORALL_SWITCH(use_dev, i, N, d_data[i] = val;);
-   MFEM_FORALL_SWITCH(use_dev, i, n, d_data[d_dofs[i]] = d_dofs_vals[i];);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { d_dofs_vals[i] = d_data[d_dofs[i]]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { d_data[i] = val; });
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { d_data[d_dofs[i]] = d_dofs_vals[i]; });
 }
 
 void Vector::Print(std::ostream &os, int width) const
@@ -1176,7 +1206,10 @@ double Vector::operator*(const Vector &v) const
       dot.UseDevice(true);
       auto d_dot = dot.Write();
       dot = 0.0;
-      MFEM_FORALL(i, N, d_dot[0] += m_data_[i] * v_data_[i];);
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_dot[0] += m_data_[i] * v_data_[i];
+      });
       dot.HostReadWrite();
       return dot[0];
    }
@@ -1235,7 +1268,10 @@ double Vector::Min() const
       min = infinity();
       min.UseDevice(true);
       auto d_min = min.ReadWrite();
-      MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data_[i])?d_min[0]:m_data_[i];);
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_min[0] = (d_min[0]<m_data_[i])?d_min[0]:m_data_[i];
+      });
       min.HostReadWrite();
       return min[0];
    }
