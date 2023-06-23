@@ -301,13 +301,13 @@ public:
 
    virtual ~GSLIBCommunicator();
 
-   void ExchangeNormal(Mesh& mesh, 
+   void ExchangeNormal(Mesh& mesh,
                        const Array<unsigned int> &gsl_proc,
                        const Array<unsigned int> &gsl_mfem_elem,
                        const Vector &gsl_mfem_ref,
                        Vector &recv_normals); //npt*dim
 
-   void SendData(int dim, 
+   void SendData(int dim,
                  const Array<unsigned int> & gsl_proc,
                  const Array<unsigned int> & elem_send,
                  const Vector &ref_send,
@@ -317,6 +317,15 @@ public:
                  Array<unsigned int> & elem_recv,
                  Vector &ref_recv,
                  Vector &coords_recv);
+
+   void SendData2(int dim,
+                  const Array<unsigned int> & gsl_proc,
+                  const Vector &xi_send,
+                  const Array<int> &conn_send,
+                  const DenseMatrix &coords_send,
+                  Vector &ref_recv,
+                  Array<int> &conn_recv,
+                  DenseMatrix &coords_recv);
 
    virtual void FreeData();
 };

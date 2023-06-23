@@ -13,18 +13,41 @@
 using namespace std;
 using namespace mfem;
 
+int get_rank(int tdof, std::vector<int> & tdof_offsets)
+{
+   int size = tdof_offsets.size();
+   if (size == 1) { return 0; }
+   std::vector<int>::iterator up;
+   up=std::upper_bound(tdof_offsets.begin(), tdof_offsets.end(),tdof); //
+   return std::distance(tdof_offsets.begin(),up)-1;
+}
+
+void ComputeTdofOffsets(const ParFiniteElementSpace * pfes,
+                        std::vector<int> & tdof_offsets)
+{
+   MPI_Comm comm = pfes->GetComm();
+   int num_procs;
+   MPI_Comm_size(comm, &num_procs);
+   tdof_offsets.resize(num_procs);
+   int mytoffset = pfes->GetMyTDofOffset();
+   MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
+}
+
+
 void PrintElementVertices(Mesh * mesh, int elem,  int printid)
 {
    int myid = Mpi::WorldRank();
    Array<int> vertices;
    if (myid == printid)
    {
-      mfem::out << "myid = " << myid <<":   " <<  "elem: " << elem << ". Vertices = \n" ;
+      mfem::out << "myid = " << myid <<":   " <<  "elem: " << elem <<
+                ". Vertices = \n" ;
       mesh->GetElementVertices(elem,vertices);
       for (int i = 0; i<vertices.Size(); i++)
       {
          double * coords = mesh->GetVertex(vertices[i]);
-         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")" << endl;
+         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")"
+                   << endl;
       }
       mfem::out << endl;
    }
@@ -36,12 +59,14 @@ void PrintFaceVertices(Mesh * mesh, int face,  int printid)
    Array<int> vertices;
    if (myid == printid)
    {
-      mfem::out << "myid = " << myid <<":   " <<  "face: " << face << ". Vertices = \n" ;
+      mfem::out << "myid = " << myid <<":   " <<  "face: " << face <<
+                ". Vertices = \n" ;
       mesh->GetFaceVertices(face,vertices);
       for (int i = 0; i<vertices.Size(); i++)
       {
          double *coords = mesh->GetVertex(vertices[i]);
-         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")" << endl;
+         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")"
+                   << endl;
       }
       mfem::out << endl;
    }
@@ -102,23 +127,23 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
    std::vector<int > faceid;
    mesh.GetElementFaces(elem, faces, ori);
    int face = -1;
-   for(int i=0; i<faces.Size(); i++)
+   for (int i=0; i<faces.Size(); i++)
    {
       face = faces[i];
       Array<int> faceVert;
-      if(!mesh.FaceIsInterior(face)) // if on the boundary 
+      if (!mesh.FaceIsInterior(face)) // if on the boundary
       {
          mesh.GetFaceVertices(face, faceVert);
-	      faceVert.Sort();
-	      facesVertices.push_back(faceVert);
-	      faceid.push_back(face);
+         faceVert.Sort();
+         facesVertices.push_back(faceVert);
+         faceid.push_back(face);
       }
    }
-   int bdrface = facesVertices.size(); 
+   int bdrface = facesVertices.size();
 
-   Array<int> bdryFaces;  
+   Array<int> bdryFaces;
    // This shoulnd't need to be rebuilt
-   std::vector<Array<int> > bdryVerts;  
+   std::vector<Array<int> > bdryVerts;
    for (int b=0; b<mesh.GetNBE(); ++b)
    {
       if (attr.FindSorted(mesh.GetBdrAttribute(b)) >= 0)  // found the contact surface
@@ -127,7 +152,7 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
          Array<int> vert;
          mesh.GetBdrElementVertices(b, vert);
          vert.Sort();
-         bdryVerts.push_back(vert); 
+         bdryVerts.push_back(vert);
       }
    }
 
@@ -137,17 +162,17 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 
    for (int i=0; i<bdrface; i++)
    {
-       for (int j=0; j<bdrvert; j++) 
-       {
-	   if(facesVertices[i] == bdryVerts[j])
-	   {
-	       cbdrface = faceid[i];
-	       count_cbdrface += 1; 
-	   }
-       }
+      for (int j=0; j<bdrvert; j++)
+      {
+         if (facesVertices[i] == bdryVerts[j])
+         {
+            cbdrface = faceid[i];
+            count_cbdrface += 1;
+         }
+      }
    }
    MFEM_VERIFY(count_cbdrface == 1,"projection surface not found");
-   
+
 };
 
 Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
@@ -197,14 +222,14 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
       }
    }
    // closest point on the boundary
-   if(dimNormal < 0 || normalSide < 0) // node is inside the element
+   if (dimNormal < 0 || normalSide < 0) // node is inside the element
    {
-       interior = 1;
-       Vector n(3);
-       n = 0.0;
-       return n;  
+      interior = 1;
+      Vector n(3);
+      n = 0.0;
+      return n;
    }
-   
+
    MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
    refNormal = dimNormal;
 
@@ -328,7 +353,8 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
 // where X is the list of x-coordinates for all points and so on.
 // conn: connectivity of the target surface elements
 // xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
-void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& xi)
+void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn,
+                      Vector& xi, DenseMatrix & coords)
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
@@ -381,9 +407,10 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 
    Array<unsigned int> index_recv, elems_recv, proc_recv;
    Vector ref_recv;
-   
+
    Vector xyz_recv;
-   gslcomm.SendData(dim,procs,elems,refcrd,xyz, proc_recv,index_recv,elems_recv,ref_recv, xyz_recv);
+   gslcomm.SendData(dim,procs,elems,refcrd,xyz, proc_recv,index_recv,elems_recv,
+                    ref_recv, xyz_recv);
 
    int np_loc = elems_recv.Size();
    Array<int> conn_loc(np_loc*4);
@@ -392,43 +419,44 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    {
       int refFace, refNormal, refNormalSide;
       bool is_interior = -1;
-      
-      Vector normal = GetNormalVector(mesh, elems_recv[i], ref_recv.GetData() + (i*dim),
+
+      Vector normal = GetNormalVector(mesh, elems_recv[i],
+                                      ref_recv.GetData() + (i*dim),
                                       refFace, refNormal, is_interior);
 
       // continue;
       int phyFace;
-      if(is_interior)
+      if (is_interior)
       {
          phyFace = -1; // the id of the face that has the closest point
          FindSurfaceToProject(mesh, elems_recv[i], phyFace); // seems that this works
 
          Array<int> cbdrVert;
          mesh.GetFaceVertices(phyFace, cbdrVert);
-	      Vector xs(dim);
+         Vector xs(dim);
          xs[0] = xyz_recv[i + 0*np_loc];
          xs[1] = xyz_recv[i + 1*np_loc];
          xs[2] = xyz_recv[i + 2*np_loc];
-  
-	      Vector xi_tmp(dim-1);
+
+         Vector xi_tmp(dim-1);
          // get nodes!
 
          GridFunction *nodes = mesh.GetNodes();
-         DenseMatrix coords(4,3); 
+         DenseMatrix coords(4,3);
          for (int i=0; i<4; i++)
-	      {
-	         for (int j=0; j<3; j++)
-	         {
+         {
+            for (int j=0; j<3; j++)
+            {
                coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
-	         }
-	      }
-	      SlaveToMaster(coords, xs, xi_tmp);
-         
+            }
+         }
+         SlaveToMaster(coords, xs, xi_tmp);
+
          for (int j=0; j<dim-1; ++j)
          {
-	         xi_send[i*(dim-1)+j] = xi_tmp[j];
+            xi_send[i*(dim-1)+j] = xi_tmp[j];
          }
-	      // now get get the projection to the surface 
+         // now get get the projection to the surface
       }
       else
       {
@@ -452,7 +480,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 
          for (int j=0; j<dim-1; ++j)
          {
-	         xi_send[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
+            xi_send[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
          }
       }
       // Get the element face
@@ -460,7 +488,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
       Array<int> ori;
       int face;
 
-      if(is_interior)
+      if (is_interior)
       {
          face = phyFace;
       }
@@ -479,9 +507,10 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
       }
    }
 
-   if (myid == 1)
+   if (0) // for debugging
    {
       int sz = xi_send.Size()/2;
+
       for (int i = 0; i<sz; i++)
       {
          mfem::out << "("<<xi_send[i*(dim-1)]<<","<<xi_send[i*(dim-1)+1]<<"): -> ";
@@ -499,6 +528,22 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
          }
       }
    }
+
+   int sz = xi_send.Size()/2;
+   DenseMatrix coordsm(sz*4, dim);
+   for (int i = 0; i<sz; i++)
+   {
+      for (int j = 0; j<4; j++)
+      {
+         for (int k=0; k<dim; k++)
+         {
+            coordsm(i*4+j,k) = mesh.GetVertex(conn_loc[i*4+j])[k];
+         }
+      }
+   }
+
+   // need to send data (xi, conn and coords of xyz) back to the owning processor
+   gslcomm.SendData2(dim,proc_recv,xi_send, conn_loc, coordsm,xi,conn,coords);
 
 }
 
@@ -538,7 +583,7 @@ int main(int argc, char *argv[])
 
    // boundary attribute 2 is the potential contact surface of nodes
    attr.Append(2);
-   // boundary attribute 2 is the potential contact surface for master surface 
+   // boundary attribute 2 is the potential contact surface for master surface
    m_attr.Append(2);
 
    ParMesh pmesh1(MPI_COMM_WORLD, mesh1); mesh1.Clear();
@@ -561,13 +606,15 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns for mesh1: " << size1 << endl;
    }
    pmesh1.SetNodalFESpace(fespace1);
-   
 
-   GridFunction nodes0 = *pmesh1.GetNodes(); // undeformed mesh1 nodal grid function
+
+   GridFunction nodes0 =
+      *pmesh1.GetNodes(); // undeformed mesh1 nodal grid function
    GridFunction *nodes1 = pmesh1.GetNodes();
 
    FiniteElementCollection *fec2 = new H1_FECollection(1, dim);
-   ParFiniteElementSpace *fespace2 = new ParFiniteElementSpace(&pmesh2, fec2, dim, Ordering::byVDIM);
+   ParFiniteElementSpace *fespace2 = new ParFiniteElementSpace(&pmesh2, fec2, dim,
+                                                               Ordering::byVDIM);
    HYPRE_BigInt size2 = fespace2->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -622,13 +669,13 @@ int main(int argc, char *argv[])
    HypreParMatrix A1;
    Vector B1, X1;
    a1->FormLinearSystem(ess_tdof_list1, x1, *b1, A1, X1, B1);
-   
+
    HypreParMatrix A2;
    Vector B2, X2;
    a2->FormLinearSystem(ess_tdof_list2, x2, *b2, A2, X2, B2);
- 
+
    // Combine elasticity operator for two meshes into one.
-   // Block Matrix  
+   // Block Matrix
    Array2D<HypreParMatrix *> blkA(2,2);
    blkA(0,0) = &A1;
    blkA(1,1) = &A2;
@@ -636,38 +683,48 @@ int main(int argc, char *argv[])
    HypreParMatrix * K = HypreParMatrixFromBlocks(blkA);
 
 
-   // Construct node to segment contact constraint. 
+   // Construct node to segment contact constraint.
    attr.Sort();
    // cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
    // for (auto a : attr)  cout << a << endl;
 
-   pmesh2.ExchangeFaceNbrData();
+   std::set<int> bdryVerts2;
+   // unique numbering of vertices;
+   Array<int> globalvertices(pmesh2.GetNV());
+   for (int i = 0; i<pmesh2.GetNV(); i++)
+   {
+      globalvertices[i] = i;
+   }
+   pmesh2.GetGlobalVertexIndices(globalvertices);
 
-   std::set<int> bdryVerts2;  
+   std::vector<int> vertex_offsets;
+   ParFiniteElementSpace *vertexfes2 = new ParFiniteElementSpace(&pmesh2, fec2);
+   ComputeTdofOffsets(vertexfes2,vertex_offsets);
    for (int b=0; b<pmesh2.GetNBE(); ++b)
    {
-      // mfem::Mesh::FaceInformation info = pmesh2.GetFaceInformation(pmesh2.GetBdrFace(b));
-   
       if (attr.FindSorted(pmesh2.GetBdrAttribute(b)) >= 0)
       {
          Array<int> vert;
          pmesh2.GetBdrElementVertices(b, vert);
          for (auto v : vert)
          {
+            // skip if the processor does not own the vertex
+            if (myid != get_rank(globalvertices[v],vertex_offsets)) { continue; }
             bdryVerts2.insert(v);
          }
       }
    }
 
-   PrintSet(bdryVerts2, "bdrVerts2", 0);
-   PrintSet(bdryVerts2, "bdrVerts2", 1);
+   // PrintSet(bdryVerts2, "bdrVerts2", 0);
+   // PrintSet(bdryVerts2, "bdrVerts2", 1);
 
    int npoints = bdryVerts2.size();
 
+   mfem::out << "myid = " << myid << ", npoints = " << npoints << endl;
 
-   Array<int> s_conn(npoints); // connectivity of the second/slave mesh 
+   Array<int> s_conn(npoints); // connectivity of the second/slave mesh
    Vector xyz(dim * npoints);
-   xyz = 0.0;  
+   xyz = 0.0;
 
    cout << "Boundary vertices for contact surface vertices in mesh 2" << endl;
 
@@ -681,9 +738,9 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<dim; ++i)
       {
-         xyz[count + (i * npoints)] = pmesh2.GetVertex(v)[i] + x2[v*dim+i]; 
+         xyz[count + (i * npoints)] = pmesh2.GetVertex(v)[i] + x2[v*dim+i];
       }
-      
+
       s_conn[count] = v + nnd_1; // dof1 is the master
       count++;
    }
@@ -705,36 +762,61 @@ int main(int argc, char *argv[])
          xs[i*dim+j] = xyz[i + (j*npoints)];
       }
    }
-   
-   Array<int> m_conn(npoints*4); // only works for linear elements that have 4 vertices!
+
+   Array<int> m_conn(
+      npoints*4); // only works for linear elements that have 4 vertices!
    DenseMatrix coordsm(npoints*4, dim);
- 
+
    // adding displacement to mesh1 using a fixed grid function from mesh1
    x1 = 0.0; // x1 order: [xyz xyz... xyz]
    add(nodes0, x1, *nodes1);
-   
-   FindPointsInMesh(pmesh1, xyz, m_conn, m_xi);
 
-   return 0;
+   FindPointsInMesh(pmesh1, xyz, m_conn, m_xi,coordsm);
 
-   for (int i=0; i<npoints; i++)
+
+   // for (int i=0; i<npoints; i++)
+   // {
+   //    for (int j=0; j<4; j++)
+   //    {
+   //       for (int k=0; k<dim; k++)
+   //       {
+   //          coordsm(i*4+j,k) = mesh1.GetVertex(m_conn[i*4+j])[k]+x1[dim*m_conn[i*4+j]+k];
+   //       }
+   //    }
+   // }
+
+   // decode and print
+
+   if (1) // for debugging
    {
-      for (int j=0; j<4; j++)
+      int sz = m_xi.Size()/2;
+
+      for (int i = 0; i<sz; i++)
       {
-	      for (int k=0; k<dim; k++)
-	      {
-            coordsm(i*4+j,k) = mesh1.GetVertex(m_conn[i*4+j])[k]+x1[dim*m_conn[i*4+j]+k];     
-	      }
+         mfem::out << "("<<m_xi[i*(dim-1)]<<","<<m_xi[i*(dim-1)+1]<<"): -> ";
+         for (int j = 0; j<4; j++)
+         {
+            if (j<3)
+            {
+               mfem::out << "("<<coordsm(i*4+j,0)<<","<<coordsm(i*4+j,1)<<","<<coordsm(i*4+j,
+                                                                                       2)<<"), ";
+            }
+            else
+            {
+               mfem::out << "("<<coordsm(i*4+j,0)<<","<<coordsm(i*4+j,1)<<","<<coordsm(i*4+j,
+                                                                                       2)<<") \n " << endl;
+            }
+         }
       }
    }
 
    SparseMatrix M(nnd,ndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
-   
-   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm, 
-		    s_conn, m_conn, g, M, dM);
 
-   std::set<int> dirbdryv2;  
+   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm,
+                    s_conn, m_conn, g, M, dM);
+
+   std::set<int> dirbdryv2;
    for (int b=0; b<mesh2.GetNBE(); ++b)
    {
       if (mesh2.GetBdrAttribute(b) == 1)
@@ -747,7 +829,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-   std::set<int> dirbdryv1;  
+   std::set<int> dirbdryv1;
    for (int b=0; b<mesh1.GetNBE(); ++b)
    {
       if (mesh1.GetBdrAttribute(b) == 1)
@@ -761,15 +843,15 @@ int main(int argc, char *argv[])
       }
    }
 
-   Array<int> Dirichlet_dof;    
-   Array<double> Dirichlet_val;    
-   
+   Array<int> Dirichlet_dof;
+   Array<double> Dirichlet_val;
+
    for (auto v : dirbdryv2)
    {
       for (int i=0; i<dim; ++i)
       {
-	      Dirichlet_dof.Append(v*dim + i + ndof_1);
-	      Dirichlet_val.Append(0.);
+         Dirichlet_dof.Append(v*dim + i + ndof_1);
+         Dirichlet_val.Append(0.);
       }
    }
    double delta = 0.1;

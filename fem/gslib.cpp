@@ -1356,8 +1356,73 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
    delete outpt;
 }
 
+void GSLIBCommunicator::SendData2(int dim,
+                                  const Array<unsigned int> & gsl_proc,
+                                  const Vector &xi_send,
+                                  const Array<int> &conn_send,
+                                  const DenseMatrix &coords_send,
+                                  Vector &xi_recv,
+                                  Array<int> &conn_recv,
+                                  DenseMatrix &coords_recv)
+{
+   int nptsend = gsl_proc.Size();
 
-void GSLIBCommunicator::ExchangeNormal(Mesh & mesh, 
+   struct gslib::array *outpt = new gslib::array;
+   struct out_pt {double xi[2], coords[12]; int conn[4]; uint proc;};
+   struct out_pt *pt;
+   array_init(struct out_pt, outpt, nptsend);
+   outpt->n=nptsend;
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < nptsend; index++)
+   {
+      pt->proc  = gsl_proc[index];
+      for (int d = 0; d < dim-1; ++d)
+      {
+         pt->xi[d]= xi_send(index*(dim-1) + d);
+      }
+      for (int j = 0; j<4; j++)
+      {
+
+         pt->conn[j] = conn_send[index*4+j];
+         for (int d = 0; d < dim; ++d)
+         {
+            pt->coords[j*dim+d]= coords_send(index*4+j,d);
+         }
+      }
+      ++pt;
+   }
+
+   // Transfer data to target MPI ranks
+   sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+   // unpack
+   int npt = outpt->n;
+   xi_recv.SetSize(npt*(dim-1));
+   conn_recv.SetSize(npt*4);
+   coords_recv.SetSize(npt*4,dim);
+
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < npt; index++)
+   {
+      for (int d = 0; d < dim-1; ++d)
+      {
+         xi_recv(index*(dim-1) + d) = pt->xi[d];
+      }
+      for (int j = 0; j<4; j++)
+      {
+         conn_recv[index*4+j] = pt->conn[j];
+         for (int d = 0; d < dim; ++d)
+         {
+            coords_recv(index*4+j,d) = pt->coords[j*dim+d];
+         }
+      }
+      ++pt;
+   }
+   array_free(outpt);
+   delete outpt;
+}
+
+
+void GSLIBCommunicator::ExchangeNormal(Mesh & mesh,
                                        const Array<unsigned int> &gsl_proc,
                                        const Array<unsigned int> &gsl_mfem_elem,
                                        const Vector &gsl_mfem_ref,
