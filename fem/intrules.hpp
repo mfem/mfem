@@ -272,31 +272,18 @@ public:
 };
 
 /// Class for defining different integration rules on each NURBS patch.
-class NURBSPatchRule
+class NURBSMeshRules
 {
 public:
-   /// Construct a rule for each patch, using SetPatchRule.
-   NURBSPatchRule(const int numPatches, const int dim_) :
-      patchRule(numPatches), patchRules1D(numPatches, dim_),
-      npatches(numPatches), dim(dim_)
-   {
-      patchRule = nullptr;
-   }
-
-   /// Construct a tensor product of 1D rules, to be applied to all patches.
-   NURBSPatchRule(IntegrationRule *irx, IntegrationRule *iry,
-                  IntegrationRule *irz = nullptr);
+   /// Construct a rule for each patch, using SetPatchRules1D.
+   NURBSMeshRules(const int numPatches, const int dim_) :
+      patchRules1D(numPatches, dim_),
+      npatches(numPatches), dim(dim_) { }
 
    /// Returns a rule for the element.
    IntegrationRule &GetElementRule(const int elem, const int patch, int *ijk,
                                    Array<const KnotVector*> const& kv,
                                    bool & deleteRule) const;
-
-   /// Set the integration rule for the NURBS patch of the given index.
-   void SetPatchRule(const int patch, IntegrationRule *ir_patch)
-   {
-      patchRule[patch] = ir_patch;
-   }
 
    /// Add a rule to be used for individual elements. Returns the rule index.
    std::size_t AddElementRule(IntegrationRule *ir_element)
@@ -354,12 +341,13 @@ public:
       return patchRules1D_KnotSpan[patch][dimension];
    }
 
-   ~NURBSPatchRule();
+   ~NURBSMeshRules();
 
 private:
-   IntegrationRule *ir = nullptr;
-   Array<IntegrationRule*> patchRule;
+   /// Tensor-product rules defined on all patches independently.
    Array2D<const IntegrationRule*> patchRules1D;
+
+   /// Integration rules defined on elements.
    std::vector<IntegrationRule*> elementRule;
 
    std::map<std::size_t, std::size_t> elementToRule;

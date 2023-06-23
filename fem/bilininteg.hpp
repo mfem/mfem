@@ -35,10 +35,8 @@ constexpr int HDIV_MAX_Q1D = 6;
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL,
-                          bool patchIntegrator = false,
-                          bool reducedIntegration = false)
-      : NonlinearFormIntegrator(ir, patchIntegrator, reducedIntegration) { }
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : NonlinearFormIntegrator(ir) { }
 
 public:
    // TODO: add support for other assembly levels (in addition to PA) and their
@@ -2132,7 +2130,14 @@ private:
    typedef std::vector<std::vector<int>> IntArrayVar2D;
 
    int numPatches = 0;
-   std::vector<std::vector<std::vector<std::vector<Vector>>>> reducedWeights;
+   static constexpr int numTypes = 2;  // Number of rule types
+
+   // For each patch p, spatial dimension d (total dim), and rule type t (total
+   // numTypes), an std::vector<Vector> of reduced quadrature weights for all
+   // basis functions is stored in reducedWeights[t + numTypes * (d + dim * p)],
+   // reshaped as rw(t,d,p). Note that nd may vary with respect to the patch and
+   // spatial dimension.
+   std::vector<std::vector<Vector>> reducedWeights;
    std::vector<std::vector<std::vector<IntArrayVar2D>>> reducedIDs;
    std::vector<Array<int>> pQ1D, pD1D;
    std::vector<std::vector<Array2D<double>>> pB, pG;
@@ -2151,10 +2156,8 @@ public:
         Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr,
-                       bool patchIntegrator = false,
-                       bool reducedIntegration = false)
-      : BilinearFormIntegrator(ir, patchIntegrator, reducedIntegration),
+   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
         Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q

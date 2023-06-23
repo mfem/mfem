@@ -823,6 +823,7 @@ public:
                                                 Array<int> &dofs) const;
 
    /// Returns indices of degrees of freedom for NURBS patch index @a patch.
+   /// Cartesian ordering is used, for the tensor-product degrees of freedom.
    void GetPatchDofs(int patch, Array<int> &dofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified

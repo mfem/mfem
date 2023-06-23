@@ -26,36 +26,42 @@ namespace mfem
     assemble the local gradient operator and to compute the local energy. */
 class NonlinearFormIntegrator
 {
+public:
+   enum Mode
+   {
+      ELEMENTWISE = 0,       /**< Element-wise integration (default) */
+      PATCHWISE = 1,         /**< Patch-wise integration (NURBS meshes) */
+      PATCHWISE_REDUCED = 2, /**< Patch-wise integration (NURBS meshes) with
+                                  reduced integration rules. */
+   };
+
 protected:
    const IntegrationRule *IntRule;
-   NURBSPatchRule *patchRule = nullptr;
+
+   Mode integrationMode = Mode::ELEMENTWISE;
+
+   // Prescribed integration rules (not reduced approximate rules).
+   NURBSMeshRules *patchRules = nullptr;
 
    // CEED extension
    ceed::Operator* ceedOp;
 
-   // If true, integration is patch-wise rather than element-wise.
-   bool patchwise;
-
-   // If true, use approximate reduced integration rules.
-   bool reducedRule;
-
    MemoryType pa_mt = MemoryType::DEFAULT;
 
-   NonlinearFormIntegrator(const IntegrationRule *ir = NULL,
-                           bool patchIntegrator = false,
-                           bool reducedIntegration = false)
-      : IntRule(ir), ceedOp(NULL), patchwise(patchIntegrator),
-        reducedRule(reducedIntegration) { }
+   NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : IntRule(ir), ceedOp(NULL) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
        let the integrator choose (when @a ir == NULL). */
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
-   void SetNURBSPatchIntRule(NURBSPatchRule *pr) { patchRule = pr; }
-   bool HasNURBSPatchIntRule() const { return patchRule != nullptr; }
+   void SetIntegrationMode(Mode m) { integrationMode = m; }
 
-   bool Patchwise() const { return patchwise; }
+   void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
+   bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
+
+   bool Patchwise() const { return integrationMode != Mode::ELEMENTWISE; }
 
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
