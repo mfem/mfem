@@ -626,8 +626,15 @@ int main(int argc, char *argv[])
    int ndof_2 = fespace2->GetTrueVSize();
    int ndofs = ndof_1 + ndof_2;
    // number of nodes for each mesh
-   int nnd_1 = pmesh1.GetNV();
-   int nnd_2 = pmesh2.GetNV();
+   // int nnd_1 = pmesh1.GetNV();
+   // int nnd_2 = pmesh2.GetNV();
+
+   // find the total number of vertices owned
+   ParFiniteElementSpace *vertexfes1 = new ParFiniteElementSpace(&pmesh1, fec1);
+   ParFiniteElementSpace *vertexfes2 = new ParFiniteElementSpace(&pmesh1, fec2);
+   int nnd_1 = vertexfes1->GetTrueVSize();
+   int nnd_2 = vertexfes2->GetTrueVSize();
+
    int nnd = nnd_1 + nnd_2;
 
    Array<int> ess_tdof_list1, ess_bdr1(pmesh1.bdr_attributes.Max());
@@ -698,7 +705,6 @@ int main(int argc, char *argv[])
    pmesh2.GetGlobalVertexIndices(globalvertices);
 
    std::vector<int> vertex_offsets;
-   ParFiniteElementSpace *vertexfes2 = new ParFiniteElementSpace(&pmesh2, fec2);
    ComputeTdofOffsets(vertexfes2,vertex_offsets);
    for (int b=0; b<pmesh2.GetNBE(); ++b)
    {
@@ -812,10 +818,9 @@ int main(int argc, char *argv[])
 
    SparseMatrix M(nnd,ndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
-
    Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm,
-                    s_conn, m_conn, g, M, dM);
-
+                     s_conn, m_conn, g, M, dM);
+                     
    std::set<int> dirbdryv2;
    for (int b=0; b<mesh2.GetNBE(); ++b)
    {
