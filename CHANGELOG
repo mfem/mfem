@@ -59,6 +59,9 @@ New and updated examples and miniapps
   ComplexBlockStaticCondensation. Three new integrators are added in support of
   DPG systems: TraceIntegrator, NormalTraceIntegrator and TangentTraceIntegrator
 
+- Added a random refinement option to mesh-explorer miniapp to assist users in
+  experimenting with nonconforming meshes.
+
 Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
