@@ -42,26 +42,6 @@ Meshing improvements
   338. Added the tmop-metric-magnitude tool for tracking how metrics change
   under geometric perturbations.
 
-- Reorganized files for bilinear form, linear form, and nonlinear form integrators
-  in the fem/integ/ subdirectory.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a miniapp pmesh-fitting in miniapps/meshing for interface and boundary
-  fitting to implicit domains defined using level-set functions.
-
-- Moved the distance solver methods from miniapps/shifted to miniapps/common.
-
-- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
-  serial and parallel examples for diffusion, convection-diffusion, acoustics
-  and Maxwell equations. The miniapp also includes new classes such as
-  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and
-  ComplexBlockStaticCondensation. Three new integrators are added in support of
-  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangentTraceIntegrator
-
-- Added a random refinement option to mesh-explorer miniapp to assist users in
-  experimenting with nonconforming meshes.
-
 Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
@@ -87,6 +67,9 @@ Miscellaneous
 - Improved lambda body debugging with the addition of mfem::forall functions.
   These functions can take the place of the MFEM_FORALL macros, which have been
   preserved for backwards compatibility.
+
+- Reorganized files for bilinear form, linear form, and nonlinear form integrators
+  in the fem/integ/ subdirectory.
 
 
 Version 4.5.2, released on March 23, 2023
