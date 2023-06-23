@@ -107,7 +107,7 @@ inline void PAHcurlHdivApply3D(const int d1d,
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1Dtest-1)*(D1Dtest-1)*D1Dtest, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -473,7 +473,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
    auto Bct = Reshape(bct.Read(), D1Dtest, Q1D);
    auto Gct = Reshape(gct.Read(), D1D, Q1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto X = Reshape(x.Read(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
+   auto X = Reshape(x.Read(), 3*(D1Dtest-1)*(D1Dtest-1)*D1Dtest, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
