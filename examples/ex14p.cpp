@@ -127,6 +127,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
+
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code. NURBS meshes are projected to second order meshes.
