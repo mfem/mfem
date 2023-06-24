@@ -2133,6 +2133,21 @@ private:
    int numPatches = 0;
    static constexpr int numTypes = 2;  // Number of rule types
 
+   // In the case integrationMode == Mode::PATCHWISE_REDUCED, an approximate
+   // integration rule with sparse nonzero weights is computed by NNLSSolver,
+   // for each 1D basis function on each patch, in each spatial dimension. For a
+   // fixed 1D basis function b_i with DOF index i, in the tensor product basis
+   // of patch p, the prescribed exact 1D rule is of the form
+   // \sum_k a_{i,j,k} w_k for some integration points indexed by k, with
+   // weights w_k and coefficients a_{i,j,k} depending on Q(x), an element
+   // transformation, b_i, and b_j, for all 1D basis functions b_j whose support
+   // overlaps that of b_i. Define the constraint matrix G = [g_{j,k}] with
+   // g_{j,k} = a_{i,j,k} and the vector of exact weights w = [w_k]. A reduced
+   // rule should have different weights w_r, many of them zero, and should
+   // approximately satisfy Gw_r = Gw. A sparse approximate solution to this
+   // underdetermined system is computed by NNLSSolver, and its data is stored
+   // in the following members.
+
    // For each patch p, spatial dimension d (total dim), and rule type t (total
    // numTypes), an std::vector<Vector> of reduced quadrature weights for all
    // basis functions is stored in reducedWeights[t + numTypes * (d + dim * p)],
@@ -2149,6 +2164,18 @@ private:
    void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
 
    void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with full 1D quadrature rules. */
+   void AssemblePatchMatrix_fullQuadrature(const int patch,
+                                           const FiniteElementSpace &fes,
+                                           SparseMatrix*& smat);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with reduced 1D quadrature rules. */
+   void AssemblePatchMatrix_reducedQuadrature(const int patch,
+                                              const FiniteElementSpace &fes,
+                                              SparseMatrix*& smat);
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -2188,18 +2215,6 @@ public:
    virtual void AssemblePatchMatrix(const int patch,
                                     const FiniteElementSpace &fes,
                                     SparseMatrix*& smat);
-
-   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
-    with full 1D quadrature rules. */
-   void AssemblePatchMatrix_fullQuadrature(const int patch,
-                                           const FiniteElementSpace &fes,
-                                           SparseMatrix*& smat);
-
-   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
-    with reduced 1D quadrature rules. */
-   void AssemblePatchMatrix_reducedQuadrature(const int patch,
-                                              const FiniteElementSpace &fes,
-                                              SparseMatrix*& smat);
 
    virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
 

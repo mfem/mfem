@@ -281,7 +281,8 @@ public:
       npatches(numPatches), dim(dim_) { }
 
    /// Returns a rule for the element.
-   IntegrationRule &GetElementRule(const int elem, const int patch, int *ijk,
+   IntegrationRule &GetElementRule(const int elem, const int patch,
+                                   const int *ijk,
                                    Array<const KnotVector*> const& kv,
                                    bool & deleteRule) const;
 
