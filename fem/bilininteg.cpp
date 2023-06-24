@@ -868,8 +868,7 @@ void DiffusionIntegrator::AssembleElementMatrix
    if (NURBSFE && patchRules)
    {
       const int patch = NURBSFE->GetPatch();
-      int ijk[3];
-      NURBSFE->GetIJK(ijk);
+      const int* ijk = NURBSFE->GetIJK();
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
       ir = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
                                        deleteRule);

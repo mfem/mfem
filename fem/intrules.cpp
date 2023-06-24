@@ -1772,7 +1772,7 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 }
 
 IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
-                                                const int patch, int *ijk,
+                                                const int patch, const int *ijk,
                                                 Array<const KnotVector*> const& kv,
                                                 bool & deleteRule) const
 {
