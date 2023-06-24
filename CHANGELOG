@@ -26,6 +26,14 @@ New and updated examples and miniapps
   integrators are added in support of DPG systems: TraceIntegrator,
   NormalTraceIntegrator and TangentTraceIntegrator.
 
+- Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
+  demonstrating the use of a matrix-free saddle-point solver methodology,
+  suitable for high-order discretizations and for GPU acceleration. Examples
+  illustrating the solution of Darcy and grad-div problems are included.
+
+- Added a random refinement option to the mesh-explorer miniapp to assist users
+  in experimenting with nonconforming meshes.
+
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
 Meshing improvements
@@ -45,6 +53,12 @@ Discretization improvements
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
 - Added support for p-refined meshes in FindPointsGSLIB.
+
+Linear and nonlinear solvers
+----------------------------
+- Updated interface to MUMPS direct solver to support multiple right-hand
+  sides, block low-rank compression, builds using 64-bit integers, and other
+  improvements.
 
 Integrations, testing and documentation
 ---------------------------------------
