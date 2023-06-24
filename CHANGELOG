@@ -31,6 +31,9 @@ New and updated examples and miniapps
   suitable for high-order discretizations and for GPU acceleration. Examples
   illustrating the solution of Darcy and grad-div problems are included.
 
+- Added a random refinement option to the mesh-explorer miniapp to assist users
+  in experimenting with nonconforming meshes.
+
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
 Meshing improvements
