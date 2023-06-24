@@ -142,7 +142,7 @@ public:
    void SetSize(int s, MemoryType mt);
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
-   void SetSize(int s, Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+   void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
@@ -345,6 +345,10 @@ public:
    /// z = a * (x - y)
    friend void subtract(const double a, const Vector &x,
                         const Vector &y, Vector &z);
+
+   /// Computes cross product of this vector with another 3D vector.
+   /// vout = this x vin.
+   void cross3D(const Vector &vin, Vector &vout) const;
 
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
