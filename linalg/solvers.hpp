@@ -1249,22 +1249,12 @@ public:
 /** Non-negative least squares (NNLS) solver class, for computing a vector
     with non-negative entries approximately satisfying an under-determined
     linear system. */
-class NNLS : public Solver
+class NNLSSolver : public Solver
 {
 public:
-   /**
-   * Constructor*/
-   NNLS(double const_tol=1.0e-14, int min_nnz=0, int max_nnz=0, int verbosity=0,
-        double res_change_termination_tol=1.0e-4, double zero_tol=1.0e-14,
-        double rhs_delta=1.0e-11,
-        bool normalize=true,
-        int n_outer=100000,
-        int n_inner=100000,
-        int n_stallCheck=100);
+   NNLSSolver();
 
-   /**
-    * Destructor*/
-   ~NNLS();
+   ~NNLSSolver() { }
 
    /// The operator must be a DenseMatrix.
    void SetOperator(const Operator &op) override;
@@ -1276,16 +1266,46 @@ public:
      * if 2: print short update on every iteration; if 3: print longer update
      * each iteration.
      */
-   void SetVerbosity(const int verbosity_in);
+   void SetVerbosity(int v) { verbosity_ = v; }
+
+   void SetTolerance(double tol) { const_tol_ = tol; }
+
+   /// Set the minimum number of nonzeros required for the solution.
+   void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
+
+   /// Set the maximum number of nonzeros required for the solution, as an early
+   /// termination condition.
+   void SetMaxNNZ(int max_nnz) { max_nnz_ = max_nnz; }
+
+   /// Set threshold on relative change in residual over nStallCheck_ iterations.
+   void SetResidualChangeTolerance(double tol)
+   { res_change_termination_tol_ = tol; }
+
+   void SetZeroTolerance(double tol) { zero_tol_ = tol; }
+
+   /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().
+   void SetRHSDelta(double d) { rhs_delta_ = d; }
+
+   /// Set the maximum number of outer iterations in Solve().
+   void SetOuterIterations(int n) { n_outer_ = n; }
+
+   /// Set the maximum number of inner iterations in Solve().
+   void SetInnerIterations(int n) { n_inner_ = n; }
+
+   /// Set the number of iterations to use for stall checking.
+   void SetStallCheck(int n) { nStallCheck_ = n; }
+
+   /// Set a flag to determine whether to call NormalizeConstraints().
+   void SetNormalize(bool n) { normalize_ = n; }
 
    /**
-    * Enumerated types of QRresidual mode. Options are 'off': the residual is
-    * calculated normally, 'on': the residual is calculated using the QR
-    * method, 'hybrid': the residual is calculated normally until we experience
-    * rounding errors, then the QR method is used. The default is 'hybrid',
-    * which should see the best performance. Recommend using 'hybrid' or 'off'
-    * only, since 'on' is computationally expensive.
-    */
+     * Enumerated types of QRresidual mode. Options are 'off': the residual is
+     * calculated normally, 'on': the residual is calculated using the QR
+     * method, 'hybrid': the residual is calculated normally until we experience
+     * rounding errors, then the QR method is used. The default is 'hybrid',
+     * which should see the best performance. Recommend using 'hybrid' or 'off'
+     * only, since 'on' is computationally expensive.
+     */
    enum class QRresidualMode {off, on, hybrid};
 
    /**
@@ -1319,24 +1339,24 @@ public:
 private:
    const DenseMatrix *mat;
 
-   const double const_tol_;
-   const int min_nnz_; // minimum number of nonzero entries
+   double const_tol_;
+   int min_nnz_; // minimum number of nonzero entries
    mutable int max_nnz_; // maximum number of nonzero entries
    int verbosity_;
 
    /**
-    * @brief Threshold on relative change in residual over nStallCheck iterations
-    * for stall sensing.
+    * @brief Threshold on relative change in residual over nStallCheck_
+    * iterations, for stall sensing.
     */
-   const double res_change_termination_tol_;
+   double res_change_termination_tol_;
 
-   const double zero_tol_;
-   const double rhs_delta_;
-   const int n_outer_;
-   const int n_inner_;
-   const int nStallCheck_;
+   double zero_tol_;
+   double rhs_delta_;
+   int n_outer_;
+   int n_inner_;
+   int nStallCheck_;
 
-   const bool normalize_;
+   bool normalize_;
 
    mutable bool NNLS_qrres_on_;
    QRresidualMode qr_residual_mode_;

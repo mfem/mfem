@@ -157,7 +157,8 @@ public:
    /** Given a particular NURBS patch, computes the patch matrix as a
        SparseMatrix @a smat.
     */
-   virtual void AssemblePatchMatrix(const int patch, Mesh *mesh,
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
                                     SparseMatrix*& smat);
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -2136,9 +2137,9 @@ private:
    // numTypes), an std::vector<Vector> of reduced quadrature weights for all
    // basis functions is stored in reducedWeights[t + numTypes * (d + dim * p)],
    // reshaped as rw(t,d,p). Note that nd may vary with respect to the patch and
-   // spatial dimension.
+   // spatial dimension. Array reducedIDs is treated similarly.
    std::vector<std::vector<Vector>> reducedWeights;
-   std::vector<std::vector<std::vector<IntArrayVar2D>>> reducedIDs;
+   std::vector<IntArrayVar2D> reducedIDs;
    std::vector<Array<int>> pQ1D, pD1D;
    std::vector<std::vector<Array2D<double>>> pB, pG;
    std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
@@ -2184,17 +2185,20 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   virtual void AssemblePatchMatrix(const int patch, Mesh *mesh,
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
                                     SparseMatrix*& smat);
 
    /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
     with full 1D quadrature rules. */
-   void AssemblePatchMatrix_fullQuadrature(const int patch, Mesh *mesh,
+   void AssemblePatchMatrix_fullQuadrature(const int patch,
+                                           const FiniteElementSpace &fes,
                                            SparseMatrix*& smat);
 
    /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
     with reduced 1D quadrature rules. */
-   void AssemblePatchMatrix_reducedQuadrature(const int patch, Mesh *mesh,
+   void AssemblePatchMatrix_reducedQuadrature(const int patch,
+                                              const FiniteElementSpace &fes,
                                               SparseMatrix*& smat);
 
    virtual void AssembleNURBSPA(const FiniteElementSpace &fes);

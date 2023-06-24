@@ -1785,76 +1785,73 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
       return *elementRule[search->second];
    }
 
-   if (patchRules1D.NumRows())  // Use a tensor product of rules on the patch.
+   MFEM_VERIFY(patchRules1D.NumRows(),
+               "Undefined rule in NURBSMeshRules::GetElementRule");
+
+   // Use a tensor product of rules on the patch.
+   MFEM_VERIFY(kv.Size() == dim, "");
+
+   int np = 1;
+   std::vector<std::vector<double>> el(dim);
+
+   std::vector<int> npd;
+   npd.assign(3, 0);
+
+   for (int d=0; d<dim; ++d)
    {
-      MFEM_VERIFY(kv.Size() == dim, "");
+      const int order = kv[d]->GetOrder();
 
-      int np = 1;
-      std::vector<std::vector<double>> el(dim);
+      const double kv0 = (*kv[d])[order + ijk[d]];
+      const double kv1 = (*kv[d])[order + ijk[d] + 1];
 
-      std::vector<int> npd;
-      npd.assign(3, 0);
+      const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
 
-      for (int d=0; d<dim; ++d)
+      for (int i=0; i<patchRules1D(patch,d)->Size(); ++i)
       {
-         const int order = kv[d]->GetOrder();
-
-         const double kv0 = (*kv[d])[order + ijk[d]];
-         const double kv1 = (*kv[d])[order + ijk[d] + 1];
-
-         const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
-
-         for (int i=0; i<patchRules1D(patch,d)->Size(); ++i)
+         const IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
+         if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
          {
-            const IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
-            if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
-            {
-               const double x = (ip.x - kv0) / (kv1 - kv0);
-               el[d].push_back(x);
-               el[d].push_back(ip.weight);
-            }
-         }
-
-         npd[d] = el[d].size() / 2;
-         np *= npd[d];
-      }
-
-      IntegrationRule *irp = new IntegrationRule(np);
-      deleteRule = true;
-
-      // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
-      //     (el[0][2*i], el[1][2*j], el[2][2*k])
-
-      MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
-
-      for (int i = 0; i < npd[0]; ++i)
-      {
-         for (int j = 0; j < npd[1]; ++j)
-         {
-            for (int k = 0; k < std::max(npd[2], 1); ++k)
-            {
-               const int id = i + j*npd[0] + k*npd[0]*npd[1];
-               (*irp)[id].x = el[0][2*i];
-               (*irp)[id].y = el[1][2*j];
-
-               (*irp)[id].weight = el[0][(2*i)+1];
-               (*irp)[id].weight *= el[1][(2*j)+1];
-
-               if (npd[2] > 0)
-               {
-                  (*irp)[id].z = el[2][2*k];
-                  (*irp)[id].weight *= el[2][(2*k)+1];
-               }
-            }
+            const double x = (ip.x - kv0) / (kv1 - kv0);
+            el[d].push_back(x);
+            el[d].push_back(ip.weight);
          }
       }
 
-      return *irp;
+      npd[d] = el[d].size() / 2;
+      np *= npd[d];
    }
-   else
+
+   IntegrationRule *irp = new IntegrationRule(np);
+   deleteRule = true;
+
+   // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
+   //     (el[0][2*i], el[1][2*j], el[2][2*k])
+
+   MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
+
+   for (int i = 0; i < npd[0]; ++i)
    {
-      MFEM_ABORT("Undefined rule in NURBSMeshRules::GetElementRule");
+      for (int j = 0; j < npd[1]; ++j)
+      {
+         for (int k = 0; k < std::max(npd[2], 1); ++k)
+         {
+            const int id = i + j*npd[0] + k*npd[0]*npd[1];
+            (*irp)[id].x = el[0][2*i];
+            (*irp)[id].y = el[1][2*j];
+
+            (*irp)[id].weight = el[0][(2*i)+1];
+            (*irp)[id].weight *= el[1][(2*j)+1];
+
+            if (npd[2] > 0)
+            {
+               (*irp)[id].z = el[2][2*k];
+               (*irp)[id].weight *= el[2][(2*k)+1];
+            }
+         }
+      }
    }
+
+   return *irp;
 }
 
 void NURBSMeshRules::GetIntegrationPointFrom1D(const int patch, int i, int j,

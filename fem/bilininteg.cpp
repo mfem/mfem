@@ -149,7 +149,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2(
 }
 
 void BilinearFormIntegrator::AssemblePatchMatrix(
-   const int patch, Mesh *mesh, SparseMatrix*& smat)
+   const int patch, const FiniteElementSpace &fes, SparseMatrix*& smat)
 {
    mfem_error ("BilinearFormIntegrator::AssemblePatchMatrix(...)\n"
                "   is not implemented for this class.");
