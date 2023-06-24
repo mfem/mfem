@@ -94,6 +94,13 @@ public:
        @a add is true. Otherwise, if @a add is false, we set @a emat. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add = true);
+
+   /// Method defining element assembly.
+   /** The result of the element assembly is added to the @a emat DenseTensor if
+       @a add is true. Otherwise, if @a add is false, we set @a emat. */
+   virtual void AssembleEA(const FiniteElementSpace &fes, DenseTensor &emat,
+                           const bool add = true);
+
    /** Used with BilinearFormIntegrators that have different spaces. */
    // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
    //                         const FiniteElementSpace &test_fes,
@@ -295,6 +302,7 @@ public:
                                    DenseMatrix &elmat);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
 
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
@@ -418,6 +426,8 @@ public:
                                    DenseMatrix &elmat);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
+
    virtual void AssemblePA(const FiniteElementSpace& fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2160,6 +2170,7 @@ public:
                                     Vector &flux, Vector *d_energy = NULL);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
@@ -2229,6 +2240,9 @@ public:
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
 
+   virtual void AssembleEA(const FiniteElementSpace &fes, DenseTensor &emat,
+                           const bool add);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -2289,6 +2303,7 @@ public:
                                       DenseMatrix &);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 

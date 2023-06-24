@@ -311,4 +311,18 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
    MFEM_ABORT("Unknown kernel.");
 }
 
+void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                DenseTensor &ea_tensor,
+                                const bool add)
+{
+
+   Vector ea_vec;
+   const bool own_mem = false;
+   ea_vec.NewMemoryAndSize(ea_tensor.GetMemory(), ea_tensor.TotalSize(), own_mem);
+
+   AssembleEA(fes, ea_vec, add);
+
+   ea_tensor.GetMemory().Sync(ea_vec.GetMemory());
+}
+
 }
