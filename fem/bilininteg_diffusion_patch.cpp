@@ -144,8 +144,8 @@ void SetupPatch3D(const int Q1Dx,
    });
 }
 
-// Compute a reduced integration rule, using NNLS, for DiffusionIntegrator on a
-// NURBS patch with partial assembly.
+// Compute a reduced integration rule, using NNLSSolver, for DiffusionIntegrator
+// on a NURBS patch with partial assembly.
 void GetReducedRule(const int nq, const int nd,
                     Array2D<double> const& B,
                     Array2D<double> const& G,
@@ -174,9 +174,9 @@ void GetReducedRule(const int nq, const int nd,
       const int nw_dof = maxD[dof] - minD[dof] + 1;
 
       // G is of size nc_dof x nw_dof
-      MFEM_VERIFY(nc_dof <= nw_dof, "The NNLS system for the reduced integration"
-                  " rule requires more full integration points. Try increasing "
-                  "the order of the full integration rule.");
+      MFEM_VERIFY(nc_dof <= nw_dof, "The NNLS system for the reduced "
+                  "integration rule requires more full integration points. Try"
+                  " increasing the order of the full integration rule.");
       DenseMatrix Gmat(nc_dof, nw_dof);
       Gmat = 0.0;
 
@@ -202,13 +202,13 @@ void GetReducedRule(const int nq, const int nd,
       Vector sol(Gmat.NumCols());
 
 #ifdef MFEM_USE_LAPACK
-      NNLS nnls;
+      NNLSSolver nnls;
       nnls.SetVerbosity(2);
       nnls.SetOperator(Gmat);
 
       nnls.Mult(w, sol);
 #else
-      MFEM_ABORT("NNLS requires building with LAPACK");
+      MFEM_ABORT("NNLSSolver requires building with LAPACK");
 #endif
 
       int nnz = 0;
@@ -447,39 +447,40 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    }
 
    // Solve for reduced 1D quadrature rules
-   reducedWeights.resize(numPatches * dim * numTypes);
-   reducedIDs.resize(numPatches);
-   reducedIDs[patch].resize(dim);
+   const int totalDim = numPatches * dim * numTypes;
+   reducedWeights.resize(totalDim);
+   reducedIDs.resize(totalDim);
 
    auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
+   auto rid = Reshape(reducedIDs.data(), numTypes, dim, numPatches);
 
    for (int d=0; d<dim; ++d)
    {
       // The reduced rules could be cached to avoid repeated computation, but
       // the cost of this setup seems low.
-      reducedIDs[patch][d].resize(numTypes);
-
       GetReducedRule(Q1D[d], D1D[d], B[d], G[d],
                      minQ[d], maxQ[d],
                      minD[d], maxD[d],
                      minDD[d], maxDD[d], ir1d[d], true,
-                     rw(0,d,patch), reducedIDs[patch][d][0]);
+                     rw(0,d,patch), rid(0,d,patch));
       GetReducedRule(Q1D[d], D1D[d], B[d], G[d],
                      minQ[d], maxQ[d],
                      minD[d], maxD[d],
                      minDD[d], maxDD[d], ir1d[d], false,
-                     rw(1,d,patch), reducedIDs[patch][d][1]);
+                     rw(1,d,patch), rid(1,d,patch));
    }
 }
 
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.
 void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
-   const int patch, Mesh *mesh, SparseMatrix*& smat)
+   const int patch, const FiniteElementSpace &fes, SparseMatrix*& smat)
 {
    MFEM_VERIFY(patchRules, "patchRules must be defined");
    dim = patchRules->GetDim();
    const int spaceDim = dim;  // TODO: generalize?
+
+   Mesh *mesh = fes.GetMesh();
 
    if (VQ)
    {
@@ -871,11 +872,13 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 
 // This version uses reduced 1D quadrature rules.
 void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
-   const int patch, Mesh *mesh, SparseMatrix*& smat)
+   const int patch, const FiniteElementSpace &fes, SparseMatrix*& smat)
 {
    MFEM_VERIFY(patchRules, "patchRules must be defined");
    dim = patchRules->GetDim();
    const int spaceDim = dim;  // TODO: generalize?
+
+   Mesh *mesh = fes.GetMesh();
 
    if (VQ)
    {
@@ -928,6 +931,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    }
 
    auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
+   auto rid = Reshape(reducedIDs.data(), numTypes, dim, numPatches);
 
    const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
@@ -1037,10 +1041,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
       for (int zquad = 0; zquad<2; ++zquad)
       {
          // Reduced quadrature in z
-         const int nwz = reducedIDs[patch][2][zquad][jdz].size();
+         const int nwz = rid(zquad,2,patch)[jdz].size();
          for (int irz=0; irz < nwz; ++irz)
          {
-            const int qz = reducedIDs[patch][2][zquad][jdz][irz] + minD[2][jdz];
+            const int qz = rid(zquad,2,patch)[jdz][irz] + minD[2][jdz];
             const double zw = rw(zquad,2,patch)[jdz][irz];
 
             const double gwz  = B[2](qz,jdz);
@@ -1060,10 +1064,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
             for (int yquad = 0; yquad<2; ++yquad)
             {
                // Reduced quadrature in y
-               const int nwy = reducedIDs[patch][1][yquad][jdy].size();
+               const int nwy = rid(yquad,1,patch)[jdy].size();
                for (int iry=0; iry < nwy; ++iry)
                {
-                  const int qy = reducedIDs[patch][1][yquad][jdy][iry] + minD[1][jdy];
+                  const int qy = rid(yquad,1,patch)[jdy][iry] + minD[1][jdy];
                   const double yw = rw(yquad,1,patch)[jdy][iry];
 
                   const double gwy  = B[1](qy,jdy);
@@ -1080,10 +1084,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   // Reduced quadrature in x
                   for (int xquad=0; xquad<2; ++xquad)
                   {
-                     const int nwx = reducedIDs[patch][0][xquad][jdx].size();
+                     const int nwx = rid(xquad,0,patch)[jdx].size();
                      for (int irx=0; irx < nwx; ++irx)
                      {
-                        const int qx = reducedIDs[patch][0][xquad][jdx][irx] + minD[0][jdx];
+                        const int qx = rid(xquad,0,patch)[jdx][irx] + minD[0][jdx];
 
                         if (!gradUsed(qx,qy,qz))
                         {
@@ -1115,10 +1119,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   }
 
                   // 00 terms
-                  const int nw = reducedIDs[patch][0][0][jdx].size();
+                  const int nw = rid(0,0,patch)[jdx].size();
                   for (int irx=0; irx < nw; ++irx)
                   {
-                     const int qx = reducedIDs[patch][0][0][jdx][irx] + minD[0][jdx];
+                     const int qx = rid(0,0,patch)[jdx][irx] + minD[0][jdx];
 
                      const double gY = grad[1](qx,qy,qz);
                      const double gZ = grad[2](qx,qy,qz);
@@ -1138,11 +1142,11 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   }
 
                   // 11 terms
-                  const int nw11 = reducedIDs[patch][0][1][jdx].size();
+                  const int nw11 = rid(1,0,patch)[jdx].size();
 
                   for (int irx=0; irx < nw11; ++irx)
                   {
-                     const int qx = reducedIDs[patch][0][1][jdx][irx] + minD[0][jdx];
+                     const int qx = rid(1,0,patch)[jdx][irx] + minD[0][jdx];
 
                      const double gX = grad[0](qx,qy,qz);
                      const double xw = rw(1,0,patch)[jdx][irx];
@@ -1229,16 +1233,17 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
 }
 
-void DiffusionIntegrator::AssemblePatchMatrix(
-   const int patch, Mesh *mesh, SparseMatrix*& smat)
+void DiffusionIntegrator::AssemblePatchMatrix(const int patch,
+                                              const FiniteElementSpace &fes,
+                                              SparseMatrix*& smat)
 {
    if (integrationMode == PATCHWISE_REDUCED)
    {
-      AssemblePatchMatrix_reducedQuadrature(patch, mesh, smat);
+      AssemblePatchMatrix_reducedQuadrature(patch, fes, smat);
    }
    else
    {
-      AssemblePatchMatrix_fullQuadrature(patch, mesh, smat);
+      AssemblePatchMatrix_fullQuadrature(patch, fes, smat);
    }
 }
 

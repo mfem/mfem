@@ -3545,7 +3545,7 @@ void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
 #endif // MFEM_USE_MPI
 
 #ifdef MFEM_USE_LAPACK
-// LAPACK routines for NNLS
+// LAPACK routines for NNLSSolver
 extern "C" void
 dormqr_(char *, char *, int *, int *, int *, double *, int*, double *,
         double *, int *, double *, int*, int*);
@@ -3561,25 +3561,18 @@ extern "C" void
 dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
 
-NNLS::NNLS(double const_tol, int min_nnz, int max_nnz, int verbosity,
-           double res_change_termination_tol, double zero_tol, double rhs_delta,
-           bool normalize, int n_outer, int n_inner, int n_stallCheck)
-   : Solver(0), mat(nullptr), const_tol_(const_tol), min_nnz_(min_nnz),
-     max_nnz_(max_nnz), verbosity_(verbosity),
-     res_change_termination_tol_(res_change_termination_tol),
-     zero_tol_(zero_tol), rhs_delta_(rhs_delta), n_outer_(n_outer),
-     n_inner_(n_inner), nStallCheck_(n_stallCheck), normalize_(normalize),
+NNLSSolver::NNLSSolver()
+   : Solver(0), mat(nullptr), const_tol_(1.0e-14), min_nnz_(0),
+     max_nnz_(0), verbosity_(0), res_change_termination_tol_(1.0e-4),
+     zero_tol_(1.0e-14), rhs_delta_(1.0e-11), n_outer_(100000),
+     n_inner_(100000), nStallCheck_(100), normalize_(true),
      NNLS_qrres_on_(false), qr_residual_mode_(QRresidualMode::hybrid)
-{
-}
-
-NNLS::~NNLS()
 {}
 
-void NNLS::SetOperator(const Operator &op)
+void NNLSSolver::SetOperator(const Operator &op)
 {
    mat = dynamic_cast<const DenseMatrix*>(&op);
-   MFEM_VERIFY(mat, "NNLS operator must be of type DenseMatrix");
+   MFEM_VERIFY(mat, "NNLSSolver operator must be of type DenseMatrix");
 
    // The size of this operator is that of the transpose of op.
    height = op.Width();
@@ -3589,12 +3582,7 @@ void NNLS::SetOperator(const Operator &op)
    row_scaling_ = 1.0;
 }
 
-void NNLS::SetVerbosity(const int verbosity_in)
-{
-   verbosity_ = verbosity_in;
-}
-
-void NNLS::SetQRResidualMode(const QRresidualMode qr_residual_mode)
+void NNLSSolver::SetQRResidualMode(const QRresidualMode qr_residual_mode)
 {
    qr_residual_mode_ = qr_residual_mode;
    if (qr_residual_mode_ == QRresidualMode::on)
@@ -3603,7 +3591,7 @@ void NNLS::SetQRResidualMode(const QRresidualMode qr_residual_mode)
    }
 }
 
-void NNLS::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
+void NNLSSolver::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
 {
    // Scale everything so that rescaled half gap is the same for all constraints
    const int m = mat->NumRows();
@@ -3635,9 +3623,9 @@ void NNLS::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
    }
 }
 
-void NNLS::Mult(const Vector &w, Vector &sol) const
+void NNLSSolver::Mult(const Vector &w, Vector &sol) const
 {
-   MFEM_VERIFY(mat, "NNLS operator must be of type DenseMatrix");
+   MFEM_VERIFY(mat, "NNLSSolver operator must be of type DenseMatrix");
    Vector rhs_ub(mat->NumRows());
    mat->Mult(w, rhs_ub);
    rhs_ub *= row_scaling_;
@@ -3665,7 +3653,7 @@ void NNLS::Mult(const Vector &w, Vector &sol) const
          }
       }
 
-      mfem::out << "Number of nonzeros in MFEM NNLS solution: " << nnz
+      mfem::out << "Number of nonzeros in NNLSSolver solution: " << nnz
                 << ", out of " << sol.Size() << endl;
 
       // Check residual of NNLS solution
@@ -3678,18 +3666,19 @@ void NNLS::Mult(const Vector &w, Vector &sol) const
 
       res -= rhs_Gw;
       const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
-      mfem::out << "Relative residual norm for MFEM NNLS solution of Gs = Gw: "
+      mfem::out << "Relative residual norm for NNLSSolver solution of Gs = Gw: "
                 << relNorm << endl;
    }
 }
 
-void NNLS::Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const
+void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
+                       Vector& soln) const
 {
    int m = mat->NumRows();
    int n = mat->NumCols();
 
    MFEM_VERIFY(rhs_lb.Size() == m && rhs_lb.Size() == m && soln.Size() == n, "");
-   MFEM_VERIFY(n >= m, "NNLS system cannot be over-determined.");
+   MFEM_VERIFY(n >= m, "NNLSSolver system cannot be over-determined.");
 
    if (max_nnz_ == 0)
    {
@@ -3837,7 +3826,7 @@ void NNLS::Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const
          {
             if (verbosity_ > 1)
             {
-               mfem::out << "NNLS stall detected... exiting" << endl;
+               mfem::out << "NNLSSolver stall detected... exiting" << endl;
             }
             exit_flag = 2;
             break;
@@ -4371,7 +4360,7 @@ void NNLS::Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const
       }
       else
       {
-         mfem::out << endl << "Warning: NNLS unconverged. Stalled = "
+         mfem::out << endl << "Warning, NNLS convergence stalled: "
                    << (exit_flag == 2) << endl;
          mfem::out << "resErr = " << rmax << " vs tol = " << const_tol_
                    << "; mumax = " << mumax << " vs tol = " << mu_tol << endl;

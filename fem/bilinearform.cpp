@@ -506,7 +506,7 @@ void BilinearForm::Assemble(int skip_zeros)
                   }
 
                   SparseMatrix* spmat = nullptr;
-                  domain_integs[k]->AssemblePatchMatrix(p, mesh, spmat);
+                  domain_integs[k]->AssemblePatchMatrix(p, *fes, spmat);
                   Array<int> cols;
                   Vector srow;
 
