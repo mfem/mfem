@@ -1,0 +1,37 @@
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+if (MFEM_USE_MPI)
+  list(APPEND SNAVIER_COMMON_SOURCES
+      snavier_cg.cpp
+      snavier_dg.cpp)
+  list(APPEND SNAVIER_COMMON_HEADERS
+      snavier_cg.hpp
+      snavier_dg.hpp)
+
+  convert_filenames_to_full_paths(SNAVIER_COMMON_SOURCES)
+  convert_filenames_to_full_paths(SNAVIER_COMMON_HEADERS)
+
+  set(SNAVIER_COMMON_FILES
+      EXTRA_SOURCES ${SNAVIER_COMMON_SOURCES}
+      EXTRA_HEADERS ${SNAVIER_COMMON_HEADERS})
+
+  add_mfem_miniapp(test_snavier_cg
+    MAIN test_snavier_cg.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(test_snavier_dg
+    MAIN test_snavier_dg.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+endif ()
