@@ -3512,10 +3512,11 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 }
 
 BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
-   : Solver(0, false), bOffsets(bOffsets_), global_size(-1)
+   : Solver(0, false), global_size(-1)
 #ifdef MFEM_USE_MPI
    , parallel(false)
 #endif
+   , bOffsets(bOffsets_)
 {
    // form index array corresponding to velocity block
    int start_ind = bOffsets[0];
@@ -3542,8 +3543,7 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
 
 #ifdef MFEM_USE_MPI
 BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_)
-   : Solver(0, false), bOffsets(bOffsets_), mycomm(mycomm_), global_size(-1),
-     parallel(true)
+   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true), bOffsets(bOffsets_)
 {
    // form index array corresponding to velocity block
    int start_ind = bOffsets[0];
