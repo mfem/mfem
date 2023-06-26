@@ -125,7 +125,7 @@ EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
  toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke \
- multidomain dpg hdiv-linear-solver
+ multidomain dpg hdiv-linear-solver spde
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
@@ -419,7 +419,7 @@ endif
 DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/tmop
+       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
