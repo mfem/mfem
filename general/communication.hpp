@@ -76,6 +76,14 @@ private:
    static void Init_(int *argc, char ***argv)
    {
       MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
+#if defined(MFEM_USE_STRUMPACK)
+#if defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK)
+      if (Root())
+      {
+         MFEM_WARNING("STRUMPACK built with SLATE or PT-Scotch may require MPI_Init_thread with MPI_THREAD_MULTIPLE!");
+      }
+#endif
+#endif
       MPI_Init(argc, argv);
       // The "mpi" object below needs to be created after MPI_Init() for some
       // MPI implementations
