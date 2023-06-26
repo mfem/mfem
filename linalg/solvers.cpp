@@ -3543,7 +3543,8 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
 
 #ifdef MFEM_USE_MPI
 BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_)
-   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true), bOffsets(bOffsets_)
+   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true),
+     bOffsets(bOffsets_)
 {
    // form index array corresponding to velocity block
    int start_ind = bOffsets[0];
