@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // const char *mesh_file = "../data/square.mesh";
    // int ref_levels = 2;
-   const char *mesh_file = "StokesMixedMesh.msh";
+   const char *mesh_file = "../data/StokesMixedMesh.msh";
    int ref_levels = 0;
    int order = 2;
 
