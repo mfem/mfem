@@ -107,7 +107,7 @@ void DGMassInverse::Update()
 {
    M->Assemble();
    M->AssembleDiagonal(diag_inv);
-   internal::MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+   diag_inv.Reciprocal();
 }
 
 DGMassInverse::~DGMassInverse()
