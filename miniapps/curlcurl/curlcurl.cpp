@@ -11,7 +11,7 @@ void B_exact(const Vector &, Vector &);
 void B_exact2(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
 void u_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+double freq = 1.0, kappa, alpha = 1.0;
 double q0 = 1.2, q2 = 2.8, a_i=2.7832, R0=6.2, Z0=5.1944, B0=1.0;
 int dim;
 
@@ -28,7 +28,6 @@ int main(int argc, char *argv[])
    int order = 1;
    int par_ref_levels = 1;
    int icase = 1;
-   double alpha = 1.0;
    bool hcurl = false;
    bool Evec = false;
    const char *device_config = "cpu";
@@ -151,6 +150,8 @@ int main(int argc, char *argv[])
    }
 
    ParGridFunction x(fespace), Bvec(fespace);
+   ParGridFunction x_error(fespace);
+   x_error=0.0;
    VectorFunctionCoefficient *VecCoeff;
    if (false){
        VecCoeff = new VectorFunctionCoefficient(sdim, E_exact);
@@ -235,6 +236,8 @@ int main(int argc, char *argv[])
      delete sigma;
      delete a;
 
+     x_error.ProjectCoefficient(u_coeff);
+     x_error -= x;
      double error = x.ComputeL2Error(u_coeff);
      if (myid == 0)
      {
@@ -244,9 +247,10 @@ int main(int argc, char *argv[])
 
    if (true)
    {
-      ostringstream mesh_name, sol_name;
+      ostringstream mesh_name, sol_name, err_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_name << "sol." << setfill('0') << setw(6) << myid;
+      err_name << "err." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -255,6 +259,10 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
+
+      ofstream err_ofs(err_name.str().c_str());
+      err_ofs.precision(8);
+      x_error.Save(sol_ofs);
 
       if (paraview)
       {
@@ -265,6 +273,7 @@ int main(int argc, char *argv[])
          paraview_dc.SetHighOrderOutput(true);
          paraview_dc.SetCycle(0);
          paraview_dc.RegisterField("vec",&x);
+         paraview_dc.RegisterField("error",&x_error);
          if (icase==1) {
              paraview_dc.RegisterField("div",&divB);
          }
@@ -307,14 +316,14 @@ void u_exact(const Vector &x, Vector &u)
 }
 
 //exact forcing for 
-//f = u + B x curl(curl(u x B)
+//f = alpha*u + B x curl(curl(u x B)
 void f_exact(const Vector &x, Vector &f)
 {
     double R2 = x(0)*x(0)+x(1)*x(1);
     double R6 = R2*R2*R2;
-    f(0) = (R2*(R2*R2 + kappa*kappa*x(0)*x(0))*sin(kappa*x(1)) + 4*cos(kappa*x(1))*kappa*x(0)*x(0)*x(1))/R6;
-    f(1) = sin(kappa*x(2)) + (kappa*R2*sin(kappa*x(1)) + 4*x(1)*cos(kappa*x(1)))*x(1)*kappa*x(0)/R6;
-    f(2) = ( (R2*R2 + kappa*kappa*x(1)*x(1))*sin(kappa*x(0)) + kappa*(x(0)*cos(kappa*x(0)) + x(1)*cos(kappa*x(2))) )/R2/R2;
+    f(0) = alpha*sin(kappa*x(1)) + (R2*kappa*kappa*x(0)*x(0)*sin(kappa*x(1)) + 4*cos(kappa*x(1))*kappa*x(0)*x(0)*x(1))/R6;
+    f(1) = alpha*sin(kappa*x(2)) + (kappa*R2*sin(kappa*x(1)) + 4*x(1)*cos(kappa*x(1)))*x(1)*kappa*x(0)/R6;
+    f(2) = alpha*sin(kappa*x(0)) + ( (kappa*kappa*x(1)*x(1))*sin(kappa*x(0)) + kappa*(x(0)*cos(kappa*x(0)) + x(1)*cos(kappa*x(2))) )/R2/R2;
 }
 
 // transform matrix:

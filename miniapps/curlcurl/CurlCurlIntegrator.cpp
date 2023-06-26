@@ -13,6 +13,16 @@ void BmatCoeff::Eval(DenseMatrix &K, ElementTransformation &T, const Integration
     double div = grad(0,0)+grad(1,1)+grad(2,2);
     K.Diag(-div, height);
     K+=grad;
+    
+    // debug grad and div
+    /*
+    cout<<grad(0,0)<<" "<<grad(0,1)<<" "<<grad(0,2)<<" "
+        <<grad(1,0)<<" "<<grad(1,1)<<" "<<grad(1,2)<<" "
+        <<grad(2,0)<<" "<<grad(2,1)<<" "<<grad(2,2)
+        <<endl;
+    cout<<div<<endl;
+    std::exit(1);
+    */
 }
 
 // Custom integrator
