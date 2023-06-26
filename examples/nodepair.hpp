@@ -775,7 +775,6 @@ void Assemble_Contact(const int m, const int npoints, const int ndofs,
       Array<int>  M_i_tmp(1);
       M_i_tmp[0] = s_conn[i];
 
-      //j_idx = (node_conn-1)*obj.disp_field.num_components +repmat((1:obj.disp_field.num_components)', 1, length(node_conn{i}));
       Array<int> j_idx(5*ndim); j_idx = 0;
       for (int j=0; j< 5; j++)
       {

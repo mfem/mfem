@@ -117,6 +117,17 @@ void PrintVector(const Vector & a, const char *aname,  int printid)
    }
 }
 
+void PrintSparseMatrix(const SparseMatrix & a, const char *aname,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   if (myid == printid)
+   {
+      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
+      a.PrintMatlab(mfem::out);
+   }
+   mfem::out << endl;
+}
+
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {
    Array<int> attr;
@@ -625,6 +636,9 @@ int main(int argc, char *argv[])
    int ndof_1 = fespace1->GetTrueVSize();
    int ndof_2 = fespace2->GetTrueVSize();
    int ndofs = ndof_1 + ndof_2;
+   int gndof_1 = fespace1->GlobalTrueVSize();
+   int gndof_2 = fespace2->GlobalTrueVSize();
+   int gndofs = gndof_1 + gndof_2;
    // number of nodes for each mesh
    // int nnd_1 = pmesh1.GetNV();
    // int nnd_2 = pmesh2.GetNV();
@@ -632,8 +646,12 @@ int main(int argc, char *argv[])
    // find the total number of vertices owned
    ParFiniteElementSpace *vertexfes1 = new ParFiniteElementSpace(&pmesh1, fec1);
    ParFiniteElementSpace *vertexfes2 = new ParFiniteElementSpace(&pmesh2, fec2);
+   int gnnd_1 = vertexfes1->GlobalTrueVSize();
+   int gnnd_2 = vertexfes2->GlobalTrueVSize();
+
    int nnd_1 = vertexfes1->GetTrueVSize();
    int nnd_2 = vertexfes2->GetTrueVSize();
+
 
    int nnd = nnd_1 + nnd_2;
 
@@ -726,21 +744,19 @@ int main(int argc, char *argv[])
 
    int npoints = bdryVerts2.size();
 
-   mfem::out << "myid = " << myid << ", npoints = " << npoints << endl;
-
    Array<int> s_conn(npoints); // connectivity of the second/slave mesh
    Vector xyz(dim * npoints);
    xyz = 0.0;
 
-   cout << "Boundary vertices for contact surface vertices in mesh 2" << endl;
+   // cout << "Boundary vertices for contact surface vertices in mesh 2" << endl;
 
    // construct the nodal coordinates on mesh2 to be projected, including displacement
    int count = 0;
    for (auto v : bdryVerts2)
    {
-      cout << v << ": " << pmesh2.GetVertex(v)[0] << ", "
-           << pmesh2.GetVertex(v)[1] << ", "
-           << pmesh2.GetVertex(v)[2] << endl;
+      // cout << v << ": " << pmesh2.GetVertex(v)[0] << ", "
+      //      << pmesh2.GetVertex(v)[1] << ", "
+      //      << pmesh2.GetVertex(v)[2] << endl;
 
       for (int i=0; i<dim; ++i)
       {
@@ -748,9 +764,14 @@ int main(int argc, char *argv[])
       }
 
       s_conn[count] = v + nnd_1; // dof1 is the master
+      s_conn[count] = globalvertices[v] - vertexfes2->GetMyTDofOffset() + nnd_1; // dof1 is the master
       count++;
    }
-
+   // mfem::out << "nnd1 = " << n
+   PrintArray(s_conn, "s_conn",0);
+   PrintArray(s_conn, "s_conn",1);
+   PrintArray(s_conn, "s_conn",2);
+   mfem::out << "myid, size of g = " << myid << ", " << npoints*dim << endl;
    MFEM_VERIFY(count == npoints, "");
 
    // gap function
@@ -780,20 +801,8 @@ int main(int argc, char *argv[])
    FindPointsInMesh(pmesh1, xyz, m_conn, m_xi,coordsm);
 
 
-   // for (int i=0; i<npoints; i++)
-   // {
-   //    for (int j=0; j<4; j++)
-   //    {
-   //       for (int k=0; k<dim; k++)
-   //       {
-   //          coordsm(i*4+j,k) = mesh1.GetVertex(m_conn[i*4+j])[k]+x1[dim*m_conn[i*4+j]+k];
-   //       }
-   //    }
-   // }
-
    // decode and print
-
-   if (1) // for debugging
+   if (0) // for debugging
    {
       int sz = m_xi.Size()/2;
 
@@ -816,58 +825,90 @@ int main(int argc, char *argv[])
       }
    }
 
-   SparseMatrix M(nnd,ndofs);
-   std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
+   SparseMatrix M(nnd,gndofs);
+   std::vector<SparseMatrix> dM(nnd, SparseMatrix(gndofs,gndofs)); 
+   // mfem::out << "nnd = " << nnd << endl;
+   // mfem::out << "npoints = " << npoints << endl;
    Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm,
-                     s_conn, m_conn, g, M, dM);
-                     
-   std::set<int> dirbdryv2;
-   for (int b=0; b<mesh2.GetNBE(); ++b)
-   {
-      if (mesh2.GetBdrAttribute(b) == 1)
-      {
-         Array<int> vert;
-         mesh2.GetBdrElementVertices(b, vert);
-         for (auto v : vert)
-         {
-            dirbdryv2.insert(v);
-         }
-      }
-   }
-   std::set<int> dirbdryv1;
-   for (int b=0; b<mesh1.GetNBE(); ++b)
-   {
-      if (mesh1.GetBdrAttribute(b) == 1)
-      {
-         Array<int> vert;
-         mesh1.GetBdrElementVertices(b, vert);
-         for (auto v : vert)
-         {
-            dirbdryv1.insert(v);
-         }
-      }
-   }
+                    s_conn, m_conn, g, M, dM);
 
-   Array<int> Dirichlet_dof;
-   Array<double> Dirichlet_val;
+   M.Finalize();
+   M.SortColumnIndices();
 
-   for (auto v : dirbdryv2)
-   {
-      for (int i=0; i<dim; ++i)
-      {
-         Dirichlet_dof.Append(v*dim + i + ndof_1);
-         Dirichlet_val.Append(0.);
-      }
-   }
-   double delta = 0.1;
-   for (auto v : dirbdryv1)
-   {
-      Dirichlet_dof.Append(v*dim + 0);
-      Dirichlet_val.Append(delta);
-      Dirichlet_dof.Append(v*dim + 1);
-      Dirichlet_val.Append(0.);
-      Dirichlet_dof.Append(v*dim + 2);
-      Dirichlet_val.Append(0.);
-   }
+
+   // Vector xtmp(M.Width());
+   // Vector ytmp(M.Height());
+   // xtmp = 1.0;
+   // M.AbsMult(xtmp,ytmp);
+   // ytmp.Print();
+   // mfem::out << InnerProduct(MPI_COMM_WORLD,ytmp,ytmp) << endl;
+
+
+   // PrintVector(g,"gap",0);
+   // PrintVector(g,"gap",1);
+   // PrintVector(g,"gap",2);
+
+   // PrintSparseMatrix(M,"SparseMatrix M", 0);
+   // PrintSparseMatrix(M,"SparseMatrix M", 1);
+   // PrintSparseMatrix(M,"SparseMatrix M", 2);
+   // mfem::out << "dM.size = " << dM.size() << endl;
+   // mfem::out << "g.size = " << g.Size() << endl;
+   // for (int i = 0; i<dM.size();i++)
+   // {
+   //    dM[i].Finalize();
+   //    if (dM[i].NumNonZeroElems()==0) continue;
+   //    PrintSparseMatrix(dM[i], "dm",0);
+   //    PrintSparseMatrix(dM[i], "dm",1);
+   //    PrintSparseMatrix(dM[i], "dm",2);
+   // }
+
+   // std::set<int> dirbdryv2;
+   // for (int b=0; b<mesh2.GetNBE(); ++b)
+   // {
+   //    if (mesh2.GetBdrAttribute(b) == 1)
+   //    {
+   //       Array<int> vert;
+   //       mesh2.GetBdrElementVertices(b, vert);
+   //       for (auto v : vert)
+   //       {
+   //          dirbdryv2.insert(v);
+   //       }
+   //    }
+   // }
+   // std::set<int> dirbdryv1;
+   // for (int b=0; b<mesh1.GetNBE(); ++b)
+   // {
+   //    if (mesh1.GetBdrAttribute(b) == 1)
+   //    {
+   //       Array<int> vert;
+   //       mesh1.GetBdrElementVertices(b, vert);
+   //       for (auto v : vert)
+   //       {
+   //          dirbdryv1.insert(v);
+   //       }
+   //    }
+   // }
+
+   // Array<int> Dirichlet_dof;
+   // Array<double> Dirichlet_val;
+
+   // for (auto v : dirbdryv2)
+   // {
+   //    for (int i=0; i<dim; ++i)
+   //    {
+   //       Dirichlet_dof.Append(v*dim + i + ndof_1);
+   //       Dirichlet_val.Append(0.);
+   //    }
+   // }
+   // double delta = 0.1;
+   // for (auto v : dirbdryv1)
+   // {
+   //    Dirichlet_dof.Append(v*dim + 0);
+   //    Dirichlet_val.Append(delta);
+   //    Dirichlet_dof.Append(v*dim + 1);
+   //    Dirichlet_val.Append(0.);
+   //    Dirichlet_dof.Append(v*dim + 2);
+   //    Dirichlet_val.Append(0.);
+   // }
    return 0;
 }
