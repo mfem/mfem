@@ -3514,7 +3514,7 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
    : Solver(0, false), bOffsets(bOffsets_), global_size(-1)
 #ifdef MFEM_USE_MPI
-     , parallel(false)
+   , parallel(false)
 #endif
 {
    // form index array corresponding to velocity block
