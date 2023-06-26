@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
 
    // find the total number of vertices owned
    ParFiniteElementSpace *vertexfes1 = new ParFiniteElementSpace(&pmesh1, fec1);
-   ParFiniteElementSpace *vertexfes2 = new ParFiniteElementSpace(&pmesh1, fec2);
+   ParFiniteElementSpace *vertexfes2 = new ParFiniteElementSpace(&pmesh2, fec2);
    int nnd_1 = vertexfes1->GetTrueVSize();
    int nnd_2 = vertexfes2->GetTrueVSize();
 
