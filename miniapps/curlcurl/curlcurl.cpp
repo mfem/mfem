@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int icase = 1;
    bool hcurl = false;
-   bool Evec = false;
+   bool mms = true;
    const char *device_config = "cpu";
    bool visualization = false;
    bool paraview = false;
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact solution.");
    args.AddOption(&hcurl, "-hcurl", "--hcurl", "-no-hcurl", "--no-hcurl", "Use Hcurl or H1.");
-   args.AddOption(&Evec, "-Evec", "--Evec", "-no-Evec", "--no-Evec", "Test Evec.");
+   args.AddOption(&mms, "-mms", "--mms", "-no-mms", "--no-mms", "Manufactured solution test.");
    args.AddOption(&icase, "-i", "--icase", "icase.");
    args.AddOption(&alpha, "-alpha", "--alpha", "alpha.");
    args.AddOption(&paraview, "-para", "--para", "-no-para", "--no-para",
@@ -107,7 +107,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -157,7 +156,12 @@ int main(int argc, char *argv[])
        VecCoeff = new VectorFunctionCoefficient(sdim, E_exact);
    }
    else{
-       VecCoeff = new VectorFunctionCoefficient(sdim, B_exact2);
+       if(mms){
+         VecCoeff = new VectorFunctionCoefficient(sdim, B_exact2);
+       }
+       else{
+         VecCoeff = new VectorFunctionCoefficient(sdim, B_exact);
+       }
    }
    x.ProjectCoefficient(*VecCoeff);
 
@@ -200,8 +204,12 @@ int main(int argc, char *argv[])
      Vector onevec(3); onevec=1.0;
      VectorConstantCoefficient one(onevec);
      VectorFunctionCoefficient f_rhs(sdim, f_exact), u_coeff(sdim, u_exact);
-     x.ProjectCoefficient(u_coeff);
-
+     if(mms){
+        x.ProjectCoefficient(u_coeff);
+     }
+     else{
+        x = 0.0;
+     }
 
      Coefficient *sigma = new ConstantCoefficient(alpha);
      Bvec.ProjectCoefficient(*VecCoeff);
@@ -212,7 +220,12 @@ int main(int argc, char *argv[])
      a->Assemble();
 
      ParLinearForm b(fespace);
-     b.AddDomainIntegrator(new VectorDomainLFIntegrator(f_rhs));
+     if(mms){
+        b.AddDomainIntegrator(new VectorDomainLFIntegrator(f_rhs));
+     }
+     else{
+        b.AddDomainIntegrator(new VectorDomainLFIntegrator(one));
+     }
      b.Assemble();
 
      HypreParMatrix A;
@@ -225,8 +238,8 @@ int main(int argc, char *argv[])
      }
 
      HyprePCG pcg(A);
-     //HypreBoomerAMG *prec = new HypreBoomerAMG(A);
-     HypreSolver *prec = new HypreILU();
+     HypreBoomerAMG *prec = new HypreBoomerAMG(A);
+     //HypreSolver *prec = new HypreILU();
      pcg.SetTol(1e-12);
      pcg.SetMaxIter(500);
      pcg.SetPrintLevel(2);
@@ -237,12 +250,14 @@ int main(int argc, char *argv[])
      delete sigma;
      delete a;
 
-     x_error.ProjectCoefficient(u_coeff);
-     x_error -= x;
-     double error = x.ComputeL2Error(u_coeff);
-     if (myid == 0)
-     {
-         cout << "\n|| u_h - u ||_{L^2} = " << error << '\n' << endl;
+     if (mms){
+        x_error.ProjectCoefficient(u_coeff);
+        x_error -= x;
+        double error = x.ComputeL2Error(u_coeff);
+        if (myid == 0)
+        {
+            cout << "\n|| u_h - u ||_{L^2} = " << error << '\n' << endl;
+        }
      }
    }
 
@@ -261,9 +276,11 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
 
-      ofstream err_ofs(err_name.str().c_str());
-      err_ofs.precision(8);
-      x_error.Save(sol_ofs);
+      if(mms){
+        ofstream err_ofs(err_name.str().c_str());
+        err_ofs.precision(8);
+        x_error.Save(sol_ofs);
+      }
 
       if (paraview)
       {
@@ -274,7 +291,9 @@ int main(int argc, char *argv[])
          paraview_dc.SetHighOrderOutput(true);
          paraview_dc.SetCycle(0);
          paraview_dc.RegisterField("vec",&x);
-         paraview_dc.RegisterField("error",&x_error);
+         if (mms) {
+             paraview_dc.RegisterField("error",&x_error);
+         }
          if (icase==1) {
              paraview_dc.RegisterField("div",&divB);
          }
