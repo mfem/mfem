@@ -202,6 +202,7 @@ int main(int argc, char *argv[])
      VectorFunctionCoefficient f_rhs(sdim, f_exact), u_coeff(sdim, u_exact);
      x.ProjectCoefficient(u_coeff);
 
+
      Coefficient *sigma = new ConstantCoefficient(alpha);
      Bvec.ProjectCoefficient(*VecCoeff);
      BmatCoeff bmatcoeff(&Bvec);
@@ -316,14 +317,14 @@ void u_exact(const Vector &x, Vector &u)
 }
 
 //exact forcing for 
-//f = alpha*u + B x curl(curl(u x B)
+//f = alpha*u + B x curl(curl(u x B))
 void f_exact(const Vector &x, Vector &f)
 {
     double R2 = x(0)*x(0)+x(1)*x(1);
     double R6 = R2*R2*R2;
     f(0) = alpha*sin(kappa*x(1)) + (R2*kappa*kappa*x(0)*x(0)*sin(kappa*x(1)) + 4*cos(kappa*x(1))*kappa*x(0)*x(0)*x(1))/R6;
     f(1) = alpha*sin(kappa*x(2)) + (kappa*R2*sin(kappa*x(1)) + 4*x(1)*cos(kappa*x(1)))*x(1)*kappa*x(0)/R6;
-    f(2) = alpha*sin(kappa*x(0)) + ( (kappa*kappa*x(1)*x(1))*sin(kappa*x(0)) + kappa*(x(0)*cos(kappa*x(0)) + x(1)*cos(kappa*x(2))) )/R2/R2;
+    f(2) = alpha*sin(kappa*x(0)) + ((kappa*kappa*x(1)*x(1))*sin(kappa*x(0)) + kappa*(x(0)*cos(kappa*x(0)) + x(1)*cos(kappa*x(2))))/R2/R2;
 }
 
 // transform matrix:
@@ -365,3 +366,5 @@ void B_exact2(const Vector &x, Vector &B)
    B(1) = B_R*sinphi+B_phi*cosphi;
    B(2) = B_Z;
 }
+
+

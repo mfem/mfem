@@ -52,6 +52,7 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
 
     //final output:
     elmat.SetSize(dof*dim);
+    elmat=0.0;
 
     const IntegrationRule *ir = IntRule;
     if (ir == NULL)
@@ -63,38 +64,35 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
     for (int i = 0; i < ir -> GetNPoints(); i++){
         const IntegrationPoint &ip = ir->IntPoint(i);
         el.CalcDShape(ip, dshape);
-        el.CalcShape(ip, shape);
 
         Trans.SetIntPoint(&ip);
         w = ip.weight * Trans.Weight();
         Mult(dshape, Trans.InverseJacobian(), gshape);
-        gshape.GradToDiv (divshape);
+        gshape.GradToDiv(divshape);
 
-        //include B.div^T
+        //include B.div^T [verified]
         BC->Eval(Bvec, Trans, ip);
         MultVWt(Bvec, divshape, recmat);
 
-        //include [(grad B) - (div B)I].x  [ok]
+        //include [(grad B) - (div B)I].x  [??]
+        el.CalcPhysShape(Trans, shape);
         BmatC->Eval(Bmat, Trans, ip);
         for (int j = 0; j < dim; j++){
-            for (int i = 0; i < dim; i++){
-                tmp(i)=Bmat(i,j);
+            for (int ii = 0; ii < dim; ii++){
+                tmp(ii)=Bmat(ii,j);
             }
             MultVWt(tmp, shape, partrecmat);
             recmat.AddMatrix(1.0, partrecmat, 0, dof*j);
         }
 
-        //include B.grad x [ok]
-        // Note w = ip.weight / Trans.Weight() in VectorDiffusionIntegrator
-        // Here we let w = ip.weight*Trans.Weight() and thus need to adjust
-        Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);  
-        dshapedxt.Mult(Bvec, BdotGrad);
+        //include B.grad x [??]
+        gshape.Mult(Bvec, BdotGrad);
         partrecmat2.SetRow(0,BdotGrad);
-        for (int i = 0; i < dim; i++){
-            recmat.AddMatrix(-1.0/Trans.Weight(), partrecmat2, i, dof*i);
+        for (int j = 0; j < dim; j++){
+            recmat.AddMatrix(-1.0, partrecmat2, j, dof*j);
         }
 
         recmatT.Transpose(recmat);
-        Mult_a_AAt(w, recmatT, elmat);
+        AddMult_a_AAt(w, recmatT, elmat);
     }
 }
