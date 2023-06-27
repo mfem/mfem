@@ -2020,16 +2020,16 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
-                                                bool use_flag,
+                                                bool reuse_flag,
                                                 int new_x_ordering)
 {
-   if (use_flag && good_tspec) { return; }
+   if (reuse_flag && good_tspec) { return; }
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
    tspec_sav = tspec;
 
-   good_tspec = use_flag;
+   good_tspec = reuse_flag;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
@@ -2668,10 +2668,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
 void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
                                                          const double dx,
-                                                         bool use_flag,
+                                                         bool reuse_flag,
                                                          int x_ordering)
 {
-   if (use_flag && good_tspec_grad) { return; }
+   if (reuse_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fesv->GetFE(0)->GetDim(),
              cnt = x.Size()/dim;
@@ -2698,15 +2698,15 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
       }
    }
 
-   good_tspec_grad = use_flag;
+   good_tspec_grad = reuse_flag;
 }
 
-void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       double dx, bool use_flag,
-                                                       int x_ordering)
+void DiscreteAdaptTC::
+UpdateHessianTargetSpecification(const Vector &x,double dx,
+                                 bool reuse_flag, int x_ordering)
 {
 
-   if (use_flag && good_tspec_hess) { return; }
+   if (reuse_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fesv->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
@@ -2765,7 +2765,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
       }
    }
 
-   good_tspec_hess = use_flag;
+   good_tspec_hess = reuse_flag;
 }
 
 DiscreteAdaptTC::~DiscreteAdaptTC()
@@ -4314,17 +4314,32 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
-                                                    int x_ordering)
+void TMOP_Integrator::
+UpdateAfterMeshPositionChange(const Vector &x_new,
+                              const FiniteElementSpace &x_fes)
 {
+   if (discr_tc) { PA.Jtr_needs_update = true; }
+
+   Ordering::Type ordering = x_fes.GetOrdering();
+
+   // Update the finite difference delta if FD are used.
+   if (fdflag) { ComputeFDh(x_new, x_fes); }
+
+   // Update the target constructor if it's a discrete one.
    if (discr_tc)
    {
-      PA.Jtr_needs_update = true;
+      discr_tc->UpdateTargetSpecification(x_new, true, ordering);
+      if (fdflag)
+      {
+         discr_tc->UpdateGradientTargetSpecification(x_new, dx, true, ordering);
+         discr_tc->UpdateHessianTargetSpecification(x_new, dx, true, ordering);
+      }
    }
+
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf, x_ordering);
+      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
    }
 
    // Update surf_fit_gf if surface fitting is enabled.
@@ -4335,16 +4350,16 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
          // Interpolate information for only DOFs marked for fitting.
          const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
          const int cnt = surf_fit_marker_dof_index.Size();
-         const int total_cnt = new_x.Size()/dim;
+         const int total_cnt = x_new.Size()/dim;
          Vector new_x_sorted(cnt*dim);
-         if (x_ordering == 0)
+         if (ordering == 0)
          {
             for (int d = 0; d < dim; d++)
             {
                for (int i = 0; i < cnt; i++)
                {
                   int dof_index = surf_fit_marker_dof_index[i];
-                  new_x_sorted(i + d*cnt) = new_x(dof_index + d*total_cnt);
+                  new_x_sorted(i + d*cnt) = x_new(dof_index + d*total_cnt);
                }
             }
          }
@@ -4355,14 +4370,14 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
                int dof_index = surf_fit_marker_dof_index[i];
                for (int d = 0; d < dim; d++)
                {
-                  new_x_sorted(d + i*dim) = new_x(d + dof_index*dim);
+                  new_x_sorted(d + i*dim) = x_new(d + dof_index*dim);
                }
             }
          }
 
          Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
          surf_fit_eval->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_gf_int, x_ordering);
+            new_x_sorted, surf_fit_gf_int, ordering);
          for (int i = 0; i < cnt; i++)
          {
             int dof_index = surf_fit_marker_dof_index[i];
@@ -4370,7 +4385,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
          }
 
          surf_fit_eval_bg_grad->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_grad_int, x_ordering);
+            new_x_sorted, surf_fit_grad_int, ordering);
          // Assumes surf_fit_grad and surf_fit_gf share the same space
          const int grad_dim = surf_fit_grad->VectorDim();
          const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4400,7 +4415,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
          }
 
          surf_fit_eval_bg_hess->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_hess_int, x_ordering);
+            new_x_sorted, surf_fit_hess_int, ordering);
          // Assumes surf_fit_hess and surf_fit_gf share the same space
          const int hess_dim = surf_fit_hess->VectorDim();
          const int hess_cnt = surf_fit_hess->Size()/hess_dim;
@@ -4431,7 +4446,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
       }
       else
       {
-         surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, x_ordering);
+         surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, ordering);
       }
    }
 }
