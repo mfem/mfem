@@ -301,6 +301,12 @@ public:
       bfi->AssemblePA(fes);
    }
 
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes)
+   {
+      bfi->AssemblePA(test_fes, trial_fes); // Reverse test and trial
+   }
+
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
    {
       bfi->AssemblePAInteriorFaces(fes);
@@ -3615,18 +3621,6 @@ public:
 protected:
    VectorCoefficient *VQ;
 };
-
-
-
-// PA Diffusion Assemble 2D kernel
-template<const int T_SDIM>
-void PADiffusionSetup2D(const int Q1D,
-                        const int coeffDim,
-                        const int NE,
-                        const Array<double> &w,
-                        const Vector &j,
-                        const Vector &c,
-                        Vector &d);
 
 }
 #endif
