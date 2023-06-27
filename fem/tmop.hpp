@@ -1625,9 +1625,9 @@ public:
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
-       new mesh positions are given by new_x. If @a use_flags is true, repeated
-       calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
+       new mesh positions are given by new_x. If @a reuse_flag is true,
+       repeated calls won't do anything until ResetUpdateFlags() is called. */
+   void UpdateTargetSpecification(const Vector &new_x, bool reuse_flag = false,
                                   int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
@@ -1642,17 +1642,17 @@ public:
 
    /** Used for finite-difference based computations. Computes the target
        specifications after a mesh perturbation in x or y direction.
-       If @a use_flags is true, repeated calls won't do anything until
+       If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
-                                          bool use_flag = false,
+                                          bool reuse_flag = false,
                                           int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
-       If @a use_flags is true, repeated calls won't do anything until
+       If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
-                                         bool use_flag = false,
+                                         bool reuse_flag = false,
                                          int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
@@ -1899,8 +1899,8 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int x_ordering = Ordering::byNODES);
+   void UpdateAfterMeshPositionChange(const Vector &x_new,
+                                      const FiniteElementSpace &x_fes);
 
    void DisableLimiting()
    {
