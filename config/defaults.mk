@@ -266,6 +266,9 @@ endif
 ifeq ($(MFEM_USE_CUDA),YES)
    SUNDIALS_LIB += -lsundials_nveccuda
 endif
+ifeq ($(MFEM_USE_HIP),YES)
+   SUNDIALS_LIB += -lsundials_nvechip
+endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
