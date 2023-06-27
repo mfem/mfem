@@ -113,8 +113,8 @@ examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
 examples/flux.*
-examples/ex34_*.*
-examples/ex34p_*.*
+examples/ex34_*
+examples/ex34p_*
 
 examples/amgx/ex1
 examples/amgx/ex1p

@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
    ParLinearForm *g(new ParLinearForm);
    g->Update(&pfes, rhs.GetBlock(1), 0);
    FunctionCoefficient mass_source(g_source);
-   g->AddBdrFaceIntegrator(new BoundaryNormalLFIntegrator_mod(velocity_dbc));
+   g->AddBdrFaceIntegrator(new DG_BoundaryNormalLFIntegrator(velocity_dbc));
    g->AddDomainIntegrator(new DomainLFIntegrator(mass_source));
    g->Assemble();
    g->SyncAliasMemory(rhs);

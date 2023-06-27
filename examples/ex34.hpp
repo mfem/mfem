@@ -661,15 +661,15 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 }
 
 // Class for boundary integration of the linear form g = < q, v_dirichlet \cdot n_e >
-class BoundaryNormalLFIntegrator_mod : public LinearFormIntegrator
+class DG_BoundaryNormalLFIntegrator : public LinearFormIntegrator
 {
+private:
    Vector shape;
    VectorCoefficient &Q;
-   int oa, ob;
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   BoundaryNormalLFIntegrator_mod(VectorCoefficient &QG, int a = 1, int b = 1)
-      : Q(QG), oa(a), ob(b) { }
+   DG_BoundaryNormalLFIntegrator(VectorCoefficient &QG)
+      : Q(QG) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -682,13 +682,13 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
+void DG_BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    cout << "Not Implemented" << endl;
 }
 
-void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
+void DG_BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
    int dim = el.GetDim();
