@@ -71,6 +71,9 @@ Miscellaneous
   These functions can take the place of the MFEM_FORALL macros, which have been
   preserved for backwards compatibility.
 
+- Reorganized files for bilinear form, linear form, and nonlinear form integrators
+  in the fem/integ/ subdirectory.
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================
