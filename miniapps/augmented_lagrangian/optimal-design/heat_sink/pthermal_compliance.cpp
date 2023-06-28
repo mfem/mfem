@@ -169,8 +169,8 @@ geom_type geom;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
+   int world_size = Mpi::WorldSize();
+   int world_rank = Mpi::WorldRank();
    Hypre::Init();   
    // 1. Parse command-line options.
    int ref_levels = 2;
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    int iprob = 0;
    int igeom = 0;
-
+   int solver_ranks = 2;
    // save design to a file
    bool save_to_file = false;
    // restore precomputed design from file
@@ -258,7 +258,8 @@ int main(int argc, char *argv[])
    args.AddOption(&mirror, "-mirror", "--mirror", "-no-mirror",
                   "--no-mirror",
                   "Enable or disable symmetric optimization.");
-
+   args.AddOption(&solver_ranks, "-sr", "--solver-ranks",
+                  "Number of mpi ranks used by the forward solver");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable paraview export.");       
@@ -275,16 +276,44 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (world_rank == 0)
       {
          args.PrintUsage(cout);
       }
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (world_rank == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   int n = solver_ranks;
+
+   int row_color = world_rank / n; // Determine color based on row
+   int col_color = world_rank % n; // Determine color based on col
+
+   MPI_Comm row_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, row_color, world_rank, &row_comm);
+   int row_rank, row_size;
+   MPI_Comm_rank(row_comm, &row_rank);
+   MPI_Comm_size(row_comm, &row_size);
+
+   MPI_Comm col_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, col_color, world_rank, &col_comm);
+   int col_rank, col_size;
+   MPI_Comm_rank(col_comm, &col_rank);
+   MPI_Comm_size(col_comm, &col_size);
+
+
+   // check partitioning
+   if (world_size%solver_ranks !=0)
+   {
+      if (world_rank == 0)
+      {
+         MFEM_WARNING("Changing partitioning of MPI ranks: Number of ranks in forward solver = 1")
+      }
+      n = 1;
    }
 
    MFEM_VERIFY((iprob == 0 || iprob == 1), "Wrong choice of problem kind");
@@ -292,21 +321,6 @@ int main(int argc, char *argv[])
 
    MFEM_VERIFY((igeom == 0 || igeom == 1), "Wrong choice of geometry kind");
    geom = (geom_type)igeom;
-
-   int batch_size = batch_size_min;
-   if (theta < 0.0) { theta = std::numeric_limits<double>::infinity(); }
-
-   ostringstream csv_file_name;
-   csv_file_name << "conv_order" << order << "_GD_alpha_" << alpha 
-                 << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2 << ".csv";
-   ofstream conv(csv_file_name.str().c_str());
-   if (myid == 0)
-   {
-      conv << "Step,  Inner Step,    Sample Size, Cum. Sample Size,"
-           << " Compliance,    Mass Fraction, Norm of reduced grad,"
-           << " Stationarity Error,"
-           << " Lambda " << endl;
-   } 
 
    Mesh *mesh;
    if (geom == geom_type::square)
@@ -406,9 +420,24 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(row_comm, *mesh);
    mesh->Clear();
    delete mesh;
+
+
+   if (theta < 0.0) { theta = std::numeric_limits<double>::infinity(); }
+
+   ostringstream csv_file_name;
+   csv_file_name << "conv_order" << order << "_GD_alpha_" << alpha 
+                 << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2 << ".csv";
+   ofstream conv(csv_file_name.str().c_str());
+   if (col_rank == 0)
+   {
+      conv << "Step,  Inner Step,    Sample Size, Cum. Sample Size,"
+           << " Compliance,    Mass Fraction, Norm of reduced grad,"
+           << " Stationarity Error,"
+           << " Lambda " << endl;
+   } 
 
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
@@ -422,7 +451,7 @@ int main(int argc, char *argv[])
    HYPRE_BigInt state_size = state_fes.GlobalTrueVSize();
    HYPRE_BigInt control_size = control_fes.GlobalTrueVSize();
    HYPRE_BigInt filter_size = filter_fes.GlobalTrueVSize();
-   if (myid==0)
+   if (world_rank==0)
    {
       cout << "Number of state unknowns: " << state_size << endl;
       cout << "Number of filter unknowns: " << filter_size << endl;
@@ -450,12 +479,11 @@ int main(int argc, char *argv[])
 
    ParGridFunction load_gf(&state_fes); 
    ParGridFunction load_gf1(&state_fes); 
-   random_load_solver.SetupRandomFieldGenerator(myid+1);
+   random_load_solver.SetupRandomFieldGenerator(world_rank+1);
    random_load_solver.GenerateRandomField(load_gf);
 
-   random_load_solver1.SetupRandomFieldGenerator(myid+3000);
+   random_load_solver1.SetupRandomFieldGenerator(world_rank+3000);
    random_load_solver1.GenerateRandomField(load_gf1);
-
 
    GridFunctionCoefficient load_cf(&load_gf);
    GridFunctionCoefficient load_cf1(&load_gf1);
@@ -499,7 +527,7 @@ int main(int argc, char *argv[])
    PoissonSolver1->SetOrder(state_fec.GetOrder());
    PoissonSolver1->SetupFEM();
 
-   int seed = (random_seed) ? rand()%100 + myid : myid;
+   int seed = (random_seed) ? rand()%100 + col_rank+1 : col_rank+1;
    
    PoissonSolver->SetRHSCoefficient(&load_cf);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
@@ -544,32 +572,38 @@ int main(int argc, char *argv[])
    socketstream sout_u,sout_rho, sout_rho_filter;
    if (visualization)
    {
-      sout_u.open(vishost, visport);
-      sout_rho.open(vishost, visport);
-      sout_rho_filter.open(vishost, visport);
-      sout_u.precision(8);
-      sout_rho.precision(8);
-      sout_rho_filter.precision(8);
+      if (col_rank == 0)
+      {
+         sout_u.open(vishost, visport);
+         sout_rho.open(vishost, visport);
+         sout_rho_filter.open(vishost, visport);
+         sout_u.precision(8);
+         sout_rho.precision(8);
+         sout_rho_filter.precision(8);
+      }
    }
 
    ParaViewDataCollection * paraview_dc = nullptr;
    
    if (paraview)
    {
-      ostringstream paraview_file_name;
-      paraview_file_name << "Thermal_compliance_alpha_" << alpha 
-                         << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2
-                         << "_e1_" << e1 << "_bs_" << batch_size_min;
-      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
-      paraview_dc->SetPrefixPath("ParaView");
-      paraview_dc->SetLevelsOfDetail(order);
-      paraview_dc->SetCycle(0);
-      paraview_dc->SetDataFormat(VTKFormat::BINARY);
-      paraview_dc->SetHighOrderOutput(true);
-      paraview_dc->SetTime(0.0); // set the time
-      // paraview_dc->RegisterField("soln",&u);
-      // paraview_dc->RegisterField("dens",&rho);
-      paraview_dc->RegisterField("dens_filter",&rho_filter);
+      if (col_rank == 0)
+      {
+         ostringstream paraview_file_name;
+         paraview_file_name << "Thermal_compliance_alpha_" << alpha 
+                            << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2
+                            << "_e1_" << e1 << "_bs_" << batch_size_min;
+         paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
+         paraview_dc->SetPrefixPath("ParaView");
+         paraview_dc->SetLevelsOfDetail(order);
+         paraview_dc->SetCycle(0);
+         paraview_dc->SetDataFormat(VTKFormat::BINARY);
+         paraview_dc->SetHighOrderOutput(true);
+         paraview_dc->SetTime(0.0); // set the time
+         // paraview_dc->RegisterField("soln",&u);
+         // paraview_dc->RegisterField("dens",&rho);
+         paraview_dc->RegisterField("dens_filter",&rho_filter);
+      }
    }
    // 12. AL iterations
    int step = 0;
@@ -578,6 +612,15 @@ int main(int argc, char *argv[])
    double lambda = 0.0;
    Coefficient * K_cf = nullptr;
    Coefficient * rhs_cf = nullptr;
+
+   int batch_size = batch_size_min;
+   batch_size = max(batch_size,col_size);
+   int global_adaptive_batch_size = batch_size;
+   int adaptive_batch_size = global_adaptive_batch_size/col_size;
+   // for convinience keep the batch size the same on each proc;
+   global_adaptive_batch_size = col_size * adaptive_batch_size;
+
+
    for (int k = 1; k <= max_it; k++)
    {
       // A. Form state equation
@@ -589,7 +632,7 @@ int main(int argc, char *argv[])
          cumulative_samples += batch_size;
          if (cumulative_samples > max_cumulative_samples) { break; }
 
-         if (myid == 0)
+         if (world_rank == 0)
          {
             cout << "\nStep = " << l << endl;
             cout << "Batch Size   = " << batch_size << endl;
@@ -615,7 +658,7 @@ int main(int argc, char *argv[])
          PoissonSolver->SetDiffusionCoefficient(K_cf);
          PoissonSolver1->SetDiffusionCoefficient(K_cf);
          FilterSolver->SetRHSCoefficient(rhs_cf);
-         for (int ib = 0; ib<batch_size; ib++)
+         for (int ib = 0; ib<adaptive_batch_size; ib++)
          {
             if (prob == prob_type::stochastic)
             {
@@ -652,13 +695,18 @@ int main(int argc, char *argv[])
             avg_compliance += (*(PoissonSolver->GetParLinearForm()))(u);
          } // end of loop through batch samples
 
-         avg_w_norm /= (double)batch_size;  
-         avg_w /= (double)batch_size;
+         // MPI reduction
+         MPI_Allreduce(MPI_IN_PLACE, avg_w.GetData(), avg_w.Size(),MPI_DOUBLE, MPI_SUM,col_comm);
+         MPI_Allreduce(MPI_IN_PLACE, &avg_w_norm, 1, MPI_DOUBLE, MPI_SUM,col_comm);
+         MPI_Allreduce(MPI_IN_PLACE, &avg_compliance, 1, MPI_DOUBLE, MPI_SUM,col_comm);
 
-         avg_compliance /= (double)batch_size;  
+         avg_w_norm /= (double)global_adaptive_batch_size;  
+         avg_w /= (double)global_adaptive_batch_size;
+
+         avg_compliance /= (double)global_adaptive_batch_size;  
 
          double norm_avg_w = pow(avg_w.ComputeL2Error(zero),2);
-         double denom = batch_size == 1 ? batch_size : batch_size-1;
+         double denom = global_adaptive_batch_size == 1 ? global_adaptive_batch_size : global_adaptive_batch_size-1;
          double variance = (avg_w_norm - norm_avg_w)/denom;
 
          double eta = 1e-6;
@@ -706,7 +754,7 @@ int main(int argc, char *argv[])
          double norm_rho = rho.ComputeL2Error(tmp)/alpha;
          rho_old = rho;
          
-         if (myid == 0)
+         if (world_rank == 0)
          {
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
             mfem::out << "avg_compliance = " << avg_compliance << endl;
@@ -716,12 +764,12 @@ int main(int argc, char *argv[])
          if (norm_rho < tol_rho) { break; }
 
          double ratio = sqrt(abs(variance)) / norm_rho ;
-         if (myid == 0)
+         if (world_rank == 0)
          {
             mfem::out << "ratio = " << ratio << std::endl;
             conv << step << ",   "
                  << l << ",   " 
-                 << batch_size << ",   " 
+                 << global_adaptive_batch_size << ",   " 
                  << cumulative_samples << ",   " 
                  << avg_compliance <<  ",   " 
                  << mf << ",   "
@@ -730,48 +778,57 @@ int main(int argc, char *argv[])
                  << lambda << endl;
          }
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
-         if (myid == 0)
+         if (world_rank == 0)
          {
             mfem::out << "ratio_avg = " << ratio_avg << std::endl;
          }
          if (ratio > theta && !first_iteration)
          {
-            batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
+            global_adaptive_batch_size = max((int)(pow(ratio / theta,2) * global_adaptive_batch_size),global_adaptive_batch_size); 
          }
          else if (ratio < 0.1 * theta && !first_iteration)
          {
-            batch_size = max((int)(pow(ratio / theta,2) * batch_size),batch_size_min); 
+            global_adaptive_batch_size = max((int)(pow(ratio / theta,2) * global_adaptive_batch_size),global_adaptive_batch_size); 
          }
+
+         adaptive_batch_size = global_adaptive_batch_size/col_size;
+         // for convinience keep the batch size the same on each proc;
+         global_adaptive_batch_size = col_size * adaptive_batch_size;
+
          first_iteration = false;
 
          if (visualization)
          {
+            if (col_rank == 0)
+            {
+               sout_u << "parallel " << row_size << " " << row_rank << "\n";
+               sout_u << "solution\n" << pmesh << u
+                     << "window_title 'State u'" << flush;
 
-            sout_u << "parallel " << num_procs << " " << myid << "\n";
-            sout_u << "solution\n" << pmesh << u
-                  << "window_title 'State u'" << flush;
+               sout_rho << "parallel " << row_size << " " << row_rank << "\n";
+               sout_rho << "solution\n" << pmesh << rho
+                     << "window_title 'Control ρ '" << flush;
 
-            sout_rho << "parallel " << num_procs << " " << myid << "\n";
-            sout_rho << "solution\n" << pmesh << rho
-                  << "window_title 'Control ρ '" << flush;
-
-            sout_rho_filter << "parallel " << num_procs << " " << myid << "\n";
-            sout_rho_filter << "solution\n" << pmesh << rho_filter
-                  << "window_title 'Control ρ filter '" << flush;                  
-
+               sout_rho_filter << "parallel " << row_size << " " << row_rank << "\n";
+               sout_rho_filter << "solution\n" << pmesh << rho_filter
+                     << "window_title 'Control ρ filter '" << flush;                  
+            }
          }
          if (paraview)
          {
-            paraview_dc->SetCycle(step);
-            paraview_dc->SetTime((double)step);
-            paraview_dc->Save();
+            if (col_rank == 0)
+            {
+               paraview_dc->SetCycle(step);
+               paraview_dc->SetTime((double)step);
+               paraview_dc->Save();
+            }
          }
          delete K_cf;
          delete rhs_cf;
       }
       // λ <- λ - β (∫_Ω K dx - V⋅ vol(\Omega))
       double mass = vol_form(rho);
-      if (myid == 0)
+      if (world_rank == 0)
       {
          mfem::out << "mass_fraction = " << mass / domain_volume << endl;
       }
@@ -779,7 +836,7 @@ int main(int argc, char *argv[])
       double lambda_inc = mass/domain_volume - mass_fraction;
 
       lambda -= beta*lambda_inc;
-      if (myid == 0)
+      if (world_rank == 0)
       {
          mfem::out << "lambda_inc = " << lambda_inc << endl;
          mfem::out << "lambda = " << lambda << endl;
@@ -787,20 +844,25 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         sout_u << "parallel " << num_procs << " " << myid << "\n";
-         sout_u << "solution\n" << pmesh << u
-               << "window_title 'State u'" << flush;
+         if (col_rank == 0)
+         {
+            sout_u << "parallel " << row_size << " " << row_rank << "\n";
+            sout_u << "solution\n" << pmesh << u
+                  << "window_title 'State u'" << flush;
 
-         sout_rho << "parallel " << num_procs << " " << myid << "\n";
-         sout_rho << "solution\n" << pmesh << rho
-                << "window_title 'Control ρ '" << flush;
-     
+            sout_rho << "parallel " << row_size << " " << row_rank << "\n";
+            sout_rho << "solution\n" << pmesh << rho
+                   << "window_title 'Control ρ '" << flush;
+         }
       }
       if (paraview)
       {
-         paraview_dc->SetCycle(step);
-         paraview_dc->SetTime((double)step);
-         paraview_dc->Save();
+         if (col_rank == 0)
+         {
+            paraview_dc->SetCycle(step);
+            paraview_dc->SetTime((double)step);
+            paraview_dc->Save();
+         }
       }
 
       if (abs(lambda_inc) < tol_lambda) { break; }

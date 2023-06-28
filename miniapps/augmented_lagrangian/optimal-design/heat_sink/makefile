@@ -27,7 +27,7 @@ PDEOPT_COMMON_SRC =
 PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = pthermal_compliance-filter
+PAR_MINIAPPS = pthermal_compliance-filter pthermal_compliance
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
