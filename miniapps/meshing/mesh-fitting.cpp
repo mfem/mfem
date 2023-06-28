@@ -691,8 +691,8 @@ int main(int argc, char *argv[])
       if (prefine)
       {
           // TODO: BOUCLE
-          //for (int iter_pref=0; iter_pref<2; iter_pref++)
-          //{
+          for (int iter_pref=0; iter_pref<2; iter_pref++)
+          {
           //    std::cout << "BOUCLE j: " << iter_pref << std::endl;
               //    std::cout << "1. " << std::endl;
          // TODO
@@ -712,7 +712,6 @@ int main(int argc, char *argv[])
                      order_gf(els[0]) = max_order+pref_order_increase;
                      order_gf(els[1]) = max_order+pref_order_increase;
                      inter_faces.push_back(i);
-                     //if (iter_pref==0){inter_faces.push_back(i);}
                  }
              }
          }
@@ -728,8 +727,8 @@ int main(int argc, char *argv[])
          x.SetTrueVector();
          x.SetFromTrueVector();
 
-         //mesh->SetNodalGridFunction(&x);
-        /*
+         mesh->SetNodalGridFunction(&x);
+
          if (visualization)
          {
              x_max_order = ProlongToMaxOrder(&x , 0);
@@ -739,9 +738,9 @@ int main(int argc, char *argv[])
                                          00, 600, 300, 300);
              mesh->SetNodalGridFunction(&x);
          }
-        */
 
-        //  }
+
+          }
 
       }
       else
@@ -1157,6 +1156,26 @@ int main(int argc, char *argv[])
       vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
    }
 
+
+   // TODO: Test reduce order of one face
+   if(prefine)
+   {
+       surf_fit_gf0.ProjectCoefficient(ls_coeff);
+       tmop_integ->CopyGridFunction(surf_fit_gf0);
+       surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+       std::cout << "size " << inter_faces.size() << std::endl;
+       for (int i=0; i < inter_faces.size(); i++)
+       {
+           double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                          surf_fit_bg_gf0,
+                                                          inter_faces[i],
+                                                          surf_fit_gf0_max_order,
+                                                          finder);
+           std::cout << "Error... " << error_bg_face << std::endl;
+       }
+   }
+
+
    // Visualize fitting surfaces and report fitting errors.
    if (surface_fit_const > 0.0)
    {
@@ -1191,6 +1210,7 @@ int main(int argc, char *argv[])
                                                          inter_faces[i],
                                                          surf_fit_gf0_max_order,
                                                          finder);
+          std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
           error_bg_sum += error_bg_face;
       }
       std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
