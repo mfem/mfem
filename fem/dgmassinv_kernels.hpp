@@ -181,7 +181,7 @@ void DGMassBasis2D(const int e,
                    double *y_,
                    const int d1d = 0)
 {
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D = T_D1D ? T_D1D : d1d;
 
    const auto b = Reshape(b_, D1D, D1D);
@@ -228,7 +228,7 @@ void DGMassBasis3D(const int e,
    const auto x = Reshape(x_, D1D, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
 
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
    MFEM_SHARED double sB[MD1*MD1];
    MFEM_SHARED double sm0[MD1*MD1*MD1];

@@ -118,8 +118,8 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int VDIM = 2;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(B_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
    auto y = Reshape(diag_.ReadWrite(), D1D, D1D, VDIM, NE);
@@ -127,8 +127,8 @@ static void PAVectorMassAssembleDiagonal2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double temp[max_Q1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
@@ -170,8 +170,8 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int VDIM = 3;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(B_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
    auto y = Reshape(diag_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
@@ -180,8 +180,8 @@ static void PAVectorMassAssembleDiagonal3D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double temp[max_Q1D][max_Q1D][max_D1D];
       for (int qx = 0; qx < Q1D; ++qx)
@@ -281,8 +281,8 @@ static void PAVectorMassApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int VDIM = 2;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(B_.Read(), Q1D, D1D);
    auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
@@ -293,8 +293,8 @@ static void PAVectorMassApply2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double sol_xy[max_Q1D][max_Q1D];
       for (int c = 0; c < VDIM; ++c)
       {
@@ -377,8 +377,8 @@ static void PAVectorMassApply3D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int VDIM = 3;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(B_.Read(), Q1D, D1D);
    auto Bt = Reshape(Bt_.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
@@ -388,8 +388,8 @@ static void PAVectorMassApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
       for (int c = 0; c < VDIM; ++ c)
       {
