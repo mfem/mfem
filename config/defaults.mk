@@ -284,10 +284,10 @@ ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib\
       -lsuperlu_dist_5.1.0
 else
-   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_8.1.2
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64\
-      -lsuperlu_dist -lblas
+      -lsuperlu_dist $(LAPACK_LIB)
 endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
@@ -311,7 +311,7 @@ MPI_FORTRAN_LIB = -lmpifort
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
-MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
+MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
 MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
  -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
