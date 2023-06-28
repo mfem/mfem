@@ -176,9 +176,6 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const Vector &op_,
                                   Vector &diag_)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
@@ -186,6 +183,9 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
       int osc = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y components
@@ -232,8 +232,10 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const Vector &op_,
                                   Vector &diag_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -254,7 +256,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
                                          (symmetric ? 5 : 8));
 
-         double mass[HDIV_MAX_Q1D];
+         double mass[DofQuadLimits::HDIV_MAX_Q1D];
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
@@ -347,10 +349,6 @@ void PAHdivMassApply2D(const int D1D,
                        const Vector &x_,
                        Vector &y_)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HDIV_MAX_D1D;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
@@ -361,6 +359,10 @@ void PAHdivMassApply2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -478,8 +480,10 @@ void PAHdivMassApply3D(const int D1D,
                        const Vector &x_,
                        Vector &y_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -492,7 +496,7 @@ void PAHdivMassApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double mass[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D][VDIM];
+      double mass[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -518,7 +522,7 @@ void PAHdivMassApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double massXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+            double massXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -529,7 +533,7 @@ void PAHdivMassApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[HDIV_MAX_Q1D];
+               double massX[DofQuadLimits::HDIV_MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -600,7 +604,7 @@ void PAHdivMassApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+         double massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          osc = 0;
 
@@ -619,7 +623,7 @@ void PAHdivMassApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[HDIV_MAX_D1D];
+               double massX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0;
@@ -730,9 +734,6 @@ void PADivDivAssembleDiagonal2D(const int D1D,
                                 const Vector &op_,
                                 Vector &diag_)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
@@ -740,6 +741,9 @@ void PADivDivAssembleDiagonal2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
       int osc = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y components
@@ -786,8 +790,10 @@ void PADivDivAssembleDiagonal3D(const int D1D,
                                 const Vector &op_,
                                 Vector &diag_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -809,7 +815,7 @@ void PADivDivAssembleDiagonal3D(const int D1D,
          {
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double a[HDIV_MAX_Q1D];
+               double a[DofQuadLimits::HDIV_MAX_Q1D];
 
                for (int qx = 0; qx < Q1D; ++qx)
                {
@@ -855,10 +861,6 @@ void PADivDivApply2D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HDIV_MAX_D1D;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
@@ -869,6 +871,10 @@ void PADivDivApply2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
       double div[MAX_Q1D][MAX_Q1D];
 
       // div[qy][qx] will be computed as du_x/dx + du_y/dy
@@ -974,8 +980,10 @@ void PADivDivApply3D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -988,7 +996,7 @@ void PADivDivApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+      double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1011,7 +1019,7 @@ void PADivDivApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double aXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+            double aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1022,7 +1030,7 @@ void PADivDivApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double aX[HDIV_MAX_Q1D];
+               double aX[DofQuadLimits::HDIV_MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] = 0.0;
@@ -1078,7 +1086,7 @@ void PADivDivApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+         double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          osc = 0;
 
@@ -1097,7 +1105,7 @@ void PADivDivApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double aX[HDIV_MAX_D1D];
+               double aX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;
@@ -1207,8 +1215,8 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
             // Compute row (rx,ry), assuming all contributions are from
             // a single element.
 
-            double row[2*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)];
-            double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+            double row[2*DofQuadLimits::HDIV_MAX_D1D*(DofQuadLimits::HDIV_MAX_D1D-1)];
+            double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
             for (int i=0; i<2*D1D*(D1D - 1); ++i)
             {
@@ -1231,7 +1239,7 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                   const int D1Dy = (c == 1) ? D1D : D1D - 1;
                   const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-                  double aX[HDIV_MAX_D1D];
+                  double aX[DofQuadLimits::HDIV_MAX_D1D];
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      aX[dx] = 0;
@@ -1281,8 +1289,10 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                                       const Vector &D_,
                                       Vector &diag_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
@@ -1303,8 +1313,9 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                // Compute row (rx,ry,rz), assuming all contributions are from
                // a single element.
 
-               double row[3*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)*(HDIV_MAX_D1D-1)];
-               double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+               double row[3*DofQuadLimits::HDIV_MAX_D1D*(DofQuadLimits::HDIV_MAX_D1D-1)*
+                          (DofQuadLimits::HDIV_MAX_D1D-1)];
+               double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
                for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
                {
@@ -1325,7 +1336,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
 
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+                  double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
                   int osc = 0;
                   for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
@@ -1343,7 +1354,7 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                      }
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        double aX[HDIV_MAX_D1D];
+                        double aX[DofQuadLimits::HDIV_MAX_D1D];
                         for (int dx = 0; dx < D1Dx; ++dx)
                         {
                            aX[dx] = 0;
@@ -1408,10 +1419,6 @@ void PAHdivL2Apply2D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HDIV_MAX_D1D;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
    auto L2Bot = Reshape(L2Bot_.Read(), L2D1D, Q1D);
@@ -1421,6 +1428,10 @@ void PAHdivL2Apply2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
       double div[MAX_Q1D][MAX_Q1D];
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -1514,10 +1525,6 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
                               const Vector &x_,
                               Vector &y_)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HDIV_MAX_D1D;
-   constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
-
    auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
    auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
@@ -1527,6 +1534,10 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
       double div[MAX_Q1D][MAX_Q1D];
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -1622,8 +1633,10 @@ void PAHdivL2Apply3D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -1635,7 +1648,7 @@ void PAHdivL2Apply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+      double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1658,7 +1671,7 @@ void PAHdivL2Apply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double aXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+            double aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1669,7 +1682,7 @@ void PAHdivL2Apply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double aX[HDIV_MAX_Q1D];
+               double aX[DofQuadLimits::HDIV_MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] = 0.0;
@@ -1724,7 +1737,7 @@ void PAHdivL2Apply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+         double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          for (int dy = 0; dy < L2D1D; ++dy)
          {
@@ -1735,7 +1748,7 @@ void PAHdivL2Apply3D(const int D1D,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double aX[HDIV_MAX_D1D];
+            double aX[DofQuadLimits::HDIV_MAX_D1D];
             for (int dx = 0; dx < L2D1D; ++dx)
             {
                aX[dx] = 0;
@@ -1783,8 +1796,10 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
                               const Vector &x_,
                               Vector &y_)
 {
-   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto L2Bo = Reshape(L2Bo_.Read(), Q1D, L2D1D);
@@ -1796,7 +1811,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+      double div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1811,7 +1826,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
       for (int dz = 0; dz < L2D1D; ++dz)
       {
-         double aXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+         double aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -1822,7 +1837,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
          for (int dy = 0; dy < L2D1D; ++dy)
          {
-            double aX[HDIV_MAX_Q1D];
+            double aX[DofQuadLimits::HDIV_MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                aX[qx] = 0.0;
@@ -1874,7 +1889,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+         double aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          int osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
@@ -1892,7 +1907,7 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double aX[HDIV_MAX_D1D];
+               double aX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;

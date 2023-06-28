@@ -31,10 +31,6 @@ static void PAHcurlH1Apply2D(const int D1D,
                              const Vector &x,
                              Vector &y)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
    auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
@@ -45,6 +41,10 @@ static void PAHcurlH1Apply2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -155,10 +155,6 @@ static void PAHcurlH1ApplyTranspose2D(const int D1D,
                                       const Vector &x,
                                       Vector &y)
 {
-   constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bt = Reshape(bct.Read(), D1D, Q1D);
@@ -169,6 +165,10 @@ static void PAHcurlH1ApplyTranspose2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -280,11 +280,10 @@ static void PAHcurlH1Apply3D(const int D1D,
                              const Vector &x,
                              Vector &y)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
 
    constexpr static int VDIM = 3;
 
@@ -298,6 +297,9 @@ static void PAHcurlH1Apply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -470,11 +472,10 @@ static void PAHcurlH1ApplyTranspose3D(const int D1D,
                                       const Vector &x,
                                       Vector &y)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
 
    constexpr static int VDIM = 3;
 
@@ -488,6 +489,9 @@ static void PAHcurlH1ApplyTranspose3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
