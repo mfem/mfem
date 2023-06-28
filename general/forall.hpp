@@ -62,9 +62,9 @@ struct DeviceDofQuadLimits
    int HDIV_MAX_D1D;
    int HDIV_MAX_Q1D;
 
-   static DeviceDofQuadLimits &Get()
+   static const DeviceDofQuadLimits &Get()
    {
-      static DeviceDofQuadLimits dof_quad_limits;
+      static const DeviceDofQuadLimits dof_quad_limits;
       return dof_quad_limits;
    }
 
