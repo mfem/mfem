@@ -62,8 +62,8 @@ void TensorDerivatives<QVectorLayout::byVDIM>(const int NE,
          case 0x258: return Derivatives2D<L,P,2,5,8,2>(NE,B,G,J,X,Y);
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            constexpr int MD = DofQuadLimits::MAX_D1D;
+            constexpr int MQ = DofQuadLimits::MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "

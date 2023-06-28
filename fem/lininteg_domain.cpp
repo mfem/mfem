@@ -35,8 +35,8 @@ void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED double sBt[Q*D];
       MFEM_SHARED double sQQ[Q*Q];
@@ -105,8 +105,8 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQD = (Q >= D) ? Q : D;
 
       double u[D];

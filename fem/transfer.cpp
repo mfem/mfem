@@ -1185,7 +1185,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
    {
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double sol_x[MAX_Q1D];
+         double sol_x[DofQuadLimits::MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -1232,7 +1232,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
    {
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double sol_xy[MAX_Q1D][MAX_Q1D];
+         double sol_xy[DofQuadLimits::MAX_Q1D][DofQuadLimits::MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -1242,7 +1242,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double sol_x[MAX_Q1D];
+            double sol_x[DofQuadLimits::MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
@@ -1304,7 +1304,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
    {
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[MAX_D1D];
+         double sol_x[DofQuadLimits::MAX_D1D];
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
@@ -1343,7 +1343,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
    {
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double sol_xy[MAX_D1D][MAX_D1D];
+         double sol_xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -1353,7 +1353,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double sol_x[MAX_D1D];
+            double sol_x[DofQuadLimits::MAX_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
