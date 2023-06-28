@@ -23,16 +23,78 @@
 namespace mfem
 {
 
+struct DofQuadLimits_CUDA
+{
+   static constexpr int MAX_D1D = 10;
+   static constexpr int MAX_Q1D = 10;
+   static constexpr int HCURL_MAX_D1D = 5;
+   static constexpr int HCURL_MAX_Q1D = 5;
+   static constexpr int HDIV_MAX_D1D = 5;
+   static constexpr int HDIV_MAX_Q1D = 6;
+};
+
+struct DofQuadLimits_HIP
+{
+   static constexpr int MAX_D1D = 14;
+   static constexpr int MAX_Q1D = 14;
+   static constexpr int HCURL_MAX_D1D = 5;
+   static constexpr int HCURL_MAX_Q1D = 6;
+   static constexpr int HDIV_MAX_D1D = 5;
+   static constexpr int HDIV_MAX_Q1D = 6;
+};
+
+struct DofQuadLimits_CPU
+{
+   static constexpr int MAX_D1D = 32;
+   static constexpr int MAX_Q1D = 32;
+   static constexpr int HCURL_MAX_D1D = 10;
+   static constexpr int HCURL_MAX_Q1D = 10;
+   static constexpr int HDIV_MAX_D1D = 10;
+   static constexpr int HDIV_MAX_Q1D = 10;
+};
+
+struct DeviceDofQuadLimits
+{
+   int MAX_D1D;
+   int MAX_Q1D;
+   int HCURL_MAX_D1D;
+   int HCURL_MAX_Q1D;
+   int HDIV_MAX_D1D;
+   int HDIV_MAX_Q1D;
+
+   static DeviceDofQuadLimits &Get()
+   {
+      static DeviceDofQuadLimits dof_quad_limits;
+      return dof_quad_limits;
+   }
+
+private:
+   DeviceDofQuadLimits()
+   {
+      if (Device::Allows(Backend::CUDA_MASK)) { Populate<DofQuadLimits_CUDA>(); }
+      else if (Device::Allows(Backend::HIP_MASK)) { Populate<DofQuadLimits_HIP>(); }
+      else { Populate<DofQuadLimits_CPU>(); }
+   }
+
+   template <typename T>
+   void Populate()
+   {
+      MAX_D1D = T::MAX_D1D;
+      MAX_Q1D = T::MAX_Q1D;
+      HCURL_MAX_D1D = T::HCURL_MAX_D1D;
+      HCURL_MAX_Q1D = T::HCURL_MAX_Q1D;
+      HDIV_MAX_D1D = T::HDIV_MAX_D1D;
+      HDIV_MAX_Q1D = T::HDIV_MAX_Q1D;
+   }
+};
+
 // Maximum size of dofs and quads in 1D.
-#if defined(MFEM_USE_HIP)
-constexpr int MAX_D1D = 10;
-constexpr int MAX_Q1D = 10;
-#elif defined(MFEM_USE_CUDA)
-constexpr int MAX_D1D = 14;
-constexpr int MAX_Q1D = 14;
+#if defined(__CUDA_ARCH__)
+using DofQuadLimits = DofQuadLimits_CUDA;
+#elif defined(__HIP_DEVICE_COMPILE__)
+using DofQuadLimits = DofQuadLimits_HIP;
 #else
-constexpr int MAX_D1D = 32;
-constexpr int MAX_Q1D = 32;
+using DofQuadLimits = DofQuadLimits_CPU;
 #endif
 
 // MFEM pragma macros that can be used inside MFEM_FORALL macros.

@@ -45,10 +45,12 @@ void TensorValues<QVectorLayout::byNODES>(const int NE,
 
    if (dim == 1)
    {
-      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D,
+                  "Orders higher than " << DofQuadLimits::MAX_D1D-1
                   << " are not supported!");
-      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
-                  << MAX_Q1D << " 1D points are not supported!");
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+                  "Quadrature rules with more than "
+                  << DeviceDofQuadLimits::Get().MAX_Q1D << " 1D points are not supported!");
       Values1D<L>(NE, B, X, Y, vdim, D1D, Q1D);
       return;
    }
@@ -83,8 +85,8 @@ void TensorValues<QVectorLayout::byNODES>(const int NE,
 
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            constexpr int MD = DofQuadLimits::MAX_D1D;
+            constexpr int MQ = DofQuadLimits::MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "

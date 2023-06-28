@@ -53,8 +53,8 @@ void PAMassApply2D_Element(const int e,
       }
    }
 
-   constexpr int max_D1D = MAX_D1D;
-   constexpr int max_Q1D = MAX_Q1D;
+   constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
    double sol_xy[max_Q1D][max_Q1D];
    for (int qy = 0; qy < Q1D; ++qy)
    {
@@ -135,8 +135,8 @@ void SmemPAMassApply2D_Element(const int e,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
    auto b = ConstDeviceMatrix(b_, Q1D, D1D);
@@ -280,8 +280,8 @@ void PAMassApply3D_Element(const int e,
       }
    }
 
-   constexpr int max_D1D = MAX_D1D;
-   constexpr int max_Q1D = MAX_Q1D;
+   constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
    double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
    for (int qz = 0; qz < Q1D; ++qz)
    {
@@ -410,8 +410,8 @@ void SmemPAMassApply3D_Element(const int e,
 {
    constexpr int D1D = T_D1D ? T_D1D : d1d;
    constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
    auto b = ConstDeviceMatrix(b_, Q1D, D1D);

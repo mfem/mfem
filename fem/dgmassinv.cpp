@@ -166,11 +166,11 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       b = b_.Read();
    }
 
-   constexpr int NB = Q1D ? Q1D : 1; // block size
+   static constexpr int NB = Q1D ? Q1D : 1; // block size
 
    mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int NB = Q1D ? Q1D : 1; // redefine here for some compilers
+      static constexpr int MAX_D1D = DofQuadLimits::MAX_D1D;
 
       // Perform change of basis if needed
       if (CHANGE_BASIS)

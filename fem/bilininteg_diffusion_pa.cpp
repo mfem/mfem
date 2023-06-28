@@ -421,8 +421,8 @@ static void PADiffusionDiagonal2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    // note the different shape for D, if this is a symmetric matrix we only
@@ -433,8 +433,8 @@ static void PADiffusionDiagonal2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       // gradphi \cdot Q \gradphi has four terms
       double QD0[MQ1][MD1];
       double QD1[MQ1][MD1];
@@ -488,8 +488,8 @@ static void SmemPADiffusionDiagonal2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -502,8 +502,8 @@ static void SmemPADiffusionDiagonal2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED double BG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (BG+0);
       double (*G)[MD1] = (double (*)[MD1]) (BG+1);
@@ -582,8 +582,8 @@ static void PADiffusionDiagonal3D(const int NE,
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
@@ -594,8 +594,8 @@ static void PADiffusionDiagonal3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double QQD[MQ1][MQ1][MD1];
       double QDD[MQ1][MD1][MD1];
       for (int i = 0; i < DIM; ++i)
@@ -683,8 +683,8 @@ static void SmemPADiffusionDiagonal3D(const int NE,
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -696,8 +696,8 @@ static void SmemPADiffusionDiagonal3D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED double BG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (BG+0);
       double (*G)[MD1] = (double (*)[MD1]) (BG+1);
@@ -964,8 +964,8 @@ static void PADiffusionApply2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b_.Read(), Q1D, D1D);
    auto G = Reshape(g_.Read(), Q1D, D1D);
    auto Bt = Reshape(bt_.Read(), D1D, Q1D);
@@ -978,8 +978,8 @@ static void PADiffusionApply2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double grad[max_Q1D][max_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
@@ -1085,8 +1085,8 @@ static void SmemPADiffusionApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -1100,8 +1100,8 @@ static void SmemPADiffusionApply2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
       double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
@@ -1243,8 +1243,8 @@ static void PADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
@@ -1256,8 +1256,8 @@ static void PADiffusionApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double grad[max_Q1D][max_Q1D][max_Q1D][3];
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1434,8 +1434,8 @@ static void SmemPADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int M1Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int M1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -1447,8 +1447,8 @@ static void SmemPADiffusionApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);

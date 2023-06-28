@@ -77,8 +77,8 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          case 0x256: return Derivatives2D<L,P,2,5,6,2>(NE,B,G,J,X,Y);
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            constexpr int MD = DofQuadLimits::MAX_D1D;
+            constexpr int MQ = DofQuadLimits::MAX_Q1D;
             if (D1D > MD || Q1D > MQ)
             {
                MFEM_ABORT("");
