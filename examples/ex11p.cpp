@@ -58,7 +58,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   Mpi::Init(argc, argv);
+   Mpi::Init_auto();
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
