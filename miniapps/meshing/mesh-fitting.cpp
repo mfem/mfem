@@ -113,6 +113,8 @@ void PRefinementTransfer::Transfer(GridFunction &targf)
 {
     MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
                 "GridFunction should not be updated prior to UpdateGF.");
+    MFEM_VERIFY(targf.GetSequence() == src->GetSequence(),
+                ".");
    Vector srcgf = targf;
    targf.Update();
    PRefinementTransferOperator preft =
@@ -211,25 +213,15 @@ double ComputeIntegrateError(const FiniteElementSpace* fes, FunctionCoefficient*
 double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_bg,
                                const int el, GridFunction *lss, FindPointsGSLIB &finder)
 {
-//    std::cout << el << "  k10el\n";
     double error = 0.0;
     const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-//    int intorder = 2*fe->GetOrder() + 3 ;
     int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 3;
     const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-//    const IntegrationRule *ir = &(fe->GetNodes());
 
-    //Vector values ;
-    //DenseMatrix tr;
-    //ls_bg->GetFaceValues(el, 0, *ir, values, tr, 1);
     FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
-
     int dim = fes->GetMesh()->Dimension();
     Vector vxyz(dim*ir->GetNPoints());  // Coordinates of the quadrature points in the physical space
     Vector interp_values(ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
-    //std::cout << "Ordre " << intorder << std::endl;
-    //std::cout << "Nbr de points de quadrature: " << ir->GetNPoints() << std::endl;
-    //std::cout << "Face " << el << std::endl;
     // Compute the coords of the quadrature points in the physical space
     for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
     {
@@ -244,33 +236,21 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_b
         {
             vxyz(i*dim+2) = xyz(2);
         }
-        //std::cout << "Ref space " << ip.x << ", " << ip.y << ", Physical space " << xyz(0) << ", " << xyz(1) << std::endl;
     }
 
     // Compute the interpolated values of the level set grid function on the
     // physical coords of the quadrature points
     int point_ordering(1);
-//    FindPointsGSLIB finder;
-//    finder.Setup(*ls_bg->FESpace()->GetMesh());
-//    finder.SetL2AvgType(FindPointsGSLIB::NONE);
     finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
-
     for (int i=0; i<ir->GetNPoints(); i++)
     {
         const IntegrationPoint &ip = ir->IntPoint(i);
         transf->SetAllIntPoints(&ip);
-//        std::cout << ip.x << " " << ip.y << " "  << ip.weight << " " <<
-//                     vxyz(i*dim) << " "  << vxyz(i*dim+1) << " " <<
-//                     interp_values(i) << " " <<
-//                     transf->Face->Weight() << " k10info\n";
-
         double level_set_value = interp_values(i) ;
         error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
         //error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
         //std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
     }
-//    std::cout << el << " " << error << " k10facel2error\n";
-//    MFEM_ABORT(" ");
 
     return error;
 }
@@ -441,10 +421,6 @@ int main(int argc, char *argv[])
       }
       fespace->Update(false);
    }
-
-   // Define a transfer operator for updating gridfunctions after the mesh
-   // has been p-refined
-   PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
 
    // Curve the mesh based on the (optionally  p-refined) finite element space.
    mesh->SetNodalFESpace(fespace);
@@ -625,7 +601,6 @@ int main(int argc, char *argv[])
 
    GridFunction *surf_fit_gf0_max_order = &surf_fit_gf0;
    GridFunction *surf_fit_mat_gf_max_order = &surf_fit_mat_gf;
-   PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
 
     // Background mesh FECollection, FESpace, and GridFunction
     H1_FECollection *surf_fit_bg_fec = NULL;
@@ -653,50 +628,64 @@ int main(int argc, char *argv[])
         surf_fit_bg_fec = new H1_FECollection(6, dim);
         surf_fit_bg_fes = new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec);
         surf_fit_bg_gf0 = new GridFunction(surf_fit_bg_fes);
+        surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
     }
 
-   std::vector<int> inter_faces;   // Vector to save the faces between two different materials
+    if (surface_fit_const > 0.0)
+    {
+        for (int i = 0; i < mesh->GetNE(); i++)
+        {
+            mat(i) = material_id(i, surf_fit_gf0);
+            mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
+            {
+                Vector center(mesh->Dimension());
+                mesh->GetElementCenter(i, center);
+                if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                    center(1) < 0.75)
+                {
+                    mat(i) = 0;
+                }
+                else
+                {
+                    mat(i) = 1;
+                }
+                mesh->SetAttribute(i, mat(i) + 1);
+            }
+        }
+    }
+
+    // TODO: BOUCLE
+    std::vector<int> inter_faces;   // Vector to save the faces between two different materials
+    for (int iter_pref=0; iter_pref<2; iter_pref++)
+    {
+        std::cout << "BOUCLE j: " << iter_pref << std::endl;
+
    if (surface_fit_const > 0.0)
    {
       // Define a function coefficient (based on the analytic description of
       // the level-set)
        //FunctionCoefficient ls_coeff(circle_level_set);
-        std::cout << "1.1. " << std::endl;
-        std::cout << "FES Dofs: " << fespace->GetNDofs() << std::endl;
-       std::cout << "Surf fit Dofs: " << surf_fit_gf0.FESpace()->GetNDofs() << std::endl;
        surf_fit_gf0.ProjectCoefficient(ls_coeff);
-       std::cout << "1.2. " << std::endl;
-
-      for (int i = 0; i < mesh->GetNE(); i++)
-       {
-           mat(i) = material_id(i, surf_fit_gf0);
-           mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-           {
-               Vector center(mesh->Dimension());
-               mesh->GetElementCenter(i, center);
-               if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                   center(1) < 0.75)
-               {
-                   mat(i) = 0;
-               }
-               else
-               {
-                   mat(i) = 1;
-               }
-               mesh->SetAttribute(i, mat(i) + 1);
-           }
-       }
 
       // Now p-refine the elements around the interface
       if (prefine)
       {
-          // TODO: BOUCLE
-          for (int iter_pref=0; iter_pref<2; iter_pref++)
-          {
-          //    std::cout << "BOUCLE j: " << iter_pref << std::endl;
-              //    std::cout << "1. " << std::endl;
+         // Define a transfer operator for updating gridfunctions after the mesh
+         // has been p-refined`
+         PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
+         PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
          // TODO
          int max_order = fespace->GetMaxElementOrder();
+         std::vector<int> faces_order_increase;
+
+         FiniteElementSpace *fes_test_1 = x_max_order->FESpace();
+         FiniteElementSpace *fes_test_2 = surf_fit_gf0_max_order->FESpace();
+
+         //std::cout << "Variable order FES 1: " << fes_test_1->IsVariableOrder() << std::endl;
+         //std::cout << "Variable order FES 2: " << fes_test_2->IsVariableOrder() << std::endl;
+         //std::cout << surf_fit_bg_gf0->FESpace()->IsVariableOrder() << std::endl;
+          x_max_order = ProlongToMaxOrder(&x , 0);
+          mesh->SetNodalGridFunction(x_max_order);
          for (int i=0; i < mesh->GetNumFaces(); i++)
          {
              Array<int> els;
@@ -707,13 +696,30 @@ int main(int argc, char *argv[])
                  int mat2 = mat(els[1]);
                  if (mat1 != mat2)
                  {
-                     fespace->SetElementOrder(els[0], max_order+pref_order_increase);
-                     fespace->SetElementOrder(els[1], max_order+pref_order_increase);
-                     order_gf(els[0]) = max_order+pref_order_increase;
-                     order_gf(els[1]) = max_order+pref_order_increase;
-                     inter_faces.push_back(i);
+                     double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                                    surf_fit_bg_gf0,
+                                                                    i,
+                                                                    surf_fit_gf0_max_order,
+                                                                    finder);
+                     std::cout << "Error Face "  << i << ": " << error_bg_face << std::endl;
+                     if (error_bg_face >= pow(10,-10))
+                     {
+                         faces_order_increase.push_back(i);
+                     }
+                     if (iter_pref==0){inter_faces.push_back(i);}
                  }
              }
+         }
+          mesh->SetNodalGridFunction(&x);
+
+         for (int i=0; i<faces_order_increase.size(); i++)
+         {
+             Array<int> els;
+             mesh->GetFaceAdjacentElements(faces_order_increase[i], els);
+             fespace->SetElementOrder(els[0], max_order + pref_order_increase);
+             fespace->SetElementOrder(els[1], max_order + pref_order_increase);
+             order_gf(els[0]) = max_order + pref_order_increase;
+             order_gf(els[1]) = max_order + pref_order_increase;
          }
          fespace->Update(false);
          surf_fit_fes.CopySpaceElementOrders(*fespace);
@@ -729,6 +735,9 @@ int main(int argc, char *argv[])
 
          mesh->SetNodalGridFunction(&x);
 
+         x_max_order = ProlongToMaxOrder(&x , 0);
+         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+
          if (visualization)
          {
              x_max_order = ProlongToMaxOrder(&x , 0);
@@ -738,9 +747,6 @@ int main(int argc, char *argv[])
                                          00, 600, 300, 300);
              mesh->SetNodalGridFunction(&x);
          }
-
-
-          }
 
       }
       else
@@ -911,8 +917,6 @@ int main(int argc, char *argv[])
       mesh->SetNodalGridFunction(&x);
    }
 
-        std::cout << "2. " << std::endl;
-
    if (visualization)
    {
       mesh->SetNodalGridFunction(x_max_order);
@@ -921,6 +925,8 @@ int main(int argc, char *argv[])
                              00, 600, 300, 300);
       mesh->SetNodalGridFunction(&x);
    }
+
+    }
 
    // 12. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
