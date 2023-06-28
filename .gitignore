@@ -318,6 +318,9 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/hdiv-linear-solver/darcy
+miniapps/hdiv-linear-solver/grad_div
+
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
@@ -334,6 +337,9 @@ miniapps/dpg/maxwell
 miniapps/dpg/pmaxwell
 miniapps/dpg/ParaView
 
+miniapps/spde/generate_random_field
+miniapps/spde/ParaView
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
@@ -346,6 +352,8 @@ tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+tests/unit/parallel_in_serial.mesh
+tests/unit/parallel_in_serial.gf
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed
