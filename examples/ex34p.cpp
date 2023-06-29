@@ -3,10 +3,10 @@
 // Compile with: make ex34p
 //
 // Sample runs:  mpirun -np 4 ex34p -o 2
-//               mpirun -np 4 ex34p -o 2 -pa
+//               mpirun -np 4 ex34p -o 2 -hex -pa
 //
 // Device sample runs:
-//               mpirun -np 4 ex34p -o 2 -pa -d cuda
+//               mpirun -np 4 ex34p -o 2 -hex -pa -d cuda
 //               mpirun -np 4 ex34p -o 2 -no-pa -d cuda
 //
 // Description:  This example code solves a simple magnetostatic problem
@@ -51,6 +51,7 @@ using namespace mfem;
 void ComputeCurrentDensityOnSubMesh(int order,
                                     const Array<int> &phi0_attr,
                                     const Array<int> &phi1_attr,
+                                    const Array<int> &jn_zero_attr,
                                     ParGridFunction &j_cond);
 
 int main(int argc, char *argv[])
@@ -68,10 +69,12 @@ int main(int argc, char *argv[])
    Array<int> sym_plane_attr;
    Array<int> phi0_attr;
    Array<int> phi1_attr;
+   Array<int> jn_zero_attr;
    int ser_ref_levels = 1;
    int par_ref_levels = 1;
    int order = 1;
    double delta_const = 1e-6;
+   bool mixed = true;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -90,6 +93,8 @@ int main(int argc, char *argv[])
    args.AddOption(&delta_const, "-d", "--delta", "Magnetic Conductivity");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&mixed, "-mixed", "--mixed-mesh", "-hex",
+                  "--hex-mesh", "Mixed mesh of hexahedral mesh.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -117,38 +122,77 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   if (submesh_elems.Size() == 0 &&
-       strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+   if (!mixed || pa)
    {
-      submesh_elems.SetSize(5);
-      submesh_elems[0] = 0;
-      submesh_elems[1] = 2;
-      submesh_elems[2] = 3;
-      submesh_elems[3] = 4;
-      submesh_elems[4] = 9;
+      mesh_file = "../data/fichera.mesh";
    }
-   if (sym_plane_attr.Size() == 0 &&
-       strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+
+   if (submesh_elems.Size() == 0)
    {
-      sym_plane_attr.SetSize(8);
-      sym_plane_attr[0] =  9;
-      sym_plane_attr[1] = 10;
-      sym_plane_attr[2] = 11;
-      sym_plane_attr[3] = 12;
-      sym_plane_attr[4] = 13;
-      sym_plane_attr[5] = 14;
-      sym_plane_attr[6] = 15;
-      sym_plane_attr[7] = 16;
+      if (strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+      {
+         submesh_elems.SetSize(5);
+         submesh_elems[0] = 0;
+         submesh_elems[1] = 2;
+         submesh_elems[2] = 3;
+         submesh_elems[3] = 4;
+         submesh_elems[4] = 9;
+      }
+      else if (strcmp(mesh_file, "../data/fichera.mesh") == 0)
+      {
+         submesh_elems.SetSize(7);
+         submesh_elems[0] = 10;
+         submesh_elems[1] = 14;
+         submesh_elems[2] = 34;
+         submesh_elems[3] = 36;
+         submesh_elems[4] = 37;
+         submesh_elems[5] = 38;
+         submesh_elems[6] = 39;
+      }
    }
-   if (phi0_attr.Size() == 0 &&
-       strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+   if (sym_plane_attr.Size() == 0)
    {
-      phi0_attr.Append(2);
+      if (strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0 ||
+          strcmp(mesh_file, "../data/fichera.mesh") == 0)
+      {
+         sym_plane_attr.SetSize(8);
+         sym_plane_attr[0] =  9;
+         sym_plane_attr[1] = 10;
+         sym_plane_attr[2] = 11;
+         sym_plane_attr[3] = 12;
+         sym_plane_attr[4] = 13;
+         sym_plane_attr[5] = 14;
+         sym_plane_attr[6] = 15;
+         sym_plane_attr[7] = 16;
+      }
    }
-   if (phi1_attr.Size() == 0 &&
-       strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+   if (phi0_attr.Size() == 0)
    {
-      phi1_attr.Append(23);
+      if (strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0 ||
+          strcmp(mesh_file, "../data/fichera.mesh") == 0)
+      {
+         phi0_attr.Append(2);
+      }
+   }
+   if (phi1_attr.Size() == 0)
+   {
+      if (strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0 ||
+          strcmp(mesh_file, "../data/fichera.mesh") == 0)
+      {
+         phi1_attr.Append(23);
+      }
+   }
+   if (jn_zero_attr.Size() == 0)
+   {
+      if (strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0 ||
+          strcmp(mesh_file, "../data/fichera.mesh") == 0)
+      {
+         jn_zero_attr.Append(25);
+      }
+      for (int i=0; i<sym_plane_attr.Size(); i++)
+      {
+         jn_zero_attr.Append(sym_plane_attr[i]);
+      }
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -161,6 +205,20 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   if (!mixed || pa)
+   {
+      mesh->UniformRefinement();
+
+      if (ser_ref_levels > 0)
+      {
+         ser_ref_levels--;
+      }
+      else
+      {
+         par_ref_levels--;
+      }
+   }
 
    int submesh_attr = -1;
    if (cond_attr.Size() == 0 && submesh_elems.Size() > 0)
@@ -211,7 +269,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes_cond_rt(&pmesh_cond, &fec_cond_rt);
    ParGridFunction j_cond(&fes_cond_rt);
 
-   ComputeCurrentDensityOnSubMesh(order, phi0_attr, phi1_attr, j_cond);
+   ComputeCurrentDensityOnSubMesh(order, phi0_attr, phi1_attr, jn_zero_attr,
+                                  j_cond);
 
    // 7a. Save the SubMesh and associated current density in parallel. This
    //     output can be viewed later using GLVis:
@@ -239,7 +298,7 @@ int main(int argc, char *argv[])
       port_sock.precision(8);
       port_sock << "solution\n" << pmesh_cond << j_cond
                 << "window_title 'Conductor J'"
-                << "window_geometry 0 0 400 350" << flush;
+                << "window_geometry 400 0 400 350" << flush;
    }
 
    // 8. Define a parallel finite element space on the full mesh. Here we
@@ -264,7 +323,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << j_full
                << "window_title 'J Full'"
-               << "window_geometry 400 0 400 350" << flush;
+               << "window_geometry 400 430 400 350" << flush;
    }
 
    // 9. Determine the list of true (i.e. parallel conforming) essential
@@ -441,6 +500,7 @@ int main(int argc, char *argv[])
 void ComputeCurrentDensityOnSubMesh(int order,
                                     const Array<int> &phi0_attr,
                                     const Array<int> &phi1_attr,
+                                    const Array<int> &jn_zero_attr,
                                     ParGridFunction &j_cond)
 {
    // Exract the finite element space and mesh on which j_cond is defined
@@ -461,16 +521,18 @@ void ComputeCurrentDensityOnSubMesh(int order,
    Array<int> ess_bdr_j(pmesh_cond.bdr_attributes.Max());
    Array<int> ess_bdr_tdof_phi;
    ess_bdr_phi = 0;
-   ess_bdr_j   = 1;
+   ess_bdr_j   = 0;
    for (int i=0; i<phi0_attr.Size(); i++)
    {
       ess_bdr_phi[phi0_attr[i]-1] = 1;
-      ess_bdr_j[phi0_attr[i]-1] = 0;
    }
    for (int i=0; i<phi1_attr.Size(); i++)
    {
       ess_bdr_phi[phi1_attr[i]-1] = 1;
-      ess_bdr_j[phi1_attr[i]-1] = 0;
+   }
+   for (int i=0; i<jn_zero_attr.Size(); i++)
+   {
+      ess_bdr_j[jn_zero_attr[i]-1] = 1;
    }
    fes_cond_h1.GetEssentialTrueDofs(ess_bdr_phi, ess_bdr_tdof_phi);
 
@@ -523,6 +585,17 @@ void ComputeCurrentDensityOnSubMesh(int order,
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a_h1.RecoverFEMSolution(X, b_h1, phi_h1);
+   }
+   {
+      int num_procs = fes_cond_h1.GetNRanks();
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream port_sock(vishost, visport);
+      port_sock << "parallel " << num_procs << " " << myid << "\n";
+      port_sock.precision(8);
+      port_sock << "solution\n" << pmesh_cond << phi_h1
+                << "window_title 'Conductor Potential'"
+                << "window_geometry 0 0 400 350" << flush;
    }
 
    // Solve for the current density J = -sigma Grad phi with boundary
