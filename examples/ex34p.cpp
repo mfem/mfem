@@ -545,12 +545,13 @@ void ComputeCurrentDensityOnSubMesh(int order,
    b_rt *= -1.0;
 
    // Apply the necessary boundary conditions and solve for J in H(div)
+   HYPRE_BigInt glb_size_rt = fes_cond_rt.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "\nSolving for current density in H(Div) "
            << "using diagonally scaled CG" << endl;
       cout << "Size of linear system: "
-           << fes_cond_rt.GlobalTrueVSize() << endl;
+           << glb_size_rt << endl;
    }
    Array<int> ess_bdr_tdof_rt;
    OperatorPtr M;

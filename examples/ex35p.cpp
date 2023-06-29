@@ -395,7 +395,7 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Size of linear system: "
-           << 2 * fespace.GlobalTrueVSize() << endl << endl;
+           << 2 * size << endl << endl;
    }
 
    if (!slu_solver)
