@@ -24,7 +24,7 @@ public:
         mfem::Vector transip(x, T.GetSpaceDim());
         T.Transform(ip, transip);
 
-	return 0.3+0.3*sin(2.0*M_PI*x[0]/dx+M_PI/2.0);
+    return 0.3+0.3*sin(2.0*M_PI*x[0]/dx+M_PI/2.0)*sin(2.0*M_PI*x[1]/dx+M_PI/2.0);
 	
 	/*
         int nx=x[0]/dx;
@@ -347,9 +347,10 @@ public:
     {
         //set all bc
         esolv->DelDispBC();
-        esolv->AddDispBC(1,4,0.0);
+        esolv->AddDispBC(5,4,0.0);
         esolv->AddDispBC(2,0,0.0);
-        esolv->AddSurfLoad(3,0.00,1.00,0.0);
+        esolv->AddDispBC(3,1,0.0);
+        esolv->AddSurfLoad(6,0.00,0.00,1.00);
 
         esolv->FSolve();
 
@@ -539,7 +540,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "half_table_2D.msh";
+   const char *mesh_file = "half_table_3D.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 0;
@@ -681,7 +682,8 @@ int main(int argc, char *argv[])
    //allocate the filter
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(3,1.0);
+   fsolv->AddBC(6,1.0);
+   fsolv->AddBC(1,0.0);
    fsolv->AddBC(4,0.0);
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
