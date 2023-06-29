@@ -45,8 +45,13 @@ struct DofQuadLimits_HIP
 
 struct DofQuadLimits_CPU
 {
+#ifndef _WIN32
    static constexpr int MAX_D1D = 24;
    static constexpr int MAX_Q1D = 24;
+#else
+   static constexpr int MAX_D1D = 12;
+   static constexpr int MAX_Q1D = 12;
+#endif
    static constexpr int HCURL_MAX_D1D = 10;
    static constexpr int HCURL_MAX_Q1D = 10;
    static constexpr int HDIV_MAX_D1D = 10;
