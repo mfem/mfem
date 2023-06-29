@@ -32,7 +32,6 @@ static void PAMassAssembleDiagonal1D(const int NE,
    {
       for (int dx = 0; dx < D1D; ++dx)
       {
-         Y(dx, e) = 0.0;
          for (int qx = 0; qx < Q1D; ++qx)
          {
             Y(dx, e) += B(qx, dx) * B(qx, dx) * D(qx, e);
