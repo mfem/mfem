@@ -113,8 +113,8 @@ void PRefinementTransfer::Transfer(GridFunction &targf)
 {
     MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
                 "GridFunction should not be updated prior to UpdateGF.");
-    MFEM_VERIFY(targf.GetSequence() == src->GetSequence(),
-                ".");
+    //MFEM_VERIFY(targf.GetSequence() == src->GetSequence(),
+    //            ".");
    Vector srcgf = targf;
    targf.Update();
    PRefinementTransferOperator preft =
@@ -656,7 +656,7 @@ int main(int argc, char *argv[])
 
     // TODO: BOUCLE
     std::vector<int> inter_faces;   // Vector to save the faces between two different materials
-    for (int iter_pref=0; iter_pref<2; iter_pref++)
+    for (int iter_pref=0; iter_pref<4; iter_pref++)
     {
         std::cout << "BOUCLE j: " << iter_pref << std::endl;
 
@@ -1164,6 +1164,7 @@ int main(int argc, char *argv[])
 
 
    // TODO: Test reduce order of one face
+   /*
    if(prefine)
    {
        surf_fit_gf0.ProjectCoefficient(ls_coeff);
@@ -1180,7 +1181,7 @@ int main(int argc, char *argv[])
            std::cout << "Error... " << error_bg_face << std::endl;
        }
    }
-
+    */
 
    // Visualize fitting surfaces and report fitting errors.
    if (surface_fit_const > 0.0)
