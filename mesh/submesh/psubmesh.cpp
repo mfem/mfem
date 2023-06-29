@@ -170,7 +170,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          }
          else
          {
-            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
+            int se_ori = GetQuadOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeQuadOrientations(be_ori, se_ori);
          }
       }
    }
@@ -899,7 +900,34 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             Array<int> vert;
             GetFaceVertices(submesh_face_id, vert);
 
-            shared_quads.Append(Vert4(vert[0], vert[1], vert[2], vert[3]));
+            int v0 = vert[0];
+            int v1 = vert[1];
+            int v2 = vert[2];
+            int v3 = vert[3];
+
+            // See Mesh::GetQuadOrientation for info on interpretting "o"
+            switch (o)
+            {
+               case 1:
+                  std::swap(v1,v3);
+                  break;
+               case 3:
+                  std::swap(v0,v1);
+                  std::swap(v2,v3);
+                  break;
+               case 5:
+                  std::swap(v0,v2);
+                  break;
+               case 7:
+                  std::swap(v0,v3);
+                  std::swap(v1,v2);
+                  break;
+               default:
+                  // Do nothing
+                  break;
+            }
+
+            shared_quads.Append(Vert4(v0, v1, v2, v3));
             sface_lface.Append(submesh_face_id);
          }
       }
