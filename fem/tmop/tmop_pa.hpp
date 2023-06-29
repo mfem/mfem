@@ -149,7 +149,8 @@ public:
 // {
 //    constexpr int T_MAX = 4;
 //    const int D1D = (id>>4)&0xF, Q1D = id&0xF;
-//    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D && Q1D <= DofQuadLimits::MAX_Q1D, "Max size error!");
+//    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D &&
+//                Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "Max size error!");
 //    return Name<0,0,T_MAX>(NE,B,D,D1D,Q1D);
 // };
 

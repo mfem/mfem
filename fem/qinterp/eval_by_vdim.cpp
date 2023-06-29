@@ -46,7 +46,7 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
    if (dim == 1)
    {
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D,
-                  "Orders higher than " << DofQuadLimits::MAX_D1D-1
+                  "Orders higher than " << DeviceDofQuadLimits::Get().MAX_D1D-1
                   << " are not supported!");
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
                   "Quadrature rules with more than "
@@ -69,13 +69,13 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
 
          default:
          {
-            constexpr int MD = DofQuadLimits::MAX_D1D;
-            constexpr int MQ = DofQuadLimits::MAX_Q1D;
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Values2D<L,0,0,0,0,MD,MQ>(NE,B,X,Y,vdim,D1D,Q1D);
+            Values2D<L>(NE,B,X,Y,vdim,D1D,Q1D);
             return;
          }
       }
@@ -104,13 +104,13 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
 
          default:
          {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Values3D<L,0,0,0,MD,MQ>(NE,B,X,Y,vdim,D1D,Q1D);
+            Values3D<L>(NE,B,X,Y,vdim,D1D,Q1D);
             return;
          }
       }
