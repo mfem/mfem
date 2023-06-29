@@ -32,22 +32,25 @@ namespace mfem
 class Mpi
 {
 public:
-   /// Singleton creation with Mpi::Init();
-   static void Init() { Init_(NULL, NULL); }
-   /// Singleton creation with Mpi::Init(argc,argv);
-   static void Init(int &argc, char **&argv) { Init_(&argc, &argv); }
-   /// Singleton creation; MPI is initialized using MPI_Init_thread.
-   /** For a description of the parameters @a required and @a provided, see the
-       documentation for MPI_Init_thread. When the parameter @a provided is
-       @c nullptr (default), no output value is returned. */
-   static void Init_thread(int required, int *provided = nullptr);
-   /** @brief Singleton creation; MPI is initialized appropriately for all
-       configured external libraries used by MFEM. */
-   /** @note In some cases, this method may not be able to select the correct
-       MPI initialization method. In such cases, initialization with Mpi::Init()
-       or Mpi::Init_thread() is recommended based on the needs of the
-       application. */
-   static void Init_auto();
+   /// Singleton creation with Mpi::Init(argc, argv).
+   static void Init(int &argc, char **&argv,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   { Init(&argc, &argv, required, provided); }
+   /// Singleton creation with Mpi::Init().
+   static void Init(int *argc = nullptr, char ***argv = nullptr,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   {
+      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
+      int mpi_provided;
+      int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
+      MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+      if (provided) { *provided = mpi_provided; }
+      // The Mpi singleton object below needs to be created after MPI_Init() for
+      // some MPI implementations.
+      Singleton();
+   }
    /// Finalize MPI (if it has been initialized and not yet already finalized).
    static void Finalize()
    {
@@ -83,6 +86,8 @@ public:
    }
    /// Return true if the rank in MPI_COMM_WORLD is zero.
    static bool Root() { return WorldRank() == 0; }
+   /// Default level of thread support for MPI_Init_thread.
+   static int default_thread_required;
 private:
    /// Initialize the Mpi singleton.
    static Mpi &Singleton()
@@ -90,12 +95,10 @@ private:
       static Mpi mpi;
       return mpi;
    }
-   /// Initialize MPI using MPI_Init()
-   static void Init_(int *argc, char ***argv);
-   /// Finalize MPI
+   /// Finalize MPI.
    ~Mpi() { Finalize(); }
-   /// Prevent direct construction of objects of this class
-   Mpi() { }
+   /// Prevent direct construction of objects of this class.
+   Mpi() {}
 };
 
 /** @brief A simple convenience class based on the Mpi singleton class above.
