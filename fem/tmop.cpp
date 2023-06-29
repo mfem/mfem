@@ -2965,7 +2965,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
         surf_fit_marker = &smarker;
         surf_fit_coeff = &coeff;
         surf_fit_eval = &ae;
-
         surf_fit_gf_bg = true;
         surf_fit_eval->SetSerialMetaInfo(*s_bg.FESpace()->GetMesh(), *s_bg.FESpace());
         surf_fit_eval->SetInitialField
@@ -2985,7 +2984,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                                                  *s_bg_grad.FESpace());
         surf_fit_eval_bg_grad->SetInitialField
                 (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
-
         // Setup for Hessian on background mesh
         MFEM_VERIFY(s_bg_hess.FESpace()->GetOrdering() ==
                 s0_hess.FESpace()->GetOrdering(),
@@ -2998,7 +2996,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                                                  *s_bg_hess.FESpace());
         surf_fit_eval_bg_hess->SetInitialField
                 (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
-
         // Count number of zones that share each of the DOFs
         s0.CountElementsPerVDof(surf_fit_dof_count);
         // Store DOF indices that are marked for fitting. Used to reduce work for

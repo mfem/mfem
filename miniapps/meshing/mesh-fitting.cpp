@@ -553,9 +553,6 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
 
-   // Define a TMOPIntegrator based on the metric and target.
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
-
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = NULL;
    switch (quad_type)
@@ -565,7 +562,6 @@ int main(int argc, char *argv[])
       case 3: irules = &IntRulesCU; break;
       default: cout << "Unknown quad_type: " << quad_type << endl; return 3;
    }
-   tmop_integ->SetIntegrationRules(*irules, quad_order);
    if (dim == 2)
    {
       cout << "Triangle quadrature points: "
@@ -660,6 +656,10 @@ int main(int argc, char *argv[])
     {
         std::cout << "BOUCLE j: " << iter_pref << std::endl;
 
+        // Define a TMOPIntegrator based on the metric and target.
+        TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
+        tmop_integ->SetIntegrationRules(*irules, quad_order);
+
    if (surface_fit_const > 0.0)
    {
       // Define a function coefficient (based on the analytic description of
@@ -701,8 +701,8 @@ int main(int argc, char *argv[])
                                                                     i,
                                                                     surf_fit_gf0_max_order,
                                                                     finder);
-                     std::cout << "Error Face "  << i << ": " << error_bg_face << std::endl;
-                     if (error_bg_face >= pow(10,-10))
+                     //std::cout << "Error Face "  << i << ": " << error_bg_face << std::endl;
+                     if (error_bg_face >= pow(10,-13))
                      {
                          faces_order_increase.push_back(i);
                      }
@@ -926,7 +926,34 @@ int main(int argc, char *argv[])
       mesh->SetNodalGridFunction(&x);
    }
 
-    }
+        // TODO: Compute Integrate Error
+        if (iter_pref==0) {
+            surf_fit_gf0.ProjectCoefficient(ls_coeff);
+            tmop_integ->CopyGridFunction(surf_fit_gf0);
+            surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+            x_max_order = ProlongToMaxOrder(&x, 0);
+            mesh->SetNodalGridFunction(x_max_order);
+            double error_sum = 0.0;
+            double error_bg_sum = 0.0;
+            for (int i = 0; i < inter_faces.size(); i++) {
+                double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order,
+                                                          inter_faces[i]);
+                error_sum += error_face;
+                double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                               surf_fit_bg_gf0,
+                                                               inter_faces[i],
+                                                               surf_fit_gf0_max_order,
+                                                               finder);
+                //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
+                error_bg_sum += error_bg_face;
+            }
+            std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
+            std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " << std::endl;
+            std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" << std::endl;
+            std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " " << error_bg_sum
+                      << std::endl;
+            mesh->SetNodalGridFunction(&x);
+        }
 
    // 12. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -1217,7 +1244,7 @@ int main(int argc, char *argv[])
                                                          inter_faces[i],
                                                          surf_fit_gf0_max_order,
                                                          finder);
-          std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
+          //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
           error_bg_sum += error_bg_face;
       }
       std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
@@ -1247,10 +1274,12 @@ int main(int argc, char *argv[])
 
    mesh->SetNodalGridFunction(&x); // Need this for the loop
 
+        delete S;
+        delete S_prec;
+    }
+
    finder.FreeData();
 
-   delete S;
-   delete S_prec;
    delete adapt_surface;
    delete adapt_grad_surface;
    delete adapt_hess_surface;
