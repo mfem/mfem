@@ -38,49 +38,12 @@ using namespace std;
 namespace mfem
 {
 
-// static private method
-void Mpi::Init_(int *argc, char ***argv)
-{
-   MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
-#if defined(MFEM_USE_STRUMPACK)
-#if defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK)
-   if (Root())
-   {
-      MFEM_WARNING("STRUMPACK built with SLATE or PT-Scotch may require "
-                   "MPI_Init_thread with MPI_THREAD_MULTIPLE!");
-   }
-#endif
-#endif
-   int mpi_err = MPI_Init(argc, argv);
-   MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
-   // The Mpi singleton object below needs to be created after MPI_Init() for
-   // some MPI implementations
-   Singleton();
-}
-
-// static public method
-void Mpi::Init_thread(int required, int *provided)
-{
-   MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
-   int provided_;
-   int mpi_err = MPI_Init_thread(nullptr, nullptr, required,
-                                 provided ? provided : &provided_);
-   MFEM_VERIFY(!mpi_err, "error in MPI_Init_thread()!");
-   // The Mpi singleton object below needs to be created after MPI_Init() for
-   // some MPI implementations
-   Singleton();
-}
-
-// static public method
-void Mpi::Init_auto()
-{
 #if defined(MFEM_USE_STRUMPACK) && \
     (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
-   Mpi::Init_thread(MPI_THREAD_MULTIPLE);
+int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
 #else
-   Mpi::Init();
+int Mpi::default_thread_required = MPI_THREAD_SINGLE;
 #endif
-}
 
 
 GroupTopology::GroupTopology(const GroupTopology &gt)

@@ -155,7 +155,7 @@ prob_type prob;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   Mpi::Init_auto();
+   Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
