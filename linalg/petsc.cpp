@@ -3142,7 +3142,7 @@ PetscLinearSolver::~PetscLinearSolver()
 
 PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix,
                                bool iter_mode)
-   : PetscLinearSolver(comm,prefix,iter_mode)
+   : PetscLinearSolver(comm,prefix,true,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
