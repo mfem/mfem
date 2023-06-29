@@ -101,14 +101,6 @@ ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_,
    fform->ParallelAssemble(F);
    f.SetSize(F.Size());
    f.Set(1.0, F);
-
-   /* ---- boiling plate code ---- */
-   block_offsetsx[0] = 0;
-   block_offsetsx[1] = fesU->GetTrueVSize();
-   block_offsetsx[2] = fesM->GetTrueVSize();
-   block_offsetsx.PartialSum();
-   ml.SetSize(fesM->GetTrueVSize()); ml = 0.0;
-  /* ---- end boiling plate ---- */
 }
 
 double ParObstacleProblem::E(const Vector &d) const
@@ -156,3 +148,5 @@ ParObstacleProblem::~ParObstacleProblem()
    delete Kform;
    delete fform;
 }
+
+
