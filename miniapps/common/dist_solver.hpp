@@ -166,7 +166,7 @@ public:
         fesp(new FiniteElementSpace(&mesh, &fecp, 1)),
         gf(new GridFunction(fesp))
 #ifdef MFEM_USE_MPI
-        ,pfesp(NULL),
+      ,pfesp(NULL),
         pgf(NULL)
 #endif
    {
@@ -354,15 +354,15 @@ class NormalizationDistanceSolver : public DistanceSolver
 {
 private:
 
-    class NormalizationCoeff : public Coefficient
-    {
-    private:
-       GridFunction &u;
+   class NormalizationCoeff : public Coefficient
+   {
+   private:
+      GridFunction &u;
 
-    public:
-       NormalizationCoeff(GridFunction &u_gf) : u(u_gf) { }
-       virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-    };
+   public:
+      NormalizationCoeff(GridFunction &u_gf) : u(u_gf) { }
+      virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   };
 
 public:
    NormalizationDistanceSolver() { }

@@ -57,83 +57,87 @@ int main(int argc, char *argv[])
 
    Vector el_size(rs);
    Vector l2_error(rs);
-   for (int i = 0; i < rs; i++) {
-       // Read the (serial) mesh from the given mesh file.
-       Mesh mesh(mesh_file, 1, 1);
-       dim = mesh.Dimension();
+   for (int i = 0; i < rs; i++)
+   {
+      // Read the (serial) mesh from the given mesh file.
+      Mesh mesh(mesh_file, 1, 1);
+      dim = mesh.Dimension();
 
-       // Refine the mesh upto desired level
-       for (int ii = 0; ii < i; ii++) {
-           mesh.UniformRefinement();
-       }
+      // Refine the mesh upto desired level
+      for (int ii = 0; ii < i; ii++)
+      {
+         mesh.UniformRefinement();
+      }
 
-       // Define a finite element space on the parallel mesh.
-       L2_FECollection fec(order, dim);
-       FiniteElementSpace fespace(&mesh, &fec);
+      // Define a finite element space on the parallel mesh.
+      L2_FECollection fec(order, dim);
+      FiniteElementSpace fespace(&mesh, &fec);
 
-       // Define the solution vector x
-       GridFunction x(&fespace);
-       x = 0.0;
+      // Define the solution vector x
+      GridFunction x(&fespace);
+      x = 0.0;
 
-       // Define the function coefficient
-       FunctionCoefficient scoeff(scalar_u_exact);
+      // Define the function coefficient
+      FunctionCoefficient scoeff(scalar_u_exact);
 
-       // do nodal projection - matches only nodal values
-       x.ProjectCoefficient(scoeff);
+      // do nodal projection - matches only nodal values
+      x.ProjectCoefficient(scoeff);
 
-       // do L2 projection instead - matches L2 integral over the element
-       // (i.e. values at quadrature points matter as well)
-//       x = 0.0;
-//       ConstantCoefficient one(1.0);
-//       BilinearForm a(&fespace);
-//       LinearForm b(&fespace);
-//       b.AddDomainIntegrator(new DomainLFIntegrator(scoeff));
-//       a.AddDomainIntegrator(new MassIntegrator(one));
-//       b.Assemble();
-//       a.Assemble();
-//       a.Finalize();
-//       const SparseMatrix &A = a.SpMat();
-//       GSSmoother M(A);
-//       PCG(A, M, b, x, 0, 500, 1e-12, 0.0);
-       //L2 projection complete
+      // do L2 projection instead - matches L2 integral over the element
+      // (i.e. values at quadrature points matter as well)
+      //       x = 0.0;
+      //       ConstantCoefficient one(1.0);
+      //       BilinearForm a(&fespace);
+      //       LinearForm b(&fespace);
+      //       b.AddDomainIntegrator(new DomainLFIntegrator(scoeff));
+      //       a.AddDomainIntegrator(new MassIntegrator(one));
+      //       b.Assemble();
+      //       a.Assemble();
+      //       a.Finalize();
+      //       const SparseMatrix &A = a.SpMat();
+      //       GSSmoother M(A);
+      //       PCG(A, M, b, x, 0, 500, 1e-12, 0.0);
+      //L2 projection complete
 
-       el_size(i) = mesh.GetElementSize(0); //store size of first element
-       l2_error(i) = x.ComputeL2Error(scoeff); // store global l2 error
-       double conv_rate = 0.0;
-       double h_reduction = 1.0;
-       double e_reduction = 1.0;
-       if (i == 0) {
-           std::cout << std::right<< std::setw(11)<< "Order (p) "
-                     << std::setw(13) << " Element Size (h) "
-                     << std::setw(13) << " Error (e)   "
-                     << std::setw(13) << " h-reduction "
-                     << std::setw(13) << " e-reduction ";
-           std::cout <<  std::setw(15) << "Rate (p+1) " << "\n";
-       }
-       else {
-           h_reduction = el_size(i-1)/el_size(i);
-           e_reduction = l2_error(i-1)/l2_error(i);
-           conv_rate = std::log(e_reduction)/log(h_reduction);
-       }
+      el_size(i) = mesh.GetElementSize(0); //store size of first element
+      l2_error(i) = x.ComputeL2Error(scoeff); // store global l2 error
+      double conv_rate = 0.0;
+      double h_reduction = 1.0;
+      double e_reduction = 1.0;
+      if (i == 0)
+      {
+         std::cout << std::right<< std::setw(11)<< "Order (p) "
+                   << std::setw(13) << " Element Size (h) "
+                   << std::setw(13) << " Error (e)   "
+                   << std::setw(13) << " h-reduction "
+                   << std::setw(13) << " e-reduction ";
+         std::cout <<  std::setw(15) << "Rate (p+1) " << "\n";
+      }
+      else
+      {
+         h_reduction = el_size(i-1)/el_size(i);
+         e_reduction = l2_error(i-1)/l2_error(i);
+         conv_rate = std::log(e_reduction)/log(h_reduction);
+      }
 
-       std::cout << std::setw(11)<< order
-                 << std::setw(13) << el_size(i)
-                 << std::setw(13) << l2_error(i)
-                 << std::setw(13) << h_reduction
-                 << std::setw(13) << e_reduction;
-       std::cout <<  std::setw(15) << conv_rate << "\n";
+      std::cout << std::setw(11)<< order
+                << std::setw(13) << el_size(i)
+                << std::setw(13) << l2_error(i)
+                << std::setw(13) << h_reduction
+                << std::setw(13) << e_reduction;
+      std::cout <<  std::setw(15) << conv_rate << "\n";
 
-       // 8. Send the solution by socket to a GLVis server.
-       if (visualization)
-       {
-          char vishost[] = "localhost";
-          int  visport   = 19916;
-          socketstream sol_sock(vishost, visport);
-          sol_sock.precision(8);
-          sol_sock << "solution\n" << mesh << x <<
-                   "window_title 'Numerical Solution' "
-                   << flush;
-       }
+      // 8. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << mesh << x <<
+                  "window_title 'Numerical Solution' "
+                  << flush;
+      }
    }
 
 
@@ -144,6 +148,6 @@ double scalar_u_exact(const Vector &x)
 {
    double val = 1.0;
    val = sin(2.0*M_PI*(x(0))); //sin(2*pi*x)
-//   val = std::pow(x(0), 3);
+   //   val = std::pow(x(0), 3);
    return val;
 }

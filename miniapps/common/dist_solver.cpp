@@ -77,10 +77,11 @@ double AvgElementSize(Mesh &mesh)
 
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh = dynamic_cast<ParMesh *>(&mesh);
-   if (pmesh) {
-       MPI_Allreduce(MPI_IN_PLACE, &glob_area, 1, MPI_DOUBLE,
-                     MPI_SUM, pmesh->GetComm());
-       glob_zones = pmesh->GetGlobalNE();
+   if (pmesh)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &glob_area, 1, MPI_DOUBLE,
+                    MPI_SUM, pmesh->GetComm());
+      glob_zones = pmesh->GetGlobalNE();
    }
 #endif
    switch (mesh.GetElementBaseGeometry(0))
@@ -120,7 +121,7 @@ void DistanceSolver::ScalarDistToVector(GridFunction *dist_s,
       dist_s->GetDerivative(1, d, *der);
       for (int i = 0; i < size; i++)
       {
-          double dv = (*der)(i);
+         double dv = (*der)(i);
          magn(i) += std::pow(dv, 2.0);
          // The vector must point towards the level zero set.
          (*dist_v)(i + d*size) = ((*dist_s)(i) > 0.0) ? -dv : dv;
@@ -176,7 +177,7 @@ void DistanceSolver::ScalarDistToVector(ParGridFunction &dist_s,
 #endif
 
 void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
-                                            GridFunction *distance)
+                                           GridFunction *distance)
 {
    FiniteElementSpace *fes = distance->FESpace();
    MFEM_VERIFY(fes->GetVDim() == fes->GetMesh()->Dimension(),
@@ -187,25 +188,28 @@ void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
    bool serial = true;
 #ifdef MFEM_USE_MPI
    ParGridFunction *pdistance = dynamic_cast<ParGridFunction *>(distance);
-   if (pdistance) {
-       serial = false;
-       ParFiniteElementSpace *pfes = pdistance->ParFESpace();
-       ParFiniteElementSpace *pfes_s = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl());
-       ParGridFunction *pdist_s = new ParGridFunction(pfes_s);
-       ComputeScalarDistance(zero_level_set, pdist_s);
-       ScalarDistToVector(pdist_s, pdistance);
-       delete pdist_s;
-       delete pfes_s;
-       return;
+   if (pdistance)
+   {
+      serial = false;
+      ParFiniteElementSpace *pfes = pdistance->ParFESpace();
+      ParFiniteElementSpace *pfes_s = new ParFiniteElementSpace(pfes->GetParMesh(),
+                                                                pfes->FEColl());
+      ParGridFunction *pdist_s = new ParGridFunction(pfes_s);
+      ComputeScalarDistance(zero_level_set, pdist_s);
+      ScalarDistToVector(pdist_s, pdistance);
+      delete pdist_s;
+      delete pfes_s;
+      return;
    }
 #endif
-   if (serial) {
-       fes_s = new FiniteElementSpace(fes->GetMesh(), fes->FEColl());
-       dist_s = new GridFunction(fes_s);
-       ComputeScalarDistance(zero_level_set, dist_s);
-       ScalarDistToVector(dist_s, distance);
-       delete dist_s;
-       delete fes_s;
+   if (serial)
+   {
+      fes_s = new FiniteElementSpace(fes->GetMesh(), fes->FEColl());
+      dist_s = new GridFunction(fes_s);
+      ComputeScalarDistance(zero_level_set, dist_s);
+      ScalarDistToVector(dist_s, distance);
+      delete dist_s;
+      delete fes_s;
    }
 }
 
@@ -579,7 +583,7 @@ void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
 
    GridFunction xf(&fesp);
    Vector *sv = new Vector(xf.GetTrueVector());
-//   HypreParVector *sv = xf.GetTrueDofs();
+   //   HypreParVector *sv = xf.GetTrueDofs();
    *sv=1.0;
 
    NonlinearForm *nf = new NonlinearForm(&fesp);

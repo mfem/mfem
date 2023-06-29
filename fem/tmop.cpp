@@ -2934,81 +2934,81 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
 }
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(
-            const GridFunction &s_bg, GridFunction &s0,
-            const Array<bool> &smarker, Coefficient &coeff, AdaptivityEvaluator &ae,
-            const GridFunction &s_bg_grad,
-            GridFunction &s0_grad, AdaptivityEvaluator &age,
-            const GridFunction &s_bg_hess,
-            GridFunction &s0_hess, AdaptivityEvaluator &ahe)
-            {
+   const GridFunction &s_bg, GridFunction &s0,
+   const Array<bool> &smarker, Coefficient &coeff, AdaptivityEvaluator &ae,
+   const GridFunction &s_bg_grad,
+   GridFunction &s0_grad, AdaptivityEvaluator &age,
+   const GridFunction &s_bg_hess,
+   GridFunction &s0_hess, AdaptivityEvaluator &ahe)
+{
 #ifndef MFEM_USE_GSLIB
-        MFEM_ABORT("Surface fitting from source requires GSLIB!");
+   MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
-        const int dim = s0.FESpace()->GetMesh()->Dimension();
-        MFEM_VERIFY(s0.FESpace()->GetMesh()->GetNodes()->Size() == dim*s0.Size(),
-                "Mesh and level-set polynomial order must be the same.");
-        const int dim_bg = s_bg.FESpace()->GetMesh()->Dimension();
-        MFEM_VERIFY(dim_bg == dim,
-                "Background Mesh and mesh being fitted must be same dimension.");
-        MFEM_VERIFY(s0_grad.Size() == dim*s0.Size(),
-                "Gradient is not dim * size of the level-set function.");
-        MFEM_VERIFY(s0_hess.Size() == dim*dim*s0.Size(),
-                "Hessian is not dim * size of the level-set function.");
-        MFEM_VERIFY(s_bg_grad.Size() == dim*s_bg.Size(),
-                "Background Gradient is not dim * size of the level-set function.");
-        MFEM_VERIFY(s_bg_hess.Size() == dim*dim*s_bg.Size(),
-                "Brackground Hessian is not dim * size of the level-set function.");
-        // Setup for level set function
-        delete surf_fit_gf;
-        surf_fit_gf = new GridFunction(s0);
-        *surf_fit_gf = 0.0;
-        surf_fit_marker = &smarker;
-        surf_fit_coeff = &coeff;
-        surf_fit_eval = &ae;
-        surf_fit_gf_bg = true;
-        surf_fit_eval->SetSerialMetaInfo(*s_bg.FESpace()->GetMesh(), *s_bg.FESpace());
-        surf_fit_eval->SetInitialField
-                (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+   const int dim = s0.FESpace()->GetMesh()->Dimension();
+   MFEM_VERIFY(s0.FESpace()->GetMesh()->GetNodes()->Size() == dim*s0.Size(),
+               "Mesh and level-set polynomial order must be the same.");
+   const int dim_bg = s_bg.FESpace()->GetMesh()->Dimension();
+   MFEM_VERIFY(dim_bg == dim,
+               "Background Mesh and mesh being fitted must be same dimension.");
+   MFEM_VERIFY(s0_grad.Size() == dim*s0.Size(),
+               "Gradient is not dim * size of the level-set function.");
+   MFEM_VERIFY(s0_hess.Size() == dim*dim*s0.Size(),
+               "Hessian is not dim * size of the level-set function.");
+   MFEM_VERIFY(s_bg_grad.Size() == dim*s_bg.Size(),
+               "Background Gradient is not dim * size of the level-set function.");
+   MFEM_VERIFY(s_bg_hess.Size() == dim*dim*s_bg.Size(),
+               "Brackground Hessian is not dim * size of the level-set function.");
+   // Setup for level set function
+   delete surf_fit_gf;
+   surf_fit_gf = new GridFunction(s0);
+   *surf_fit_gf = 0.0;
+   surf_fit_marker = &smarker;
+   surf_fit_coeff = &coeff;
+   surf_fit_eval = &ae;
+   surf_fit_gf_bg = true;
+   surf_fit_eval->SetSerialMetaInfo(*s_bg.FESpace()->GetMesh(), *s_bg.FESpace());
+   surf_fit_eval->SetInitialField
+   (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
 
-        // Setup for gradient on background mesh
-        MFEM_VERIFY(s_bg_grad.FESpace()->GetOrdering() ==
-                s0_grad.FESpace()->GetOrdering(),
-                "Nodal ordering for gridfunction on source mesh and current mesh"
-                "should be the same.");
-        delete surf_fit_grad;
-        surf_fit_grad = new GridFunction(s0_grad);
-        *surf_fit_grad = 0.0;
-        surf_fit_eval_bg_grad = &age;
-        surf_fit_eval_bg_hess = &ahe;
-        surf_fit_eval_bg_grad->SetSerialMetaInfo(*s_bg_grad.FESpace()->GetMesh(),
-                                                 *s_bg_grad.FESpace());
-        surf_fit_eval_bg_grad->SetInitialField
-                (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
-        // Setup for Hessian on background mesh
-        MFEM_VERIFY(s_bg_hess.FESpace()->GetOrdering() ==
-                s0_hess.FESpace()->GetOrdering(),
-                "Nodal ordering for gridfunction on source mesh and current mesh"
-                "should be the same.");
-        delete surf_fit_hess;
-        surf_fit_hess = new GridFunction(s0_hess);
-        *surf_fit_hess = 0.0;
-        surf_fit_eval_bg_hess->SetSerialMetaInfo(*s_bg_hess.FESpace()->GetMesh(),
-                                                 *s_bg_hess.FESpace());
-        surf_fit_eval_bg_hess->SetInitialField
-                (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
-        // Count number of zones that share each of the DOFs
-        s0.CountElementsPerVDof(surf_fit_dof_count);
-        // Store DOF indices that are marked for fitting. Used to reduce work for
-        // transferring information between source/background and current mesh.
-        surf_fit_marker_dof_index.SetSize(0);
-        for (int i = 0; i < surf_fit_marker->Size(); i++)
-        {
-            if ((*surf_fit_marker)[i] == true)
-            {
-                surf_fit_marker_dof_index.Append(i);
-            }
-        }
-    }
+   // Setup for gradient on background mesh
+   MFEM_VERIFY(s_bg_grad.FESpace()->GetOrdering() ==
+               s0_grad.FESpace()->GetOrdering(),
+               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "should be the same.");
+   delete surf_fit_grad;
+   surf_fit_grad = new GridFunction(s0_grad);
+   *surf_fit_grad = 0.0;
+   surf_fit_eval_bg_grad = &age;
+   surf_fit_eval_bg_hess = &ahe;
+   surf_fit_eval_bg_grad->SetSerialMetaInfo(*s_bg_grad.FESpace()->GetMesh(),
+                                            *s_bg_grad.FESpace());
+   surf_fit_eval_bg_grad->SetInitialField
+   (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
+   // Setup for Hessian on background mesh
+   MFEM_VERIFY(s_bg_hess.FESpace()->GetOrdering() ==
+               s0_hess.FESpace()->GetOrdering(),
+               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "should be the same.");
+   delete surf_fit_hess;
+   surf_fit_hess = new GridFunction(s0_hess);
+   *surf_fit_hess = 0.0;
+   surf_fit_eval_bg_hess->SetSerialMetaInfo(*s_bg_hess.FESpace()->GetMesh(),
+                                            *s_bg_hess.FESpace());
+   surf_fit_eval_bg_hess->SetInitialField
+   (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
+   // Count number of zones that share each of the DOFs
+   s0.CountElementsPerVDof(surf_fit_dof_count);
+   // Store DOF indices that are marked for fitting. Used to reduce work for
+   // transferring information between source/background and current mesh.
+   surf_fit_marker_dof_index.SetSize(0);
+   for (int i = 0; i < surf_fit_marker->Size(); i++)
+   {
+      if ((*surf_fit_marker)[i] == true)
+      {
+         surf_fit_marker_dof_index.Append(i);
+      }
+   }
+}
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
@@ -4619,10 +4619,10 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
 
 void TMOP_Integrator::CopyGridFunction(GridFunction &gf)
 {
-    for (int i=0; i < gf.Size(); i++)
-    {
-        gf[i] = (*surf_fit_gf)[i];
-    }
+   for (int i=0; i < gf.Size(); i++)
+   {
+      gf[i] = (*surf_fit_gf)[i];
+   }
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,

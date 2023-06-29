@@ -535,13 +535,15 @@ void PRefDiffEstimator::ComputeEstimates()
    GridFunctionCoefficient solutionCompCoeff(&solutionComp);
    solution->ComputeElementL2Errors(solutionCompCoeff, error_estimates);
 
-   if (normalization_) {
-       ConstantCoefficient zero(0.0);
-       Vector solutionnorm(nelem);
-       solution->ComputeElementL2Errors(zero, solutionnorm);
-       for (int e = 0; e < nelem; e++) {
-           error_estimates(e) *=  1.0/solutionnorm(e);
-       }
+   if (normalization_)
+   {
+      ConstantCoefficient zero(0.0);
+      Vector solutionnorm(nelem);
+      solution->ComputeElementL2Errors(zero, solutionnorm);
+      for (int e = 0; e < nelem; e++)
+      {
+         error_estimates(e) *=  1.0/solutionnorm(e);
+      }
    }
 
    total_error = error_estimates.Norml2();

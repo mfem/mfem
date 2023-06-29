@@ -84,9 +84,9 @@ public:
    /// Destructor
    ~PRefinementTransfer();
 
-    /// Update source FiniteElementSpace used to construct the
-    /// PRefinementTransfer operator.
-    void SetSourceFESpace(const FiniteElementSpace& src_);
+   /// Update source FiniteElementSpace used to construct the
+   /// PRefinementTransfer operator.
+   void SetSourceFESpace(const FiniteElementSpace& src_);
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
@@ -105,16 +105,16 @@ PRefinementTransfer::~PRefinementTransfer()
 
 void PRefinementTransfer::SetSourceFESpace(const FiniteElementSpace &src_)
 {
-    if (src) { delete src; }
-    src = new FiniteElementSpace(src_);
+   if (src) { delete src; }
+   src = new FiniteElementSpace(src_);
 }
 
 void PRefinementTransfer::Transfer(GridFunction &targf)
 {
-    MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
-                "GridFunction should not be updated prior to UpdateGF.");
-    //MFEM_VERIFY(targf.GetSequence() == src->GetSequence(),
-    //            ".");
+   MFEM_VERIFY(targf.GetSequence() != targf.FESpace()->GetSequence(),
+               "GridFunction should not be updated prior to UpdateGF.");
+   //MFEM_VERIFY(targf.GetSequence() == src->GetSequence(),
+   //            ".");
    Vector srcgf = targf;
    targf.Update();
    PRefinementTransferOperator preft =
@@ -181,78 +181,86 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
-double ComputeIntegrateError(const FiniteElementSpace* fes, FunctionCoefficient* ls, GridFunction* lss, const int el)
+double ComputeIntegrateError(const FiniteElementSpace* fes,
+                             FunctionCoefficient* ls, GridFunction* lss, const int el)
 {
-    // TODO
-    double error = 0.0;
-    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-    int intorder = 2*fe->GetOrder() + 3;
-    const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   // TODO
+   double error = 0.0;
+   const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
+   int intorder = 2*fe->GetOrder() + 3;
+   const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 
-    Vector values ;
-    DenseMatrix tr;
-    lss->GetFaceValues(el, 0, *ir, values, tr, 1);
-    FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
+   Vector values ;
+   DenseMatrix tr;
+   lss->GetFaceValues(el, 0, *ir, values, tr, 1);
+   FaceElementTransformations *transf =
+      fes->GetMesh()->GetFaceElementTransformations(el, 31);
 
-    for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        transf->SetAllIntPoints(&ip);
-        const IntegrationPoint &e1_ip = transf->GetElement1IntPoint();
-        ElementTransformation *e1_tr = transf->Elem1;
-        ElementTransformation *e2_tr = transf->Elem2;
+   for (int i=0; i < ir->GetNPoints();
+        i++)    // For each quadrature point of the element
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      transf->SetAllIntPoints(&ip);
+      const IntegrationPoint &e1_ip = transf->GetElement1IntPoint();
+      ElementTransformation *e1_tr = transf->Elem1;
+      ElementTransformation *e2_tr = transf->Elem2;
 
-        //double level_set_value = ls->Eval(*e1_tr, e1_ip);   // With exact ls
-        double level_set_value = values(i);   // With GridFunction
-        error += ip.weight * transf->Face->Weight() * std::pow(level_set_value, 2.0);
-//        error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
-    }
-    return error;
+      //double level_set_value = ls->Eval(*e1_tr, e1_ip);   // With exact ls
+      double level_set_value = values(i);   // With GridFunction
+      error += ip.weight * transf->Face->Weight() * std::pow(level_set_value, 2.0);
+      //        error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
+   }
+   return error;
 }
 
-double ComputeIntegrateErrorBG(const FiniteElementSpace* fes, GridFunction* ls_bg,
+double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
+                               GridFunction* ls_bg,
                                const int el, GridFunction *lss, FindPointsGSLIB &finder)
 {
-    double error = 0.0;
-    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-    int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 3;
-    const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   double error = 0.0;
+   const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
+   int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 3;
+   const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 
-    FaceElementTransformations *transf = fes->GetMesh()->GetFaceElementTransformations(el, 31);
-    int dim = fes->GetMesh()->Dimension();
-    Vector vxyz(dim*ir->GetNPoints());  // Coordinates of the quadrature points in the physical space
-    Vector interp_values(ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
-    // Compute the coords of the quadrature points in the physical space
-    for (int i=0; i < ir->GetNPoints(); i++)    // For each quadrature point of the element
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
+   FaceElementTransformations *transf =
+      fes->GetMesh()->GetFaceElementTransformations(el, 31);
+   int dim = fes->GetMesh()->Dimension();
+   Vector vxyz(
+      dim*ir->GetNPoints());  // Coordinates of the quadrature points in the physical space
+   Vector interp_values(
+      ir->GetNPoints()); // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
+   // Compute the coords of the quadrature points in the physical space
+   for (int i=0; i < ir->GetNPoints();
+        i++)    // For each quadrature point of the element
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
 
-        Vector xyz(dim);
-        transf->Transform(ip, xyz);
+      Vector xyz(dim);
+      transf->Transform(ip, xyz);
 
-        vxyz(i*dim) = xyz(0);
-        vxyz(i*dim+1) = xyz(1);
-        if (dim==3)
-        {
-            vxyz(i*dim+2) = xyz(2);
-        }
-    }
+      vxyz(i*dim) = xyz(0);
+      vxyz(i*dim+1) = xyz(1);
+      if (dim==3)
+      {
+         vxyz(i*dim+2) = xyz(2);
+      }
+   }
 
-    // Compute the interpolated values of the level set grid function on the
-    // physical coords of the quadrature points
-    int point_ordering(1);
-    finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
-    for (int i=0; i<ir->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir->IntPoint(i);
-        transf->SetAllIntPoints(&ip);
-        double level_set_value = interp_values(i) ;
-        error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
-        //error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
-        //std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
-    }
+   // Compute the interpolated values of the level set grid function on the
+   // physical coords of the quadrature points
+   int point_ordering(1);
+   finder.Interpolate(vxyz, *ls_bg, interp_values, point_ordering);
+   for (int i=0; i<ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      transf->SetAllIntPoints(&ip);
+      double level_set_value = interp_values(i) ;
+      error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
+      //error += ip.weight * transf->Face->Weight() * 1.0; // Should be equal to the lenght of the face
+      //std::cout << "Integration point " << vxyz(dim*i) << ", " << vxyz(dim*i+1) << ", level set value " << level_set_value << std::endl;
+   }
 
-    return error;
+   return error;
 }
 
 int main(int argc, char *argv[])
@@ -359,10 +367,10 @@ int main(int argc, char *argv[])
                   "--no-pref",
                   "Randomly p-refine the mesh.");
    args.AddOption(&pref_order_increase, "-oi", "--preforderincrease",
-                   "How much polynomial order to increase for p-refinement.");
+                  "How much polynomial order to increase for p-refinement.");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
-                   "-no-sbgmesh","--no-surf-bg-mesh",
-                   "Use background mesh for surface fitting.");
+                  "-no-sbgmesh","--no-surf-bg-mesh",
+                  "Use background mesh for surface fitting.");
 
    args.Parse();
    if (!args.Good())
@@ -379,14 +387,14 @@ int main(int argc, char *argv[])
    if (prefine) { mesh->EnsureNCMesh(true); }
    FindPointsGSLIB finder;
 
-    // Setup background mesh for surface fitting: copy then refine the mesh
-    Mesh *mesh_surf_fit_bg = NULL;
-    if (surf_bg_mesh)
-    {
-        mesh_surf_fit_bg = new Mesh(*mesh);
-        for (int ref = 0; ref < 2; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
-        finder.Setup(*mesh_surf_fit_bg);
-    }
+   // Setup background mesh for surface fitting: copy then refine the mesh
+   Mesh *mesh_surf_fit_bg = NULL;
+   if (surf_bg_mesh)
+   {
+      mesh_surf_fit_bg = new Mesh(*mesh);
+      for (int ref = 0; ref < 2; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
+      finder.Setup(*mesh_surf_fit_bg);
+   }
 
    // 3. Define a finite element space on the mesh-> Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
@@ -598,104 +606,105 @@ int main(int argc, char *argv[])
    GridFunction *surf_fit_gf0_max_order = &surf_fit_gf0;
    GridFunction *surf_fit_mat_gf_max_order = &surf_fit_mat_gf;
 
-    // Background mesh FECollection, FESpace, and GridFunction
-    H1_FECollection *surf_fit_bg_fec = NULL;
-    FiniteElementSpace *surf_fit_bg_fes = NULL;
-    GridFunction *surf_fit_bg_gf0 = NULL;
-    FiniteElementSpace *surf_fit_bg_grad_fes = NULL;
-    GridFunction *surf_fit_bg_grad = NULL;
-    FiniteElementSpace *surf_fit_bg_hess_fes = NULL;
-    GridFunction *surf_fit_bg_hess = NULL;
+   // Background mesh FECollection, FESpace, and GridFunction
+   H1_FECollection *surf_fit_bg_fec = NULL;
+   FiniteElementSpace *surf_fit_bg_fes = NULL;
+   GridFunction *surf_fit_bg_gf0 = NULL;
+   FiniteElementSpace *surf_fit_bg_grad_fes = NULL;
+   GridFunction *surf_fit_bg_grad = NULL;
+   FiniteElementSpace *surf_fit_bg_hess_fes = NULL;
+   GridFunction *surf_fit_bg_hess = NULL;
 
-    // If a background mesh is used, we interpolate the Gradient and Hessian
-    // from that mesh to the current mesh being optimized.
-    FiniteElementSpace *surf_fit_grad_fes = NULL;
-    GridFunction *surf_fit_grad = NULL;
-    FiniteElementSpace *surf_fit_hess_fes = NULL;
-    GridFunction *surf_fit_hess = NULL;
+   // If a background mesh is used, we interpolate the Gradient and Hessian
+   // from that mesh to the current mesh being optimized.
+   FiniteElementSpace *surf_fit_grad_fes = NULL;
+   GridFunction *surf_fit_grad = NULL;
+   FiniteElementSpace *surf_fit_hess_fes = NULL;
+   GridFunction *surf_fit_hess = NULL;
 
-    //FunctionCoefficient ls_coeff(circle_level_set);
-    FunctionCoefficient ls_coeff(squircle_level_set);
+   //FunctionCoefficient ls_coeff(circle_level_set);
+   FunctionCoefficient ls_coeff(squircle_level_set);
 
-    if (surf_bg_mesh)
-    {
-        // Init the FEC, FES and GridFunction of uniform order = 6
-        // for the background ls function
-        surf_fit_bg_fec = new H1_FECollection(6, dim);
-        surf_fit_bg_fes = new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec);
-        surf_fit_bg_gf0 = new GridFunction(surf_fit_bg_fes);
-        surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
-    }
-
-    if (surface_fit_const > 0.0)
-    {
-        for (int i = 0; i < mesh->GetNE(); i++)
-        {
-            mat(i) = material_id(i, surf_fit_gf0);
-            mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-            {
-                Vector center(mesh->Dimension());
-                mesh->GetElementCenter(i, center);
-                if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                    center(1) < 0.75)
-                {
-                    mat(i) = 0;
-                }
-                else
-                {
-                    mat(i) = 1;
-                }
-                mesh->SetAttribute(i, mat(i) + 1);
-            }
-        }
-    }
-
-    // TODO: BOUCLE
-    std::vector<int> inter_faces;   // Vector to save the faces between two different materials
-    for (int iter_pref=0; iter_pref<4; iter_pref++)
-    {
-        std::cout << "BOUCLE j: " << iter_pref << std::endl;
-
-        // Define a TMOPIntegrator based on the metric and target.
-        TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
-        tmop_integ->SetIntegrationRules(*irules, quad_order);
+   if (surf_bg_mesh)
+   {
+      // Init the FEC, FES and GridFunction of uniform order = 6
+      // for the background ls function
+      surf_fit_bg_fec = new H1_FECollection(6, dim);
+      surf_fit_bg_fes = new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec);
+      surf_fit_bg_gf0 = new GridFunction(surf_fit_bg_fes);
+      surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
+   }
 
    if (surface_fit_const > 0.0)
    {
-      // Define a function coefficient (based on the analytic description of
-      // the level-set)
-       //FunctionCoefficient ls_coeff(circle_level_set);
-       surf_fit_gf0.ProjectCoefficient(ls_coeff);
-
-      // Now p-refine the elements around the interface
-      if (prefine)
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         // Define a transfer operator for updating gridfunctions after the mesh
-         // has been p-refined`
-         PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
-         PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
-         // TODO
-         int max_order = fespace->GetMaxElementOrder();
-         std::vector<int> faces_order_increase;
-
-         FiniteElementSpace *fes_test_1 = x_max_order->FESpace();
-         FiniteElementSpace *fes_test_2 = surf_fit_gf0_max_order->FESpace();
-
-         //std::cout << "Variable order FES 1: " << fes_test_1->IsVariableOrder() << std::endl;
-         //std::cout << "Variable order FES 2: " << fes_test_2->IsVariableOrder() << std::endl;
-         //std::cout << surf_fit_bg_gf0->FESpace()->IsVariableOrder() << std::endl;
-          x_max_order = ProlongToMaxOrder(&x , 0);
-          mesh->SetNodalGridFunction(x_max_order);
-         for (int i=0; i < mesh->GetNumFaces(); i++)
+         mat(i) = material_id(i, surf_fit_gf0);
+         mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
          {
-             Array<int> els;
-             mesh->GetFaceAdjacentElements(i, els);
-             if (els.Size() == 2)
-             {
-                 int mat1 = mat(els[0]);
-                 int mat2 = mat(els[1]);
-                 if (mat1 != mat2)
-                 {
+            Vector center(mesh->Dimension());
+            mesh->GetElementCenter(i, center);
+            if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                center(1) < 0.75)
+            {
+               mat(i) = 0;
+            }
+            else
+            {
+               mat(i) = 1;
+            }
+            mesh->SetAttribute(i, mat(i) + 1);
+         }
+      }
+   }
+
+   // TODO: BOUCLE
+   std::vector<int>
+   inter_faces;   // Vector to save the faces between two different materials
+   for (int iter_pref=0; iter_pref<4; iter_pref++)
+   {
+      std::cout << "BOUCLE j: " << iter_pref << std::endl;
+
+      // Define a TMOPIntegrator based on the metric and target.
+      TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
+      tmop_integ->SetIntegrationRules(*irules, quad_order);
+
+      if (surface_fit_const > 0.0)
+      {
+         // Define a function coefficient (based on the analytic description of
+         // the level-set)
+         //FunctionCoefficient ls_coeff(circle_level_set);
+         surf_fit_gf0.ProjectCoefficient(ls_coeff);
+
+         // Now p-refine the elements around the interface
+         if (prefine)
+         {
+            // Define a transfer operator for updating gridfunctions after the mesh
+            // has been p-refined`
+            PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
+            PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
+            // TODO
+            int max_order = fespace->GetMaxElementOrder();
+            std::vector<int> faces_order_increase;
+
+            FiniteElementSpace *fes_test_1 = x_max_order->FESpace();
+            FiniteElementSpace *fes_test_2 = surf_fit_gf0_max_order->FESpace();
+
+            //std::cout << "Variable order FES 1: " << fes_test_1->IsVariableOrder() << std::endl;
+            //std::cout << "Variable order FES 2: " << fes_test_2->IsVariableOrder() << std::endl;
+            //std::cout << surf_fit_bg_gf0->FESpace()->IsVariableOrder() << std::endl;
+            x_max_order = ProlongToMaxOrder(&x, 0);
+            mesh->SetNodalGridFunction(x_max_order);
+            for (int i=0; i < mesh->GetNumFaces(); i++)
+            {
+               Array<int> els;
+               mesh->GetFaceAdjacentElements(i, els);
+               if (els.Size() == 2)
+               {
+                  int mat1 = mat(els[0]);
+                  int mat2 = mat(els[1]);
+                  if (mat1 != mat2)
+                  {
                      double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
                                                                     surf_fit_bg_gf0,
                                                                     i,
@@ -704,579 +713,592 @@ int main(int argc, char *argv[])
                      //std::cout << "Error Face "  << i << ": " << error_bg_face << std::endl;
                      if (error_bg_face >= pow(10,-13))
                      {
-                         faces_order_increase.push_back(i);
+                        faces_order_increase.push_back(i);
                      }
-                     if (iter_pref==0){inter_faces.push_back(i);}
-                 }
-             }
-         }
-          mesh->SetNodalGridFunction(&x);
+                     if (iter_pref==0) {inter_faces.push_back(i);}
+                  }
+               }
+            }
+            mesh->SetNodalGridFunction(&x);
 
-         for (int i=0; i<faces_order_increase.size(); i++)
+            for (int i=0; i<faces_order_increase.size(); i++)
+            {
+               Array<int> els;
+               mesh->GetFaceAdjacentElements(faces_order_increase[i], els);
+               fespace->SetElementOrder(els[0], max_order + pref_order_increase);
+               fespace->SetElementOrder(els[1], max_order + pref_order_increase);
+               order_gf(els[0]) = max_order + pref_order_increase;
+               order_gf(els[1]) = max_order + pref_order_increase;
+            }
+            fespace->Update(false);
+            surf_fit_fes.CopySpaceElementOrders(*fespace);
+            preft_fespace.Transfer(x);
+            preft_fespace.Transfer(x0);
+            preft_fespace.Transfer(rdm);
+            preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
+            preft_surf_fit_fes.Transfer(surf_fit_gf0);
+            surf_fit_marker.SetSize(surf_fit_gf0.Size());
+
+            x.SetTrueVector();
+            x.SetFromTrueVector();
+
+            mesh->SetNodalGridFunction(&x);
+
+            x_max_order = ProlongToMaxOrder(&x, 0);
+            surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+
+            if (visualization)
+            {
+               x_max_order = ProlongToMaxOrder(&x, 0);
+               mesh->SetNodalGridFunction(x_max_order);
+               socketstream vis1;
+               common::VisualizeField(vis1, "localhost", 19916, order_gf,
+                                      "Polynomial order in loop",
+                                      00, 600, 300, 300);
+               mesh->SetNodalGridFunction(&x);
+            }
+
+         }
+         else
          {
-             Array<int> els;
-             mesh->GetFaceAdjacentElements(faces_order_increase[i], els);
-             fespace->SetElementOrder(els[0], max_order + pref_order_increase);
-             fespace->SetElementOrder(els[1], max_order + pref_order_increase);
-             order_gf(els[0]) = max_order + pref_order_increase;
-             order_gf(els[1]) = max_order + pref_order_increase;
-         }
-         fespace->Update(false);
-         surf_fit_fes.CopySpaceElementOrders(*fespace);
-         preft_fespace.Transfer(x);
-         preft_fespace.Transfer(x0);
-         preft_fespace.Transfer(rdm);
-         preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
-         preft_surf_fit_fes.Transfer(surf_fit_gf0);
-         surf_fit_marker.SetSize(surf_fit_gf0.Size());
-
-         x.SetTrueVector();
-         x.SetFromTrueVector();
-
-         mesh->SetNodalGridFunction(&x);
-
-         x_max_order = ProlongToMaxOrder(&x , 0);
-         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-
-         if (visualization)
-         {
-             x_max_order = ProlongToMaxOrder(&x , 0);
-             mesh->SetNodalGridFunction(x_max_order);
-             socketstream vis1;
-             common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order in loop",
-                                         00, 600, 300, 300);
-             mesh->SetNodalGridFunction(&x);
-         }
-
-      }
-      else
-      {
-          for (int i=0; i < mesh->GetNumFaces(); i++)
-          {
-              Array<int> els;
-              mesh->GetFaceAdjacentElements(i, els);
-              if (els.Size() == 2)
-              {
+            for (int i=0; i < mesh->GetNumFaces(); i++)
+            {
+               Array<int> els;
+               mesh->GetFaceAdjacentElements(i, els);
+               if (els.Size() == 2)
+               {
                   int mat1 = mat(els[0]);
                   int mat2 = mat(els[1]);
                   if (mat1 != mat2)
                   {
-                      inter_faces.push_back(i);
+                     inter_faces.push_back(i);
                   }
-              }
-          }
-      }
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
-      if (surf_bg_mesh)
-       {
-           surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
-
-           surf_fit_bg_grad_fes =
-                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim);
-           surf_fit_bg_grad = new GridFunction(surf_fit_bg_grad_fes);
-
-           surf_fit_grad_fes =
-                   new FiniteElementSpace(mesh, &surf_fit_fec, dim);
-           surf_fit_grad_fes->CopySpaceElementOrders(*fespace);
-           surf_fit_grad = new GridFunction(surf_fit_grad_fes);
-
-           surf_fit_bg_hess_fes =
-                   new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim * dim);
-           surf_fit_bg_hess = new GridFunction(surf_fit_bg_hess_fes);
-
-           surf_fit_hess_fes =
-                   new FiniteElementSpace(mesh, &surf_fit_fec, dim * dim);
-           surf_fit_hess_fes->CopySpaceElementOrders(*fespace);
-           surf_fit_hess = new GridFunction(surf_fit_hess_fes);
-
-           //Setup gradient of the background mesh
-           const int size_bg = surf_fit_bg_gf0->Size();
-           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
-           {
-               GridFunction surf_fit_bg_grad_comp(
-                       surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
-               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
-           }
-           //Setup Hessian on background mesh
-           int id = 0;
-           for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
-           {
-               for (int idir = 0; idir < mesh_surf_fit_bg->Dimension(); idir++)
-               {
-                   GridFunction surf_fit_bg_grad_comp(
-                           surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
-                   GridFunction surf_fit_bg_hess_comp(
-                           surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
-                   surf_fit_bg_grad_comp.GetDerivative(1, idir,
-                                                       surf_fit_bg_hess_comp);
-                   id++;
                }
-           }
-       }
-
-      for (int j = 0; j < surf_fit_marker.Size(); j++)
-      {
-         surf_fit_marker[j] = false;
-      }
-      surf_fit_mat_gf = 0.0;
-
-      Array<int> dof_list;
-      Array<int> dofs;
-      for (int i = 0; i < mesh->GetNumFaces(); i++)
-      {
-         Array<int> els;
-         mesh->GetFaceAdjacentElements(i, els);
-         if (els.Size() == 2)
-         {
-            int mat1 = mat(els[0]);
-            int mat2 = mat(els[1]);
-            if (mat1 != mat2)
-            {
-               if (dim == 2)
-               {
-                  surf_fit_gf0.FESpace()->GetEdgeDofs(i, dofs);
-               }
-               else
-               {
-                  surf_fit_gf0.FESpace()->GetFaceDofs(i, dofs);
-               }
-               dof_list.Append(dofs);
             }
          }
-      }
-
-      for (int i = 0; i < dof_list.Size(); i++)
-      {
-         surf_fit_marker[dof_list[i]] = true;
-         surf_fit_mat_gf(dof_list[i]) = 1.0;
-      }
-
-      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
-      else if (adapt_eval == 1)
-      {
-#ifdef MFEM_USE_GSLIB
-         adapt_surface = new InterpolatorFP;
-          if (surf_bg_mesh)
-          {
-              adapt_grad_surface = new InterpolatorFP;
-              adapt_hess_surface = new InterpolatorFP;
-          }
-#else
-         MFEM_ABORT("MFEM is not built with GSLIB support!");
-#endif
-      }
-      else { MFEM_ABORT("Bad interpolation option."); }
-       std::cout << "1.6. " << std::endl;
-      std::cout << "surf fit bg mesh size " << surf_fit_bg_gf0->FESpace()->GetMesh()->GetNodes()->Size() << std::endl;
-      std::cout << "surf fit bg fes dofs " << surf_fit_bg_gf0->FESpace()->GetNDofs() << std::endl;
-       if (!surf_bg_mesh)
-       {
-            tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
-                                       surf_fit_coeff, *adapt_surface);
-       }
-       else
-       {
-           tmop_integ->EnableSurfaceFittingFromSource(
-                   *surf_fit_bg_gf0, surf_fit_gf0,
-                   surf_fit_marker, surf_fit_coeff, *adapt_surface,
-                   *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
-                   *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
-       }
-
-      if (prefine)
-      {
-          x_max_order = ProlongToMaxOrder(&x , 0);
-         mesh->SetNodalGridFunction(x_max_order);
-         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-         surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
-      }
-      if (visualization)
-      {
-         socketstream vis1, vis2, vis3, vis4, vis5, vis6;
-         common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
-                                "Level Set 0",
-                                300, 600, 300, 300);
-         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                600, 600, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
-                                "Dofs to Move",
-                                900, 600, 300, 300);
+         surf_fit_gf0.ProjectCoefficient(ls_coeff);
          if (surf_bg_mesh)
          {
-             common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
-                                     "Level Set - Background",
-                                     1200, 600, 300, 300);
-             common::VisualizeField(vis5, "localhost", 19916, *surf_fit_grad,
-                                    "Grad",
-                                    1500, 600, 300, 300);
-             common::VisualizeField(vis6, "localhost", 19916, *surf_fit_bg_grad,
-                                    "Grad on background",
-                                    1500, 600, 300, 300);
+            surf_fit_bg_gf0->ProjectCoefficient(ls_coeff);
+
+            surf_fit_bg_grad_fes =
+               new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim);
+            surf_fit_bg_grad = new GridFunction(surf_fit_bg_grad_fes);
+
+            surf_fit_grad_fes =
+               new FiniteElementSpace(mesh, &surf_fit_fec, dim);
+            surf_fit_grad_fes->CopySpaceElementOrders(*fespace);
+            surf_fit_grad = new GridFunction(surf_fit_grad_fes);
+
+            surf_fit_bg_hess_fes =
+               new FiniteElementSpace(mesh_surf_fit_bg, surf_fit_bg_fec, dim * dim);
+            surf_fit_bg_hess = new GridFunction(surf_fit_bg_hess_fes);
+
+            surf_fit_hess_fes =
+               new FiniteElementSpace(mesh, &surf_fit_fec, dim * dim);
+            surf_fit_hess_fes->CopySpaceElementOrders(*fespace);
+            surf_fit_hess = new GridFunction(surf_fit_hess_fes);
+
+            //Setup gradient of the background mesh
+            const int size_bg = surf_fit_bg_gf0->Size();
+            for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
+            {
+               GridFunction surf_fit_bg_grad_comp(
+                  surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
+            }
+            //Setup Hessian on background mesh
+            int id = 0;
+            for (int d = 0; d < mesh_surf_fit_bg->Dimension(); d++)
+            {
+               for (int idir = 0; idir < mesh_surf_fit_bg->Dimension(); idir++)
+               {
+                  GridFunction surf_fit_bg_grad_comp(
+                     surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+                  GridFunction surf_fit_bg_hess_comp(
+                     surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
+                  surf_fit_bg_grad_comp.GetDerivative(1, idir,
+                                                      surf_fit_bg_hess_comp);
+                  id++;
+               }
+            }
          }
-      }
-      mesh->SetNodalGridFunction(&x);
-   }
 
-   if (visualization)
-   {
-      mesh->SetNodalGridFunction(x_max_order);
-      socketstream vis1;
-      common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order",
-                             00, 600, 300, 300);
-      mesh->SetNodalGridFunction(&x);
-   }
+         for (int j = 0; j < surf_fit_marker.Size(); j++)
+         {
+            surf_fit_marker[j] = false;
+         }
+         surf_fit_mat_gf = 0.0;
 
-        // TODO: Compute Integrate Error
-        if (iter_pref==0) {
-            surf_fit_gf0.ProjectCoefficient(ls_coeff);
-            tmop_integ->CopyGridFunction(surf_fit_gf0);
-            surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+         Array<int> dof_list;
+         Array<int> dofs;
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
+         {
+            Array<int> els;
+            mesh->GetFaceAdjacentElements(i, els);
+            if (els.Size() == 2)
+            {
+               int mat1 = mat(els[0]);
+               int mat2 = mat(els[1]);
+               if (mat1 != mat2)
+               {
+                  if (dim == 2)
+                  {
+                     surf_fit_gf0.FESpace()->GetEdgeDofs(i, dofs);
+                  }
+                  else
+                  {
+                     surf_fit_gf0.FESpace()->GetFaceDofs(i, dofs);
+                  }
+                  dof_list.Append(dofs);
+               }
+            }
+         }
+
+         for (int i = 0; i < dof_list.Size(); i++)
+         {
+            surf_fit_marker[dof_list[i]] = true;
+            surf_fit_mat_gf(dof_list[i]) = 1.0;
+         }
+
+         if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+         else if (adapt_eval == 1)
+         {
+#ifdef MFEM_USE_GSLIB
+            adapt_surface = new InterpolatorFP;
+            if (surf_bg_mesh)
+            {
+               adapt_grad_surface = new InterpolatorFP;
+               adapt_hess_surface = new InterpolatorFP;
+            }
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+         }
+         else { MFEM_ABORT("Bad interpolation option."); }
+         std::cout << "1.6. " << std::endl;
+         std::cout << "surf fit bg mesh size " <<
+                   surf_fit_bg_gf0->FESpace()->GetMesh()->GetNodes()->Size() << std::endl;
+         std::cout << "surf fit bg fes dofs " << surf_fit_bg_gf0->FESpace()->GetNDofs()
+                   << std::endl;
+         if (!surf_bg_mesh)
+         {
+            tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
+                                             surf_fit_coeff, *adapt_surface);
+         }
+         else
+         {
+            tmop_integ->EnableSurfaceFittingFromSource(
+               *surf_fit_bg_gf0, surf_fit_gf0,
+               surf_fit_marker, surf_fit_coeff, *adapt_surface,
+               *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
+               *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
+         }
+
+         if (prefine)
+         {
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
-            double error_sum = 0.0;
-            double error_bg_sum = 0.0;
-            for (int i = 0; i < inter_faces.size(); i++) {
-                double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order,
-                                                          inter_faces[i]);
-                error_sum += error_face;
-                double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                               surf_fit_bg_gf0,
-                                                               inter_faces[i],
-                                                               surf_fit_gf0_max_order,
-                                                               finder);
-                //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
-                error_bg_sum += error_bg_face;
+            surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+            surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
+         }
+         if (visualization)
+         {
+            socketstream vis1, vis2, vis3, vis4, vis5, vis6;
+            common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
+                                   "Level Set 0",
+                                   300, 600, 300, 300);
+            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                   600, 600, 300, 300);
+            common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
+                                   "Dofs to Move",
+                                   900, 600, 300, 300);
+            if (surf_bg_mesh)
+            {
+               common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
+                                      "Level Set - Background",
+                                      1200, 600, 300, 300);
+               common::VisualizeField(vis5, "localhost", 19916, *surf_fit_grad,
+                                      "Grad",
+                                      1500, 600, 300, 300);
+               common::VisualizeField(vis6, "localhost", 19916, *surf_fit_bg_grad,
+                                      "Grad on background",
+                                      1500, 600, 300, 300);
             }
-            std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
-            std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " << std::endl;
-            std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" << std::endl;
-            std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " " << error_bg_sum
-                      << std::endl;
-            mesh->SetNodalGridFunction(&x);
-        }
-
-   // 12. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights. Note that there are no
-   //     command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
-   NonlinearForm a(fespace);
-   a.AddDomainIntegrator(tmop_integ);
-
-   // Compute the minimum det(J) of the starting mesh.
-   min_detJ = infinity();
-   const int NE = mesh->GetNE();
-   for (int i = 0; i < NE; i++)
-   {
-      const IntegrationRule &ir =
-         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         min_detJ = min(min_detJ, transf->Jacobian().Det());
-      }
-   }
-   cout << "Minimum det(J) of the original mesh is " << min_detJ << endl;
-
-   if (min_detJ < 0.0
-       && metric_id != 22 && metric_id != 211 && metric_id != 252
-       && metric_id != 311 && metric_id != 313 && metric_id != 352)
-   {
-      MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
-   }
-   if (min_detJ < 0.0)
-   {
-      MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
-                  "Untangling is supported only for ideal targets.");
-
-      const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
-      min_detJ /= Wideal.Det();
-
-      // Slightly below minJ0 to avoid div by 0.
-      min_detJ -= 0.01 * h0.Min();
-   }
-
-   // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetGridFunctionEnergy(x);
-   double init_metric_energy = init_energy;
-   if (surface_fit_const > 0.0)
-   {
-      surf_fit_coeff.constant   = 0.0;
-      init_metric_energy = a.GetGridFunctionEnergy(x);
-      surf_fit_coeff.constant   = surface_fit_const;
-   }
-
-   mesh->SetNodalGridFunction(x_max_order);
-   // Visualize the starting mesh and metric values.
-   // Note that for combinations of metrics, this only shows the first metric.
-   if (visualization)
-   {
-      char title[] = "Initial metric values";
-      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
-   }
-   mesh->SetNodalGridFunction(&x);
-
-   // 13. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh. Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node. Attribute 4 corresponds to an
-   //     entirely fixed node. Other boundary attributes do not affect the node
-   //     movement boundary conditions.
-   if (move_bnd == false)
-   {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      a.SetEssentialBC(ess_bdr);
-   }
-   else
-   {
-      int n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
-      {
-         const int nd = fespace->GetBE(i)->GetDof();
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         MFEM_VERIFY(!(dim == 2 && attr == 3),
-                     "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                     "components, rest for free nodes), or use -fix-bnd.");
-         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-         if (attr == 4) { n += nd * dim; }
-      }
-      Array<int> ess_vdofs(n);
-      n = 0;
-      Array<int> vdofs;
-      for (int i = 0; i < mesh->GetNBE(); i++)
-      {
-         const int nd = fespace->GetBE(i)->GetDof();
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
-         fespace->GetBdrElementVDofs(i, vdofs);
-         if (attr == 1) // Fix x components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
          }
-         else if (attr == 2) // Fix y components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
-         }
-         else if (attr == 3) // Fix z components.
-         {
-            for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+2*nd]; }
-         }
-         else if (attr == 4) // Fix all components.
-         {
-            for (int j = 0; j < vdofs.Size(); j++)
-            { ess_vdofs[n++] = vdofs[j]; }
-         }
+         mesh->SetNodalGridFunction(&x);
       }
-      a.SetEssentialVDofs(ess_vdofs);
-   }
 
-   // 14. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
-   if (lin_solver == 0)
-   {
-      S = new DSmoother(1, 1.0, max_lin_iter);
-   }
-   else if (lin_solver == 1)
-   {
-      CGSolver *cg = new CGSolver;
-      cg->SetMaxIter(max_lin_iter);
-      cg->SetRelTol(linsol_rtol);
-      cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-      S = cg;
-   }
-   else
-   {
-      MINRESSolver *minres = new MINRESSolver;
-      minres->SetMaxIter(max_lin_iter);
-      minres->SetRelTol(linsol_rtol);
-      minres->SetAbsTol(0.0);
-      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
-      minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
-      if (lin_solver == 3 || lin_solver == 4)
-      {
-         auto ds = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
-         ds->SetPositiveDiagonal(true);
-         S_prec = ds;
-         minres->SetPreconditioner(*S_prec);
-      }
-      S = minres;
-   }
-
-   // Set up an empty right-hand side vector b, which is equivalent to b=0.
-   // We use this later when we solve the TMOP problem
-   Vector b(0);
-
-   // Perform the nonlinear optimization.
-   const IntegrationRule &ir =
-      irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(ir, solver_type);
-   if (surface_fit_const > 0.0 && surface_fit_adapt)
-   {
-      solver.EnableAdaptiveSurfaceFitting();
-   }
-   if (surface_fit_const > 0.0 && surface_fit_threshold > 0)
-   {
-      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-   }
-   // Provide all integration rules in case of a mixed mesh.
-   solver.SetIntegrationRules(*irules, quad_order);
-   if (solver_type == 0)
-   {
-      solver.SetPreconditioner(*S);
-   }
-   // For untangling, the solver will update the min det(T) values.
-   solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxIter(solver_iter);
-   solver.SetRelTol(solver_rtol);
-   solver.SetAbsTol(0.0);
-   if (solver_art_type > 0)
-   {
-      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-   }
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-
-   solver.SetOperator(a);
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
-
-   delete x_max_order;
-   x_max_order = ProlongToMaxOrder(&x, 0);
-   mesh->SetNodalGridFunction(x_max_order);
-
-   // 15. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized.mesh".
-   {
-      ofstream mesh_ofs("optimized.mesh");
-      mesh_ofs.precision(14);
-      mesh->Print(mesh_ofs);
-   }
-   mesh->SetNodalGridFunction(&x);
-
-   // Report the final energy of the functional.
-   const double fin_energy = a.GetGridFunctionEnergy(x);
-   double fin_metric_energy = fin_energy;
-   if (surface_fit_const > 0.0)
-   {
-      surf_fit_coeff.constant  = 0.0;
-      fin_metric_energy  = a.GetGridFunctionEnergy(x);
-      surf_fit_coeff.constant  = surface_fit_const;
-   }
-
-   std::cout << std::scientific << std::setprecision(4);
-   cout << "Initial strain energy: " << init_energy
-        << " = metrics: " << init_metric_energy
-        << " + extra terms: " << init_energy - init_metric_energy << endl;
-   cout << "  Final strain energy: " << fin_energy
-        << " = metrics: " << fin_metric_energy
-        << " + extra terms: " << fin_energy - fin_metric_energy << endl;
-   cout << "The strain energy decreased by: "
-        << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
-
-   mesh->SetNodalGridFunction(x_max_order);
-   // Visualize the final mesh and metric values.
-   if (visualization)
-   {
-      char title[] = "Final metric values";
-      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
-   }
-
-
-   // TODO: Test reduce order of one face
-   /*
-   if(prefine)
-   {
-       surf_fit_gf0.ProjectCoefficient(ls_coeff);
-       tmop_integ->CopyGridFunction(surf_fit_gf0);
-       surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-       std::cout << "size " << inter_faces.size() << std::endl;
-       for (int i=0; i < inter_faces.size(); i++)
-       {
-           double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                          surf_fit_bg_gf0,
-                                                          inter_faces[i],
-                                                          surf_fit_gf0_max_order,
-                                                          finder);
-           std::cout << "Error... " << error_bg_face << std::endl;
-       }
-   }
-    */
-
-   // Visualize fitting surfaces and report fitting errors.
-   if (surface_fit_const > 0.0)
-   {
       if (visualization)
       {
-         socketstream vis2, vis3;
-         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                600, 900, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
-                                "Surface dof",
-                                900, 900, 300, 300);
+         mesh->SetNodalGridFunction(x_max_order);
+         socketstream vis1;
+         common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order",
+                                00, 600, 300, 300);
+         mesh->SetNodalGridFunction(&x);
       }
-      double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-      std::cout << "Avg fitting error: " << err_avg << std::endl
-                << "Max fitting error: " << err_max << std::endl;
 
       // TODO: Compute Integrate Error
-      //FunctionCoefficient ls_coeff(squircle_level_set);
-      //surf_fit_gf0.ProjectCoefficient(ls_coeff);
-       surf_fit_gf0.ProjectCoefficient(ls_coeff);
-      tmop_integ->CopyGridFunction(surf_fit_gf0);
-      surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-      double error_sum = 0.0;
-      double error_bg_sum = 0.0;
-      for (int i=0; i < inter_faces.size(); i++)
+      if (iter_pref==0)
       {
-          double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff, surf_fit_gf0_max_order, inter_faces[i]);
-          error_sum += error_face;
-          double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                         surf_fit_bg_gf0,
-                                                         inter_faces[i],
-                                                         surf_fit_gf0_max_order,
-                                                         finder);
-          //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
-          error_bg_sum += error_bg_face;
+         surf_fit_gf0.ProjectCoefficient(ls_coeff);
+         tmop_integ->CopyGridFunction(surf_fit_gf0);
+         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+         x_max_order = ProlongToMaxOrder(&x, 0);
+         mesh->SetNodalGridFunction(x_max_order);
+         double error_sum = 0.0;
+         double error_bg_sum = 0.0;
+         for (int i = 0; i < inter_faces.size(); i++)
+         {
+            double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff,
+                                                      surf_fit_gf0_max_order,
+                                                      inter_faces[i]);
+            error_sum += error_face;
+            double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                           surf_fit_bg_gf0,
+                                                           inter_faces[i],
+                                                           surf_fit_gf0_max_order,
+                                                           finder);
+            //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
+            error_bg_sum += error_bg_face;
+         }
+         std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
+         std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " <<
+                   std::endl;
+         std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" <<
+                   std::endl;
+         std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " "
+                   << error_bg_sum
+                   << std::endl;
+         mesh->SetNodalGridFunction(&x);
       }
-      std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
-      std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " << std::endl;
-      std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" << std::endl;
-      std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " " << error_bg_sum << std::endl;
-   }
 
-   // Visualize the mesh displacement.
-   /*
-   if (visualization)
-   {
-      osockstream sock(19916, "localhost");
-      sock << "solution\n";
-      mesh->Print(sock);
-      x0 -= x;
+      // 12. Setup the final NonlinearForm (which defines the integral of interest,
+      //     its first and second derivatives). Here we can use a combination of
+      //     metrics, i.e., optimize the sum of two integrals, where both are
+      //     scaled by used-defined space-dependent weights. Note that there are no
+      //     command-line options for the weights and the type of the second
+      //     metric; one should update those in the code.
+      NonlinearForm a(fespace);
+      a.AddDomainIntegrator(tmop_integ);
+
+      // Compute the minimum det(J) of the starting mesh.
+      min_detJ = infinity();
+      const int NE = mesh->GetNE();
+      for (int i = 0; i < NE; i++)
+      {
+         const IntegrationRule &ir =
+            irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
+         ElementTransformation *transf = mesh->GetElementTransformation(i);
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            transf->SetIntPoint(&ir.IntPoint(j));
+            min_detJ = min(min_detJ, transf->Jacobian().Det());
+         }
+      }
+      cout << "Minimum det(J) of the original mesh is " << min_detJ << endl;
+
+      if (min_detJ < 0.0
+          && metric_id != 22 && metric_id != 211 && metric_id != 252
+          && metric_id != 311 && metric_id != 313 && metric_id != 352)
+      {
+         MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
+      }
+      if (min_detJ < 0.0)
+      {
+         MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
+                     "Untangling is supported only for ideal targets.");
+
+         const DenseMatrix &Wideal =
+            Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
+         min_detJ /= Wideal.Det();
+
+         // Slightly below minJ0 to avoid div by 0.
+         min_detJ -= 0.01 * h0.Min();
+      }
+
+      // For HR tests, the energy is normalized by the number of elements.
+      const double init_energy = a.GetGridFunctionEnergy(x);
+      double init_metric_energy = init_energy;
+      if (surface_fit_const > 0.0)
+      {
+         surf_fit_coeff.constant   = 0.0;
+         init_metric_energy = a.GetGridFunctionEnergy(x);
+         surf_fit_coeff.constant   = surface_fit_const;
+      }
+
+      mesh->SetNodalGridFunction(x_max_order);
+      // Visualize the starting mesh and metric values.
+      // Note that for combinations of metrics, this only shows the first metric.
+      if (visualization)
+      {
+         char title[] = "Initial metric values";
+         vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
+      }
+      mesh->SetNodalGridFunction(&x);
+
+      // 13. Fix all boundary nodes, or fix only a given component depending on the
+      //     boundary attributes of the given mesh. Attributes 1/2/3 correspond to
+      //     fixed x/y/z components of the node. Attribute 4 corresponds to an
+      //     entirely fixed node. Other boundary attributes do not affect the node
+      //     movement boundary conditions.
+      if (move_bnd == false)
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         a.SetEssentialBC(ess_bdr);
+      }
+      else
+      {
+         int n = 0;
+         for (int i = 0; i < mesh->GetNBE(); i++)
+         {
+            const int nd = fespace->GetBE(i)->GetDof();
+            const int attr = mesh->GetBdrElement(i)->GetAttribute();
+            MFEM_VERIFY(!(dim == 2 && attr == 3),
+                        "Boundary attribute 3 must be used only for 3D meshes. "
+                        "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                        "components, rest for free nodes), or use -fix-bnd.");
+            if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
+            if (attr == 4) { n += nd * dim; }
+         }
+         Array<int> ess_vdofs(n);
+         n = 0;
+         Array<int> vdofs;
+         for (int i = 0; i < mesh->GetNBE(); i++)
+         {
+            const int nd = fespace->GetBE(i)->GetDof();
+            const int attr = mesh->GetBdrElement(i)->GetAttribute();
+            fespace->GetBdrElementVDofs(i, vdofs);
+            if (attr == 1) // Fix x components.
+            {
+               for (int j = 0; j < nd; j++)
+               { ess_vdofs[n++] = vdofs[j]; }
+            }
+            else if (attr == 2) // Fix y components.
+            {
+               for (int j = 0; j < nd; j++)
+               { ess_vdofs[n++] = vdofs[j+nd]; }
+            }
+            else if (attr == 3) // Fix z components.
+            {
+               for (int j = 0; j < nd; j++)
+               { ess_vdofs[n++] = vdofs[j+2*nd]; }
+            }
+            else if (attr == 4) // Fix all components.
+            {
+               for (int j = 0; j < vdofs.Size(); j++)
+               { ess_vdofs[n++] = vdofs[j]; }
+            }
+         }
+         a.SetEssentialVDofs(ess_vdofs);
+      }
+
+      // 14. As we use the Newton method to solve the resulting nonlinear system,
+      //     here we setup the linear solver for the system's Jacobian.
+      Solver *S = NULL, *S_prec = NULL;
+      const double linsol_rtol = 1e-12;
+      if (lin_solver == 0)
+      {
+         S = new DSmoother(1, 1.0, max_lin_iter);
+      }
+      else if (lin_solver == 1)
+      {
+         CGSolver *cg = new CGSolver;
+         cg->SetMaxIter(max_lin_iter);
+         cg->SetRelTol(linsol_rtol);
+         cg->SetAbsTol(0.0);
+         cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+         S = cg;
+      }
+      else
+      {
+         MINRESSolver *minres = new MINRESSolver;
+         minres->SetMaxIter(max_lin_iter);
+         minres->SetRelTol(linsol_rtol);
+         minres->SetAbsTol(0.0);
+         if (verbosity_level > 2) { minres->SetPrintLevel(1); }
+         minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
+         if (lin_solver == 3 || lin_solver == 4)
+         {
+            auto ds = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+            ds->SetPositiveDiagonal(true);
+            S_prec = ds;
+            minres->SetPreconditioner(*S_prec);
+         }
+         S = minres;
+      }
+
+      // Set up an empty right-hand side vector b, which is equivalent to b=0.
+      // We use this later when we solve the TMOP problem
+      Vector b(0);
+
+      // Perform the nonlinear optimization.
+      const IntegrationRule &ir =
+         irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
+      TMOPNewtonSolver solver(ir, solver_type);
+      if (surface_fit_const > 0.0 && surface_fit_adapt)
+      {
+         solver.EnableAdaptiveSurfaceFitting();
+      }
+      if (surface_fit_const > 0.0 && surface_fit_threshold > 0)
+      {
+         solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+      }
+      // Provide all integration rules in case of a mixed mesh.
+      solver.SetIntegrationRules(*irules, quad_order);
+      if (solver_type == 0)
+      {
+         solver.SetPreconditioner(*S);
+      }
+      // For untangling, the solver will update the min det(T) values.
+      solver.SetMinDetPtr(&min_detJ);
+      solver.SetMaxIter(solver_iter);
+      solver.SetRelTol(solver_rtol);
+      solver.SetAbsTol(0.0);
+      if (solver_art_type > 0)
+      {
+         solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+      }
+      solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+
+      solver.SetOperator(a);
+      solver.Mult(b, x.GetTrueVector());
+      x.SetFromTrueVector();
+
       delete x_max_order;
-      x_max_order = ProlongToMaxOrder(&x0, 0);
-      x_max_order->Save(sock);
-      sock.send();
-      sock << "window_title 'Displacements'\n"
-           << "window_geometry "
-           << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-           << "keys jRmclA" << endl;
+      x_max_order = ProlongToMaxOrder(&x, 0);
+      mesh->SetNodalGridFunction(x_max_order);
+
+      // 15. Save the optimized mesh to a file. This output can be viewed later
+      //     using GLVis: "glvis -m optimized.mesh".
+      {
+         ofstream mesh_ofs("optimized.mesh");
+         mesh_ofs.precision(14);
+         mesh->Print(mesh_ofs);
+      }
+      mesh->SetNodalGridFunction(&x);
+
+      // Report the final energy of the functional.
+      const double fin_energy = a.GetGridFunctionEnergy(x);
+      double fin_metric_energy = fin_energy;
+      if (surface_fit_const > 0.0)
+      {
+         surf_fit_coeff.constant  = 0.0;
+         fin_metric_energy  = a.GetGridFunctionEnergy(x);
+         surf_fit_coeff.constant  = surface_fit_const;
+      }
+
+      std::cout << std::scientific << std::setprecision(4);
+      cout << "Initial strain energy: " << init_energy
+           << " = metrics: " << init_metric_energy
+           << " + extra terms: " << init_energy - init_metric_energy << endl;
+      cout << "  Final strain energy: " << fin_energy
+           << " = metrics: " << fin_metric_energy
+           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+      cout << "The strain energy decreased by: "
+           << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
+
+      mesh->SetNodalGridFunction(x_max_order);
+      // Visualize the final mesh and metric values.
+      if (visualization)
+      {
+         char title[] = "Final metric values";
+         vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
+      }
+
+
+      // TODO: Test reduce order of one face
+      /*
+      if(prefine)
+      {
+          surf_fit_gf0.ProjectCoefficient(ls_coeff);
+          tmop_integ->CopyGridFunction(surf_fit_gf0);
+          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+          std::cout << "size " << inter_faces.size() << std::endl;
+          for (int i=0; i < inter_faces.size(); i++)
+          {
+              double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                             surf_fit_bg_gf0,
+                                                             inter_faces[i],
+                                                             surf_fit_gf0_max_order,
+                                                             finder);
+              std::cout << "Error... " << error_bg_face << std::endl;
+          }
+      }
+       */
+
+      // Visualize fitting surfaces and report fitting errors.
+      if (surface_fit_const > 0.0)
+      {
+         if (visualization)
+         {
+            socketstream vis2, vis3;
+            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                   600, 900, 300, 300);
+            common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
+                                   "Surface dof",
+                                   900, 900, 300, 300);
+         }
+         double err_avg, err_max;
+         tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+         std::cout << "Avg fitting error: " << err_avg << std::endl
+                   << "Max fitting error: " << err_max << std::endl;
+
+         // TODO: Compute Integrate Error
+         //FunctionCoefficient ls_coeff(squircle_level_set);
+         //surf_fit_gf0.ProjectCoefficient(ls_coeff);
+         surf_fit_gf0.ProjectCoefficient(ls_coeff);
+         tmop_integ->CopyGridFunction(surf_fit_gf0);
+         surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+         double error_sum = 0.0;
+         double error_bg_sum = 0.0;
+         for (int i=0; i < inter_faces.size(); i++)
+         {
+            double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff,
+                                                      surf_fit_gf0_max_order, inter_faces[i]);
+            error_sum += error_face;
+            double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                           surf_fit_bg_gf0,
+                                                           inter_faces[i],
+                                                           surf_fit_gf0_max_order,
+                                                           finder);
+            //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
+            error_bg_sum += error_bg_face;
+         }
+         std::cout << "Integrate fitting error: " << error_sum << " " << std::endl;
+         std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " <<
+                   std::endl;
+         std::cout << "Max order || Nbr DOFS || Integrate fitting error on BG" <<
+                   std::endl;
+         std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " "
+                   << error_bg_sum << std::endl;
+      }
+
+      // Visualize the mesh displacement.
+      /*
+      if (visualization)
+      {
+         osockstream sock(19916, "localhost");
+         sock << "solution\n";
+         mesh->Print(sock);
+         x0 -= x;
+         delete x_max_order;
+         x_max_order = ProlongToMaxOrder(&x0, 0);
+         x_max_order->Save(sock);
+         sock.send();
+         sock << "window_title 'Displacements'\n"
+              << "window_geometry "
+              << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
+              << "keys jRmclA" << endl;
+      }
+       */
+
+      mesh->SetNodalGridFunction(&x); // Need this for the loop
+
+      delete S;
+      delete S_prec;
    }
-    */
-
-   mesh->SetNodalGridFunction(&x); // Need this for the loop
-
-        delete S;
-        delete S_prec;
-    }
 
    finder.FreeData();
 
