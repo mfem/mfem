@@ -7,7 +7,7 @@
 //               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh --petscopts rc_ex1p
 //
 // Device sample runs:
-//               mpirun -np 4 ex1p -pa -d cuda --petscopts rc_ex1p_cuda
+//               mpirun -np 4 ex1p -pa -d cuda --petscopts rc_ex1p_device
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
