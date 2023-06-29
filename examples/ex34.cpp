@@ -228,9 +228,7 @@ int main(int argc, char *argv[])
 
    // 5b. Extract a submesh covering a portion of the domain
    SubMesh mesh_cond(SubMesh::CreateFromDomain(mesh, cond_attr));
-   {
-      std::cout << "NBE " << mesh_cond.GetNBE() << std::endl;
-   }
+
    // 6. Define a suitable finite element space on the SubMesh and compute
    //    the current density as an H(div) field.
    RT_FECollection fec_cond_rt(order - 1, dim);
@@ -607,8 +605,7 @@ void ComputeCurrentDensityOnSubMesh(int order,
    Array<int> ess_bdr_tdof_rt;
    OperatorPtr M;
    Vector B, X;
-   std::cout << "jn_zero_attr "; jn_zero_attr.Print(std::cout);
-   std::cout << "ess_bdr_j "; ess_bdr_j.Print(std::cout);
+
    fes_cond_rt.GetEssentialTrueDofs(ess_bdr_j, ess_bdr_tdof_rt);
 
    j_cond = 0.0;
