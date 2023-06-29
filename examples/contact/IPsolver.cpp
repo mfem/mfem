@@ -694,7 +694,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
     }
     else
     {
-      cout << "in filter region :(\n"; 
+      cout << "in filter region\n";
     }
 
     // include more if needed

@@ -60,8 +60,8 @@ public:
     void lineSearch(BlockVector& , BlockVector& , double);
     void projectZ(const Vector & , Vector &, double);
     void filterCheck(double, double);
-    double E(const BlockVector &, const Vector &, const Vector &, double);
-    double E(const BlockVector &, const Vector &, const Vector &);
+    double E(const BlockVector &, const Vector &, const Vector &, double, bool);
+    double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);

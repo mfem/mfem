@@ -161,6 +161,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
 
    double Eeval, maxBarrierSolves, Eevalmu0;
+   bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
    
    maxBarrierSolves = 10;
 
@@ -171,7 +172,8 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          cout << "interior-point solve step " << jOpt << endl;
       }
       // A-2. Check convergence of overall optimization problem
-      Eevalmu0 = E(xk, lk, zlk);
+      printOptimalityError = false;
+      Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
       if(Eevalmu0 < rel_tol)
       {
          converged = true;
@@ -187,7 +189,8 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       for(int i = 0; i < maxBarrierSolves; i++)
       {
          // A-3. Check convergence of the barrier subproblem
-         Eeval = E(xk, lk, zlk, mu_k);
+         printOptimalityError = true;
+         Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
          if(iAmRoot)
          {
             cout << "E = " << Eeval << endl;
@@ -379,7 +382,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    Xhat = 0.0;
 
 
-   // Use a direct solver (default for now)
+   // Direct solver (default)
    if(linSolver == 0)
    {
       Array2D<HypreParMatrix *> ABlockMatrix(3,3);
@@ -415,54 +418,9 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete Ah;
    }
-   else if(linSolver == 1)
-   {
-      MFEM_WARNING("using a linear solve strategy that assumes that Ju = Identity");
-      /* reduce onto the 1, 1 block */
-      /* here assuming that Ju = I, not applicable for all problems */
-      /* so that the Schur-complement A = Huu + Ju^T D Ju = Huu + D */
-      HypreParMatrix * Huuloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0,0))));
-      HypreParMatrix * Wmmloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1,1))));
-      HypreParMatrix * Areduced = new HypreParMatrix(*Huuloc);
-      Areduced->Add(1.0, *Wmmloc);
-
-      /* prepare the reduced rhs */
-      // breduced = bu + Ju^T (bm + Wmm bl)
-      Vector breduced(dimU); breduced = 0.0;
-      breduced.Set(1.0, b.GetBlock(0)); 
-      breduced.Add(1.0, b.GetBlock(1));
-      Wmmloc->AddMult(b.GetBlock(2), breduced);
-      
-      // solve the reduced linear system
-      #ifdef MFEM_USE_MUMPS
-        MUMPSSolver AreducedSolver;
-        AreducedSolver.SetPrintLevel(0);
-        AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
-      #else 
-        #ifdef MFEM_USE_MKL_CPARDISO
-          CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
-        #endif
-      #endif
-      AreducedSolver.SetOperator(*Areduced);
-      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-
-      // now propagate solved uhat to obtain mhat and lhat
-      // xm = xu - bl
-      Xhat.GetBlock(1).Set(1.0, Xhat.GetBlock(0));
-      Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
-
-      // xl = Wmm xm - bm
-      Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-      Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
-
-      delete Wmmloc;
-      delete Huuloc;
-      delete Areduced;
-   }
-   else if(linSolver == 2 || linSolver == 3)
+   else if(linSolver == 1 || linSolver == 2)
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
-      // sparsity of Ju is needed
       HypreParMatrix * Huuloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0))));
       HypreParMatrix * Wmmloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1))));
       HypreParMatrix * Juloc  = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0))));
@@ -480,7 +438,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       JuTloc->Mult(tempVec, breduced);
       breduced.Add(1.0, b.GetBlock(0));
       
-      if(linSolver == 2)
+      if(linSolver == 1)
       {
          // setup the solver for the reduced linear system
          #ifdef MFEM_USE_MUMPS
@@ -718,7 +676,7 @@ void ParInteriorPointSolver::filterCheck(double th, double ph)
    }
 }
 
-double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu)
+double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu, bool printEeval)
 {
    double E1, E2, E3;
    double sc, sd;
@@ -745,8 +703,9 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
    ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
    sc = max(sMax, zl1 / (double(dimM)) ) / sMax;
    sd = max(sMax, (ll1 + zl1) / (double(dimC + dimM))) / sMax;
-   if(iAmRoot)
+   if(iAmRoot && printEeval)
    {
+      cout << "evaluating optimality error for mu = " << mu << endl;
       cout << "stationarity measure = "    << E1 / sd << endl;
       cout << "feasibility measure  = "    << E2      << endl;
       cout << "complimentarity measure = " << E3 / sc << endl;
@@ -754,9 +713,9 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
    return max(max(E1 / sd, E2), E3 / sc);
 }
 
-double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl)
+double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, bool printEeval)
 {
-  return E(x, l, zl, 0.0);
+  return E(x, l, zl, 0.0, printEeval);
 }
 
 double ParInteriorPointSolver::theta(const BlockVector &x)
