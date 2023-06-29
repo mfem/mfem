@@ -76,8 +76,8 @@ struct DofQuadLimits_CPU
    static constexpr int HCURL_MAX_Q1D = 10;
    static constexpr int HDIV_MAX_D1D = 10;
    static constexpr int HDIV_MAX_Q1D = 10;
-   static constexpr int MAX_INTERP_1D = 24;
-   static constexpr int MAX_DET_1D = 24;
+   static constexpr int MAX_INTERP_1D = MAX_D1D;
+   static constexpr int MAX_DET_1D = MAX_D1D;
 };
 
 } // namespace internal
