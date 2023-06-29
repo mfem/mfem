@@ -128,8 +128,8 @@ static void Det3D(const int NE,
    double *GM = nullptr;
    if (!SMEM)
    {
-      const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D - 4;
-      const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D - 4;
+      const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_DET_1D;
+      const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_DET_1D;
       const int max_qd = std::max(max_q1d, max_d1d);
       const int mem_size = max_qd * max_qd * max_qd * 9;
       d_buff->SetSize(2*mem_size*GRID);
@@ -138,8 +138,8 @@ static void Det3D(const int NE,
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D - 4;
-      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D - 4;
+      static constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_DET_1D;
+      static constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_DET_1D;
       static constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
       static constexpr int MSZ = MDQ * MDQ * MDQ * 9;
 
@@ -243,8 +243,8 @@ void TensorDeterminants(const int NE,
          case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
          default:
          {
-            const int MD = DeviceDofQuadLimits::Get().MAX_D1D - 4;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D - 4;
+            const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
             // Highest orders that fit in shared memory
             if (D1D <= MD && Q1D <= MQ)
             { return Det3D<0,0,true>(NE,B,G,X,Y,vdim,D1D,Q1D); }
