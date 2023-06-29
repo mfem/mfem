@@ -166,9 +166,19 @@ add_mfem_miniapp(mtop_table
         ${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_half_table_2D
+	MAIN mtop_half_table_2D.cpp
+	${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
 
 add_mfem_miniapp(randfw_test
 	MAIN randfw_test.cpp
+	${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
+add_mfem_miniapp(test_rmeas
+	MAIN test_risk_measures.cpp
 	${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
