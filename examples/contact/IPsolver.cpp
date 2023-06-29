@@ -60,8 +60,6 @@ Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr)
   for(int i = 0; i < block_offsetsx.Size(); i++)    { block_offsetsx[i]   = block_offsetsuml[i] ; }
 
   // lower-bound for the inequality constraint m >= ml
-  //ml.SetSize(dimM); ml = 0.0;  
-  
   ml = problem->Getml();
   
   lk.SetSize(dimC);  lk  = 0.0;
@@ -151,9 +149,10 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    */
   double theta0 = theta(xk);
   thetaMin = 1.e-4 * max(1.0, theta0);
-  thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
+  thetaMax = 1.e8  * thetaMin;
 
   double Eeval, maxBarrierSolves, Eevalmu0;
+  bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
   
   maxBarrierSolves = 10;
 
@@ -164,7 +163,8 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       cout << "interior-point solve step " << jOpt << endl;
     }
     // A-2. Check convergence of overall optimization problem
-    Eevalmu0 = E(xk, lk, zlk);
+    printOptimalityError = false;
+    Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
     if(Eevalmu0 < rel_tol)
     {
       converged = true;
@@ -180,11 +180,8 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
     for(int i = 0; i < maxBarrierSolves; i++)
     {
       // A-3. Check convergence of the barrier subproblem
-      Eeval = E(xk, lk, zlk, mu_k);
-      if(iAmRoot)
-      {
-        cout << "E = " << Eeval << endl;
-      }
+      printOptimalityError = true;
+      Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
       if(Eeval < kEps * mu_k)
       {
         if(iAmRoot)
@@ -397,6 +394,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       SparseMatrix *ASparse = ABlockMatrix.CreateMonolithic();
       ASolver.SetOperator(*ASparse);
       ASolver.Mult(b, Xhat);
+
+      Vector residual(Xhat.Size());
+      ASparse->Mult(Xhat, residual);
+      residual.Add(-1.0, b);
       delete ASparse;
     }
     else if(linSolver == 1)
@@ -446,7 +447,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   #else
     MFEM_VERIFY(linSolver > 1, "linSolver = 0, 1 require MFEM_USE_SUITESPARSE=YES");
   #endif
-  if (linSolver > 1)
+  if (linSolver == 2)
   { 
     // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
     // where Wmm = D for contact problems
@@ -473,6 +474,56 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     /* set up an iterative solver */
     DSmoother AreducedPrec((SparseMatrix &)(*Areduced));
     CGSolver AreducedSolver;
+    AreducedSolver.SetOperator(*Areduced);
+    AreducedSolver.SetAbsTol(1.e-12);
+    AreducedSolver.SetRelTol(1.e-8);
+    AreducedSolver.SetMaxIter(500);
+    AreducedSolver.SetPreconditioner(AreducedPrec);
+    AreducedSolver.SetPrintLevel(1);
+    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    
+    // now propagate solved uhat to obtain mhat and lhat
+    // xm = Ju xu - bl
+    Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+
+    // xl = Wmm xm - bm
+    Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+
+    delete Wmmloc;
+    delete Huuloc;
+    delete JuTDJu;
+    delete Juloc;
+    delete Areduced;
+  }
+  else if(linSolver > 2)
+  { 
+    // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
+    // where Wmm = D for contact problems
+    // here the iterative solver is a Jacobi-preconditioned CG-solve
+    SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
+    SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
+    SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
+    SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
+    Vector D(dimM); D = 0.0;
+    Vector one(dimM); one = 1.0;
+    Wmmloc->Mult(one, D);
+    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
+    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
+
+    /* prepare the reduced rhs */
+    // breduced = bu + Ju^T (bm + Wmm bl)
+    Vector breduced(dimU); breduced = 0.0;
+    Vector tempVec(dimM); tempVec = 0.0;
+    Wmmloc->Mult(b.GetBlock(2), tempVec);
+    tempVec.Add(1.0, b.GetBlock(1));
+    JuTloc->Mult(tempVec, breduced);
+    breduced.Add(1.0, b.GetBlock(0));
+    
+    /* set up an iterative solver */
+    GSSmoother AreducedPrec((SparseMatrix &)(*Areduced));
+    GMRESSolver AreducedSolver;
     AreducedSolver.SetOperator(*Areduced);
     AreducedSolver.SetAbsTol(1.e-12);
     AreducedSolver.SetRelTol(1.e-8);
@@ -571,6 +622,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
   {
     cout << "is not a descent direction for the log-barrier objective\n";
   }
+  cout << "Dxphi^T xhat / (|| Dxphi||_2 * || xhat ||_2) = " << Dxphi0_xhat / (sqrt(InnerProduct(xhat, xhat)) * sqrt(InnerProduct(Dxphi0, Dxphi0))) << endl;
   thx0 = theta(x0);
   phx0 = phi(x0, mu);
 
@@ -684,7 +736,7 @@ void InteriorPointSolver::filterCheck(double th, double ph)
   }
 }
 
-double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu)
+double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu, bool print)
 {
   double E1, E2, E3;
   double sc, sd;
@@ -709,8 +761,9 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
   ll1 =  l.Norml1();
   sc = max(sMax, zl1 / (double(dimM)) ) / sMax;
   sd = max(sMax, (ll1 + zl1) / (double(dimC + dimM))) / sMax;
-  if(iAmRoot)
+  if(iAmRoot && print)
   {
+    cout << "evaluating optimality error for mu = " << mu << endl;
     cout << "stationarity measure = "    << E1 / sd << endl;
     cout << "feasibility measure  = "    << E2      << endl;
     cout << "complimentarity measure = " << E3 / sc << endl;
@@ -718,9 +771,9 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
   return max(max(E1 / sd, E2), E3 / sc);
 }
 
-double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl)
+double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, bool print)
 {
-  return E(x, l, zl, 0.0);
+  return E(x, l, zl, 0.0, print);
 }
 
 double InteriorPointSolver::theta(const BlockVector &x)

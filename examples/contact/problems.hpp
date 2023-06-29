@@ -2,11 +2,13 @@
 #include <fstream>
 #include <iostream>
 
+
 using namespace std;
 using namespace mfem;
 
 #ifndef PROBLEM_DEFS
 #define PROBLEM_DEFS
+
 
 
 // abstract OptProblem class
@@ -34,6 +36,9 @@ public:
     virtual SparseMatrix* Duc(const BlockVector &) = 0;
     virtual SparseMatrix* Dmc(const BlockVector &) = 0;
     // TO DO: include Hessian terms of constraint c
+    // TO DO: include log-barrier lumped-mass and pass that
+    // to the optimizer
+    //virtual SparseMatrix* GetLogBarrierLumpedMass() = 0;
     int GetDimU() const { return dimU; };
     int GetDimM() const { return dimM; }; 
     int GetDimC() const { return dimC; };
@@ -53,7 +58,9 @@ protected:
     int dimS;
     Array<int> block_offsetsx;
 public:
-    ContactProblem(int, int);        // constructor
+    //ContactProblem(int, int);        // constructor
+    ContactProblem();
+    void InitializeParentData(int, int);
     double CalcObjective(const BlockVector &) const; // objective e
     void Duf(const BlockVector &, Vector &) const;
     void Dmf(const BlockVector &, Vector &) const;
@@ -64,11 +71,11 @@ public:
     void c(const BlockVector &, Vector &) const;
     SparseMatrix* Duc(const BlockVector &);
     SparseMatrix* Dmc(const BlockVector &);
-    virtual double E(const Vector &) const = 0;               // objective e(d) (energy function)
-    virtual void DdE(const Vector &, Vector &) const = 0;      // gradient of objective De / Dd
-    virtual SparseMatrix* DddE(const Vector &) = 0;  // Hessian of objective D^2 e / D d^2
-    virtual void g(const Vector &, Vector &) const = 0;       // inequality constraint g(d) >= 0 (gap function)
-    virtual SparseMatrix* Ddg(const Vector &) = 0;   // Jacobian of inequality constraint Dg / Dd
+    virtual double E(const Vector &) const = 0;           // objective e(d) (energy function)
+    virtual void DdE(const Vector &, Vector &) const = 0; // gradient of objective De / Dd
+    virtual SparseMatrix* DddE(const Vector &) = 0;       // Hessian of objective D^2 e / D d^2
+    virtual void g(const Vector &, Vector &) const = 0;   // inequality constraint g(d) >= 0 (gap function)
+    virtual SparseMatrix* Ddg(const Vector &) = 0;        // Jacobian of inequality constraint Dg / Dd
     int GetDimD() const { return dimD; };
     int GetDimS() const { return dimS; };
     virtual ~ContactProblem();
@@ -84,6 +91,7 @@ protected:
    LinearForm   *fform;
    Array<int> empty_tdof_list; // needed for calls to FormSystemMatrix
    SparseMatrix  K;
+   SparseMatrix  *J;
    FiniteElementSpace *Vh;
    Vector f;
 public : 
@@ -93,8 +101,33 @@ public :
    SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
    SparseMatrix* Ddg(const Vector &);
+   // TO DO: include lumped-mass for the log-barrier term
+   //SparseMatrix* GetLogBarrierLumpedMass();
    virtual ~ObstacleProblem();
 };
 
+class DirichletObstacleProblem : public ContactProblem
+{
+protected:
+   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d + \psi >= 0
+   // stiffness matrix used to define objective
+   BilinearForm *Kform;
+   LinearForm   *fform;
+   Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
+   SparseMatrix  *K;
+   SparseMatrix  *J;
+   FiniteElementSpace *Vh;
+   Vector f;
+   Vector psi;
+   Vector xDC;
+public : 
+   DirichletObstacleProblem(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);
+   double E(const Vector &) const;
+   void DdE(const Vector &, Vector &) const;
+   SparseMatrix* DddE(const Vector &);
+   void g(const Vector &, Vector &) const;
+   SparseMatrix* Ddg(const Vector &);
+   virtual ~DirichletObstacleProblem();
+};
 
 #endif

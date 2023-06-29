@@ -5,11 +5,12 @@
 //
 //
 
+#include <fstream>
+#include <iostream>
+#include <array>
 
 #include "mfem.hpp"
 #include "problems.hpp"
-#include <fstream>
-#include <iostream>
 
 using namespace std;
 using namespace mfem;
@@ -32,11 +33,35 @@ OptProblem::~OptProblem()
 // min E(d) s.t. g(d) >= 0
 // min_(d,s) E(d) s.t. c(d,s) := g(d) - s = 0, s >= 0
 
-ContactProblem::ContactProblem(int dimd, int dimg) : OptProblem(), dimD(dimd), dimS(dimg), block_offsetsx(3)
+/*ContactProblem::ContactProblem(int dimd, int dimg) : OptProblem(), dimD(dimd), dimS(dimg), block_offsetsx(3)
 {
   dimU = dimD;
   dimM = dimS;
   dimC = dimS;
+  block_offsetsx[0] = 0;
+  block_offsetsx[1] = dimU;
+  block_offsetsx[2] = dimM;
+  block_offsetsx.PartialSum();
+  ml.SetSize(dimM); ml = 0.0;
+}*/
+
+ContactProblem::ContactProblem() : OptProblem(), block_offsetsx(3)
+{
+  /*dimU = dimD;
+  dimM = dimS;
+  dimC = dimS;
+  block_offsetsx[0] = 0;
+  block_offsetsx[1] = dimU;
+  block_offsetsx[2] = dimM;
+  block_offsetsx.PartialSum();
+  ml.SetSize(dimM); ml = 0.0;*/
+}
+
+void ContactProblem::InitializeParentData(int dimd, int dims)
+{
+  dimU = dimd;
+  dimM = dims;
+  dimC = dims;
   block_offsetsx[0] = 0;
   block_offsetsx[1] = dimU;
   block_offsetsx[2] = dimM;
@@ -78,8 +103,13 @@ ContactProblem::~ContactProblem() {}
 
 
 
-ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem(fes->GetTrueVSize(), fes->GetTrueVSize()), Vh(fes), f(dimD)
+//ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem(fes->GetTrueVSize(), fes->GetTrueVSize()), Vh(fes), f(dimD)
+ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem()
 {
+  Vh = fes;
+  dimD = fes->GetTrueVSize();
+  dimS = fes->GetTrueVSize();
+  InitializeParentData(dimD, dimS);
   Kform = new BilinearForm(Vh);
   Kform->AddDomainIntegrator(new MassIntegrator);
   Kform->AddDomainIntegrator(new DiffusionIntegrator);
@@ -91,7 +121,12 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
   fform = new LinearForm(Vh);
   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
   fform->Assemble();
+  f.SetSize(dimD);
   f.Set(1.0, *fform);
+
+  Vector iDiag(dimD); iDiag = 1.0;
+  J = new SparseMatrix(iDiag);
+
 }
 
 double ObstacleProblem::E(const Vector &d) const
@@ -120,62 +155,159 @@ void ObstacleProblem::g(const Vector &d, Vector &gd) const
 
 SparseMatrix* ObstacleProblem::Ddg(const Vector &d)
 {
-  Vector iDiag(dimD); iDiag = 1.0;
-  return new SparseMatrix(iDiag);
+  return new SparseMatrix(*J);
 }
 
 ObstacleProblem::~ObstacleProblem()
 {
   delete Kform;
   delete fform;
+  delete J;
 }
 
+//-------------------
+DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vector &x0DC, double (*fSource)(const Vector &), 
+		double (*obstacleSource)(const Vector &),
+		Array<int> tdof_list) : ContactProblem()
+{
+  Vh = fes;
+  ess_tdof_list = tdof_list; 
+  dimD = fes->GetTrueVSize();
+  //dimS = dimD;
+  dimS = dimD - ess_tdof_list.Size();
+  InitializeParentData(dimD, dimS);
 
+  xDC.SetSize(dimD);
+  xDC.Set(1.0, x0DC);
+  
+  // define Hessian of energy objective
+  // K = [[ \hat{K}   0]
+  //      [ 0         I]]
+  // where \hat{K} acts on dofs not constrained by the Dirichlet condition
+  // I acts on dofs constrained by the Dirichlet condition
+  Kform = new BilinearForm(Vh);
+  Kform->AddDomainIntegrator(new DiffusionIntegrator);
+  Kform->Assemble();
+  Kform->EliminateVDofs(ess_tdof_list);
+  Kform->Finalize();
+  K = new SparseMatrix(Kform->SpMat());
+  
+  // define right hand side dual-vector
+  // f_i = int fSource(x) \phi_i(x) dx, where {\phi_i}_i is the FE basis
+  // f = f - K1 xDC, where K1 contains the eliminated part of K
+  FunctionCoefficient fcoeff(fSource);
+  fform = new LinearForm(Vh);
+  fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+  fform->Assemble();
+  f.SetSize(dimD);
+  f.Set(1.0, *fform);
+  Kform->EliminateVDofsInRHS(ess_tdof_list, xDC, f);
 
-//QPContactExample::QPContactExample(SparseMatrix *Kin, SparseMatrix *Jin, Vector *fin) : 
-//ContactProblem(Kin->Height()), K(Kin), J(Jin), f(fin) { 
-//  dimD = J->Width();
-//  dimS = J->Height();
-//  /* ---- boiler plate code ---- */
-//  dimM = dimS;
-//  dimC = dimS;
-//  block_offsetsx[0] = 0;
-//  block_offsetsx[1] = dimU;
-//  block_offsetsx[2] = dimM;
-//  block_offsetsx.PartialSum();
-//  ml.SetSize(dimM); ml = 0.0;
-//  /* ---- end boiler plate ---- */
-//}
-//
-//double QPContactExample::E(const Vector &d) const
-//{
-//  Vector Kd(dimD); Kd = 0.0;
-//  K->Mult(d, Kd);
-//  return 0.5 * InnerProduct(d, Kd) + InnerProduct(*f, d);
-//}
-//
-//void QPContactExample::DdE(const Vector &d, Vector &gradE) const
-//{
-//  K->Mult(d, gradE);
-//  gradE.Add(1.0, *f);
-//}
-//
-//SparseMatrix* QPContactExample::DddE(const Vector &d)
-//{
-//  return new SparseMatrix(*K); 
-//}
-//
-//// g(d) = J d >= 0
-//void QPContactExample::g(const Vector &d, Vector &gd) const
-//{
-//  J->Mult(d, gd);
-//}
-//
-//SparseMatrix* QPContactExample::Ddg(const Vector &d)
-//{
-//  return new SparseMatrix(*J);
-//}
-//
-//QPContactExample::~QPContactExample() {}
+  // define obstacle function
+  FunctionCoefficient psicoeff(obstacleSource);
+  GridFunction psi_gf(Vh);
+  psi_gf.ProjectCoefficient(psicoeff);
+  
+  J = new SparseMatrix(dimS, dimD);
+  psi.SetSize(dimS); psi = 0.0;
+  bool freeDof;
+
+  
+  // ------ begin dimD x dimD Jacobian with null-columns
+  /*for(int j = 0; j < dimD; j++)
+  {
+    freeDof = true;
+    for(int i = 0; i < ess_tdof_list.Size(); i++)
+    {
+      if(j == ess_tdof_list[i])
+      {
+        freeDof = false;
+      }
+    }
+    mfem::Vector v_tmp;
+    v_tmp.SetSize(1);
+    if (freeDof)
+    {
+      //xDC(j) = 0.0;
+      v_tmp(0) = 1.0;
+      Array<int> col_tmp;
+      col_tmp.SetSize(1);
+      col_tmp[0] = j;
+      psi(j) = psi_gf(j);
+      J->SetRow(j, col_tmp, v_tmp);
+    }
+  }
+  J->Finalize();*/
+  
+  
+  // ------ begin dimS x dimD Jacobian construction with nonzero Columns 
+  int rowCount = 0;
+  J = new SparseMatrix(dimS, dimD);
+  psi.SetSize(dimS);
+  for(int j = 0; j < dimD; j++)
+  {
+    freeDof = true;
+    for(int i = 0; i < ess_tdof_list.Size(); i++)
+    {
+      if( j == ess_tdof_list[i])
+      {
+        freeDof = false;
+      }
+    }
+    if (freeDof)
+    {
+      Array<int> col_tmp;
+      col_tmp.SetSize(1);
+      col_tmp[0] = j;
+      mfem::Vector v_tmp;
+      v_tmp.SetSize(1);
+      v_tmp(0) = 1.0;
+      J->SetRow(rowCount, col_tmp, v_tmp);
+      psi(rowCount) = psi_gf(j);
+      rowCount += 1;      
+    }
+  }
+  J->Finalize();
+}
+
+double DirichletObstacleProblem::E(const Vector &d) const
+{
+  Vector Kd(dimD); Kd = 0.0;
+  K->Mult(d, Kd);
+  return 0.5 * InnerProduct(d, Kd) - InnerProduct(f, d);
+}
+
+void DirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
+{
+  K->Mult(d, gradE);
+  gradE.Add(-1.0, f);
+}
+
+SparseMatrix* DirichletObstacleProblem::DddE(const Vector &d)
+{
+  return new SparseMatrix(*K); 
+}
+
+// g(d) = d - \psi >= 0
+//        d - \psi - s  = 0
+//                   s >= 0
+void DirichletObstacleProblem::g(const Vector &d, Vector &gd) const
+{
+  J->Mult(d, gd);
+  gd.Add(-1., psi);
+}
+
+SparseMatrix* DirichletObstacleProblem::Ddg(const Vector &d)
+{
+  return new SparseMatrix(*J);
+}
+
+DirichletObstacleProblem::~DirichletObstacleProblem()
+{
+  delete Kform;
+  delete fform;
+  delete J;
+  delete K;
+}
 
 

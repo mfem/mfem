@@ -50,6 +50,13 @@ protected:
     int linSolver;
 
 
+    // not sure if this data is needed or if it can 
+    // all be accounted for in the problem class
+    // which variables have equality constraints
+    //Array<int> eqConstrainedVariables;
+    //Array<double> eqConstrainedValues;
+
+
 
 public:
     InteriorPointSolver(OptProblem*);
@@ -62,8 +69,8 @@ public:
     void lineSearch(BlockVector& , BlockVector& , double);
     void projectZ(const Vector & , Vector &, double);
     void filterCheck(double, double);
-    double E(const BlockVector &, const Vector &, const Vector &, double);
-    double E(const BlockVector &, const Vector &, const Vector &);
+    double E(const BlockVector &, const Vector &, const Vector &, double, bool);
+    double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);
