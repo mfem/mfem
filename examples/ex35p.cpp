@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
    bool herm_conv = true;
    bool slu_solver  = false;
    bool visualization = 1;
+   bool mixed = true;
    bool pa = false;
    const char *device_config = "cpu";
 
@@ -125,6 +126,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&mixed, "-mixed", "--mixed-mesh", "-hex",
+                  "--hex-mesh", "Mixed mesh of hexahedral mesh.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -139,6 +142,11 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   if (!mixed || pa)
+   {
+      mesh_file = "../data/fichera.mesh";
+   }
+
    if ( a_coef != 0.0 )
    {
       mu_ = 1.0 / a_coef;
@@ -148,7 +156,8 @@ int main(int argc, char *argv[])
       omega = 2.0 * M_PI * freq;
    }
    if (port_bc_attr.Size() == 0 &&
-       strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0)
+       (strcmp(mesh_file, "../data/fichera-mixed.mesh") == 0 ||
+        strcmp(mesh_file, "../data/fichera.mesh") == 0))
    {
       port_bc_attr.SetSize(4);
       port_bc_attr[0] =  7;
