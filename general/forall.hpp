@@ -23,6 +23,22 @@
 namespace mfem
 {
 
+// The following DofQuadLimit_ structs define the maximum values of D1D and Q1D
+// often used in the "fallback kernels" for partial assembly. Different limits
+// take effect for different architectures. The limits should be queried using
+// the public interface in DeviceDofQuadLimits or DofQuadLimits, and generally
+// not be directly accessing the structs defined below.
+//
+// In host code, the limits associated with the currently configured Device can
+// be accessed using DeviceDofQuadLimits::Get().
+//
+// In mfem::forall kernels or MFEM_HOST_DEVICE functions, the limits
+// corresponding to the architecture the function is being compiled for can be
+// accessed as static constexpr variables using the type alias DofQuadLimits.
+
+namespace internal
+{
+
 struct DofQuadLimits_CUDA
 {
    static constexpr int MAX_D1D = 10;
@@ -58,15 +74,43 @@ struct DofQuadLimits_CPU
    static constexpr int HDIV_MAX_Q1D = 10;
 };
 
+} // namespace internal
+
+/// @brief Maximum number of 1D DOFs or quadrature points for the architecture
+/// currently being compiled for (used in fallback kernels).
+///
+/// DofQuadLimits provides access to the limits as static constexpr member
+/// variables for use in mfem::forall kernels or MFEM_HOST_DEVICE functions.
+///
+/// @sa For accessing the limits according to the runtime configuration of the
+/// Device, see DeviceDofQuadLimits.
+#if defined(__CUDA_ARCH__)
+using DofQuadLimits = internal::DofQuadLimits_CUDA;
+#elif defined(__HIP_DEVICE_COMPILE__)
+using DofQuadLimits = internal::DofQuadLimits_HIP;
+#else
+using DofQuadLimits = internal::DofQuadLimits_CPU;
+#endif
+
+/// @brief Maximum number of 1D DOFs or quadrature points for the current
+/// runtime configuration of the Device (used in fallback kernels).
+///
+/// DeviceDofQuadLimits can be used in host code to query the limits for the
+/// configured device (e.g. when the user has selected GPU executation at
+/// runtime).
+///
+/// @sa For accessing the limits according to the current compiler pass, see
+/// DofQuadLimits.
 struct DeviceDofQuadLimits
 {
-   int MAX_D1D;
-   int MAX_Q1D;
-   int HCURL_MAX_D1D;
-   int HCURL_MAX_Q1D;
-   int HDIV_MAX_D1D;
-   int HDIV_MAX_Q1D;
+   int MAX_D1D; ///< Maximum number of 1D nodal points.
+   int MAX_Q1D; ///< Maximum number of 1D quadrature points.
+   int HCURL_MAX_D1D; ///< Maximum number of 1D nodal points for H(curl).
+   int HCURL_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(curl).
+   int HDIV_MAX_D1D; ///< Maximum number of 1D nodal points for H(div).
+   int HDIV_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(div).
 
+   /// Return a const reference to the DeviceDofQuadLimits singleton.
    static const DeviceDofQuadLimits &Get()
    {
       static const DeviceDofQuadLimits dof_quad_limits;
@@ -74,15 +118,19 @@ struct DeviceDofQuadLimits
    }
 
 private:
+   /// Initialize the limits depending on the configuration of the Device.
    DeviceDofQuadLimits()
    {
-      if (Device::Allows(Backend::CUDA_MASK)) { Populate<DofQuadLimits_CUDA>(); }
-      else if (Device::Allows(Backend::HIP_MASK)) { Populate<DofQuadLimits_HIP>(); }
-      else { Populate<DofQuadLimits_CPU>(); }
+      if (Device::Allows(Backend::CUDA_MASK)) { Populate<internal::DofQuadLimits_CUDA>(); }
+      else if (Device::Allows(Backend::HIP_MASK)) { Populate<internal::DofQuadLimits_HIP>(); }
+      else { Populate<internal::DofQuadLimits_CPU>(); }
    }
 
-   template <typename T>
-   void Populate()
+   /// @brief Set the limits using the static members of the type @a T.
+   ///
+   /// @a T should be one of DofQuadLimits_CUDA, DofQuadLimits_HIP, or
+   /// DofQuadLimits_CPU.
+   template <typename T> void Populate()
    {
       MAX_D1D = T::MAX_D1D;
       MAX_Q1D = T::MAX_Q1D;
@@ -92,15 +140,6 @@ private:
       HDIV_MAX_Q1D = T::HDIV_MAX_Q1D;
    }
 };
-
-// Maximum size of dofs and quads in 1D.
-#if defined(__CUDA_ARCH__)
-using DofQuadLimits = DofQuadLimits_CUDA;
-#elif defined(__HIP_DEVICE_COMPILE__)
-using DofQuadLimits = DofQuadLimits_HIP;
-#else
-using DofQuadLimits = DofQuadLimits_CPU;
-#endif
 
 // MFEM pragma macros that can be used inside MFEM_FORALL macros.
 #define MFEM_PRAGMA(X) _Pragma(#X)
