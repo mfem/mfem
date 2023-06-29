@@ -479,7 +479,18 @@ int main(int argc, char *argv[])
 
    ParGridFunction load_gf(&state_fes); 
    ParGridFunction load_gf1(&state_fes); 
-   random_load_solver.SetupRandomFieldGenerator(world_rank+1);
+
+   // generate random seeds;
+   std::mt19937 gen(1); // seed the generator
+   std::uniform_int_distribution<> distr(1, max_cumulative_samples); // define the range
+   Array<int> seed_array(max_cumulative_samples);
+   for(int i=0; i<max_cumulative_samples; i++)
+   {
+      seed_array[i] = distr(gen); // generate numbers
+   }
+   
+   // random_load_solver.SetupRandomFieldGenerator(world_rank+1);
+   random_load_solver.SetupRandomFieldGenerator(seed_array[world_rank]+1);
    random_load_solver.GenerateRandomField(load_gf);
 
    random_load_solver1.SetupRandomFieldGenerator(world_rank+3000);
@@ -662,6 +673,7 @@ int main(int argc, char *argv[])
          {
             if (prob == prob_type::stochastic)
             {
+               random_load_solver.SetupRandomFieldGenerator(seed_array[ib*world_size + world_rank]+1);
                random_load_solver.GenerateRandomField(load_gf);
                if (mirror) random_load_solver1.GenerateRandomField(load_gf1);
             }
