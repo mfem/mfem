@@ -96,9 +96,29 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix*,Mat*);
 
 #if PETSC_VERSION_GE(3,15,0) && defined(PETSC_HAVE_DEVICE)
 #if defined(MFEM_USE_CUDA) && defined(PETSC_HAVE_CUDA)
-#ifndef _USE_DEVICE
 #define _USE_DEVICE
-#endif
+#define PETSC_VECDEVICE VECCUDA
+#define PETSC_MATAIJDEVICE MATAIJCUSPARSE
+#define VecDeviceGetArrayRead      VecCUDAGetArrayRead
+#define VecDeviceGetArrayWrite     VecCUDAGetArrayWrite
+#define VecDeviceGetArray          VecCUDAGetArray
+#define VecDeviceRestoreArrayRead  VecCUDARestoreArrayRead
+#define VecDeviceRestoreArrayWrite VecCUDARestoreArrayWrite
+#define VecDeviceRestoreArray      VecCUDARestoreArray
+#define VecDevicePlaceArray        VecCUDAPlaceArray
+#define VecDeviceResetArray        VecCUDAResetArray
+#elif defined(MFEM_USE_HIP) && defined(PETSC_HAVE_HIP)
+#define _USE_DEVICE
+#define PETSC_VECDEVICE VECHIP
+#define PETSC_MATAIJDEVICE MATAIJHIPSPARSE
+#define VecDeviceGetArrayRead      VecHIPGetArrayRead
+#define VecDeviceGetArrayWrite     VecHIPGetArrayWrite
+#define VecDeviceGetArray          VecHIPGetArray
+#define VecDeviceRestoreArrayRead  VecHIPRestoreArrayRead
+#define VecDeviceRestoreArrayWrite VecHIPRestoreArrayWrite
+#define VecDeviceRestoreArray      VecHIPRestoreArray
+#define VecDevicePlaceArray        VecHIPPlaceArray
+#define VecDeviceResetArray        VecHIPResetArray
 #endif
 #endif
 
@@ -178,10 +198,26 @@ void MFEMInitializePetsc(int *argc,char*** argv)
 void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],
                          const char help[])
 {
+   // Tell PETSc to use the same CUDA or HIP device as MFEM:
    if (mfem::Device::Allows(mfem::Backend::CUDA_MASK))
    {
-      // Tell PETSc to use the same CUDA device as MFEM:
-      ierr = PetscOptionsSetValue(NULL,"-cuda_device",
+#if PETSC_VERSION_LT(3,17,0)
+      const char *opts = "-cuda_device";
+#else
+      const char *opts = "-device_select_cuda";
+#endif
+      ierr = PetscOptionsSetValue(NULL,opts,
+                                  to_string(mfem::Device::GetId()).c_str());
+      MFEM_VERIFY(!ierr,"Unable to set initial option value to PETSc");
+   }
+   if (mfem::Device::Allows(mfem::Backend::HIP_MASK))
+   {
+#if PETSC_VERSION_LT(3,17,0)
+      const char *opts = "-hip_device";
+#else
+      const char *opts = "-device_select_hip";
+#endif
+      ierr = PetscOptionsSetValue(NULL,opts,
                                   to_string(mfem::Device::GetId()).c_str());
       MFEM_VERIFY(!ierr,"Unable to set initial option value to PETSc");
    }
@@ -219,15 +255,18 @@ void PetscParVector::SetDataAndSize_()
 {
    PetscScalar *array;
    PetscInt    n;
+   PetscBool   isnest;
 
    MFEM_VERIFY(x,"Missing Vec");
    ierr = VecSetUp(x); PCHKERRQ(x,ierr);
+   ierr = PetscObjectTypeCompare((PetscObject)x,VECNEST,&isnest); PCHKERRQ(x,ierr);
+   MFEM_VERIFY(!isnest,"Not for type nest");
    ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
    MFEM_VERIFY(n >= 0,"Invalid local size");
    size = n;
 #if defined(PETSC_HAVE_DEVICE)
    PetscOffloadMask omask;
-   PetscBool        iscuda;
+   PetscBool        isdevice;
 
    ierr = VecGetOffloadMask(x,&omask); PCHKERRQ(x,ierr);
    if (omask != PETSC_OFFLOAD_BOTH)
@@ -237,18 +276,20 @@ void PetscParVector::SetDataAndSize_()
 #endif
    ierr = VecGetArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
 #if defined(PETSC_HAVE_DEVICE)
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (iscuda)
+   if (isdevice)
    {
       if (omask != PETSC_OFFLOAD_BOTH)
       {
          ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
       }
       PetscScalar *darray;
-      ierr = VecCUDAGetArrayRead(x,(const PetscScalar**)&darray); PCHKERRQ(x,ierr);
+      ierr = VecDeviceGetArrayRead(x,(const PetscScalar**)&darray);
+      PCHKERRQ(x,ierr);
       pdata.Wrap(array,darray,size,MemoryType::HOST,false);
-      ierr = VecCUDARestoreArrayRead(x,(const PetscScalar**)&darray);
+      ierr = VecDeviceRestoreArrayRead(x,(const PetscScalar**)&darray);
       PCHKERRQ(x,ierr);
    }
    else
@@ -259,6 +300,7 @@ void PetscParVector::SetDataAndSize_()
    ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
 
 #if defined(PETSC_HAVE_DEVICE)
+   if (omask == PETSC_OFFLOAD_UNALLOCATED && isdevice) { omask = PETSC_OFFLOAD_CPU; }
    ierr = __mfem_VecSetOffloadMask(x,omask); PCHKERRQ(x,ierr);
 #endif
    data.MakeAlias(pdata,0,size);
@@ -270,11 +312,12 @@ void PetscParVector::SetFlagsFromMask_() const
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(_USE_DEVICE)
    PetscOffloadMask mask;
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
    ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
-   if (iscuda)
+   if (isdevice)
    {
       switch (mask)
       {
@@ -303,10 +346,11 @@ void PetscParVector::UpdateVecFromFlags()
    MFEM_VERIFY(x,"Missing Vec");
    ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
 #if defined(_USE_DEVICE)
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (iscuda)
+   if (isdevice)
    {
       bool dv = pdata.DeviceIsValid();
       bool hv = pdata.HostIsValid();
@@ -337,7 +381,7 @@ void PetscParVector::SetVecType_()
    {
       case MemoryType::DEVICE:
       case MemoryType::MANAGED:
-         ierr = VecSetType(x,VECCUDA); PCHKERRQ(x,ierr);
+         ierr = VecSetType(x,PETSC_VECDEVICE); PCHKERRQ(x,ierr);
          break;
       default:
          ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
@@ -356,13 +400,14 @@ const double* PetscParVector::Read(bool on_dev) const
    const PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(PETSC_HAVE_DEVICE)
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (on_dev && iscuda)
+   if (on_dev && isdevice)
    {
-      ierr = VecCUDAGetArrayRead(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecCUDARestoreArrayRead(x,&dummy); PCHKERRQ(x,ierr);
+      ierr = VecDeviceGetArrayRead(x,&dummy); PCHKERRQ(x,ierr);
+      ierr = VecDeviceRestoreArrayRead(x,&dummy); PCHKERRQ(x,ierr);
    }
    else
 #endif
@@ -384,13 +429,14 @@ double* PetscParVector::Write(bool on_dev)
    PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(PETSC_HAVE_DEVICE)
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (on_dev && iscuda)
+   if (on_dev && isdevice)
    {
-      ierr = VecCUDAGetArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecCUDARestoreArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
+      ierr = VecDeviceGetArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
+      ierr = VecDeviceRestoreArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
    }
    else
 #endif
@@ -413,13 +459,14 @@ double* PetscParVector::ReadWrite(bool on_dev)
    PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(PETSC_HAVE_DEVICE)
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (on_dev && iscuda)
+   if (on_dev && isdevice)
    {
-      ierr = VecCUDAGetArray(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecCUDARestoreArray(x,&dummy); PCHKERRQ(x,ierr);
+      ierr = VecDeviceGetArray(x,&dummy); PCHKERRQ(x,ierr);
+      ierr = VecDeviceRestoreArray(x,&dummy); PCHKERRQ(x,ierr);
    }
    else
 #endif
@@ -480,14 +527,15 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
       PetscErrorCode (*rest)(Vec,PetscScalar**);
       PetscScalar *array;
 #if defined(PETSC_HAVE_DEVICE)
-      PetscBool iscuda;
-      ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+      PetscBool isdevice;
+      ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                       VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                        ""); PCHKERRQ(x,ierr);
-      if (iscuda && x_.UseDevice())
+      if (isdevice && x_.UseDevice())
       {
          UseDevice(true);
-         ierr = VecCUDAGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
-         rest = VecCUDARestoreArrayWrite;
+         ierr = VecDeviceGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
+         rest = VecDeviceRestoreArrayWrite;
       }
       else
 #endif
@@ -738,17 +786,18 @@ void PetscParVector::PlaceMemory(Memory<double>& mem, bool rw)
    MFEM_VERIFY(pdata.Empty(),"Vector data is not empty");
    MFEM_VERIFY(data.Empty(),"Vector data is not empty");
 #if defined(_USE_DEVICE)
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (iscuda)
+   if (isdevice)
    {
       bool usedev = mem.DeviceIsValid() || (!rw && mem.UseDevice());
       pdata.MakeAliasForSync(mem,0,n,rw,true,usedev);
       if (usedev)
       {
          ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
-         ierr = VecCUDAPlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
+         ierr = VecDevicePlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
       }
       else
       {
@@ -780,16 +829,17 @@ void PetscParVector::PlaceMemory(const Memory<double>& mem)
    MFEM_VERIFY(pdata.Empty(),"Vector data is not empty");
    MFEM_VERIFY(data.Empty(),"Vector data is not empty");
 #if defined(_USE_DEVICE)
-   PetscBool iscuda;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&iscuda,VECSEQCUDA,VECMPICUDA,
+   PetscBool isdevice;
+   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
+                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (iscuda)
+   if (isdevice)
    {
       pdata.MakeAliasForSync(mem,0,n,mem.DeviceIsValid());
       if (mem.DeviceIsValid())
       {
          ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
-         ierr = VecCUDAPlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
+         ierr = VecDevicePlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
       }
       else
       {
@@ -845,7 +895,7 @@ void PetscParVector::ResetMemory()
    if (usedev)
    {
 #if defined(PETSC_HAVE_DEVICE)
-      ierr = VecCUDAResetArray(x); PCHKERRQ(x,ierr);
+      ierr = VecDeviceResetArray(x); PCHKERRQ(x,ierr);
 #else
       MFEM_VERIFY(false,"This should not happen");
 #endif
@@ -1286,7 +1336,7 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
    MemoryType mt = GetMemoryType(op->GetMemoryClass());
    if (mt == MemoryType::DEVICE || mt == MemoryType::MANAGED)
    {
-      ierr = MatShellSetVecType(*A,VECCUDA); PCHKERRQ(A,ierr);
+      ierr = MatShellSetVecType(*A,PETSC_VECDEVICE); PCHKERRQ(A,ierr);
       ierr = MatBindToCPU(*A,PETSC_FALSE); PCHKERRQ(A,ierr);
    }
    else
@@ -1739,9 +1789,10 @@ void PetscParMatrix::SetUpForDevice()
 #if !defined(_USE_DEVICE)
    return;
 #else
-   if (!A || !Device::Allows(Backend::CUDA_MASK)) { return; }
+   if (!A || (!Device::Allows(Backend::CUDA_MASK) &&
+              !Device::Allows(Backend::HIP_MASK))) { return; }
 
-   PetscBool ismatis,isnest,isseqaij,ismpiaij;
+   PetscBool ismatis,isnest,isaij;
    ierr = PetscObjectTypeCompare((PetscObject)A,MATIS,&ismatis);
    PCHKERRQ(A,ierr);
    ierr = PetscObjectTypeCompare((PetscObject)A,MATNEST,&isnest);
@@ -1767,19 +1818,11 @@ void PetscParMatrix::SetUpForDevice()
             {
                bool expT = false;
                Mat sA = sub[i][j];
-               ierr = PetscObjectTypeCompare((PetscObject)sA,MATSEQAIJ,&isseqaij);
+               ierr = PetscObjectTypeCompareAny((PetscObject)sA,&isaij,MATSEQAIJ,MATMPIAIJ,"");
                PCHKERRQ(sA,ierr);
-               ierr = PetscObjectTypeCompare((PetscObject)sA,MATMPIAIJ,&ismpiaij);
-               PCHKERRQ(sA,ierr);
-               if (isseqaij)
+               if (isaij)
                {
-                  ierr = MatSetType(sA,MATSEQAIJCUSPARSE); PCHKERRQ(sA,ierr);
-                  dvec = true;
-                  expT = true;
-               }
-               else if (ismpiaij)
-               {
-                  ierr = MatSetType(sA,MATMPIAIJCUSPARSE); PCHKERRQ(sA,ierr);
+                  ierr = MatSetType(sA,PETSC_MATAIJDEVICE); PCHKERRQ(sA,ierr);
                   dvec = true;
                   expT = true;
                }
@@ -1793,24 +1836,17 @@ void PetscParMatrix::SetUpForDevice()
       }
       if (dvec)
       {
-         ierr = MatSetVecType(tA,VECCUDA); PCHKERRQ(tA,ierr);
+         ierr = MatSetVecType(tA,PETSC_VECDEVICE); PCHKERRQ(tA,ierr);
       }
    }
    else
    {
       bool expT = false;
-      ierr = PetscObjectTypeCompare((PetscObject)tA,MATSEQAIJ,&isseqaij);
+      ierr = PetscObjectTypeCompareAny((PetscObject)tA,&isaij,MATSEQAIJ,MATMPIAIJ,"");
       PCHKERRQ(tA,ierr);
-      ierr = PetscObjectTypeCompare((PetscObject)tA,MATMPIAIJ,&ismpiaij);
-      PCHKERRQ(tA,ierr);
-      if (isseqaij)
+      if (isaij)
       {
-         ierr = MatSetType(tA,MATSEQAIJCUSPARSE); PCHKERRQ(tA,ierr);
-         expT = true;
-      }
-      else if (ismpiaij)
-      {
-         ierr = MatSetType(tA,MATMPIAIJCUSPARSE); PCHKERRQ(tA,ierr);
+         ierr = MatSetType(tA,PETSC_MATAIJDEVICE); PCHKERRQ(tA,ierr);
          expT = true;
       }
       if (expT)
