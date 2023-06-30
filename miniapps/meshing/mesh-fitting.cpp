@@ -916,7 +916,7 @@ int main(int argc, char *argv[])
                                    600, 680, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
                                    "Dofs to Move",
-                                   900, 600, 300, 300);
+                                   900, 680, 300, 300);
          }
          mesh->SetNodalGridFunction(&x);
       }
@@ -1200,7 +1200,7 @@ int main(int argc, char *argv[])
                                    600, 680, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
                                    "Surface dof",
-                                   900, 900, 300, 300);
+                                   900, 680, 300, 300);
          }
          double err_avg, err_max;
          tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
