@@ -421,8 +421,8 @@ endif
 DIRS = general general/jit linalg linalg/simd mesh mesh/submesh \
 		 fem fem/ceed/interface fem/ceed/integrators/mass \
 		 fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
-		 fem/ceed/integrators/nlconvection fem/ceed/solvers \
-		 fem/fe fem/lor fem/qinterp fem/tmop
+		 fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
+		 fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -466,8 +466,8 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 else
 # JIT compilation rules
 # Files that will be preprocessed
-JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
-$(SRC)fem/bilininteg_mass_pa.cpp
+JIT_SOURCE_FILES = $(SRC)fem/integ/bilininteg_diffusion_kernels.cpp \
+$(SRC)fem/integ/bilininteg_mass_kernels.cpp
 
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
@@ -624,7 +624,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mjit)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mjit mjit.dSYM)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

@@ -84,7 +84,7 @@ header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
 	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
-                   $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
+	           $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \

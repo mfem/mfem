@@ -364,6 +364,8 @@ tests/unit/ceed_tests
 tests/unit/mjit_tests
 tests/unit/pmjit_tests
 tests/unit/debug_device_tests
+tests/unit/parallel_in_serial.mesh
+tests/unit/parallel_in_serial.gf
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed

@@ -444,7 +444,7 @@ struct Parser
 
       // these settings are global to MFEM
       const char *cxx = "" MFEM_CXX;
-      const char *libs = "" MFEM_EXT_LIBS;
+      const char *libs = "-L" MFEM_INSTALL_DIR "/lib -lmfem " MFEM_EXT_LIBS;
       const char *link = "" MFEM_LINK_FLAGS;
       const char *flags = "" MFEM_BUILD_FLAGS;
 

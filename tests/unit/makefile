@@ -289,4 +289,4 @@ $(MFEM_LIB_FILE):
 
 clean:
 	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
-	rm -rf *.dSYM output_meshes libmjit.*
+	rm -rf *.dSYM output_meshes libmjit* parallel_in_serial.mesh parallel_in_serial.gf
