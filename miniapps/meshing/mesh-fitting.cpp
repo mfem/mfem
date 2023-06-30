@@ -683,7 +683,6 @@ int main(int argc, char *argv[])
       {
          // Define a function coefficient (based on the analytic description of
          // the level-set)
-         //FunctionCoefficient ls_coeff(circle_level_set);
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
 
          // Now p-refine the elements around the interface
@@ -697,9 +696,6 @@ int main(int argc, char *argv[])
             int max_order = fespace->GetMaxElementOrder();
             std::vector<int> faces_order_increase;
 
-            FiniteElementSpace *fes_test_1 = x_max_order->FESpace();
-            FiniteElementSpace *fes_test_2 = surf_fit_gf0_max_order->FESpace();
-
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
             for (int i=0; i < mesh->GetNumFaces(); i++)
@@ -712,6 +708,7 @@ int main(int argc, char *argv[])
                   int mat2 = mat(els[1]);
                   if (mat1 != mat2)
                   {
+                      // Attention: if we don't use a bg mesh, that will segfault because of this line
                      double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
                                                                     surf_fit_bg_gf0,
                                                                     i,
@@ -726,7 +723,6 @@ int main(int argc, char *argv[])
                }
             }
             mesh->SetNodalGridFunction(&x);
-
             for (int i=0; i<faces_order_increase.size(); i++)
             {
                Array<int> els;
@@ -784,6 +780,7 @@ int main(int argc, char *argv[])
                }
             }
          }
+          std::cout << "Test 2" << std::endl;
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
          if (surf_bg_mesh)
          {
@@ -914,9 +911,6 @@ int main(int argc, char *argv[])
                                         "Grad",
                                         300, 600, 300, 300);
              }
-            common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
-                                   "Level Set",
-                                   300, 600, 300, 300);
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
                                    600, 600, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
@@ -1270,19 +1264,18 @@ int main(int argc, char *argv[])
     if (visualization)
     {
         mesh->SetNodalGridFunction(x_max_order);
-        socketstream vis1;
+        socketstream vis1, vis2, vis3;
         common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order after p-refinement",
                                1100, 0, 500, 500);
         mesh->SetNodalGridFunction(&x);
         if (surf_bg_mesh)
         {
-            socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
                                    "Background Mesh - Level Set Gradrient",
-                                   1200, 600, 300, 300);
+                                   0, 680, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_bg_gf0,
                                    "Background Mesh - Level Set",
-                                   1200, 600, 300, 300);
+                                   0, 680, 300, 300);
         }
     }
 
