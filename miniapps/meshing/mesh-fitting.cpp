@@ -876,11 +876,6 @@ int main(int argc, char *argv[])
 #endif
          }
          else { MFEM_ABORT("Bad interpolation option."); }
-         std::cout << "1.6. " << std::endl;
-         std::cout << "surf fit bg mesh size " <<
-                   surf_fit_bg_gf0->FESpace()->GetMesh()->GetNodes()->Size() << std::endl;
-         std::cout << "surf fit bg fes dofs " << surf_fit_bg_gf0->FESpace()->GetNDofs()
-                   << std::endl;
          if (!surf_bg_mesh)
          {
             tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
@@ -1204,7 +1199,7 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          char title[] = "Final metric values";
-         vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
+         vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 400);
       }
 
 
