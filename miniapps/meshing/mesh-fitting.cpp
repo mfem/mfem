@@ -291,6 +291,7 @@ int main(int argc, char *argv[])
    int mesh_node_ordering = 0;
    bool prefine          = true;
    int pref_order_increase = 1;
+   int pref_max_order    = 2;
    bool surf_bg_mesh     = true;
 
    // 1. Parse command-line options.
@@ -368,6 +369,8 @@ int main(int argc, char *argv[])
                   "Randomly p-refine the mesh.");
    args.AddOption(&pref_order_increase, "-oi", "--preforderincrease",
                   "How much polynomial order to increase for p-refinement.");
+   args.AddOption(&pref_max_order, "-mo", "--prefmaxorder",
+                   "Maximum polynomial order for p-refinement.");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh","--no-surf-bg-mesh",
                   "Use background mesh for surface fitting.");
@@ -670,8 +673,7 @@ int main(int argc, char *argv[])
    // TODO: BOUCLE
    std::vector<int>
    inter_faces;   // Vector to save the faces between two different materials
-   int max_iter_pref(4);
-   for (int iter_pref=0; iter_pref<max_iter_pref; iter_pref++)
+   for (int iter_pref=0; iter_pref<pref_max_order-1; iter_pref++)
    {
       std::cout << "BOUCLE j: " << iter_pref << std::endl;
 
@@ -1184,7 +1186,7 @@ int main(int argc, char *argv[])
 
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the final mesh and metric values.
-      if (visualization && iter_pref==max_iter_pref-1)
+      if (visualization && iter_pref==pref_max_order-2)
       {
          char title[] = "Final metric values";
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 500);
@@ -1193,7 +1195,7 @@ int main(int argc, char *argv[])
       // Visualize fitting surfaces and report fitting errors.
       if (surface_fit_const > 0.0)
       {
-         if (visualization && iter_pref==max_iter_pref-1)
+         if (visualization && iter_pref==pref_max_order-2)
          {
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
