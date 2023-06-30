@@ -658,6 +658,25 @@ int main(int argc, char *argv[])
       }
    }
 
+   if (visualization)
+   {
+       mesh->SetNodalGridFunction(x_max_order);
+       socketstream vis1;
+       common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial before after p-refinement",
+                               1200, 0, 400, 400);
+       mesh->SetNodalGridFunction(&x);
+       if (surf_bg_mesh)
+       {
+           socketstream vis2, vis3;
+           common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
+                                  "Background Mesh - Level Set Gradrient",
+                                  1500, 600, 300, 300);
+           common::VisualizeField(vis3, "localhost", 19916, *surf_fit_bg_gf0,
+                                  "Background Mesh - Level Set",
+                                  1200, 600, 300, 300);
+       }
+   }
+
    // TODO: BOUCLE
    std::vector<int>
    inter_faces;   // Vector to save the faces between two different materials
@@ -898,7 +917,7 @@ int main(int argc, char *argv[])
          }
          if (visualization)
          {
-            socketstream vis1, vis2, vis3, vis4, vis5, vis6;
+            socketstream vis1, vis2, vis3, vis4;
             common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
                                    "Level Set 0",
                                    300, 600, 300, 300);
@@ -909,14 +928,8 @@ int main(int argc, char *argv[])
                                    900, 600, 300, 300);
             if (surf_bg_mesh)
             {
-               common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
-                                      "Level Set - Background",
-                                      1200, 600, 300, 300);
-               common::VisualizeField(vis5, "localhost", 19916, *surf_fit_grad,
+               common::VisualizeField(vis4, "localhost", 19916, *surf_fit_grad,
                                       "Grad",
-                                      1500, 600, 300, 300);
-               common::VisualizeField(vis6, "localhost", 19916, *surf_fit_bg_grad,
-                                      "Grad on background",
                                       1500, 600, 300, 300);
             }
          }
@@ -1189,7 +1202,7 @@ int main(int argc, char *argv[])
       if (visualization && iter_pref==max_iter_pref-1)
       {
          char title[] = "Final metric values";
-         vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 400);
+         vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 500);
       }
 
 
