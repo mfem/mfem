@@ -661,7 +661,8 @@ int main(int argc, char *argv[])
    // TODO: BOUCLE
    std::vector<int>
    inter_faces;   // Vector to save the faces between two different materials
-   for (int iter_pref=0; iter_pref<4; iter_pref++)
+   int max_iter_pref(4);
+   for (int iter_pref=0; iter_pref<max_iter_pref; iter_pref++)
    {
       std::cout << "BOUCLE j: " << iter_pref << std::endl;
 
@@ -690,9 +691,6 @@ int main(int argc, char *argv[])
             FiniteElementSpace *fes_test_1 = x_max_order->FESpace();
             FiniteElementSpace *fes_test_2 = surf_fit_gf0_max_order->FESpace();
 
-            //std::cout << "Variable order FES 1: " << fes_test_1->IsVariableOrder() << std::endl;
-            //std::cout << "Variable order FES 2: " << fes_test_2->IsVariableOrder() << std::endl;
-            //std::cout << surf_fit_bg_gf0->FESpace()->IsVariableOrder() << std::endl;
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
             for (int i=0; i < mesh->GetNumFaces(); i++)
@@ -710,7 +708,6 @@ int main(int argc, char *argv[])
                                                                     i,
                                                                     surf_fit_gf0_max_order,
                                                                     finder);
-                     //std::cout << "Error Face "  << i << ": " << error_bg_face << std::endl;
                      if (error_bg_face >= pow(10,-13))
                      {
                         faces_order_increase.push_back(i);
@@ -747,6 +744,7 @@ int main(int argc, char *argv[])
             x_max_order = ProlongToMaxOrder(&x, 0);
             surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
+            /*
             if (visualization)
             {
                x_max_order = ProlongToMaxOrder(&x, 0);
@@ -757,6 +755,7 @@ int main(int argc, char *argv[])
                                       00, 600, 300, 300);
                mesh->SetNodalGridFunction(&x);
             }
+             */
 
          }
          else
