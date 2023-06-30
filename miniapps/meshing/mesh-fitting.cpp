@@ -923,15 +923,6 @@ int main(int argc, char *argv[])
          mesh->SetNodalGridFunction(&x);
       }
 
-      if (visualization)
-      {
-         mesh->SetNodalGridFunction(x_max_order);
-         socketstream vis1;
-         common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order",
-                                00, 600, 300, 300);
-         mesh->SetNodalGridFunction(&x);
-      }
-
       // TODO: Compute Integrate Error
       if (iter_pref==0)
       {
@@ -1024,7 +1015,7 @@ int main(int argc, char *argv[])
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the starting mesh and metric values.
       // Note that for combinations of metrics, this only shows the first metric.
-      if (visualization)
+      if (visualization && iter_pref==0)
       {
          char title[] = "Initial metric values";
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
@@ -1195,7 +1186,7 @@ int main(int argc, char *argv[])
 
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the final mesh and metric values.
-      if (visualization)
+      if (visualization && iter_pref==max_iter_pref-1)
       {
          char title[] = "Final metric values";
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 400);
@@ -1293,6 +1284,15 @@ int main(int argc, char *argv[])
       delete S;
       delete S_prec;
    }
+
+    if (visualization)
+    {
+        mesh->SetNodalGridFunction(x_max_order);
+        socketstream vis1;
+        common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order after p-refinement",
+                               1200, 0, 400, 400);
+        mesh->SetNodalGridFunction(&x);
+    }
 
    finder.FreeData();
 
