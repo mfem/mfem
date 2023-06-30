@@ -905,23 +905,23 @@ int main(int argc, char *argv[])
             surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
          }
-         if (visualization)
+         if (visualization && iter_pref==0)
          {
             socketstream vis1, vis2, vis3, vis4;
+             if (surf_bg_mesh)
+             {
+                 common::VisualizeField(vis4, "localhost", 19916, *surf_fit_grad,
+                                        "Grad",
+                                        300, 600, 300, 300);
+             }
             common::VisualizeField(vis1, "localhost", 19916, *surf_fit_gf0_max_order,
-                                   "Level Set 0",
+                                   "Level Set",
                                    300, 600, 300, 300);
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
                                    600, 600, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
                                    "Dofs to Move",
                                    900, 600, 300, 300);
-            if (surf_bg_mesh)
-            {
-               common::VisualizeField(vis4, "localhost", 19916, *surf_fit_grad,
-                                      "Grad",
-                                      1500, 600, 300, 300);
-            }
          }
          mesh->SetNodalGridFunction(&x);
       }
@@ -1195,31 +1195,10 @@ int main(int argc, char *argv[])
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 500);
       }
 
-
-      // TODO: Test reduce order of one face
-      /*
-      if(prefine)
-      {
-          surf_fit_gf0.ProjectCoefficient(ls_coeff);
-          tmop_integ->CopyGridFunction(surf_fit_gf0);
-          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-          std::cout << "size " << inter_faces.size() << std::endl;
-          for (int i=0; i < inter_faces.size(); i++)
-          {
-              double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                             surf_fit_bg_gf0,
-                                                             inter_faces[i],
-                                                             surf_fit_gf0_max_order,
-                                                             finder);
-              std::cout << "Error... " << error_bg_face << std::endl;
-          }
-      }
-       */
-
       // Visualize fitting surfaces and report fitting errors.
       if (surface_fit_const > 0.0)
       {
-         if (visualization)
+         if (visualization && iter_pref==max_iter_pref-1)
          {
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
