@@ -36,12 +36,11 @@ ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
 }
 
 ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
-                       Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
+                       Array<int> &attributes)
+   : parent_(parent), from_(from), attributes_(attributes)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("SubMesh does not support non-conforming meshes");
-   }
+   MFEM_VERIFY(!Nonconforming() || from == SubMesh::From::Boundary,
+               "ParSubMesh does not support nonconforming meshes with From::Domain");
 
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
