@@ -30,10 +30,10 @@ namespace mfem
 {
 
 /**
- * @brief The Jit structure provides the folowing static functions:
+ * @brief The Jit structure provides the following static functions:
  *    - Jit::Init(), used in Mpi::Init(),
  *    - Jit::Finalize(), used in Mpi::Finalize(),
- *    - Jit::Configure(), to optionaly set the basename, path of the cache,
+ *    - Jit::Configure(), to optionally set the basename, path of the cache,
  *      as well as a boolean telling to keep the cache or not.
  *      The default cache basename is \c mjit, path is \c '.' (outputed in
  *      current directory) and the cache library is \c kept.
@@ -86,10 +86,10 @@ public:
     *  @param[in] hash of the kernel as a \c size_t,
     *  @param[in] name of the kernel with the templated inputs,
     *  @param[in] cxx MFEM's CXX compiler,
-    *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
-    *  @param[in] link coresponding to MFEM_LINK_FLAGS,
-    *  @param[in] libs coresponding to MFEM_EXT_LIBS,
-    *  @param[in] dir coresponding to the relative mfem include directory,
+    *  @param[in] flags corresponding to MFEM_BUILD_FLAGS,
+    *  @param[in] link corresponding to MFEM_LINK_FLAGS,
+    *  @param[in] libs corresponding to MFEM_EXT_LIBS,
+    *  @param[in] dir corresponding to the relative mfem include directory,
     *  @param[in] src source of the kernel,
     *  @param[in] sym symbol of the kernel.
     **/
@@ -109,10 +109,10 @@ public:
       *  @param[in] hash of the kernel,
       *  @param[in] name of the kernel with the templated inputs,
       *  @param[in] cxx MFEM's CXX compiler,
-      *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
-      *  @param[in] link coresponding to MFEM_LINK_FLAGS,
-      *  @param[in] libs coresponding to MFEM_EXT_LIBS,
-      *  @param[in] dir coresponding to the relative mfem include directory,
+      *  @param[in] flags corresponding to MFEM_BUILD_FLAGS,
+      *  @param[in] link corresponding to MFEM_LINK_FLAGS,
+      *  @param[in] libs corresponding to MFEM_EXT_LIBS,
+      *  @param[in] dir corresponding to the relative mfem include directory,
       *  @param[in] src source of the kernel,
       *  @param[in] sym symbol of the kernel.
       **/

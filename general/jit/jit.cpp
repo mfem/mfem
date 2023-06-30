@@ -40,7 +40,7 @@
 // MFEM_INSTALL_BACKUP have to be defined at compile time.
 // They are set by default in defaults.mk and MjitCmakeUtilities.cmake.
 
-// The 'MFEM_JIT_DEBUG' environement variable can be set to:
+// The 'MFEM_JIT_DEBUG' environment variable can be set to:
 //   - ouput dl errors,
 //   - keep intermediate sources files.
 
@@ -303,7 +303,7 @@ void Jit::Init(int *argc, char ***argv)
 
    System &sys = *Get().sys;
 
-   // Initialisation of the shared memory between the MPI root
+   // Initialization of the shared memory between the MPI root
    // and the thread that will launch the std::system commands
    auto SysInit = [&]()
    {

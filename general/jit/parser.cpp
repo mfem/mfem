@@ -519,7 +519,7 @@ struct Parser
       if (ker.is_include())
       {
          ker.advance(); check(ker.is_wait());
-         token(); // to handle imediate MFEM_JIT (Parse while does a put)
+         token(); // to handle immediate MFEM_JIT (Parse while does a put)
       }
    }
 

@@ -10,8 +10,8 @@
 # CONTRIBUTING.md for details.
 
 set(JITS
-  bilininteg_diffusion_pa.cpp
-  bilininteg_mass_pa.cpp
+  integ/bilininteg_diffusion_kernels.cpp
+  integ/bilininteg_mass_kernels.cpp
   )
 
 set(SRCS
@@ -44,11 +44,9 @@ set(SRCS
   integ/bilininteg_vecmass_pa.cpp
   integ/bilininteg_vectorfediv_pa.cpp
   integ/bilininteg_vectorfemass_pa.cpp
-  integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
-  integ/bilininteg_mass_kernels.cpp
   integ/lininteg_boundary.cpp
   integ/lininteg_boundary_flux.cpp
   integ/lininteg_domain.cpp

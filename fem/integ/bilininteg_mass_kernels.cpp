@@ -431,7 +431,7 @@ void PAMassApply(const int dim,
          case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,D,X,Y);
          case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,D,X,Y);
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,D,X,Y);
-         default:   return PAMassApply2D(NE,B,D,X,Y,D1D,Q1D);
+         default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
 #else
       return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D,1);
@@ -459,7 +459,7 @@ void PAMassApply(const int dim,
          case 0x78: return SmemPAMassApply3D<7,8>(NE,B,D,X,Y);
          case 0x89: return SmemPAMassApply3D<8,9>(NE,B,D,X,Y);
          case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,D,X,Y);
-         default:   return PAMassApply3D(NE,B,D,X,Y,D1D,Q1D);
+         default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
 #else
       return SmemPAMassApply3D(NE,B,D,X,Y,D1D,Q1D);
