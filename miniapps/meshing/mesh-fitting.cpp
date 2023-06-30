@@ -665,16 +665,6 @@ int main(int argc, char *argv[])
        common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial before after p-refinement",
                                1200, 0, 400, 400);
        mesh->SetNodalGridFunction(&x);
-       if (surf_bg_mesh)
-       {
-           socketstream vis2, vis3;
-           common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
-                                  "Background Mesh - Level Set Gradrient",
-                                  1500, 600, 300, 300);
-           common::VisualizeField(vis3, "localhost", 19916, *surf_fit_bg_gf0,
-                                  "Background Mesh - Level Set",
-                                  1200, 600, 300, 300);
-       }
    }
 
    // TODO: BOUCLE
@@ -1305,6 +1295,16 @@ int main(int argc, char *argv[])
         common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order after p-refinement",
                                1200, 0, 400, 400);
         mesh->SetNodalGridFunction(&x);
+        if (surf_bg_mesh)
+        {
+            socketstream vis2, vis3;
+            common::VisualizeField(vis2, "localhost", 19916, *surf_fit_bg_grad,
+                                   "Background Mesh - Level Set Gradrient",
+                                   1200, 600, 300, 300);
+            common::VisualizeField(vis3, "localhost", 19916, *surf_fit_bg_gf0,
+                                   "Background Mesh - Level Set",
+                                   1200, 600, 300, 300);
+        }
     }
 
    finder.FreeData();
