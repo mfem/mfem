@@ -348,7 +348,7 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
    sedge_comm.Bcast<int>(rhe, 0);
 }
 
-void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
+void ParSubMesh::FindSharedFacesRanks(Array<int> &rht, Array<int> &rhq)
 {
    GroupCommunicator squad_comm(parent_.gtopo);
    parent_.GetSharedQuadCommunicator(squad_comm);
@@ -522,7 +522,7 @@ void ParSubMesh::AppendSharedEdgesGroups(ListOfIntegerSets &groups,
 }
 
 void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
-                                         Array<int>& rht, Array<int> &rhq)
+                                         Array<int> &rht, Array<int> &rhq)
 {
    IntegerSet quad_group;
 
@@ -607,8 +607,8 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
    }
 }
 
-void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
-                                  int& nsverts)
+void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int> &rhvtx,
+                                  int &nsverts)
 {
    group_svert.MakeI(ngroups);
    for (int i = 0; i < rhvtx.Size(); i++)
@@ -631,8 +631,8 @@ void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
    group_svert.ShiftUpI();
 }
 
-void ParSubMesh::BuildEdgeGroup(int ngroups, const Array<int>& rhe,
-                                int& nsedges)
+void ParSubMesh::BuildEdgeGroup(int ngroups, const Array<int> &rhe,
+                                int &nsedges)
 {
    group_sedge.MakeI(ngroups);
    for (int i = 0; i < rhe.Size(); i++)
@@ -655,8 +655,8 @@ void ParSubMesh::BuildEdgeGroup(int ngroups, const Array<int>& rhe,
    group_sedge.ShiftUpI();
 }
 
-void ParSubMesh::BuildFaceGroup(int ngroups, const Array<int>& rht,
-                                int& nstrias, const Array<int>& rhq, int& nsquads)
+void ParSubMesh::BuildFaceGroup(int ngroups, const Array<int> &rht,
+                                int &nstrias, const Array<int> &rhq, int &nsquads)
 {
    group_squad.MakeI(ngroups);
    for (int i = 0; i < rhq.Size(); i++)
@@ -700,7 +700,7 @@ void ParSubMesh::BuildFaceGroup(int ngroups, const Array<int>& rht,
 }
 
 void ParSubMesh::BuildSharedVerticesMapping(const int nsverts,
-                                            const Array<int>& rhvtx)
+                                            const Array<int> &rhvtx)
 {
    svert_lvert.Reserve(nsverts);
 
@@ -724,7 +724,7 @@ void ParSubMesh::BuildSharedVerticesMapping(const int nsverts,
 }
 
 void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
-                                         const Array<int>& rhe)
+                                         const Array<int> &rhe)
 {
    shared_edges.Reserve(sedges_ct);
    sedge_ledge.Reserve(sedges_ct);
@@ -753,8 +753,8 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
 }
 
 void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
-                                         const Array<int>& rht,
-                                         const int nsquads, const Array<int>& rhq)
+                                         const Array<int> &rht,
+                                         const int nsquads, const Array<int> &rhq)
 {
    shared_trias.Reserve(nstrias);
    shared_quads.Reserve(nsquads);

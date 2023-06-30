@@ -238,7 +238,7 @@ private:
     *
     * @param[out] rhq Encoding of which rank contains which face quadrilateral.
     */
-   void FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq);
+   void FindSharedFacesRanks(Array<int> &rht, Array<int> &rhq);
 
    /**
     * @brief Append shared vertices encoded in @a rhvtx to @a groups.
@@ -270,7 +270,7 @@ private:
     * quadrilateral. The output is reused s.t. the array index i (the face
     * quadrilateral id) is the associated group.
     */
-   void AppendSharedFacesGroups(ListOfIntegerSets &groups, Array<int>& rht,
+   void AppendSharedFacesGroups(ListOfIntegerSets &groups, Array<int> &rht,
                                 Array<int> &rhq);
 
    /**
@@ -280,7 +280,7 @@ private:
     * @param[in] rhvtx Encoding of which rank contains which vertex.
     * @param[in] nsverts Number of shared vertices.
     */
-   void BuildVertexGroup(int ngroups, const Array<int>& rhvtx, int& nsverts);
+   void BuildVertexGroup(int ngroups, const Array<int> &rhvtx, int &nsverts);
 
    /**
     * @brief Build edge group.
@@ -289,7 +289,7 @@ private:
     * @param[in] rhe Encoding of which rank contains which edge.
     * @param[in] nsedges Number of shared edges.
     */
-   void BuildEdgeGroup(int ngroups, const Array<int>& rhe, int& nsedges);
+   void BuildEdgeGroup(int ngroups, const Array<int> &rhe, int &nsedges);
 
    /**
     * @brief Build face group.
@@ -300,8 +300,8 @@ private:
     * @param[in] rhq Encoding of which rank contains which face quadrilateral.
     * @param[in] nsquads Number of shared face quadrilaterals.
     */
-   void BuildFaceGroup(int ngroups, const Array<int>& rht, int& nstrias,
-                       const Array<int>& rhq, int& nsquads);
+   void BuildFaceGroup(int ngroups, const Array<int> &rht, int &nstrias,
+                       const Array<int> &rhq, int &nsquads);
 
    /**
     * @brief Build the shared vertex to local vertex mapping.
@@ -309,7 +309,7 @@ private:
     * @param nsverts Number of shared vertices.
     * @param rhvtx Encoding of which rank contains which vertex.
     */
-   void BuildSharedVerticesMapping(const int nsverts, const Array<int>& rhvtx);
+   void BuildSharedVerticesMapping(const int nsverts, const Array<int> &rhvtx);
 
    /**
    * @brief Build the shared edge to local edge mapping.
@@ -317,7 +317,7 @@ private:
    * @param[in] nsedges Number of shared edges.
    * @param[in] rhe Encoding of which rank contains which edge.
    */
-   void BuildSharedEdgesMapping(const int nsedges, const Array<int>& rhe);
+   void BuildSharedEdgesMapping(const int nsedges, const Array<int> &rhe);
 
    /**
     * @brief Build the shared faces to local faces mapping.
@@ -329,8 +329,8 @@ private:
     * @param[in] nsquads Number of shared face quadrilaterals.
     * @param[in] rhq Encoding of which rank contains which face quadrilateral.
     */
-   void BuildSharedFacesMapping(const int nstrias, const Array<int>& rht,
-                                const int nsquads, const Array<int>& rhq);
+   void BuildSharedFacesMapping(const int nstrias, const Array<int> &rht,
+                                const int nsquads, const Array<int> &rhq);
 
    /// The parent Mesh
    const ParMesh &parent_;
