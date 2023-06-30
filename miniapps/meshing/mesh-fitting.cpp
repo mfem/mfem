@@ -780,7 +780,6 @@ int main(int argc, char *argv[])
                }
             }
          }
-          std::cout << "Test 2" << std::endl;
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
          if (surf_bg_mesh)
          {
@@ -905,14 +904,16 @@ int main(int argc, char *argv[])
          if (visualization && iter_pref==0)
          {
             socketstream vis1, vis2, vis3, vis4;
+            /*
              if (surf_bg_mesh)
              {
                  common::VisualizeField(vis4, "localhost", 19916, *surf_fit_grad,
                                         "Grad",
                                         300, 600, 300, 300);
              }
-            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                   600, 600, 300, 300);
+             */
+            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials before fitting",
+                                   600, 680, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
                                    "Dofs to Move",
                                    900, 600, 300, 300);
@@ -1195,8 +1196,8 @@ int main(int argc, char *argv[])
          if (visualization && iter_pref==max_iter_pref-1)
          {
             socketstream vis2, vis3;
-            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                   600, 900, 300, 300);
+            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
+                                   600, 680, 300, 300);
             common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
                                    "Surface dof",
                                    900, 900, 300, 300);
