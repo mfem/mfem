@@ -662,8 +662,8 @@ int main(int argc, char *argv[])
    {
        mesh->SetNodalGridFunction(x_max_order);
        socketstream vis1;
-       common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial before after p-refinement",
-                               1200, 0, 400, 400);
+       common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order before p-refinement",
+                               1100, 0, 500, 500);
        mesh->SetNodalGridFunction(&x);
    }
 
@@ -1272,7 +1272,7 @@ int main(int argc, char *argv[])
         mesh->SetNodalGridFunction(x_max_order);
         socketstream vis1;
         common::VisualizeField(vis1, "localhost", 19916, order_gf, "Polynomial order after p-refinement",
-                               1200, 0, 400, 400);
+                               1100, 0, 500, 500);
         mesh->SetNodalGridFunction(&x);
         if (surf_bg_mesh)
         {
