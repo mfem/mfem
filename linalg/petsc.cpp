@@ -1790,8 +1790,11 @@ void PetscParMatrix::SetUpForDevice()
    return;
 #else
    if (!A || (!Device::Allows(Backend::CUDA_MASK) &&
-              !Device::Allows(Backend::HIP_MASK))) { return; }
-
+              !Device::Allows(Backend::HIP_MASK)))
+   {
+      if (A) { ierr = MatBindToCPU(A, PETSC_TRUE); PCHKERRQ(A,ierr); }
+      return;
+   }
    PetscBool ismatis,isnest,isaij;
    ierr = PetscObjectTypeCompare((PetscObject)A,MATIS,&ismatis);
    PCHKERRQ(A,ierr);
