@@ -153,9 +153,10 @@ ex11p-test-par: ex11p
 ifeq ($(MFEM_USE_CUDA),YES)
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG_CUDA))
 endif
-ifeq ($(MFEM_USE_HIP),YES)
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG_HIP))
-endif
+# SLEPc does not support BVSVEC with HIP
+#ifeq ($(MFEM_USE_HIP),YES)
+#	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG_HIP))
+#endif
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_GD))
 endif
 
