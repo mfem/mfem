@@ -61,11 +61,6 @@ void PardisoSolver::SetOperator(const Operator &op)
 
    nnz = mat->NumNonZeroElems();
 
-   if (mat->IsSymmetric() == 0.0)
-   {
-      SetMatrixType(MatType::REAL_STRUCTURE_SYMMETRIC);
-   }
-
    const int *Ap = mat->HostReadI();
    const int *Ai = mat->HostReadJ();
    const double *Ax = mat->HostReadData();
