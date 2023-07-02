@@ -11,14 +11,12 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-        dist_solver.cpp
         sbm_solver.cpp
         marking.cpp
         extrapolator.cpp
 	integ_algoim.cpp)
 
   list(APPEND DIST_COMMON_HEADERS
-        dist_solver.hpp
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp

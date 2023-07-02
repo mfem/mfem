@@ -27,39 +27,39 @@ allocate_resource:
   timeout: 6h
 
 # GitLab jobs for the Quartz machine at LLNL
-debug_ser_gcc_6_1_0:
+debug_ser_gcc_10:
   variables:
-    SPEC: "%gcc@6.1.0 +debug~mpi"
+    SPEC: "%gcc@10.3.1 +debug~mpi"
   extends: .build_and_test_on_quartz
 
-debug_par_gcc_6_1_0:
+debug_par_gcc_10:
   variables:
-    SPEC: "%gcc@6.1.0 +debug+mpi"
+    SPEC: "%gcc@10.3.1 +debug+mpi"
   extends: .build_and_test_on_quartz
 
-opt_ser_gcc_6_1_0:
+opt_ser_gcc_10:
   variables:
-    SPEC: "%gcc@6.1.0 ~mpi"
+    SPEC: "%gcc@10.3.1 ~mpi"
   extends: .build_and_test_on_quartz
 
-opt_par_gcc_6_1_0:
+opt_par_gcc_10:
   variables:
-    SPEC: "%gcc@6.1.0"
+    SPEC: "%gcc@10.3.1"
   extends: .build_and_test_on_quartz
 
-opt_par_gcc_6_1_0_sundials:
+opt_par_gcc_10_sundials:
   variables:
-    SPEC: "%gcc@6.1.0 +sundials"
+    SPEC: "%gcc@10.3.1 +sundials"
   extends: .build_and_test_on_quartz
 
-opt_par_gcc_6_1_0_petsc:
+opt_par_gcc_10_petsc:
   variables:
-    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps~superlu-dist"
+    SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
   extends: .build_and_test_on_quartz
 
-opt_par_gcc_6_1_0_pumi:
+opt_par_gcc_10_pumi:
   variables:
-    SPEC: "%gcc@6.1.0 +pumi"
+    SPEC: "%gcc@10.3.1 +pumi"
   extends: .build_and_test_on_quartz
 
 # Release
