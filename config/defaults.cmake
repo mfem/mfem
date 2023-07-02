@@ -134,16 +134,18 @@ set(ParMETIS_DIR "${MFEM_DIR}/../parmetis-4.0.3" CACHE PATH
 set(ParMETIS_REQUIRED_PACKAGES "METIS" CACHE STRING
     "Additional packages required by ParMETIS.")
 
-set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_6.3.1" CACHE PATH
+set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_8.1.2" CACHE PATH
     "Path to the SuperLU_DIST library.")
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
-set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
+set(SuperLUDist_REQUIRED_PACKAGES "MPI" "ParMETIS" "METIS"
+    "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
 
-set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
+set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.5.0" CACHE PATH
     "Path to the MUMPS library.")
-# Packages required by MUMPS, depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" "METIS" "ScaLAPACK" CACHE STRING
+# MUMPS may also depend on "OpenMP", depending on how it was compiled.
+set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+    "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
 # set(MUMPS_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
