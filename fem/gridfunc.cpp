@@ -4589,9 +4589,9 @@ KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
    FiniteElementSpace* space=dest->FESpace();
 
    MFEM_VERIFY(
-    dynamic_cast<const H1_FECollection*>(space->FEColl()) != nullptr || 
-    dynamic_cast<const L2_FECollection*>(space->FEColl()) != nullptr, 
-    "Error!");
+      dynamic_cast<const H1_FECollection*>(space->FEColl()) != nullptr ||
+      dynamic_cast<const L2_FECollection*>(space->FEColl()) != nullptr,
+      "Error!");
 
    Mesh* mesh=space->GetMesh();
    const int dim=mesh->SpaceDimension();
