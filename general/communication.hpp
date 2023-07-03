@@ -22,10 +22,6 @@
 #include "globals.hpp"
 #include <mpi.h>
 
-#ifdef MFEM_USE_STRUMPACK
-#include <StrumpackConfig.hpp> // STRUMPACK_USE_PTSCOTCH, etc.
-#endif
-
 namespace mfem
 {
 
@@ -37,12 +33,12 @@ class Mpi
 public:
    /// Singleton creation with Mpi::Init(argc, argv).
    static void Init(int &argc, char **&argv,
-                    int required = default_thread_required,
+                    int required = DefaultThreadRequired(),
                     int *provided = nullptr)
    { Init(&argc, &argv, required, provided); }
    /// Singleton creation with Mpi::Init().
    static void Init(int *argc = nullptr, char ***argv = nullptr,
-                    int required = default_thread_required,
+                    int required = DefaultThreadRequired(),
                     int *provided = nullptr)
    {
       MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
@@ -98,18 +94,13 @@ private:
       static Mpi mpi;
       return mpi;
    }
+   /// Access the default level of thread support.
+   static int DefaultThreadRequired();
    /// Finalize MPI.
    ~Mpi() { Finalize(); }
    /// Prevent direct construction of objects of this class.
    Mpi() {}
 };
-
-#if defined(MFEM_USE_STRUMPACK) && \
-    (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
-int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
-#else
-int Mpi::default_thread_required = MPI_THREAD_SINGLE;
-#endif
 
 /** @brief A simple convenience class based on the Mpi singleton class above.
     Preserved for backward compatibility. New code should use Mpi::Init() and
