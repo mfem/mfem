@@ -173,8 +173,7 @@ DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vect
   Vh = fes;
   ess_tdof_list = tdof_list; 
   dimD = fes->GetTrueVSize();
-  //dimS = dimD;
-  dimS = dimD - ess_tdof_list.Size();
+  dimS = dimD;
   InitializeParentData(dimD, dimS);
 
   xDC.SetSize(dimD);
@@ -207,43 +206,12 @@ DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vect
   FunctionCoefficient psicoeff(obstacleSource);
   GridFunction psi_gf(Vh);
   psi_gf.ProjectCoefficient(psicoeff);
-  
-  J = new SparseMatrix(dimS, dimD);
   psi.SetSize(dimS); psi = 0.0;
-  bool freeDof;
-
+  psi.Set(1.0, psi_gf);
   
-  // ------ begin dimD x dimD Jacobian with null-columns
-  /*for(int j = 0; j < dimD; j++)
-  {
-    freeDof = true;
-    for(int i = 0; i < ess_tdof_list.Size(); i++)
-    {
-      if(j == ess_tdof_list[i])
-      {
-        freeDof = false;
-      }
-    }
-    mfem::Vector v_tmp;
-    v_tmp.SetSize(1);
-    if (freeDof)
-    {
-      //xDC(j) = 0.0;
-      v_tmp(0) = 1.0;
-      Array<int> col_tmp;
-      col_tmp.SetSize(1);
-      col_tmp[0] = j;
-      psi(j) = psi_gf(j);
-      J->SetRow(j, col_tmp, v_tmp);
-    }
-  }
-  J->Finalize();*/
-  
-  
-  // ------ begin dimS x dimD Jacobian construction with nonzero Columns 
-  int rowCount = 0;
+  // ------ construct dimS x dimD Jacobian with zero columns correspodning to Dirichlet dofs
   J = new SparseMatrix(dimS, dimD);
-  psi.SetSize(dimS);
+  bool freeDof;
   for(int j = 0; j < dimD; j++)
   {
     freeDof = true;
@@ -254,18 +222,20 @@ DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vect
         freeDof = false;
       }
     }
+    
+    Array<int> col_tmp; mfem::Vector v_tmp;
+    col_tmp.SetSize(1); v_tmp.SetSize(1);
+    col_tmp[0] = j;
     if (freeDof)
     {
-      Array<int> col_tmp;
-      col_tmp.SetSize(1);
-      col_tmp[0] = j;
-      mfem::Vector v_tmp;
-      v_tmp.SetSize(1);
       v_tmp(0) = 1.0;
-      J->SetRow(rowCount, col_tmp, v_tmp);
-      psi(rowCount) = psi_gf(j);
-      rowCount += 1;      
     }
+    else
+    {
+      v_tmp(0) = 0.0;
+    }
+    J->SetRow(j, col_tmp, v_tmp);
+    psi(j) = psi_gf(j);
   }
   J->Finalize();
 }
