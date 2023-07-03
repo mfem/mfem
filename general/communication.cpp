@@ -45,6 +45,23 @@ int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
 int Mpi::default_thread_required = MPI_THREAD_SINGLE;
 #endif
 
+void Mpi::Init(int &argc, char **&argv, int required, int *provided)
+{
+   Init(&argc, &argv, required, provided);
+}
+
+void Mpi::Init(int *argc, char ***argv, int required, int *provided)
+{
+   MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
+   int mpi_provided;
+   int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
+   MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+   if (provided) { *provided = mpi_provided; }
+   // The Mpi singleton object below needs to be created after MPI_Init() for
+   // some MPI implementations.
+   Singleton();
+}
+
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
