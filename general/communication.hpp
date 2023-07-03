@@ -35,22 +35,11 @@ public:
    /// Singleton creation with Mpi::Init(argc, argv).
    static void Init(int &argc, char **&argv,
                     int required = default_thread_required,
-                    int *provided = nullptr)
-   { Init(&argc, &argv, required, provided); }
+                    int *provided = nullptr);
    /// Singleton creation with Mpi::Init().
    static void Init(int *argc = nullptr, char ***argv = nullptr,
                     int required = default_thread_required,
-                    int *provided = nullptr)
-   {
-      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
-      int mpi_provided;
-      int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
-      MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
-      if (provided) { *provided = mpi_provided; }
-      // The Mpi singleton object below needs to be created after MPI_Init() for
-      // some MPI implementations.
-      Singleton();
-   }
+                    int *provided = nullptr);
    /// Finalize MPI (if it has been initialized and not yet already finalized).
    static void Finalize()
    {
