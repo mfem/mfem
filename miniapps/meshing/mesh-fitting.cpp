@@ -297,6 +297,7 @@ int main(int argc, char *argv[])
    bool prefine          = true;
    int pref_order_increase = 1;
    int pref_max_order    = 2;
+   double pref_tol       = 1e-13;
    bool surf_bg_mesh     = true;
 
    // 1. Parse command-line options.
@@ -376,6 +377,8 @@ int main(int argc, char *argv[])
                   "How much polynomial order to increase for p-refinement.");
    args.AddOption(&pref_max_order, "-mo", "--prefmaxorder",
                    "Maximum polynomial order for p-refinement.");
+    args.AddOption(&pref_tol, "-preft", "--preftol",
+                   "Error tolerance on a face.");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh","--no-surf-bg-mesh",
                   "Use background mesh for surface fitting.");
@@ -654,6 +657,8 @@ int main(int argc, char *argv[])
             mesh->GetElementCenter(i, center);
             if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
                 center(1) < 0.75)
+            //if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+            //    center(1) < 0.75 && center(2) > 0.25 && center(2) < 0.75)     // 3D
             {
                mat(i) = 0;
             }
@@ -721,7 +726,7 @@ int main(int argc, char *argv[])
                                                                     i,
                                                                     surf_fit_gf0_max_order,
                                                                     finder);
-                     if (error_bg_face >= pow(10,-13))
+                     if (error_bg_face >= pref_tol)
                      {
                         faces_order_increase.push_back(i);
                      }
