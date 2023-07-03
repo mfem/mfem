@@ -15,7 +15,6 @@ if (MFEM_USE_MPI)
         marking.cpp
         extrapolator.cpp
 	integ_algoim.cpp)
-
   list(APPEND DIST_COMMON_HEADERS
         sbm_solver.hpp
         sbm_aux.hpp
