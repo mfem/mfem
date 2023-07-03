@@ -59,6 +59,11 @@
 //     make mesh-fitting -j && ./mesh-fitting -m square01.mesh -o 1 -rs 1 -mid 2 -tid 1 -ni 50 -vl 1 -sfc 1 -rtol 1e-5 -ae 1 -sfa -pref -oi 1 -sbgmesh
 
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 3 -o 1 -oi 1
+
+//    Surface fitting to a squircle level-set - with p-refinement around the interface and using a background mesh
+//    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 5
+
+
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
