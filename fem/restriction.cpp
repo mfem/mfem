@@ -133,7 +133,6 @@ void ConformingElementRestriction::MultUnsigned(const Vector& x,
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gather_map = gather_map.Read();
-
    mfem::forall(dof*ne, [=] MFEM_HOST_DEVICE (int i)
    {
       const int gid = d_gather_map[i];
@@ -146,11 +145,11 @@ void ConformingElementRestriction::MultUnsigned(const Vector& x,
 }
 
 template <bool ADD>
-static void TAddMultTranspose(const int nd, const int vd, const bool t,
-                              const int ndofs, const int ne,
-                              const Array<int>& offsets,
-                              const Array<int>& indices,
-                              const Vector& x, Vector& y)
+static inline void TAddMultTranspose(const int nd, const int vd, const bool t,
+                                     const int ndofs, const int ne,
+                                     const Array<int>& offsets,
+                                     const Array<int>& indices,
+                                     const Vector& x, Vector& y)
 {
    // Assumes all elements have the same number of dofs
    auto d_offsets = offsets.Read();
@@ -191,6 +190,32 @@ void ConformingElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
    TAddMultTranspose<ADD>(dof, vdim, byvdim, ndofs, ne, offsets, indices, x, y);
 }
 
+void ConformingElementRestriction::MultLeftInverse(const Vector& x,
+                                                   Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int next_offset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dof_value = 0;
+         const int j = next_offset - 1;
+         const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+         dof_value = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+                     -d_x(idx_j % nd, c, idx_j / nd);
+         d_y(t?c:i,t?i:c) = dof_value;
+      }
+   });
+}
+
 void ConformingElementRestriction::MultTransposeUnsigned(const Vector& x,
                                                          Vector& y) const
 {
@@ -225,10 +250,8 @@ void ConformingElementRestriction::BooleanMask(Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-
    Array<char> processed(vd * ndofs);
    processed = 0;
-
    auto d_offsets = offsets.HostRead();
    auto d_indices = indices.HostRead();
    auto d_x = Reshape(processed.HostReadWrite(), t?vd:ndofs, t?ndofs:vd);

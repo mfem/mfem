@@ -2223,8 +2223,6 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(const Vector &x,
                                                          const double c) const
 {
    Array<BilinearFormIntegrator *> &interpolators = *a->GetDBFI();
-   temp_test.SetSize(y.Size());
-   temp_test.UseDevice(true);
    temp_test = x;
    temp_test *= test_multiplicity;
    if (elem_restrict_test)

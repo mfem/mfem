@@ -336,7 +336,7 @@ void ChangeOfBasis_RT::Mult(const Vector &x, Vector &y, Mode mode) const
 
    elem_restr->MultLeftInverse(y_e, y_l);
 
-   const Operator *R = fes.GetRestrictionOperator();
+   const Operator *R = fes.GetRestrictionMatrix();
    if (R) { R->Mult(y_l, y); }
    else { MFEM_VERIFY(P == NULL, "Invalid state."); }
 }

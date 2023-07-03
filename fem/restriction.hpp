@@ -41,6 +41,13 @@ public:
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override = 0;
 
+   /** @brief Compute MultTranspose by setting (rather than adding) element
+       contributions, the left inverse of the Mult() operation. */
+   virtual void MultLeftInverse(const Vector &x, Vector &y) const
+   {
+      MultTranspose(x, y);
+   }
+
    /** @brief Add the degrees of freedom @a x to the element degrees of
        freedom @a y ignoring the signs from DOF orientation. */
    virtual void MultUnsigned(const Vector &x, Vector &y) const
@@ -86,6 +93,8 @@ public:
 
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
+
+   void MultLeftInverse(const Vector &x, Vector &y) const override;
 
    void MultUnsigned(const Vector &x, Vector &y) const override;
 

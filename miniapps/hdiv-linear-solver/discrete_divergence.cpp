@@ -201,7 +201,7 @@ HypreParMatrix *FormDiscreteDivergenceMatrix(ParFiniteElementSpace &fes_rt,
    else { MFEM_ABORT("Unsupported dimension.") }
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const auto *R_rt = dynamic_cast<const ElementRestriction*>(
+   const auto *R_rt = dynamic_cast<const ConformingElementRestriction*>(
                          fes_rt.GetElementRestriction(ordering));
    const auto gather_rt = Reshape(R_rt->GatherMap().Read(), nface_per_el, nel_ho);
    const auto e2f = Reshape(element2face.Read(), 2*dim, nvol_per_el);
