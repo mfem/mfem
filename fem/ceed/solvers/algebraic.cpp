@@ -49,7 +49,7 @@ private:
    Array<int> ess_tdofs;
    const mfem::Operator *P;
    ceed::Operator *unconstrained_op;
-   mfem::ConstrainedOperator *constrained_op;
+   mfem::Operator *constrained_op;
 };
 
 ConstrainedOperator::ConstrainedOperator(
@@ -59,10 +59,8 @@ ConstrainedOperator::ConstrainedOperator(
    : ess_tdofs(ess_tdofs_), P(P_)
 {
    unconstrained_op = new ceed::Operator(oper);
-   mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
-   height = width = rap->Height();
-   bool own_rap = (rap != unconstrained_op);
-   constrained_op = new mfem::ConstrainedOperator(rap, ess_tdofs, own_rap);
+   unconstrained_op->FormSystemOperator(ess_tdofs, constrained_op);
+   height = width = constrained_op->Height();
 }
 
 ConstrainedOperator::ConstrainedOperator(CeedOperator oper,
@@ -538,7 +536,7 @@ void AlgebraicInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
    CeedScalar *out_ptr;
    CeedMemType mem;
    ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       in_ptr = x.Read();
       out_ptr = y.ReadWrite();
@@ -571,7 +569,7 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
    ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    const CeedScalar *in_ptr;
    CeedScalar *out_ptr;
-   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
+   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       in_ptr = x.Read();
       out_ptr = y.ReadWrite();
