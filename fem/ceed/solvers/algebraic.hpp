@@ -33,13 +33,12 @@ class AlgebraicCoarseSpace : public FiniteElementSpace
 public:
    AlgebraicCoarseSpace(FiniteElementSpace &fine_fes, CeedElemRestriction fine_er,
                         int order, int dim, int order_reduction_);
-   ~AlgebraicCoarseSpace();
-
    int GetOrderReduction() const { return order_reduction; }
    CeedElemRestriction GetCeedElemRestriction() const { return ceed_elem_restriction; }
    CeedBasis GetCeedCoarseToFine() const { return coarse_to_fine; }
    virtual const mfem::Operator *GetProlongationMatrix() const override { return NULL; }
    virtual const SparseMatrix *GetRestrictionMatrix() const override { return NULL; }
+   ~AlgebraicCoarseSpace();
 
 protected:
    int *dof_map;
@@ -65,16 +64,16 @@ public:
       int order_reduction_,
       GroupCommunicator *gc_fine
    );
-   ~ParAlgebraicCoarseSpace();
-
-   virtual const mfem::Operator *GetProlongationMatrix() const override { return P_mat; }
+   virtual const mfem::Operator *GetProlongationMatrix() const override { return P; }
    virtual const SparseMatrix *GetRestrictionMatrix() const override { return R_mat; }
    GroupCommunicator *GetGroupCommunicator() const { return gc; }
    HypreParMatrix *GetProlongationHypreParMatrix();
+   ~ParAlgebraicCoarseSpace();
 
 private:
-   GroupCommunicator *gc;
    SparseMatrix *R_mat;
+   GroupCommunicator *gc;
+   ConformingProlongationOperator *P;
    HypreParMatrix *P_mat;
    Array<int> ldof_group, ldof_ltdof;
 };
@@ -93,11 +92,14 @@ public:
       Ceed ceed, CeedBasis basisctof,
       CeedElemRestriction erestrictu_coarse,
       CeedElemRestriction erestrictu_fine);
+
    ~AlgebraicInterpolation();
 
    virtual void Mult(const mfem::Vector& x, mfem::Vector& y) const;
+
    virtual void MultTranspose(const mfem::Vector& x, mfem::Vector& y) const;
 
+   using mfem::Operator::SetupRAP;
 private:
    int Initialize(Ceed ceed, CeedBasis basisctof,
                   CeedElemRestriction erestrictu_coarse,
@@ -125,6 +127,11 @@ public:
        The given space is a real (geometric) space, but the coarse spaces are
        constructed semi-algebraically with no mesh information. */
    AlgebraicSpaceHierarchy(FiniteElementSpace &fespace);
+   AlgebraicCoarseSpace& GetAlgebraicCoarseSpace(int level)
+   {
+      MFEM_ASSERT(level < GetNumLevels() - 1, "");
+      return static_cast<AlgebraicCoarseSpace&>(*fespaces[level]);
+   }
    ~AlgebraicSpaceHierarchy()
    {
       for (int i=0; i<R_tr.Size(); ++i)
@@ -135,12 +142,6 @@ public:
       {
          delete ceed_interpolations[i];
       }
-   }
-
-   AlgebraicCoarseSpace& GetAlgebraicCoarseSpace(int level)
-   {
-      MFEM_ASSERT(level < GetNumLevels() - 1, "");
-      return static_cast<AlgebraicCoarseSpace&>(*fespaces[level]);
    }
 
 private:
@@ -199,7 +200,6 @@ public:
     */
    AlgebraicSolver(BilinearForm &form, const Array<int>& ess_tdofs);
    ~AlgebraicSolver();
-
    void Mult(const Vector& x, Vector& y) const;
    void SetOperator(const mfem::Operator& op);
 };

@@ -46,7 +46,7 @@ private:
    Array<int> ess_tdofs;
    const mfem::Operator *P;
    ceed::Operator *unconstrained_op;
-   mfem::Operator *constrained_op;
+   mfem::ConstrainedOperator *constrained_op;
 };
 
 ConstrainedOperator::ConstrainedOperator(
@@ -56,8 +56,10 @@ ConstrainedOperator::ConstrainedOperator(
    : ess_tdofs(ess_tdofs_), P(P_)
 {
    unconstrained_op = new ceed::Operator(oper);
-   unconstrained_op->FormSystemOperator(ess_tdofs, constrained_op);
-   height = width = constrained_op->Height();
+   mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
+   height = width = rap->Height();
+   bool own_rap = (rap != unconstrained_op);
+   constrained_op = new mfem::ConstrainedOperator(rap, ess_tdofs, own_rap);
 }
 
 ConstrainedOperator::ConstrainedOperator(CeedOperator oper,
@@ -533,7 +535,7 @@ void AlgebraicInterpolation::Mult(const mfem::Vector& x, mfem::Vector& y) const
    CeedScalar *out_ptr;
    CeedMemType mem;
    ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
-   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       in_ptr = x.Read();
       out_ptr = y.ReadWrite();
@@ -566,7 +568,7 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
    ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
    const CeedScalar *in_ptr;
    CeedScalar *out_ptr;
-   if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
+   if ( Device::Allows(Backend::DEVICE_MASK) && mem==CEED_MEM_DEVICE )
    {
       in_ptr = x.Read();
       out_ptr = y.ReadWrite();
@@ -806,6 +808,15 @@ ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
       }
    }
    R_mat->Finalize();
+
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      P = new DeviceConformingProlongationOperator(*gc, R_mat);
+   }
+   else
+   {
+      P = new ConformingProlongationOperator(lsize, *gc);
+   }
    P_mat = NULL;
 }
 
@@ -817,8 +828,8 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
    MFEM_VERIFY(pmesh != NULL, "");
    Array<HYPRE_BigInt> dof_offsets, tdof_offsets, tdof_nb_offsets;
    Array<HYPRE_BigInt> *offsets[2] = {&dof_offsets, &tdof_offsets};
-   int ltsize = R_mat->Height();
-   int lsize = R_mat->Width();
+   int lsize = P->Height();
+   int ltsize = P->Width();
    HYPRE_BigInt loc_sizes[2] = {lsize, ltsize};
    pmesh->GenerateOffsets(2, loc_sizes, offsets);
 
@@ -925,6 +936,7 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
 
 ParAlgebraicCoarseSpace::~ParAlgebraicCoarseSpace()
 {
+   delete P;
    delete R_mat;
    delete P_mat;
    delete gc;
