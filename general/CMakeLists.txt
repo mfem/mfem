@@ -46,6 +46,7 @@ list(APPEND HDRS
   zstr.hpp
   hash.hpp
   isockstream.hpp
+  kdtree.hpp
   mem_alloc.hpp
   mem_manager.hpp
   occa.hpp
@@ -63,7 +64,6 @@ list(APPEND HDRS
   text.hpp
   version.hpp
   hip.hpp
-  kdtree.hpp
   )
 
 if (MFEM_USE_MPI)

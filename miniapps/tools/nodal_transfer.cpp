@@ -15,7 +15,6 @@
 #include "../common/mfem-common.hpp"
 #include <cmath>
 
-
 /// Generate second order mesh on 4 processes
 /// mpirun -np 4 ./nodal_transfer -rs 2 -rp 1 -gd 1 -o 2
 /// Read the generated data and map it to a grid function
@@ -27,8 +26,6 @@
 /// Read the generated data on 4 processes and coarser mesh
 /// mpirun -np 4 ./nodal_transfer -rs 2 -rp 0 -gd 0 -snp 8 -o 1 -m ../../data/star.mesh
 ///
-
-
 
 using namespace mfem;
 
@@ -71,14 +68,13 @@ public:
    }
 };
 
-
 int main(int argc, char* argv[])
 {
    // Initialize MPI.
    Mpi::Init(argc, argv);
    int myrank = Mpi::WorldRank();
 
-   // 2. Parse command-line options
+   // Parse command-line options
    const char *mesh_file = "../../data/beam-tet.mesh";
    int ser_ref_levels = 3;
    int par_ref_levels = 1;
@@ -127,30 +123,30 @@ int main(int argc, char* argv[])
       args.PrintOptions(std::cout);
    }
 
-   //    Read the (serial) mesh from the given mesh file on all processors. We
-   //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
-   //    with the same code.
+   // Read the (serial) mesh from the given mesh file on all processors. We
+   // can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
+   // with the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.SpaceDimension();
 
-   //    Refine the mesh in serial to increase the resolution. In this example
-   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
-   //    a command-line parameter.
+   // Refine the mesh in serial to increase the resolution. In this example
+   // we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   // a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh.UniformRefinement();
    }
 
-   //    Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // this mesh further in parallel to increase the resolution. Once the
+   // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
    }
 
-   //   Define the finite element spaces for the solution
+   // Define the finite element spaces for the solution
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec, 1, Ordering::byVDIM);
    HYPRE_Int glob_size = fespace.GlobalTrueVSize();
@@ -167,37 +163,35 @@ int main(int argc, char* argv[])
       Coefficient* coef[2]; coef[0]=&prco; coef[1]=&prco;
       x.ProjectCoefficient(coef);
 
-      //  Save the grid function
+      // Save the grid function
       {
-         //save the mesh and the data
+         // save the mesh and the data
          std::ostringstream oss;
          oss << std::setw(10) << std::setfill('0') << myrank;
          std::string mname="mesh_"+oss.str()+".msh";
          std::string gname="grid_func_"+oss.str()+".gf";
-         std::ofstream out;
+         std::ofstream sout;
 
          // save the mesh
-         out.open(mname.c_str(),std::ios::out);
-         out.precision(20);
+         sout.open(mname.c_str(),std::ios::out);
+         sout.precision(20);
          pmesh.ParPrint(out);
-         out.close();
+         sout.close();
 
-         //save the grid function data
-         out.open(gname.c_str(),std::ios::out);
-         out.precision(20);
+         // save the grid function data
+         sout.open(gname.c_str(),std::ios::out);
+         sout.precision(20);
          x.Save(out);
-         out.close();
+         sout.close();
       }
-
    }
    else
    {
       // read the grid function written to files
-      //  and map it to the current partition scheme
+      // and map it to the current partition scheme
       // x-grid function will be the target of the transfer
       // y will be utilized later for comparison
       ParGridFunction y(&fespace);
-
       Coefficient* coef[2]; coef[0]=&prco; coef[1]=&prco;
       y.ProjectCoefficient(coef);
 
@@ -205,8 +199,6 @@ int main(int argc, char* argv[])
       {
          std::ifstream in;
          KDTreeNodalProjection map(x);
-
-
          for (int p=0; p<src_num_procs; p++)
          {
             std::ostringstream oss;
@@ -228,10 +220,9 @@ int main(int argc, char* argv[])
             // project the grid function
             map.Project(gf,1e-8);
          }
-
       }
 
-      //write the result into a ParaView file
+      // write the result into a ParaView file
       if (visualization)
       {
          ParaViewDataCollection paraview_dc("GridFunc", &pmesh);
@@ -245,7 +236,7 @@ int main(int argc, char* argv[])
          paraview_dc.Save();
       }
 
-      //compare the results
+      // compare the results
       Vector tmpv=x;
       tmpv-=y;
       double l2err=mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
@@ -253,7 +244,6 @@ int main(int argc, char* argv[])
       {
          std::cout<<"|l2 error|="<<sqrt(l2err)<<std::endl;
       }
-
    }
 
    return 0;
