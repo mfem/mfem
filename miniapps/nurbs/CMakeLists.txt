@@ -64,35 +64,62 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-squares.ref
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-squares.ref
+    COPYONLY)
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-squares-nurbs.mesh
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-squares-nurbs.mesh
+    COPYONLY)
+     
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-squares-nurbs-rot.mesh
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-squares-nurbs-rot.mesh
+    COPYONLY)
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-squares-nurbs-autoedge.mesh
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-squares-nurbs-autoedge.mesh
+    COPYONLY)
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-cubes.ref
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-cubes.ref
+    COPYONLY)
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-cubes-nurbs.mesh
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-cubes-nurbs.mesh
+    COPYONLY)
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-cubes-nurbs-rot.mesh
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-cubes-nurbs-rot.mesh
+    COPYONLY)
+
+  configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-cubes-nurbs-autoedge.mesh
+    ${PROJECT_BINARY_DIR}/miniapps/nurbs/two-cubes-nurbs-autoedge.mesh
+    COPYONLY)
+
   add_test(NAME nurbs_ex1_two_squares_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs.mesh -o 1
-    -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-squares-nurbs.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/two-squares.ref)
 
   add_test(NAME nurbs_ex1_two_squares_rot_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-rot.mesh -o 1
-    -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
+    -m two-squares-nurbs-rot.mesh -o 1 -rf two-squares.ref)
 
   add_test(NAME nurbs_ex1_two_squares_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-autoedge.mesh -o 1
-    -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
+    -m two-squares-nurbs-autoedge.mesh -o 1 -rf two-squares.ref)
 
   add_test(NAME nurbs_ex1_two_cubes_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-cubes-nurbs.mesh -o 1 -r 3
-    -rf ${PROJECT_SOURCE_DIR}/data/two-cubes.ref)
+    -m two-cubes-nurbs.mesh -o 1 -r 3 -rf two-cubes.ref)
 
   add_test(NAME nurbs_ex1_two_cubes_rot_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-cubes-nurbs-rot.mesh -o 1 -r 3
-    -rf ${PROJECT_SOURCE_DIR}/data/two-cubes.ref)
+    -m two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf two-cubes.ref)
 
   add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3
-    -rf ${PROJECT_SOURCE_DIR}/data/two-cubes.ref)
+    -m two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf two-cubes.ref)
 endif()
 
 if (MFEM_USE_MPI)

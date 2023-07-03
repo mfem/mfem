@@ -58,20 +58,28 @@ EX1_ARGS_2 := -r 0 -o 4
 EX1_ARGS_3 := -r 2
 EX1_ARGS_4 := -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 EX1_ARGS_5 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 0
-EX1_ARGS_6 := -m ../..//data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
+EX1_ARGS_6 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
 EX1_ARGS_7 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_8 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2
 EX1_ARGS_9 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_10 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_11 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
-EX1_ARGS_12 := -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
-EX1_ARGS_13 := -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
-EX1_ARGS_14 := -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
-EX1_ARGS_15 := -m ../../data/two-cubes-nurbs.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-EX1_ARGS_16 := -m ../../data/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-EX1_ARGS_17 := -m ../../data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+EX1_ARGS_12 := -m two-squares-nurbs.mesh -o 1 -rf two-squares.ref
+EX1_ARGS_13 := -m two-squares-nurbs-rot.mesh -o 1 -rf two-squares.ref
+EX1_ARGS_14 := -m two-squares-nurbs-autoedge.mesh -o 1 -rf two-squares.ref
+EX1_ARGS_15 := -m two-cubes-nurbs.mesh -o 1 -r 3 -rf two-cubes.ref
+EX1_ARGS_16 := -m two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf two-cubes.ref
+EX1_ARGS_17 := -m two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf two-cubes.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
+	cp $(SRC)/two-squares-nurbs.mesh .
+	cp $(SRC)/two-squares-nurbs-rot.mesh .
+	cp $(SRC)/two-squares-nurbs-autoedge.mesh .
+	cp $(SRC)/two-squares.ref .
+	cp $(SRC)/two-cubes-nurbs.mesh .
+	cp $(SRC)/two-cubes-nurbs-rot.mesh .
+	cp $(SRC)/two-cubes-nurbs-autoedge.mesh .
+	cp $(SRC)/two-cubes.ref .
 	@$(call mfem-test,$<,, NURBS miniapp)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_3))
