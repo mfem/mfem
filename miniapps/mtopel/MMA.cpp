@@ -21,11 +21,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t, Vec xo2t, Vec Ut, Vec Lt, PetscScalar* at, PetscScalar* ct,
          PetscScalar* dt) {
+
+    mma_comm=PETSC_COMM_WORLD;
+
     n = nn;
     m = mm;
     k = kk;
     if (k < 3) {
-        PetscPrintf(PETSC_COMM_WORLD, "NOT A LEGAL RESTART POINT (k<3): EXPECT BREAKDOWN\n");
+        PetscPrintf(mma_comm, "NOT A LEGAL RESTART POINT (k<3): EXPECT BREAKDOWN\n");
     }
 
     asyminit = 0.5;
@@ -106,11 +109,14 @@ MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t, Vec xo2t, Vec Ut, Vec 
 }
 
 MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t, Vec xo2t, Vec Ut, Vec Lt) {
+
+    mma_comm=PETSC_COMM_WORLD;
+
     n = nn;
     m = mm;
     k = kk;
     if (k < 3) {
-        PetscPrintf(PETSC_COMM_WORLD, "NOT A LEGAL RESTART POINT (k<3): EXPECT BREAKDOWN\n");
+        PetscPrintf(mma_comm, "NOT A LEGAL RESTART POINT (k<3): EXPECT BREAKDOWN\n");
     }
 
     asyminit = 0.5;
@@ -192,7 +198,10 @@ MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t, Vec xo2t, Vec Ut, Vec 
     VecRestoreArray(L, &pL);
 }
 
-MMA::MMA(PetscInt nn, PetscInt mm, Vec x, PetscScalar* at, PetscScalar* ct, PetscScalar* dt) {
+MMA::MMA(MPI_Comm comm_, PetscInt nn, PetscInt mm, Vec x, PetscScalar* at, PetscScalar* ct, PetscScalar* dt) {
+
+    mma_comm=comm_;
+
     n = nn;
     m = mm;
 
@@ -241,6 +250,8 @@ MMA::MMA(PetscInt nn, PetscInt mm, Vec x, PetscScalar* at, PetscScalar* ct, Pets
 }
 
 MMA::MMA(PetscInt nn, PetscInt mm, Vec x) {
+    mma_comm=PETSC_COMM_WORLD;
+
     n = nn;
     m = mm;
 
@@ -378,7 +389,7 @@ PetscErrorCode MMA::SetRobustAsymptotesType(PetscInt val) {
     if (RobustAsymptotesType == 0 || RobustAsymptotesType == 1) {
     } else {
         RobustAsymptotesType = 0;
-        PetscPrintf(PETSC_COMM_WORLD, "ERROR in MMA.cc/h: RobustAsymptotesType cannot be set to: %d \n", val);
+        PetscPrintf(mma_comm, "ERROR in MMA.cc/h: RobustAsymptotesType cannot be set to: %d \n", val);
     }
     return ierr;
 }
@@ -417,7 +428,7 @@ PetscScalar MMA::DesignChange(Vec x, Vec xold) {
         xo[i] = xv[i];
     }
     PetscScalar tmp;
-    MPI_Allreduce(&ch, &tmp, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD);
+    MPI_Allreduce(&ch, &tmp, 1, MPIU_SCALAR, MPI_MAX, mma_comm);
     ch = tmp;
     VecRestoreArray(x, &xv);
     VecRestoreArray(xold, &xo);
@@ -482,8 +493,8 @@ PetscErrorCode MMA::KKTresidual(Vec x, Vec dfdx, PetscScalar* fx, Vec* dgdx, Vec
     PetscScalar nItmp = normInf[0];
     norm2[0]          = 0.0;
     normInf[0]        = 0.0;
-    MPI_Allreduce(&n2tmp, norm2, 1, MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
-    MPI_Allreduce(&nItmp, normInf, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD);
+    MPI_Allreduce(&n2tmp, norm2, 1, MPIU_SCALAR, MPI_SUM, mma_comm);
+    MPI_Allreduce(&nItmp, normInf, 1, MPIU_SCALAR, MPI_MAX, mma_comm);
     ri = 0.0;
     for (PetscInt j = 0; j < m; j++) {
         ri += lam[j] * (a[j] * z + y[j] - fx[j]);
@@ -623,7 +634,7 @@ PetscErrorCode MMA::GenSub(Vec xval, Vec dfdx, PetscScalar* gx, Vec* dgdx, Vec x
         for (PetscInt i = 0; i < m; i++) {
             tmp[i] = 0.0;
         }
-        MPI_Allreduce(b, tmp, m, MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
+        MPI_Allreduce(b, tmp, m, MPIU_SCALAR, MPI_SUM, mma_comm);
         memcpy(b, tmp, sizeof(PetscScalar) * m);
         delete[] tmp;
     }
@@ -761,7 +772,7 @@ PetscErrorCode MMA::DualGrad(Vec x) {
         for (PetscInt i = 0; i < m; i++) {
             tmp[i] = 0.0;
         }
-        MPI_Allreduce(grad, tmp, m, MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
+        MPI_Allreduce(grad, tmp, m, MPIU_SCALAR, MPI_SUM, mma_comm);
         memcpy(grad, tmp, sizeof(PetscScalar) * m);
         delete[] tmp;
     }
@@ -831,7 +842,7 @@ PetscErrorCode MMA::DualHess(Vec x) {
         for (PetscInt i = 0; i < m * m; i++) {
             tmpp[i] = Hess[i];
         }
-        MPI_Allreduce(Hess, tmpp, m * m, MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
+        MPI_Allreduce(Hess, tmpp, m * m, MPIU_SCALAR, MPI_SUM, mma_comm);
         memcpy(Hess, tmpp, sizeof(PetscScalar) * m * m);
         delete[] tmpp;
     }
@@ -922,7 +933,7 @@ PetscScalar MMA::DualResidual(Vec x, PetscScalar epsi) {
         for (PetscInt i = 0; i < 2 * m; i++) {
             tmp[i] = 0.0;
         }
-        MPI_Allreduce(res, tmp, 2 * m, MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
+        MPI_Allreduce(res, tmp, 2 * m, MPIU_SCALAR, MPI_SUM, mma_comm);
         memcpy(res, tmp, sizeof(PetscScalar) * 2 * m);
         delete[] tmp;
     }

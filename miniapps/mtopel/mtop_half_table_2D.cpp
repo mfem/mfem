@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <unistd.h>
 #include "MMA.hpp"
 
 #include "mtop_solvers.hpp"
@@ -275,21 +276,40 @@ private:
 class Table
 {
 public:
-    Table(mfem::ParMesh* pmesh_, int vorder=2):E(),nu(0.2)
+    Table(mfem::ParMesh* pmesh_, int vorder=2, int seed=std::numeric_limits<int>::max()):E(),nu(0.2)
     {
         esolv=new mfem::ElasticitySolver(pmesh_,vorder);
         esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
         esolv->SetNewtonSolver(1e-8,1e-12,1,0);
         esolv->SetLinearSolver(1e-10,1e-12,100);
 
+        esola=new mfem::ElasticitySolver(pmesh_,vorder);
+        esola->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
+        esola->SetNewtonSolver(1e-8,1e-12,1,0);
+        esola->SetLinearSolver(1e-10,1e-12,100);
+
         pmesh=pmesh_;
         dfes=nullptr;
         cobj=new mfem::ComplianceObjective();
 
+        generator.seed(seed);
+
+
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
         gf->SetCorrelationLen(0.2);
         gf->SetMaternParameter(4.0);
-        gf->SetScale(1.0);
+        gf->SetScale(0.1);
+        gf->Sample(seed);
+
+        af=new mfem::RandFieldCoefficient(pmesh_,vorder);
+        af->SetCorrelationLen(0.2);
+        af->SetMaternParameter(4.0);
+        af->SetScale(0.1);
+        af->SetZeroDirichletBC(2);
+        af->Sample(seed+1347);
+
+
+
         num_samples=100;
     }
 
@@ -303,8 +323,18 @@ public:
     ~Table()
     {
         delete gf;
+        delete af;
         delete cobj;
         delete esolv;
+        delete esola;
+    }
+
+    void GetSRand(mfem::ParGridFunction& pgf){
+        pgf.ProjectCoefficient(*gf);
+    }
+
+    void GetARand(mfem::ParGridFunction& pgf){
+        pgf.ProjectCoefficient(*af);
     }
 
     void SetNumSamples(int ns)
@@ -315,6 +345,7 @@ public:
     void SetCorrelationLen(double l)
     {
         gf->SetCorrelationLen(l);
+        af->SetCorrelationLen(l);
     }
     
     void SetSIMP(bool simp_=false){
@@ -350,14 +381,116 @@ public:
         esolv->AddDispBC(1,4,0.0);
         esolv->AddDispBC(2,0,0.0);
         esolv->AddSurfLoad(3,0.00,1.00,0.0);
-
         esolv->FSolve();
+        esolv->GetSol(sol);
+        sol*=0.5;
 
-        double rez=cobj->Eval(esolv->GetDisplacements());
 
-        cobj->Grad(esolv->GetDisplacements(),grad);
+        esola->DelDispBC();
+        esola->AddDispBC(1,4,0.0);
+        esola->AddDispBC(2,0,0.0);
+        esola->AddDispBC(2,1,0.0);
+        esola->AddSurfLoad(3,0.00,1.00,0.0);
+        esola->FSolve();
+        //esola->GetSol(sol);
+        sol.Add(0.5,esola->GetDisplacements());
+
+
+
+        double rez=cobj->Eval(sol);
+
+        cobj->Grad(sol,grad);
 
         return rez;
+    }
+
+    double MeanComplSymm(mfem::Vector& grad)
+    {
+        mfem::Vector lgr(grad.Size());
+        grad=0.0;
+
+        //set the symmetric y and asymmetric x case
+        mfem::VectorArrayCoefficient fs(pmesh->SpaceDimension());
+        mfem::ConstantCoefficient one(2.0);
+        mfem::ConstantCoefficient zero(0.0);
+        fs.Set(1,&one,false);
+        fs.Set(0,af,false);
+
+        //set the assymetric y and symmetric x case
+        mfem::VectorArrayCoefficient fa(pmesh->SpaceDimension());
+        fa.Set(1,&zero,false);
+        fa.Set(0,gf,false);
+
+
+        esolv->DelDispBC();
+        esolv->AddDispBC(1,4,0.0);
+        esolv->AddDispBC(2,0,0.0);
+        esolv->AddSurfLoad(3,fs);
+        esolv->AssembleTangent();
+
+        esola->DelDispBC();
+        esola->AddDispBC(1,4,0.0);
+        esola->AddDispBC(2,1,0.0);
+        esola->AddSurfLoad(3,fa);
+        esola->AssembleTangent();
+
+        std::uniform_int_distribution<int> uint(1,std::numeric_limits<int>::max());
+
+        int n=num_samples;
+        double obj=0.0;
+        double var=0.0;
+        for(int i=0;i<n;i++){
+
+            if(seeds.size()<(i+1)){
+                int seed = uint(generator);
+                seeds.push_back(seed);
+            }
+            gf->Sample(seeds[i]);
+
+
+            if(seeda.size()<(i+1)){
+                int seed = uint(generator);
+                seeda.push_back(seed);
+            }
+            af->Sample(seeda[i]);
+
+            //gf->Sample();
+            //af->Sample();
+
+            esolv->LSolve();
+            esola->LSolve();
+
+            esolv->GetSol(sol);
+            sol*=0.5;
+            sol.Add(0.5,esola->GetDisplacements());
+
+            double rez=cobj->Eval(sol);
+            cobj->Grad(sol,lgr);
+            grad.Add(1.0,lgr);
+            obj=obj+rez;
+            var=var+rez*rez;
+
+            esolv->GetSol(sol);
+            sol*=0.5;
+            sol.Add(-0.5,esola->GetDisplacements());
+
+            rez=cobj->Eval(sol);
+            cobj->Grad(sol,lgr);
+            grad.Add(1.0,lgr);
+            obj=obj+rez;
+            var=var+rez*rez;
+        }
+
+        grad/=double(2*n);
+        var=var/double(2*n);
+        obj=obj/double(2*n);
+
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+        if(myrank==0){
+        std::cout<<"Var="<<var-obj*obj<<std::endl;}
+
+        return obj;
     }
 
     double MeanComplCF(mfem::Vector& grad)
@@ -517,6 +650,7 @@ private:
     mfem::Vector vdens;
 
     mfem::ElasticitySolver* esolv;
+    mfem::ElasticitySolver* esola;//asymmetric solver
     mfem::ComplianceObjective* cobj;
 
 
@@ -524,9 +658,13 @@ private:
     mfem::ParMesh* pmesh;
 
     mfem::RandFieldCoefficient* gf;
+    mfem::RandFieldCoefficient* af;//asymmetric load
     int num_samples;
 
     std::vector<int> seeds;
+    std::vector<int> seeda;
+
+    std::default_random_engine generator;
 };
 
 
@@ -541,6 +679,7 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "half_table_2D.msh";
    int order = 1;
+   int nsplit=4;
    bool static_cond = false;
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
@@ -612,6 +751,10 @@ int main(int argc, char *argv[])
                      "-rstr",
                      "--restart",
                      "Restart the optimization from previous design.");
+   args.AddOption(&nsplit,
+                     "-csp",
+                     "--comm_split",
+                     "How many communicators should we use for the simulations.");
    args.Parse();
    if (!args.Good())
    {
@@ -621,6 +764,45 @@ int main(int argc, char *argv[])
       }
       MPI_Finalize();
       return 1;
+   }
+
+   MPI_Comm lcomm; //host communicator
+   MPI_Comm ccomm; //vector transfer communicator
+   int lorank;
+   int corank;
+   int mycolor=myrank%nsplit;
+
+   //MPI_Comm_split_type(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,&lcomm);
+   MPI_Comm_split(MPI_COMM_WORLD,mycolor,myrank,&lcomm);
+   MPI_Comm_rank(lcomm,&lorank);
+   MPI_Comm_split(MPI_COMM_WORLD,lorank,mycolor,&ccomm);
+   MPI_Comm_rank(ccomm,&corank);
+
+   //if(lorank == 0)
+   int seed;
+   {
+       std::default_random_engine generator;
+       std::uniform_int_distribution<int> distribution(1,std::numeric_limits<int>::max());
+
+       for(int i=0;i<nprocs;i++){
+           if(i!=0){
+               if(myrank==0){
+                   int rnum=distribution(generator);
+                   MPI_Send(&rnum,1,MPI_INT,i,100,MPI_COMM_WORLD);}
+               if(myrank==i){
+                   MPI_Recv(&seed,1,MPI_INT,0,100,MPI_COMM_WORLD,MPI_STATUS_IGNORE);}
+           }else{
+               seed=distribution(generator);
+           }
+           if(i==myrank){
+               char hostname[256];
+               gethostname(hostname,256);
+               std::cout<<"host: "<<hostname<<" lorank="<<lorank
+                       <<" corank="<<corank<<" myrank="<<myrank
+                      <<" nsplit="<<nsplit<<" color="<<mycolor<<std::endl;
+           }
+           MPI_Barrier(MPI_COMM_WORLD);
+       }
    }
 
    if (myrank == 0)
@@ -646,6 +828,7 @@ int main(int argc, char *argv[])
            std::cout<<"Xmax:";xmax.Print(std::cout);
        }
    }
+   MPI_Barrier(MPI_COMM_WORLD);
 
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement. We choose
@@ -664,7 +847,8 @@ int main(int argc, char *argv[])
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
    // parallel mesh is defined, the serial mesh can be deleted.
-   mfem::ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   //mfem::ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mfem::ParMesh pmesh(lcomm, mesh);
    mesh.Clear();
    {
        for (int l = 0; l < par_ref_levels; l++)
@@ -677,6 +861,8 @@ int main(int argc, char *argv[])
    {
        std::cout<<"num el="<<pmesh.GetNE()<<std::endl;
    }
+   MPI_Barrier(MPI_COMM_WORLD);
+
 
    //allocate the filter
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
@@ -694,7 +880,7 @@ int main(int argc, char *argv[])
    fsolv->Mult(vtmpv,vdens);
    pgdens.SetFromTrueDofs(vdens);
 
-   Table* alco=new Table(&pmesh,1);
+   Table* alco=new Table(&pmesh,1,seed);
    alco->SetDesignFES(pgdens.ParFESpace());
    alco->SetDensity(vdens);
    alco->SetCorrelationLen(corr_len);
@@ -717,6 +903,8 @@ int main(int argc, char *argv[])
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
    ivobj->SetProjection(0.5,32);
 
+   MPI_Barrier(MPI_COMM_WORLD);
+
    //gradients with respect to the filtered field
    mfem::Vector ograd(fsolv->GetFilterFES()->GetTrueVSize()); ograd=0.0; //of the objective
    mfem::Vector vgrad(fsolv->GetFilterFES()->GetTrueVSize()); vgrad=0.0; //of the volume contr.
@@ -728,13 +916,14 @@ int main(int argc, char *argv[])
    mfem::Vector xxmax(fsolv->GetDesignFES()->GetTrueVSize()); xxmax=1.0;
    mfem::Vector xxmin(fsolv->GetDesignFES()->GetTrueVSize()); xxmin=0.0;
 
-   mfem::NativeMMA* mma;
+   mfem::NativeMMA* mma=nullptr;
 
    {
        double a=0.0;
        double c=1000.0;
        double d=0.0;
-       mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, ogrado,&a,&c,&d);
+       //mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, ogrado,&a,&c,&d);
+       if(mycolor==0){mma=new mfem::NativeMMA(lcomm,1, ogrado,&a,&c,&d);}
    }
 
    double max_ch=0.1; //max design change
@@ -744,18 +933,22 @@ int main(int argc, char *argv[])
    double ivol; //intermediate volume
    double dcpl;
 
+
    {
       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetTime(0.0);
 
-      paraview_dc.RegisterField("design",&pgdens);
-      paraview_dc.RegisterField("E",&emod);
-
+      if(mycolor==0){
+          paraview_dc.SetPrefixPath("ParaView");
+          paraview_dc.SetLevelsOfDetail(order);
+          paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
+          paraview_dc.SetHighOrderOutput(true);
+          paraview_dc.SetCycle(0);
+          paraview_dc.SetTime(0.0);
+          paraview_dc.RegisterField("design",&pgdens);
+          paraview_dc.RegisterField("E",&emod);
+          alco->GetSRand(emod);
+      }
+      //alco->GetARand(emod);
 
       CoeffHoles holes;
       //StripesCoefX stripes(corr_len);
@@ -766,17 +959,15 @@ int main(int argc, char *argv[])
       //oddens=0.3;
       oddens.ProjectCoefficient(stripes);
       oddens.GetTrueDofs(vtmpv);
+      if(mycolor==0){fsolv->Mult(vtmpv,vdens);}
+      //make sure that all communicators run with the same density
+      MPI_Bcast(vdens.GetData(),vdens.Size(),MPI_DOUBLE,0,ccomm);
 
-
-      fsolv->Mult(vtmpv,vdens);
       pgdens.SetFromTrueDofs(vdens);
-      double nr=mfem::ParNormlp(vdens,2,pmesh.GetComm());
-      std::cout<<"nr="<<nr<<std::endl;
 
-      paraview_dc.Save();
+      if(mycolor==0){paraview_dc.Save();}
 
       double obj;
-
       for(int i=1;i<max_it;i++){
 
 
@@ -797,51 +988,77 @@ int main(int argc, char *argv[])
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
-          obj=alco->Compliance(ograd);
+          obj=alco->MeanComplSymm(vgrad);
+          //reduce ograd
+          ograd=0.0;
+          MPI_Reduce(vgrad.GetData(),ograd.GetData(),ograd.Size()
+                     ,MPI_DOUBLE,MPI_SUM,0,ccomm);
+
+          if(mycolor==0){alco->GetSRand(emod);}
+          //obj=alco->Compliance(ograd);
           //obj=alco->MeanCompliance(ograd);
 
-          if(myrank==0){
+          if(lorank==0){
               std::cout<<"it: "<<i<<" obj="<<obj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
           }
-          //compute the gradients
-          vobj->Grad(vdens,vgrad);
-          //compute the original gradients
-          fsolv->MultTranspose(ograd,ogrado);
-          fsolv->MultTranspose(vgrad,vgrado);
+          MPI_Barrier(MPI_COMM_WORLD);
 
-          {
-              //set xxmin and xxmax
-              xxmin=vtmpv; xxmin-=max_ch;
-              xxmax=vtmpv; xxmax+=max_ch;
-              for(int li=0;li<xxmin.Size();li++){
-                  if(xxmin[li]<0.0){xxmin[li]=0.0;}
-                  if(xxmax[li]>1.0){xxmax[li]=1.0;}
-              }
+          double fobj;
+          MPI_Reduce(&obj,&fobj,1,MPI_DOUBLE,MPI_SUM,0,ccomm);
+          if((lorank==0)&&(mycolor==0)){
+              fobj=fobj/nsplit;
+              std::cout<<"it: "<<i<<" obj="<<fobj<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
           }
 
-          double con=vol-max_vol;
-          mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
 
-          fsolv->Mult(vtmpv,vdens);
+          if(mycolor==0){
+              ograd*=(1.0/nsplit);
+              if(lorank==0){std::cout<<"Update start"<<std::endl;}
+              //compute the gradients
+              vobj->Grad(vdens,vgrad);
+              //compute the original gradients
+              fsolv->MultTranspose(ograd,ogrado);
+              fsolv->MultTranspose(vgrad,vgrado);
+              {
+                  //set xxmin and xxmax
+                  xxmin=vtmpv; xxmin-=max_ch;
+                  xxmax=vtmpv; xxmax+=max_ch;
+                  for(int li=0;li<xxmin.Size();li++){
+                      if(xxmin[li]<0.0){xxmin[li]=0.0;}
+                      if(xxmax[li]>1.0){xxmax[li]=1.0;}
+                  }
+              }
+
+              double con=vol-max_vol;
+              mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
+              fsolv->Mult(vtmpv,vdens);
+              if(lorank==0){std::cout<<"Update complete"<<std::endl;}
+          }
+          //make sure that all communicators run with the same density
+          MPI_Bcast(vdens.GetData(),vdens.Size(),MPI_DOUBLE,0,ccomm);
+
           pgdens.SetFromTrueDofs(vdens);
-
-
           //save the design
-          if(i%4==0)
-          {
-              emod.ProjectCoefficient(*(alco->GetE()));
-              paraview_dc.SetCycle(i);
-              paraview_dc.SetTime(i*1.0);
-              paraview_dc.Save();
+          if(mycolor==0){
+              if(i%4==0){
+                  //emod.ProjectCoefficient(*(alco->GetE()));
+                  alco->GetSRand(emod);
+                  paraview_dc.SetCycle(i);
+                  paraview_dc.SetTime(i*1.0);
+                  paraview_dc.Save();
+              }
           }
       }
    }
 
-   delete mma;
+   if(mycolor==0){delete mma;}
    delete vobj;
    delete ivobj;
    delete alco;
    delete fsolv;
+
+   MPI_Comm_free(&ccomm);
+   MPI_Comm_free(&lcomm);
 
    mfem::MFEMFinalizePetsc();
    MPI_Finalize();

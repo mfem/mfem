@@ -24,7 +24,7 @@ class MMA {
     // Construct using defaults subproblem penalization
     MMA(PetscInt n, PetscInt m, Vec x);
     // User defined subproblem penalization
-    MMA(PetscInt n, PetscInt m, Vec x, PetscScalar* a, PetscScalar* c, PetscScalar* d);
+    MMA(MPI_Comm comm_,PetscInt n, PetscInt m, Vec x, PetscScalar* a, PetscScalar* c, PetscScalar* d);
     // Initialize with restart from itr
     MMA(PetscInt n, PetscInt m, PetscInt itr, Vec xo1, Vec xo2, Vec U, Vec L);
     // Initialize with restart and specify subproblem parameters
@@ -130,6 +130,9 @@ class MMA {
     PetscInt       Min(PetscInt d1, PetscInt d2);
     PetscInt       Max(PetscInt d1, PetscInt d2);
     PetscScalar    Abs(PetscScalar d1);
+
+    // Communicator
+    MPI_Comm mma_comm;
 };
 
 
@@ -153,13 +156,13 @@ public:
         {
             ap[i]=a[i];
             cp[i]=c[i];
-            dp[i]=c[i];
+            dp[i]=d[i];
         }
 
         PetscInt nn;
         VecGetSize(pv,&nn);
 
-        mma=new MMA(nn, m, pv, ap, cp, dp);
+        mma=new MMA(comm_,nn, m, pv, ap, cp, dp);
 
         delete [] ap;
         delete [] cp;
