@@ -26,10 +26,6 @@
 #include "sort_pairs.hpp"
 #include "globals.hpp"
 
-#ifdef MFEM_USE_STRUMPACK
-#include <StrumpackConfig.hpp> // STRUMPACK_USE_PTSCOTCH, etc
-#endif
-
 #include <iostream>
 #include <map>
 
@@ -37,31 +33,6 @@ using namespace std;
 
 namespace mfem
 {
-
-#if defined(MFEM_USE_STRUMPACK) && \
-    (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
-int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
-#else
-int Mpi::default_thread_required = MPI_THREAD_SINGLE;
-#endif
-
-void Mpi::Init(int &argc, char **&argv, int required, int *provided)
-{
-   Init(&argc, &argv, required, provided);
-}
-
-void Mpi::Init(int *argc, char ***argv, int required, int *provided)
-{
-   MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
-   int mpi_provided;
-   int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
-   MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
-   if (provided) { *provided = mpi_provided; }
-   // The Mpi singleton object below needs to be created after MPI_Init() for
-   // some MPI implementations.
-   Singleton();
-}
-
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
