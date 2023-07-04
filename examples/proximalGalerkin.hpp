@@ -199,27 +199,8 @@ public:
 
       b_forms.SetSize(numSpaces);
       b_forms = nullptr;
-      skip_assembly_A.SetSize(numSpaces, numSpaces);
-      skip_assembly_A = true;
-      skip_assembly_b.SetSize(numSpaces);
-      skip_assembly_b = true;
-   }
-   void SkipAssembleMatrix(int i, int j)
-   {
-      if (i==j)
-      {
-         BilinearForm *bilf = static_cast<BilinearForm*>(A_forms(i, j));
-         if (!bilf) { mfem_error("BilinearForm is null."); }
-         bilf->Assemble();
-         skip_assembly_A(i, j) = true;
-      }
-      else
-      {
-         MixedBilinearForm *bilf = static_cast<MixedBilinearForm*>(A_forms(i, j));
-         if (!bilf) { mfem_error("MixedBilinearForm is null."); }
-         bilf->Assemble();
-         skip_assembly_A(i, j) = true;
-      }
+
+      prec = new BlockDiagonalPreconditioner(offsets);
    }
 
    void SetBlockMatrix(int i, int j, Matrix *mat)
@@ -242,14 +223,12 @@ public:
       {
          mfem_error("The provided BilinearForm's trial space does not match with the provided array of spaces. Check the initialization and block index");
       }
-      skip_assembly_A(i, j) = false;
       A_forms(i, j) = bilf;
    }
 
    void SetDiagBlockMatrix(int i, BilinearForm *bilf)
    {
       if (bilf->FESpace() != spaces[i]) {mfem_error("The provided BilinearForm's space does not match with the provided array of spaces. Check the initialization and block index"); }
-      skip_assembly_A(i, i) = false;
       A_forms(i, i) = bilf;
    }
 
@@ -265,6 +244,13 @@ public:
    void GMRES(BlockVector *x);
    void CG(BlockVector *x) { mfem_error("Not yet implemented."); }
 
+   ~BlockLinearSystem()
+   {
+      delete prec;
+      delete A;
+      delete b;
+   }
+
 private:
    Array<FiniteElementSpace*> &spaces;
    Array2D<int> &ess_bdr;
@@ -274,8 +260,7 @@ private:
    BlockVector *b;
    Array2D<Matrix*> A_forms;
    Array<LinearForm*> b_forms;
-   Array2D<bool> skip_assembly_A;
-   Array<bool> skip_assembly_b;
+   BlockDiagonalPreconditioner *prec;
 };
 } // end of namespace mfem
 
