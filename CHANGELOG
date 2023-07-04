@@ -29,6 +29,14 @@ New and updated examples and miniapps
 
 - Added a miniapp for interpolation of NURBS.
 
+- Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
+  demonstrating the use of a matrix-free saddle-point solver methodology,
+  suitable for high-order discretizations and for GPU acceleration. Examples
+  illustrating the solution of Darcy and grad-div problems are included.
+
+- Added a random refinement option to the mesh-explorer miniapp to assist users
+  in experimenting with nonconforming meshes.
+
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
 Meshing improvements
@@ -49,6 +57,12 @@ Discretization improvements
 
 - Added support for p-refined meshes in FindPointsGSLIB.
 
+Linear and nonlinear solvers
+----------------------------
+- Updated interface to MUMPS direct solver to support multiple right-hand
+  sides, block low-rank compression, builds using 64-bit integers, and other
+  improvements.
+
 Integrations, testing and documentation
 ---------------------------------------
 - Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
@@ -59,6 +73,9 @@ Miscellaneous
 - Improved lambda body debugging with the addition of mfem::forall functions.
   These functions can take the place of the MFEM_FORALL macros, which have been
   preserved for backwards compatibility.
+
+- Reorganized files for bilinear form, linear form, and nonlinear form integrators
+  in the fem/integ/ subdirectory.
 
 
 Version 4.5.2, released on March 23, 2023
