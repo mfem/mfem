@@ -245,7 +245,6 @@ public:
    void SetBlockVector(int i, LinearForm *lf)
    {
       if (lf->FESpace() != spaces[i]) { mfem_error("The provided LinearForm's space does not match with the provided array of spaces. Check the initialization and block index"); }
-      skip_assembly_b[i] = false;
       b_forms[i] = lf;
    }
 
