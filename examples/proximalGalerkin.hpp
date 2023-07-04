@@ -168,6 +168,18 @@ double ParVolumeProjection(ParGridFunction &psi, const double target_volume,
    return f;
 }
 #endif // end of MFEM_USE_MPI for ParProjit
+
+Array<int> getOffsets(Array<FiniteElementSpace*> &spaces)
+{
+   Array<int> offsets(spaces.Size() + 1);
+   offsets[0] = 0;
+   for (int i=0; i<spaces.Size(); i++)
+   {
+      offsets[i + 1] = spaces[i]->GetVSize();
+   }
+   offsets.PartialSum();
+   return offsets;
+}
 } // end of namespace mfem
 
 #endif // end of proximalGalerkin.hpp
