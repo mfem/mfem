@@ -93,8 +93,8 @@ MappedGridFunctionCoefficient DerSigmoidCoefficient(GridFunction *gf)
 }
 
 double VolumeProjection(GridFunction &psi, const double target_volume,
-              const double tol=1e-12,
-              const int max_its=10)
+                        const double tol=1e-12,
+                        const int max_its=10)
 {
    auto sigmoid_psi = SigmoidCoefficient(&psi);
    auto der_sigmoid_psi = DerSigmoidCoefficient(&psi);
@@ -127,7 +127,7 @@ double VolumeProjection(GridFunction &psi, const double target_volume,
 
 #ifdef MFEM_USE_MPI
 double ParVolumeProjection(ParGridFunction &psi, const double target_volume,
-                 const double tol=1e-12, const int max_its=10)
+                           const double tol=1e-12, const int max_its=10)
 {
    auto sigmoid_psi = SigmoidCoefficient(&psi);
    auto der_sigmoid_psi = DerSigmoidCoefficient(&psi);
