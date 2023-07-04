@@ -232,6 +232,16 @@ public:
       A_forms(i, i) = bilf;
    }
 
+   inline MixedBilinearForm *GetBlock(int i, int j)
+   {
+      if (i == j) { mfem_error("For diagonal block, use GetDiagBlock(i)."); }
+      return static_cast<MixedBilinearForm*>(A_forms(i, j));
+   }
+   inline BilinearForm *GetDiagBlock(int i)
+   {
+      return static_cast<BilinearForm*>(A_forms(i, i));
+   }
+
    void SetBlockVector(int i, LinearForm *lf)
    {
       if (lf->FESpace() != spaces[i]) { mfem_error("The provided LinearForm's space does not match with the provided array of spaces. Check the initialization and block index"); }
