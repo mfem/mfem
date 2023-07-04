@@ -152,7 +152,7 @@ inline void PADiffusionDiagonal2D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 2D kernel
-template<int T_D1D, int T_Q1D, int T_NBZ>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 inline void SmemPADiffusionDiagonal2D_element(const int e,
                                               const bool symmetric,
                                               const ConstDeviceMatrix &b,
@@ -161,9 +161,9 @@ inline void SmemPADiffusionDiagonal2D_element(const int e,
                                               const DeviceCube &Y,
                                               const int d1d = 0,
                                               const int q1d = 0,
-                                              const int nbz = 0)
+                                              const int nbz = 1)
 {
-   MFEM_CONTRACT_VAR(nbz);
+   MFEM_ASSERT(T_NBZ > 0 || nbz == 1, "nbz should be equal to 1!");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -342,7 +342,7 @@ inline void PADiffusionDiagonal3D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 3D kernel
-template<int T_D1D, int T_Q1D>
+template<int T_D1D = 0, int T_Q1D = 0>
 MFEM_HOST_DEVICE inline
 void SmemPADiffusionDiagonal3D_element(const int e,
                                        const bool symmetric,
@@ -350,8 +350,8 @@ void SmemPADiffusionDiagonal3D_element(const int e,
                                        const ConstDeviceMatrix &g,
                                        const ConstDeviceCube &D,
                                        const DeviceTensor<4> &Y,
-                                       const int d1d,
-                                       const int q1d)
+                                       const int d1d = 0,
+                                       const int q1d = 0)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -614,7 +614,7 @@ inline void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
-template<int T_D1D, int T_Q1D, int T_NBZ>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 inline void SmemPADiffusionApply2D_element(const int e,
                                            const bool symmetric,
                                            const ConstDeviceMatrix &b,
@@ -622,9 +622,11 @@ inline void SmemPADiffusionApply2D_element(const int e,
                                            const ConstDeviceCube &D,
                                            const ConstDeviceCube &x,
                                            const DeviceCube &Y,
-                                           const int d1d,
-                                           const int q1d)
+                                           const int d1d = 0,
+                                           const int q1d = 0,
+                                           const int nbz = 1)
 {
+   MFEM_ASSERT(T_NBZ > 0 || nbz == 1, "nbz should be equal to 1!");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -777,13 +779,15 @@ inline void PADiffusionApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto G = Reshape(g.Read(), Q1D, D1D);
+   const auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   const auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   const auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -972,12 +976,6 @@ inline void SmemPADiffusionApply3D_element(const int e,
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
 
-   //auto b = Reshape(b_.Read(), Q1D, D1D);
-   //auto g = Reshape(g_.Read(), Q1D, D1D);
-   //auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   //auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   //auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    MFEM_SHARED double sBG[2][MQ1*MD1];
    double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
@@ -1001,6 +999,7 @@ inline void SmemPADiffusionApply3D_element(const int e,
    double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
    double (*QDD1)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+1);
    double (*QDD2)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+2);
+
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(dy,y,D1D)

@@ -55,7 +55,7 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
                                          Vector &y_,
                                          const int d1d = 0,
                                          const int q1d = 0,
-                                         const int nbz = 0)
+                                         const int nbz = 1)
 {
    MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -72,7 +72,8 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassAssembleDiagonal2D_element<T_D1D,T_Q1D,T_NBZ>(e,b,D,Y);
+      internal::SmemPAMassAssembleDiagonal2D_element<T_D1D, T_Q1D, T_NBZ>
+      (e, b, D, Y, d1d, q1d, nbz);
    });
 }
 
@@ -98,7 +99,8 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassAssembleDiagonal3D_element<T_D1D,T_Q1D>(e, B, D, Y);
+      internal::SmemPAMassAssembleDiagonal3D_element<T_D1D,T_Q1D>
+      (e, B, D, Y, d1d, q1d);
    });
 }
 
@@ -306,12 +308,12 @@ static void SmemPAMassApply2D(const int NE,
                               Vector &y_,
                               const int d1d = 0,
                               const int q1d = 0,
-                              const int nbz = 0)
+                              const int nbz = 1)
 {
    MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   const int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
@@ -322,8 +324,8 @@ static void SmemPAMassApply2D(const int NE,
    auto Y = y_.ReadWrite();
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d,
-                                                             q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D, T_Q1D, T_NBZ, true>
+      (e, NE, b, D, x, Y, d1d, q1d, nbz);
    });
 }
 
@@ -375,7 +377,8 @@ static void SmemPAMassApply3D(const int NE,
    auto y = y_.ReadWrite();
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
+      internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>
+      (e, NE, b, d, x, y, d1d, q1d);
    });
 }
 

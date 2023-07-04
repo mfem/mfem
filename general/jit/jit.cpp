@@ -58,6 +58,7 @@ namespace jit
 #define MFEM_AR ""
 #define MFEM_SO_EXT ""
 #define MFEM_XLINKER ""
+#define MFEM_BUILD_DIR ""
 #define MFEM_SO_PREFIX ""
 #define MFEM_SO_POSTFIX ""
 #define MFEM_INSTALL_BACKUP ""
@@ -415,8 +416,11 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
       {
          io::FileLock ar_lock(lib_ar, "ak");
          Command() << cxx << link << "-shared" << "-o" << lib_so
+                   << "-L" MFEM_BUILD_DIR
+                   << "-L" MFEM_INSTALL_DIR "/lib -lmfem"
                    << MFEM_SO_PREFIX << lib_ar << MFEM_SO_POSTFIX
-                   << MFEM_XLINKER + std::string("-rpath,") + Get().path << libs;
+                   << MFEM_XLINKER + std::string("-rpath,") + Get().path
+                   << libs;
          status = Run();
       }
       mpi::Sync(status);
@@ -479,9 +483,12 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                if (Run()) { return EXIT_FAILURE; }
                if (!Get().debug) { std::remove(co.c_str()); }
                // Create temporary shared library:
+               // Warning: there are usually two mfem libraries after installation:
+               //   - the one in MFEM_BUILD_DIR: used for all internal MFEM examples, miniapps & tests
+               //   - the other ine MFEM_INSTALL_DIR/lib: should be the only one used otherwise
                Command() << cxx << link << "-o" << so
                          << "-shared"
-                         << "-L" MFEM_SOURCE_DIR
+                         << "-L" MFEM_BUILD_DIR // MFEM_SOURCE_DIR with make, CMAKE_CURRENT_BINARY_DIR with cmake
                          << "-L" MFEM_INSTALL_DIR "/lib -lmfem"
                          << MFEM_SO_PREFIX << lib_ar << MFEM_SO_POSTFIX
                          << MFEM_XLINKER + std::string("-rpath,") + Get().path
