@@ -169,7 +169,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(RC_FILES) $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
