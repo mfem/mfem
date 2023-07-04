@@ -223,19 +223,18 @@ DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vect
       }
     }
     
-    Array<int> col_tmp; mfem::Vector v_tmp;
-    col_tmp.SetSize(1); v_tmp.SetSize(1);
-    col_tmp[0] = j;
     if (freeDof)
     {
-      v_tmp(0) = 1.0;
+      Array<int> col_tmp; mfem::Vector v_tmp;
+      col_tmp.SetSize(1); v_tmp.SetSize(1);
+      col_tmp[0] = j; v_tmp(0) = 1.0;
+      psi(j)   = psi_gf(j);
+      J->SetRow(j, col_tmp, v_tmp);
     }
     else
     {
-      v_tmp(0) = 0.0;
+      psi(j) = psi_gf(j) - 1.e-8;
     }
-    J->SetRow(j, col_tmp, v_tmp);
-    psi(j) = psi_gf(j);
   }
   J->Finalize();
 }

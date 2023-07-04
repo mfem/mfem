@@ -42,11 +42,17 @@ obstacleProblem: obstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
 SphericalObstacleProblem: SphericalObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) SphericalObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
+DirichletObstacleProblem: DirichletObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) DirichletObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+
 obstacleProblem.o: $(SRC)obstacleProblem.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
 
 SphericalObstacleProblem.o: $(SRC)SphericalObstacleProblem.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
+
+DirichletObstacleProblem.o: $(SRC)DirichletObstacleProblem.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
 problems.o: $(SRC)problems.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
