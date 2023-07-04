@@ -248,7 +248,7 @@ public:
       b_forms[i] = lf;
    }
 
-   void Assemble();
+   void Assemble(BlockVector *x);
 
    void GMRES(BlockVector *x);
    void CG(BlockVector *x) { mfem_error("Not yet implemented."); }
