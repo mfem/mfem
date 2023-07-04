@@ -180,6 +180,103 @@ Array<int> getOffsets(Array<FiniteElementSpace*> &spaces)
    offsets.PartialSum();
    return offsets;
 }
+
+class BlockLinearSystem
+{
+public:
+   bool own_blocks = false;
+   BlockLinearSystem(Array<FiniteElementSpace*> &array_of_spaces,
+                     Array2D<int> &array_of_ess_bdr)
+      : spaces(array_of_spaces), ess_bdr(array_of_ess_bdr),
+        offsets(array_of_spaces.Size()), numSpaces(array_of_spaces.Size())
+   {
+      A = new BlockOperator(offsets);
+
+      A_forms.SetSize(numSpaces, numSpaces);
+      A_forms = nullptr;
+
+      b = new BlockVector(offsets);
+
+      b_forms.SetSize(numSpaces);
+      b_forms = nullptr;
+      skip_assembly_A.SetSize(numSpaces, numSpaces);
+      skip_assembly_A = true;
+      skip_assembly_b.SetSize(numSpaces);
+      skip_assembly_b = true;
+   }
+   void SkipAssembleMatrix(int i, int j)
+   {
+      if (i==j)
+      {
+         BilinearForm *bilf = static_cast<BilinearForm*>(A_forms(i, j));
+         if (!bilf) { mfem_error("BilinearForm is null."); }
+         bilf->Assemble();
+         skip_assembly_A(i, j) = true;
+      }
+      else
+      {
+         MixedBilinearForm *bilf = static_cast<MixedBilinearForm*>(A_forms(i, j));
+         if (!bilf) { mfem_error("MixedBilinearForm is null."); }
+         bilf->Assemble();
+         skip_assembly_A(i, j) = true;
+      }
+   }
+
+   void SetBlockMatrix(int i, int j, Matrix *mat)
+   {
+
+      if (i == j)
+      {
+         auto bilf = static_cast<BilinearForm*>(mat);
+         if (!bilf) { mfem_error("Cannot convert provided Matrix to BilinearForm"); }
+         SetDiagBlockMatrix(i, bilf);
+         return;
+      }
+      auto bilf = static_cast<MixedBilinearForm*>(mat);
+      if (!bilf) { mfem_error("Cannot convert provided Matrix to MixedBilinearForm"); }
+      if (bilf->TestFESpace() != spaces[i])
+      {
+         mfem_error("The provided BilinearForm's test space does not match with the provided array of spaces. Check the initialization and block index");
+      }
+      if (bilf->TrialFESpace() != spaces[j])
+      {
+         mfem_error("The provided BilinearForm's trial space does not match with the provided array of spaces. Check the initialization and block index");
+      }
+      skip_assembly_A(i, j) = false;
+      A_forms(i, j) = bilf;
+   }
+
+   void SetDiagBlockMatrix(int i, BilinearForm *bilf)
+   {
+      if (bilf->FESpace() != spaces[i]) {mfem_error("The provided BilinearForm's space does not match with the provided array of spaces. Check the initialization and block index"); }
+      skip_assembly_A(i, i) = false;
+      A_forms(i, i) = bilf;
+   }
+
+   void SetBlockVector(int i, LinearForm *lf)
+   {
+      if (lf->FESpace() != spaces[i]) { mfem_error("The provided LinearForm's space does not match with the provided array of spaces. Check the initialization and block index"); }
+      skip_assembly_b[i] = false;
+      b_forms[i] = lf;
+   }
+
+   void Assemble();
+
+   void GMRES(BlockVector *x);
+   void CG(BlockVector *x) { mfem_error("Not yet implemented."); }
+
+private:
+   Array<FiniteElementSpace*> &spaces;
+   Array2D<int> &ess_bdr;
+   Array<int> offsets;
+   int numSpaces;
+   BlockOperator *A;
+   BlockVector *b;
+   Array2D<Matrix*> A_forms;
+   Array<LinearForm*> b_forms;
+   Array2D<bool> skip_assembly_A;
+   Array<bool> skip_assembly_b;
+};
 } // end of namespace mfem
 
 #endif // end of proximalGalerkin.hpp
