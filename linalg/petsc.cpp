@@ -119,6 +119,15 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix*,Mat*);
 #define VecDeviceRestoreArray      VecHIPRestoreArray
 #define VecDevicePlaceArray        VecHIPPlaceArray
 #define VecDeviceResetArray        VecHIPResetArray
+#else
+#define VecDeviceGetArrayRead      VecGetArrayRead
+#define VecDeviceGetArrayWrite     VecGetArrayWrite
+#define VecDeviceGetArray          VecGetArray
+#define VecDeviceRestoreArrayRead  VecRestoreArrayRead
+#define VecDeviceRestoreArrayWrite VecRestoreArrayWrite
+#define VecDeviceRestoreArray      VecRestoreArray
+#define VecDevicePlaceArray        VecPlaceArray
+#define VecDeviceResetArray        VecResetArray
 #endif
 #endif
 
