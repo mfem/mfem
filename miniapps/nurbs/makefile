@@ -72,14 +72,14 @@ EX1_ARGS_16 := -m two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf two-cubes.ref
 EX1_ARGS_17 := -m two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf two-cubes.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
-	cp $(SRC)/two-squares-nurbs.mesh .
-	cp $(SRC)/two-squares-nurbs-rot.mesh .
-	cp $(SRC)/two-squares-nurbs-autoedge.mesh .
-	cp $(SRC)/two-squares.ref .
-	cp $(SRC)/two-cubes-nurbs.mesh .
-	cp $(SRC)/two-cubes-nurbs-rot.mesh .
-	cp $(SRC)/two-cubes-nurbs-autoedge.mesh .
-	cp $(SRC)/two-cubes.ref .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-squares-nurbs.mesh .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-squares-nurbs-rot.mesh .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-squares-nurbs-autoedge.mesh .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-squares.ref .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes-nurbs.mesh .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes-nurbs-rot.mesh .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes-nurbs-autoedge.mesh .
+	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes.ref .
 	@$(call mfem-test,$<,, NURBS miniapp)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_3))
