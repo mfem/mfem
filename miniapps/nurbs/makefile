@@ -64,24 +64,14 @@ EX1_ARGS_8 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2
 EX1_ARGS_9 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_10 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_11 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
-EX1_ARGS_12 := -m two-squares-nurbs.mesh -o 1 -rf two-squares.ref
-EX1_ARGS_13 := -m two-squares-nurbs-rot.mesh -o 1 -rf two-squares.ref
-EX1_ARGS_14 := -m two-squares-nurbs-autoedge.mesh -o 1 -rf two-squares.ref
-EX1_ARGS_15 := -m two-cubes-nurbs.mesh -o 1 -r 3 -rf two-cubes.ref
-EX1_ARGS_16 := -m two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf two-cubes.ref
-EX1_ARGS_17 := -m two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf two-cubes.ref
+EX1_ARGS_12 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_13 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_14 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_15 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_16 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_17 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
-	echo "TESTING nurbs_ex1"
-	pwd
-	cp $(MFEM_DIR)/miniapps/nurbs/two-squares-nurbs.mesh $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-squares-nurbs-rot.mesh $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-squares-nurbs-autoedge.mesh $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-squares.ref $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes-nurbs.mesh $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes-nurbs-rot.mesh $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes-nurbs-autoedge.mesh $(MFEM_BUILD_DIR)/miniapps/nurbs/.
-	cp $(MFEM_DIR)/miniapps/nurbs/two-cubes.ref $(MFEM_BUILD_DIR)/miniapps/nurbs/.
 	@$(call mfem-test,$<,, NURBS miniapp)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_3))
