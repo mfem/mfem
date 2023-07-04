@@ -169,8 +169,11 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(RC_FILES) $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
+ifneq ($(SRC),)
+	rm -f $(RC_FILES)
+endif
 
 clean-exec:
 	@rm -rf mesh.* sol.* sol_p.* sol_u.* Example5*
