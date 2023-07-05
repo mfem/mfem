@@ -72,12 +72,20 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    const int max_attributes = mesh.bdr_attributes.Max();
 
+   double volume = 0.0;
+   for (int i=0; i<mesh.GetNE(); i++) { volume += mesh.GetElementVolume(i); }
+
    for (int i=0; i<ref_levels; i++) { mesh.UniformRefinement(); }
 
    // Essential boundary for each variable (numVar x numAttr)
    Array2D<int> ess_bdr(Vars::numVars, max_attributes);
    ess_bdr = 0;
    ess_bdr(Vars::u, 0) = true;
+
+   // Source and fixed temperature
+   ConstantCoefficient heat_source(1.0);
+   ConstantCoefficient u_bdr(0.0);
+   const int volume_fraction = 0.7;
 
    // Finite Element Spaces
    FiniteElementSpace fes_H1_Qk2(&mesh, new H1_FECollection(order + 2, dim,
