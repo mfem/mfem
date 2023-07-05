@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
    ScalarVectorProductCoefficient neg_simp_Du(neg_simp, Du);
    ScalarVectorProductCoefficient neg_eps_Df_rho(-epsilon, Df_rho);
    ScalarVectorProductCoefficient neg_eps_Df_lam(-epsilon, Df_lam);
-   ScalarVectorProductCoefficient dsimp_Du(dsimp_cf, Du);
+   ScalarVectorProductCoefficient d2simp_Du(d2simp_cf, Du);
    ScalarVectorProductCoefficient dsimp_Du_times2(dsimp_times2, Du);
 
    SumCoefficient diff_filter(rho_cf, f_rho_cf, 1.0, -1.0);
@@ -289,7 +289,9 @@ int main(int argc, char *argv[])
          const double diff_newton = std::sqrt(
                                        std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
                                     );
-         VolumeProjection(psi, target_volume);
+         const double current_volume_fraction = VolumeProjection(psi, target_volume) / volume;
+         mfem::out << std::scientific << diff_newton << ", ∫ρ / |Ω| = " << std::fixed << current_volume_fraction << std::endl;
+         
          if (diff_newton < tol_newton)
          {
             break;
@@ -298,6 +300,7 @@ int main(int argc, char *argv[])
       const double diff_penalty = std::sqrt(
                                      psi_k.DistanceSquaredTo(psi) / delta_sol.Size()
                                   );
+      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl;
       if (diff_penalty < tol_penalty)
       {
          break;
