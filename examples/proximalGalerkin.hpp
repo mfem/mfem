@@ -58,7 +58,7 @@ public:
 
    inline void SetMapping(Mapping &f_x) { map = f_x; }
 private:
-   Mapping &map;
+   Mapping map;
 };
 
 MappedGridFunctionCoefficient SIMPCoefficient(GridFunction *gf,
@@ -158,7 +158,7 @@ double ParVolumeProjection(ParGridFunction &psi, const double target_volume,
    }
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   if (rank == 0 & !done)
+   if ((rank == 0) & (!done))
    {
       mfem_warning("Projection reached maximum iteration without converging. Result may not be accurate.");
    }
@@ -260,8 +260,8 @@ public:
     */
    void Assemble(BlockVector *x);
 
-   int GMRES(BlockVector *x);
-   int CG(BlockVector *x) { mfem_error("Not yet implemented."); }
+   void GMRES(BlockVector *x);
+   void CG(BlockVector *x) { mfem_error("Not yet implemented."); }
 
    ~BlockLinearSystem()
    {
