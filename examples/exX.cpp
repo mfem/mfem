@@ -108,9 +108,16 @@ int main(int argc, char *argv[])
    fes[Vars::f_lam] = fes[Vars::f_rho];
 
    Array<int> offsets = getOffsets(fes);
-   BlockVector sol(offsets), old_sol(offsets);
+   BlockVector sol(offsets), delta_sol(offsets);
    sol = 0.0;
-   old_sol = 0.0;
+   delta_sol = 0.0;
+
+   GridFunction u(fes[Vars::u], sol.GetBlock(Vars::u));
+   GridFunction psi(fes[Vars::psi], sol.GetBlock(Vars::psi));
+   GridFunction f_rho(fes[Vars::f_rho], sol.GetBlock(Vars::f_rho));
+   GridFunction f_lam(fes[Vars::f_lam], sol.GetBlock(Vars::f_lam));
+
+   GridFunction psi_k(fes[Vars::psi]);
 
    return 0;
 }
