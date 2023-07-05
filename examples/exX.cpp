@@ -42,6 +42,11 @@ int main(int argc, char *argv[])
    double rho0 = 1e-6;
    int simp_exp = 3;
 
+   int maxit_penalty = 100;
+   int maxit_newton = 100;
+   double tol_newton = 1e-16;
+   double tol_penalty = 1e-6;
+
 
    int precision = 8;
    cout.precision(precision);
@@ -270,6 +275,35 @@ int main(int argc, char *argv[])
    globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
       new DomainLFIntegrator(neg_f_lam)
    );
+
+   for (int k=0; k<maxit_penalty; k++)
+   {
+      mfem::out << "Iteration " << k + 1 << std::endl;
+      alpha_k.constant = alpha0*(k+1);
+      psi_k = psi;
+      for (int j=0; j<maxit_newton; j++)
+      {
+         mfem::out << "\tNewton Iteration " << j + 1 << ": ";
+         delta_sol = 0.0;
+         globalSystem.Assemble(&delta_sol);
+         globalSystem.GMRES(&delta_sol);
+         sol += delta_sol;
+         const double diff_newton = std::sqrt(
+                                       std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
+                                    );
+         if (diff_newton < tol_newton)
+         {
+            break;
+         }
+      }
+      const double diff_penalty = std::sqrt(
+                                     psi_k.DistanceSquaredTo(psi) / delta_sol.Size()
+                                  );
+      if (diff_penalty < tol_penalty)
+      {
+         break;
+      }
+   }
 
    return 0;
 }
