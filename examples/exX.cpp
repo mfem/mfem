@@ -179,11 +179,11 @@ int main(int argc, char *argv[])
    SumCoefficient diff_psi_grad(diff_psi_k, alph_f_lam, 1.0, -1.0);
 
    // 5. Define global system for newton iteration
-   BlockLinearSystem globalSystem(offsets, fes, ess_bdr);
-   globalSystem.own_blocks = true;
+   BlockLinearSystem newtonSystem(offsets, fes, ess_bdr);
+   newtonSystem.own_blocks = true;
    for (int i=0; i<Vars::numVars; i++)
    {
-      globalSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
+      newtonSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
    }
    std::vector<std::vector<int>> offDiagBlocks
    {
@@ -195,82 +195,82 @@ int main(int argc, char *argv[])
    };
    for (auto idx: offDiagBlocks)
    {
-      globalSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[1]],
+      newtonSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[1]],
                                                                         fes[idx[0]]));
    }
 
 
    // Equation u
-   globalSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
+   newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
       // (r'(ρ̃^i)∇u, ∇v)
       new DiffusionIntegrator(dsimp_cf)
    );
-   globalSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
-      // ((r'(ρ̃^i)∇u) ρ̃, ∇v)
-      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(dsimp_Du))
+   newtonSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
+      // ((r''(ρ̃^i)∇u) ρ̃, ∇v)
+      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(d2simp_Du))
    );
-   globalSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
       // (f, v)
       new DomainLFIntegrator(heat_source)
    );
-   globalSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
       // -(r(ρ̃^i)∇u^i, ∇v)
       new DomainLFGradIntegrator(neg_simp_Du)
    );
 
    // Equation ρ̃
-   globalSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
       // (ϵ∇ρ̃, ∇μ̃)
       new DiffusionIntegrator(eps_cf)
    );
-   globalSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
       // (ρ̃, μ̃)
       new MassIntegrator()
    );
-   globalSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
+   newtonSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
       // -(sig'(ψ^i)ψ, μ̃)
       new MixedScalarMassIntegrator(neg_dsigmoid)
    );
-   globalSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
       // -(ϵ∇ρ̃^i, ∇μ̃)
       new DomainLFGradIntegrator(neg_eps_Df_rho)
    );
-   globalSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
       // (ρ^i-ρ̃^i, μ̃)
       new DomainLFIntegrator(diff_filter)
    );
 
    // Equation ψ
-   globalSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+   newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
       new MassIntegrator()
    );
-   globalSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
+   newtonSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
       new MixedScalarMassIntegrator(alpha_k)
    );
-   globalSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
       new DomainLFIntegrator(diff_psi_grad)
    );
 
    // Equation f_lam
-   globalSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
       new DiffusionIntegrator(eps_cf)
    );
-   globalSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
       new MassIntegrator()
    );
-   globalSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
+   newtonSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
       new MixedDirectionalDerivativeIntegrator(dsimp_Du_times2)
    );
-   globalSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
+   newtonSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
       new MixedScalarMassIntegrator(d2simp_squared_normDu)
    );
-   globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
       new DomainLFIntegrator(neg_dsimp_squared_normDu)
    );
-   globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
       new DomainLFGradIntegrator(neg_eps_Df_lam)
    );
-   globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
       new DomainLFIntegrator(neg_f_lam)
    );
 
@@ -283,8 +283,8 @@ int main(int argc, char *argv[])
       {
          mfem::out << "\tNewton Iteration " << j + 1 << ": ";
          delta_sol = 0.0;
-         globalSystem.Assemble(delta_sol);
-         globalSystem.GMRES(delta_sol);
+         newtonSystem.Assemble(delta_sol);
+         newtonSystem.GMRES(delta_sol);
          sol += delta_sol;
          const double diff_newton = std::sqrt(
                                        std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
