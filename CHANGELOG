@@ -62,6 +62,9 @@ Linear and nonlinear solvers
   sides, block low-rank compression, builds using 64-bit integers, and other
   improvements.
 
+- Added an interface to the MKL Pardiso solver, a shared-memory multiprocessing
+  parallel direct sparse solver developed by Intel.
+
 Integrations, testing and documentation
 ---------------------------------------
 - Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
