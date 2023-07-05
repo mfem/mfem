@@ -284,8 +284,8 @@ int main(int argc, char *argv[])
       {
          mfem::out << "\tNewton Iteration " << j + 1 << ": ";
          delta_sol = 0.0;
-         globalSystem.Assemble(&delta_sol);
-         globalSystem.GMRES(&delta_sol);
+         globalSystem.Assemble(delta_sol);
+         globalSystem.GMRES(delta_sol);
          sol += delta_sol;
          const double diff_newton = std::sqrt(
                                        std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
