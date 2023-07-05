@@ -177,18 +177,20 @@ int main(int argc, char *argv[])
    // 5. Define global system for newton iteration
    BlockLinearSystem globalSystem(fes, ess_bdr);
    globalSystem.own_blocks = true;
-   for (int i=0; i<Vars::numVars; i++){
+   for (int i=0; i<Vars::numVars; i++)
+   {
       globalSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
       globalSystem.SetBlockVector(i, new LinearForm(fes[i]));
    }
-   std::vector<std::vector<int>> offDiagBlocks{
+   std::vector<std::vector<int>> offDiagBlocks
+   {
       {Vars::u, Vars::f_rho},
       {Vars::f_rho, Vars::psi},
       {Vars::psi, Vars::f_lam},
       {Vars::f_lam, Vars::u},
       {Vars::f_lam, Vars::f_rho}
    };
-   for(auto idx: offDiagBlocks)
+   for (auto idx: offDiagBlocks)
    {
       globalSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[1]],
                                                                         fes[idx[0]]));
@@ -223,7 +225,7 @@ int main(int argc, char *argv[])
       new MassIntegrator()
    );
    globalSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
-      // -(sig'(ψ^i)ψ, μ̃) 
+      // -(sig'(ψ^i)ψ, μ̃)
       new MixedScalarMassIntegrator(neg_dsigmoid)
    );
    globalSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
