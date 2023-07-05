@@ -683,7 +683,7 @@ int main(int argc, char *argv[])
    // TODO: BOUCLE
    std::vector<int>
    inter_faces;   // Vector to save the faces between two different materials
-   for (int iter_pref=0; iter_pref<pref_max_order-1; iter_pref++)
+   for (int iter_pref=0; iter_pref<pref_max_order; iter_pref++)
    {
       std::cout << "BOUCLE j: " << iter_pref << std::endl;
 
@@ -735,31 +735,32 @@ int main(int argc, char *argv[])
                }
             }
             mesh->SetNodalGridFunction(&x);
-            for (int i=0; i<faces_order_increase.size(); i++)
-            {
-               Array<int> els;
-               mesh->GetFaceAdjacentElements(faces_order_increase[i], els);
-               fespace->SetElementOrder(els[0], max_order + pref_order_increase);
-               fespace->SetElementOrder(els[1], max_order + pref_order_increase);
-               order_gf(els[0]) = max_order + pref_order_increase;
-               order_gf(els[1]) = max_order + pref_order_increase;
+            if (iter_pref>0) {
+                for (int i = 0; i < faces_order_increase.size(); i++) {
+                    Array<int> els;
+                    mesh->GetFaceAdjacentElements(faces_order_increase[i], els);
+                    fespace->SetElementOrder(els[0], max_order + pref_order_increase);
+                    fespace->SetElementOrder(els[1], max_order + pref_order_increase);
+                    order_gf(els[0]) = max_order + pref_order_increase;
+                    order_gf(els[1]) = max_order + pref_order_increase;
+                }
+                fespace->Update(false);
+                surf_fit_fes.CopySpaceElementOrders(*fespace);
+                preft_fespace.Transfer(x);
+                preft_fespace.Transfer(x0);
+                preft_fespace.Transfer(rdm);
+                preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
+                preft_surf_fit_fes.Transfer(surf_fit_gf0);
+                surf_fit_marker.SetSize(surf_fit_gf0.Size());
+
+                x.SetTrueVector();
+                x.SetFromTrueVector();
+
+                mesh->SetNodalGridFunction(&x);
+
+                x_max_order = ProlongToMaxOrder(&x, 0);
+                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
-            fespace->Update(false);
-            surf_fit_fes.CopySpaceElementOrders(*fespace);
-            preft_fespace.Transfer(x);
-            preft_fespace.Transfer(x0);
-            preft_fespace.Transfer(rdm);
-            preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
-            preft_surf_fit_fes.Transfer(surf_fit_gf0);
-            surf_fit_marker.SetSize(surf_fit_gf0.Size());
-
-            x.SetTrueVector();
-            x.SetFromTrueVector();
-
-            mesh->SetNodalGridFunction(&x);
-
-            x_max_order = ProlongToMaxOrder(&x, 0);
-            surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
 
             /*
             if (visualization)
@@ -1196,7 +1197,7 @@ int main(int argc, char *argv[])
 
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the final mesh and metric values.
-      if (visualization && iter_pref==pref_max_order-2)
+      if (visualization && iter_pref==pref_max_order-1)
       {
          char title[] = "Final metric values";
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 500);
@@ -1205,7 +1206,7 @@ int main(int argc, char *argv[])
       // Visualize fitting surfaces and report fitting errors.
       if (surface_fit_const > 0.0)
       {
-         if (visualization && iter_pref==pref_max_order-2)
+         if (visualization && iter_pref==pref_max_order-1)
          {
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
