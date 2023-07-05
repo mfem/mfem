@@ -171,6 +171,26 @@ int main(int argc, char *argv[])
    SumCoefficient diff_psi_k(psi_k_cf, psi_cf, 1.0, -1.0);
    SumCoefficient diff_psi_grad(diff_psi_k, alph_f_lam, 1.0, -1.0);
 
+   // 5. Define global system for newton iteration
+   BlockLinearSystem globalSystem(fes, ess_bdr);
+   globalSystem.own_blocks = true;
+   for (int i=0; i<Vars::numVars; i++){
+      globalSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
+      globalSystem.SetBlockVector(i, new LinearForm(fes[i]));
+   }
+   std::vector<std::vector<int>> offDiagBlocks{
+      {Vars::u, Vars::f_rho},
+      {Vars::f_rho, Vars::psi},
+      {Vars::psi, Vars::f_lam},
+      {Vars::f_lam, Vars::u},
+      {Vars::f_lam, Vars::f_rho}
+   };
+   for(auto idx: offDiagBlocks)
+   {
+      globalSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[0]], fes[idx[1]]));
+   }
+
+
    return 0;
 }
 
