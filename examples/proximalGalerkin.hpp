@@ -198,7 +198,7 @@ public:
       b = new BlockVector(offsets);
 
       b_forms.SetSize(numSpaces);
-      b_forms = nullptr;
+      for (int i=0; i<numSpaces; i++) { b_forms[i] = new LinearForm(spaces[i]); }
 
       prec = new BlockDiagonalPreconditioner(offsets);
       prec->owns_blocks = true;
@@ -245,12 +245,6 @@ public:
    inline LinearForm *GetLinearForm(int i)
    {
       return b_forms[i];
-   }
-
-   void SetBlockVector(int i, LinearForm *lf)
-   {
-      if (lf->FESpace() != spaces[i]) { mfem_error("The provided LinearForm's space does not match with the provided array of spaces. Check the initialization and block index"); }
-      b_forms[i] = lf;
    }
 
    /**
