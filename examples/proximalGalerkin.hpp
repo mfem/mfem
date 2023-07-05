@@ -311,15 +311,6 @@ void BlockLinearSystem::Assemble(BlockVector &x)
 void BlockLinearSystem::GMRES(BlockVector &x)
 {
    mfem::GMRES(A, prec, b, x, 0, 200, 50, 1e-12, 0.0);
-   for (int row=0; row < numSpaces; row++)
-   {
-      GetDiagBlock(row)->LoseMat();
-      for (int col=0; col<numSpaces; col++)
-      {
-         if (col == row) { continue; }
-         GetBlock(row, col)->LoseMat();
-      }
-   }
 }
 } // end of namespace mfem
 
