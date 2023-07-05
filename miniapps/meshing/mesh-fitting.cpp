@@ -655,10 +655,19 @@ int main(int argc, char *argv[])
          {
             Vector center(mesh->Dimension());
             mesh->GetElementCenter(i, center);
-            if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                center(1) < 0.75)
-            //if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-            //    center(1) < 0.75 && center(2) > 0.25 && center(2) < 0.75)     // 3D
+            bool mat_0(false);
+            if(mesh->Dimension() == 2)
+            {
+                mat_0 = (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 && center(1) < 0.75);
+            }
+            else if (mesh->Dimension() == 3)
+            {
+                mat_0 = (center(0) > 0.25 && center(0) < 0.75
+                         && center(1) > 0.25 && center(1) < 0.75
+                         && center(2) > 0.25 && center(2) < 0.75);
+            }
+
+            if (mat_0)
             {
                mat(i) = 0;
             }
@@ -750,24 +759,28 @@ int main(int argc, char *argv[])
                     order_gf(els[0]) = max_order + pref_order_increase;
                     order_gf(els[1]) = max_order + pref_order_increase;
                 }
-                fespace->Update(false);
-                surf_fit_fes.CopySpaceElementOrders(*fespace);
-                preft_fespace.Transfer(x);
-                preft_fespace.Transfer(x0);
-                preft_fespace.Transfer(rdm);
-                preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
-                preft_surf_fit_fes.Transfer(surf_fit_gf0);
-                surf_fit_marker.SetSize(surf_fit_gf0.Size());
 
-                x.SetTrueVector();
-                x.SetFromTrueVector();
+                if (faces_order_increase.Size() != 0) {
+                    // Updates if we increase the order of at least one element
+                    fespace->Update(false);
+                    surf_fit_fes.CopySpaceElementOrders(*fespace);
+                    preft_fespace.Transfer(x);
+                    preft_fespace.Transfer(x0);
+                    preft_fespace.Transfer(rdm);
+                    preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
+                    preft_surf_fit_fes.Transfer(surf_fit_gf0);
+                    surf_fit_marker.SetSize(surf_fit_gf0.Size());
 
-                mesh->SetNodalGridFunction(&x);
+                    x.SetTrueVector();
+                    x.SetFromTrueVector();
 
-                delete x_max_order;
-                x_max_order = ProlongToMaxOrder(&x, 0);
-                delete surf_fit_gf0_max_order;
-                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+                    mesh->SetNodalGridFunction(&x);
+
+                    delete x_max_order;
+                    x_max_order = ProlongToMaxOrder(&x, 0);
+                    delete surf_fit_gf0_max_order;
+                    surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+                }
             }
 
             /*
