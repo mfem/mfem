@@ -921,9 +921,9 @@ int main(int argc, char *argv[])
              delete x_max_order;
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
-            delete surf_fit_gf0_max_order;
+            //delete surf_fit_gf0_max_order;
             surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-            delete surf_fit_mat_gf_max_order;
+            //delete surf_fit_mat_gf_max_order;
             surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
          }
          if (visualization && iter_pref==0)
