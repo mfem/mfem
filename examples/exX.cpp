@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
    ScalarVectorProductCoefficient neg_simp_Du(neg_simp, Du);
    ScalarVectorProductCoefficient neg_eps_Df_rho(-epsilon, Df_rho);
    ScalarVectorProductCoefficient neg_eps_Df_lam(-epsilon, Df_lam);
-   ScalarVectorProductCoefficient d2simp_Du(d2simp_cf, Du);
+   ScalarVectorProductCoefficient dsimp_Du(dsimp_cf, Du);
    ScalarVectorProductCoefficient dsimp_Du_times2(dsimp_times2, Du);
 
    SumCoefficient diff_filter(rho_cf, f_rho_cf, 1.0, -1.0);
@@ -202,12 +202,12 @@ int main(int argc, char *argv[])
 
    // Equation u
    newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
-      // A += (r'(ρ̃^i)∇u, ∇v)
-      new DiffusionIntegrator(dsimp_cf)
+      // A += (r(ρ̃^i)∇δu, ∇v)
+      new DiffusionIntegrator(simp_cf)
    );
    newtonSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
-      // A += ((r''(ρ̃^i)∇u) ρ̃, ∇v)
-      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(d2simp_Du))
+      // A += ((r'(ρ̃^i)∇u) δρ̃, ∇v)
+      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(dsimp_Du))
    );
    newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
       // b += (f, v)
