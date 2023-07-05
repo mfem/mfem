@@ -232,6 +232,17 @@ int main(int argc, char *argv[])
       // (ρ^i-ρ̃^i, μ̃)
       new DomainLFIntegrator(diff_filter)
    );
+
+   // Equation ψ
+   globalSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+      new MassIntegrator()
+   );
+   globalSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
+      new MixedScalarMassIntegrator(alpha_k)
+   );
+   globalSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+      new DomainLFIntegrator(diff_psi_grad)
+   );
    return 0;
 }
 
