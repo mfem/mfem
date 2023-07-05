@@ -19,11 +19,13 @@
 //               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
+#include "proximalGalerkin.hpp"
+
+// Solution variables
+class Vars { public: enum {u, f_rho, psi, f_lam, numVars}; };
 
 using namespace std;
 using namespace mfem;
-
-enum vars {u, f_rho, psi, f_lam, numVars};
 
 
 int main(int argc, char *argv[])
@@ -73,23 +75,34 @@ int main(int argc, char *argv[])
    for (int i=0; i<ref_levels; i++) { mesh.UniformRefinement(); }
 
    // Essential boundary for each variable (numVar x numAttr)
-   Array2D<int> ess_bdr(vars::numVars, max_attributes);
+   Array2D<int> ess_bdr(Vars::numVars, max_attributes);
    ess_bdr = 0;
-   ess_bdr(vars::u, 0) = true;
+   ess_bdr(Vars::u, 0) = true;
 
    // Finite Element Spaces
-   FiniteElementSpace fes_H1_Qk2(&mesh, new H1_FECollection(order + 2, dim, mfem::BasisType::GaussLobatto));
-   FiniteElementSpace fes_H1_Qk1(&mesh, new H1_FECollection(order + 1, dim, mfem::BasisType::GaussLobatto));
-   FiniteElementSpace fes_H1_Qk0(&mesh, new H1_FECollection(order + 0, dim, mfem::BasisType::GaussLobatto));
-   FiniteElementSpace fes_L2_Qk2(&mesh, new L2_FECollection(order + 2, dim, mfem::BasisType::GaussLobatto));
-   FiniteElementSpace fes_L2_Qk1(&mesh, new L2_FECollection(order + 1, dim, mfem::BasisType::GaussLobatto));
-   FiniteElementSpace fes_L2_Qk0(&mesh, new L2_FECollection(order + 0, dim, mfem::BasisType::GaussLobatto));
-   
-   Array<FiniteElementSpace*> fes(numVars);
-   fes[vars::u] = &fes_H1_Qk1;
-   fes[vars::f_rho] = &fes_H1_Qk1;
-   fes[vars::psi] = &fes_L2_Qk0;
-   fes[vars::f_lam] = fes[vars::f_rho];
+   FiniteElementSpace fes_H1_Qk2(&mesh, new H1_FECollection(order + 2, dim,
+                                                            mfem::BasisType::GaussLobatto));
+   FiniteElementSpace fes_H1_Qk1(&mesh, new H1_FECollection(order + 1, dim,
+                                                            mfem::BasisType::GaussLobatto));
+   FiniteElementSpace fes_H1_Qk0(&mesh, new H1_FECollection(order + 0, dim,
+                                                            mfem::BasisType::GaussLobatto));
+   FiniteElementSpace fes_L2_Qk2(&mesh, new L2_FECollection(order + 2, dim,
+                                                            mfem::BasisType::GaussLobatto));
+   FiniteElementSpace fes_L2_Qk1(&mesh, new L2_FECollection(order + 1, dim,
+                                                            mfem::BasisType::GaussLobatto));
+   FiniteElementSpace fes_L2_Qk0(&mesh, new L2_FECollection(order + 0, dim,
+                                                            mfem::BasisType::GaussLobatto));
+
+   Array<FiniteElementSpace*> fes(Vars::numVars);
+   fes[Vars::u] = &fes_H1_Qk1;
+   fes[Vars::f_rho] = &fes_H1_Qk1;
+   fes[Vars::psi] = &fes_L2_Qk0;
+   fes[Vars::f_lam] = fes[Vars::f_rho];
+
+   Array<int> offsets = getOffsets(fes);
+   BlockVector sol(offsets), old_sol(offsets);
+   sol = 0.0;
+   old_sol = 0.0;
 
    return 0;
 }
