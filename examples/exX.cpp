@@ -190,7 +190,8 @@ int main(int argc, char *argv[])
    };
    for(auto idx: offDiagBlocks)
    {
-      globalSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[0]], fes[idx[1]]));
+      globalSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[1]],
+                                                                        fes[idx[0]]));
    }
 
 
