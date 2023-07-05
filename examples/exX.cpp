@@ -202,93 +202,107 @@ int main(int argc, char *argv[])
 
    // Equation u
    newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
-      // (r'(ρ̃^i)∇u, ∇v)
+      // A += (r'(ρ̃^i)∇u, ∇v)
       new DiffusionIntegrator(dsimp_cf)
    );
    newtonSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
-      // ((r''(ρ̃^i)∇u) ρ̃, ∇v)
+      // A += ((r''(ρ̃^i)∇u) ρ̃, ∇v)
       new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(d2simp_Du))
    );
    newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
-      // (f, v)
+      // b += (f, v)
       new DomainLFIntegrator(heat_source)
    );
    newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
-      // -(r(ρ̃^i)∇u^i, ∇v)
+      // b += -(r(ρ̃^i)∇u^i, ∇v)
       new DomainLFGradIntegrator(neg_simp_Du)
    );
 
    // Equation ρ̃
    newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      // (ϵ∇ρ̃, ∇μ̃)
+      // A += (ϵ∇ρ̃, ∇μ̃)
       new DiffusionIntegrator(eps_cf)
    );
    newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      // (ρ̃, μ̃)
+      // A += (ρ̃, μ̃)
       new MassIntegrator()
    );
    newtonSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
-      // -(sig'(ψ^i)ψ, μ̃)
+      // A += -(sig'(ψ^i)ψ, μ̃)
       new MixedScalarMassIntegrator(neg_dsigmoid)
    );
    newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
-      // -(ϵ∇ρ̃^i, ∇μ̃)
+      // b += -(ϵ∇ρ̃^i, ∇μ̃)
       new DomainLFGradIntegrator(neg_eps_Df_rho)
    );
    newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
-      // (ρ^i-ρ̃^i, μ̃)
+      // b += (ρ^i-ρ̃^i, μ̃)
       new DomainLFIntegrator(diff_filter)
    );
 
    // Equation ψ
    newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+      // A += (ψ, φ)
       new MassIntegrator()
    );
    newtonSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
+      // A += (α_k λ̃, φ)
       new MixedScalarMassIntegrator(alpha_k)
    );
    newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+      // b += (ψ_k - ψ^i - α_k λ̃^i, φ)
       new DomainLFIntegrator(diff_psi_grad)
    );
 
    // Equation f_lam
    newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      // A += (ϵ∇λ̃, μ̃)
       new DiffusionIntegrator(eps_cf)
    );
    newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      // A += (λ̃, μ̃)
       new MassIntegrator()
    );
    newtonSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
+      // A += (2r'(ρ̃)∇u, μ̃)
       new MixedDirectionalDerivativeIntegrator(dsimp_Du_times2)
    );
    newtonSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
+      // A += (r''(ρ̃)||∇u||^2 ρ̃, μ̃)
       new MixedScalarMassIntegrator(d2simp_squared_normDu)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      // b += -(r'(ρ̃^i)||∇u^i||^2, μ̃)
       new DomainLFIntegrator(neg_dsimp_squared_normDu)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      // b += -(ϵ∇λ̃^i, ∇μ̃)
       new DomainLFGradIntegrator(neg_eps_Df_lam)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      // b += -(λ̃, μ̃)
       new DomainLFIntegrator(neg_f_lam)
    );
 
+   // 6. Penalty Iteration
    for (int k=0; k<maxit_penalty; k++)
    {
       mfem::out << "Iteration " << k + 1 << std::endl;
-      alpha_k.constant = alpha0*(k+1);
-      psi_k = psi;
-      for (int j=0; j<maxit_newton; j++)
+      alpha_k.constant = alpha0*(k+1); // update α_k
+      psi_k = psi; // update ψ_k
+      for (int j=0; j<maxit_newton; j++) // Newton Iteration
       {
          mfem::out << "\tNewton Iteration " << j + 1 << ": ";
-         delta_sol = 0.0;
-         newtonSystem.Assemble(delta_sol);
-         newtonSystem.GMRES(delta_sol);
-         sol += delta_sol;
+         delta_sol = 0.0; // initialize newton difference
+         newtonSystem.Assemble(delta_sol); // Update system with current solution
+         newtonSystem.GMRES(delta_sol); // Solve system
+         sol += delta_sol; // Update solution
+         // newton successive difference
          const double diff_newton = std::sqrt(
                                        std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
                                     );
+         // Project solution
+         // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi, target_volume) / volume;
          mfem::out << std::scientific << diff_newton << ", ∫ρ / |Ω| = " << std::fixed << current_volume_fraction << std::endl;
          
@@ -296,7 +310,7 @@ int main(int argc, char *argv[])
          {
             break;
          }
-      }
+      } // end of Newton iteration
       const double diff_penalty = std::sqrt(
                                      psi_k.DistanceSquaredTo(psi) / delta_sol.Size()
                                   );
