@@ -185,12 +185,12 @@ class BlockLinearSystem
 {
 public:
    bool own_blocks = false;
-   BlockLinearSystem(Array<int> &offsets_,
+   BlockLinearSystem(Array<int> &offsets,
                      Array<FiniteElementSpace*> &array_of_spaces,
                      Array2D<int> &array_of_ess_bdr)
-      : offsets(offsets_), spaces(array_of_spaces), ess_bdr(array_of_ess_bdr),
+      : spaces(array_of_spaces), ess_bdr(array_of_ess_bdr),
         numSpaces(array_of_spaces.Size()),
-        A(offsets_), b(offsets_), prec(offsets_)
+        A(offsets), b(offsets), prec(offsets)
    {
       A_forms.SetSize(numSpaces, numSpaces);
       A_forms = nullptr;
@@ -257,7 +257,6 @@ public:
    ~BlockLinearSystem() = default;
 
 private:
-   Array<int> &offsets;
    Array<FiniteElementSpace*> &spaces;
    Array2D<int> &ess_bdr;
    int numSpaces;
