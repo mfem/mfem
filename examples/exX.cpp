@@ -220,15 +220,15 @@ int main(int argc, char *argv[])
 
    // Equation ρ̃
    newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      // A += (ϵ∇ρ̃, ∇μ̃)
+      // A += (ϵ∇δρ̃, ∇μ̃)
       new DiffusionIntegrator(eps_cf)
    );
    newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      // A += (ρ̃, μ̃)
+      // A += (δρ̃, μ̃)
       new MassIntegrator()
    );
    newtonSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
-      // A += -(sig'(ψ^i)ψ, μ̃)
+      // A += -(sig'(ψ^i)δψ, μ̃)
       new MixedScalarMassIntegrator(neg_dsigmoid)
    );
    newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
@@ -242,11 +242,11 @@ int main(int argc, char *argv[])
 
    // Equation ψ
    newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      // A += (ψ, φ)
+      // A += (δψ, φ)
       new MassIntegrator()
    );
    newtonSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
-      // A += (α_k λ̃, φ)
+      // A += (α_k δλ̃, φ)
       new MixedScalarMassIntegrator(alpha_k)
    );
    newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
@@ -256,19 +256,19 @@ int main(int argc, char *argv[])
 
    // Equation f_lam
    newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      // A += (ϵ∇λ̃, μ̃)
+      // A += (ϵ∇δλ̃, μ̃)
       new DiffusionIntegrator(eps_cf)
    );
    newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      // A += (λ̃, μ̃)
+      // A += (δλ̃, μ̃)
       new MassIntegrator()
    );
    newtonSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
-      // A += (2r'(ρ̃)∇u, μ̃)
+      // A += (2r'(ρ̃)∇δu, μ̃)
       new MixedDirectionalDerivativeIntegrator(dsimp_Du_times2)
    );
    newtonSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
-      // A += (r''(ρ̃)||∇u||^2 ρ̃, μ̃)
+      // A += (r''(ρ̃)||∇u||^2 δρ̃, μ̃)
       new MixedScalarMassIntegrator(d2simp_squared_normDu)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
