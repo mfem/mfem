@@ -156,12 +156,14 @@ int main(int argc, char *argv[])
    InnerProductCoefficient squared_normDu(Du, Du);
 
    ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
+   ProductCoefficient neg_simp(-1.0, simp_cf);
    ProductCoefficient neg_dsimp(-1.0, dsimp_cf);
    ProductCoefficient dsimp_times2(2.0, dsimp_cf);
    ProductCoefficient neg_dsimp_normDu(neg_dsimp, squared_normDu);
    ProductCoefficient d2simp_normDu(d2simp_cf, squared_normDu);
    ProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
 
+   ScalarVectorProductCoefficient neg_simp_Du(neg_simp, Du);
    ScalarVectorProductCoefficient neg_eps_Df_rho(-epsilon, Df_rho);
    ScalarVectorProductCoefficient neg_eps_Df_lam(-epsilon, Df_lam);
    ScalarVectorProductCoefficient dsimp_Du(dsimp_cf, Du);
@@ -190,6 +192,24 @@ int main(int argc, char *argv[])
       globalSystem.SetBlockMatrix(idx[0], idx[1], new MixedBilinearForm(fes[idx[0]], fes[idx[1]]));
    }
 
+
+   // Equation u
+   globalSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
+      // (r'(ρ̃^i)∇u, ∇v)
+      new DiffusionIntegrator(dsimp_cf)
+   );
+   globalSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
+      // ((r'(ρ̃^i)∇u) ρ̃, ∇v)
+      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(dsimp_Du))
+   );
+   globalSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+      // (f, v)
+      new DomainLFIntegrator(heat_source)
+   );
+   globalSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+      // -(r(ρ̃^i)∇u^i, ∇v)
+      new DomainLFGradIntegrator(neg_simp_Du)
+   );
 
    return 0;
 }
