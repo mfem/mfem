@@ -211,6 +211,27 @@ int main(int argc, char *argv[])
       new DomainLFGradIntegrator(neg_simp_Du)
    );
 
+   // Equation ρ̃
+   globalSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+      // (ϵ∇ρ̃, ∇μ̃)
+      new DiffusionIntegrator(eps_cf)
+   );
+   globalSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+      // (ρ̃, μ̃)
+      new MassIntegrator()
+   );
+   globalSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
+      // -(sig'(ψ^i)ψ, μ̃) 
+      new MixedScalarMassIntegrator(neg_dsigmoid)
+   );
+   globalSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+      // -(ϵ∇ρ̃^i, ∇μ̃)
+      new DomainLFGradIntegrator(neg_eps_Df_rho)
+   );
+   globalSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+      // (ρ^i-ρ̃^i, μ̃)
+      new DomainLFIntegrator(diff_filter)
+   );
    return 0;
 }
 
