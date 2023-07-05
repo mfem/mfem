@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
    SumCoefficient diff_psi_grad(diff_psi_k, alph_f_lam, 1.0, -1.0);
 
    // 5. Define global system for newton iteration
-   BlockLinearSystem globalSystem(fes, ess_bdr);
+   BlockLinearSystem globalSystem(offsets, fes, ess_bdr);
    globalSystem.own_blocks = true;
    for (int i=0; i<Vars::numVars; i++)
    {
