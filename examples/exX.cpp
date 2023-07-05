@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
    double epsilon = 1e-03;
    double rho0 = 1e-6;
    int simp_exp = 3;
+   double max_psi = 1e07;
 
    int maxit_penalty = 100;
    int maxit_newton = 100;
@@ -314,6 +315,7 @@ int main(int argc, char *argv[])
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi, target_volume) / volume;
+         clip_abs(psi, max_psi);
          mfem::out << std::scientific << diff_newton << ", ∫ρ / |Ω| = " << std::fixed << current_volume_fraction << std::endl;
          
          if (diff_newton < tol_newton)
