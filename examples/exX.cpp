@@ -134,7 +134,6 @@ int main(int argc, char *argv[])
    ess_bdr_u.MakeRef(ess_bdr[Vars::u], max_attributes);
    u.ProjectBdrCoefficient(u_bdr, ess_bdr_u);
    psi = logit(volume_fraction);
-   psi_k = logit(volume_fraction);
    f_rho = volume_fraction;
 
    // 4. Define preliminary coefficients
