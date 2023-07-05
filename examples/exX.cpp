@@ -24,6 +24,16 @@
 // Solution variables
 class Vars { public: enum {u, f_rho, psi, f_lam, numVars}; };
 
+void clip_abs(mfem::Vector &x, const double max_abs_val)
+{
+   for(auto &val : x) { val = std::min(max_abs_val, std::max(-max_abs_val, val)); }
+}
+
+void clip(mfem::Vector &x, const double min_val, const double max_val)
+{
+   for(auto &val : x) { val = std::min(max_val, std::max(min_val, val)); }
+}
+
 using namespace std;
 using namespace mfem;
 
