@@ -85,7 +85,8 @@ int main(int argc, char *argv[])
    // Source and fixed temperature
    ConstantCoefficient heat_source(1.0);
    ConstantCoefficient u_bdr(0.0);
-   const int volume_fraction = 0.7;
+   const double volume_fraction = 0.7;
+   const double target_volume = volume * volume_fraction;
 
    // Finite Element Spaces
    FiniteElementSpace fes_H1_Qk2(&mesh, new H1_FECollection(order + 2, dim,
@@ -118,6 +119,14 @@ int main(int argc, char *argv[])
    GridFunction f_lam(fes[Vars::f_lam], sol.GetBlock(Vars::f_lam));
 
    GridFunction psi_k(fes[Vars::psi]);
+
+   // Project solution
+   Array<int> ess_bdr_u;
+   ess_bdr_u.MakeRef(ess_bdr[Vars::u], max_attributes);
+   u.ProjectBdrCoefficient(u_bdr, ess_bdr_u);
+   psi = logit(volume_fraction);
+   psi_k = logit(volume_fraction);
+   f_rho = volume_fraction;
 
    return 0;
 }
