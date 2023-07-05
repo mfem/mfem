@@ -290,6 +290,7 @@ int main(int argc, char *argv[])
          const double diff_newton = std::sqrt(
                                        std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
                                     );
+         VolumeProjection(psi, target_volume);
          if (diff_newton < tol_newton)
          {
             break;
