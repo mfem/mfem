@@ -201,6 +201,7 @@ public:
       b_forms = nullptr;
 
       prec = new BlockDiagonalPreconditioner(offsets);
+      prec->owns_blocks = true;
    }
 
    void SetBlockMatrix(int i, int j, Matrix *mat)
@@ -248,10 +249,15 @@ public:
       b_forms[i] = lf;
    }
 
+   /**
+    * @brief Assemble block matrices. X should contain essential boundary condition.
+    *
+    * @param x Solution vector that contains the essential boundary condition.
+    */
    void Assemble(BlockVector *x);
 
-   void GMRES(BlockVector *x);
-   void CG(BlockVector *x) { mfem_error("Not yet implemented."); }
+   int GMRES(BlockVector *x);
+   int CG(BlockVector *x) { mfem_error("Not yet implemented."); }
 
    ~BlockLinearSystem()
    {

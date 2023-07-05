@@ -7,6 +7,7 @@ void BlockLinearSystem::Assemble(BlockVector *x)
 {
    Array<int> trial_ess_bdr;
    Array<int> test_ess_bdr;
+   *b = 0.0;
    for (int row = 0; row < numSpaces; row++)
    {
       b_forms[row]->Update(spaces[row], b->GetBlock(row), 0);
@@ -39,6 +40,11 @@ void BlockLinearSystem::Assemble(BlockVector *x)
          }
       }
    }
+}
+
+int BlockLinearSystem::GMRES(BlockVector *x)
+{
+   mfem::GMRES(*A, *prec, *b, *x, 0, 200, 50, 1e-12, 0.0);
 }
 
 } // end of namespace mfem
