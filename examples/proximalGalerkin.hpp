@@ -242,6 +242,10 @@ public:
    {
       return static_cast<BilinearForm*>(A_forms(i, i));
    }
+   inline LinearForm *GetLinearForm(int i)
+   {
+      return b_forms[i];
+   }
 
    void SetBlockVector(int i, LinearForm *lf)
    {
