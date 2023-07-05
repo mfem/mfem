@@ -24,6 +24,7 @@ void BlockLinearSystem::Assemble(BlockVector *x)
             bilf->EliminateEssentialBC(test_ess_bdr, x->GetBlock(row), b->GetBlock(row));
             bilf->Finalize();
             A->SetBlock(row, row, &(bilf->SpMat()));
+            prec->SetDiagonalBlock(row, new GSSmoother(bilf->SpMat()));
          }
       }
       for (int col = 0; col < numSpaces; col++)
