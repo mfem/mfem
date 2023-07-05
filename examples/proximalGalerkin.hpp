@@ -188,20 +188,17 @@ public:
    BlockLinearSystem(Array<FiniteElementSpace*> &array_of_spaces,
                      Array2D<int> &array_of_ess_bdr)
       : spaces(array_of_spaces), ess_bdr(array_of_ess_bdr),
-        offsets(array_of_spaces.Size()), numSpaces(array_of_spaces.Size())
+        offsets(getOffsets(array_of_spaces)), numSpaces(array_of_spaces.Size()),
+        A(getOffsets(array_of_spaces)), b(getOffsets(array_of_spaces)),
+        prec(getOffsets(array_of_spaces))
    {
-      A = new BlockOperator(offsets);
-
       A_forms.SetSize(numSpaces, numSpaces);
       A_forms = nullptr;
-
-      b = new BlockVector(offsets);
 
       b_forms.SetSize(numSpaces);
       for (int i=0; i<numSpaces; i++) { b_forms[i] = new LinearForm(spaces[i]); }
 
-      prec = new BlockDiagonalPreconditioner(offsets);
-      prec->owns_blocks = true;
+      prec.owns_blocks = true;
    }
 
    void SetBlockMatrix(int i, int j, Matrix *mat)
@@ -252,37 +249,27 @@ public:
     *
     * @param x Solution vector that contains the essential boundary condition.
     */
-   void Assemble(BlockVector *x);
+   void Assemble(BlockVector &x);
 
-   void GMRES(BlockVector *x);
-   void CG(BlockVector *x) { mfem_error("Not yet implemented."); }
+   void GMRES(BlockVector &x);
+   void CG(BlockVector &x) { mfem_error("Not yet implemented."); }
 
-   ~BlockLinearSystem()
-   {
-      delete prec;
-      if (own_blocks)
-      {
-         A->owns_blocks=true;
-         b_forms.MakeDataOwner();
-      }
-      delete A;
-      delete b;
-   }
+   ~BlockLinearSystem() = default;
 
 private:
    Array<FiniteElementSpace*> &spaces;
    Array2D<int> &ess_bdr;
    Array<int> offsets;
    int numSpaces;
-   BlockOperator *A;
-   BlockVector *b;
+   BlockOperator A;
+   BlockVector b;
    Array2D<Matrix*> A_forms;
    Array<LinearForm*> b_forms;
-   BlockDiagonalPreconditioner *prec;
+   BlockDiagonalPreconditioner prec;
 };
 
 
-void BlockLinearSystem::Assemble(BlockVector *x)
+void BlockLinearSystem::Assemble(BlockVector &x)
 {
    Array<int> trial_ess_bdr;
    Array<int> test_ess_bdr;
@@ -297,10 +284,10 @@ void BlockLinearSystem::Assemble(BlockVector *x)
 
          bilf->SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
          bilf->Assemble();
-         bilf->EliminateEssentialBC(test_ess_bdr, x->GetBlock(row), b->GetBlock(row));
+         bilf->EliminateEssentialBC(test_ess_bdr, x.GetBlock(row), b.GetBlock(row));
          bilf->Finalize();
-         A->SetBlock(row, row, &(bilf->SpMat()));
-         prec->SetDiagonalBlock(row, new GSSmoother(bilf->SpMat()));
+         A.SetBlock(row, row, &(bilf->SpMat()));
+         prec.SetDiagonalBlock(row, new GSSmoother(bilf->SpMat()));
       }
       for (int col = 0; col < numSpaces; col++)
       {
@@ -309,18 +296,18 @@ void BlockLinearSystem::Assemble(BlockVector *x)
          {
             MixedBilinearForm* bilf = this->GetBlock(row, col);
             bilf->Assemble();
-            bilf->EliminateTrialDofs(trial_ess_bdr, x->GetBlock(col), b->GetBlock(col));
+            bilf->EliminateTrialDofs(trial_ess_bdr, x.GetBlock(col), b.GetBlock(col));
             bilf->EliminateTestDofs(test_ess_bdr);
             bilf->Finalize();
-            A->SetBlock(row, col, &(bilf->SpMat()));
+            A.SetBlock(row, col, &(bilf->SpMat()));
          }
       }
    }
 }
 
-void BlockLinearSystem::GMRES(BlockVector *x)
+void BlockLinearSystem::GMRES(BlockVector &x)
 {
-   mfem::GMRES(*A, *prec, *b, *x, 0, 200, 50, 1e-12, 0.0);
+   mfem::GMRES(A, prec, b, x, 0, 200, 50, 1e-12, 0.0);
    for (int row=0; row < numSpaces; row++)
    {
       GetDiagBlock(row)->LoseMat();
