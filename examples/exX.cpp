@@ -37,6 +37,11 @@ int main(int argc, char *argv[])
    int order = 3;
    const char *device_config = "cpu";
    bool visualization = true;
+   double alpha0 = 1.0;
+   double epsilon = 1e-03;
+   double rho0 = 1e-6;
+   int simp_exp = 3;
+
 
    int precision = 8;
    cout.precision(precision);
