@@ -681,7 +681,8 @@ int main(int argc, char *argv[])
    }
 
    // TODO: BOUCLE
-   std::vector<int>
+   //std::vector<int>
+   Array<int>
    inter_faces;   // Vector to save the faces between two different materials
    for (int iter_pref=0; iter_pref<pref_max_order; iter_pref++)
    {
@@ -706,7 +707,8 @@ int main(int argc, char *argv[])
             PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
             // TODO
             int max_order = fespace->GetMaxElementOrder();
-            std::vector<int> faces_order_increase;
+            //std::vector<int> faces_order_increase;
+            Array<int> faces_order_increase;
 
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
@@ -728,15 +730,18 @@ int main(int argc, char *argv[])
                                                                     finder);
                      if (error_bg_face >= pref_tol)
                      {
-                        faces_order_increase.push_back(i);
+                        //faces_order_increase.push_back(i);
+                        faces_order_increase.Append(i);
                      }
-                     if (iter_pref==0) {inter_faces.push_back(i);}
+                     //if (iter_pref==0) {inter_faces.push_back(i);}
+                     if (iter_pref==0) {inter_faces.Append(i);}
                   }
                }
             }
             mesh->SetNodalGridFunction(&x);
             if (iter_pref>0) {
-                for (int i = 0; i < faces_order_increase.size(); i++) {
+                //for (int i = 0; i < faces_order_increase.size(); i++) {
+                for (int i = 0; i < faces_order_increase.Size(); i++) {
                     Array<int> els;
                     mesh->GetFaceAdjacentElements(faces_order_increase[i], els);
                     fespace->SetElementOrder(els[0], max_order + pref_order_increase);
@@ -788,7 +793,8 @@ int main(int argc, char *argv[])
                   int mat2 = mat(els[1]);
                   if (mat1 != mat2)
                   {
-                     inter_faces.push_back(i);
+                     //inter_faces.push_back(i);
+                     inter_faces.Append(i);
                   }
                }
             }
@@ -944,7 +950,8 @@ int main(int argc, char *argv[])
          mesh->SetNodalGridFunction(x_max_order);
          double error_sum = 0.0;
          double error_bg_sum = 0.0;
-         for (int i = 0; i < inter_faces.size(); i++)
+         //for (int i = 0; i < inter_faces.size(); i++)
+         for (int i = 0; i < inter_faces.Size(); i++)
          {
             double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff,
                                                       surf_fit_gf0_max_order,
@@ -1228,7 +1235,8 @@ int main(int argc, char *argv[])
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          double error_sum = 0.0;
          double error_bg_sum = 0.0;
-         for (int i=0; i < inter_faces.size(); i++)
+         //for (int i=0; i < inter_faces.size(); i++)
+         for (int i=0; i < inter_faces.Size(); i++)
          {
             double error_face = ComputeIntegrateError(x_max_order->FESpace(), &ls_coeff,
                                                       surf_fit_gf0_max_order, inter_faces[i]);
