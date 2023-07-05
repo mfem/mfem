@@ -262,6 +262,11 @@ public:
    ~BlockLinearSystem()
    {
       delete prec;
+      if (own_blocks)
+      {
+         A->owns_blocks=true;
+         b_forms.MakeDataOwner();
+      }
       delete A;
       delete b;
    }
