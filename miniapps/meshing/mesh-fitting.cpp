@@ -710,6 +710,7 @@ int main(int argc, char *argv[])
             //std::vector<int> faces_order_increase;
             Array<int> faces_order_increase;
 
+            delete x_max_order;
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
             for (int i=0; i < mesh->GetNumFaces(); i++)
@@ -763,7 +764,9 @@ int main(int argc, char *argv[])
 
                 mesh->SetNodalGridFunction(&x);
 
+                delete x_max_order;
                 x_max_order = ProlongToMaxOrder(&x, 0);
+                delete surf_fit_gf0_max_order;
                 surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
 
@@ -915,9 +918,12 @@ int main(int argc, char *argv[])
 
          if (prefine)
          {
+             delete x_max_order;
             x_max_order = ProlongToMaxOrder(&x, 0);
             mesh->SetNodalGridFunction(x_max_order);
+            delete surf_fit_gf0_max_order;
             surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+            delete surf_fit_mat_gf_max_order;
             surf_fit_mat_gf_max_order = ProlongToMaxOrder(&surf_fit_mat_gf, 0);
          }
          if (visualization && iter_pref==0)
@@ -945,7 +951,9 @@ int main(int argc, char *argv[])
       {
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
          tmop_integ->CopyGridFunction(surf_fit_gf0);
+         delete surf_fit_gf0_max_order;
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
+         delete x_max_order;
          x_max_order = ProlongToMaxOrder(&x, 0);
          mesh->SetNodalGridFunction(x_max_order);
          double error_sum = 0.0;
@@ -1232,6 +1240,7 @@ int main(int argc, char *argv[])
          //surf_fit_gf0.ProjectCoefficient(ls_coeff);
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
          tmop_integ->CopyGridFunction(surf_fit_gf0);
+         delete surf_fit_gf0_max_order;
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          double error_sum = 0.0;
          double error_bg_sum = 0.0;
