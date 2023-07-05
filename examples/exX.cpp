@@ -185,7 +185,6 @@ int main(int argc, char *argv[])
    for (int i=0; i<Vars::numVars; i++)
    {
       globalSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
-      globalSystem.SetBlockVector(i, new LinearForm(fes[i]));
    }
    std::vector<std::vector<int>> offDiagBlocks
    {
