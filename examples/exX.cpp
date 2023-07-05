@@ -71,8 +71,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    device.Print();
 
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
-   //    periodic meshes in this code.
+   // 2. Input data (mesh, source, ...)
    Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
    const int max_attributes = mesh.bdr_attributes.Max();
@@ -93,7 +92,7 @@ int main(int argc, char *argv[])
    const double volume_fraction = 0.7;
    const double target_volume = volume * volume_fraction;
 
-   // Finite Element Spaces
+   // 3. Finite Element Spaces and discrete solutions
    FiniteElementSpace fes_H1_Qk2(&mesh, new H1_FECollection(order + 2, dim,
                                                             mfem::BasisType::GaussLobatto));
    FiniteElementSpace fes_H1_Qk1(&mesh, new H1_FECollection(order + 1, dim,
