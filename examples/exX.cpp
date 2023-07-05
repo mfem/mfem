@@ -156,11 +156,12 @@ int main(int argc, char *argv[])
    InnerProductCoefficient squared_normDu(Du, Du);
 
    ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
+   ProductCoefficient neg_f_lam(-1.0, f_lam_cf);
    ProductCoefficient neg_simp(-1.0, simp_cf);
    ProductCoefficient neg_dsimp(-1.0, dsimp_cf);
    ProductCoefficient dsimp_times2(2.0, dsimp_cf);
-   ProductCoefficient neg_dsimp_normDu(neg_dsimp, squared_normDu);
-   ProductCoefficient d2simp_normDu(d2simp_cf, squared_normDu);
+   ProductCoefficient neg_dsimp_squared_normDu(neg_dsimp, squared_normDu);
+   ProductCoefficient d2simp_squared_normDu(d2simp_cf, squared_normDu);
    ProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
 
    ScalarVectorProductCoefficient neg_simp_Du(neg_simp, Du);
@@ -243,6 +244,30 @@ int main(int argc, char *argv[])
    globalSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
       new DomainLFIntegrator(diff_psi_grad)
    );
+
+   // Equation f_lam
+   globalSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      new DiffusionIntegrator(eps_cf)
+   );
+   globalSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      new MassIntegrator()
+   );
+   globalSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
+      new MixedDirectionalDerivativeIntegrator(dsimp_Du_times2)
+   );
+   globalSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
+      new MixedScalarMassIntegrator(d2simp_squared_normDu)
+   );
+   globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      new DomainLFIntegrator(neg_dsimp_squared_normDu)
+   );
+   globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      new DomainLFGradIntegrator(neg_eps_Df_lam)
+   );
+   globalSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      new DomainLFIntegrator(neg_f_lam)
+   );
+
    return 0;
 }
 
