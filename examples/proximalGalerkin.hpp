@@ -291,6 +291,10 @@ void BlockLinearSystem::Assemble(BlockVector &x)
       }
       for (int col = 0; col < numSpaces; col++)
       {
+         if (col == row) // if diagonal, already handled using bilinear form
+         {
+            continue;
+         }
          trial_ess_bdr.MakeRef(ess_bdr.GetRow(col), ess_bdr.NumCols());
          if (A_forms(row, col))
          {
