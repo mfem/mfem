@@ -133,6 +133,45 @@ int main(int argc, char *argv[])
    psi_k = logit(volume_fraction);
    f_rho = volume_fraction;
 
+   // 4. Define preliminary coefficients
+   ConstantCoefficient eps_cf(epsilon);
+   ConstantCoefficient alpha_k(alpha0);
+   ConstantCoefficient one_cf(1.0);
+
+   auto simp_cf = SIMPCoefficient(&f_rho, simp_exp, rho0);
+   auto dsimp_cf = DerSIMPCoefficient(&f_rho, simp_exp, rho0);
+   auto d2simp_cf = Der2SIMPCoefficient(&f_rho, simp_exp, rho0);
+   auto rho_cf = SigmoidCoefficient(&psi);
+   auto dsigmoid_cf = DerSigmoidCoefficient(&psi);
+
+   GridFunctionCoefficient u_cf(&u);
+   GridFunctionCoefficient f_rho_cf(&f_rho);
+   GridFunctionCoefficient f_lam_cf(&f_lam);
+   GridFunctionCoefficient psi_cf(&psi);
+   GridFunctionCoefficient psi_k_cf(&psi);
+
+   GradientGridFunctionCoefficient Du(&u);
+   GradientGridFunctionCoefficient Df_rho(&f_rho);
+   GradientGridFunctionCoefficient Df_lam(&f_lam);
+
+   InnerProductCoefficient squared_normDu(Du, Du);
+
+   ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
+   ProductCoefficient neg_dsimp(-1.0, dsimp_cf);
+   ProductCoefficient dsimp_times2(2.0, dsimp_cf);
+   ProductCoefficient neg_dsimp_normDu(neg_dsimp, squared_normDu);
+   ProductCoefficient d2simp_normDu(d2simp_cf, squared_normDu);
+   ProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
+
+   ScalarVectorProductCoefficient neg_eps_Df_rho(-epsilon, Df_rho);
+   ScalarVectorProductCoefficient neg_eps_Df_lam(-epsilon, Df_lam);
+   ScalarVectorProductCoefficient dsimp_Du(dsimp_cf, Du);
+   ScalarVectorProductCoefficient dsimp_Du_times2(dsimp_times2, Du);
+
+   SumCoefficient diff_filter(rho_cf, f_rho_cf, 1.0, -1.0);
+   SumCoefficient diff_psi_k(psi_k_cf, psi_cf, 1.0, -1.0);
+   SumCoefficient diff_psi_grad(diff_psi_k, alph_f_lam, 1.0, -1.0);
+
    return 0;
 }
 
