@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
       new DiffusionIntegrator(eps_cf)
    );
    newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      new MassIntegrator()
+      new MassIntegrator(one_cf)
    );
    newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
       new DomainLFIntegrator(rho_cf)
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
    
    // Equation ψ
    newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      new MassIntegrator()
+      new MassIntegrator(one_cf)
    );
    newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
       new DomainLFIntegrator(psi_k_cf)
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
       new DiffusionIntegrator(eps_cf)
    );
    newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      new MassIntegrator()
+      new MassIntegrator(one_cf)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
       new DomainLFIntegrator(dsimp_squared_normDu)
