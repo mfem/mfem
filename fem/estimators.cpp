@@ -243,9 +243,9 @@ void KellyErrorEstimator::ComputeEstimates()
             auto FT = mesh->GetFaceElementTransformations(fi);
 
             // TODO Refactor this computation into a user-facing function.
-            auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi));
+            // auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi)); // NOTE: This fails for DG
+            auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetElementOrder(FT->Elem1No));
             const auto nip = int_rule.GetNPoints();
-
             double jump_integral = 0.0;
 
             // Integral over local half face on the side of e₁
@@ -345,7 +345,8 @@ void KellyErrorEstimator::ComputeEstimates()
       }
 
       // TODO Refactor this computation into a user-facing function.
-      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0));
+      // auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0)); // NOTE: This fails for DG
+      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetElementOrder(FT->Elem1No));
       const auto nip = int_rule.GetNPoints();
 
       double jump_integral = 0.0;
