@@ -196,7 +196,7 @@ public:
       A_forms = nullptr;
 
       b_forms.SetSize(numSpaces);
-      for (int i=0; i<numSpaces; i++) { b_forms[i] = new LinearForm(spaces[i]); }
+      for (int i=0; i<numSpaces; i++) { b_forms[i] = new LinearForm(spaces[i], b.GetBlock(i).GetData()); }
 
       prec.owns_blocks = true;
    }
