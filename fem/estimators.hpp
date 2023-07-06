@@ -571,6 +571,8 @@ private:
    double total_error = 0.0;
 
    Array<int> attributes;
+   
+   bool with_coef;
 
    /** @brief A method to compute hₑ on per-element basis.
 
@@ -629,10 +631,12 @@ public:
        @param attributes_ The attributes of the subdomain(s) for which the
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
+      @param with_coef_   Whether the flux coefficient should be used or not.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
                        FiniteElementSpace& flux_fes_,
-                       const Array<int> &attributes_ = Array<int>());
+                       const Array<int> &attributes_ = Array<int>(),
+                       bool with_coef_ = true);
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
        @param di_         The bilinearform to compute the interface flux.
@@ -641,10 +645,12 @@ public:
        @param attributes_ The attributes of the subdomain(s) for which the
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
+      @param with_coef_   Whether the flux coefficient should be used or not.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
                        FiniteElementSpace* flux_fes_,
-                       const Array<int> &attributes_ = Array<int>());
+                       const Array<int> &attributes_ = Array<int>(),
+                       bool with_coef_ = true);
 
    ~KellyErrorEstimator();
 

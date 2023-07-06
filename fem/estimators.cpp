@@ -64,12 +64,14 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace& flux_fespace_,
-                                         const Array<int> &attributes_)
+                                         const Array<int> &attributes_,
+                                         bool with_coef_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(&flux_fespace_)
    , own_flux_fespace(false)
+   , with_coef(with_coef_)
 #ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
 #endif // MFEM_USE_MPI
@@ -80,12 +82,14 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace* flux_fespace_,
-                                         const Array<int> &attributes_)
+                                         const Array<int> &attributes_,
+                                         bool with_coef_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(flux_fespace_)
    , own_flux_fespace(true)
+   , with_coef(with_coef_)
 #ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
 #endif // MFEM_USE_MPI
@@ -207,7 +211,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
       ElementTransformation* Transf = xfes->GetElementTransformation(e);
       flux_integrator->ComputeElementFlux(*xfes->GetFE(e), *Transf, el_x,
-                                          *flux_space->GetFE(e), el_f, true);
+                                          *flux_space->GetFE(e), el_f, with_coef);
 
       flux_space->GetElementVDofs(e, fdofs);
       flux->AddElementVector(fdofs, el_f);
