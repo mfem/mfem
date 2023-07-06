@@ -1,9 +1,11 @@
-//                         Obstacle Problem
+//                       Spherical Obstacle Problem
 //
 //
-// Compile with: make obstacleProblem
+// Compile with: make ParSphericalObstacleProblem
 //
-// Sample runs: ./obstacleProblem
+// Sample runs: mpirun -np 4 ./ParSphericalObstacleProblem -linSolver 0
+//              mpirun -np 4 ./ParSphericalObstacleProblem -linSolver 1
+//              mpirun -np 4 ./ParSphericalObstacleProblem -linSolver 2
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
@@ -36,6 +38,7 @@ int main(int argc, char *argv[])
    int FEorder = 1; // order of the finite elements
    int linSolver = 2;
    int maxIPMiters = 30;
+   int ref_levels = 3;
    OptionsParser args(argc, argv);
    args.AddOption(&FEorder, "-o", "--order",\
 	 	  "Order of the finite elements.");
@@ -43,6 +46,8 @@ int main(int argc, char *argv[])
         "IP-Newton linear system solution strategy.");
    args.AddOption(&maxIPMiters, "-IPMiters", "--IPMiters",\
 	 	  "Maximum number of IPM iterations");
+   args.AddOption(&ref_levels, "-r", "--mesh_refinement", \
+		  "Mesh Refinement");
   
    args.Parse();
    if(!args.Good())
@@ -52,7 +57,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-     if(Mpi::Root())
+     if(myid == 0)
      {  
        args.PrintOptions(cout);
      }
@@ -62,7 +67,6 @@ int main(int argc, char *argv[])
    Mesh mesh(meshFile, 1, 1);
    int dim = mesh.Dimension(); // geometric dimension of the meshed domain
    {
-      int ref_levels = 3;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -97,6 +101,12 @@ int main(int argc, char *argv[])
    FunctionCoefficient dtrue_fc(exact_solution_obstacle); // analytic solution
    ParGridFunction dtrue_gf(Vh);
    dtrue_gf.ProjectCoefficient(dtrue_fc);
+
+   double L2error = d_gf.ComputeL2Error(dtrue_fc);
+   if (myid == 0)
+   {
+     cout << "\n|| u_h - u ||_{L^2} = " << L2error << '\n' << endl;
+   } 
    
    ParaViewDataCollection paraview_dc("SphericalObstacleProblem", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
