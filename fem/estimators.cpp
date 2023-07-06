@@ -246,6 +246,7 @@ void KellyErrorEstimator::ComputeEstimates()
             // auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi)); // NOTE: This fails for DG
             auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetElementOrder(FT->Elem1No));
             const auto nip = int_rule.GetNPoints();
+
             double jump_integral = 0.0;
 
             // Integral over local half face on the side of e₁
