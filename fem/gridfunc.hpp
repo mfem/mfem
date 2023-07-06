@@ -891,10 +891,12 @@ class KDTreeNodalProjection
 private:
 
    /// Pointer to the KDTree for the 3D case
-   KDTree3D* kdt3D;
+   //KDTree3D* kdt3D;
+   std::unique_ptr<KDTree3D> kdt3D;
 
    /// Pointer to the KDTree for the 2D case
-   KDTree2D* kdt2D;
+   //KDTree2D* kdt2D;
+   std::unique_ptr<KDTree2D> kdt2D;
 
    /// Pointer to the target grid function
    GridFunction* dest;
@@ -912,11 +914,7 @@ public:
    KDTreeNodalProjection(GridFunction& dest_);
 
    /// Frees the memory allocated for the transfer
-   ~KDTreeNodalProjection()
-   {
-      delete kdt2D;
-      delete kdt3D;
-   }
+   ~KDTreeNodalProjection() {}
 
    /// The projection method can be called as many time as necessary with
    /// different sets of coordinates and corresponding values. For vector

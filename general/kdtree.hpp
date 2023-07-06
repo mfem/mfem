@@ -107,7 +107,6 @@ public:
    /// such types users should redefine the norms.
    struct PointND
    {
-
       /// Geometric point constructor
       PointND() { std::fill(xx,xx+ndim,Tfloat(0.0));}
 
@@ -118,7 +117,6 @@ public:
    /// Structure defining a node in the KDTree.
    struct NodeND
    {
-
       /// Defines a point in the ndim-dimensional space
       PointND pt;
 
@@ -130,26 +128,44 @@ public:
    KDTree() = default;
 
    /// Returns the spatial dimension of the points
-   int SpaceDimension() {return ndim;}
+   int SpaceDimension()
+   {
+      return ndim;
+   }
 
    /// Data iterator
    typedef typename std::vector<NodeND>::iterator iterator;
 
    /// Returns iterator to beginning of the point cloud
-   iterator begin() {return data.begin();}
+   iterator begin()
+   {
+      return data.begin();
+   }
 
    /// Returns iterator to the end of the point cloud
-   iterator end() {return data.end();}
+   iterator end()
+   {
+      return data.end();
+   }
 
    /// Returns the size of the point cloud
-   size_t size() {return data.size();}
+   size_t size()
+   {
+      return data.size();
+   }
 
    /// Clears the point cloud
-   void clear() { data.clear();}
+   void clear()
+   {
+      data.clear();
+   }
 
    /// Builds the KDTree. If the point cloud is modified the tree
    /// needs to be rebuild by a new call to Sort().
-   void Sort() { SortInPlace(data.begin(),data.end(),0);}
+   void Sort()
+   {
+      SortInPlace(data.begin(),data.end(),0);
+   }
 
    /// Adds a new node to the point cloud
    void AddPoint(PointND& pt, Tindex ii)
@@ -218,16 +234,9 @@ public:
    /// Returns the closest point and the distance to the input point pt.
    void FindClosestPoint(PointND& pt, Tindex& ind, Tfloat& dist)
    {
-      PointS best_candidate;
-      best_candidate.sp=pt;
-      //initialize the best candidate
-      best_candidate.pos =0;
-      best_candidate.dist=Dist(data[0].pt, best_candidate.sp);
-      best_candidate.level=0;
-      PSearch(data.begin(), data.end(), 0, best_candidate);
+      PointND clp;
+      FindClosestPoint(pt,ind,dist,clp);
 
-      ind=data[best_candidate.pos].ind;
-      dist=best_candidate.dist;
    }
 
    /// Returns the closest point and the distance to the input point pt.
@@ -248,7 +257,7 @@ public:
 
 
    /// Brute force search - please, use it only for debuging purposes
-   void rFindClosestPoint(PointND& pt, Tindex& ind, Tfloat& dist)
+   void FindClosestPointSlow(PointND& pt, Tindex& ind, Tfloat& dist)
    {
       PointS best_candidate;
       best_candidate.sp=pt;
@@ -271,7 +280,7 @@ public:
    }
 
    /// Finds all points within a distance R from point pt. The indices are
-   /// returned in the vestor res and the correponding distances in vector dist.
+   /// returned in the vector res and the correponding distances in vector dist.
    void FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res,
                            std::vector<Tfloat> & dist)
    {
@@ -279,15 +288,15 @@ public:
    }
 
    /// Finds all points within a distance R from point pt. The indices are
-   /// returned in the vestor res and the correponding distances in vector dist.
+   /// returned in the vector res and the correponding distances in vector dist.
    void FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
    {
       FindNeighborPoints(pt,R,data.begin(),data.end(),0,res);
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void _FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res,
-                            std::vector<Tfloat> & dist)
+   void FindNeighborPointsSlow(PointND& pt,Tfloat R, std::vector<Tindex> & res,
+                               std::vector<Tfloat> & dist)
    {
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
@@ -302,7 +311,7 @@ public:
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void _FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
+   void FindNeighborPointsSlow(PointND& pt,Tfloat R, std::vector<Tindex> & res)
    {
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
@@ -624,10 +633,7 @@ private:
          }
       }
    }
-
-
 };
-
 
 /// Defines KDTree in 3D
 typedef KDTree<int,double,3> KDTree3D;
