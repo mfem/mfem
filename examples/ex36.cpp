@@ -288,12 +288,12 @@ int main(int argc, char *argv[])
       const double diff_penalty = std::sqrt(
                                      psi_k.DistanceSquaredTo(psi) / delta_sol.Size()
                                   );
-      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl;
-      // if (diff_penalty < tol_penalty)
-      // {
-      //    break;
-      // }
-   }
+      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl << std::endl;
+      if (diff_penalty < tol_penalty)
+      {
+         break;
+      }
+   } // end of penalty iteration
 
    return 0;
 }
