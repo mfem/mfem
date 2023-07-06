@@ -280,7 +280,7 @@ void BlockLinearSystem::Assemble(BlockVector &x)
       if (A_forms(row, row))
       {
          BilinearForm* bilf = this->GetDiagBlock(row);
-
+         delete bilf->LoseMat();
          bilf->SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
          bilf->Assemble();
          bilf->EliminateEssentialBC(test_ess_bdr, x.GetBlock(row), b.GetBlock(row));
@@ -298,6 +298,7 @@ void BlockLinearSystem::Assemble(BlockVector &x)
          if (A_forms(row, col))
          {
             MixedBilinearForm* bilf = this->GetBlock(row, col);
+            delete bilf->LoseMat();
             bilf->Assemble();
             bilf->EliminateTrialDofs(trial_ess_bdr, x.GetBlock(col), b.GetBlock(col));
             bilf->EliminateTestDofs(test_ess_bdr);
