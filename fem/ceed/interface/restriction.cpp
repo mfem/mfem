@@ -12,6 +12,7 @@
 #include "restriction.hpp"
 
 #include "util.hpp"
+#include <cstdint>
 
 namespace mfem
 {
@@ -209,7 +210,7 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
    const int stride = (compstride == 1) ? fes.GetVDim() : 1;
    mfem::Array<int> tp_el_dof(nelem * P), dofs;
    mfem::Array<bool> tp_el_orients;
-   mfem::Array<int> tp_el_curl_orients;
+   mfem::Array<int8_t> tp_el_curl_orients;
    mfem::Vector el_trans_j;
    mfem::DofTransformation *dof_trans = use_bdr ? fes.GetBdrElementDofs(i0, dofs) :
                                         fes.GetElementDofs(i0, dofs);
@@ -219,7 +220,7 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
    }
    else
    {
-      tp_el_curl_orients.SetSize(nelem * P * 3, 0.0);
+      tp_el_curl_orients.SetSize(nelem * P * 3, 0);
       el_trans_j.SetSize(P);
    }
 
@@ -264,14 +265,17 @@ static void InitNativeRestrWithIndices(const mfem::FiniteElementSpace &fes,
                dof_trans->InvTransformPrimal(el_trans_j);
             }
             el_trans_j *= (sgid < 0) ? -1.0 : 1.0;
-            tp_el_curl_orients[3 * (j + 0 + P * i) + 1] = el_trans_j(j + 0);
+            tp_el_curl_orients[3 * (j + 0 + P * i) + 1] =
+               static_cast<int8_t>(el_trans_j(j + 0));
             if (j > 0)
             {
-               tp_el_curl_orients[3 * (j - 1 + P * i) + 2] = el_trans_j(j - 1);
+               tp_el_curl_orients[3 * (j - 1 + P * i) + 2] =
+                  static_cast<int8_t>(el_trans_j(j - 1));
             }
             if (j < P - 1)
             {
-               tp_el_curl_orients[3 * (j + 1 + P * i) + 0] = el_trans_j(j + 1);
+               tp_el_curl_orients[3 * (j + 1 + P * i) + 0] =
+                  static_cast<int8_t>(el_trans_j(j + 1));
             }
 #ifdef MFEM_DEBUG
             int nnz = 0;
