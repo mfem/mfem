@@ -289,7 +289,6 @@ void KellyErrorEstimator::ComputeEstimates()
                jump -= val * normal;
 
                // Finalize integral
-               // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
                jump_integral += jump*jump*fip.weight / FT->Face->Weight();
             }
 
@@ -397,7 +396,6 @@ void KellyErrorEstimator::ComputeEstimates()
          jump -= val * normal;
 
          // Finalize integral
-         // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
          jump_integral += jump*jump*fip.weight / FT->Face->Weight();
       }
 
