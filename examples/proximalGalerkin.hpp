@@ -251,6 +251,8 @@ public:
     */
    void Assemble(BlockVector &x);
 
+   void SolveDiag(BlockVector &x, const Array<int> &ordering, const bool isSPD=false);
+
    void GMRES(BlockVector &x);
    void PCG(BlockVector &x);
 
@@ -305,6 +307,35 @@ void BlockLinearSystem::Assemble(BlockVector &x)
             bilf->Finalize();
             A.SetBlock(row, col, &(bilf->SpMat()));
          }
+      }
+   }
+}
+
+
+void BlockLinearSystem::SolveDiag(BlockVector &x, const Array<int> &ordering,
+                                  const bool isSPD)
+{
+   Array<int> curr_ess_bdr;
+   b = 0.0;
+   for (int i:ordering)
+   {
+      curr_ess_bdr.MakeRef(ess_bdr.GetRow(i), ess_bdr.NumCols());
+      b_forms[i]->Assemble();
+      BilinearForm* bilf = this->GetDiagBlock(i);
+      delete bilf->LoseMat();
+      bilf->SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+      bilf->Assemble();
+      bilf->EliminateEssentialBC(curr_ess_bdr, x.GetBlock(i), b.GetBlock(i));
+      bilf->Finalize();
+      SparseMatrix &mat = this->GetDiagBlock(i)->SpMat();
+      GSSmoother curr_prec(mat);
+      if (isSPD)
+      {
+         mfem::PCG(mat, curr_prec, b.GetBlock(i), x.GetBlock(i), 0, 2000, 1e-12, 0.0);
+      }
+      else
+      {
+         mfem::GMRES(mat, curr_prec, b.GetBlock(i), x.GetBlock(i), 0, 2000, 50, 1e-12, 0.0);
       }
    }
 }
