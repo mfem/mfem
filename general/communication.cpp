@@ -45,11 +45,6 @@ int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
 int Mpi::default_thread_required = MPI_THREAD_SINGLE;
 #endif
 
-int Mpi::DefaultThreadRequired()
-{
-   return default_thread_required;
-}
-
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
