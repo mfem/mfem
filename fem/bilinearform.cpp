@@ -112,6 +112,13 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    AllocMat();
 }
 
+void BilinearForm::ExtUseTensorBasis(const bool use_tensor_basis)
+{
+   MFEM_VERIFY(ext,
+               "Extension is NULL. Set AssemblyLevel to something besides LEGACY first.");
+   ext->UseTensorBasis(use_tensor_basis);
+}
+
 void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    if (ext)
