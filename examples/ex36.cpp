@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient f_rho_cf(&f_rho);
    GridFunctionCoefficient f_lam_cf(&f_lam);
    GridFunctionCoefficient psi_cf(&psi);
-   GridFunctionCoefficient psi_k_cf(&psi);
+   GridFunctionCoefficient psi_k_cf(&psi_k);
 
    GradientGridFunctionCoefficient Du(&u);
    GradientGridFunctionCoefficient Df_rho(&f_rho);
