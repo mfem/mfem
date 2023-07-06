@@ -252,7 +252,7 @@ public:
    void Assemble(BlockVector &x);
 
    void GMRES(BlockVector &x);
-   void CG(BlockVector &x) { mfem_error("Not yet implemented."); }
+   void PCG(BlockVector &x);
 
    ~BlockLinearSystem() = default;
 
@@ -311,7 +311,12 @@ void BlockLinearSystem::Assemble(BlockVector &x)
 
 void BlockLinearSystem::GMRES(BlockVector &x)
 {
-   mfem::GMRES(A, prec, b, x, 0, 200, 50, 1e-12, 0.0);
+   mfem::GMRES(A, prec, b, x, 0, 2000, 50, 1e-12, 0.0);
+}
+
+void BlockLinearSystem::PCG(BlockVector &x)
+{
+   mfem::PCG(A, prec, b, x, 0, 2000, 1e-12, 0.0);
 }
 } // end of namespace mfem
 
