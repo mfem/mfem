@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
    );
 
 
-   Array<int> ordering(0);
+   Array<int> ordering(0); // ordering of solving the equation
    ordering.Append(Vars::f_rho);
    ordering.Append(Vars::u);
    ordering.Append(Vars::f_lam);
