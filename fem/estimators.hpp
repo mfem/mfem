@@ -572,8 +572,6 @@ private:
 
    Array<int> attributes;
 
-   bool with_coef;
-
    /** @brief A method to compute hₑ on per-element basis.
 
        This method weights the error approximation on the element level.
@@ -599,6 +597,8 @@ private:
    FiniteElementSpace*
    flux_space; /**< @brief Ownership based on own_flux_fes. */
    bool own_flux_fespace; ///< Ownership flag for flux_space.
+
+   bool with_coef; ///< Whether the flux or gradient should be used.
 
 #ifdef MFEM_USE_MPI
    const bool isParallel;
