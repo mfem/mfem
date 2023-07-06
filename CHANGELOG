@@ -26,6 +26,9 @@ New and updated examples and miniapps
   integrators are added in support of DPG systems: TraceIntegrator,
   NormalTraceIntegrator and TangentTraceIntegrator.
 
+- Added new SubMesh examples demonstrating source terms and boundary conditions
+  transferred from SubMesh objects.
+
 - Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
   demonstrating the use of a matrix-free saddle-point solver methodology,
   suitable for high-order discretizations and for GPU acceleration. Examples
@@ -51,6 +54,9 @@ Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
   spaces are now supported through the ConformingFaceRestriction class.
+
+- SubMesh and ParSubMesh have been extended to support the transfer of
+  Nedelec and Raviart-Thomas finite element spaces.
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
