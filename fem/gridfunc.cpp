@@ -4596,8 +4596,10 @@ KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
    Mesh* mesh=space->GetMesh();
    const int dim=mesh->SpaceDimension();
 
-   if (dim==2) { kdt2D=new KDTree2D(); kdt3D=nullptr;}
-   if (dim==3) { kdt3D=new KDTree3D(); kdt2D=nullptr;}
+   if (dim==2) { kdt2D=std::unique_ptr<KDTree2D>(new KDTree2D());}
+   if (dim==3) { kdt3D=std::unique_ptr<KDTree3D>(new KDTree3D());}
+
+
    std::vector<bool> indt; indt.resize(space->GetVSize()/space->GetVDim(), true);
 
    minbb.SetSize(dim);

@@ -175,13 +175,13 @@ int main(int argc, char* argv[])
          // save the mesh
          sout.open(mname.c_str(),std::ios::out);
          sout.precision(20);
-         pmesh.ParPrint(out);
+         pmesh.ParPrint(sout);
          sout.close();
 
          // save the grid function data
          sout.open(gname.c_str(),std::ios::out);
          sout.precision(20);
-         x.Save(out);
+         x.Save(sout);
          sout.close();
       }
    }
