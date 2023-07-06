@@ -33,12 +33,12 @@ class Mpi
 public:
    /// Singleton creation with Mpi::Init(argc, argv).
    static void Init(int &argc, char **&argv,
-                    int required = DefaultThreadRequired(),
+                    int required = default_thread_required,
                     int *provided = nullptr)
    { Init(&argc, &argv, required, provided); }
    /// Singleton creation with Mpi::Init().
    static void Init(int *argc = nullptr, char ***argv = nullptr,
-                    int required = DefaultThreadRequired(),
+                    int required = default_thread_required,
                     int *provided = nullptr)
    {
       MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
@@ -86,7 +86,7 @@ public:
    /// Return true if the rank in MPI_COMM_WORLD is zero.
    static bool Root() { return WorldRank() == 0; }
    /// Default level of thread support for MPI_Init_thread.
-   static int default_thread_required;
+   static MFEM_EXPORT int default_thread_required;
 private:
    /// Initialize the Mpi singleton.
    static Mpi &Singleton()
@@ -94,8 +94,6 @@ private:
       static Mpi mpi;
       return mpi;
    }
-   /// Access the default level of thread support.
-   static int DefaultThreadRequired();
    /// Finalize MPI.
    ~Mpi() { Finalize(); }
    /// Prevent direct construction of objects of this class.

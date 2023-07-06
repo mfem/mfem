@@ -231,6 +231,8 @@ public:
 
    // Constructor with MPI_Comm parameter and command line arguments.
    STRUMPACKSolver(MPI_Comm comm, int argc, char *argv[]);
+   MFEM_DEPRECATED STRUMPACKSolver(int argc, char *argv[], MPI_Comm comm)
+      : STRUMPACKSolver(comm, argc, argv) {}
 
    // Constructor with STRUMPACK matrix object and command line arguments.
    STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
