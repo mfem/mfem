@@ -5101,7 +5101,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Optionally pre-process the interpolation matrix through iterative weight
    // refinement (this is generally applicable for any system)
-   int interp_refine         = 1;
+   int interp_refine         = 0;
 
    HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
    HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
