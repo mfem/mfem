@@ -14,6 +14,7 @@
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
+#include <memory>
 
 using namespace std;
 
@@ -3061,6 +3062,40 @@ void ElasticityIntegrator::AssembleElementMatrix(
    }
 }
 
+BilinearFormIntegrator* ElasticityIntegrator::ComponentIntegrator(const int I,
+                                                                  const int J)
+{
+   //Make sure this isn't already a component integrator.
+   MFEM_VERIFY(!parent,
+               "Cannot get component. This integrator is already a component.");
+   auto compIntegrator = new ElasticityIntegrator(*this);
+   compIntegrator->IBlock = I;
+   compIntegrator->JBlock = J;
+   compIntegrator->parent = this;
+   //There only needs to be one instance of componentFESpace, but need to check
+   //if it exists yet.
+   if (!componentFESpace)
+   {
+      const auto *parfespace = dynamic_cast<const ParFiniteElementSpace*>(fespace);
+      auto isParallelFES = static_cast<bool>(parfespace);
+      const int vdim = 1;
+      if (isParallelFES)
+      {
+         componentFESpace = std::make_shared<const ParFiniteElementSpace>
+                            (parfespace->GetParMesh(), parfespace->FEColl(), vdim,
+                             parfespace->GetOrdering());
+      }
+      else
+      {
+         componentFESpace = std::make_shared<const FiniteElementSpace>
+                            (fespace->GetMesh(), fespace->FEColl(), vdim, fespace->GetOrdering());
+      }
+   }
+   compIntegrator->fespace = componentFESpace.get();
+   compIntegrator->componentFESpace = nullptr;
+   return compIntegrator;
+}
+
 void ElasticityIntegrator::ComputeElementFlux(
    const mfem::FiniteElement &el, ElementTransformation &Trans,
    Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
@@ -3231,6 +3266,11 @@ double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
    }
 
    return energy;
+}
+
+const FiniteElementSpace* ElasticityIntegrator::GetFESpace() const
+{
+   return fespace;
 }
 
 void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,

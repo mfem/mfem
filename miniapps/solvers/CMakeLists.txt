@@ -21,6 +21,12 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS lor_mms.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(lor_elast
+    MAIN lor_elast.cpp
+    EXTRA_SOURCES block_fespace_operator.cpp
+    EXTRA_HEADERS block_fespace_operator.hpp
+    LIBRARIES mfem)
+
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
     add_test(NAME block-solvers-constant_np${MFEM_MPI_NP}

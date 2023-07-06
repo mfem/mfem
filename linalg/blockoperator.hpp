@@ -41,7 +41,7 @@ public:
     *  nRowBlocks+1).  Note: BlockOperator will not own/copy the data contained
     *  in offsets.
     */
-   BlockOperator(const Array<int> & offsets);
+   BlockOperator(const Array<int> & offsets, const bool owns_offsets = false);
    //! Constructor for general BlockOperators.
    /**
     *  row_offsets: offsets that mark the start of each row block (size
@@ -49,7 +49,8 @@ public:
     *  block (size nColBlocks+1).  Note: BlockOperator will not own/copy the
     *  data contained in offsets.
     */
-   BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
+   BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets,
+                 const bool owns_offsets = false);
 
    /// Copy assignment is not supported
    BlockOperator &operator=(const BlockOperator &) = delete;

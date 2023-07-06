@@ -24,8 +24,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
+LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
+LOR_ELAST_OBJ = $(LOR_ELAST_SRC:.cpp=.o)
+
 SEQ_MINIAPPS = lor_solvers
-PAR_MINIAPPS = block-solvers plor_solvers
+PAR_MINIAPPS = block-solvers plor_solvers lor_elast
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -52,6 +55,9 @@ plor_solvers.o: $(SRC)lor_mms.hpp
 
 block-solvers: $(BLOCK_SOLVERS_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
+
+lor_elast: $(LOR_ELAST_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LOR_ELAST_OBJ) $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
