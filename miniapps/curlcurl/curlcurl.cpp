@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int par_ref_levels = 1;
    int icase = 1;
+   int maxiter = 500;
    bool hcurl = false;
    bool mms = true;
    const char *device_config = "cpu";
@@ -41,6 +42,7 @@ int main(int argc, char *argv[])
    args.AddOption(&hcurl, "-hcurl", "--hcurl", "-no-hcurl", "--no-hcurl", "Use Hcurl or H1.");
    args.AddOption(&mms, "-mms", "--mms", "-no-mms", "--no-mms", "Manufactured solution test.");
    args.AddOption(&icase, "-i", "--icase", "icase.");
+   args.AddOption(&maxiter, "-iter", "--iter", "max iteration.");
    args.AddOption(&alpha, "-alpha", "--alpha", "alpha.");
    args.AddOption(&paraview, "-para", "--para", "-no-para", "--no-para",
                   "Enable or disable Paraview visualization.");
@@ -200,7 +202,7 @@ int main(int argc, char *argv[])
      M_solver.Mult(B, X);
      mpform->RecoverFEMSolution(X, rhs, divB);
    }
-   else if(icase==2){
+   else if(icase>1){
      Vector onevec(3); onevec=1.0;
      VectorConstantCoefficient one(onevec);
      VectorFunctionCoefficient f_rhs(sdim, f_exact), u_coeff(sdim, u_exact);
@@ -211,12 +213,15 @@ int main(int argc, char *argv[])
         x = 0.0;
      }
 
-     Coefficient *sigma = new ConstantCoefficient(alpha);
+     ConstantCoefficient sigma(alpha), visco(1e-2);
      Bvec.ProjectCoefficient(*VecCoeff);
      BmatCoeff bmatcoeff(&Bvec);
      ParBilinearForm *a = new ParBilinearForm(fespace);
-     a->AddDomainIntegrator(new SpecialVectorCurlCurlIntegrator(*VecCoeff, bmatcoeff));
-     a->AddDomainIntegrator(new VectorMassIntegrator(*sigma));
+     a->AddDomainIntegrator(new VectorMassIntegrator(sigma));
+     //a->AddDomainIntegrator(new SpecialVectorCurlCurlIntegrator(*VecCoeff, bmatcoeff));
+     a->AddDomainIntegrator(new VectorGradDivIntegrator(*VecCoeff));
+     //a->AddDomainIntegrator(new SpecialVectorDiffusionIntegrator(*VecCoeff));
+     //a->AddDomainIntegrator(new VectorDiffusionIntegrator(visco));
      a->Assemble();
 
      ParLinearForm b(fespace);
@@ -237,18 +242,28 @@ int main(int argc, char *argv[])
         cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
      }
 
-     HyprePCG pcg(A);
-     HypreBoomerAMG *prec = new HypreBoomerAMG(A);
+     CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+     pcg->SetOperator(A);
+     Solver *prec;
+     if (true){ 
+         HypreBoomerAMG *prec2 = new HypreBoomerAMG(A);
+         prec2->SetRelaxType(18);
+         prec = prec2;
+     }
+     else{
+        ParFiniteElementSpace *prec_fespace = fespace;
+        prec = new HypreADS(A, prec_fespace);
+     }
      //HypreSolver *prec = new HypreILU();
-     pcg.SetTol(1e-12);
-     pcg.SetMaxIter(500);
-     pcg.SetPrintLevel(2);
-     pcg.SetPreconditioner(*prec);
-     pcg.Mult(B, X);
+     pcg->SetRelTol(1e-12);
+     pcg->SetMaxIter(maxiter);
+     pcg->SetPrintLevel(1);
+     pcg->SetPreconditioner(*prec);
+     pcg->Mult(B, X);
      a->RecoverFEMSolution(X, b, x);
      delete prec;
-     delete sigma;
      delete a;
+     delete pcg;
 
      if (mms){
         x_error.ProjectCoefficient(u_coeff);
@@ -385,5 +400,4 @@ void B_exact2(const Vector &x, Vector &B)
    B(1) = B_R*sinphi+B_phi*cosphi;
    B(2) = B_Z;
 }
-
 

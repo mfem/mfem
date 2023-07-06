@@ -45,10 +45,9 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
     dshape.SetSize(dof, dim);
     dshapedxt.SetSize(dof, dim);
     gshape.SetSize(dof, dim);
-    recmat.SetSize(dim, dof*dim);   //intermediate mat
-    recmatT.SetSize(dof*dim, dim);   //intermediate mat
-    partrecmat.SetSize(dim, dof);
-    partrecmat2.SetSize(1, dof);
+    recmat.SetSize(dof*dim, dim);   //intermediate mat
+    partrecmat.SetSize(dof, dim);
+    partrecmat2.SetSize(dof, 1);
 
     //final output:
     elmat.SetSize(dof*dim);
@@ -72,7 +71,7 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
 
         //include B.div^T [verified]
         BC->Eval(Bvec, Trans, ip);
-        MultVWt(Bvec, divshape, recmat);
+        MultVWt(divshape, Bvec, recmat);
 
         //include [(grad B) - (div B)I].x  [??]
         el.CalcPhysShape(Trans, shape);
@@ -81,18 +80,109 @@ void SpecialVectorCurlCurlIntegrator::AssembleElementMatrix(const FiniteElement 
             for (int ii = 0; ii < dim; ii++){
                 tmp(ii)=Bmat(ii,j);
             }
-            MultVWt(tmp, shape, partrecmat);
-            recmat.AddMatrix(1.0, partrecmat, 0, dof*j);
+            MultVWt(shape, tmp, partrecmat);
+            recmat.AddMatrix(1.0, partrecmat, dof*j, 0);
         }
 
         //include B.grad x [??]
         gshape.Mult(Bvec, BdotGrad);
-        partrecmat2.SetRow(0,BdotGrad);
+        partrecmat2.SetCol(0, BdotGrad);
         for (int j = 0; j < dim; j++){
-            recmat.AddMatrix(-1.0, partrecmat2, j, dof*j);
+            recmat.AddMatrix(-1.0, partrecmat2, dof*j, j);
         }
 
-        recmatT.Transpose(recmat);
-        AddMult_a_AAt(w, recmatT, elmat);
+        AddMult_a_AAt(w, recmat, elmat);
+    }
+}
+
+void VectorGradDivIntegrator::AssembleElementMatrix(const FiniteElement &el,
+                           ElementTransformation &Trans,DenseMatrix &elmat)
+{
+    int dof = el.GetDof();
+    int dim = el.GetDim();
+    double w;
+
+    shape.SetSize(dof);
+    divshape.SetSize(dim*dof);
+
+    dshape.SetSize(dof, dim);
+    dshapedxt.SetSize(dof, dim);
+    gshape.SetSize(dof, dim);
+
+    //final output:
+    elmat.SetSize(dof*dim);
+    elmat=0.0;
+
+    const IntegrationRule *ir = IntRule;
+    if (ir == NULL)
+    {
+        int order = 2 * Trans.OrderGrad(&el); // correct order?
+        ir = &IntRules.Get(el.GetGeomType(), order);
+    }
+
+    for (int i = 0; i < ir -> GetNPoints(); i++){
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        el.CalcDShape(ip, dshape);
+
+        Trans.SetIntPoint(&ip);
+        w = ip.weight * Trans.Weight();
+        Mult(dshape, Trans.InverseJacobian(), gshape);
+        gshape.GradToDiv(divshape);
+
+        BC->Eval(Bvec, Trans, ip);
+        double L = Bvec.Norml2();
+        L = L*L;
+
+        AddMult_a_VVt(L * w, divshape, elmat);
+    }
+}
+
+void SpecialVectorDiffusionIntegrator::AssembleElementMatrix(const FiniteElement &el,
+                           ElementTransformation &Trans,DenseMatrix &elmat)
+{
+    int dof = el.GetDof();
+    int dim = el.GetDim();
+    double w;
+
+    shape.SetSize(dof);
+    divshape.SetSize(dim*dof);
+    BdotGrad.SetSize(dof);
+
+    dshape.SetSize(dof, dim);
+    dshapedxt.SetSize(dof, dim);
+    gshape.SetSize(dof, dim);
+    recmat.SetSize(dof*dim, dim);   //intermediate mat
+    partrecmat.SetSize(dof, dim);
+    partrecmat2.SetSize(dof, 1);
+
+    //final output:
+    elmat.SetSize(dof*dim);
+    elmat=0.0;
+
+    const IntegrationRule *ir = IntRule;
+    if (ir == NULL)
+    {
+        int order = 2 * Trans.OrderGrad(&el); // correct order?
+        ir = &IntRules.Get(el.GetGeomType(), order);
+    }
+
+    for (int i = 0; i < ir -> GetNPoints(); i++){
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        el.CalcDShape(ip, dshape);
+
+        Trans.SetIntPoint(&ip);
+        w = ip.weight * Trans.Weight();
+        Mult(dshape, Trans.InverseJacobian(), gshape);
+
+        recmat = 0.0;
+        BC->Eval(Bvec, Trans, ip);
+        //include B.grad x [??]
+        gshape.Mult(Bvec, BdotGrad);
+        partrecmat2.SetCol(0, BdotGrad);
+        for (int j = 0; j < dim; j++){
+            recmat.AddMatrix(-1.0, partrecmat2, dof*j, j);
+        }
+
+        AddMult_a_AAt(w, recmat, elmat);
     }
 }

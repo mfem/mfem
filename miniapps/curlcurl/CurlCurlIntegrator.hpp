@@ -21,15 +21,47 @@ public:
 class SpecialVectorCurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
-    VectorCoefficient *BC;
+    VectorFunctionCoefficient *BC;
     BmatCoeff *BmatC;
     Vector shape, divshape, Bvec, tmp, BdotGrad;
+    DenseMatrix dshape, dshapedxt, gshape, recmat;
+    DenseMatrix Bmat, partrecmat, partrecmat2;
+
+public:
+    SpecialVectorCurlCurlIntegrator(VectorFunctionCoefficient &BCoeff, BmatCoeff &bmatcoeff)
+    { BC = &BCoeff; BmatC=&bmatcoeff;}
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
+class VectorGradDivIntegrator: public BilinearFormIntegrator
+{
+private:
+    VectorFunctionCoefficient *BC;
+    Vector shape, divshape, Bvec;
+    DenseMatrix dshape, dshapedxt, gshape;
+
+public:
+    VectorGradDivIntegrator(VectorFunctionCoefficient &BCoeff)
+    { BC = &BCoeff;}
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
+class SpecialVectorDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+    VectorFunctionCoefficient *BC;
+    BmatCoeff *BmatC;
+    Vector shape, divshape, Bvec, BdotGrad;
     DenseMatrix dshape, dshapedxt, gshape, recmat, recmatT;
     DenseMatrix Bmat, partrecmat, partrecmat2;
 
 public:
-    SpecialVectorCurlCurlIntegrator(VectorCoefficient &BCoeff, BmatCoeff &bmatcoeff)
-    { BC = &BCoeff; BmatC=&bmatcoeff;}
+    SpecialVectorDiffusionIntegrator(VectorFunctionCoefficient &BCoeff)
+    { BC = &BCoeff;}
     virtual void AssembleElementMatrix(const FiniteElement &el,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
