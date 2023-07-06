@@ -41,10 +41,6 @@ protected:
 
    bool keep_nbr_block;
 
-   //XX TODO
-   // // Allocate mat - called when (mat == NULL && fbfi.Size() > 0)
-   // void pAllocMat();
-
    void AssembleSharedFaces(int skip_zeros = 1);
 
 private:

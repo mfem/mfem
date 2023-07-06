@@ -120,7 +120,6 @@ protected:
    DiagonalPolicy diag_policy;
 
    DenseMatrix elemmat;
-   Array<int>  vdofs;
 
    // may be used in the construction of derived classes
    BilinearForm() : Matrix(0)
@@ -250,7 +249,7 @@ public:
                          const double a = 1.0) const override;
 
    /** @brief Matrix vector multiplication with the original uneliminated
-       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
+       matrix. The original matrix is \f$ M + M_e \f$ so we have:
        \f$ y = M x + M_e x \f$ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -338,7 +337,7 @@ public:
    bool HasSpMatElim() const { return mat_e != nullptr; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transferring ownership. */
+        to it. Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** Returns a const reference to the extension for assembly levels other
@@ -413,6 +412,12 @@ public:
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
 
+   /// Compute the element matrix of the given element
+   void ComputeElementMatrix(int i, DenseMatrix &elmat, Array<int> &vdofs);
+
+   /// Compute the boundary element matrix of the given boundary element
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat, Array<int> &vdofs);
+
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
        added to the system matrix. The flag @a skip_zeros skips the zero
@@ -429,7 +434,7 @@ public:
        matrix, unless they are breaking the symmetry of the system matrix.
    */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              Array<int> &vdofs, int skip_zeros = 1);
+                              const Array<int> &vdofs, int skip_zeros = 1);
 
    /// Assemble the given boundary element matrix
    /** The boundary element matrix @a elmat is assembled for the boundary
@@ -447,9 +452,9 @@ public:
        of the matrix, unless they are breaking the symmetry of the system matrix.
    */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 Array<int> &vdofs, int skip_zeros = 1);
+                                 const Array<int> &vdofs, int skip_zeros = 1);
 
-   /// Assembles the form i.e. sums over all domain/bdr integrators.
+   /// Assembles the form i.e. sums over all domain/boundary integrators.
    void Assemble(int skip_zeros = 1);
 
    /** For a partially conforming FE space, complete the assembly process by
@@ -632,7 +637,7 @@ public:
        a(u,v) = V^t M U
 
    where `U` and `V` are the vectors representing the functions `u` and `v`,
-   respectively.  The first argument, `u`, of `a(,)` is in the trial space
+   respectively. The first argument, `u`, of `a(,)` is in the trial space
    and the second argument, `v`, is in the test space. Thus,
 
        # of rows of M = dimension of the test space and
@@ -678,7 +683,6 @@ protected:
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
    DenseMatrix elemmat;
-   Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported.
@@ -763,7 +767,7 @@ public:
    bool HasSpMat() const { return mat != nullptr; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transferring ownership. */
+        to it. Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** Returns a const reference to the extension for assembly levels other
@@ -831,6 +835,14 @@ public:
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
 
+   /// Compute the element matrix of the given element
+   void ComputeElementMatrix(int i, DenseMatrix &elmat, Array<int> &trial_vdofs,
+                             Array<int> &test_vdofs);
+
+   /// Compute the boundary element matrix of the given boundary element
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat, Array<int> &trial_vdofs,
+                                Array<int> &test_vdofs);
+
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
        added to the system matrix. The flag @a skip_zeros skips the zero
@@ -848,7 +860,8 @@ public:
        of the system matrix.
    */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
-                              Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                              const Array<int> &trial_vdofs,
+                              const Array<int> &test_vdofs,
                               int skip_zeros = 1);
 
    /// Assemble the given boundary element matrix
@@ -868,9 +881,11 @@ public:
        symmetry of the system matrix.
    */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                                 const Array<int> &trial_vdofs,
+                                 const Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
+   /// Assembles the form i.e. sums over all domain/boundary integrators.
    void Assemble(int skip_zeros = 1);
 
    /** For partially conforming trial and/or test FE spaces, complete the

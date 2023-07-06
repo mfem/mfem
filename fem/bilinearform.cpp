@@ -246,16 +246,97 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_face_integs_marker.Append(&bdr_marker);
 }
 
+void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat,
+                                        Array<int> &vdofs)
+{
+   DofTransformation *doftrans = fes->GetElementVDofs(i, vdofs);
+   elmat.SetSize(vdofs.Size());
+   elmat = 0.0;
+   if (domain_integs.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+      ElementTransformation *eltrans = mesh->GetElementTransformation(i);
+      int elem_attr = mesh->GetAttribute(i);
+#ifdef MFEM_DEBUG
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != NULL)
+         {
+            MFEM_VERIFY(domain_integs_marker[k]->Size() ==
+                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+#endif
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] == NULL ||
+             (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+         {
+            domain_integs[k]->AssembleElementMatrix(*fes->GetFE(i),
+                                                    *eltrans, elemmat);
+            elmat += elemmat;
+         }
+      }
+      if (doftrans)
+      {
+         doftrans->TransformDual(elmat);
+      }
+   }
+}
+
+void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat,
+                                           Array<int> &vdofs)
+{
+   DofTransformation *doftrans = fes->GetBdrElementVDofs(i, vdofs);
+   elmat.SetSize(vdofs.Size());
+   elmat = 0.0;
+   if (boundary_integs.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+      ElementTransformation *eltrans = mesh->GetBdrElementTransformation(i);
+      int bdr_attr = mesh->GetBdrAttribute(i);
+#ifdef MFEM_DEBUG
+      for (int k = 0; k < boundary_integs.Size(); k++)
+      {
+         if (boundary_integs_marker[k] != NULL)
+         {
+            MFEM_VERIFY(boundary_integs_marker[k]->Size() ==
+                        (mesh->bdr_attributes.Size() ? mesh->bdr_attributes.Max() : 0),
+                        "invalid element marker for bdr integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+#endif
+      for (int k = 0; k < boundary_integs.Size(); k++)
+      {
+         if (boundary_integs_marker[k] == NULL ||
+             (*(boundary_integs_marker[k]))[bdr_attr-1] == 1)
+         {
+            boundary_integs[k]->AssembleElementMatrix(*fes->GetBE(i),
+                                                      *eltrans, elemmat);
+            elmat += elemmat;
+         }
+      }
+      if (doftrans)
+      {
+         doftrans->TransformDual(elmat);
+      }
+   }
+}
+
 void BilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, int skip_zeros)
 {
+   Array<int> vdofs;
+   fes->GetElementVDofs(i, vdofs);
    AssembleElementMatrix(i, elmat, vdofs, skip_zeros);
 }
 
 void BilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &vdofs_, int skip_zeros)
+   int i, const DenseMatrix &elmat, const Array<int> &vdofs, int skip_zeros)
 {
-   fes->GetElementVDofs(i, vdofs_);
    if (static_cond)
    {
       static_cond->AssembleMatrix(i, elmat);
@@ -266,7 +347,7 @@ void BilinearForm::AssembleElementMatrix(
       {
          mat = new SparseMatrix(height);
       }
-      mat->AddSubMatrix(vdofs_, vdofs_, elmat, skip_zeros);
+      mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
       if (hybridization)
       {
          hybridization->AssembleMatrix(i, elmat);
@@ -277,13 +358,14 @@ void BilinearForm::AssembleElementMatrix(
 void BilinearForm::AssembleBdrElementMatrix(
    int i, const DenseMatrix &elmat, int skip_zeros)
 {
+   Array<int> vdofs;
+   fes->GetBdrElementVDofs(i, vdofs);
    AssembleBdrElementMatrix(i, elmat, vdofs, skip_zeros);
 }
 
 void BilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &vdofs_, int skip_zeros)
+   int i, const DenseMatrix &elmat, const Array<int> &vdofs, int skip_zeros)
 {
-   fes->GetBdrElementVDofs(i, vdofs_);
    if (static_cond)
    {
       static_cond->AssembleBdrMatrix(i, elmat);
@@ -294,7 +376,7 @@ void BilinearForm::AssembleBdrElementMatrix(
       {
          mat = new SparseMatrix(height);
       }
-      mat->AddSubMatrix(vdofs_, vdofs_, elmat, skip_zeros);
+      mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
       if (hybridization)
       {
          hybridization->AssembleBdrMatrix(i, elmat);
@@ -310,152 +392,39 @@ void BilinearForm::Assemble(int skip_zeros)
       return;
    }
 
-   ElementTransformation *eltrans;
-   DofTransformation *doftrans;
    Mesh *mesh = fes->GetMesh();
    DenseMatrix elmat;
+   Array<int> vdofs;
 
-   if (mat == NULL && !static_cond)
+   if (mat == NULL)
    {
       mat = new SparseMatrix(height);
    }
 
    if (domain_integs.Size())
    {
-      for (int k = 0; k < domain_integs.Size(); k++)
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         if (domain_integs_marker[k] != NULL)
-         {
-            MFEM_VERIFY(domain_integs_marker[k]->Size() ==
-                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
-                        "invalid element marker for domain integrator #"
-                        << k << ", counting from zero");
-         }
-      }
-
-      for (int i = 0; i < fes->GetNE(); i++)
-      {
-         int elem_attr = fes->GetMesh()->GetAttribute(i);
-         doftrans = fes->GetElementVDofs(i, vdofs);
-         elmat.SetSize(0);
-         for (int k = 0; k < domain_integs.Size(); k++)
-         {
-            if ( domain_integs_marker[k] == NULL ||
-                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
-            {
-               const FiniteElement &fe = *fes->GetFE(i);
-               eltrans = fes->GetElementTransformation(i);
-               domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-               if (elmat.Size() == 0)
-               {
-                  elmat = elemmat;
-               }
-               else
-               {
-                  elmat += elemmat;
-               }
-            }
-         }
-         if (elmat.Size() == 0)
-         {
-            continue;
-         }
-         if (doftrans)
-         {
-            doftrans->TransformDual(elmat);
-         }
-         if (!static_cond)
-         {
-            mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
-            if (hybridization)
-            {
-               hybridization->AssembleMatrix(i, elmat);
-            }
-         }
-         else
-         {
-            static_cond->AssembleMatrix(i, elmat);
-         }
+         ComputeElementMatrix(i, elmat, vdofs);
+         AssembleElementMatrix(i, elmat, vdofs, skip_zeros);
       }
    }
 
    if (boundary_integs.Size())
    {
-      // Which boundary attributes need to be processed?
-      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                                 mesh->bdr_attributes.Max() : 0);
-      bdr_attr_marker = 0;
-      for (int k = 0; k < boundary_integs.Size(); k++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
-         if (boundary_integs_marker[k] == NULL)
-         {
-            bdr_attr_marker = 1;
-            break;
-         }
-         Array<int> &bdr_marker = *boundary_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary integrator #"
-                     << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
-         {
-            bdr_attr_marker[i] |= bdr_marker[i];
-         }
-      }
-
-      for (int i = 0; i < fes->GetNBE(); i++)
-      {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
-         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-
-         const FiniteElement &be = *fes->GetBE(i);
-         doftrans = fes->GetBdrElementVDofs(i, vdofs);
-         eltrans = fes->GetBdrElementTransformation(i);
-         int k = 0;
-         for (; k < boundary_integs.Size(); k++)
-         {
-            if (boundary_integs_marker[k] &&
-                (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
-
-            boundary_integs[k]->AssembleElementMatrix(be, *eltrans, elmat);
-            k++;
-            break;
-         }
-         for (; k < boundary_integs.Size(); k++)
-         {
-            if (boundary_integs_marker[k] &&
-                (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
-
-            boundary_integs[k]->AssembleElementMatrix(be, *eltrans, elemmat);
-            elmat += elemmat;
-         }
-         if (doftrans)
-         {
-            doftrans->TransformDual(elmat);
-         }
-         if (!static_cond)
-         {
-            mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
-            if (hybridization)
-            {
-               hybridization->AssembleBdrMatrix(i, elmat);
-            }
-         }
-         else
-         {
-            static_cond->AssembleBdrMatrix(i, elmat);
-         }
+         ComputeBdrElementMatrix(i, elmat, vdofs);
+         AssembleBdrElementMatrix(i, elmat, vdofs, skip_zeros);
       }
    }
 
    if (interior_face_integs.Size())
    {
-      FaceElementTransformations *tr;
       Array<int> vdofs2;
-
-      int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
-         tr = mesh->GetInteriorFaceTransformations(i);
+         FaceElementTransformations *tr = mesh->GetInteriorFaceTransformations(i);
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
@@ -474,53 +443,27 @@ void BilinearForm::Assemble(int skip_zeros)
 
    if (boundary_face_integs.Size())
    {
-      FaceElementTransformations *tr;
-      const FiniteElement *fe1, *fe2;
-
-      // Which boundary attributes need to be processed?
-      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                                 mesh->bdr_attributes.Max() : 0);
-      bdr_attr_marker = 0;
-      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
-         if (boundary_face_integs_marker[k] == NULL)
-         {
-            bdr_attr_marker = 1;
-            break;
-         }
-         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary face integrator #"
-                     << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
-         {
-            bdr_attr_marker[i] |= bdr_marker[i];
-         }
-      }
-
-      for (int i = 0; i < fes->GetNBE(); i++)
-      {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
-         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-
-         tr = mesh->GetBdrFaceTransformations(i);
+         FaceElementTransformations *tr = mesh->GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            fes->GetElementVDofs(tr->Elem1No, vdofs);
-            fe1 = fes->GetFE(tr->Elem1No);
+            int bdr_attr = mesh->GetBdrAttribute(i);
+            const FiniteElement *fe1 = fes->GetFE(tr->Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
-            fe2 = fe1;
+            const FiniteElement *fe2 = fe1;
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
             for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
-               if (boundary_face_integs_marker[k] &&
-                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0)
-               { continue; }
-
-               boundary_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *tr,
-                                                           elemmat);
-               mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
+               if (boundary_face_integs_marker[k] == NULL ||
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 1)
+               {
+                  boundary_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *tr,
+                                                              elemmat);
+                  mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
+               }
             }
          }
       }
@@ -842,15 +785,15 @@ void BilinearForm::EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
                                   const Vector &sol, Vector &rhs,
                                   DiagonalPolicy dpolicy)
 {
-   vdofs_.HostRead();
-   for (int i = 0; i < vdofs_.Size(); i++)
+   vdofs.HostRead();
+   for (int i = 0; i < vdofs.Size(); i++)
    {
-      int vdof = vdofs_[i];
-      if ( vdof >= 0 )
+      int vdof = vdofs[i];
+      if (vdof >= 0)
       {
          mat->EliminateRowCol(vdof, sol(vdof), rhs, dpolicy);
       }
@@ -861,7 +804,7 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
                                   DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
@@ -869,11 +812,11 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
       mat_e = new SparseMatrix(height);
    }
 
-   vdofs_.HostRead();
-   for (int i = 0; i < vdofs_.Size(); i++)
+   vdofs.HostRead();
+   for (int i = 0; i < vdofs.Size(); i++)
    {
-      int vdof = vdofs_[i];
-      if ( vdof >= 0 )
+      int vdof = vdofs[i];
+      if (vdof >= 0)
       {
          mat->EliminateRowCol(vdof, *mat_e, dpolicy);
       }
@@ -893,10 +836,12 @@ void BilinearForm::EliminateEssentialBCFromDofs(
    MFEM_ASSERT(rhs.Size() == height, "incorrect rhs Vector size");
 
    for (int i = 0; i < ess_dofs.Size(); i++)
+   {
       if (ess_dofs[i] < 0)
       {
          mat->EliminateRowCol(i, sol(i), rhs, dpolicy);
       }
+   }
 }
 
 void BilinearForm::EliminateEssentialBCFromDofs(const Array<int> &ess_dofs,
@@ -905,10 +850,12 @@ void BilinearForm::EliminateEssentialBCFromDofs(const Array<int> &ess_dofs,
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 
    for (int i = 0; i < ess_dofs.Size(); i++)
+   {
       if (ess_dofs[i] < 0)
       {
          mat->EliminateRowCol(i, dpolicy);
       }
+   }
 }
 
 void BilinearForm::EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
@@ -924,10 +871,10 @@ void BilinearForm::EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
 }
 
 void BilinearForm::EliminateVDofsInRHS(
-   const Array<int> &vdofs_, const Vector &x, Vector &b)
+   const Array<int> &vdofs, const Vector &x, Vector &b)
 {
    mat_e->AddMult(x, b, -1.);
-   mat->PartMult(vdofs_, x, b);
+   mat->PartMult(vdofs, x, b);
 }
 
 void BilinearForm::Update(FiniteElementSpace *nfes)
@@ -1190,42 +1137,102 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_trace_face_integs_marker.Append(&bdr_marker);
 }
 
+void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat,
+                                             Array<int> &trial_vdofs,
+                                             Array<int> &test_vdofs)
+{
+   DofTransformation *dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
+   DofTransformation *ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
+   elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+   elmat = 0.0;
+   if (domain_integs.Size())
+   {
+      Mesh *mesh = test_fes->GetMesh();
+      ElementTransformation *eltrans = mesh->GetElementTransformation(i);
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
+                                                  *test_fes->GetFE(i),
+                                                  *eltrans, elemmat);
+         elmat += elemmat;
+      }
+      if (ran_dof_trans || dom_dof_trans)
+      {
+         TransformDual(ran_dof_trans, dom_dof_trans, elmat);
+      }
+   }
+}
+
+void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat,
+                                                Array<int> &trial_vdofs,
+                                                Array<int> &test_vdofs)
+{
+   DofTransformation *dom_dof_trans = trial_fes->GetBdrElementVDofs(i,
+                                                                    trial_vdofs);
+   DofTransformation *ran_dof_trans = test_fes->GetBdrElementVDofs(i, test_vdofs);
+   elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+   elmat = 0.0;
+   if (boundary_integs.Size())
+   {
+      Mesh *mesh = test_fes->GetMesh();
+      ElementTransformation *eltrans = mesh->GetBdrElementTransformation(i);
+      int bdr_attr = mesh->GetBdrAttribute(i);
+      for (int k = 0; k < boundary_integs.Size(); k++)
+      {
+         if (boundary_integs_marker[k] == NULL ||
+             (*boundary_integs_marker[k])[bdr_attr-1] == 1)
+         {
+            boundary_integs[k]->AssembleElementMatrix2(*trial_fes->GetBE(i),
+                                                       *test_fes->GetBE(i),
+                                                       *eltrans, elemmat);
+            elmat += elemmat;
+         }
+      }
+      if (ran_dof_trans || dom_dof_trans)
+      {
+         TransformDual(ran_dof_trans, dom_dof_trans, elmat);
+      }
+   }
+}
+
 void MixedBilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, int skip_zeros)
 {
+   Array<int> trial_vdofs, test_vdofs;
+   trial_fes->GetElementVDofs(i, trial_vdofs);
+   test_fes->GetElementVDofs(i, test_vdofs);
    AssembleElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
 }
 
 void MixedBilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs_,
-   Array<int> &test_vdofs_, int skip_zeros)
+   int i, const DenseMatrix &elmat, const Array<int> &trial_vdofs,
+   const Array<int> &test_vdofs, int skip_zeros)
 {
-   trial_fes->GetElementVDofs(i, trial_vdofs_);
-   test_fes->GetElementVDofs(i, test_vdofs_);
    if (mat == NULL)
    {
       mat = new SparseMatrix(height, width);
    }
-   mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
+   mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
 }
 
 void MixedBilinearForm::AssembleBdrElementMatrix(
    int i, const DenseMatrix &elmat, int skip_zeros)
 {
+   Array<int> trial_vdofs, test_vdofs;
+   trial_fes->GetBdrElementVDofs(i, trial_vdofs);
+   test_fes->GetBdrElementVDofs(i, test_vdofs);
    AssembleBdrElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
 }
 
 void MixedBilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs_,
-   Array<int> &test_vdofs_, int skip_zeros)
+   int i, const DenseMatrix &elmat, const Array<int> &trial_vdofs,
+   const Array<int> &test_vdofs, int skip_zeros)
 {
-   trial_fes->GetBdrElementVDofs(i, trial_vdofs_);
-   test_fes->GetBdrElementVDofs(i, test_vdofs_);
    if (mat == NULL)
    {
       mat = new SparseMatrix(height, width);
    }
-   mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
+   mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
 }
 
 void MixedBilinearForm::Assemble(int skip_zeros)
@@ -1236,11 +1243,9 @@ void MixedBilinearForm::Assemble(int skip_zeros)
       return;
    }
 
-   ElementTransformation *eltrans;
-   DofTransformation *dom_dof_trans;
-   DofTransformation *ran_dof_trans;
    Mesh *mesh = test_fes->GetMesh();
    DenseMatrix elmat;
+   Array<int> trial_vdofs, test_vdofs;
 
    if (mat == NULL)
    {
@@ -1249,171 +1254,85 @@ void MixedBilinearForm::Assemble(int skip_zeros)
 
    if (domain_integs.Size())
    {
-      for (int i = 0; i < test_fes->GetNE(); i++)
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
-         ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
-         eltrans = test_fes->GetElementTransformation(i);
-
-         elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
-         elmat = 0.0;
-         for (int k = 0; k < domain_integs.Size(); k++)
-         {
-            domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
-                                                     *test_fes->GetFE(i),
-                                                     *eltrans, elemmat);
-            elmat += elemmat;
-         }
-         if (ran_dof_trans || dom_dof_trans)
-         {
-            TransformDual(ran_dof_trans, dom_dof_trans, elmat);
-         }
-         mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+         ComputeElementMatrix(i, elmat, trial_vdofs, test_vdofs);
+         AssembleElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
       }
    }
 
    if (boundary_integs.Size())
    {
-      // Which boundary attributes need to be processed?
-      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                                 mesh->bdr_attributes.Max() : 0);
-      bdr_attr_marker = 0;
-      for (int k = 0; k < boundary_integs.Size(); k++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
-         if (boundary_integs_marker[k] == NULL)
-         {
-            bdr_attr_marker = 1;
-            break;
-         }
-         Array<int> &bdr_marker = *boundary_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary integrator #"
-                     << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
-         {
-            bdr_attr_marker[i] |= bdr_marker[i];
-         }
-      }
-
-      for (int i = 0; i < test_fes->GetNBE(); i++)
-      {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
-         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-
-         dom_dof_trans = trial_fes->GetBdrElementVDofs(i, trial_vdofs);
-         ran_dof_trans = test_fes->GetBdrElementVDofs(i, test_vdofs);
-         eltrans = test_fes->GetBdrElementTransformation(i);
-
-         elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
-         elmat = 0.0;
-         for (int k = 0; k < boundary_integs.Size(); k++)
-         {
-            if (boundary_integs_marker[k] &&
-                (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
-
-            boundary_integs[k]->AssembleElementMatrix2(*trial_fes->GetBE(i),
-                                                       *test_fes->GetBE(i),
-                                                       *eltrans, elemmat);
-            elmat += elemmat;
-         }
-         if (ran_dof_trans || dom_dof_trans)
-         {
-            TransformDual(ran_dof_trans, dom_dof_trans, elmat);
-         }
-         mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+         ComputeBdrElementMatrix(i, elmat, trial_vdofs, test_vdofs);
+         AssembleBdrElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
       }
    }
 
    if (trace_face_integs.Size())
    {
-      FaceElementTransformations *ftr;
       Array<int> test_vdofs2;
-      const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
-
-      int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
-         ftr = mesh->GetFaceElementTransformations(i);
-         trial_fes->GetFaceVDofs(i, trial_vdofs);
-         test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
-         trial_face_fe = trial_fes->GetFaceElement(i);
-         test_fe1 = test_fes->GetFE(ftr->Elem1No);
-         if (ftr->Elem2No >= 0)
+         FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(i);
+         if (ftr != NULL)
          {
-            test_fes->GetElementVDofs(ftr->Elem2No, test_vdofs2);
-            test_vdofs.Append(test_vdofs2);
-            test_fe2 = test_fes->GetFE(ftr->Elem2No);
-         }
-         else
-         {
-            // The test_fe2 object is really a dummy and not used on the
-            // boundaries, but we can't dereference a NULL pointer, and we don't
-            // want to actually make a fake element.
-            test_fe2 = test_fe1;
-         }
-         for (int k = 0; k < trace_face_integs.Size(); k++)
-         {
-            trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
-                                                     *test_fe2, *ftr, elemmat);
-            mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
+            trial_fes->GetFaceVDofs(i, trial_vdofs);
+            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+            const FiniteElement *trial_face_fe = trial_fes->GetFaceElement(i);
+            const FiniteElement *test_fe1 = test_fes->GetFE(ftr->Elem1No);
+            const FiniteElement *test_fe2;
+            if (ftr->Elem2No >= 0)
+            {
+               test_fes->GetElementVDofs(ftr->Elem2No, test_vdofs2);
+               test_vdofs.Append(test_vdofs2);
+               test_fe2 = test_fes->GetFE(ftr->Elem2No);
+            }
+            else
+            {
+               // The test_fe2 object is really a dummy and not used on the
+               // boundaries, but we can't dereference a NULL pointer, and we don't
+               // want to actually make a fake element.
+               test_fe2 = test_fe1;
+            }
+            for (int k = 0; k < trace_face_integs.Size(); k++)
+            {
+               trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1,
+                                                        *test_fe2, *ftr, elemmat);
+               mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
+            }
          }
       }
    }
 
    if (boundary_trace_face_integs.Size())
    {
-      FaceElementTransformations *ftr;
-      Array<int> te_vdofs2;
-      const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
-
-      // Which boundary attributes need to be processed?
-      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                                 mesh->bdr_attributes.Max() : 0);
-      bdr_attr_marker = 0;
-      for (int k = 0; k < boundary_trace_face_integs.Size(); k++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
-         if (boundary_trace_face_integs_marker[k] == NULL)
-         {
-            bdr_attr_marker = 1;
-            break;
-         }
-         Array<int> &bdr_marker = *boundary_trace_face_integs_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary trace face"
-                     "integrator #" << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
-         {
-            bdr_attr_marker[i] |= bdr_marker[i];
-         }
-      }
-
-      for (int i = 0; i < trial_fes->GetNBE(); i++)
-      {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
-         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-
-         ftr = mesh->GetBdrFaceTransformations(i);
-         if (ftr)
+         int bdr_attr = mesh->GetBdrAttribute(i);
+         FaceElementTransformations *ftr = mesh->GetBdrFaceTransformations(i);
+         if (ftr != NULL)
          {
             trial_fes->GetFaceVDofs(ftr->ElementNo, trial_vdofs);
             test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
-            trial_face_fe = trial_fes->GetFaceElement(ftr->ElementNo);
-            test_fe1 = test_fes->GetFE(ftr->Elem1No);
+            const FiniteElement *trial_face_fe = trial_fes->GetFaceElement(ftr->ElementNo);
+            const FiniteElement *test_fe1 = test_fes->GetFE(ftr->Elem1No);
             // The test_fe2 object is really a dummy and not used on the
             // boundaries, but we can't dereference a NULL pointer, and we don't
             // want to actually make a fake element.
-            test_fe2 = test_fe1;
+            const FiniteElement *test_fe2 = test_fe1;
             for (int k = 0; k < boundary_trace_face_integs.Size(); k++)
             {
-               if (boundary_trace_face_integs_marker[k] &&
-                   (*boundary_trace_face_integs_marker[k])[bdr_attr-1] == 0)
-               { continue; }
-
-               boundary_trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe,
-                                                                 *test_fe1,
-                                                                 *test_fe2,
-                                                                 *ftr, elemmat);
-               mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
+               if (boundary_trace_face_integs_marker[k] == NULL ||
+                   (*boundary_trace_face_integs_marker[k])[bdr_attr-1] == 1)
+               {
+                  boundary_trace_face_integs[k]->AssembleFaceMatrix(*trial_face_fe,
+                                                                    *test_fe1,
+                                                                    *test_fe2,
+                                                                    *ftr, elemmat);
+                  mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
+               }
             }
          }
       }
@@ -1564,25 +1483,27 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
 }
 
 void MixedBilinearForm::EliminateTrialDofs(
-   const Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
+   const Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs)
 {
    int i, j, k;
-   Array<int> tr_vdofs, cols_marker(trial_fes->GetVSize());
-
+   Array<int> ess_dofs, cols_marker(trial_fes->GetVSize());
    cols_marker = 0;
+
    for (i = 0; i < trial_fes->GetNBE(); i++)
+   {
       if (bdr_attr_is_ess[trial_fes->GetBdrAttribute(i)-1])
       {
-         trial_fes->GetBdrElementVDofs(i, tr_vdofs);
-         for (j = 0; j < tr_vdofs.Size(); j++)
+         trial_fes->GetBdrElementVDofs(i, ess_dofs);
+         for (j = 0; j < ess_dofs.Size(); j++)
          {
-            if ((k = tr_vdofs[j]) < 0)
+            if ((k = ess_dofs[j]) < 0)
             {
                k = -1-k;
             }
             cols_marker[k] = 1;
          }
       }
+   }
    mat->EliminateCols(cols_marker, &sol, &rhs);
 }
 
@@ -1595,21 +1516,23 @@ void MixedBilinearForm::EliminateEssentialBCFromTrialDofs(
 void MixedBilinearForm::EliminateTestDofs(const Array<int> &bdr_attr_is_ess)
 {
    int i, j, k;
-   Array<int> te_vdofs;
+   Array<int> ess_dofs;
 
    for (i = 0; i < test_fes->GetNBE(); i++)
+   {
       if (bdr_attr_is_ess[test_fes->GetBdrAttribute(i)-1])
       {
-         test_fes->GetBdrElementVDofs(i, te_vdofs);
-         for (j = 0; j < te_vdofs.Size(); j++)
+         test_fes->GetBdrElementVDofs(i, ess_dofs);
+         for (j = 0; j < ess_dofs.Size(); j++)
          {
-            if ((k = te_vdofs[j]) < 0)
+            if ((k = ess_dofs[j]) < 0)
             {
                k = -1-k;
             }
             mat->EliminateRow(k);
          }
       }
+   }
 }
 
 void MixedBilinearForm::Update()
@@ -1676,11 +1599,9 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
       return;
    }
 
-   ElementTransformation *eltrans;
-   DofTransformation *dom_dof_trans;
-   DofTransformation *ran_dof_trans;
    Mesh *mesh = test_fes->GetMesh();
    DenseMatrix elmat;
+   Array<int> trial_vdofs, test_vdofs;
 
    if (mat == NULL)
    {
@@ -1689,11 +1610,11 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 
    if (domain_integs.Size())
    {
-      for (int i = 0; i < test_fes->GetNE(); i++)
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
-         ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
-         eltrans = test_fes->GetElementTransformation(i);
+         DofTransformation *dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
+         DofTransformation *ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
+         ElementTransformation *eltrans = test_fes->GetElementTransformation(i);
 
          elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
          elmat = 0.0;
@@ -1714,12 +1635,11 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 
    if (trace_face_integs.Size())
    {
-      const int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
       {
          trial_fes->GetFaceVDofs(i, trial_vdofs);
          test_fes->GetFaceVDofs(i, test_vdofs);
-         eltrans = mesh->GetFaceTransformation(i);
+         ElementTransformation *eltrans = mesh->GetFaceTransformation(i);
 
          elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
          elmat = 0.0;

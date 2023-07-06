@@ -19,110 +19,6 @@
 namespace mfem
 {
 
-
-//XX TODO
-// void ParBilinearForm::pAllocMat()
-// {
-//    int nbr_size = pfes->GetFaceNbrVSize();
-
-//    if (precompute_sparsity == 0 || fes->GetVDim() > 1)
-//    {
-//       if (keep_nbr_block)
-//       {
-//          mat = new SparseMatrix(height + nbr_size, width + nbr_size);
-//       }
-//       else
-//       {
-//          mat = new SparseMatrix(height, width + nbr_size);
-//       }
-//       return;
-//    }
-
-//    // the sparsity pattern is defined from the map: face->element->dof
-//    const Table &lelem_ldof = fes->GetElementToDofTable(); // <-- dofs
-//    const Table &nelem_ndof = pfes->face_nbr_element_dof; // <-- vdofs
-//    Table elem_dof; // element + nbr-element <---> dof
-//    if (nbr_size > 0)
-//    {
-//       // merge lelem_ldof and nelem_ndof into elem_dof
-//       int s1 = lelem_ldof.Size(), s2 = nelem_ndof.Size();
-//       const int *I1 = lelem_ldof.GetI(), *J1 = lelem_ldof.GetJ();
-//       const int *I2 = nelem_ndof.GetI(), *J2 = nelem_ndof.GetJ();
-//       const int nnz1 = I1[s1], nnz2 = I2[s2];
-
-//       elem_dof.SetDims(s1 + s2, nnz1 + nnz2);
-
-//       int *I = elem_dof.GetI(), *J = elem_dof.GetJ();
-//       for (int i = 0; i <= s1; i++)
-//       {
-//          I[i] = I1[i];
-//       }
-//       for (int j = 0; j < nnz1; j++)
-//       {
-//          J[j] = J1[j];
-//       }
-//       for (int i = 0; i <= s2; i++)
-//       {
-//          I[s1+i] = I2[i] + nnz1;
-//       }
-//       for (int j = 0; j < nnz2; j++)
-//       {
-//          J[nnz1+j] = J2[j] + height;
-//       }
-//    }
-//    //   dof_elem x  elem_face x face_elem x elem_dof  (keep_nbr_block = true)
-//    // ldof_lelem x lelem_face x face_elem x elem_dof  (keep_nbr_block = false)
-//    Table dof_dof;
-//    {
-//       Table face_dof; // face_elem x elem_dof
-//       {
-//          Table *face_elem = pfes->GetParMesh()->GetFaceToAllElementTable();
-//          if (nbr_size > 0)
-//          {
-//             mfem::Mult(*face_elem, elem_dof, face_dof);
-//          }
-//          else
-//          {
-//             mfem::Mult(*face_elem, lelem_ldof, face_dof);
-//          }
-//          delete face_elem;
-//          if (nbr_size > 0)
-//          {
-//             elem_dof.Clear();
-//          }
-//       }
-
-//       if (keep_nbr_block)
-//       {
-//          Table dof_face;
-//          Transpose(face_dof, dof_face, height + nbr_size);
-//          mfem::Mult(dof_face, face_dof, dof_dof);
-//       }
-//       else
-//       {
-//          Table ldof_face;
-//          {
-//             Table face_ldof;
-//             Table *face_lelem = fes->GetMesh()->GetFaceToElementTable();
-//             mfem::Mult(*face_lelem, lelem_ldof, face_ldof);
-//             delete face_lelem;
-//             Transpose(face_ldof, ldof_face, height);
-//          }
-//          mfem::Mult(ldof_face, face_dof, dof_dof);
-//       }
-//    }
-
-//    int *I = dof_dof.GetI();
-//    int *J = dof_dof.GetJ();
-//    int nrows = dof_dof.Size();
-//    double *data = Memory<double>(I[nrows]);
-
-//    mat = new SparseMatrix(I, J, data, nrows, height + nbr_size);
-//    *mat = 0.0;
-
-//    dof_dof.LoseData();
-// }
-
 void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
                                   bool steal_loc_A)
 {
@@ -226,10 +122,8 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
    ParMesh *pmesh = pfes->GetParMesh();
    FaceElementTransformations *T;
    Array<int> vdofs1, vdofs2, vdofs_all;
-   DenseMatrix elemmat;
 
-   int nfaces = pmesh->GetNSharedFaces();
-   for (int i = 0; i < nfaces; i++)
+   for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
    {
       T = pmesh->GetSharedFaceTransformations(i);
       int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
