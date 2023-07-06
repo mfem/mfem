@@ -63,7 +63,13 @@ IPsolver.o: $(SRC)IPsolver.cpp $(CONFIG_MK)
 ParObstacleProblem: ParObstacleProblem.o ParProblems.o ParIPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) ParObstacleProblem.o ParProblems.o ParIPsolver.o -o $@ $(MFEM_LIBS)
 
+ParSphericalObstacleProblem: ParSphericalObstacleProblem.o ParProblems.o ParIPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ParSphericalObstacleProblem.o ParProblems.o ParIPsolver.o -o $@ $(MFEM_LIBS)
+
 ParObstacleProblem.o: $(SRC)ParObstacleProblem.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
+
+ParSphericalObstacleProblem.o: $(SRC)ParSphericalObstacleProblem.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
 
 ParProblems.o: $(SRC)ParProblems.cpp $(CONFIG_MK)

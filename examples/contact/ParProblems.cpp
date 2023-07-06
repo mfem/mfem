@@ -149,4 +149,105 @@ ParObstacleProblem::~ParObstacleProblem()
    delete fform;
 }
 
+ParDirichletObstacleProblem::ParDirichletObstacleProblem(ParFiniteElementSpace *fesU_, 
+                                       ParFiniteElementSpace *fesM_, 
+				       double (*fSource)(const Vector &),
+				       double (*obstacleSource)(const Vector &),
+				       Array<int> tdof_list,
+				       Vector &xDC) : 
+                                       ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), psi(fesU->GetTrueVSize()), J(nullptr)
+{
+   // elastic energy functional terms	
+   ess_tdof_list = tdof_list;
+   Kform = new ParBilinearForm(fesU);
+   Kform->AddDomainIntegrator(new DiffusionIntegrator);
+   Kform->Assemble();
+   Kform->Finalize();
+   Kform->FormSystemMatrix(ess_tdof_list, K);
+
+   FunctionCoefficient fcoeff(fSource);
+   fform = new ParLinearForm(fesU);
+   fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+   fform->Assemble();
+   Vector F(fesU->GetTrueVSize());
+   fform->ParallelAssemble(F);
+   f.SetSize(F.Size());
+   f.Set(1.0, F);
+   Kform->EliminateVDofsInRHS(ess_tdof_list, xDC, f);
+   
+   // obstacle constraints --  
+   Vector iDiag(fesU->GetTrueVSize()); iDiag = 1.0;
+   for(int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+     iDiag(ess_tdof_list[i]) = 0.0;
+   }
+   SparseMatrix * Jacg = new SparseMatrix(iDiag);
+
+   if (!(J == nullptr))
+   {
+     delete J;
+   }
+   J = new HypreParMatrix(fesU->GetComm(),fesU->GlobalTrueVSize(),fesU->GetTrueDofOffsets(),Jacg);
+   HypreStealOwnership(*J, *Jacg);
+   delete Jacg;
+
+
+
+   FunctionCoefficient psi_fc(obstacleSource);
+   ParGridFunction psi_gf(fesU);
+   psi_gf.ProjectCoefficient(psi_fc);
+   psi.Set(1.0, (*psi_gf.GetTrueDofs()));
+   for(int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+     psi(ess_tdof_list[i]) -= 1.e-8;
+   }
+}
+
+
+
+double ParDirichletObstacleProblem::E(const Vector &d) const
+{
+   Vector Kd(K.Height()); Kd = 0.0;
+   MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::E - Inconsistent dimensions");
+   K.Mult(d, Kd);
+   return 0.5 * InnerProduct(MPI_COMM_WORLD, d, Kd) - InnerProduct(MPI_COMM_WORLD, f, d);
+}
+
+void ParDirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
+{
+   gradE.SetSize(K.Height());
+   MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::DdE - Inconsistent dimensions");
+   K.Mult(d, gradE);
+   MFEM_VERIFY(K.Height() == f.Size(), "ParObstacleProblem::DdE - Inconsistent dimensions");
+   gradE.Add(-1.0, f);
+}
+
+HypreParMatrix * ParDirichletObstacleProblem::DddE(const Vector &d)
+{
+   return new HypreParMatrix(K); 
+}
+
+// g(d) = d >= 0
+void ParDirichletObstacleProblem::g(const Vector &d, Vector &gd) const
+{
+   MFEM_VERIFY(d.Size() == J->Width(), "ParObstacleProblem::g - Inconsistent dimensions");
+   J->Mult(d, gd);
+   MFEM_VERIFY(gd.Size() == J->Height(), "ParObstacleProblem::g - Inconsistent dimensions");
+   gd.Add(-1.0, psi);
+}
+
+HypreParMatrix * ParDirichletObstacleProblem::Ddg(const Vector &d)
+{
+   return new HypreParMatrix(*J);
+}
+
+ParDirichletObstacleProblem::~ParDirichletObstacleProblem()
+{
+   delete Kform;
+   delete fform;
+   delete J;
+}
+
+
+
 

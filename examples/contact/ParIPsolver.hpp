@@ -14,7 +14,7 @@ class ParInteriorPointSolver
 {
 protected:
     ParOptProblem* problem;
-    double rel_tol;
+    double OptTol;
     int  max_iter;
     double mu_k; // \mu_k
     Vector lk, zlk;

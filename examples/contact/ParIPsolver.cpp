@@ -17,7 +17,7 @@ ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_)
                        Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), 
                        saveLogBarrierIterates(false)
 {
-   rel_tol  = 1.e-2;
+   OptTol  = 1.e-2;
    max_iter = 20;
    mu_k     = 1.0;
 
@@ -174,7 +174,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = false;
       Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
-      if(Eevalmu0 < rel_tol)
+      if(Eevalmu0 < OptTol)
       {
          converged = true;
          if(iAmRoot)
@@ -202,7 +202,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
                cout << "solved barrier subproblem :), for mu = " << mu_k << endl;
             }
             // A-3.1. Recompute the barrier parameter
-            mu_k  = max(rel_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
+            mu_k  = max(OptTol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
             // A-3.2. Re-initialize the filter
             F1.DeleteAll();
             F2.DeleteAll();
@@ -408,13 +408,17 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
         MUMPSSolver ASolver;
         ASolver.SetPrintLevel(0);
         ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
+        ASolver.SetOperator(*Ah);
+        ASolver.Mult(b, Xhat);
       #else 
         #ifdef MFEM_USE_MKL_CPARDISO
           CPardisoSolver ASolver(MPI_COMM_WORLD);
+          ASolver.SetOperator(*Ah);
+          ASolver.Mult(b, Xhat);
+        #else
+	  MFEM_VERIFY(false, "linSolver 0 will not work unless MFEM is compiled with MUMPS or MKL");
         #endif
       #endif
-      ASolver.SetOperator(*Ah);
-      ASolver.Mult(b, Xhat);
 
       delete Ah;
    }
@@ -445,20 +449,24 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 	   MUMPSSolver AreducedSolver;   
            AreducedSolver.SetPrintLevel(0);
            AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
+	   AreducedSolver.SetOperator(*Areduced);
+	   AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          #else 
            #ifdef MFEM_USE_MKL_CPARDISO
 	     CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
+	     AreducedSolver.SetOperator(*Areduced);
+	     AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+           #else
+	     MFEM_VERIFY(false, "linSovler 1 will not work unless MFEM is compiled with MUMPS or MKL");
            #endif
          #endif
-	 AreducedSolver.SetOperator(*Areduced);
-	 AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
       }
       else
       {
          HyprePCG AreducedSolver(MPI_COMM_WORLD);
 	 AreducedSolver.SetOperator(*Areduced);
 	 HypreBoomerAMG AreducedPrec;
-         AreducedSolver.SetTol(1.e-8);
+         AreducedSolver.SetTol(linSolveTol);
          AreducedSolver.SetMaxIter(500);
          AreducedSolver.SetPreconditioner(AreducedPrec);
          AreducedSolver.SetResidualConvergenceOptions(); // convergence criteria based on residual norm
@@ -788,7 +796,7 @@ bool ParInteriorPointSolver::GetConverged() const
 
 void ParInteriorPointSolver::SetTol(double Tol)
 {
-   rel_tol = Tol;
+   OptTol = Tol;
 }
 
 void ParInteriorPointSolver::SetMaxIter(int max_it)
