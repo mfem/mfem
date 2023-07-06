@@ -5086,7 +5086,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim);
+   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
