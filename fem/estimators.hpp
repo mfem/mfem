@@ -571,7 +571,7 @@ private:
    double total_error = 0.0;
 
    Array<int> attributes;
-   
+
    bool with_coef;
 
    /** @brief A method to compute hₑ on per-element basis.
