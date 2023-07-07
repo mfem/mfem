@@ -80,7 +80,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&delta_const, "-d", "--delta", "Magnetic Conductivity");
+   args.AddOption(&delta_const, "-mc", "--magnetic-cond",
+                  "Magnetic Conductivity");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&mixed, "-mixed", "--mixed-mesh", "-hex",
