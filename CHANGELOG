@@ -54,6 +54,8 @@ Discretization improvements
 
 - Added support for p-refined meshes in FindPointsGSLIB.
 
+- Introduced support for higher order non conformal Nedelec elements on simplices.
+
 Linear and nonlinear solvers
 ----------------------------
 - Updated interface to MUMPS direct solver to support multiple right-hand
