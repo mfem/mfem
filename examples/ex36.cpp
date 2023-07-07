@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    int problem = 0;
    const char *mesh_file = "../data/rect_with_top_fixed.mesh";
    int ref_levels = 2;
-   int order = 1;
+   int order = 0;
    const char *device_config = "cpu";
    bool visualization = true;
    double alpha0 = 1.0;
@@ -107,7 +107,8 @@ int main(int argc, char *argv[])
                                                             mfem::BasisType::GaussLobatto));
    FiniteElementSpace fes_H1_Qk1(&mesh, new H1_FECollection(order + 1, dim,
                                                             mfem::BasisType::GaussLobatto));
-   FiniteElementSpace fes_H1_Qk0(&mesh, new H1_FECollection(order + 0, dim,
+   FiniteElementSpace fes_H1_Qk0(&mesh, new H1_FECollection(std::max(order + 0,1),
+                                                            dim,
                                                             mfem::BasisType::GaussLobatto));
    FiniteElementSpace fes_L2_Qk2(&mesh, new L2_FECollection(order + 2, dim,
                                                             mfem::BasisType::GaussLobatto));
