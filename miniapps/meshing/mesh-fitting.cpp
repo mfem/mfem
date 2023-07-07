@@ -63,6 +63,8 @@
 //    Surface fitting to a squircle level-set - with p-refinement around the interface and using a background mesh
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 5
 
+//    Reducing order after the first fitting with high order elements around the interface
+//    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 4 -sbgmesh -vl 0 -mo 5
 
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
