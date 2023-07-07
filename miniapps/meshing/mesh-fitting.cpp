@@ -830,11 +830,15 @@ int main(int argc, char *argv[])
    }
 
    // TODO: BOUCLE
-   //std::vector<int>
-
-   for (int iter_pref=0; iter_pref<pref_max_order; iter_pref++)
+   int max_iter_pref = (pref_max_order-mesh_poly_deg)/pref_order_increase +1 ;
+   //std::cout << "Max Order || Init order || Pref order increase || Nbr of iterations" << std::endl;
+   //std::cout << pref_max_order << " || " << mesh_poly_deg << " || " << pref_order_increase << " || " << max_iter_pref << std::endl;
+   int iter_pref(0);
+   bool faces_to_update(true);
+   while (iter_pref<max_iter_pref && faces_to_update)
+   //for (int iter_pref=0; iter_pref<max_iter_pref; iter_pref++)
    {
-      std::cout << "BOUCLE j: " << iter_pref << std::endl;
+      std::cout << "REFINEMENT NUMBER: " << iter_pref << std::endl;
 
       // Define a TMOPIntegrator based on the metric and target.
       TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
@@ -912,6 +916,10 @@ int main(int argc, char *argv[])
                   delete surf_fit_gf0_max_order;
                   surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
                }
+               else
+               {
+                  faces_to_update = false;
+               }
             }
 
             /*
@@ -976,6 +984,7 @@ int main(int argc, char *argv[])
             surf_fit_mat_gf(dof_list[i]) = 1.0;
          }
          if (iter_pref != 0 && prefine) { delete surf_fit_mat_gf_max_order; }
+
 
          if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
          else if (adapt_eval == 1)
@@ -1294,7 +1303,7 @@ int main(int argc, char *argv[])
 
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the final mesh and metric values.
-      if (visualization && iter_pref==pref_max_order-1)
+      if (visualization && iter_pref==max_iter_pref-1)
       {
          char title[] = "Final metric values";
          vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 500);
@@ -1303,7 +1312,7 @@ int main(int argc, char *argv[])
       // Visualize fitting surfaces and report fitting errors.
       if (surface_fit_const > 0.0)
       {
-         if (visualization && iter_pref==pref_max_order-1)
+         if (visualization && iter_pref==max_iter_pref-1)
          {
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
@@ -1343,19 +1352,75 @@ int main(int argc, char *argv[])
          std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " "
                    << error_bg_sum << std::endl;
 
+         // Reduce the orders of the polynom if needed
+         /*
          if (iter_pref > 0 && pref_order_increase > 1)
          {
+            int compt_updates(0);
             for (int i=0; i < inter_faces.Size(); i++)
             {
-               int el_order = 2; // temp // element order around face - 1
-               double error_reduction = InterfaceElementOrderReduction(mesh,
-                                                                       inter_faces[i],
-                                                                       el_order,
-                                                                       surf_fit_bg_gf0,
-                                                                       finder);
+               std::cout << "FACE " << inter_faces[i] << std::endl;
+               Array<int> els;
+               mesh->GetFaceAdjacentElements(inter_faces[i], els);
+               int el_order = fespace->GetElementOrder(els[0]) ; // - 1; // temp // element order around face - 1
+               double error_reduction = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                                surf_fit_bg_gf0,
+                                                                inter_faces[i],
+                                                                surf_fit_gf0_max_order,
+                                                                finder);
+               std::cout << "Starting error... " << error_reduction << std::endl;
+               while (el_order > mesh_poly_deg+1
+               && error_reduction < pref_tol)
+               {
+                   error_reduction = InterfaceElementOrderReduction(mesh,
+                                                                    inter_faces[i],
+                                                                    el_order-1,
+                                                                    surf_fit_bg_gf0,
+                                                                    finder);
+                   std::cout << "error: " << error_reduction << std::endl;
+                   if (error_reduction < pref_tol)
+                   {
+                       el_order -= 1;
+                   }
+               }
+
+               if (error_reduction < pref_tol
+               && el_order != fespace->GetElementOrder(els[0]))
+               {
+                   fespace->SetElementOrder(els[0], el_order);
+                   fespace->SetElementOrder(els[1], el_order);
+                   order_gf(els[0]) = el_order;
+                   order_gf(els[1]) = el_order;
+                   compt_updates++;
+               }
+            }
+
+            if (compt_updates > 0)
+            {
+               PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
+               PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
+               // Updates if we increase the order of at least one element
+               fespace->Update(false);
+               surf_fit_fes.CopySpaceElementOrders(*fespace);
+               preft_fespace.Transfer(x);
+               preft_fespace.Transfer(x0);
+               preft_fespace.Transfer(rdm);
+               preft_surf_fit_fes.Transfer(surf_fit_mat_gf);
+               preft_surf_fit_fes.Transfer(surf_fit_gf0);
+               surf_fit_marker.SetSize(surf_fit_gf0.Size());
+
+               x.SetTrueVector();
+               x.SetFromTrueVector();
+
+               mesh->SetNodalGridFunction(&x);
+
+               delete x_max_order;
+               x_max_order = ProlongToMaxOrder(&x, 0);
+               delete surf_fit_gf0_max_order;
+               surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
          }
-
+         */
 
       }
 
@@ -1379,6 +1444,8 @@ int main(int argc, char *argv[])
        */
 
       mesh->SetNodalGridFunction(&x); // Need this for the loop
+
+      iter_pref++; // Update the loop iterator
 
       delete S;
       delete S_prec;
