@@ -33,6 +33,11 @@ private:
   SparseMatrix *F;
   SparseMatrix *H;
   SparseMatrix *K;
+  vector<Vector> *alpha_coeffs;
+  vector<Array<int>> *J_inds;
+
+  bool include_plasma = true;
+
   Vector *g;
   Vector *uv_currents;
   mutable Vector Plasma_Vec;
@@ -42,23 +47,35 @@ private:
 
   mutable double psi_x;
   mutable double psi_ma;
+  mutable int ind_ma;
+  mutable int ind_x;
+  mutable set<int> plasma_inds;
   
   double *alpha_bar;
+  int N_control;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
               PlasmaModelBase *model_, FiniteElementSpace *fespace_,
               Mesh *mesh_, int attr_lim_, 
               GridFunction *u_boundary_, SparseMatrix *F_, Vector *uv_currents_,
               SparseMatrix *H_, SparseMatrix *K_, Vector * g_,
-              double *alpha_bar_) :
+              vector<Vector> *alpha_coeffs_,
+              vector<Array<int>> *J_inds_,
+              double *alpha_bar_,
+              bool include_plasma_=true) :
     Operator(fespace_->GetTrueVSize()), diff_operator(diff_operator_),
     coil_term(coil_term_), model(model_), fespace(fespace_),
     mesh(mesh_), Mat(NULL), attr_lim(attr_lim_),
     u_boundary(u_boundary_),
     F(F_), uv_currents(uv_currents_), H(H_), K(K_), g(g_),
-    alpha_bar(alpha_bar_)
+    alpha_coeffs(alpha_coeffs_), J_inds(J_inds_),
+    alpha_bar(alpha_bar_),
+    include_plasma(include_plasma_)
   {
+    N_control = alpha_coeffs->size();
+    
     vertex_map = compute_vertex_map(*mesh, attr_lim);
+    // vertex_map = compute_vertex_map(*mesh, -1);
 
     // Extract the list of all the boundary DOFs.
     // The r=0 boundary will be marked as dirichlet (psi=0)
@@ -69,12 +86,23 @@ public:
     // ess_bdr[attr_ff_bdr-1] = 0;
     int attr_axis = 900;
     ess_bdr[attr_axis-1] = 1;
-    fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);    
+    int box_axis = 832;
+    ess_bdr[box_axis-1] = 1;
+    fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
+
+    
   }
   virtual void Mult(const Vector &psi, Vector &y) const;
   virtual Operator &GetGradient(const Vector &psi) const;
   virtual ~SysOperator() { };
 
+  void compute_psi_N_derivs(const Vector &psi, int k, double * psi_N,
+                            Vector * grad_psi_N, SparseMatrix * hess_psi_N);
+
+  double compute_obj(const Vector &psi);
+  Vector* compute_grad_obj(const Vector &psi);
+  SparseMatrix* compute_hess_obj(const Vector &psi);
+  
   SparseMatrix * GetF() {
     return F;
   }
@@ -89,6 +117,9 @@ public:
   }
   Vector * get_uv() {
     return uv_currents;
+  }
+  int get_N_control() {
+    return N_control;
   }
   double *get_alpha_bar() {
     return alpha_bar;

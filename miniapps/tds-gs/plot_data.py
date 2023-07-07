@@ -2,6 +2,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+
+rr = [8.1953, 8.0494, 7.7160, 7.2383, 6.6367, 5.8737, 4.9252, 4.4863, 4.2837, 4.1938, 4.2156, 4.3369, 4.5249, 4.7482, 5.0601, 5.6576, 6.3491, 6.9774, 7.5117, 7.9219, 8.1621]
+zz = [0.6429, 1.5703, 2.3438, 2.9963, 3.5269, 3.9375, 3.9141, 3.2344, 2.3672, 1.3828, 0.3516, -0.6094, -1.5000, -2.3672, -3.3323, -3.0234, -2.5547, -2.0391, -1.4409, -0.7284, 0.1172]
+
+rz = np.array([[8.195284, 0.642945],
+               [8.056269, 1.546875],
+               [7.730469, 2.318396],
+               [7.277213, 2.953125],
+               [6.691406, 3.487306],
+               [5.980469, 3.895953],
+               [5.023438, 3.970442],
+               [4.531250, 3.355147],
+               [4.310886, 2.531250],
+               [4.203125, 1.587245],
+               [4.201888, 0.562500],
+               [4.298682, -0.375000],
+               [4.469732, -1.265625],
+               [4.680117, -2.109375],
+               [4.913674, -2.953125],
+               [5.415017, -3.164062],
+               [6.117188, -2.719791],
+               [6.746094, -2.244396],
+               [7.315237, -1.687500],
+               [7.760603, -1.054688],
+               [8.078908, -0.281250]])
+
+plt.figure()
+plt.plot(rr, zz, '*b')
+plt.plot(rz[:, 0], rz[:, 1], 'or')
+plt.show()
+asdf
+
 def _VacuumVesselMetalWallCoordinates(return_coarse=3):
     """Return r and z coordinates for plasma-facing metal wall"""
     r = np.array([6.2670, 7.2830, 7.8990, 8.3060, 8.3950, 8.2700, 7.9040,
@@ -38,7 +70,7 @@ def _VacuumVesselMetalWallCoordinates(return_coarse=3):
     return r, z
 
 
-def _VacuumVesselSecondWallCoordinates(return_coarse=3):
+def _VacuumVesselSecondWallCoordinates(return_coarse=4):
     """Return r and z coordinates for outer vacuum vessel wall."""
     r = np.array([6.2270, 6.4090, 6.5880, 6.7639, 6.9365, 7.1054, 7.2706,
                   7.4318, 7.5888, 7.7414, 7.8895, 8.0328, 8.1712, 8.3046,
@@ -92,7 +124,7 @@ def _VacuumVesselSecondWallCoordinates(return_coarse=3):
 
     return r[:-1:return_coarse], z[:-1:return_coarse]
 
-def _VacuumVesselFirstWallCoordinates(return_coarse=2):
+def _VacuumVesselFirstWallCoordinates(return_coarse=5):
     """Return r and z coordinates for inner vacuum vessel wall"""
     r = np.array([3.5396, 3.5396, 3.5396, 3.5396, 3.5396, 3.5396, 3.5396,
                   3.5396, 3.5396, 3.5396, 3.5396, 3.5396, 3.5396, 3.5396,

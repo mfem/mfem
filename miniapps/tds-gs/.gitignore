@@ -9,3 +9,7 @@ meshes/test_old*
 *#*
 points/*
 gs_000*
+*000*
+*__pycache__*
+*bogus*
+*annotated.data*

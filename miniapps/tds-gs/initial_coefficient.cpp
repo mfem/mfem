@@ -31,6 +31,9 @@ double InitialCoefficient::Eval(ElementTransformation & T,
     // }
   }
 
+  if ((do_initial) && (T.Attribute != 1100)) {
+    return 0.0;
+  }
   
   double x_[3];
   Vector x(x_, 3);
@@ -111,7 +114,7 @@ InitialCoefficient from_manufactured_solution() {
 }
 
 
-InitialCoefficient read_data_file(const char *data_file) {
+InitialCoefficient read_data_file(const char *data_file, bool do_initial) {
   ifstream inFile;
   inFile.open(data_file);
 
@@ -208,9 +211,6 @@ InitialCoefficient read_data_file(const char *data_file) {
 }
 
 
-// graph search
-// find point that such that f is local min
-// prioritize greedy direction
 void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSpace * fes) {
   // psi(r_k, z_k) = sum_{l=1}^{N_p} alpha_l^{(k)} y_{J_l^{(k)}}
 
@@ -218,14 +218,56 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
   //                corresponding to mesh index J_l^{(k)}
 
   N_control = N_control_;
- 
-  // assemble control points into matrix
-  DenseMatrix point_mat(2, N_control);
-  int stride = nbbbs / N_control;
-  for (int i = 0; i < N_control; ++i) {
-    point_mat(0, i) = rbbbs[i * stride];
-    point_mat(1, i) = zbbbs[i * stride];
+  int Nx, Ny;
+  if (constrain_option == 2) {
+
+    Ny = int (nz / sqrt(nr * nz / N_control));
+    Nx = int (N_control / Ny);
+    N_control = Ny * Nx;
+
+    printf("nz: %d, nr: %d, scale: %f\n", nz, nz, sqrt(nr * nz / N_control));
+    printf("Nx: %d, Ny: %d, N_control: %d\n", Nx, Ny, N_control);
   }
+
+  // assemble control points into matrix
+  // double rbbbs_[21] = {8.1953, 8.0494, 7.7160, 7.2383, 6.6367, 5.8737, 4.9252, 4.4863, 4.2837, 4.1938, 4.2156, 4.3369, 4.5249, 4.7482, 5.0601, 5.6576, 6.3491, 6.9774, 7.5117, 7.9219, 8.1621};
+  // double zbbbs_[21] = {0.6429, 1.5703, 2.3438, 2.9963, 3.5269, 3.9375, 3.9141, 3.2344, 2.3672, 1.3828, 0.3516, -0.6094, -1.5000, -2.3672, -3.3323, -3.0234, -2.5547, -2.0391, -1.4409, -0.7284, 0.1172};
+  DenseMatrix point_mat(2, N_control);
+  Vector psi_control_(N_control);
+  if (constrain_option == 1) {
+    double stride = (double (nbbbs)) / (double (N_control));
+
+    printf("stride: %f\n", stride);
+    printf("nbbbs:  %d\n", nbbbs);
+    printf("Nc:     %d\n", N_control);
+
+    for (int i = 0; i < N_control; ++i) {
+      point_mat(0, i) = rbbbs[int (i * stride)];
+      point_mat(1, i) = zbbbs[int (i * stride)];
+      // point_mat(0, i) = rbbbs_[i];
+      // point_mat(1, i) = zbbbs_[i];
+      psi_control_[i] = psix;
+      // psi_control_[i] = -1.0;
+
+      // printf("%d: %f, %f\n", i, point_mat(0, i), point_mat(1, i));
+    }
+  } else if (constrain_option == 2) {
+    
+    int stride = nbbbs / N_control;
+    int count = 0;
+    int m, n;
+    for (int i = 0; i < Nx; ++i) {
+      for (int j = 0; j < Ny; ++j) {
+        m = min(nr - 1, int ((i * nr) / (Nx - 1)));
+        n = min(nz - 1, int ((j * nz)/ (Ny - 1)));
+        point_mat(0, count) = r0 + m * dr;
+        point_mat(1, count) = z0 + n * dz;
+        psi_control_[count] = psizr[n][m];
+        ++count;
+      }
+    }
+  }
+  psi_control = psi_control_;
 
   // get element ids of elements containing points
   Array<int> elem_ids;
@@ -251,6 +293,7 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
     alpha->push_back(shape);
     J->push_back(vdofs);
 
+    // printf("****\ni=%d\n", i);
     // vdofs.Print();
     // shape.Print();
   }
@@ -278,12 +321,24 @@ SparseMatrix* InitialCoefficient::compute_K() {
   SparseMatrix * K;
   K = new SparseMatrix(ndof, ndof);
   int dof = (*alpha)[0].Size();
-  for (int k = 0; k < N_control; ++k) {
+  for (int k = 1; k < N_control; ++k) {
     for (int m = 0; m < dof; ++m) {
       int i = (*J)[k][m];
       for (int n = 0; n < dof; ++n) {
         int j = (*J)[k][n];
-        K->Add(i, j, weight * (*alpha)[k][m] * (*alpha)[k][n]);
+        // K->Add(i, j, weight * (*alpha)[k][m] * (*alpha)[k][n]);
+        // K->Add(i, j,
+        //        + (*alpha)[k][m] * (*alpha)[k][n]
+        //        - (*alpha)[k][m] * (*alpha)[k-1][n]
+        //        - (*alpha)[k-1][m] * (*alpha)[k][n]
+        //        + (*alpha)[k-1][m] * (*alpha)[k-1][n]
+        //        );
+        K->Add(i, j,
+               + (*alpha)[k][m] * (*alpha)[k][n]
+               - (*alpha)[k][m] * (*alpha)[0][n]
+               - (*alpha)[0][m] * (*alpha)[k][n]
+               + (*alpha)[0][m] * (*alpha)[0][n]
+               );
       }
     }
   }
@@ -296,13 +351,13 @@ Vector InitialCoefficient::compute_g() {
   Vector g(cv.Size());
   g = 0.0;
   
-  double weight = 1;
-  int ndof = (*alpha)[0].Size();
-  for (int k = 0; k < N_control; ++k) {
-    for (int m = 0; m < ndof; ++m) {
-      g[(*J)[k][m]] += weight * 2.0 * (*alpha)[k][m] * psix;
-    }
-  }
+  // double weight = 1;
+  // int ndof = (*alpha)[0].Size();
+  // for (int k = 0; k < N_control; ++k) {
+  //   for (int m = 0; m < ndof; ++m) {
+  //     g[(*J)[k][m]] += weight * 2.0 * (*alpha)[k][m] * psi_control[k];
+  //   }
+  // }
 
   return g;
 }

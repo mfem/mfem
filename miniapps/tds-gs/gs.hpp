@@ -14,6 +14,7 @@
 #include "sys_operator.hpp"
 #include "boundary.hpp"
 #include "diffusion_term.hpp"
+#include<stdio.h>
 
 using namespace std;
 using namespace mfem;
@@ -34,7 +35,10 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & c1, double & c2, double & c3, double & c4, double & c5, double & c6, double & c7,
           double & c8, double & c9, double & c10, double & c11,
           double & ur_coeff,
-          int do_control, int N_control, double & weight,
-          bool do_manufactured_solution);
+          int do_control, int N_control,
+          double & weight_solenoids,
+          double & weight_coils,
+          bool do_manufactured_solution,
+          bool do_initial);
 
 #endif

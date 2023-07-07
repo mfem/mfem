@@ -13,7 +13,7 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=3
+model=1
 
 # plasma current
 Ip=1.5e+7
@@ -28,11 +28,11 @@ refinement_factor=2
 
 do_test=0
 do_manufactured_solution=0
-do_initial=0
+do_initial=1
 
 # linear solver parameters
 max_krylov_iter=10000
-max_newton_iter=30
+max_newton_iter=5
 krylov_tol=1e-9 # check this...
 newton_tol=1e-12
 
@@ -51,6 +51,14 @@ c3=-3.022037e+04
 c4=-2.205664e+04
 c5=-2.848113e+03
 
+# # poloidal flux coils
+# c6=0.0
+# c7=0.0
+# c8=0.0
+# c9=0.0
+# c10=0.0
+# c11=0.0
+
 # # center solenoids
 c1=-1.143284e+06
 c2=2.478694e+07
@@ -63,7 +71,7 @@ ur_coeff=1.0
 # number of control points on plasma
 N_control=40
 
-do_control=0
+do_control=1
 weight_coils=1e-16
 weight_solenoids=1e-16
 

@@ -108,6 +108,7 @@ void test_solve() {
   // boundary of far-field
   double rho_gamma = 2.5;
   bool do_manufactured_solution = true;
+  bool do_initial = false;
   int max_krylov_iter = 1000;
   int max_newton_iter = 5;
   double krylov_tol = 1e-12;
@@ -125,7 +126,8 @@ void test_solve() {
   double c11 = 1.0;
   double ur_coeff = 1.0;
   int do_control = 0;
-  double weight = 1.0;
+  double weight_solenoids = 1.0;
+  double weight_coils = 1.0;
   double Ip = 1.5e+7;
   int N_control = 10;
   int model = 1;
@@ -137,8 +139,8 @@ void test_solve() {
                max_krylov_iter, max_newton_iter, krylov_tol, newton_tol,
                c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
                ur_coeff,
-               do_control, N_control, weight,
-               do_manufactured_solution);
+               do_control, N_control, weight_solenoids, weight_coils,
+               do_manufactured_solution, do_initial);
     errors.push_back(error);
   }
 

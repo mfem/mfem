@@ -26,14 +26,19 @@ private:
   double dz;
   int nz;
   int nr;
+  Vector psi_control;
   vector<Vector> *alpha;
   vector<Array<int>> *J;
   set<int> plasma_inds;
   bool mask_plasma = false;
   bool use_manufactured = false;
   ExactCoefficient exact_coeff;
+  int constrain_option = 1;
+  // 1: plasma boundary
+  // 2: plasma domain
+  bool do_initial = false;
 public:
-  InitialCoefficient(double **psizr_, double *rbbbs_, double *zbbbs_, double r0_, double r1_, double z0_, double z1_, int nz_, int nr_, int nbbbs_, double psix_) : psizr(psizr_), rbbbs(rbbbs_), zbbbs(zbbbs_), r0(r0_), r1(r1_), z0(z0_), z1(z1_), nz(nz_), nr(nr_), nbbbs(nbbbs_), psix(psix_) {
+  InitialCoefficient(double **psizr_, double *rbbbs_, double *zbbbs_, double r0_, double r1_, double z0_, double z1_, int nz_, int nr_, int nbbbs_, double psix_, bool do_initial_=false) : psizr(psizr_), rbbbs(rbbbs_), zbbbs(zbbbs_), r0(r0_), r1(r1_), z0(z0_), z1(z1_), nz(nz_), nr(nr_), nbbbs(nbbbs_), psix(psix_), do_initial(do_initial_) {
     dr = (r1 - r0) / ((nr - 1) * 1.0);
     dz = (z1 - z0) / ((nz - 1) * 1.0);
   }
@@ -60,7 +65,7 @@ public:
   virtual ~InitialCoefficient() { }
 };
 
-InitialCoefficient read_data_file(const char *data_file);
+InitialCoefficient read_data_file(const char *data_file, bool do_initial=false);
 InitialCoefficient from_manufactured_solution();
 
 

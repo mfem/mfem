@@ -238,9 +238,19 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   int model_choice = model->get_model_choice();
   double switch_beta = 0.0;
   double switch_taylor = 1.0;
+  double switch_ff = 0.0;
   if (model_choice == 1) {
     switch_beta = 1.0;
     switch_taylor = 0.0;
+    switch_ff = 0.0;
+  } else if (model_choice == 2) {
+    switch_beta = 0.0;
+    switch_taylor = 1.0;
+    switch_ff = 0.0;
+  } else if (model_choice == 3) {
+    switch_beta = 0.0;
+    switch_taylor = 0.0;
+    switch_ff = 1.0;
   }
   
   if (option == 1) {
@@ -250,8 +260,9 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
 
     double S_bar_ffprime =
-      switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
-      + switch_taylor * alpha * (f_x + alpha * (psi_bdp - psi_val));
+      + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
+      + switch_taylor * alpha * (f_x + alpha * (psi_bdp - psi_val))
+      + switch_ff * alpha * (model->S_ff_prime(psi_N));
 
     return
       + beta * ri * (model->S_p_prime(psi_N))
@@ -264,7 +275,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     return
       + switch_beta * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
       + switch_beta * alpha * (model->f_bar(psi_N)) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
-      + switch_taylor * (f_x + 2.0 * alpha * (psi_bdp - psi_val)) / (mu * ri);
+      + switch_taylor * (f_x + 2.0 * alpha * (psi_bdp - psi_val)) / (mu * ri)
+      + switch_ff * (model->S_ff_prime(psi_N)) / (mu * ri);
 
   } else {
     // integrand of
@@ -285,7 +297,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       + beta * ri * (model->S_prime_p_prime(psi_N))
       + gamma * (model->S_prime_ff_prime(psi_N)) / (mu * ri)
       + switch_beta * alpha * alpha * pow(model->f_bar_prime(psi_N), 2.0) / (psi_bdp - psi_max) / (mu * ri)
-      + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri);
+      + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_double_prime(psi_N)) / (psi_bdp - psi_max) / (mu * ri)
+      + switch_ff * alpha * (model->S_prime_ff_prime(psi_N)) / (mu * ri);
 
     double other =
       - switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N))

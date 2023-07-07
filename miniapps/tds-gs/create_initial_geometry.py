@@ -25,7 +25,7 @@ import numpy as np
 # Plane Surface(802) = { 801 };
 
 # separated_data = 'separated_file.data'
-write_file = 'meshes/iter_gen.geo'
+write_file = 'meshes/iter_gen_initial.geo'
 
 def _VacuumVesselMetalWallCoordinates(return_coarse=3):
     """Return r and z coordinates for plasma-facing metal wall"""
@@ -199,30 +199,14 @@ def main():
 
     stuff = 'SetFactory("OpenCASCADE");\n\n'
     count = 1
-    for i in range(len(rlim)):
-        stuff += "Point(%d)={ %f, %f, 0 };\n" % (count, rlim[i], zlim[i])
-        count += 1
-    stuff += "\n"
-    first_line = count
-    for i in range(len(rlim)):
-        oth = i + 2
-        if oth > len(rlim):
-            oth -= len(rlim)
 
-        stuff += "Line(%d)={ %d, %d };\n" % (count, i+1, oth)
-        count += 1
-    stuff += "\n"
-    stuff += "Line Loop(%d)={\n" % (count)
-    key = count
-    count = first_line
-    for i in range(len(rlim)):
-        stuff += "%d,\n" % (count)
-        count += 1
-    stuff = stuff[:-2]
-    stuff += " };\n\n"
-    stuff += "Plane Surface(%d) = { %d };\n" % (key+1, key)
-
-    count = key+2
+    box_dim = [3, 10, -6, 6]
+    box_dim = [3+.5, 10-.5, -6+.5, 6-.5]
+    stuff += "Rectangle(%d) = {%f, %f, 0, %f, %f, 0};\n" % (count, box_dim[0], box_dim[2],
+                                                            box_dim[1] - box_dim[0],
+                                                            box_dim[3] - box_dim[2])
+    first_line = count + 4
+    key = first_line
 
     # solenoids
     count_ = first_line
@@ -243,26 +227,6 @@ def main():
     for i in range(len(cv1)):
         stuff += "Line(%d) = {%d, %d};\n" % (i+line_count, cv1[i] - 57 + count_, cv2[i] - 57 + count_)
 
-    # //+
-    # Curve Loop(70) = {81, 70, -82, 80};
-    # //+
-    # Plane Surface(71) = {70};
-    # //+
-    # Curve Loop(71) = {82, 71, -83, 79};
-    # //+
-    # Plane Surface(72) = {71};
-    # //+
-    # Curve Loop(72) = {83, 72, -84, 78};
-    # //+
-    # Plane Surface(73) = {72};
-    # //+
-    # Curve Loop(73) = {84, 73, -85, 77};
-    # //+
-    # Plane Surface(74) = {73};
-    # //+
-    # Curve Loop(74) = {85, 74, 75, 76};
-    # //+
-    # Plane Surface(75) = {74};
     array = [[81, 70, -82, 80],
              [82, 71, -83, 79],
              [83, 72, -84, 78],
@@ -281,7 +245,7 @@ def main():
         stuff += "Rectangle(%d) = {%f, %f, 0, %f, %f, 0};\n" % (count, rl[i], zl[i], dr[i], dz[i])
         count += 1
 
-    count = line_count + 1
+    count = 41
     stuff += "Point(%d) = {0.0, %f, 0, 1.0};\n" % (count, R)
     stuff += "Point(%d) = {0.0, %f, 0, 1.0};\n" % (count+1, 0)
     stuff += "Point(%d) = {0.0, %f, 0, 1.0};\n" % (count+2, -R)
@@ -290,25 +254,29 @@ def main():
     stuff += "\n"
 
     stuff += "Line(158) = {%d, %d};\n" % (count, count + 2)
-    stuff += "Curve Loop(81) = {158, -157};\n"
 
-    stuff += "Curve Loop(82) = {70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81};\n"
-    stuff += "Curve Loop(83) = {89, 86, 87, 88};\n"
-    stuff += "Curve Loop(84) = {93, 90, 91, 92};\n"
-    stuff += "Curve Loop(85) = {97, 94, 95, 96};\n"
-    stuff += "Curve Loop(86) = {101, 98, 99, 100};\n"
-    stuff += "Curve Loop(87) = {103, 104, 105, 102};\n"
-    stuff += "Curve Loop(88) = {107, 108, 109, 106};\n"
-    stuff += "Curve Loop(89) = {51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50};\n"
-    stuff += "Plane Surface(82) = {81, 82, 83, 84, 85, 86, 87, 88, 89};\n"
+    stuff += "Curve Loop(82) = {157, -158};\n"
+    stuff += "Curve Loop(83) = {24, 25, 22, 23};\n"
+    stuff += "Curve Loop(84) = {28, 29, 26, 27};\n"
+    stuff += "Curve Loop(85) = {32, 33, 30, 31};\n"
+    stuff += "Curve Loop(86) = {36, 37, 34, 35};\n"
+    stuff += "Curve Loop(87) = {39, 40, 41, 38};\n"
+    stuff += "Curve Loop(88) = {42, 43, 44, 45};\n"
+    stuff += "Curve Loop(89) = {17, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};\n"
+    stuff += "Curve Loop(90) = {4, 1, 2, 3};\n"
+    stuff += "Plane Surface(18) = {82, 83, 84, 85, 86, 87, 88, 89, 90};\n"
 
-    stuff += 'Physical Surface("interior", 2000) = {82};\n'
+
+    stuff += 'Physical Surface("interior", 2000) = {18};\n'
     for d in range(1, 12):
-        stuff += 'Physical Surface("coil%d", %d) = {%d};\n' % (d, 831+d, 70+d)
-    stuff += 'Physical Surface("limiter", 1000) = {70};\n'
+        stuff += 'Physical Surface("coil%d", %d) = {%d};\n' % (d, 831+d, 6+d)
+    stuff += 'Physical Surface("exact", 1100) = {1};\n'
     stuff += 'Physical Curve("boundary", 831) = {157};\n'
     stuff += 'Physical Curve("axis", 900) = {158};\n'
-
+    stuff += 'Physical Curve("box", 832) = {3, 2, 1, 4};\n'
+    # stuff += 'Recursive Delete {\n'
+    # stuff += '  Surface{1};\n'
+    # stuff += '}\n'
 
     with open(write_file, 'w') as gid:
         gid.write(stuff)

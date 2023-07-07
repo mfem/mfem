@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int d_refine = 0;
    int do_test = 0;
+   int do_initial = 0;
 
    // constants associated with plasma model
    double alpha = 1.0;
@@ -127,7 +128,8 @@ int main(int argc, char *argv[])
    double ur_coeff = 1.0;
 
    int do_control = 1;
-   double weight = 1e-5;
+   double weight_solenoids = 1e-5;
+   double weight_coils = 1e-5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -135,6 +137,7 @@ int main(int argc, char *argv[])
    args.AddOption(&data_file, "-d", "--data_file", "Plasma data file");
    args.AddOption(&d_refine, "-g", "--refinement_factor", "Number of grid refinements");
    args.AddOption(&do_test, "-t", "--test", "Perform tests only");
+   args.AddOption(&do_initial, "-i", "--initial", "solve for initial guess");
 
    args.AddOption(&model, "-mo", "--model", "model (1: ff', 2: Taylor equilibrium)");
    args.AddOption(&alpha, "-al", "--alpha", "alpha");
@@ -165,9 +168,15 @@ int main(int argc, char *argv[])
    args.AddOption(&ur_coeff, "-ur", "--ur_coeff", "under relaxation coefficient");
 
    args.AddOption(&do_control, "-dc", "--do_control", "solve the control problem");
-   args.AddOption(&weight, "-w", "--weight", "weight of regularization");
+   args.AddOption(&weight_solenoids, "-ws", "--weight_solenoids", "weight of regularization");
+   args.AddOption(&weight_coils, "-wc", "--weight_coils", "weight of regularization");
 
    args.ParseCheck();
+
+   if (do_initial == 1) {
+     cout << "solving for initial guess" << endl;
+     mesh_file = "meshes/iter_gen_initial.msh";
+   }
 
    if (do_test == 1) {
      // unit tests
@@ -180,8 +189,9 @@ int main(int argc, char *argv[])
         krylov_tol, newton_tol,
         c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
         ur_coeff,
-        do_control, N_control, weight,
-        do_manufactured_solution);
+        do_control, N_control, weight_solenoids, weight_coils,
+        do_manufactured_solution,
+        do_initial);
    }
    
    return 0;

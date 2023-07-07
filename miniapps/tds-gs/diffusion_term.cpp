@@ -23,7 +23,10 @@ double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
    // if (min_r < 0.1) {
    //   return min_r / (ri * model->get_mu());
    // }
-
-   return 1.0 / (ri * model->get_mu());
+   if (T.Attribute != 1100) {
+     return 1.0 / (ri * model->get_mu());
+   } else {
+     return 0.0;
+   }
    // return 1.0 / (ri);
 }
