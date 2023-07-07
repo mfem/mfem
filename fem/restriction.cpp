@@ -1073,6 +1073,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
 void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
                                                    Vector& y) const
 {
+   if (nf == 0) { return; }
    MFEM_ASSERT(
       m == L2FaceValues::SingleValued,
       "This method should be called when m == L2FaceValues::SingleValued.");
@@ -1794,6 +1795,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingMult(
 void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
    Vector& y) const
 {
+   if (nf == 0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -1840,7 +1842,6 @@ void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
 
 void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
