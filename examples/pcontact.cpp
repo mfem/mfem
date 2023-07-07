@@ -364,8 +364,8 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
 // where X is the list of x-coordinates for all points and so on.
 // conn: connectivity of the target surface elements
 // xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
-void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn,
-                      Vector& xi, DenseMatrix & coords)
+void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz, Array<int>& conn,
+                      Vector & xyz2, Vector& xi, DenseMatrix & coords)
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
@@ -553,8 +553,14 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn,
       }
    }
 
+   // pass global indices for conn_loc
+   for (int i = 0; i<conn_loc.Size(); i++)
+   {
+      conn_loc[i] = gvert[conn_loc[i]];
+   }
+
    // need to send data (xi, conn and coords of xyz) back to the owning processor
-   gslcomm.SendData2(dim,proc_recv,xi_send, conn_loc, coordsm,xi,conn,coords);
+   gslcomm.SendData2(dim,proc_recv,xyz_recv,xi_send, conn_loc, coordsm,xyz2,xi,conn,coords);
 
 }
 
@@ -780,34 +786,32 @@ int main(int argc, char *argv[])
    // segment reference coordinates of the closest point
    Vector m_xi(npoints*(dim-1));
    m_xi = -1.0;
-   Vector xs(dim*npoints);
-   xs = 0.0;
-   for (int i=0; i<npoints; i++)
-   {
-      for (int j=0; j<dim; j++)
-      {
-         xs[i*dim+j] = xyz[i + (j*npoints)];
-      }
-   }
 
-   Array<int> m_conn(
-      npoints*4); // only works for linear elements that have 4 vertices!
+   Array<int> m_conn(npoints*4); // only works for linear elements that have 4 vertices!
    DenseMatrix coordsm(npoints*4, dim);
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
    x1 = 0.0; // x1 order: [xyz xyz... xyz]
    add(nodes0, x1, *nodes1);
 
-   FindPointsInMesh(pmesh1, xyz, m_conn, m_xi,coordsm);
+   Array<int> globalvertices1(pmesh1.GetNV());
+   for (int i = 0; i<pmesh1.GetNV(); i++)
+   {
+      globalvertices1[i] = i;
+   }
+   pmesh1.GetGlobalVertexIndices(globalvertices1);
 
+   Vector xyz_recv;
+   FindPointsInMesh(pmesh1, globalvertices1, xyz, m_conn, xyz_recv, m_xi ,coordsm);
 
    // decode and print
-   if (0) // for debugging
+   if (1) // for debugging
    {
       int sz = m_xi.Size()/2;
 
       for (int i = 0; i<sz; i++)
       {
+         mfem::out << "("<<xyz_recv[i+0*sz]<<","<<xyz_recv[i+1*sz]<<","<<xyz_recv[i+2*sz]<<"): -> ";
          mfem::out << "("<<m_xi[i*(dim-1)]<<","<<m_xi[i*(dim-1)+1]<<"): -> ";
          for (int j = 0; j<4; j++)
          {
@@ -823,44 +827,83 @@ int main(int argc, char *argv[])
             }
          }
       }
+
+
+      MPI_Barrier(MPI_COMM_WORLD);
+      // debug m_conn
+      std::vector<int> vertex_offsets1;
+      ComputeTdofOffsets(vertexfes1,vertex_offsets1);
+
+      for (int i = 0; i< pmesh1.GetNV(); i++)
+      {
+         int gv = globalvertices1[i];
+         if (myid != get_rank(gv,vertex_offsets1)) continue;
+         double *vcoords = pmesh1.GetVertex(gv-vertexfes1->GetMyTDofOffset()); 
+         mfem::out << "vertex: " << gv << " = ("<<vcoords[0] <<","<<vcoords[1]<<","<<vcoords[2]<<")" << endl;
+      }
+   }
+
+
+
+   Vector xs(dim*npoints);
+   xs = 0.0;
+   for (int i=0; i<npoints; i++)
+   {
+      for (int j=0; j<dim; j++)
+      {
+         xs[i*dim+j] = xyz_recv[i + (j*npoints)];
+      }
    }
 
    SparseMatrix M(nnd,gndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(gndofs,gndofs)); 
    // mfem::out << "nnd = " << nnd << endl;
    // mfem::out << "npoints = " << npoints << endl;
+
+   // m_conn.Print(mfem::out,m_conn.Size());
    Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm,
-                    s_conn, m_conn, g, M, dM);
+                       s_conn, m_conn, g, M, dM);
 
    M.Finalize();
    M.SortColumnIndices();
 
+   // ostringstream oss;
+   // oss << "M_from_rank_" << myid << "_out_of" << num_procs <<".dat";
 
-   // Vector xtmp(M.Width());
-   // Vector ytmp(M.Height());
-   // xtmp = 1.0;
-   // M.AbsMult(xtmp,ytmp);
-   // ytmp.Print();
-   // mfem::out << InnerProduct(MPI_COMM_WORLD,ytmp,ytmp) << endl;
-
-
-   // PrintVector(g,"gap",0);
-   // PrintVector(g,"gap",1);
-   // PrintVector(g,"gap",2);
+   // ofstream mat_ofs(oss.str());
+   // M.PrintMatlab(mat_ofs);
+   // mat_ofs.close();
 
    // PrintSparseMatrix(M,"SparseMatrix M", 0);
    // PrintSparseMatrix(M,"SparseMatrix M", 1);
    // PrintSparseMatrix(M,"SparseMatrix M", 2);
-   // mfem::out << "dM.size = " << dM.size() << endl;
-   // mfem::out << "g.size = " << g.Size() << endl;
-   // for (int i = 0; i<dM.size();i++)
-   // {
-   //    dM[i].Finalize();
-   //    if (dM[i].NumNonZeroElems()==0) continue;
-   //    PrintSparseMatrix(dM[i], "dm",0);
-   //    PrintSparseMatrix(dM[i], "dm",1);
-   //    PrintSparseMatrix(dM[i], "dm",2);
-   // }
+
+   // Vector x(M.Width()); x=1.0;
+   // Vector y(M.Height());
+   // M.AbsMult(x,y);
+   // mfem::out << "y norm = " << y.Norml1() << endl;
+   // int cnt = 0;
+   for (int i = 0; i<dM.size();i++)
+   {
+      dM[i].Finalize();
+      if (dM[i].NumNonZeroElems()==0) continue;
+      dM[i].SortColumnIndices();
+      dM[i].Threshold(1e-13);
+   //    Vector x(150); x=1.0;
+   //    Vector y(150);
+   //    dM[i].AbsMult(x,y);
+      // ostringstream oss;
+      // oss << "M_" << cnt <<"_from_rank_" << myid << "_out_of_" << num_procs <<".dat";
+      // ofstream mat_ofs(oss.str());
+      // if (myid == 0) dM[i].PrintMatlab();
+      // if (myid == 2) 
+      // {
+      //    DM[i].PrintMatlab();
+      //    mfem::out << std::endl;
+      // }
+      // mat_ofs.close();
+      // cnt++;
+   }
 
    // std::set<int> dirbdryv2;
    // for (int b=0; b<mesh2.GetNBE(); ++b)

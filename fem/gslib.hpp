@@ -320,9 +320,11 @@ public:
 
    void SendData2(int dim,
                   const Array<unsigned int> & gsl_proc,
+                  const Vector &xyz_send,
                   const Vector &xi_send,
                   const Array<int> &conn_send,
                   const DenseMatrix &coords_send,
+                  Vector &xyz_recv,
                   Vector &ref_recv,
                   Array<int> &conn_recv,
                   DenseMatrix &coords_recv);

@@ -1358,9 +1358,11 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
 
 void GSLIBCommunicator::SendData2(int dim,
                                   const Array<unsigned int> & gsl_proc,
+                                  const Vector &xyz_send,
                                   const Vector &xi_send,
                                   const Array<int> &conn_send,
                                   const DenseMatrix &coords_send,
+                                  Vector &xyz_recv,
                                   Vector &xi_recv,
                                   Array<int> &conn_recv,
                                   DenseMatrix &coords_recv)
@@ -1368,7 +1370,7 @@ void GSLIBCommunicator::SendData2(int dim,
    int nptsend = gsl_proc.Size();
 
    struct gslib::array *outpt = new gslib::array;
-   struct out_pt {double xi[2], coords[12]; int conn[4]; uint proc;};
+   struct out_pt {double xyz[3], xi[2], coords[12]; int conn[4]; uint proc;};
    struct out_pt *pt;
    array_init(struct out_pt, outpt, nptsend);
    outpt->n=nptsend;
@@ -1380,9 +1382,12 @@ void GSLIBCommunicator::SendData2(int dim,
       {
          pt->xi[d]= xi_send(index*(dim-1) + d);
       }
+      for (int d = 0; d < dim; ++d)
+      {
+         pt->xyz[d]= xyz_send(index + d*nptsend);
+      }
       for (int j = 0; j<4; j++)
       {
-
          pt->conn[j] = conn_send[index*4+j];
          for (int d = 0; d < dim; ++d)
          {
@@ -1397,6 +1402,7 @@ void GSLIBCommunicator::SendData2(int dim,
    // unpack
    int npt = outpt->n;
    xi_recv.SetSize(npt*(dim-1));
+   xyz_recv.SetSize(npt*dim);
    conn_recv.SetSize(npt*4);
    coords_recv.SetSize(npt*4,dim);
 
@@ -1406,6 +1412,10 @@ void GSLIBCommunicator::SendData2(int dim,
       for (int d = 0; d < dim-1; ++d)
       {
          xi_recv(index*(dim-1) + d) = pt->xi[d];
+      }
+      for (int d = 0; d < dim; ++d)
+      {
+         xyz_recv(index + d*npt)= pt->xyz[d]; // by NODES
       }
       for (int j = 0; j<4; j++)
       {
