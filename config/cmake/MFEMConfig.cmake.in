@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -29,7 +29,6 @@ set(MFEM_USE_LEGACY_OPENMP @MFEM_USE_LEGACY_OPENMP@)
 set(MFEM_USE_MEMALLOC @MFEM_USE_MEMALLOC@)
 set(MFEM_TIMER_TYPE @MFEM_TIMER_TYPE@)
 set(MFEM_USE_SUNDIALS @MFEM_USE_SUNDIALS@)
-set(MFEM_USE_MESQUITE @MFEM_USE_MESQUITE@)
 set(MFEM_USE_SUITESPARSE @MFEM_USE_SUITESPARSE@)
 set(MFEM_USE_SUPERLU @MFEM_USE_SUPERLU@)
 set(MFEM_USE_MUMPS @MFEM_USE_MUMPS@)

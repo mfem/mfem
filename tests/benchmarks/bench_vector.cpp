@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,7 +51,7 @@ inline CLASS &CLASS::operator=(double value){\
    const bool use_dev = UseDevice()/*true*/;\
    const int N = size;\
    auto y = /*mfem::Write(data, size, use_dev)*/Write(use_dev);\
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);\
+   forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) {y[i] = value;});\
    return *this;\
 }\
 inline CLASS &CLASS::operator+=(const CLASS &v){\
@@ -60,7 +60,7 @@ inline CLASS &CLASS::operator+=(const CLASS &v){\
    const int N = size;\
    auto y = ReadWrite(use_dev);\
    auto x = v.Read(use_dev);\
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] += x[i];);\
+   forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) {y[i] += x[i];});\
    return *this;\
 }
 

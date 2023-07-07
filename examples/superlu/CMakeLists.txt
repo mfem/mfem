@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -35,7 +35,7 @@ add_mfem_examples(SUPERLU_EXAMPLES_SRCS ${PFX} "" test_superlu)
 if (MFEM_ENABLE_TESTING)
   # Command line options for the tests.
   # Example 1: Test SuperLU on the simple Poisson problem
-  set(EX1_COMMON_OPTS -m ../../data/star.mesh -p 2)
+  set(EX1_COMMON_OPTS -m ../../data/star.mesh)
   set(EX1P_TEST_OPTS ${EX1_COMMON_OPTS})
 
   # Add the tests: one test per source file.

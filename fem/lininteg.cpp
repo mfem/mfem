@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
 
 #include "fem.hpp"
 #include <cmath>
@@ -1032,12 +1031,12 @@ void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
       massinteg.AssembleElementMatrix(el, Tr, *M);
       CholeskyFactors chol(M->Data());
       chol.Factor(M->Height());
-      chol.LMult(n,1,elvect);
+      chol.LMult(n,1,elvect.GetData());
    }
    else
    {
       CholeskyFactors chol(L[iel]->Data());
-      chol.LMult(n,1,elvect);
+      chol.LMult(n,1,elvect.GetData());
    }
 }
 
@@ -1046,7 +1045,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &fe, ElementTransformation &Tr, Vector &elvect)
 {
    const IntegrationRule *ir =
-      &vqfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
+      &vqfc.GetQuadFunction().GetSpace()->GetIntRule(Tr.ElementNo);
 
    const int nqp = ir->GetNPoints();
    const int vdim = vqfc.GetVDim();
@@ -1078,7 +1077,7 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
                                                     Vector &elvect)
 {
    const IntegrationRule *ir =
-      &qfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
+      &qfc.GetQuadFunction().GetSpace()->GetIntRule(Tr.ElementNo);
 
    const int nqp = ir->GetNPoints();
    const int ndofs = fe.GetDof();

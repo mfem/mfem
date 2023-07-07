@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,6 +24,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                            const DenseMatrix &w_,
                            const Array<double> &b_,
                            const Vector &x_,
+                           const Vector &nc_reduce,
                            DenseTensor &j_,
                            const int d1d,
                            const int q1d)
@@ -43,7 +44,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
    MFEM_VERIFY(sizeidx == 0,"");
    MFEM_VERIFY(MFEM_CUDA_BLOCKS==256,"");
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   const double *nc_red = nc_reduce.Read();
+
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -107,7 +110,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                double T;
                kernels::internal::PullEval(qx,qy,qz,QQQ,T);
                const double shape_par_vals = T;
-               const double size = fmax(shape_par_vals, min);
+               const double size = fmax(shape_par_vals, min) / nc_red[e];
                const double alpha = std::pow(size, 1.0/DIM);
                for (int i = 0; i < DIM; i++)
                {
@@ -160,6 +163,14 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
+   Vector nc_size_red(NE, Device::GetDeviceMemoryType());
+   nc_size_red.HostWrite();
+   NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+   for (int e = 0; e < NE; e++)
+   {
+      nc_size_red(e) = (ncmesh) ? ncmesh->GetElementSizeReduction(e) : 1.0;
+   }
+
    Vector tspec_e;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
@@ -170,7 +181,8 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
    const int id = (D1D << 4 ) | Q1D;
-   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,tspec_e,Jtr);
+   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,
+                           tspec_e, nc_size_red, Jtr);
 }
 
 } // namespace mfem

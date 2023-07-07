@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,7 +23,11 @@
 #include "densemat.hpp"
 
 #if defined(MFEM_USE_HIP)
+#if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
 #include <hipsparse.h>
+#else
+#include <hipsparse/hipsparse.h>
+#endif
 #endif
 
 
@@ -345,14 +349,21 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// y += A * x (default)  or  y += a * A * x
-   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    /// y += At * x (default)  or  y += a * At * x
-   void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /** @brief Build and store internally the transpose of this matrix which will
        be used in the methods AddMultTranspose(), MultTranspose(), and
@@ -362,16 +373,16 @@ public:
        MultTranspose(), and AbsMultTranspose().
 
        Warning: any changes in this matrix will invalidate the internal
-       transpose. To rebuild the transpose, call ResetTranspose() followed by a
-       call to this method. If the internal transpose is already built, this
-       method has no effect.
+       transpose. To rebuild the transpose, call ResetTranspose() followed by
+       (optionally) a call to this method. If the internal transpose is already
+       built, this method has no effect.
 
        When any non-serial-CPU backend is enabled, i.e. the call
        Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
        require the internal transpose to be built. If that is not the case (i.e.
-       the internal transpose is not built), these methods will raise an error
-       with an appropriate message pointing to EnsureMultTranspose(). When using
-       any backend from Backend::CPU_MASK, calling this method is optional.
+       the internal transpose is not built), these methods will automatically
+       call EnsureMultTranspose(). When using any backend from
+       Backend::CPU_MASK, calling this method is optional.
 
        This method can only be used when the sparse matrix is finalized.
 
@@ -414,6 +425,9 @@ public:
    void AbsMult(const Vector &x, Vector &y) const;
 
    /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x

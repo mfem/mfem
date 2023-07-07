@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -31,16 +31,20 @@ if (MFEM_USE_MPI)
       EXTRA_SOURCES ${HOOKE_SOURCES}
       EXTRA_HEADERS ${HOOKE_HEADERS})
 
-  add_mfem_miniapp(hooke
-    MAIN hooke.cpp
-    ${HOOKE_COMMON_FILES}
-    LIBRARIES mfem)
+  # The hooke miniapp crashes the AMD HIP compiler, so for now we disable it
+  # when HIP is enabled:
+  if (NOT MFEM_USE_HIP)
+    add_mfem_miniapp(hooke
+      MAIN hooke.cpp
+      ${HOOKE_COMMON_FILES}
+      LIBRARIES mfem)
 
-  # Add parallel tests.
-  if (MFEM_ENABLE_TESTING)
-    add_test(NAME hooke_np=${MFEM_MPI_NP}
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:hooke> -rs 0 -no-vis
-      ${MPIEXEC_POSTFLAGS})
+    # Add parallel tests.
+    if (MFEM_ENABLE_TESTING)
+      add_test(NAME hooke_np=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:hooke> -rs 0 -no-vis
+        ${MPIEXEC_POSTFLAGS})
+    endif()
   endif()
 endif ()

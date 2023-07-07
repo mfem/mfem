@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,6 +20,7 @@
 #include "../../../linalg/dtensor.hpp"
 #include "../../../mesh/mesh.hpp"
 #include "../../gridfunc.hpp"
+#include "../../qfunction.hpp"
 #include "util.hpp"
 #include "ceed.hpp"
 
@@ -121,7 +122,7 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
@@ -195,7 +196,7 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
@@ -279,7 +280,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       ceedCoeff->coeff.SetSize(nq * nelem);
@@ -287,7 +288,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
       auto in = Reshape(qFun.Read(), nq, ne);
       auto d_indices = Read(m_indices, nelem);
       auto out = Reshape(ceedCoeff->coeff.Write(), nq, nelem);
-      MFEM_FORALL(i, nelem * nq,
+      mfem::forall(nelem * nq, [=] MFEM_HOST_DEVICE (int i)
       {
          const int q = i%nq;
          const int sub_e = i/nq;
@@ -369,7 +370,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       ceedCoeff->coeff.SetSize(dim * nq * nelem);
@@ -377,7 +378,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       auto in = Reshape(qFun.Read(), dim, nq, ne);
       auto d_indices = Read(m_indices, nelem);
       auto out = Reshape(ceedCoeff->coeff.Write(), dim, nq, nelem);
-      MFEM_FORALL(i, nelem * nq,
+      mfem::forall(nelem * nq, [=] MFEM_HOST_DEVICE (int i)
       {
          const int q = i%nq;
          const int sub_e = i/nq;

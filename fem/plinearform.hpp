@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -114,9 +114,13 @@ public:
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
    /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
-   /// When @a use_device is set to true and all the ParLinearForm assembly is
-   /// compatible with device execution, it will be executed on the device.
-   void Assemble(bool use_device = true);
+   /** When @ref LinearForm::UseFastAssembly "UseFastAssembly(true)" has been
+       called and the linear form assembly is compatible with device execution,
+       the assembly will be executed on the device. */
+   void Assemble();
+
+   /// Return true if assembly on device is supported, false otherwise.
+   virtual bool SupportsDevice() const;
 
    void AssembleSharedFaces();
 
