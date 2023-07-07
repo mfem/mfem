@@ -317,10 +317,10 @@ void BlockLinearSystem::SolveDiag(BlockVector &x, const Array<int> &ordering,
                                   const bool isSPD)
 {
    Array<int> curr_ess_bdr;
-   b = 0.0;
    for (int i:ordering)
    {
       curr_ess_bdr.MakeRef(ess_bdr.GetRow(i), ess_bdr.NumCols());
+      b.GetBlock(i) = 0.0;
       b_forms[i]->Assemble();
       BilinearForm* bilf = this->GetDiagBlock(i);
       delete bilf->LoseMat();
