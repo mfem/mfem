@@ -270,6 +270,61 @@ private:
    BlockDiagonalPreconditioner prec;
 };
 
+class VectorGradientGridFunctionCoefficient : public MatrixCoefficient
+{
+public:
+   VectorGradientGridFunctionCoefficient(GridFunction *gf)
+      : GridFunc(gf), vdim(gf->VectorDim()),
+        sdim(gf->FESpace()->GetMesh()->Dimension()),
+        MatrixCoefficient(
+           gf->VectorDim(), gf->FESpace()->GetMesh()->Dimension(), false) {}
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
+      if (T.mesh->GetNE() == gf_mesh->GetNE())
+      {
+         Vector V;
+         GridFunc->GetVectorGradient(T, K);
+      }
+      else
+      {
+         mfem_error("Inconsistent mesh.");
+      }
+   }
+
+private:
+   const int vdim, sdim;
+   GridFunction *GridFunc;
+};
+class FrobeniusNormCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient * a;
+
+   mutable DenseMatrix mat_a;
+public:
+   /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
+   FrobeniusNormCoefficient(MatrixCoefficient &A): a(&A), mat_a(A.GetHeight(), A.GetWidth()){};
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t) { Coefficient::SetTime(t); a->SetTime(t); }
+
+   /// Reset the first vector in the inner product
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the first vector coefficient in the inner product
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      a->Eval(mat_a, T, ip);
+      Vector v(mat_a.GetData(), mat_a.Height()*mat_a.Width());
+      return v.Norml2();
+   }
+};
+
 
 void BlockLinearSystem::Assemble(BlockVector &x)
 {
