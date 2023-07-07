@@ -33,6 +33,13 @@ void ComputeTdofOffsets(const ParFiniteElementSpace * pfes,
    MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
 }
 
+void ComputeTdofOffsets(MPI_Comm comm, int mytoffset, std::vector<int> & tdof_offsets)
+{
+   int num_procs;
+   MPI_Comm_size(comm,&num_procs);
+   tdof_offsets.resize(num_procs);
+   MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
+}
 
 void PrintElementVertices(Mesh * mesh, int elem,  int printid)
 {
@@ -608,6 +615,12 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
+
+   socketstream mesh1_sock(vishost, visport);
+   mesh1_sock << "parallel " << num_procs << " " << myid << "\n";
+   mesh1_sock.precision(8);
+   mesh1_sock << "mesh\n" << pmesh1 << flush;
+
    socketstream mesh2_sock(vishost, visport);
    mesh2_sock << "parallel " << num_procs << " " << myid << "\n";
    mesh2_sock.precision(8);
@@ -660,6 +673,7 @@ int main(int argc, char *argv[])
 
 
    int nnd = nnd_1 + nnd_2;
+   int gnnd = gnnd_1 + gnnd_2;
 
    Array<int> ess_tdof_list1, ess_bdr1(pmesh1.bdr_attributes.Max());
    ess_bdr1 = 0;
@@ -712,7 +726,6 @@ int main(int argc, char *argv[])
    blkA(1,1) = &A2;
 
    HypreParMatrix * K = HypreParMatrixFromBlocks(blkA);
-
 
    // Construct node to segment contact constraint.
    attr.Sort();
@@ -774,10 +787,10 @@ int main(int argc, char *argv[])
       count++;
    }
    // mfem::out << "nnd1 = " << n
-   PrintArray(s_conn, "s_conn",0);
-   PrintArray(s_conn, "s_conn",1);
-   PrintArray(s_conn, "s_conn",2);
-   mfem::out << "myid, size of g = " << myid << ", " << npoints*dim << endl;
+   // PrintArray(s_conn, "s_conn",0);
+   // PrintArray(s_conn, "s_conn",1);
+   // PrintArray(s_conn, "s_conn",2);
+   // mfem::out << "myid, size of g = " << myid << ", " << npoints*dim << endl;
    MFEM_VERIFY(count == npoints, "");
 
    // gap function
@@ -805,7 +818,7 @@ int main(int argc, char *argv[])
    FindPointsInMesh(pmesh1, globalvertices1, xyz, m_conn, xyz_recv, m_xi ,coordsm);
 
    // decode and print
-   if (1) // for debugging
+   if (0) // for debugging
    {
       int sz = m_xi.Size()/2;
 
@@ -867,6 +880,159 @@ int main(int argc, char *argv[])
    M.Finalize();
    M.SortColumnIndices();
 
+   // Distribute the M and dM[i] matrices 
+   // the Mi matrices must have the same mpi partition as the K monolithic matrix
+   // int nrows = K->NumRows();
+   // int ncols = K->NumCols();
+   // int gnrows = K->GetGlobalNumRows();
+   // int gncols = K->GetGlobalNumCols();
+
+
+   // Array<int> rowpart(K->RowPart(),2);
+   // rowpart.Print(mfem::out, rowpart.Size());
+   // Array<int> colpart(K->ColPart(),2);
+   // colpart.Print(mfem::out, colpart.Size());
+   std::vector<int> Koffsets;
+   ComputeTdofOffsets(K->GetComm(), K->RowPart()[0], Koffsets);
+
+   mfem::out << "A1 = " << A1.RowPart()[0] << ", " << A1.RowPart()[1] << endl;
+   mfem::out << "A2 = " << A2.RowPart()[0] << ", " << A2.RowPart()[1] << endl;
+   mfem::out << "KRowPart = " << K->RowPart()[0] << ", " << K->RowPart()[1] << endl;
+   mfem::out << "Koffsets = " << Koffsets[0] << ", " << Koffsets[1] << endl;
+
+
+   Array<int> send_count(num_procs);
+   Array<int> send_displ(num_procs);
+   Array<int> recv_count(num_procs);
+   Array<int> recv_displ(num_procs);
+   send_count = 0; send_displ = 0;
+   recv_count = 0; recv_displ = 0;
+   // loop through the dM matrices
+   for (int k = 0; k<dM.size(); k++)
+   {
+      if (dM[k].NumNonZeroElems() == 0) continue;
+      int nrows = dM[k].NumRows();
+      for (int i = 0; i<nrows; i++)
+      {
+         int rsize = dM[k].RowSize(i);
+         if (rsize == 0) continue;
+         int rank = get_rank(i,Koffsets);
+         // mfem::out << "rank = " << rank << endl;
+         //  (row number, rsize, column indices)
+         //  (row number, rsize, column values)
+         send_count[rank] += rsize+2;
+      }
+   }
+   // comunicate so that recv_count is constructed
+   MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,K->GetComm());
+   for (int k=0; k<num_procs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+
+
+
+
+   // now allocate space for the send buffer
+   Array<double> sendvals(sbuff_size);  sendvals = 0.0;
+   Array<int> sendcols(sbuff_size);  sendcols = 0;
+   Array<int> sendoffs(num_procs); sendoffs = 0;
+   for (int k = 0; k<dM.size(); k++)
+   {
+      if (dM[k].NumNonZeroElems() == 0) continue;
+      int nrows = dM[k].NumRows();
+      // mfem::out << "nrows = " << nrows << endl;
+      for (int i = 0; i<nrows; i++)
+      {
+         int rsize = dM[k].RowSize(i);
+         if (rsize == 0) continue;
+         // mfem::out << "i = " << i << endl;
+         int rank = get_rank(i,Koffsets);
+         int j = send_displ[rank] + sendoffs[rank];
+         Array<int> cols;
+         Vector vals;
+         dM[k].GetRow(i,cols,vals);
+         int size = cols.Size();
+         sendoffs[rank] += size+2;
+         sendvals[j] = (double)i;
+         sendvals[j+1] = (double)size;
+         sendcols[j] = i;
+         sendcols[j+1] = size;
+         for (int l=0; l<size ; l++)
+         {
+            sendvals[j+l+2] = vals[l];
+            sendcols[j+l+2] = cols[l];
+         }
+      }
+   }
+
+
+   // communication
+   Array<double> recvvals(rbuff_size);
+   Array<int> recvcols(rbuff_size);
+
+   double * sendvals_ptr = nullptr;
+   double * recvvals_ptr = nullptr;
+   int * sendcols_ptr = nullptr;
+   int * recvcols_ptr = nullptr;
+   if (sbuff_size !=0 ) 
+   {
+      sendvals_ptr = &sendvals[0]; 
+      sendcols_ptr = &sendcols[0]; 
+   }   
+   if (rbuff_size !=0 ) 
+   {
+      recvvals_ptr = &recvvals[0]; 
+      recvcols_ptr = &recvcols[0]; 
+   }
+
+   MPI_Alltoallv(sendvals_ptr, send_count, send_displ, MPI_DOUBLE, recvvals_ptr,
+                 recv_count, recv_displ, MPI_DOUBLE, K->GetComm());
+
+   MPI_Alltoallv(sendcols_ptr, send_count, send_displ, MPI_INT, recvcols_ptr,
+                 recv_count, recv_displ, MPI_INT, K->GetComm());
+
+   SparseMatrix DM(K->NumRows(),K->GetGlobalNumCols());
+   int counter = 0;
+   while (counter < rbuff_size)
+   {
+      int row = recvcols[counter] - K->RowPart()[0];
+      int size = recvcols[counter+1];
+      Vector vals(size);
+      Array<int> cols(size);
+      for (int i = 0; i<size; i++)
+      {
+         vals[i] = recvvals[counter+2+i];
+         cols[i] = recvcols[counter+2+i];
+      }
+      DM.AddRow(row,cols,vals);
+      counter += size+2; 
+   }
+   DM.Finalize();
+   DM.SortColumnIndices();
+   mfem::out << "counter = " << counter << endl;
+   mfem::out << "rbuff_size = " << rbuff_size << endl;
+   MFEM_VERIFY(counter == rbuff_size, "inconsistent size");
+
+   SparseMatrix mergedK;
+   K->MergeDiagAndOffd(mergedK);
+
+   // SparseMatrix * K_M = Add(mergedK,DM);
+
+   // K_M->PrintMatlab();
+
+   Vector tmp(DM.Width()); tmp = 1.0;
+   Vector y(DM.Height()); 
+
+   DM.AbsMult(tmp,y);
+
+   mfem::out << "y l1 norm = " << y.Norml1() << endl;
+
+   // DM.PrintMatlab();
+
    // ostringstream oss;
    // oss << "M_from_rank_" << myid << "_out_of" << num_procs <<".dat";
 
@@ -883,12 +1049,12 @@ int main(int argc, char *argv[])
    // M.AbsMult(x,y);
    // mfem::out << "y norm = " << y.Norml1() << endl;
    // int cnt = 0;
-   for (int i = 0; i<dM.size();i++)
-   {
-      dM[i].Finalize();
-      if (dM[i].NumNonZeroElems()==0) continue;
-      dM[i].SortColumnIndices();
-      dM[i].Threshold(1e-13);
+   // for (int i = 0; i<dM.size();i++)
+   // {
+   //    dM[i].Finalize();
+   //    if (dM[i].NumNonZeroElems()==0) continue;
+   //    dM[i].SortColumnIndices();
+   //    dM[i].Threshold(1e-13);
    //    Vector x(150); x=1.0;
    //    Vector y(150);
    //    dM[i].AbsMult(x,y);
@@ -903,7 +1069,7 @@ int main(int argc, char *argv[])
       // }
       // mat_ofs.close();
       // cnt++;
-   }
+   // }
 
    // std::set<int> dirbdryv2;
    // for (int b=0; b<mesh2.GetNBE(); ++b)
