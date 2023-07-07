@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    int problem = 0;
    const char *mesh_file = "../data/rect_with_top_fixed.mesh";
    int ref_levels = 2;
-   int order = 3;
+   int order = 1;
    const char *device_config = "cpu";
    bool visualization = true;
    double alpha0 = 1.0;
