@@ -251,7 +251,8 @@ public:
     */
    void Assemble(BlockVector &x);
 
-   void SolveDiag(BlockVector &x, const Array<int> &ordering, const bool isSPD=false);
+   void SolveDiag(BlockVector &x, const Array<int> &ordering,
+                  const bool isSPD=false);
 
    void GMRES(BlockVector &x);
    void PCG(BlockVector &x);
@@ -335,7 +336,8 @@ void BlockLinearSystem::SolveDiag(BlockVector &x, const Array<int> &ordering,
       }
       else
       {
-         mfem::GMRES(mat, curr_prec, b.GetBlock(i), x.GetBlock(i), 0, 2000, 50, 1e-12, 0.0);
+         mfem::GMRES(mat, curr_prec, b.GetBlock(i), x.GetBlock(i), 0, 2000, 50, 1e-12,
+                     0.0);
       }
    }
 }
