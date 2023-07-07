@@ -20,12 +20,12 @@ class Vars { public: enum {u, f_rho, psi, f_lam, numVars}; };
 
 void clip_abs(mfem::Vector &x, const double max_abs_val)
 {
-   for(auto &val : x) { val = std::min(max_abs_val, std::max(-max_abs_val, val)); }
+   for (auto &val : x) { val = std::min(max_abs_val, std::max(-max_abs_val, val)); }
 }
 
 void clip(mfem::Vector &x, const double min_val, const double max_val)
 {
-   for(auto &val : x) { val = std::min(max_val, std::max(min_val, val)); }
+   for (auto &val : x) { val = std::min(max_val, std::max(min_val, val)); }
 }
 
 using namespace std;
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
       new DomainLFIntegrator(rho_cf)
    );
-   
+
    // Equation ψ
    newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
       new MassIntegrator(one_cf)
@@ -262,10 +262,12 @@ int main(int argc, char *argv[])
                                     );
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
-         const double current_volume_fraction = VolumeProjection(psi, target_volume) / volume;
+         const double current_volume_fraction = VolumeProjection(psi,
+                                                                 target_volume) / volume;
          clip_abs(psi, max_psi);
-         mfem::out << std::scientific << diff_newton << ", ∫ρ / |Ω| = " << std::fixed << current_volume_fraction << std::endl;
-         
+         mfem::out << std::scientific << diff_newton << ", ∫ρ / |Ω| = " << std::fixed
+                   << current_volume_fraction << std::endl;
+
          if (diff_newton < tol_newton)
          {
             break;
@@ -274,7 +276,8 @@ int main(int argc, char *argv[])
       const double diff_penalty = std::sqrt(
                                      psi_k.DistanceSquaredTo(psi) / delta_sol.Size()
                                   );
-      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl << std::endl;
+      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
+                << std::endl;
       if (diff_penalty < tol_penalty)
       {
          break;
