@@ -118,3 +118,4 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_*
 	@rm -rf Example1*
+	@rm -rf CurveInt
