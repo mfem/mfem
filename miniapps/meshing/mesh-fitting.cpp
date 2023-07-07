@@ -1353,13 +1353,11 @@ int main(int argc, char *argv[])
                    << error_bg_sum << std::endl;
 
          // Reduce the orders of the polynom if needed
-         /*
          if (iter_pref > 0 && pref_order_increase > 1)
          {
             int compt_updates(0);
             for (int i=0; i < inter_faces.Size(); i++)
             {
-               std::cout << "FACE " << inter_faces[i] << std::endl;
                Array<int> els;
                mesh->GetFaceAdjacentElements(inter_faces[i], els);
                int el_order = fespace->GetElementOrder(els[0]) ; // - 1; // temp // element order around face - 1
@@ -1368,7 +1366,6 @@ int main(int argc, char *argv[])
                                                                 inter_faces[i],
                                                                 surf_fit_gf0_max_order,
                                                                 finder);
-               std::cout << "Starting error... " << error_reduction << std::endl;
                while (el_order > mesh_poly_deg+1
                && error_reduction < pref_tol)
                {
@@ -1377,12 +1374,18 @@ int main(int argc, char *argv[])
                                                                     el_order-1,
                                                                     surf_fit_bg_gf0,
                                                                     finder);
-                   std::cout << "error: " << error_reduction << std::endl;
                    if (error_reduction < pref_tol)
                    {
                        el_order -= 1;
                    }
                }
+
+               // Compute the error at the last selected order
+               error_reduction = InterfaceElementOrderReduction(mesh,
+                                                                inter_faces[i],
+                                                                el_order,
+                                                                surf_fit_bg_gf0,
+                                                                finder);
 
                if (error_reduction < pref_tol
                && el_order != fespace->GetElementOrder(els[0]))
@@ -1395,6 +1398,7 @@ int main(int argc, char *argv[])
                }
             }
 
+            // Update the FES and GridFunctions only if some orders have been changed
             if (compt_updates > 0)
             {
                PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
@@ -1420,7 +1424,6 @@ int main(int argc, char *argv[])
                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
          }
-         */
 
       }
 
