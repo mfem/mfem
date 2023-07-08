@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
          rho.ProjectCoefficient(rho_cf);
          sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
       }
-      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho);
+      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant;
       mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
       if (diff_penalty < tol_penalty)
