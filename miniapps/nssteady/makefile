@@ -21,7 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SNAVIER_COMMON_SRC = snavier_dg.cpp snavier_cg.cpp
+SNAVIER_COMMON_SRC = snavier_dg.cpp snavier_cg.cpp custom_bilinteg.cpp
+
 SNAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = test_snavier_cg test_snavier_dg

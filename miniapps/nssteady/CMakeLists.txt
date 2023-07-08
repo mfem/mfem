@@ -12,10 +12,12 @@
 if (MFEM_USE_MPI)
   list(APPEND SNAVIER_COMMON_SOURCES
       snavier_cg.cpp
-      snavier_dg.cpp)
+      snavier_dg.cpp
+      custom_bilinteg.cpp)
   list(APPEND SNAVIER_COMMON_HEADERS
       snavier_cg.hpp
-      snavier_dg.hpp)
+      snavier_dg.hpp
+      custom_bilinteg.hpp)
 
   convert_filenames_to_full_paths(SNAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(SNAVIER_COMMON_HEADERS)
@@ -31,6 +33,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(test_snavier_dg
     MAIN test_snavier_dg.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(test_integrator
+    MAIN test_integrator.cpp
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
