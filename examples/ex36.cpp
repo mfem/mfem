@@ -148,11 +148,14 @@ int main(int argc, char *argv[])
    ConstantCoefficient eps_cf(epsilon);
    ConstantCoefficient alpha_k(alpha0);
    ConstantCoefficient one_cf(1.0);
+   GridFunction zero_gf(&fes_L2_Qk2);
+   zero_gf = 0.0;
 
    auto simp_cf = SIMPCoefficient(&f_rho, simp_exp, rho0);
    auto dsimp_cf = DerSIMPCoefficient(&f_rho, simp_exp, rho0);
    auto d2simp_cf = Der2SIMPCoefficient(&f_rho, simp_exp, rho0);
    auto rho_cf = SigmoidCoefficient(&psi);
+   auto rho_k_cf = SigmoidCoefficient(&psi_k);
    auto dsigmoid_cf = DerSigmoidCoefficient(&psi);
 
    GridFunctionCoefficient u_cf(&u);
@@ -184,6 +187,7 @@ int main(int argc, char *argv[])
    ScalarVectorProductCoefficient dsimp_Du(dsimp_cf, Du);
    ScalarVectorProductCoefficient dsimp_Du_times2(dsimp_times2, Du);
 
+   SumCoefficient diff_rho(rho_k_cf, rho_cf, 1.0, -1.0);
    SumCoefficient diff_filter(rho_cf, f_rho_cf, 1.0, -1.0);
    SumCoefficient diff_psi_k(psi_k_cf, psi_cf, 1.0, -1.0);
    SumCoefficient diff_psi_grad(diff_psi_k, alph_f_lam, 1.0, -1.0);
@@ -323,6 +327,7 @@ int main(int argc, char *argv[])
          rho.ProjectCoefficient(rho_cf);
          sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
       }
+      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho);
       mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
       if (diff_penalty < tol_penalty)
