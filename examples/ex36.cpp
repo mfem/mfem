@@ -94,12 +94,13 @@ int main(int argc, char *argv[])
    // Essential boundary for each variable (numVar x numAttr)
    Array2D<int> ess_bdr(Vars::numVars, max_attributes);
    ess_bdr = 0;
-   ess_bdr(Vars::u, 0) = true;
+   ess_bdr(Vars::u, 2) = true;
+   ess_bdr(Vars::u, 3) = true;
 
    // Source and fixed temperature
-   ConstantCoefficient heat_source(1.0);
+   ConstantCoefficient heat_source(1e-02);
    ConstantCoefficient u_bdr(0.0);
-   const double volume_fraction = 0.7;
+   const double volume_fraction = 0.4;
    const double target_volume = volume * volume_fraction;
 
    // 3. Finite Element Spaces and discrete solutions
