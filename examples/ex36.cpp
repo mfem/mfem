@@ -82,7 +82,8 @@ int main(int argc, char *argv[])
    device.Print();
 
    // 2. Input data (mesh, source, ...)
-   Mesh mesh(mesh_file);
+   Mesh mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false, 1.0, 1.0);
+   // Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
    const int max_attributes = mesh.bdr_attributes.Max();
 
