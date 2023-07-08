@@ -239,6 +239,41 @@ int main(int argc, char *argv[])
    );
 
 
+   
+   socketstream sout_u, sout_rho;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sout_u.open(vishost, visport);
+      sout_rho.open(vishost, visport);
+      if (!sout_u)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         visualization = false;
+         cout << "GLVis visualization disabled.\n";
+      }
+      else
+      {
+         sout_u.precision(precision);
+         sout_u << "solution\n" << mesh << u;
+         sout_u << "keys jmmR**c\n";
+         sout_u << flush;
+         sout_rho.precision(precision);
+         GridFunction rho(&fes_L2_Qk2);
+         rho.ProjectCoefficient(rho_cf);
+         sout_rho << "solution\n" << mesh << rho;
+         sout_rho << "autoscale off\n";
+         sout_rho << "valuerange 0.0 1.0\n";
+         sout_rho << "keys jmmR**c\n";
+         sout_rho << flush;
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
+   }
+
+
    Array<int> ordering(0); // ordering of solving the equation
    ordering.Append(Vars::f_rho);
    ordering.Append(Vars::u);
@@ -275,6 +310,13 @@ int main(int argc, char *argv[])
       if (!newton_converged)
       {
          mfem::out << "Newton failed to converge" << std::endl;
+      }
+      if (visualization)
+      {
+         sout_u << "solution\n" << mesh << u << flush;
+         GridFunction rho(&fes_L2_Qk2);
+         rho.ProjectCoefficient(rho_cf);
+         sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
       }
       mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
