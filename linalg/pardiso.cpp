@@ -57,6 +57,10 @@ void PardisoSolver::SetOperator(const Operator &op)
 
    MFEM_ASSERT(mat, "Must pass SparseMatrix as Operator");
 
+   height = op.Height();
+
+   width = op.Width();
+
    m = mat->Size();
 
    nnz = mat->NumNonZeroElems();
