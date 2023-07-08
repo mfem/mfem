@@ -246,38 +246,35 @@ int main(int argc, char *argv[])
    // 6. Penalty Iteration
    for (int k=0; k<maxit_penalty; k++)
    {
+      
       mfem::out << "Iteration " << k + 1 << std::endl;
       alpha_k.constant = alpha0*(k+1); // update α_k
       psi_k = psi; // update ψ_k
+      bool newton_converged = false;
       for (int j=0; j<maxit_newton; j++) // Newton Iteration
       {
-         mfem::out << "\tNewton Iteration " << j + 1 << ": ";
+         mfem::out << "\tNewton Iteration " << std::setw(5) << j + 1 << ": " << std::flush;
          // delta_sol = 0.0; // initialize newton difference
          // newtonSystem.Assemble(delta_sol); // Update system with current solution
          // newtonSystem.PCG(delta_sol); // Solve system
-         delta_sol = sol;
+         Vector old_sol(sol);
+         // newtonSystem.Assemble(sol);
+         // newtonSystem.PCG(sol);
          newtonSystem.SolveDiag(sol, ordering, true);
-         delta_sol -= sol; // Update solution
          // newton successive difference
-         const double diff_newton = std::sqrt(
-                                       std::pow(delta_sol.Norml2(), 2) / delta_sol.Size()
-                                    );
-         // Project solution
-         // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
-         const double current_volume_fraction = VolumeProjection(psi,
-                                                                 target_volume) / volume;
-         clip_abs(psi, max_psi);
-         mfem::out << std::scientific << diff_newton << ", ∫ρ / |Ω| = " << std::fixed
-                   << current_volume_fraction << std::endl;
+         const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(sol) / old_sol.Size());
+         mfem::out << std::scientific << diff_newton << std::endl;
 
          if (diff_newton < tol_newton)
          {
+            newton_converged = true;
             break;
          }
       } // end of Newton iteration
-      const double diff_penalty = std::sqrt(
-                                     psi_k.DistanceSquaredTo(psi) / delta_sol.Size()
-                                  );
+      if (!newton_converged)
+      {
+         mfem::out << "Newton failed to converge" << std::endl;
+      }
       mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
       if (diff_penalty < tol_penalty)
