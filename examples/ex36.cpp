@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
       new MassIntegrator(one_cf)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
-      new DomainLFIntegrator(dsimp_squared_normDu)
+      new DomainLFIntegrator(neg_dsimp_squared_normDu)
    );
 
 
