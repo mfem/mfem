@@ -37,19 +37,19 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int problem = 0;
    const char *mesh_file = "../data/rect_with_top_fixed.mesh";
-   int ref_levels = 2;
-   int order = 0;
+   int ref_levels = 1;
+   int order = 1;
    const char *device_config = "cpu";
    bool visualization = true;
    double alpha0 = 1.0;
-   double epsilon = 1e-03;
+   double epsilon = 1e-04;
    double rho0 = 1e-6;
    int simp_exp = 3;
    double max_psi = 1e07;
 
-   int maxit_penalty = 100;
-   int maxit_newton = 1;
-   double tol_newton = 1e-16;
+   int maxit_penalty = 10000;
+   int maxit_newton = 100;
+   double tol_newton = 1e-8;
    double tol_penalty = 1e-6;
 
 
