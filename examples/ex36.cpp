@@ -311,6 +311,11 @@ int main(int argc, char *argv[])
       {
          mfem::out << "Newton failed to converge" << std::endl;
       }
+      // Project solution
+      // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
+      const double current_volume_fraction = VolumeProjection(psi,
+                                                               target_volume) / volume;
+      clip_abs(psi, max_psi);
       if (visualization)
       {
          sout_u << "solution\n" << mesh << u << flush;
