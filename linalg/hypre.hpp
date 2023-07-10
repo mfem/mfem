@@ -1755,6 +1755,10 @@ private:
    void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
                                      int cycle_type);
 
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
    /// The underlying hypre solver object
    HYPRE_Solver ams;
    /// Vertex coordinates
@@ -1772,10 +1776,6 @@ private:
    bool singular = false;
    /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
    int print_level = 1;
-
-   // Recreates another AMS solver with the same options when SetOperator is
-   // called multiple times.
-   void ResetAMSPrecond();
 
 public:
    /// @brief Construct the AMS solver on the given edge finite element space.
