@@ -1288,9 +1288,9 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override
    {
-      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
-      return GetTensorDofToQuad(*this, ir, mode, basis1d, true,
-                                dof2quad_array);
+      return (mode == DofToQuad::FULL) ?
+             FiniteElement::GetDofToQuad(ir, mode) :
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
