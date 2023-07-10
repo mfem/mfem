@@ -385,21 +385,38 @@ void FiniteElementSpace::BuildBdrElementToDofTable() const
    if (bdr_elem_dof) { return; }
 
    Table *bel_dof = new Table;
+   Table *bel_fos = (mesh->Dimension() == 3) ? (new Table) : NULL;
    Array<int> dofs;
+   int F, Fo;
    bel_dof->MakeI(mesh->GetNBE());
+   if (bel_fos) { bel_fos->MakeI(mesh->GetNBE()); }
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddColumnsInRow(i, dofs.Size());
+
+      if (bel_fos)
+      {
+         bel_fos->AddAColumnInRow(i);
+      }
    }
    bel_dof->MakeJ();
+   if (bel_fos) { bel_fos->MakeJ(); }
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
+
+      if (bel_fos)
+      {
+         mesh->GetBdrElementFace(i, &F, &Fo);
+         bel_fos->AddConnection(i, Fo);
+      }
    }
    bel_dof->ShiftUpI();
+   if (bel_fos) { bel_fos->ShiftUpI(); }
    bdr_elem_dof = bel_dof;
+   bdr_elem_fos = bel_fos;
 }
 
 void FiniteElementSpace::BuildFaceToDofTable() const
