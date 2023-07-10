@@ -17,7 +17,12 @@
 namespace mfem
 {
 
-// Pure virtual class for dimensionless radial basis functions
+/* Pure virtual class for dimensionless radial basis functions (RBFs)
+   RBFs are primarily shaped like Gaussians and are used here as an
+   alternative to polynomials in RBF and RK elements. The input for these
+   is a dimensionless radius r = ||x|| / h, where ||x|| is a distance and
+   h is the smoothing parameter, which controls the gradient of the RBF.
+   For reference: https://doi.org/10.1017/S0962492900000015 */
 class RBFFunction
 {
 public:

@@ -1305,7 +1305,11 @@ public:
    virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/// Radial basis function collection
+/* Radial basis function collection
+   Instead of using polynomials as a basis, these methods use
+   Gaussian-like functions centered at chosen points. Reproducing
+   kernels augment the radial basis functions so that the resultant
+   basis can exactly represent functions of a chosen polynomial degree. */
 class KernelFECollection : public FiniteElementCollection
 {
 private:
