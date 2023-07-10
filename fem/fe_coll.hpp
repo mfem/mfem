@@ -56,8 +56,7 @@ public:
        @note Repeatedly calls FiniteElementForGeometry in the order defined in
        the Geometry::Type enumeration.
    */
-   virtual const FiniteElement *
-   FiniteElementForDim(int dim) const;
+   virtual const FiniteElement *FiniteElementForDim(int dim) const;
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
@@ -83,6 +82,7 @@ public:
    virtual int GetMapType(int dim) const;
    virtual int GetDerivType(int dim) const;
    virtual int GetDerivMapType(int dim) const;
+   virtual int GetVDim(int dim) const;
    /** @} */
 
    int HasFaceDofs(Geometry::Type geom, int p) const;
