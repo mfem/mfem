@@ -2598,10 +2598,10 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
    }
 }
 
-const IntegrationRule &VectorFEMassIntegrator::GetRule(
+const IntegrationRule &VectorFEMassIntegrator::GetRuleStatic(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
-   ElementTransformation &Trans) const
+   ElementTransformation &Trans)
 {
    int order = Trans.OrderW() + test_fe.GetOrder() + trial_fe.GetOrder();
    return IntRules.Get(test_fe.GetGeomType(), order);

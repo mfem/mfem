@@ -54,7 +54,20 @@ public:
                  const bool use_bdr = false,
                  const bool use_mf = false)
    {
-      Assemble(integ, info, fes, fes, Q, use_bdr, use_mf);
+      Assemble(integ, info, fes, fes, Q, (mfem::Coefficient *)nullptr, use_bdr,
+               use_mf);
+   }
+
+   template <typename IntegratorType, typename CeedOperatorInfo, typename CoeffType1, typename CoeffType2>
+   void Assemble(const IntegratorType &integ,
+                 CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &fes,
+                 CoeffType1 *Q1,
+                 CoeffType2 *Q2,
+                 const bool use_bdr = false,
+                 const bool use_mf = false)
+   {
+      Assemble(integ, info, fes, fes, Q1, Q2, use_bdr, use_mf);
    }
 
    template <typename IntegratorType, typename CeedOperatorInfo, typename CoeffType>
@@ -63,6 +76,20 @@ public:
                  const mfem::FiniteElementSpace &trial_fes,
                  const mfem::FiniteElementSpace &test_fes,
                  CoeffType *Q,
+                 const bool use_bdr = false,
+                 const bool use_mf = false)
+   {
+      Assemble(integ, info, trial_fes, test_fes, Q, (mfem::Coefficient *)nullptr,
+               use_bdr, use_mf);
+   }
+
+   template <typename IntegratorType, typename CeedOperatorInfo, typename CoeffType1, typename CoeffType2>
+   void Assemble(const IntegratorType &integ,
+                 CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &trial_fes,
+                 const mfem::FiniteElementSpace &test_fes,
+                 CoeffType1 *Q1,
+                 CoeffType2 *Q2,
                  const bool use_bdr = false,
                  const bool use_mf = false)
    {
@@ -85,7 +112,8 @@ public:
             integ.GetRule(trial_fe, test_fe, T);
          sub_ops.reserve(1);
          auto *sub_op = new OpType();
-         sub_op->Assemble(info, trial_fes, test_fes, ir, Q, use_bdr, use_mf);
+         sub_op->Assemble(info, trial_fes, test_fes, ir,
+                          Q1, Q2, use_bdr, use_mf);
          sub_ops.push_back(sub_op);
 
          CeedOperatorReferenceCopy(sub_op->GetCeedOperator(), &oper);
@@ -166,8 +194,9 @@ public:
                      "Mixed mesh integrators should not have an IntegrationRule.");
          const IntegrationRule &ir = integ.GetRule(trial_fe, test_fe, T);
          auto *sub_op = new OpType();
-         sub_op->Assemble(info, trial_fes, test_fes, ir, *count[value.first], indices, Q,
-                          use_bdr, use_mf);
+         sub_op->Assemble(info, trial_fes, test_fes, ir,
+                          *count[value.first], indices,
+                          Q1, Q2, use_bdr, use_mf);
          sub_ops.push_back(sub_op);
          CeedCompositeOperatorAddSub(oper, sub_op->GetCeedOperator());
          if (sub_op->GetCeedOperatorTranspose())

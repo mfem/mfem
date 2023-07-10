@@ -19,13 +19,16 @@ set(SRCS
   integ/bilininteg_convection_ea.cpp
   integ/bilininteg_curlcurl_mf.cpp
   integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_curlcurlmass_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
   integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_diffusionmass_pa.cpp
   integ/bilininteg_divdiv_mf.cpp
   integ/bilininteg_divdiv_pa.cpp
+  integ/bilininteg_divdivmass_pa.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_id_pa.cpp
   integ/bilininteg_interp_grad_pa.cpp
@@ -94,6 +97,9 @@ set(SRCS
   ceed/integrators/vecfemass/vecfemass.cpp
   ceed/integrators/divdiv/divdiv.cpp
   ceed/integrators/curlcurl/curlcurl.cpp
+  ceed/integrators/diffusionmass/diffusionmass.cpp
+  ceed/integrators/divdivmass/divdivmass.cpp
+  ceed/integrators/curlcurlmass/curlcurlmass.cpp
   ceed/integrators/mixedvecgrad/mixedvecgrad.cpp
   ceed/integrators/mixedveccurl/mixedveccurl.cpp
   ceed/integrators/interp/interp.cpp
@@ -220,6 +226,12 @@ set(HDRS
   ceed/integrators/divdiv/divdiv_qf.h
   ceed/integrators/curlcurl/curlcurl.hpp
   ceed/integrators/curlcurl/curlcurl_qf.h
+  ceed/integrators/diffusionmass/diffusionmass.hpp
+  ceed/integrators/diffusionmass/diffusionmass_qf.h
+  ceed/integrators/divdivmass/divdivmass.hpp
+  ceed/integrators/divdivmass/divdivmass_qf.h
+  ceed/integrators/curlcurlmass/curlcurlmass.hpp
+  ceed/integrators/curlcurlmass/curlcurlmass_qf.h
   ceed/integrators/mixedvecgrad/mixedvecgrad.hpp
   ceed/integrators/mixedveccurl/mixedveccurl.hpp
   ceed/integrators/interp/interp.hpp

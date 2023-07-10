@@ -26,6 +26,7 @@ namespace ceed
 struct MassOperatorInfo : public OperatorInfo
 {
    MassContext ctx = {0};
+   bool ctx_coeff = false;
    MassOperatorInfo(const mfem::FiniteElementSpace &fes, mfem::Coefficient *Q,
                     bool use_bdr = false, bool use_mf = false)
    {
@@ -44,6 +45,7 @@ struct MassOperatorInfo : public OperatorInfo
       }
       if (Q == nullptr)
       {
+         ctx_coeff = true;
          ctx.coeff = 1.0;
          if (!use_mf)
          {
@@ -59,6 +61,7 @@ struct MassOperatorInfo : public OperatorInfo
       else if (mfem::ConstantCoefficient *const_coeff =
                   dynamic_cast<mfem::ConstantCoefficient *>(Q))
       {
+         ctx_coeff = true;
          ctx.coeff = const_coeff->constant;
          if (!use_mf)
          {
@@ -99,7 +102,7 @@ PAMassIntegrator::PAMassIntegrator(const mfem::MassIntegrator &integ,
 {
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info(fes, Q, use_bdr);
-   Assemble(integ, info, fes, Q, use_bdr);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -112,7 +115,7 @@ PAMassIntegrator::PAMassIntegrator(const mfem::VectorMassIntegrator &integ,
 {
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info(fes, Q, use_bdr);
-   Assemble(integ, info, fes, Q, use_bdr);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -125,7 +128,7 @@ MFMassIntegrator::MFMassIntegrator(const mfem::MassIntegrator &integ,
 {
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info(fes, Q, use_bdr, true);
-   Assemble(integ, info, fes, Q, use_bdr, true);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -138,7 +141,7 @@ MFMassIntegrator::MFMassIntegrator(const mfem::VectorMassIntegrator &integ,
 {
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info(fes, Q, use_bdr, true);
-   Assemble(integ, info, fes, Q, use_bdr, true);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

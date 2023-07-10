@@ -26,6 +26,7 @@ namespace ceed
 struct DiffusionOperatorInfo : public OperatorInfo
 {
    DiffusionContext ctx = {0};
+   bool ctx_coeff = false;
    template <typename CoeffType>
    DiffusionOperatorInfo(const mfem::FiniteElementSpace &fes, CoeffType *Q,
                          bool use_bdr = false, bool use_mf = false)
@@ -45,6 +46,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       }
       if (Q == nullptr)
       {
+         ctx_coeff = true;
          ctx.coeff[0] = 1.0;
          if (!use_mf)
          {
@@ -71,6 +73,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       if (mfem::ConstantCoefficient *const_coeff =
              dynamic_cast<mfem::ConstantCoefficient *>(&Q))
       {
+         ctx_coeff = true;
          ctx.coeff[0] = const_coeff->constant;
          if (!use_mf)
          {
@@ -102,6 +105,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       if (mfem::VectorConstantCoefficient *const_coeff =
              dynamic_cast<mfem::VectorConstantCoefficient *>(&VQ))
       {
+         ctx_coeff = true;
          const int vdim = VQ.GetVDim();
          MFEM_VERIFY(vdim <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "VectorCoefficient dimension exceeds context storage!");
@@ -141,6 +145,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
       if (mfem::MatrixConstantCoefficient *const_coeff =
              dynamic_cast<mfem::MatrixConstantCoefficient *>(&MQ))
       {
+         ctx_coeff = true;
          const int vdim = MQ.GetVDim();
          MFEM_VERIFY((vdim * (vdim + 1)) / 2 <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "MatrixCoefficient dimensions exceed context storage!");
@@ -190,7 +195,7 @@ PADiffusionIntegrator::PADiffusionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes, Q, use_bdr);
-   Assemble(integ, info, fes, Q, use_bdr);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -205,7 +210,7 @@ PADiffusionIntegrator::PADiffusionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes, Q, use_bdr);
-   Assemble(integ, info, fes, Q, use_bdr);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -220,7 +225,7 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes, Q, use_bdr, true);
-   Assemble(integ, info, fes, Q, use_bdr, true);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -235,7 +240,7 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
 {
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes, Q, use_bdr, true);
-   Assemble(integ, info, fes, Q, use_bdr, true);
+   Assemble(integ, info, fes, !info.ctx_coeff ? Q : nullptr, use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

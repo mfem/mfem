@@ -26,6 +26,7 @@ namespace ceed
 struct MixedVectorGradientOperatorInfoBase : public OperatorInfo
 {
    DiffusionContext ctx = {0};
+   bool ctx_coeff = false;
    template <typename CoeffType>
    MixedVectorGradientOperatorInfoBase(const mfem::FiniteElementSpace &trial_fes,
                                        const mfem::FiniteElementSpace &test_fes,
@@ -53,6 +54,7 @@ struct MixedVectorGradientOperatorInfoBase : public OperatorInfo
       }
       if (Q == nullptr)
       {
+         ctx_coeff = true;
          ctx.coeff[0] = 1.0;
          if (!use_mf)
          {
@@ -77,6 +79,7 @@ struct MixedVectorGradientOperatorInfoBase : public OperatorInfo
       if (mfem::ConstantCoefficient *const_coeff =
              dynamic_cast<mfem::ConstantCoefficient *>(&Q))
       {
+         ctx_coeff = true;
          ctx.coeff[0] = const_coeff->constant;
          if (!use_mf)
          {
@@ -108,6 +111,7 @@ struct MixedVectorGradientOperatorInfoBase : public OperatorInfo
       if (mfem::VectorConstantCoefficient *const_coeff =
              dynamic_cast<mfem::VectorConstantCoefficient *>(&VQ))
       {
+         ctx_coeff = true;
          const int vdim = VQ.GetVDim();
          MFEM_VERIFY(vdim <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "VectorCoefficient dimension exceeds context storage!");
@@ -147,6 +151,7 @@ struct MixedVectorGradientOperatorInfoBase : public OperatorInfo
       if (mfem::MatrixConstantCoefficient *const_coeff =
              dynamic_cast<mfem::MatrixConstantCoefficient *>(&MQ))
       {
+         ctx_coeff = true;
          const int vdim = MQ.GetVDim();
          MFEM_VERIFY((vdim * (vdim + 1)) / 2 <= LIBCEED_DIFF_COEFF_COMP_MAX,
                      "MatrixCoefficient dimensions exceed context storage!");
@@ -223,9 +228,12 @@ struct MixedVectorWeakDivergenceOperatorInfo :
          "H(curl) domain and H^1 range FE spaces!");
       trial_op = EvalMode::Interp;
       test_op = EvalMode::Grad;
-      for (int i = 0; i < LIBCEED_DIFF_COEFF_COMP_MAX; i++)
+      if (ctx_coeff)
       {
-         ctx.coeff[i] *= -1.0;
+         for (int i = 0; i < LIBCEED_DIFF_COEFF_COMP_MAX; i++)
+         {
+            ctx.coeff[i] *= -1.0;
+         }
       }
    }
 };
@@ -241,7 +249,8 @@ PAMixedVectorGradientIntegrator::PAMixedVectorGradientIntegrator(
 {
 #ifdef MFEM_USE_CEED
    MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr);
-   Assemble(integ, info, trial_fes, test_fes, Q, use_bdr);
+   Assemble(integ, info, trial_fes, test_fes, !info.ctx_coeff ? Q : nullptr,
+            use_bdr);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -257,7 +266,8 @@ MFMixedVectorGradientIntegrator::MFMixedVectorGradientIntegrator(
 {
 #ifdef MFEM_USE_CEED
    MixedVectorGradientOperatorInfo info(trial_fes, test_fes, Q, use_bdr, true);
-   Assemble(integ, info, trial_fes, test_fes, Q, use_bdr, true);
+   Assemble(integ, info, trial_fes, test_fes, !info.ctx_coeff ? Q : nullptr,
+            use_bdr, true);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
@@ -269,20 +279,17 @@ namespace
 #ifdef MFEM_USE_CEED
 mfem::Coefficient *NegativeCoeff(mfem::Coefficient &Q)
 {
-   return (dynamic_cast<mfem::ConstantCoefficient *>(&Q) != nullptr) ?
-          nullptr : new mfem::ProductCoefficient(-1.0, Q);
+   return new mfem::ProductCoefficient(-1.0, Q);
 }
 
 mfem::VectorCoefficient *NegativeCoeff(mfem::VectorCoefficient &Q)
 {
-   return (dynamic_cast<mfem::VectorConstantCoefficient *>(&Q) != nullptr) ?
-          nullptr : new mfem::ScalarVectorProductCoefficient(-1.0, Q);
+   return new mfem::ScalarVectorProductCoefficient(-1.0, Q);
 }
 
 mfem::MatrixCoefficient *NegativeCoeff(mfem::MatrixCoefficient &Q)
 {
-   return (dynamic_cast<mfem::MatrixConstantCoefficient *>(&Q) != nullptr) ?
-          nullptr : new mfem::ScalarMatrixProductCoefficient(-1.0, Q);
+   return new mfem::ScalarMatrixProductCoefficient(-1.0, Q);
 }
 #endif
 
@@ -298,16 +305,19 @@ PAMixedVectorWeakDivergenceIntegrator::PAMixedVectorWeakDivergenceIntegrator(
 {
 #ifdef MFEM_USE_CEED
    MixedVectorWeakDivergenceOperatorInfo info(trial_fes, test_fes, Q, use_bdr);
-   if (Q)
+   if (!info.ctx_coeff)
    {
       // Does not inherit ownership of old Q
+      MFEM_VERIFY(Q, "Unexpected missing coefficient in libCEED "
+                  "MixedVectorGradientIntegrator!");
       auto *nQ = NegativeCoeff(*Q);
       Assemble(integ, info, trial_fes, test_fes, nQ, use_bdr);
       delete nQ;
    }
    else
    {
-      Assemble(integ, info, trial_fes, test_fes, Q, use_bdr);
+      Assemble(integ, info, trial_fes, test_fes, (mfem::Coefficient *)nullptr,
+               use_bdr);
    }
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
@@ -325,16 +335,19 @@ MFMixedVectorWeakDivergenceIntegrator::MFMixedVectorWeakDivergenceIntegrator(
 #ifdef MFEM_USE_CEED
    MixedVectorWeakDivergenceOperatorInfo info(trial_fes, test_fes, Q, use_bdr,
                                               true);
-   if (Q)
+   if (!info.ctx_coeff)
    {
       // Does not inherit ownership of old Q
+      MFEM_VERIFY(Q, "Unexpected missing coefficient in libCEED "
+                  "MixedVectorGradientIntegrator!");
       auto *nQ = NegativeCoeff(*Q);
       Assemble(integ, info, trial_fes, test_fes, nQ, use_bdr, true);
       delete nQ;
    }
    else
    {
-      Assemble(integ, info, trial_fes, test_fes, Q, use_bdr, true);
+      Assemble(integ, info, trial_fes, test_fes, (mfem::Coefficient *)nullptr,
+               use_bdr, true);
    }
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");

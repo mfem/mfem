@@ -3004,10 +3004,15 @@ public:
 
    virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
+   static const IntegrationRule &GetRuleStatic(const FiniteElement &trial_fe,
+                                               const FiniteElement &test_fe,
+                                               ElementTransformation &Trans);
+
    using NonlinearFormIntegrator::GetRule;
    virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                           const FiniteElement &test_fe,
-                                          ElementTransformation &Trans) const;
+                                          ElementTransformation &Trans) const
+   { return GetRuleStatic(trial_fe, test_fe, Trans); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -3152,6 +3157,213 @@ public:
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 
    const Coefficient *GetCoefficient() const { return Q; }
+};
+
+/** Class for integrating the bilinear form a(u,v) := (Qd grad u, grad v) +
+    (Qm u, v) */
+class DiffusionMassIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Qd, *Qm;
+   VectorCoefficient *VQd;
+   MatrixCoefficient *MQd;
+
+public:
+   /// Construct a diffusion + mass integrator with coefficients Qd = Qm = 1.
+   DiffusionMassIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQd(NULL), MQd(NULL) {}
+
+   /** Construct a diffusion + mass integrator with a scalar diffusion
+       coefficient qd and mass coefficient qm. */
+   DiffusionMassIntegrator(Coefficient &qd, Coefficient &qm,
+                           const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(&qm), VQd(NULL), MQd(NULL) {}
+
+   /** Construct a diffusion + mass integrator with a vector diffusion
+       coefficient qd and mass coefficient qm. */
+   DiffusionMassIntegrator(VectorCoefficient &qd, Coefficient &qm,
+                           const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(&qm), VQd(&qd), MQd(NULL) {}
+
+   /** Construct a diffusion + mass integrator with a matrix diffusion
+       coefficient qd and mass coefficient qm. */
+   DiffusionMassIntegrator(MatrixCoefficient &qd, Coefficient &qm,
+                           const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(&qm), VQd(NULL), MQd(&qd) {}
+
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   using NonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                          const FiniteElement &test_fe,
+                                          ElementTransformation &Trans) const
+   { return MassIntegrator::GetRuleStatic(trial_fe, test_fe, Trans); }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   using BilinearFormIntegrator::AssemblePABoundary;
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+};
+
+/** Class for integrating the bilinear form a(u,v) := (Qd curl u, curl v) +
+    (Qm u, v) for ND elements */
+class CurlCurlMassIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Qd, *Qm;
+   VectorCoefficient *VQd, *VQm;
+   MatrixCoefficient *MQd, *MQm;
+
+public:
+   /// Construct a curl-curl + mass integrator with coefficients Qd = Qm = 1.
+   CurlCurlMassIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQd(NULL), VQm(NULL), MQd(NULL), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a scalar curl-curl
+       coefficient qd and scalar mass coefficient qm. */
+   CurlCurlMassIntegrator(Coefficient &qd, Coefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(&qm), VQd(NULL), VQm(NULL), MQd(NULL), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a scalar curl-curl
+       coefficient qd and vector mass coefficient qm. */
+   CurlCurlMassIntegrator(Coefficient &qd, VectorCoefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(NULL), VQd(NULL), VQm(&qm), MQd(NULL), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a scalar curl-curl
+       coefficient qd and matrix mass coefficient qm. */
+   CurlCurlMassIntegrator(Coefficient &qd, MatrixCoefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(NULL), VQd(NULL), VQm(NULL), MQd(NULL), MQm(&qm) {}
+
+   /** Construct a curl-curl + mass integrator with a vector curl-curl
+       coefficient qd and scalar mass coefficient qm. */
+   CurlCurlMassIntegrator(VectorCoefficient &qd, Coefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(&qm), VQd(&qd), VQm(NULL), MQd(NULL), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a vector curl-curl
+       coefficient qd and vector mass coefficient qm. */
+   CurlCurlMassIntegrator(VectorCoefficient &qd, VectorCoefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQd(&qd), VQm(&qm), MQd(NULL), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a vector curl-curl
+       coefficient qd and matrix mass coefficient qm. */
+   CurlCurlMassIntegrator(VectorCoefficient &qd, MatrixCoefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQd(&qd), VQm(NULL), MQd(NULL), MQm(&qm) {}
+
+   /** Construct a curl-curl + mass integrator with a matrix curl-curl
+       coefficient qd and scalar mass coefficient qm. */
+   CurlCurlMassIntegrator(MatrixCoefficient &qd, Coefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(&qm), VQd(NULL), VQm(NULL), MQd(&qd), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a matrix curl-curl
+       coefficient qd and vector mass coefficient qm. */
+   CurlCurlMassIntegrator(MatrixCoefficient &qd, VectorCoefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQd(NULL), VQm(&qm), MQd(&qd), MQm(NULL) {}
+
+   /** Construct a curl-curl + mass integrator with a matrix curl-curl
+       coefficient qd and matrix mass coefficient qm. */
+   CurlCurlMassIntegrator(MatrixCoefficient &qd, MatrixCoefficient &qm,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQd(NULL), VQm(NULL), MQd(&qd), MQm(&qm) {}
+
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   using NonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                          const FiniteElement &test_fe,
+                                          ElementTransformation &Trans) const
+   { return VectorFEMassIntegrator::GetRuleStatic(trial_fe, test_fe, Trans); }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   using BilinearFormIntegrator::AssemblePABoundary;
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+};
+
+/** Class for integrating the bilinear form a(u,v) := (Qd div u, div v) +
+    (Qm u, v) for RT elements */
+class DivDivMassIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Qd, *Qm;
+   VectorCoefficient *VQm;
+   MatrixCoefficient *MQm;
+
+public:
+   /// Construct a div-div + mass integrator with coefficients Qd = Qm = 1.
+   DivDivMassIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(NULL), Qm(NULL), VQm(NULL), MQm(NULL) {}
+
+   /** Construct a div-div + mass integrator with a div-div coefficient qd and
+       scalar mass coefficient qm. */
+   DivDivMassIntegrator(Coefficient &qd, Coefficient &qm,
+                        const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(&qm), VQm(NULL), MQm(NULL) {}
+
+   /** Construct a div-div + mass integrator with a div-div coefficient qd and
+       vector mass coefficient qm. */
+   DivDivMassIntegrator(Coefficient &qd, VectorCoefficient &qm,
+                        const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(NULL), VQm(&qm), MQm(NULL) {}
+
+   /** Construct a div-div + mass integrator with a div-div coefficient qd and
+       matrix mass coefficient qm. */
+   DivDivMassIntegrator(Coefficient &qd, MatrixCoefficient &qm,
+                        const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Qd(&qd), Qm(NULL), VQm(NULL), MQm(&qm) {}
+
+   virtual bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   using NonlinearFormIntegrator::GetRule;
+   virtual const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                          const FiniteElement &test_fe,
+                                          ElementTransformation &Trans) const
+   { return VectorFEMassIntegrator::GetRuleStatic(trial_fe, test_fe, Trans); }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   using BilinearFormIntegrator::AssemblePABoundary;
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the linear elasticity form:

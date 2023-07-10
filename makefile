@@ -409,9 +409,10 @@ DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/integrators/vecfemass fem/ceed/integrators/divdiv \
-       fem/ceed/integrators/curlcurl fem/ceed/integrators/mixedvecgrad \
-       fem/ceed/integrators/mixedveccurl fem/ceed/integrators/interp \
-       fem/ceed/integrators/util fem/ceed/solvers \
+       fem/ceed/integrators/curlcurl fem/ceed/integrators/diffusionmass \
+       fem/ceed/integrators/divdivmass fem/ceed/integrators/curlcurlmass \
+       fem/ceed/integrators/mixedvecgrad fem/ceed/integrators/mixedveccurl \
+       fem/ceed/integrators/interp fem/ceed/integrators/util fem/ceed/solvers \
        fem/fe fem/lor fem/qinterp fem/integ fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
@@ -612,6 +613,12 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/divdiv/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/divdiv
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurl
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/curlcurl/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurl
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusionmass
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusionmass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusionmass
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/divdivmass
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/divdivmass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/divdivmass
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurlmass
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/curlcurlmass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/curlcurlmass
 	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/util/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/util
 # install config.mk in $(PREFIX_SHARE)
