@@ -174,6 +174,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+
 /// Class for boundary integration L(v) := (g, v)
 class BoundaryLFIntegrator : public LinearFormIntegrator
 {
