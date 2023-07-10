@@ -62,6 +62,8 @@
 
 //    Surface fitting to a squircle level-set - with p-refinement around the interface and using a background mesh
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 5
+//    3D
+//    make mesh-fitting -j && ./mesh-fitting -m cube.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 3 -mid 303 -preft 1e-8
 
 //    Reducing order after the first fitting with high order elements around the interface
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 4 -sbgmesh -vl 0 -mo 5
@@ -70,6 +72,7 @@
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
+#include <chrono>
 #include "mesh-fitting.hpp"
 
 using namespace mfem;
@@ -831,14 +834,16 @@ int main(int argc, char *argv[])
       mesh->SetNodalGridFunction(&x);
    }
 
+   clock_t t_start, t_end;
+
    // TODO: BOUCLE
+   t_start = clock();
    int max_iter_pref = (pref_max_order-mesh_poly_deg)/pref_order_increase +1 ;
    //std::cout << "Max Order || Init order || Pref order increase || Nbr of iterations" << std::endl;
    //std::cout << pref_max_order << " || " << mesh_poly_deg << " || " << pref_order_increase << " || " << max_iter_pref << std::endl;
    int iter_pref(0);
    bool faces_to_update(true);
    while (iter_pref<max_iter_pref && faces_to_update)
-   //for (int iter_pref=0; iter_pref<max_iter_pref; iter_pref++)
    {
       std::cout << "REFINEMENT NUMBER: " << iter_pref << std::endl;
 
@@ -1052,11 +1057,16 @@ int main(int argc, char *argv[])
       {
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
          tmop_integ->CopyGridFunction(surf_fit_gf0);
-         delete surf_fit_gf0_max_order;
+         std::cout << "Test 1" << std::endl;
+         if (prefine)
+         {
+            delete surf_fit_gf0_max_order;
+            delete x_max_order;
+         }
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
-         delete x_max_order;
          x_max_order = ProlongToMaxOrder(&x, 0);
          mesh->SetNodalGridFunction(x_max_order);
+         std::cout << "Test 2" << std::endl;
          double error_bg_sum = 0.0;
          for (int i = 0; i < inter_faces.Size(); i++)
          {
@@ -1329,14 +1339,11 @@ int main(int argc, char *argv[])
                    << "Max fitting error: " << err_max << std::endl;
 
          // TODO: Compute Integrate Error
-         //FunctionCoefficient ls_coeff(squircle_level_set);
-         //surf_fit_gf0.ProjectCoefficient(ls_coeff);
          surf_fit_gf0.ProjectCoefficient(ls_coeff);
          tmop_integ->CopyGridFunction(surf_fit_gf0);
          delete surf_fit_gf0_max_order;
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          double error_bg_sum = 0.0;
-         //for (int i=0; i < inter_faces.size(); i++)
          for (int i=0; i < inter_faces.Size(); i++)
          {
             double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
@@ -1455,6 +1462,9 @@ int main(int argc, char *argv[])
       delete S;
       delete S_prec;
    }
+   t_end = clock();
+
+   std::cout << "Loop time: " << 1.0*double(t_end-t_start)/CLOCKS_PER_SEC << "s"  << std::endl;
 
    if (visualization)
    {
