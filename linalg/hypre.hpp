@@ -1753,7 +1753,7 @@ private:
    /// Construct the gradient and interpolation matrices associated with
    /// @a edge_fespace, and add them to the solver.
    void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
-                                     int cycle_type);
+                                     bool trace_space, int p, int cycle_type);
 
    // Recreates another AMS solver with the same options when SetOperator is
    // called multiple times.
