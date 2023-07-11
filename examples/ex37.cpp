@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
    int maxit_penalty = 10000;
    int maxit_newton = 100;
    double tol_newton = 1e-8;
+   double tol_fixedPoint = 1e-5;
    double tol_penalty = 1e-6;
 
 
@@ -176,6 +177,16 @@ int main(int argc, char *argv[])
    ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
    ProductCoefficient dsimp_squared_normDu(dsimp_cf, squared_normDu);
 
+   MultiProductCoefficient neg_alphak(-1.0, alpha_k);
+   MultiProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
+   MultiProductCoefficient neg_dsigmoid_psi(-1.0, dsigmoid_cf, psi_cf);
+   MultiProductCoefficient neg_dsimp_squared_normDu(-1.0, dsimp_cf, squared_normDu);
+   MultiProductCoefficient neg_d2simp_squared_normDu(-1.0, d2simp_cf, squared_normDu);
+   MultiProductCoefficient neg_d2simp_squared_normDu_f_rho(-1.0, d2simp_cf, squared_normDu, f_rho_cf);
+   MultiProductVectorCoefficient dsimp_Du(dsimp_cf, Du);
+   MultiProductVectorCoefficient neg_dsimp_Du_times2(-2.0, dsimp_cf, Du);
+   MultiProductVectorCoefficient neg_dsimp_f_rho_Du(-1.0, dsimp_cf, f_rho_cf, Du);
+
    // 5. Define global system for newton iteration
    BlockLinearSystem fixedPointSystem(offsets, fes, ess_bdr);
    fixedPointSystem.own_blocks = true;
@@ -224,6 +235,90 @@ int main(int argc, char *argv[])
    );
    fixedPointSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
       new DomainLFIntegrator(dsimp_squared_normDu)
+   );
+
+   // 5. Define global system for newton iteration
+   BlockLinearSystem newtonSystem(offsets, fes, ess_bdr);
+   newtonSystem.own_blocks = true;
+   for (int i=0; i<Vars::numVars; i++)
+   {
+      newtonSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
+   }
+   std::vector<std::vector<int>> offDiags
+   {
+      {Vars::u, Vars::f_rho},
+      {Vars::f_rho, Vars::psi},
+      {Vars::psi, Vars::f_lam},
+      {Vars::f_lam, Vars::u},
+      {Vars::f_lam, Vars::f_rho}
+   };
+   for (auto &i : offDiags)
+   {
+      newtonSystem.SetBlockMatrix(i[0], i[1],
+                                  new MixedBilinearForm(fes[i[1]], fes[i[0]]));
+   }
+
+   // Equation u
+   newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
+      // A += (r(ρ̃^i)∇δu, ∇v)
+      new DiffusionIntegrator(simp_cf)
+   );
+   newtonSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
+      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(dsimp_Du))
+   );
+   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+      new DomainLFIntegrator(heat_source)
+   );
+   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+      new DomainLFGradIntegrator(neg_dsimp_f_rho_Du)
+   );
+
+   // Equation ρ̃
+   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+      new DiffusionIntegrator(eps_cf)
+   );
+   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+      new MassIntegrator(one_cf)
+   );
+   newtonSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
+      new MixedScalarMassIntegrator(neg_dsigmoid)
+   );
+   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+      new DomainLFIntegrator(rho_cf)
+   );
+   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+      new DomainLFIntegrator(neg_dsigmoid_psi)
+   );
+
+   // Equation ψ
+   newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+      new MassIntegrator(one_cf)
+   );
+   newtonSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
+      new MixedScalarMassIntegrator(neg_alphak)
+   );
+   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+      new DomainLFIntegrator(psi_k_cf)
+   );
+
+   // Equation λ̃
+   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      new DiffusionIntegrator(eps_cf)
+   );
+   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      new MassIntegrator(one_cf)
+   );
+   newtonSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
+      new MixedDirectionalDerivativeIntegrator(neg_dsimp_Du_times2)
+   );
+   newtonSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
+      new MixedScalarMassIntegrator(neg_d2simp_squared_normDu)
+   );
+   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      new DomainLFIntegrator(neg_dsimp_squared_normDu)
+   );
+   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      new DomainLFIntegrator(neg_d2simp_squared_normDu_f_rho)
    );
 
 
@@ -283,128 +378,36 @@ int main(int argc, char *argv[])
          // fixedPointSystem.Assemble(delta_sol); // Update system with current solution
          // fixedPointSystem.PCG(delta_sol); // Solve system
          Vector old_sol(sol);
-         // fixedPointSystem.Assemble(sol);
-         // fixedPointSystem.PCG(sol);
-         fixedPointSystem.SolveDiag(sol, ordering, true);
+         fixedPointSystem.Assemble(sol);
+         fixedPointSystem.PCG(sol);
+         // fixedPointSystem.SolveDiag(sol, ordering, true);
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi,
                                                                  target_volume) / volume;
-         // newton successive difference
-         clip_abs(psi, max_psi);
          const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(
                                                  sol) / old_sol.Size());
          mfem::out << std::scientific << diff_newton << std::endl;
 
-         if (diff_newton < tol_newton)
+         if (diff_newton < tol_fixedPoint)
          {
             newton_converged = true;
             break;
          }
-      } // end of Newton iteration
-      if (!newton_converged)
-      {
-         mfem::out << "Newton failed to converge" << std::endl;
-      }
-      if (visualization)
-      {
-         sout_u << "solution\n" << mesh << u << flush;
-         GridFunction rho(&fes_L2_Qk2);
-         rho.ProjectCoefficient(rho_cf);
-         sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
-      }
-      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant;
-      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
-                << std::endl;
-      if (diff_penalty < tol_penalty)
-      {
-         break;
-      }
-   } // end of penalty iteration
-
-
-
-   // 5. Define global system for newton iteration
-   BlockLinearSystem newtonSystem(offsets, fes, ess_bdr);
-   newtonSystem.own_blocks = true;
-   for (int i=0; i<Vars::numVars; i++)
-   {
-      newtonSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
-   }
-   std::vector<std::vector<int>> offDiags
-   {
-      {Vars::u, Vars::f_rho},
-      {Vars::f_rho, Vars::psi},
-      {Vars::psi, Vars::f_lam},
-      {Vars::f_lam, Vars::u},
-      {Vars::f_lam, Vars::f_rho}
-   };
-   for (auto &i : offDiags)
-   {
-      newtonSystem.SetBlockMatrix(i[0], i[1],
-                                  new MixedBilinearForm(fes[i[1]], fes[i[0]]));
-   }
-
-   // Equation u
-   newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
-      // A += (r(ρ̃^i)∇δu, ∇v)
-      new DiffusionIntegrator(simp_cf)
-   );
-   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
-      new DomainLFIntegrator(heat_source)
-   );
-
-   // Equation ρ̃
-   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      new DiffusionIntegrator(eps_cf)
-   );
-   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
-   );
-   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
-      new DomainLFIntegrator(rho_cf)
-   );
-
-   // Equation ψ
-   newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
-   );
-   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(psi_k_cf)
-   );
-   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(alph_f_lam)
-   );
-
-   // Equation λ̃
-   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      new DiffusionIntegrator(eps_cf)
-   );
-   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
-   );
-   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
-      new DomainLFIntegrator(dsimp_squared_normDu)
-   );
-
-   // 6. Penalty Iteration
-   for (int k=0; k<maxit_penalty; k++)
-   {
-
-      mfem::out << "Iteration " << k + 1 << std::endl;
-      alpha_k.constant = alpha0*(k+1); // update α_k
-      psi_k = psi; // update ψ_k
-      bool newton_converged = false;
+      } // end of Fixed Point iteration
+      // newton successive difference
+      clip_abs(psi, max_psi);
       for (int j=0; j<maxit_newton; j++) // Newton Iteration
       {
          mfem::out << "\tNewton Iteration " << std::setw(5) << j + 1 << ": " <<
                    std::flush;
          // delta_sol = 0.0; // initialize newton difference
-         // newtonSystem.Assemble(delta_sol); // Update system with current solution
-         // newtonSystem.PCG(delta_sol); // Solve system
+         // fixedPointSystem.Assemble(delta_sol); // Update system with current solution
+         // fixedPointSystem.PCG(delta_sol); // Solve system
          Vector old_sol(sol);
          newtonSystem.Assemble(sol);
          newtonSystem.GMRES(sol);
+         // fixedPointSystem.SolveDiag(sol, ordering, true);
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi,
@@ -420,7 +423,7 @@ int main(int argc, char *argv[])
             newton_converged = true;
             break;
          }
-      } // end of Newton iteration
+      } // end of Fixed Point iteration
       if (!newton_converged)
       {
          mfem::out << "Newton failed to converge" << std::endl;
@@ -440,6 +443,8 @@ int main(int argc, char *argv[])
          break;
       }
    } // end of penalty iteration
+
+
 
    return 0;
 }
