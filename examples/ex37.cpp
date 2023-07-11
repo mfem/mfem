@@ -1,4 +1,4 @@
-// Thermal compliance - Fixed Point
+// Thermal compliance - Newton Iteration
 //
 // min (f, u)
 // s.t -∇⋅(r(ρ̃)∇u) = f in Ω = (0, 20) × (0, 20)
@@ -284,6 +284,117 @@ int main(int argc, char *argv[])
          // fixedPointSystem.Assemble(sol);
          // fixedPointSystem.PCG(sol);
          fixedPointSystem.SolveDiag(sol, ordering, true);
+         // Project solution
+         // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
+         const double current_volume_fraction = VolumeProjection(psi,
+                                                                  target_volume) / volume;
+         // newton successive difference
+         clip_abs(psi, max_psi);
+         const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(sol) / old_sol.Size());
+         mfem::out << std::scientific << diff_newton << std::endl;
+
+         if (diff_newton < tol_newton)
+         {
+            newton_converged = true;
+            break;
+         }
+      } // end of Newton iteration
+      if (!newton_converged)
+      {
+         mfem::out << "Newton failed to converge" << std::endl;
+      }
+      if (visualization)
+      {
+         sout_u << "solution\n" << mesh << u << flush;
+         GridFunction rho(&fes_L2_Qk2);
+         rho.ProjectCoefficient(rho_cf);
+         sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
+      }
+      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant;
+      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
+                << std::endl;
+      if (diff_penalty < tol_penalty)
+      {
+         break;
+      }
+   } // end of penalty iteration
+
+
+
+   // 5. Define global system for newton iteration
+   BlockLinearSystem newtonSystem(offsets, fes, ess_bdr);
+   newtonSystem.own_blocks = true;
+   for (int i=0; i<Vars::numVars; i++)
+   {
+      newtonSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
+   }
+
+   // Equation u
+   newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
+      // A += (r(ρ̃^i)∇δu, ∇v)
+      new DiffusionIntegrator(simp_cf)
+   );
+   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
+      new DomainLFIntegrator(heat_source)
+   );
+
+   // Equation ρ̃
+   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+      new DiffusionIntegrator(eps_cf)
+   );
+   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
+      new MassIntegrator(one_cf)
+   );
+   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
+      new DomainLFIntegrator(rho_cf)
+   );
+
+   // Equation ψ
+   newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+      new MassIntegrator(one_cf)
+   );
+   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+      new DomainLFIntegrator(psi_k_cf)
+   );
+   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+      new DomainLFIntegrator(alph_f_lam)
+   );
+
+   // Equation λ̃
+   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      new DiffusionIntegrator(eps_cf)
+   );
+   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
+      new MassIntegrator(one_cf)
+   );
+   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
+      new DomainLFIntegrator(dsimp_squared_normDu)
+   );
+
+
+   Array<int> ordering(0); // ordering of solving the equation
+   ordering.Append(Vars::f_rho);
+   ordering.Append(Vars::u);
+   ordering.Append(Vars::f_lam);
+   ordering.Append(Vars::psi);
+   // 6. Penalty Iteration
+   for (int k=0; k<maxit_penalty; k++)
+   {
+      
+      mfem::out << "Iteration " << k + 1 << std::endl;
+      alpha_k.constant = alpha0*(k+1); // update α_k
+      psi_k = psi; // update ψ_k
+      bool newton_converged = false;
+      for (int j=0; j<maxit_newton; j++) // Newton Iteration
+      {
+         mfem::out << "\tNewton Iteration " << std::setw(5) << j + 1 << ": " << std::flush;
+         // delta_sol = 0.0; // initialize newton difference
+         // newtonSystem.Assemble(delta_sol); // Update system with current solution
+         // newtonSystem.PCG(delta_sol); // Solve system
+         Vector old_sol(sol);
+         // newtonSystem.Assemble(sol);
+         // newtonSystem.PCG(sol);
+         newtonSystem.SolveDiag(sol, ordering, true);
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi,
