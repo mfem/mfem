@@ -5278,11 +5278,49 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
 
 void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
+   ParMesh *pmesh = edge_fespace->GetParMesh();
+   int dim = pmesh->Dimension();
+   int sdim = pmesh->SpaceDimension();
    int cycle_type = 13;
-   int dim = edge_fespace->GetMesh()->Dimension();
-   int sdim = edge_fespace->FEColl()->GetVDim(dim);
-   MakeSolver(sdim, cycle_type);
-   MakeGradientAndInterpolation(edge_fespace, cycle_type);
+
+   bool trace_space =
+      dynamic_cast<const ND_Trace_FECollection*>(edge_fespace->FEColl());
+   bool rt_trace_space =
+      dynamic_cast<const RT_Trace_FECollection*>(edge_fespace->FEColl());
+   trace_space = trace_space || rt_trace_space;
+
+   int p = 1;
+   if (edge_fespace->GetNE() > 0)
+   {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
+      if (trace_space)
+      {
+         p = edge_fespace->GetFaceOrder(0);
+         if (dim == 2) { p++; }
+      }
+      else
+      {
+         p = edge_fespace->GetElementOrder(0);
+      }
+   }
+
+   ND_Trace_FECollection *nd_tr_fec = NULL;
+   if (rt_trace_space)
+   {
+      nd_tr_fec = new ND_Trace_FECollection(p, dim);
+      edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
+   }
+
+   int vdim = edge_fespace->FEColl()->GetVDim(trace_space ? dim - 1 : dim);
+
+   MakeSolver(std::max(sdim, vdim), cycle_type);
+   MakeGradientAndInterpolation(edge_fespace, trace_space, p, cycle_type);
+
+   if (rt_trace_space)
+   {
+      delete edge_fespace;
+      delete nd_tr_fec;
+   }
 }
 
 void HypreAMS::MakeSolver(int sdim, int cycle_type)
@@ -5336,40 +5374,12 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
 }
 
 void HypreAMS::MakeGradientAndInterpolation(
-   ParFiniteElementSpace *edge_fespace, int cycle_type)
+   ParFiniteElementSpace *edge_fespace, bool trace_space, int p, int cycle_type)
 {
-   int dim = edge_fespace->GetMesh()->Dimension();
-   int vdim = edge_fespace->FEColl()->GetVDim(dim);
-   int sdim = edge_fespace->GetMesh()->SpaceDimension();
-   const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
-
-   bool trace_space, rt_trace_space;
-   ND_Trace_FECollection *nd_tr_fec = NULL;
-   trace_space = dynamic_cast<const ND_Trace_FECollection*>(edge_fec);
-   rt_trace_space = dynamic_cast<const RT_Trace_FECollection*>(edge_fec);
-   trace_space = trace_space || rt_trace_space;
-
-   int p = 1;
-   if (edge_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = edge_fespace->GetFaceOrder(0);
-         if (dim == 2) { p++; }
-      }
-      else
-      {
-         p = edge_fespace->GetElementOrder(0);
-      }
-   }
-
    ParMesh *pmesh = edge_fespace->GetParMesh();
-   if (rt_trace_space)
-   {
-      nd_tr_fec = new ND_Trace_FECollection(p, dim);
-      edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
-   }
+   int dim = pmesh->Dimension();
+   int sdim = pmesh->SpaceDimension();
+   int vdim = edge_fespace->FEColl()->GetVDim(trace_space ? dim - 1 : dim);
 
    // define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
@@ -5384,8 +5394,27 @@ void HypreAMS::MakeGradientAndInterpolation(
    ParFiniteElementSpace *vert_fespace = new ParFiniteElementSpace(pmesh,
                                                                    vert_fec);
 
-   // generate and set the vertex coordinates
-   if (p == 1 && pmesh->GetNodes() == NULL && sdim == vdim)
+   // generate and set the discrete gradient
+   ParDiscreteLinearOperator *grad;
+   grad = new ParDiscreteLinearOperator(vert_fespace, edge_fespace);
+   if (trace_space)
+   {
+      grad->AddTraceFaceInterpolator(new GradientInterpolator);
+   }
+   else
+   {
+      grad->AddDomainInterpolator(new GradientInterpolator);
+   }
+   grad->Assemble();
+   grad->Finalize();
+   G = grad->ParallelAssemble();
+   HYPRE_AMSSetDiscreteGradient(ams, *G);
+   delete grad;
+
+   // generate and set the vertex coordinates or Nedelec interpolation matrices
+   x = y = z = NULL;
+   Pi = Pix = Piy = Piz = NULL;
+   if (p == 1 && pmesh->GetNodes() == NULL && vdim <= sdim)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -5421,34 +5450,8 @@ void HypreAMS::MakeGradientAndInterpolation(
    }
    else
    {
-      x = NULL;
-      y = NULL;
-      z = NULL;
-   }
-
-   // generate and set the discrete gradient
-   ParDiscreteLinearOperator *grad;
-   grad = new ParDiscreteLinearOperator(vert_fespace, edge_fespace);
-   if (trace_space)
-   {
-      grad->AddTraceFaceInterpolator(new GradientInterpolator);
-   }
-   else
-   {
-      grad->AddDomainInterpolator(new GradientInterpolator);
-   }
-   grad->Assemble();
-   grad->Finalize();
-   G = grad->ParallelAssemble();
-   HYPRE_AMSSetDiscreteGradient(ams, *G);
-   delete grad;
-
-   // generate and set the Nedelec interpolation matrices
-   Pi = Pix = Piy = Piz = NULL;
-   if (p > 1 || pmesh->GetNodes() != NULL || sdim != vdim)
-   {
-      ParFiniteElementSpace *vert_fespace_d
-         = new ParFiniteElementSpace(pmesh, vert_fec, vdim, Ordering::byVDIM);
+      ParFiniteElementSpace *vert_fespace_d = new ParFiniteElementSpace(pmesh,
+                                                                        vert_fec, std::max(sdim, vdim), Ordering::byVDIM);
 
       ParDiscreteLinearOperator *id_ND;
       id_ND = new ParDiscreteLinearOperator(vert_fespace_d, edge_fespace);
@@ -5472,8 +5475,8 @@ void HypreAMS::MakeGradientAndInterpolation(
          Array2D<HypreParMatrix *> Pi_blocks;
          id_ND->GetParBlocks(Pi_blocks);
          Pix = Pi_blocks(0,0);
-         if (vdim >= 2) { Piy = Pi_blocks(0,1); }
-         if (vdim == 3) { Piz = Pi_blocks(0,2); }
+         if (std::max(sdim, vdim) >= 2) { Piy = Pi_blocks(0,1); }
+         if (std::max(sdim, vdim) == 3) { Piz = Pi_blocks(0,2); }
       }
 
       delete id_ND;
@@ -5489,12 +5492,6 @@ void HypreAMS::MakeGradientAndInterpolation(
 
    delete vert_fespace;
    delete vert_fec;
-
-   if (rt_trace_space)
-   {
-      delete edge_fespace;
-      delete nd_tr_fec;
-   }
 }
 
 void HypreAMS::ResetAMSPrecond()
