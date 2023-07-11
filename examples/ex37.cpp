@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
       new DomainLFIntegrator(psi_k_cf)
    );
    newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_alph_f_lam)
+      new DomainLFIntegrator(alph_f_lam)
    );
 
    // Equation λ̃
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
       new MassIntegrator(one_cf)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_dsimp_squared_normDu)
+      new DomainLFIntegrator(dsimp_squared_normDu)
    );
 
 
@@ -301,6 +301,10 @@ int main(int argc, char *argv[])
          // newtonSystem.Assemble(sol);
          // newtonSystem.PCG(sol);
          newtonSystem.SolveDiag(sol, ordering, true);
+         // Project solution
+         // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
+         const double current_volume_fraction = VolumeProjection(psi,
+                                                                  target_volume) / volume;
          // newton successive difference
          const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(sol) / old_sol.Size());
          mfem::out << std::scientific << diff_newton << std::endl;
@@ -315,10 +319,6 @@ int main(int argc, char *argv[])
       {
          mfem::out << "Newton failed to converge" << std::endl;
       }
-      // Project solution
-      // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
-      const double current_volume_fraction = VolumeProjection(psi,
-                                                               target_volume) / volume;
       clip_abs(psi, max_psi);
       if (visualization)
       {
