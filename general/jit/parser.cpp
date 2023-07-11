@@ -470,13 +470,13 @@ struct Parser
       // if needed, (c)make sets this directory for each file
       out << "\n#ifndef MFEM_JIT_INC_PATH\n#define MFEM_JIT_INC_PATH\n#endif";
       out << "\nconst char *dir = \"\" MFEM_JIT_INC_PATH;";
-      out << "\nconst size_t hash = Jit::Hash("
+      out << "\nconst size_t hash = JIT::Hash("
           << "0x" << std::hex << seed << std::dec << "ul"
           << "," << ker.Targs << ");";
       out << "\ntypedef void (*kernel_t)"
           <<"(" << ker.Sparams << ");";
-      out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
-          << "\nJit::Find(hash, \"" << ker.name << "<" << ker.Tformat << ">"
+      out << "\nstatic std::unordered_map<size_t, JIT::Kernel<kernel_t>> kernels;"
+          << "\nJIT::Find(hash, \"" << ker.name << "<" << ker.Tformat << ">"
           << "\", cxx, flags, link, libs, dir, source, kernels" << ", "
           << ker.Targs << ").Launch(" << ker.Sargs << ");";
       out << pp_line();

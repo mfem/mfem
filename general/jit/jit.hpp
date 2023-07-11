@@ -180,7 +180,7 @@ private:
 
    System *sys;
    std::ostringstream command;
-   static int Run(const char *header = nullptr);
+   static int Run(const char *kernel_name = nullptr);
 };
 
 } // namespace mfem

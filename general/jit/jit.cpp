@@ -27,6 +27,7 @@
 
 #include "jit.hpp"
 #include "../error.hpp"
+#include "../globals.hpp"
 #include "../communication.hpp"
 
 #if !(defined(__linux__) || defined(__APPLE__))
@@ -41,7 +42,7 @@
 // They are set by default in defaults.mk and MjitCmakeUtilities.cmake.
 
 // The 'MFEM_JIT_DEBUG' environment variable can be set to:
-//   - ouput dl errors,
+//   - output dl errors,
 //   - keep intermediate sources files.
 
 // The 'MFEM_JIT_FORK' environment variable can be set to fork before
@@ -430,7 +431,7 @@ void* JIT::Lookup(const size_t hash, const char *name, const char *cxx,
       MFEM_VERIFY(handle, "[JIT] Error " << lib_ar << " => " << lib_so);
    }
 
-   auto WorldCompile = [&]() // but only root does the compilation
+   auto WorldCompile = [&]() // but only MPI root does the compilation
    {
       // each compilation process adds their id to the hash,
       // this is used to handle parallel compilations of the same source
@@ -552,16 +553,22 @@ JIT::~JIT() // warning: can't use mpi::Root here
 
 JIT JIT::jit_singleton; // Initialize the unique global Jit singleton
 
-int JIT::Run(const char *header)
+int JIT::Run(const char *kernel_name)
 {
-   const char *command = Command();
-   if (header) { MFEM_WARNING("[" << header << "] " << command); }
-   if (!header && Get().debug) { MFEM_WARNING("[JIT] " << command); }
+   const char *cmd = Command();
+   auto warn = [](const std::string &msg) { mfem::out << msg.c_str() << std::endl; };
+   std::string msg(std::string("JIT: "));
+#ifdef MFEM_DEBUG
+   if (kernel_name) { msg += kernel_name; msg += " "; }
+   if (kernel_name || Get().debug) { warn(msg + cmd); }
+#else
+   if (kernel_name) { warn(msg + "compiling " + kernel_name); }
+#endif // MFEM_DEBUG
    // In serial mode or with the std_system option set, just call std::system
-   if (!mpi::IsInitialized() || Get().std_system) { return std::system(command); }
+   if (!mpi::IsInitialized() || Get().std_system) { return std::system(cmd); }
    // Otherwise, write the command to the child process
    MFEM_VERIFY(Get().sys, "[JIT] Thread system error!");
-   return Get().sys->Run(command);
+   return Get().sys->Run(cmd);
 }
 
 } // namespace mfem

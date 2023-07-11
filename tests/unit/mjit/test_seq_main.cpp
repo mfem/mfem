@@ -25,8 +25,8 @@ int main(int argc, char *argv[])
    session.cli(cli);
    if (session.applyCommandLine(argc, argv) != 0) { return EXIT_FAILURE; }
    mfem::Device device(device_str.c_str());
-   mfem::Jit::Configure("mjit_test_seq", ".", false);
+   mfem::JIT::Configure("mjit_test_seq", ".", false);
    int result = session.run();
-   mfem::Jit::Finalize();
+   mfem::JIT::Finalize();
    return result;
 }
