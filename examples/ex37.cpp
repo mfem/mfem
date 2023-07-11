@@ -1,4 +1,4 @@
-// Thermal compliance - Fixed Point
+// Thermal compliance - Newton Method
 //
 // min (f, u)
 // s.t -∇⋅(r(ρ̃)∇u) = f in Ω = (0, 20) × (0, 20)
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    double max_psi = 1e07;
 
    int maxit_penalty = 10000;
-   int maxit_newton = 1;
+   int maxit_newton = 100;
    double tol_newton = 1e-8;
    double tol_penalty = 1e-6;
 
