@@ -706,7 +706,7 @@ int main(int argc, char *argv[])
    SparseMatrix M(nnd,ndofs);
    std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
 
-   Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, coordsm,
+   Assemble_Contact(nnd, npoints, xs, m_xi, coordsm,
                     s_conn, m_conn, g, M, dM);
 
    std::set<int> dirbdryv2;

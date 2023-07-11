@@ -726,7 +726,7 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
 
 // coordsm : (npoints*4, 3) use what class?
 // m_conn: (npoints*4)
-void Assemble_Contact(const int m, const int npoints, const int ndofs,
+void Assemble_Contact(const int m, const int npoints,
                       const Vector x_s,
                       const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
@@ -757,7 +757,7 @@ void Assemble_Contact(const int m, const int npoints, const int ndofs,
       DenseMatrix coords2(4,3);
       coords2.CopyRows(coordsm, i*4,(i+1)*4-1);
 
-      //how to get coords2?
+   //    //how to get coords2?
       dg = 0.0;
       dg2 = 0.;
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
