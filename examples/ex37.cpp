@@ -331,6 +331,19 @@ int main(int argc, char *argv[])
    {
       newtonSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
    }
+   std::vector<std::vector<int>> offDiags
+   {
+      {Vars::u, Vars::f_rho},
+      {Vars::f_rho, Vars::psi},
+      {Vars::psi, Vars::f_lam},
+      {Vars::f_lam, Vars::u},
+      {Vars::f_lam, Vars::f_rho}
+   };
+   for (auto &i : offDiags)
+   {
+      newtonSystem.SetBlockMatrix(i[0], i[1],
+                                  new MixedBilinearForm(fes[i[1]], fes[i[0]]));
+   }
 
    // Equation u
    newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
