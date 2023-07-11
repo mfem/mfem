@@ -406,6 +406,46 @@ void BlockLinearSystem::PCG(BlockVector &x)
 {
    mfem::PCG(A, prec, b, x, 0, 2000, 1e-12, 0.0);
 }
+
+// class AndersonAccelerator
+// {
+//    typedef std::__1::function<void(Vector &)> FixedPointMap;
+//    public:
+//    AndersonAccelerator(FixedPointMap f, Vector &x, const int m_=3, const double tolerance=1e-6, const int max_iteration=100): op(f), sol(x), X(m_), Gk(m_), m(m_), tol(tolerance), max_it(max_iteration) {
+//       Gk = nullptr;
+//       k = 0;
+//       converged = false;
+//    }
+//    void Solve()
+//    {
+//       X[0] = new Vector(sol);
+//       Gk[0] = 
+//       for(k=)
+//       {
+//          const int m_k = std::min(m, k);
+//          FixedPointIteration();
+//          if (m < k)
+//          {
+//             X[k] = new Vector()
+//          }
+//       }
+//    }
+//    void FixedPointIteration()
+//    {
+//    }
+
+//    private:
+//    FixedPointMap op;
+//    Vector &sol;
+//    Array<Vector*> X;
+//    Array<Vector*> Gk;
+//    const int m;
+//    const double tol;
+//    const int max_it;
+//    int k;
+//    bool converged;
+
+// };
 } // end of namespace mfem
 
 #endif // end of proximalGalerkin.hpp
