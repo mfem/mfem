@@ -3,8 +3,8 @@
 //
 // Compile with: make ex34
 //
-// Sample runs: ex34p -o 2
-//              ex34p -o 2 -r 4
+// Sample runs: ex34 -o 2
+//              ex34 -o 2 -r 4
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
@@ -79,13 +79,13 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/disk.mesh";
+   const char *mesh_file = "../data/disk-nurbs-unit.mesh";
    int order = 1;
    bool visualization = true;
    int max_it = 10;
    double tol = 1e-5;
    int ref_levels = 3;
-   double alpha0 = 1.0;
+   double alpha = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -100,8 +100,8 @@ int main(int argc, char *argv[])
    args.AddOption(&tol, "-tol", "--tol",
                   "Stopping criteria based on the difference between"
                   "successive solution updates");
-   args.AddOption(&alpha0, "-step", "--step",
-                  "Initial step size alpha");
+   args.AddOption(&alpha, "-step", "--step",
+                  "Step size alpha");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -224,8 +224,6 @@ int main(int argc, char *argv[])
    double increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
-      double alpha = alpha0;
-      // double alpha = alpha0 * (k+1);
 
       GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
@@ -233,7 +231,7 @@ int main(int argc, char *argv[])
       mfem::out << "\nOUTER ITERATION " << k+1 << endl;
 
       int j;
-      for ( j = 0; j < 15; j++)
+      for ( j = 0; j < 10; j++)
       {
          total_iterations++;
 
