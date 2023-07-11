@@ -82,7 +82,8 @@ int main(int argc, char *argv[])
    device.Print();
 
    // 2. Input data (mesh, source, ...)
-   Mesh mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
    // Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
    const int max_attributes = mesh.bdr_attributes.Max();
@@ -226,7 +227,7 @@ int main(int argc, char *argv[])
    );
 
 
-   
+
    socketstream sout_u, sout_rho;
    if (visualization)
    {
@@ -269,14 +270,15 @@ int main(int argc, char *argv[])
    // 6. Penalty Iteration
    for (int k=0; k<maxit_penalty; k++)
    {
-      
+
       mfem::out << "Iteration " << k + 1 << std::endl;
       alpha_k.constant = alpha0*(k+1); // update α_k
       psi_k = psi; // update ψ_k
       bool newton_converged = false;
       for (int j=0; j<maxit_newton; j++) // Newton Iteration
       {
-         mfem::out << "\tNewton Iteration " << std::setw(5) << j + 1 << ": " << std::flush;
+         mfem::out << "\tNewton Iteration " << std::setw(5) << j + 1 << ": " <<
+                   std::flush;
          // delta_sol = 0.0; // initialize newton difference
          // fixedPointSystem.Assemble(delta_sol); // Update system with current solution
          // fixedPointSystem.PCG(delta_sol); // Solve system
@@ -287,10 +289,11 @@ int main(int argc, char *argv[])
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi,
-                                                                  target_volume) / volume;
+                                                                 target_volume) / volume;
          // newton successive difference
          clip_abs(psi, max_psi);
-         const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(sol) / old_sol.Size());
+         const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(
+                                                 sol) / old_sol.Size());
          mfem::out << std::scientific << diff_newton << std::endl;
 
          if (diff_newton < tol_newton)
