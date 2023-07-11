@@ -164,6 +164,8 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient psi_cf(&psi);
    GridFunctionCoefficient psi_k_cf(&psi_k);
 
+   SumCoefficient diff_rho(rho_cf, rho_k_cf, 1.0, -1.0);
+
    GradientGridFunctionCoefficient Du(&u);
    GradientGridFunctionCoefficient Df_rho(&f_rho);
    GradientGridFunctionCoefficient Df_lam(&f_lam);
@@ -171,26 +173,7 @@ int main(int argc, char *argv[])
    InnerProductCoefficient squared_normDu(Du, Du);
 
    ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
-   ProductCoefficient neg_alph_f_lam(-1.0, alph_f_lam);
-   ProductCoefficient neg_f_lam(-1.0, f_lam_cf);
-   ProductCoefficient neg_simp(-1.0, simp_cf);
-   ProductCoefficient neg_dsimp(-1.0, dsimp_cf);
-   ProductCoefficient dsimp_times2(2.0, dsimp_cf);
    ProductCoefficient dsimp_squared_normDu(dsimp_cf, squared_normDu);
-   ProductCoefficient neg_dsimp_squared_normDu(neg_dsimp, squared_normDu);
-   ProductCoefficient d2simp_squared_normDu(d2simp_cf, squared_normDu);
-   ProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
-
-   ScalarVectorProductCoefficient neg_simp_Du(neg_simp, Du);
-   ScalarVectorProductCoefficient neg_eps_Df_rho(-epsilon, Df_rho);
-   ScalarVectorProductCoefficient neg_eps_Df_lam(-epsilon, Df_lam);
-   ScalarVectorProductCoefficient dsimp_Du(dsimp_cf, Du);
-   ScalarVectorProductCoefficient dsimp_Du_times2(dsimp_times2, Du);
-
-   SumCoefficient diff_rho(rho_k_cf, rho_cf, 1.0, -1.0);
-   SumCoefficient diff_filter(rho_cf, f_rho_cf, 1.0, -1.0);
-   SumCoefficient diff_psi_k(psi_k_cf, psi_cf, 1.0, -1.0);
-   SumCoefficient diff_psi_grad(diff_psi_k, alph_f_lam, 1.0, -1.0);
 
    // 5. Define global system for newton iteration
    BlockLinearSystem newtonSystem(offsets, fes, ess_bdr);
