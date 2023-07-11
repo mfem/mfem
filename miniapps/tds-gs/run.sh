@@ -45,11 +45,11 @@ c10=1.066498e+07
 c11=-2.094771e+07
 
 # center solenoids
-c1=1.143284e+03
-c2=-2.478694e+04
-c3=-3.022037e+04
-c4=-2.205664e+04
-c5=-2.848113e+03
+# c1=1.143284e+03
+# c2=-2.478694e+04
+# c3=-3.022037e+04
+# c4=-2.205664e+04
+# c5=-2.848113e+03
 
 # # center solenoids
 c1=-1.143284e+06
@@ -63,7 +63,7 @@ ur_coeff=1.0
 # number of control points on plasma
 N_control=40
 
-do_control=0
+do_control=1
 weight_coils=1e-16
 weight_solenoids=1e-16
 

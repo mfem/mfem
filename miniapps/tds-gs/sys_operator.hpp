@@ -47,6 +47,10 @@ private:
 
   mutable double psi_x;
   mutable double psi_ma;
+
+  mutable double * x_x;
+  mutable double * x_ma;
+
   mutable int ind_ma;
   mutable int ind_x;
   mutable set<int> plasma_inds;
@@ -141,6 +145,12 @@ public:
   }
   double get_psi_ma() {
     return psi_ma;
+  }
+  double* get_x_x() {
+    return x_x;
+  }
+  double* get_x_ma() {
+    return x_ma;
   }
     
 };

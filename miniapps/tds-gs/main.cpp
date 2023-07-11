@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
 
    double ur_coeff = 1.0;
 
-   int do_control = 1;
+   int do_control = 0;
    double weight_solenoids = 1e-5;
    double weight_coils = 1e-5;
 

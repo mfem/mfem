@@ -297,6 +297,11 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   psi_ma = val_ma;
   plasma_inds = plasma_inds_;
 
+  double* x_ma_ = mesh->GetVertex(ind_ma);
+  double* x_x_ = mesh->GetVertex(ind_x);
+  x_ma = x_ma_;
+  x_x = x_x_;
+  
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
   if ((iprint) || (false)) {
     printf(" val_ma: %f, val_x: %f \n", val_ma, val_x);

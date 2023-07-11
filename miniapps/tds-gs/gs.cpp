@@ -354,7 +354,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
   LinearForm out_vec(&fespace);
   dx = 0.0;
 
-  bool add_alpha = false;
+  bool add_alpha = true;
   bool reduce = true;
 
   GridFunction psi_r(&fespace);
@@ -473,10 +473,13 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
       Vector Cy = op.get_Plasma_Vec();
       Vector Ba = op.get_B_alpha();
       double psi_x = op.get_psi_x();
-
       double psi_ma = op.get_psi_ma();
-      printf("psi_x: %e\n", psi_x);
-      printf("psi_ma: %e\n", psi_ma);
+      double* x_x = op.get_x_x();
+      double* x_ma = op.get_x_ma();
+
+      printf("psi_x:  %e, location: (%e, %e)\n", psi_x, x_x[0], x_x[1]);
+      printf("psi_ma: %e, location: (%e, %e)\n", psi_ma, x_ma[0], x_ma[1]);
+
       BrCoeff.set_psi_vals(psi_x, psi_ma);
       BpCoeff.set_psi_vals(psi_x, psi_ma);
       BzCoeff.set_psi_vals(psi_x, psi_ma);
@@ -1046,20 +1049,26 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      // g.Print();
 
      u.ProjectCoefficient(init_coeff);
+
+     if (!do_initial) {
+       ifstream ifs("interpolated.gf");
+       GridFunction lgf(&mesh, ifs);
+       u = lgf;
+     }
+
      u.Save("initial.gf");
 
-     Mesh initial_mesh("initial.mesh");
-     ifstream ifs("initial_guess.gf");
-     GridFunction lgf(&initial_mesh, ifs);
+     // Mesh initial_mesh("initial.mesh");
+     // ifstream ifs("initial_guess.gf");
 
      // GridFunctionCoefficient init_coeff_gf(&lgf);
      // u.ProjectCoefficient(init_coeff_gf);
     
-     H1_FECollection initial_fec(order, initial_mesh.Dimension());
-     FiniteElementSpace initial_fespace(&initial_mesh, &initial_fec);
+     // H1_FECollection initial_fec(order, initial_mesh.Dimension());
+     // FiniteElementSpace initial_fespace(&initial_mesh, &initial_fec);
 
-     GridTransfer gt(&initial_fespace, &fespace);
-     Operator transfer_op = gt.ForwardOperator();
+     // GridTransfer gt(&initial_fespace, &fespace);
+     // Operator transfer_op = gt.ForwardOperator();
      
      // BilinearForm a(&fespace);
      // MixedBilinearForm a_mixed(&initial_fespace, &fespace);
@@ -1085,15 +1094,6 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      // Array<int> ess_tdof_list; // empty
      // OperatorJacobiSmoother Jacobi(a, ess_tdof_list);
      // cg.SetPreconditioner(Jacobi);
-
-     GridFunction asdf(&fespace);
-     // asdf = 0.0;
-     // cg.Mult(rhs, asdf);
-
-     asdf.Save("asdf.gf");
-     if (true) {
-       return 0.0;
-     }
 
    }
 
