@@ -4,7 +4,7 @@
 // Compile with: make ex34p
 //
 // Sample runs: mpirun -np 2 ex34p -o 2
-//              mpirun -np 2 ex34p -o 2 -r 4
+//              mpirun -np 2 ex34p -o 2
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/disk-nurbs-unit.mesh";
+   const char *mesh_file = "../data/disc-nurbs-unit.mesh";
    int order = 1;
    bool visualization = true;
    int max_it = 10;
