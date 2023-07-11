@@ -78,7 +78,10 @@ public:
       : aConst(A), a(B) {}
 
    /// Set the time for internally stored coefficients
-   void SetTime(double t);
+   void SetTime(double t)
+   {
+      for (auto &c : a) { c->SetTime(t); }
+   }
 
    void Mult(double A) { aConst *= A; }
    void Mult(Coefficient &A) { a.Append(&A); }
@@ -89,7 +92,7 @@ public:
    {
       double val = aConst;
       for (auto &c : a) { val *= c->Eval(T, ip); }
-      return aConst;
+      return val;
    }
 };
 class MultiProductVectorCoefficient : public VectorCoefficient
@@ -131,7 +134,11 @@ public:
       : aConst(A), a(B), v(&V), VectorCoefficient(V.GetVDim()) {}
 
    /// Set the time for internally stored coefficients
-   void SetTime(double t);
+   void SetTime(double t)
+   {
+      for (auto &c : a) { c->SetTime(t); }
+      v->SetTime(t);
+   };
 
    void Mult(double A) { aConst *= A; }
    void Mult(Coefficient &A) { a.Append(&A); }
@@ -154,7 +161,7 @@ public:
          M.GetColumnReference(i, col);
          const IntegrationPoint &ip = ir.IntPoint(i);
          T.SetIntPoint(&ip);
-         Eval(col, T, ip);
+         v->Eval(col, T, ip);
          double val = aConst;
          for (auto &c : a) { val *= c->Eval(T, ip); }
          col *= val;
