@@ -732,15 +732,24 @@ int main(int argc, char *argv[])
    // cout << "Boundary attributes for contact surface faces in mesh 2" << endl;
    // for (auto a : attr)  cout << a << endl;
 
-   std::set<int> bdryVerts2;
    // unique numbering of vertices;
-   Array<int> globalvertices(pmesh2.GetNV());
+   Array<int> globalvertices1(pmesh1.GetNV());
+   Array<int> globalvertices2(pmesh2.GetNV());
+
+   for (int i = 0; i<pmesh1.GetNV(); i++)
+   {
+      globalvertices1[i] = i;
+   }
+   pmesh1.GetGlobalVertexIndices(globalvertices1);
+
    for (int i = 0; i<pmesh2.GetNV(); i++)
    {
-      globalvertices[i] = i;
+      globalvertices2[i] = i;
    }
-   pmesh2.GetGlobalVertexIndices(globalvertices);
+   pmesh2.GetGlobalVertexIndices(globalvertices2);
 
+
+   std::set<int> bdryVerts2;
    std::vector<int> vertex_offsets;
    ComputeTdofOffsets(vertexfes2,vertex_offsets);
    for (int b=0; b<pmesh2.GetNBE(); ++b)
@@ -752,14 +761,11 @@ int main(int argc, char *argv[])
          for (auto v : vert)
          {
             // skip if the processor does not own the vertex
-            if (myid != get_rank(globalvertices[v],vertex_offsets)) { continue; }
+            if (myid != get_rank(globalvertices2[v],vertex_offsets)) { continue; }
             bdryVerts2.insert(v);
          }
       }
    }
-
-   // PrintSet(bdryVerts2, "bdrVerts2", 0);
-   // PrintSet(bdryVerts2, "bdrVerts2", 1);
 
    int npoints = bdryVerts2.size();
 
@@ -773,10 +779,6 @@ int main(int argc, char *argv[])
    int count = 0;
    for (auto v : bdryVerts2)
    {
-      // cout << v << ": " << pmesh2.GetVertex(v)[0] << ", "
-      //      << pmesh2.GetVertex(v)[1] << ", "
-      //      << pmesh2.GetVertex(v)[2] << endl;
-
       for (int i=0; i<dim; ++i)
       {
          xyz[count + (i * npoints)] = pmesh2.GetVertex(v)[i] + x2[v*dim+i];
@@ -786,8 +788,9 @@ int main(int argc, char *argv[])
       // s_conn[count] = globalvertices[v] - vertexfes2->GetMyTDofOffset() + nnd_1; // dof1 is the master
       
       // This is wrong ... need global enumeration of vertex dofs for both meshes
-      MFEM_ABORT("Need to compute a global numbering of vertex dofs for both meshes");
-      s_conn[count] = globalvertices[v] + nnd_1; // dof1 is the master
+      // MFEM_ABORT("Need to compute a global numbering of vertex dofs for both meshes");
+      // s_conn[count] = globalvertices2[v] + nnd_1; // dof1 is the master
+      s_conn[count] = globalvertices2[v]; // dof1 is the master
       count++;
    }
    // mfem::out << "nnd1 = " << n
@@ -810,13 +813,6 @@ int main(int argc, char *argv[])
    // adding displacement to mesh1 using a fixed grid function from mesh1
    x1 = 0.0; // x1 order: [xyz xyz... xyz]
    add(nodes0, x1, *nodes1);
-
-   Array<int> globalvertices1(pmesh1.GetNV());
-   for (int i = 0; i<pmesh1.GetNV(); i++)
-   {
-      globalvertices1[i] = i;
-   }
-   pmesh1.GetGlobalVertexIndices(globalvertices1);
 
    Vector xyz_recv;
    FindPointsInMesh(pmesh1, globalvertices1, xyz, m_conn, xyz_recv, m_xi ,coordsm);
@@ -875,6 +871,9 @@ int main(int argc, char *argv[])
    std::vector<SparseMatrix> dM(gnnd, SparseMatrix(gndofs,gndofs)); 
    Assemble_Contact(gnnd, npoints, xs, m_xi, coordsm,
                        s_conn, m_conn, g, M, dM);
+
+   // Note: s_conn and m_conn have global (unique) numbering corresponding 
+   // to their pmesh
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
