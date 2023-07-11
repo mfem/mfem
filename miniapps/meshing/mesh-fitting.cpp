@@ -191,8 +191,7 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
-double ComputeIntegrateError(const FiniteElementSpace* fes,
-                             FunctionCoefficient* ls, GridFunction* lss, const int el)
+double ComputeIntegrateError(const FiniteElementSpace* fes, GridFunction* lss, const int el)
 {
    // TODO
    double error = 0.0;
@@ -387,6 +386,7 @@ int main(int argc, char *argv[])
    int pref_max_order    = 2;
    double pref_tol       = 1e-13;
    bool surf_bg_mesh     = true;
+   bool reduce_order     = true;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -470,6 +470,9 @@ int main(int argc, char *argv[])
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh","--no-surf-bg-mesh",
                   "Use background mesh for surface fitting.");
+   args.AddOption(&reduce_order, "-ro", "--reduce-order",
+                  "-no-ro","--no-reduce-order",
+                  "Reduce the order of elements around the interface.");
 
    args.Parse();
    if (!args.Good())
@@ -876,11 +879,22 @@ int main(int argc, char *argv[])
             for (int i=0; i < inter_faces.Size(); i++)
             {
                int facenum = inter_faces[i];
-               double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                              surf_fit_bg_gf0,
-                                                              facenum,
-                                                              surf_fit_gf0_max_order,
-                                                              finder);
+               double error_bg_face(0);
+               if (surf_bg_mesh)
+               {
+                  error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                                 surf_fit_bg_gf0,
+                                                                 facenum,
+                                                                 surf_fit_gf0_max_order,
+                                                                 finder);
+               }
+               else
+               {
+                  error_bg_face = ComputeIntegrateError(x_max_order->FESpace(),
+                                                        surf_fit_gf0_max_order,
+                                                        inter_faces[i]);
+               }
+
                if (error_bg_face >= pref_tol)
                {
                   faces_order_increase.Append(facenum);
@@ -1070,11 +1084,22 @@ int main(int argc, char *argv[])
          double error_bg_sum = 0.0;
          for (int i = 0; i < inter_faces.Size(); i++)
          {
-            double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                           surf_fit_bg_gf0,
-                                                           inter_faces[i],
-                                                           surf_fit_gf0_max_order,
-                                                           finder);
+            double error_bg_face(0);
+            if (surf_bg_mesh)
+            {
+               error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                              surf_fit_bg_gf0,
+                                                              inter_faces[i],
+                                                              surf_fit_gf0_max_order,
+                                                              finder);
+            }
+            else
+            {
+               // TODO
+               error_bg_face = ComputeIntegrateError(x_max_order->FESpace(),
+                                                       surf_fit_gf0_max_order,
+                                                       inter_faces[i]);
+            }
             error_bg_sum += error_bg_face;
          }
          std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " <<
@@ -1346,11 +1371,21 @@ int main(int argc, char *argv[])
          double error_bg_sum = 0.0;
          for (int i=0; i < inter_faces.Size(); i++)
          {
-            double error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+            double error_bg_face(0);
+            if (surf_bg_mesh)
+            {
+            error_bg_face = ComputeIntegrateErrorBG(x_max_order->FESpace(),
                                                            surf_fit_bg_gf0,
                                                            inter_faces[i],
                                                            surf_fit_gf0_max_order,
                                                            finder);
+            }
+            else
+            {
+               error_bg_face = ComputeIntegrateError(x_max_order->FESpace(),
+                                                     surf_fit_gf0_max_order,
+                                                     inter_faces[i]);
+            }
             //std::cout << "Face " << inter_faces[i] << ", " << error_bg_face << std::endl;
             error_bg_sum += error_bg_face;
          }
@@ -1362,7 +1397,9 @@ int main(int argc, char *argv[])
                    << error_bg_sum << std::endl;
 
          // Reduce the orders of the polynom if needed
-         if (iter_pref > 0 && pref_order_increase > 1)
+         std::cout << "Test 1" << std::endl;
+         if (reduce_order
+            && iter_pref > 0 && pref_order_increase > 1)
          {
             int compt_updates(0);
             for (int i=0; i < inter_faces.Size(); i++)
@@ -1370,19 +1407,38 @@ int main(int argc, char *argv[])
                Array<int> els;
                mesh->GetFaceAdjacentElements(inter_faces[i], els);
                int el_order = fespace->GetElementOrder(els[0]) ; // - 1; // temp // element order around face - 1
-               double error_reduction = ComputeIntegrateErrorBG(x_max_order->FESpace(),
-                                                                surf_fit_bg_gf0,
-                                                                inter_faces[i],
-                                                                surf_fit_gf0_max_order,
-                                                                finder);
+               double error_reduction(0);
+               if (surf_bg_mesh)
+               {
+                  error_reduction = ComputeIntegrateErrorBG(x_max_order->FESpace(),
+                                                            surf_fit_bg_gf0,
+                                                            inter_faces[i],
+                                                            surf_fit_gf0_max_order,
+                                                            finder);
+               }
+               else
+               {
+                  error_reduction = ComputeIntegrateError(x_max_order->FESpace(),
+                                                          surf_fit_gf0_max_order,
+                                                          inter_faces[i]);
+               }
                while (el_order > mesh_poly_deg+1
                && error_reduction < pref_tol)
                {
+                  if (surf_bg_mesh)
+                  {
                    error_reduction = InterfaceElementOrderReduction(mesh,
                                                                     inter_faces[i],
                                                                     el_order-1,
                                                                     surf_fit_bg_gf0,
                                                                     finder);
+                  }
+                  else
+                  {
+                     error_reduction = ComputeIntegrateError(x_max_order->FESpace(),
+                                                             surf_fit_gf0_max_order,
+                                                             inter_faces[i]);
+                  }
                    if (error_reduction < pref_tol)
                    {
                        el_order -= 1;
@@ -1390,11 +1446,20 @@ int main(int argc, char *argv[])
                }
 
                // Compute the error at the last selected order
+               if (surf_bg_mesh)
+               {
                error_reduction = InterfaceElementOrderReduction(mesh,
                                                                 inter_faces[i],
                                                                 el_order,
                                                                 surf_fit_bg_gf0,
                                                                 finder);
+               }
+               else
+               {
+                  error_reduction = ComputeIntegrateError(x_max_order->FESpace(),
+                                                          surf_fit_gf0_max_order,
+                                                          inter_faces[i]);
+               }
 
                if (error_reduction < pref_tol
                && el_order != fespace->GetElementOrder(els[0]))
@@ -1410,6 +1475,7 @@ int main(int argc, char *argv[])
             // Update the FES and GridFunctions only if some orders have been changed
             if (compt_updates > 0)
             {
+               std::cout << "update" << std::endl;
                PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
                PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
                // Updates if we increase the order of at least one element
@@ -1433,7 +1499,7 @@ int main(int argc, char *argv[])
                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
          }
-
+         std::cout << "Test 2" << std::endl;
       }
 
       // Visualize the mesh displacement.
