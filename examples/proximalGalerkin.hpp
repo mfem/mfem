@@ -305,7 +305,8 @@ private:
    mutable DenseMatrix mat_a;
 public:
    /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
-   FrobeniusNormCoefficient(MatrixCoefficient &A): a(&A), mat_a(A.GetHeight(), A.GetWidth()){};
+   FrobeniusNormCoefficient(MatrixCoefficient &A): a(&A), mat_a(A.GetHeight(),
+                                                                   A.GetWidth()) {};
 
    /// Set the time for internally stored coefficients
    void SetTime(double t) { Coefficient::SetTime(t); a->SetTime(t); }
@@ -419,7 +420,7 @@ void BlockLinearSystem::PCG(BlockVector &x)
 //    void Solve()
 //    {
 //       X[0] = new Vector(sol);
-//       Gk[0] = 
+//       Gk[0] =
 //       for(k=)
 //       {
 //          const int m_k = std::min(m, k);
