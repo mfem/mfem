@@ -58,13 +58,17 @@ public:
       : aConst(1.0), a(2) { a[0] = &A; a[1] = &B;}
 
    /// Constructor with two coefficients.  Result is A * B.
-   MultiProductCoefficient(double A, Coefficient &B, Coefficient &C,
-                           Coefficient &D)
-      : aConst(A), a(3) { a[0] = &B; a[1] = &C; a[2] = &D;}
+   MultiProductCoefficient(double A, Coefficient &B, Coefficient &C)
+      : aConst(A), a(2) { a[0] = &B; a[1] = &C;}
 
    /// Constructor with two coefficients.  Result is A * B.
    MultiProductCoefficient(Coefficient &A, Coefficient &B, Coefficient &C)
-      : aConst(1.0), a(3) { a[0] = &A; a[1] = &B; a[2] = &C;}
+      : aConst(1.0), a(3) { a[0] = &A; a[1] = &B; a[2] = &C; }
+
+   /// Constructor with two coefficients.  Result is A * B.
+   MultiProductCoefficient(double A, Coefficient &B, Coefficient &C,
+                           Coefficient &D)
+      : aConst(A), a(3) { a[0] = &B; a[1] = &C; a[2] = &D;}
 
    /// Constructor with two coefficients.  Result is A * B.
    MultiProductCoefficient(Array<Coefficient *> &A)
