@@ -403,9 +403,8 @@ int main(int argc, char *argv[])
          // newtonSystem.Assemble(delta_sol); // Update system with current solution
          // newtonSystem.PCG(delta_sol); // Solve system
          Vector old_sol(sol);
-         // newtonSystem.Assemble(sol);
-         // newtonSystem.PCG(sol);
-         newtonSystem.SolveDiag(sol, ordering, true);
+         newtonSystem.Assemble(sol);
+         newtonSystem.GMRES(sol);
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi,
