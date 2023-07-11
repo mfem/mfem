@@ -387,12 +387,6 @@ int main(int argc, char *argv[])
       new DomainLFIntegrator(dsimp_squared_normDu)
    );
 
-
-   Array<int> ordering(0); // ordering of solving the equation
-   ordering.Append(Vars::f_rho);
-   ordering.Append(Vars::u);
-   ordering.Append(Vars::f_lam);
-   ordering.Append(Vars::psi);
    // 6. Penalty Iteration
    for (int k=0; k<maxit_penalty; k++)
    {
