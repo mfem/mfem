@@ -1397,7 +1397,6 @@ int main(int argc, char *argv[])
                    << error_bg_sum << std::endl;
 
          // Reduce the orders of the polynom if needed
-         std::cout << "Test 1" << std::endl;
          if (reduce_order
             && iter_pref > 0 && pref_order_increase > 1)
          {
@@ -1475,7 +1474,6 @@ int main(int argc, char *argv[])
             // Update the FES and GridFunctions only if some orders have been changed
             if (compt_updates > 0)
             {
-               std::cout << "update" << std::endl;
                PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
                PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
                // Updates if we increase the order of at least one element
@@ -1499,7 +1497,7 @@ int main(int argc, char *argv[])
                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
          }
-         std::cout << "Test 2" << std::endl;
+
       }
 
       // Visualize the mesh displacement.
