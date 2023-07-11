@@ -5450,8 +5450,9 @@ void HypreAMS::MakeGradientAndInterpolation(
    }
    else
    {
-      ParFiniteElementSpace *vert_fespace_d = new ParFiniteElementSpace(pmesh,
-                                                                        vert_fec, std::max(sdim, vdim), Ordering::byVDIM);
+      ParFiniteElementSpace *vert_fespace_d =
+         new ParFiniteElementSpace(pmesh, vert_fec, std::max(sdim, vdim),
+                                   Ordering::byVDIM);
 
       ParDiscreteLinearOperator *id_ND;
       id_ND = new ParDiscreteLinearOperator(vert_fespace_d, edge_fespace);
