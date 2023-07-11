@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,11 +79,13 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(dc.GetTime() == 8.0);
 
          // Save the DataCollection and load it into a new DataCollection for comparison
-         dc.SetPadDigits(5);
+         dc.SetPadDigitsCycle(5);
+         dc.SetPadDigitsRank(5);
          dc.Save();
 
          VisItDataCollection dc_new("base");
-         dc_new.SetPadDigits(5);
+         dc_new.SetPadDigitsCycle(5);
+         dc_new.SetPadDigitsRank(5);
          dc_new.Load(dc.GetCycle());
          Mesh* mesh_new = dc_new.GetMesh();
          GridFunction *u_new = dc_new.GetField("u");
@@ -165,12 +167,14 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(dc.GetTime() == 8.0);
 
          // Save the DataCollection and load it into a new DataCollection for comparison
-         dc.SetPadDigits(5);
+         dc.SetPadDigitsCycle(5);
+         dc.SetPadDigitsRank(5);
          dc.SetCompression(true);
          dc.Save();
 
          VisItDataCollection dc_new("base");
-         dc_new.SetPadDigits(5);
+         dc_new.SetPadDigitsCycle(5);
+         dc_new.SetPadDigitsRank(5);
          dc_new.Load(dc.GetCycle());
          Mesh *mesh_new = dc_new.GetMesh();
          GridFunction *u_new = dc_new.GetField("u");
@@ -228,6 +232,13 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(rmdir("base_00005") == 0);
       }
 #endif
+      delete fec;
+      delete fespace;
+      delete u;
+      delete v;
+      delete qspace;
+      delete qs;
+      delete qv;
    }
 
 }

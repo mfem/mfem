@@ -21,11 +21,15 @@ CMakeFiles/
 # Default install location
 /mfem/
 
+# Typical build directory
+/build/
+
 # Generated files in main directory, config/ and docs/
 /deps.mk
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.cmake
 config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
@@ -118,11 +122,9 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
-examples/gingko/ex1
-examples/gingko/refined.mesh
-examples/gingko/sol.gf
-examples/gingko/mesh.*
-examples/gingko/sol.*
+examples/ginkgo/ex1
+examples/ginkgo/refined.mesh
+examples/ginkgo/sol.gf
 
 examples/hiop/ex9
 examples/hiop/ex9p
@@ -148,8 +150,8 @@ examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
 examples/petsc/mode_*
 
-examples/pumi/ex1
-examples/pumi/ex[126]p
+examples/pumi/ex[12]
+examples/pumi/ex[16]p
 examples/pumi/refined.mesh
 examples/pumi/sol.gf
 examples/pumi/mesh.*
@@ -194,6 +196,9 @@ miniapps/gslib/field-diff
 miniapps/gslib/field-interp
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
+miniapps/gslib/schwarz_ex1
+miniapps/gslib/schwarz_ex1p
+miniapps/gslib/interpolated.gf
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -203,20 +208,26 @@ miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
 miniapps/meshing/trimmer
+miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/pmesh-fitting
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
+miniapps/meshing/mesh-quality
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
 miniapps/meshing/twist-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
+miniapps/meshing/mesh-explorer-visit*
+miniapps/meshing/mesh-explorer-paraview/
 miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
+miniapps/meshing/reflected.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
@@ -241,6 +252,7 @@ miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
+miniapps/navier/navier_cht
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
@@ -275,6 +287,8 @@ miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/get-values
+miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-metric-magnitude
 
 miniapps/toys/automata
 miniapps/toys/life
@@ -304,8 +318,27 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/hdiv-linear-solver/darcy
+miniapps/hdiv-linear-solver/grad_div
+
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
+
+miniapps/multidomain/multidomain
+miniapps/hooke/hooke
+
+miniapps/dpg/diffusion
+miniapps/dpg/pdiffusion
+miniapps/dpg/convection-diffusion
+miniapps/dpg/pconvection-diffusion
+miniapps/dpg/acoustics
+miniapps/dpg/pacoustics
+miniapps/dpg/maxwell
+miniapps/dpg/pmaxwell
+miniapps/dpg/ParaView
+
+miniapps/spde/generate_random_field
+miniapps/spde/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes

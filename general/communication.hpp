@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -210,7 +210,7 @@ public:
    };
 
 protected:
-   GroupTopology &gtopo;
+   const GroupTopology &gtopo;
    Mode mode;
    Table group_ldof;
    Table group_ltdof; // only for groups for which this processor is master.
@@ -233,7 +233,7 @@ public:
        - initialize the Table reference returned by GroupLDofTable() and then
          call Finalize().
    */
-   GroupCommunicator(GroupTopology &gt, Mode m = byNeighbor);
+   GroupCommunicator(const GroupTopology &gt, Mode m = byNeighbor);
 
    /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
@@ -255,7 +255,7 @@ public:
    void SetLTDofTable(const Array<int> &ldof_ltdof);
 
    /// Get a reference to the associated GroupTopology object
-   GroupTopology &GetGroupTopology() { return gtopo; }
+   const GroupTopology &GetGroupTopology() { return gtopo; }
 
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,13 +21,10 @@ namespace mfem
 
 ParBilinearForm::ParBilinearForm(ParBilinearForm &&other)
    : BilinearForm(std::move(other)), pfes(other.pfes),
-     Xaux(other.pfes, other.Xaux.GetData()), Yaux(other.pfes, other.Yaux.GetData()),
+     Xaux(std::move(other.Xaux)), Yaux(std::move(other.Yaux)),
      Ytmp(std::move(other.Ytmp)), p_mat(other.p_mat), p_mat_e(other.p_mat_e),
      keep_nbr_block(other.keep_nbr_block)
 {
-   other.Xaux.MakeRef(other.pfes, nullptr);
-   other.Yaux.MakeRef(other.pfes, nullptr);
-
    p_mat.SetOperatorOwner();
    other.p_mat.SetOperatorOwner(false);
    other.p_mat.SetType(Operator::Hypre_ParCSR);
@@ -45,10 +42,9 @@ ParBilinearForm& ParBilinearForm::operator=(ParBilinearForm &&other)
    {
       BilinearForm::operator=(std::move(other));
       pfes = other.pfes;
-      Xaux.MakeRef(other.pfes, other.Xaux.GetData());
-      other.Xaux.MakeRef(other.pfes, nullptr);
-      Yaux.MakeRef(other.pfes, other.Yaux.GetData());
-      other.Yaux.MakeRef(other.pfes, nullptr);
+      
+      Xaux = std::move(other.Xaux);
+      Yaux = std::move(other.Yaux);
 
       Ytmp = std::move(other.Ytmp);
 
@@ -168,6 +164,36 @@ void ParBilinearForm::pAllocMat()
    *mat = 0.0;
 
    dof_dof.LoseData();
+}
+
+void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
+                                  bool steal_loc_A)
+{
+   ParFiniteElementSpace &pfespace = *ParFESpace();
+
+   // Create a block diagonal parallel matrix
+   OperatorHandle A_diag(Operator::Hypre_ParCSR);
+   A_diag.MakeSquareBlockDiag(pfespace.GetComm(),
+                              pfespace.GlobalVSize(),
+                              pfespace.GetDofOffsets(),
+                              &loc_A);
+
+   // Parallel matrix assembly using P^t A P (if needed)
+   if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
+   {
+      A_diag.SetOperatorOwner(false);
+      A.Reset(A_diag.As<HypreParMatrix>());
+      if (steal_loc_A)
+      {
+         HypreStealOwnership(*A.As<HypreParMatrix>(), loc_A);
+      }
+   }
+   else
+   {
+      OperatorHandle P(Operator::Hypre_ParCSR);
+      P.ConvertFrom(pfespace.Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P);
+   }
 }
 
 void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
@@ -366,14 +392,12 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
 const
 {
-   if (Xaux.ParFESpace() != pfes)
-   {
-      Xaux.SetSpace(pfes);
-      Yaux.SetSpace(pfes);
-      Ytmp.SetSize(pfes->GetTrueVSize());
-   }
+   const Operator *P = pfes->GetProlongationMatrix();
+   Xaux.SetSize(P->Height());
+   Yaux.SetSize(P->Height());
+   Ytmp.SetSize(P->Width());
 
-   Xaux.Distribute(&x);
+   P->Mult(x, Xaux);
    if (ext)
    {
       ext->Mult(Xaux, Yaux);
@@ -385,8 +409,8 @@ const
                   " implemented");
       mat->Mult(Xaux, Yaux);
    }
-   pfes->GetProlongationMatrix()->MultTranspose(Yaux, Ytmp);
-   y.Add(a,Ytmp);
+   P->MultTranspose(Yaux, Ytmp);
+   y.Add(a, Ytmp);
 }
 
 void ParBilinearForm::FormLinearSystem(
@@ -422,7 +446,6 @@ void ParBilinearForm::FormLinearSystem(
       P.MultTranspose(b, true_B);
       R.Mult(x, true_X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
-      R.EnsureMultTranspose();
       R.MultTranspose(true_B, b);
       hybridization->ReduceRHS(true_B, B);
       X.SetSize(B.Size());

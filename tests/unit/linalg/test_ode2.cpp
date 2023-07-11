@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -127,7 +127,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l< levels; l++)
          {
-            int lvl = pow(2,l);
+            int lvl = static_cast<int>(pow(2,l));
             t = 0.0;
             dt_order *= 0.5;
             u = u0;

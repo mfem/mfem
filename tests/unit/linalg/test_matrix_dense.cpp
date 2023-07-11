@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -789,7 +789,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       L_exact.Mult(x,y1);
       chol.LSolve(4,1,y2.GetData());
       y1-=y2;
-      /** Verify lower triangular solve wit a RHS vector x
+      /** Verify lower triangular solve with a RHS vector x
           i.e, L^-1 x = L_exact^-1 x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
@@ -798,7 +798,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       L_exact.MultTranspose(x,y1);
       chol.USolve(4,1,y2.GetData());
       y1-=y2;
-      /** Verify upper triangular solve wit a RHS vector x
+      /** Verify upper triangular solve with a RHS vector x
           i.e, L^-t x = L_exact^-t x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 

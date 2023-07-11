@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,6 +42,15 @@ double EvalW_007(const double *Jpt)
    return ie.Get_I1() * (1.0 + 1.0/ie.Get_I2()) - 4.0;
 }
 
+// mu_56 = 0.5*(I2b + 1/I2b) - 1.
+static MFEM_HOST_DEVICE inline
+double EvalW_056(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
+   const double I2b = ie.Get_I2b();
+   return 0.5*(I2b + 1.0/I2b) - 1.0;
+}
+
 static MFEM_HOST_DEVICE inline
 double EvalW_077(const double *Jpt)
 {
@@ -51,14 +60,20 @@ double EvalW_077(const double *Jpt)
 }
 
 static MFEM_HOST_DEVICE inline
-double EvalW_080(const double *Jpt, double gamma)
+double EvalW_080(const double *Jpt, const double *w)
 {
-   return (1.0 - gamma) * EvalW_002(Jpt) + gamma * EvalW_077(Jpt);
+   return w[0] * EvalW_002(Jpt) + w[1] * EvalW_077(Jpt);
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_094(const double *Jpt, const double *w)
+{
+   return w[0] * EvalW_002(Jpt) + w[1] * EvalW_056(Jpt);
 }
 
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const double metric_normal,
-                           const double metric_param,
+                           const Array<double> &metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -71,7 +86,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77
+               || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
    constexpr int DIM = 2;
@@ -88,7 +104,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   const double *metric_data = metric_param.Read();
+
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -129,11 +147,12 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
 
             // metric->EvalW(Jpt);
             const double EvalW =
-            mid ==  1 ? EvalW_001(Jpt) :
-            mid ==  2 ? EvalW_002(Jpt) :
-            mid ==  7 ? EvalW_007(Jpt) :
-            mid == 77 ? EvalW_077(Jpt) :
-            mid == 80 ? EvalW_080(Jpt, metric_param) : 0.0;
+               mid ==  1 ? EvalW_001(Jpt) :
+               mid ==  2 ? EvalW_002(Jpt) :
+               mid ==  7 ? EvalW_007(Jpt) :
+               mid == 77 ? EvalW_077(Jpt) :
+               mid == 80 ? EvalW_080(Jpt, metric_data) :
+               mid == 94 ? EvalW_094(Jpt, metric_data) : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
          }
@@ -157,8 +176,11 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
 
    MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,mp,M,N,J,W,B,G,X,O,E);
 }

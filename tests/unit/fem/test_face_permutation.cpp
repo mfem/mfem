@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -167,7 +167,7 @@ double TestFaceRestriction(Mesh &mesh, int order)
    L2FaceRestriction restr(fes, ElementDofOrdering::LEXICOGRAPHIC,
                            FaceType::Interior, L2FaceValues::DoubleValued);
 
-   const int ndof_face = pow(order+1, dim-1);
+   const int ndof_face = static_cast<int>(pow(order+1, dim-1));
 
    Vector face_values(ndof_face*2);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,7 +39,7 @@ void BatchedLOR_AMS::Form2DEdgeToVertex_ND(Array<int> &edge2vert)
 {
    const int o = order;
    const int op1 = o + 1;
-   const int nedge = dim*o*pow(op1, dim-1);
+   const int nedge = static_cast<int>(dim*o*pow(op1, dim-1));
 
    edge2vert.SetSize(2*nedge);
    auto e2v = Reshape(edge2vert.HostWrite(), 2, nedge);
@@ -73,7 +73,7 @@ void BatchedLOR_AMS::Form2DEdgeToVertex_RT(Array<int> &edge2vert)
 {
    const int o = order;
    const int op1 = o + 1;
-   const int nedge = dim*o*pow(op1, dim-1);
+   const int nedge = static_cast<int>(dim*o*pow(op1, dim-1));
 
    edge2vert.SetSize(2*nedge);
    auto e2v = Reshape(edge2vert.HostWrite(), 2, nedge);
@@ -106,7 +106,7 @@ void BatchedLOR_AMS::Form3DEdgeToVertex(Array<int> &edge2vert)
 {
    const int o = order;
    const int op1 = o + 1;
-   const int nedge = dim*o*pow(op1, dim-1);
+   const int nedge = static_cast<int>(dim*o*pow(op1, dim-1));
 
    edge2vert.SetSize(2*nedge);
    auto e2v = Reshape(edge2vert.HostWrite(), 2, nedge);
@@ -152,7 +152,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
    auto I = G_local.WriteI();
-   MFEM_FORALL(i, nedge_dof+1, I[i] = 2*i;);
+   mfem::forall(nedge_dof+1, [=] MFEM_HOST_DEVICE (int i) { I[i] = 2*i; });
 
    // edge2vertex is a mapping of size (2, nedge_per_el), such that with a macro
    // element, edge i (in lexicographic ordering) has vertices (also in
@@ -170,8 +170,8 @@ void BatchedLOR_AMS::FormGradientMatrix()
    MFEM_VERIFY(R_v != NULL && R_e != NULL, "");
 
    const int nel_ho = edge_fes.GetNE();
-   const int nedge_per_el = dim*order*pow(order + 1, dim - 1);
-   const int nvert_per_el = pow(order + 1, dim);
+   const int nedge_per_el = static_cast<int>(dim*order*pow(order + 1, dim - 1));
+   const int nvert_per_el = static_cast<int>(pow(order + 1, dim));
 
    const auto offsets_e = R_e->Offsets().Read();
    const auto indices_e = R_e->Indices().Read();
@@ -187,7 +187,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    auto V = G_local.WriteData();
 
    // Loop over Nedelec L-DOFs
-   MFEM_FORALL(i, nedge_dof,
+   mfem::forall(nedge_dof, [=] MFEM_HOST_DEVICE (int i)
    {
       const int sj = indices_e[offsets_e[i]]; // signed
       const int j = (sj >= 0) ? sj : -1 - sj;
@@ -274,7 +274,7 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
 
    const int nel_ho = vert_fes.GetNE();
    const int ndp1 = order + 1;
-   const int ndof_per_el = pow(ndp1, dim);
+   const int ndof_per_el = static_cast<int>(pow(ndp1, dim));
    const int sdim = dim;
    const int ntdofs = R->Height();
 
