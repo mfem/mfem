@@ -2805,7 +2805,12 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
    if (i < 0 || i >= mesh->GetNE())
    {
-      if (mesh->GetNE() == 0) { MFEM_ABORT("Empty MPI partition."); }
+      if (mesh->GetNE() == 0)
+
+         MFEM_ABORT("Empty MPI partition!!! NOTE: FESpace::GetFE has been "
+                    "updated to abort instead of returning NULL. The user must "
+                    "tackle empty partitions outside the method.");
+      }
       MFEM_ABORT("Invalid element id:" << i << "; minimum allowed:" << 0 <<
                  ", maximum allowed:" << mesh->GetNE()-1);
    }
