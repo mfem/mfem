@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
       new DomainLFIntegrator(psi_k_cf)
    );
    newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_alph_f_lam)
+      new DomainLFIntegrator(alph_f_lam)
    );
 
    // Equation λ̃
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
       new MassIntegrator(one_cf)
    );
    newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_dsimp_squared_normDu)
+      new DomainLFIntegrator(dsimp_squared_normDu)
    );
 
 
