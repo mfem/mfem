@@ -42,6 +42,123 @@ double d2simpRuledx2(const double rho, const int exponent, const double rho0)
 
 namespace mfem
 {
+class MultiProductCoefficient : public Coefficient
+{
+private:
+   double aConst;
+   Array<Coefficient *> a;
+
+public:
+   /// Constructor with one coefficient.  Result is A * B.
+   MultiProductCoefficient(double A, Coefficient &B)
+      : aConst(A), a(1) { a[0] = &B;}
+
+   /// Constructor with two coefficients.  Result is A * B.
+   MultiProductCoefficient(Coefficient &A, Coefficient &B)
+      : aConst(1.0), a(2) { a[0] = &A; a[1] = &B;}
+
+   /// Constructor with two coefficients.  Result is A * B.
+   MultiProductCoefficient(double A, Coefficient &B, Coefficient &C,
+                           Coefficient &D)
+      : aConst(A), a(3) { a[0] = &B; a[1] = &C; a[2] = &D;}
+
+   /// Constructor with two coefficients.  Result is A * B.
+   MultiProductCoefficient(Coefficient &A, Coefficient &B, Coefficient &C)
+      : aConst(1.0), a(3) { a[0] = &A; a[1] = &B; a[2] = &C;}
+
+   /// Constructor with two coefficients.  Result is A * B.
+   MultiProductCoefficient(Array<Coefficient *> &A)
+      : aConst(1.0), a(A) {}
+   /// Constructor with two coefficients.  Result is A * B.
+   MultiProductCoefficient(double A, Array<Coefficient *> &B)
+      : aConst(A), a(B) {}
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
+   void Mult(double A) { aConst *= A; }
+   void Mult(Coefficient &A) { a.Append(&A); }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      double val = aConst;
+      for (auto &c : a) { val *= c->Eval(T, ip); }
+      return aConst;
+   }
+};
+class MultiProductVectorCoefficient : public VectorCoefficient
+{
+private:
+   double aConst;
+   Array<Coefficient *> a;
+   VectorCoefficient * v;
+
+public:
+   /// Constructor with one coefficient.  Result is A * B.
+   MultiProductVectorCoefficient(double A, VectorCoefficient &V)
+      : aConst(A), a(0), v(&V), VectorCoefficient(V.GetVDim()) {}
+
+   MultiProductVectorCoefficient(Coefficient &A, VectorCoefficient &V)
+      : aConst(1.0), a(0), v(&V), VectorCoefficient(V.GetVDim()) { a.Append(&A); }
+   /// Constructor with one coefficient.  Result is A * V.
+   MultiProductVectorCoefficient(double A, Coefficient &B, VectorCoefficient &V)
+      : aConst(A), a(0), v(&V), VectorCoefficient(V.GetVDim()) { a.Append(&B); }
+
+   MultiProductVectorCoefficient(Coefficient &A, Coefficient &B,
+                                 VectorCoefficient &V)
+      : aConst(1.0), a(0), v(&V), VectorCoefficient(V.GetVDim()) { a.Append(&A); a.Append(&B); }
+
+   /// Constructor with one coefficient.  Result is A * V.
+   MultiProductVectorCoefficient(double A, Coefficient &B, Coefficient &C,
+                                 VectorCoefficient &V)
+      : aConst(A), a(0), v(&V), VectorCoefficient(V.GetVDim()) { a.Append(&B); a.Append(&C); }
+
+   MultiProductVectorCoefficient(Coefficient &A, Coefficient &B, Coefficient &C,
+                                 VectorCoefficient &V)
+      : aConst(1.0), a(0), v(&V), VectorCoefficient(V.GetVDim()) { a.Append(&A); a.Append(&B); a.Append(&C); }
+
+   MultiProductVectorCoefficient(Array<Coefficient*> &A, VectorCoefficient &V)
+      : aConst(1.0), a(A), v(&V), VectorCoefficient(V.GetVDim()) {}
+
+   MultiProductVectorCoefficient(double A, Array<Coefficient*> &B,
+                                 VectorCoefficient &V)
+      : aConst(A), a(B), v(&V), VectorCoefficient(V.GetVDim()) {}
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
+   void Mult(double A) { aConst *= A; }
+   void Mult(Coefficient &A) { a.Append(&A); }
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      double val = aConst;
+      for (auto &c : a) { val *= c->Eval(T, ip); }
+      v->Eval(V, T, ip);
+      V *= val;
+   };
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationRule &ir)
+   {
+      const int N = ir.GetNPoints();
+      M.SetSize(v->GetVDim(), N);
+      Vector col;
+      for (int i=0; i<N; i++)
+      {
+         M.GetColumnReference(i, col);
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         T.SetIntPoint(&ip);
+         Eval(col, T, ip);
+         double val = aConst;
+         for (auto &c : a) { val *= c->Eval(T, ip); }
+         col *= val;
+      }
+   }
+};
+
+
 class MappedGridFunctionCoefficient :public GridFunctionCoefficient
 {
    typedef std::__1::function<double (const double)> Mapping;
