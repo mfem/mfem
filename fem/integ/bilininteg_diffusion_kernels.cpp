@@ -592,7 +592,11 @@ void PADiffusionApply(const int dim,
          default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
 #else
-      return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,1);
+      const int NBZ = (D1D < 4)  ? 16:
+                      (D1D < 6)  ? 8 :
+                      (D1D < 8)  ? 4 :
+                      (D1D < 10)  ? 2 : 1;
+      return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
 #endif
    }
 

@@ -553,7 +553,8 @@ int main(const int argc, char* argv[])
    string input, output, file;
    auto Help = [&]()
    {
-      std::cout << "mjit: " << argv[0] << " [-h] [-o out] in" << std::endl;
+      std::cout << "mjit: " << argv[0]
+                << " [-h] [-o output_file] input_file" << std::endl;
       return EXIT_SUCCESS;
    };
    if (argc <= 1) { return Help(); }

@@ -38,6 +38,18 @@ MFEM makefile targets:
    make style
    make tags
    make hooks
+	make jit
+	make pjit
+	make cujit
+	make pcujit
+	make hipjit
+	make phipjit
+	make jitdebug
+	make pjitdebug
+	make cujitdebug
+	make pcujitdebug
+	make hipjitdebug
+	make phipjitdebug
 
 Examples:
 
@@ -78,6 +90,30 @@ make hipdebug
    A shortcut to configure and build the serial GPU/HIP debug version of the library.
 make phipdebug
    A shortcut to configure and build the parallel GPU/HIP debug version of the library.
+make jit
+   A shortcut to configure and build the JIT serial optimized version of the library.
+make pjit
+   A shortcut to configure and build the JIT parallel optimized version of the library.
+make cujit
+   A shortcut to configure and build the JIT serial GPU/CUDA optimized version of the library.
+make pcujit
+   A shortcut to configure and build the JIT parallel GPU/CUDA optimized version of the library.
+make hipjit
+   A shortcut to configure and build the JIT serial GPU/HIP optimized version of the library.
+make phipjit
+   A shortcut to configure and build the JIT parallel GPU/HIP optimized version of the library.
+make jitdebug
+   A shortcut to configure and build the JIT serial debug version of the library.
+make pjitdebug
+   A shortcut to configure and build the JIT parallel debug version of the library.
+make cujitdebug
+   A shortcut to configure and build the JIT serial GPU/CUDA debug version of the library.
+make pcujitdebug
+   A shortcut to configure and build the JIT parallel GPU/CUDA debug version of the library.
+make hipjitdebug
+   A shortcut to configure and build the JIT serial GPU/HIP debug version of the library.
+make phipjitdebug
+   A shortcut to configure and build the JIT parallel GPU/HIP debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -177,7 +213,9 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
+ cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug \
+ jit pjit cujit pcujit hipjit phipjit jitdebug pjitdebug \
+ cujitdebug pcujitdebug hipjitdebug phipjitdebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -422,7 +460,7 @@ DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop \
-	general/jit
+		 general/jit
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -443,8 +481,9 @@ endif
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+	debug pdebug cuda hip pcuda cudebug pcudebug jit pjit cujit pcujit hipjit \
+	phipjit jitdebug pjitdebug cujitdebug pcujitdebug hipjitdebug phipjitdebughpc \
+	style check test unittest deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -545,33 +584,43 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda hip cudebug hipdebug:           M_MPI=NO
-parallel pdebug pcuda pcudebug phip phipdebug:    M_MPI=YES
-serial parallel cuda pcuda hip phip:              M_DBG=NO
-debug pdebug cudebug pcudebug hipdebug phipdebug: M_DBG=YES
-cuda pcuda cudebug pcudebug:                      M_CUDA=YES
-hip phip hipdebug phipdebug:                      M_HIP=YES
+serial debug cuda hip cudebug hipdebug:                              M_MPI=NO
+jit cujit hipjit jitdebug cujitdebug hipjitdebug:                    M_MPI=NO
+parallel pdebug pcuda pcudebug phip phipdebug:                       M_MPI=YES
+pjit pcujit phipjit pjitdebug pcujitdebug phipjitdebug:              M_MPI=YES
+serial parallel cuda pcuda hip phip:                                 M_DBG=NO
+jit pjit cujit pcujit hipjit phipjit:                                M_DBG=NO
+debug pdebug cudebug pcudebug hipdebug phipdebug:                    M_DBG=YES
+jitdebug pjitdebug cujitdebug pcujitdebug hipjitdebug phipjitdebug:  M_DBG=YES
+cuda pcuda cudebug pcudebug cujit pcujit cujitdebug pcujitdebug:     M_CUDA=YES
+hip phip hipdebug phipdebug hipjit phipjit hipjitdebug phipjitdebug: M_HIP=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	   $(MAKEOVERRIDES_SAVE)
+		$(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
+		MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 hip phip hipdebug phipdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
+		MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+jit pjit cujit pcujit hipjit phipjit jitdebug pjitdebug cujitdebug pcujitdebug hipjitdebug phipjitdebug:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	MFEM_USE_CUDA=$(if $(M_CUDA),YES,NO) MEM_USE_HIP=$(if $(M_HIP),YES,NO) \
+	MFEM_USE_JIT=YES $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 # Build with MPI and all Device backends enabled (requires OCCA and RAJA)
 hpc:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=YES MFEM_USE_CUDA=YES \
-	  MFEM_USE_OPENMP=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES \
-	  $(MAKEOVERRIDES_SAVE)
+		MFEM_USE_OPENMP=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES \
+		$(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:

@@ -127,6 +127,7 @@ The MFEM source code has the following structure:
   │   ├── qinterp
   │   └── tmop
   ├── general
+  │   └── jit
   ├── linalg
   │   └── simd
   ├── mesh

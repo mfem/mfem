@@ -49,6 +49,7 @@ endfunction(set_mjit_sources_dependencies)
 ######################
 function(mfem_mjit_configure)
     add_executable(mjit general/jit/parser.cpp)
+    install(TARGETS mjit DESTINATION ${INSTALL_BIN_DIR})
     #message("-- [JIT] MFEM_BUILD_FLAGS: ${MFEM_BUILD_FLAGS}")
     #message("-- [JIT] CMAKE_SHARED_LIBRARY_CXX_FLAGS: ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
     #message("-- [JIT] CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS: ${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS}")
@@ -136,7 +137,6 @@ function(mfem_mjit_configure)
                  MFEM_SO_PREFIX="${MFEM_SO_PREFIX}"
                  MFEM_SO_POSTFIX="${MFEM_SO_POSTFIX}"
                  MFEM_INSTALL_BACKUP="${MFEM_INSTALL_BACKUP}")
-
 endfunction(mfem_mjit_configure)
 
 endif(MFEM_USE_JIT)

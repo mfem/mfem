@@ -82,7 +82,7 @@ private:
 #ifndef MFEM_USE_JIT
       MPI_Init(argc, argv);
 #else
-      Jit::Init(argc, argv);
+      JIT::Init(argc, argv);
 #endif
       // The "mpi" object below needs to be created after MPI_Init() for some
       // MPI implementations
@@ -92,7 +92,7 @@ private:
    ~Mpi()
    {
 #ifdef MFEM_USE_JIT
-      Jit::Finalize();
+      JIT::Finalize();
 #endif
       Finalize();
    }

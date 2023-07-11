@@ -153,15 +153,16 @@ inline void PADiffusionDiagonal2D(const int NE,
 
 // Shared memory PA Diffusion Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-inline void SmemPADiffusionDiagonal2D_element(const int e,
-                                              const bool symmetric,
-                                              const ConstDeviceMatrix &b,
-                                              const ConstDeviceMatrix &g,
-                                              const ConstDeviceCube &D,
-                                              const DeviceCube &Y,
-                                              const int d1d = 0,
-                                              const int q1d = 0,
-                                              const int nbz = 1)
+MFEM_HOST_DEVICE inline
+void SmemPADiffusionDiagonal2D_element(const int e,
+                                       const bool symmetric,
+                                       const ConstDeviceMatrix &b,
+                                       const ConstDeviceMatrix &g,
+                                       const ConstDeviceCube &D,
+                                       const DeviceCube &Y,
+                                       const int d1d = 0,
+                                       const int q1d = 0,
+                                       const int nbz = 1)
 {
    MFEM_ASSERT(T_NBZ > 0 || nbz == 1, "nbz should be equal to 1!");
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -169,8 +170,6 @@ inline void SmemPADiffusionDiagonal2D_element(const int e,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
 
    const int tidz = MFEM_THREAD_ID(z);
 
@@ -358,8 +357,6 @@ void SmemPADiffusionDiagonal3D_element(const int e,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
 
    const int tidz = MFEM_THREAD_ID(z);
 
@@ -615,16 +612,17 @@ inline void PADiffusionApply2D(const int NE,
 
 // Shared memory PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-inline void SmemPADiffusionApply2D_element(const int e,
-                                           const bool symmetric,
-                                           const ConstDeviceMatrix &b,
-                                           const ConstDeviceMatrix &g,
-                                           const ConstDeviceCube &D,
-                                           const ConstDeviceCube &x,
-                                           const DeviceCube &Y,
-                                           const int d1d = 0,
-                                           const int q1d = 0,
-                                           const int nbz = 1)
+MFEM_HOST_DEVICE inline
+void SmemPADiffusionApply2D_element(const int e,
+                                    const bool symmetric,
+                                    const ConstDeviceMatrix &b,
+                                    const ConstDeviceMatrix &g,
+                                    const ConstDeviceCube &D,
+                                    const ConstDeviceCube &x,
+                                    const DeviceCube &Y,
+                                    const int d1d = 0,
+                                    const int q1d = 0,
+                                    const int nbz = 1)
 {
    MFEM_ASSERT(T_NBZ > 0 || nbz == 1, "nbz should be equal to 1!");
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -632,8 +630,6 @@ inline void SmemPADiffusionApply2D_element(const int e,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
 
    const int tidz = MFEM_THREAD_ID(z);
 
@@ -959,22 +955,21 @@ inline void PADiffusionApply3D(const int NE,
 
 // Shared memory PA Diffusion Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPADiffusionApply3D_element(const int e,
-                                           const bool symmetric,
-                                           const ConstDeviceMatrix &b,
-                                           const ConstDeviceMatrix &g,
-                                           const DeviceTensor<5,const double> &d,
-                                           const DeviceTensor<4,const double> &x,
-                                           const DeviceTensor<4> &y,
-                                           const int d1d = 0,
-                                           const int q1d = 0)
+MFEM_HOST_DEVICE inline
+void SmemPADiffusionApply3D_element(const int e,
+                                    const bool symmetric,
+                                    const ConstDeviceMatrix &b,
+                                    const ConstDeviceMatrix &g,
+                                    const DeviceTensor<5,const double> &d,
+                                    const DeviceTensor<4,const double> &x,
+                                    const DeviceTensor<4> &y,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
 
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    MFEM_SHARED double sBG[2][MQ1*MD1];
