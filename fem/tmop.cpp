@@ -3205,10 +3205,10 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
 
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
+      metric->SetTargetJacobian(Jtr(i));
+      CalcInverse(Jtr(i), Jrt);
+      const double weight =
+         (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
       el.CalcDShape(ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
@@ -3339,10 +3339,10 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         const DenseMatrix &Jtr_i = Jtr(i);
-         h_metric->SetTargetJacobian(Jtr_i);
-         CalcInverse(Jtr_i, Jrt);
-         const double weight = ip.weight * Jtr_i.Det();
+         h_metric->SetTargetJacobian(Jtr(i));
+         CalcInverse(Jtr(i), Jrt);
+         const double weight =
+            (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
          el.CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
@@ -3398,10 +3398,10 @@ double TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
-      const DenseMatrix &Jtr_i = Jtr(i);
-      h_metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
+      h_metric->SetTargetJacobian(Jtr(i));
+      CalcInverse(Jtr(i), Jrt);
+      const double weight =
+         (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
       el.CalcDShape(ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
@@ -3519,10 +3519,9 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
-      const DenseMatrix &Jtr_q = Jtr(q);
-      metric->SetTargetJacobian(Jtr_q);
-      CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
+      metric->SetTargetJacobian(Jtr(q));
+      CalcInverse(Jtr(q), Jrt);
+      weights(q) = (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
@@ -3650,7 +3649,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       const DenseMatrix &Jtr_q = Jtr(q);
       metric->SetTargetJacobian(Jtr_q);
       CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
+      weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
@@ -4057,7 +4056,9 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       Vector weights(nqp);
       for (int q = 0; q < nqp; q++)
       {
-         weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
+         weights(q) = (integ_over_target) ?
+                      ir.IntPoint(q).weight * Jtr(q).Det() :
+                      ir.IntPoint(q).weight;
       }
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
@@ -4155,7 +4156,9 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
       Vector weights(nqp);
       for (int q = 0; q < nqp; q++)
       {
-         weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
+         weights(q) = (integ_over_target) ?
+                      ir.IntPoint(q).weight * Jtr(q).Det() :
+                      ir.IntPoint(q).weight;
       }
 
       if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
@@ -4246,7 +4249,8 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          const IntegrationPoint &ip = ir.IntPoint(q);
          metric->SetTargetJacobian(Jtr(q));
          CalcInverse(Jtr(q), Jrt);
-         const double weight = ip.weight * Jtr(q).Det();
+         const double weight =
+            (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;
 
          fe->CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
@@ -4273,9 +4277,10 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       }
    }
 
-   if (targetC->ContainsVolumeInfo() == false)
+   // Cases when integration is not over the target element, or when the
+   // targets don't contain volumetric iniformation.
+   if (integ_over_target == false || targetC->ContainsVolumeInfo() == false)
    {
-      // Special case when the targets don't contain volumetric information.
       lim_energy = fes->GetNE();
    }
 }
