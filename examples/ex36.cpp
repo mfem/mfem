@@ -301,7 +301,12 @@ int main(int argc, char *argv[])
          // newtonSystem.Assemble(sol);
          // newtonSystem.PCG(sol);
          newtonSystem.SolveDiag(sol, ordering, true);
+         // Project solution
+         // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
+         const double current_volume_fraction = VolumeProjection(psi,
+                                                                  target_volume) / volume;
          // newton successive difference
+         clip_abs(psi, max_psi);
          const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(sol) / old_sol.Size());
          mfem::out << std::scientific << diff_newton << std::endl;
 
@@ -315,11 +320,6 @@ int main(int argc, char *argv[])
       {
          mfem::out << "Newton failed to converge" << std::endl;
       }
-      // Project solution
-      // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
-      const double current_volume_fraction = VolumeProjection(psi,
-                                                               target_volume) / volume;
-      clip_abs(psi, max_psi);
       if (visualization)
       {
          sout_u << "solution\n" << mesh << u << flush;
