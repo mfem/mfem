@@ -363,7 +363,7 @@ MFEM_CPPFLAGS  ?= $(CPPFLAGS)
 MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
-MFEM_PICFLAG   ?= $(if $(or $(shared),$(jit)),$(PICFLAG))
+MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -418,11 +418,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general general/jit linalg linalg/simd mesh mesh/submesh \
-		 fem fem/ceed/interface fem/ceed/integrators/mass \
-		 fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
-		 fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-		 fem/qinterp fem/integ fem/tmop
+DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
+       fem/ceed/integrators/mass fem/ceed/integrators/convection \
+       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
+       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop \
+	general/jit
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -434,6 +434,8 @@ endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+# general/jit/parser.cpp is handled differently, as it is an executable
+# required before the compilation of the declared JIT source files
 ifeq ($(MFEM_USE_JIT),YES)
 ALL_OBJECT_FILES := $(OBJECT_FILES)
 OBJECT_FILES = $(filter-out $(BLD)general/jit/parser.o, $(ALL_OBJECT_FILES))
@@ -447,13 +449,12 @@ OKL_DIRS = fem
 .SUFFIXES:
 .SUFFIXES: .cpp .o
 # Remove some default implicit rules
-%: %.o
-%.o: %.cpp
-%: %.cpp
+%:	%.o
+%.o:	%.cpp
+%:	%.cpp
 
 # Default rule.
-lib: $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(if $(static),$(BLD)libmfem.a) \
-$(if $(jit),$(BLD)mjit)
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(if $(jit),$(BLD)mjit)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -466,10 +467,11 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 else
 # JIT compilation rules
 # Files that will be preprocessed
-JIT_SOURCE_FILES = $(SRC)fem/integ/bilininteg_diffusion_kernels.cpp \
-$(SRC)fem/integ/bilininteg_mass_kernels.cpp
+JIT_SOURCE_FILES = \
+	$(SRC)fem/integ/bilininteg_diffusion_kernels.cpp \
+	$(SRC)fem/integ/bilininteg_mass_kernels.cpp
 
-# Filter out objects that will be compiled through the preprocessor
+# Filter out objects that will be compiled through the mjit parser
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 # Filter out objects that will require specific MAKEFILE definitions
 OPT_OBJECT_FILES = $(BLD)general/jit/jit.o
@@ -813,8 +815,7 @@ FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.[ch]pp' '^general/globals\.[ch]pp'\
- '^general/jit/parser\.cpp'
+COUT_CERR_EXCLUDE = '^general/error\.[ch]pp' '^general/globals\.[ch]pp' '^general/jit/parser\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

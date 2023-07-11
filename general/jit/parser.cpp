@@ -449,7 +449,7 @@ struct Parser
       const char *flags = "" MFEM_BUILD_FLAGS;
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
-         mfem::Jit::Hash(hash<string> {}(ker.src.str()),
+         mfem::JIT::Hash(hash<string> {}(ker.src.str()),
                          string(cxx), string(libs), string(flags),
                          string(MFEM_SOURCE_DIR), string(MFEM_INSTALL_DIR));
 

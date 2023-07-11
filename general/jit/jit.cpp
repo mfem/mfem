@@ -235,7 +235,7 @@ static void *Open(const char *path)
 
 } // namespace jit
 
-struct Jit::System // forked std::system implementation
+struct JIT::System // forked std::system implementation
 {
    pid_t pid; // of the child process
    int *s_ack, rank; // shared status, must be able to store one MPI rank
@@ -276,7 +276,7 @@ struct Jit::System // forked std::system implementation
    }
 };
 
-struct Jit::Command // convenient command builder & const char* type cast
+struct JIT::Command // convenient command builder & const char* type cast
 {
    Command& operator<<(const char *c) { Get().command << c << ' '; return *this; }
    Command& operator<<(const std::string &s) { return *this << s.c_str(); }
@@ -291,7 +291,7 @@ struct Jit::Command // convenient command builder & const char* type cast
 
 using namespace jit;
 
-void Jit::Init(int *argc, char ***argv)
+void JIT::Init(int *argc, char ***argv)
 {
    MFEM_VERIFY(!mpi::IsInitialized(), "[JIT] MPI already initialized!");
 
@@ -358,7 +358,7 @@ void Jit::Init(int *argc, char ***argv)
    MFEM_VERIFY(sys.pid != 0, "[JIT] Children shall not pass!");
 }
 
-void Jit::Finalize()
+void JIT::Finalize()
 {
    if (!mpi::IsInitialized() || Get().std_system) { return; } // nothing to do
    System &sys = *Get().sys;
@@ -375,7 +375,7 @@ void Jit::Finalize()
    { MFEM_ABORT("[JIT] Finalize memory error!"); }
 }
 
-void Jit::Configure(const char *name, const char *path, bool keep)
+void JIT::Configure(const char *name, const char *path, bool keep)
 {
    Get().path = path;
    Get().keep_cache = keep;
@@ -400,7 +400,7 @@ void Jit::Configure(const char *name, const char *path, bool keep)
    Get().lib_so = CreateFullPath("" MFEM_SO_EXT);
 }
 
-void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
+void* JIT::Lookup(const size_t hash, const char *name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
                   const char *dir, const char *source, const char *symbol)
 {
@@ -435,7 +435,7 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
       // each compilation process adds their id to the hash,
       // this is used to handle parallel compilations of the same source
       const auto id = std::string("_") + std::to_string(mpi::Bcast(getpid()));
-      const auto so = Jit::ToString(hash, id.c_str());
+      const auto so = JIT::ToString(hash, id.c_str());
 
       std::function<int(const char *)> RootCompile = [&](const char *so)
       {
@@ -445,11 +445,11 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
             MFEM_VERIFY(Run() == EXIT_SUCCESS,
                         "[JIT] install error: " << in << " => " << out);
          };
-         io::FileLock cc_lock(Jit::ToString(hash), "ck", false);
+         io::FileLock cc_lock(JIT::ToString(hash), "ck", false);
          if (cc_lock)
          {
             // Create source file: source => cc
-            const auto cc = Jit::ToString(hash, ".cc"); // input source
+            const auto cc = JIT::ToString(hash, ".cc"); // input source
             {
                std::ofstream cc_file(cc); // open the source file
                MFEM_VERIFY(cc_file.good(), "[JIT] Source file error!");
@@ -457,7 +457,7 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
                cc_file.close();
             }
             // Compilation: cc => co
-            const auto co = Jit::ToString(hash, ".co"); // output object
+            const auto co = JIT::ToString(hash, ".co"); // output object
             {
                MFEM_VERIFY(io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
                            "[JIT] Could not find any MFEM header!");
@@ -528,7 +528,7 @@ void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
    return kernel;
 }
 
-Jit::Jit():
+JIT::JIT():
    debug(std::getenv("MFEM_JIT_DEBUG") != nullptr),
    std_system(std::getenv("MFEM_JIT_FORK") == nullptr),
    keep_cache(true),
@@ -543,16 +543,16 @@ Jit::Jit():
    includes.push_back("general/jit/jit.hpp"); // for Hash, Find
 }
 
-Jit::~Jit() // warning: can't use mpi::Root here
+JIT::~JIT() // warning: can't use mpi::Root here
 {
    const char *ar = Get().lib_ar.c_str();
    if (!keep_cache && Get().rank == 0 && io::Exists(ar)) { std::remove(ar); }
    delete sys;
 }
 
-Jit Jit::jit_singleton; // Initialize the unique global Jit singleton
+JIT JIT::jit_singleton; // Initialize the unique global Jit singleton
 
-int Jit::Run(const char *header)
+int JIT::Run(const char *header)
 {
    const char *command = Command();
    if (header) { MFEM_WARNING("[" << header << "] " << command); }
