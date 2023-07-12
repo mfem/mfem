@@ -680,7 +680,7 @@ void BilinearForm::Assemble(int skip_zeros)
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         auto *tr = mesh->GetInteriorBdrFaceTransformations(i);
+         auto *tr = mesh->GetInternalBdrFaceTransformations(i);
          if (tr != nullptr)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);

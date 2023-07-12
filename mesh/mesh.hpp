@@ -1391,7 +1391,7 @@ public:
 
    /// Builds the transformation defining the given internal face.
    /// @note The returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetInteriorBdrFaceTransformations(int IntBdrElemNo);
+   FaceElementTransformations *GetInternalBdrFaceTransformations(int IntBdrElemNo);
 
    /// Return the local face index for the given boundary face.
    int GetBdrFace(int BdrElemNo) const;

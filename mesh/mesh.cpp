@@ -1117,7 +1117,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
-FaceElementTransformations *Mesh::GetInteriorBdrFaceTransformations(
+FaceElementTransformations *Mesh::GetInternalBdrFaceTransformations(
    int IntBdrElemNo)
 {
    int fn = GetBdrFace(IntBdrElemNo);

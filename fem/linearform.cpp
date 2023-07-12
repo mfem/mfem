@@ -139,7 +139,7 @@ bool LinearForm::SupportsDevice() const
    if (!IntegratorsSupportDevice(domain_integs)) { return false; }
    if (!IntegratorsSupportDevice(boundary_integs)) { return false; }
    if (boundary_face_integs.Size() > 0 || interior_face_integs.Size() > 0 ||
-       domain_delta_integs.Size() > 0 || internal_boundary_face_integs.Size() > 0) 
+       domain_delta_integs.Size() > 0 || internal_boundary_face_integs.Size() > 0)
    {
       return false;
    }
@@ -392,7 +392,7 @@ void LinearForm::Assemble()
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         auto *tr = mesh->GetInteriorBdrFaceTransformations(i);
+         auto *tr = mesh->GetInternalBdrFaceTransformations(i);
          if (tr != nullptr)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
