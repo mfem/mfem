@@ -436,7 +436,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (print_options.iterations)
       {
          mfem::out << "TMOPNewtonSolver converged "
-                   "based on max number of times surface fitting weight can"
+                   "based on max number of times surface fitting weight can "
                    "be increased. \n";
       }
       scale = 0.0;
@@ -464,11 +464,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
-   const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   const double detJ_factor = (solver_type == 1) ? 0.1 : 0.25;
    compute_metric_quantile_flag = false;
    // TODO:
    // - Customized line search for worst-quality optimization.
    // - What is the Newton exit criterion for worst-quality optimization?
+
+   double scale_save = 0.0;
+   double norm_out = 0.0;
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -487,7 +490,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out <= min_detJ_threshold)
+      if (untangling == false && min_detT_out <= 0.0*min_detJ_threshold)
       {
          // No untangling, and detJ got negative -- no good.
          if (print_options.iterations)
@@ -523,9 +526,11 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+            mfem::out << "Scale = " << scale <<  " " <<
+                      max_fit_err << " " << max_surf_fit_err << " Surf fit err increased.\n";
          }
-         scale *= 0.5; continue;
+         //         scale *= std::min(0.25, max_surf_fit_err/max_fit_err); continue;
+         scale *= 0.25; continue;
       }
 
       if (serial)
@@ -546,24 +551,56 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             mfem::out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
          }
-         scale *= 0.5; continue;
+         //         scale *= std::min(0.25, energy_in/energy_out); continue;
+         scale *= 0.25; continue;
       }
 
       // Check the changes in the Newton residual.
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
-      double norm_out = Norm(r);
+      norm_out = Norm(r);
 
-      if (norm_out > 1.2*norm_in)
+      if (norm_out > 1.1*norm_in)
       {
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Norm increased: "
                       << norm_in << " --> " << norm_out << '\n';
          }
-         scale *= 0.5; continue;
+         //         scale *= std::min(0.25, norm_in/norm_out); continue;
+         scale *= 0.25; continue;
       }
-      else { x_out_ok = true; break; }
+      else if (norm_out > 1.0*norm_in)
+      {
+         if (scale_save > 0.0)
+         {
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale << " Norm increase accepted: "
+                         << norm_in << " --> " << norm_out << '\n';
+            }
+            x_out_ok = true; break;
+         }
+         else
+         {
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale << " Norm increased: "
+                         << norm_in << " --> " << norm_out << '\n';
+            }
+            scale_save = scale;
+            scale *= 0.25; continue;
+         }
+      }
+      else
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Norm decreased: "
+                      << norm_in << " --> " << norm_out << '\n';
+         }
+         x_out_ok = true; break;
+      }
    } // end line search
 
    if (untangling)
@@ -601,6 +638,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
    compute_metric_quantile_flag = true;
+
+   if (print_options.iterations)
+   {
+      mfem::out << "Line search info energy/norm/mindet in and out: " << " " <<
+                energy_in << " " << energy_out << " " <<
+                norm_in << " " << norm_out << " " <<
+                min_detT_in << " " << min_detT_out << std::endl;
+   }
 
    return scale;
 }
@@ -641,7 +686,7 @@ void TMOPNewtonSolver::UpdatePointWiseSurfaceFittingWeight(Vector &x_loc) const
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti && ti->IsSurfaceFittingWeightAutomatic())
       {
-         ti->ComputeInitialFittingWeight(x_loc);
+         ti->ComputePointWiseJacobianAtCurrentMesh(x_loc, 1);
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
       if (co)
@@ -651,7 +696,7 @@ void TMOPNewtonSolver::UpdatePointWiseSurfaceFittingWeight(Vector &x_loc) const
          {
             if (ati[j]->IsSurfaceFittingWeightAutomatic())
             {
-               ati[j]->ComputeInitialFittingWeight(x_loc);
+               ati[j]->ComputePointWiseJacobianAtCurrentMesh(x_loc, 1);
             }
          }
       }
@@ -784,6 +829,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 
    Vector x_loc;
+   double min_det;
+   // Get array with surface fitting weights.
+   Array<double> fitweights;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
@@ -803,6 +851,19 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
             }
+            if (ti->IsSurfaceFittingEnabled())
+            {
+               GetSurfaceFittingWeight(fitweights);
+               min_det = ComputeMinDet(x_loc, *pfesc);
+               if (min_det > 1.0*min_detJ_threshold && fitweights.Max() < weights_max_limit)
+               {
+                  if (print_options.iterations)
+                  {
+                     //                     mfem::out << " k10-update pointwise surface fitting weight\n";
+                  }
+                  UpdatePointWiseSurfaceFittingWeight(x_loc);
+               }
+            }
             UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -820,10 +881,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
             }
          }
-      }
-      if (update_surf_fit_coeff)
-      {
-         UpdatePointWiseSurfaceFittingWeight(x_loc);
       }
 #endif
    }
@@ -869,10 +926,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             }
          }
       }
-      if (update_surf_fit_coeff)
-      {
-         UpdatePointWiseSurfaceFittingWeight(x_loc);
-      }
    }
 
    // Constant coefficient associated with the surface fitting terms if
@@ -883,9 +936,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       // Get surface fitting errors.
       GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
-      // Get array with surface fitting weights.
-      Array<double> weights;
-      GetSurfaceFittingWeight(weights);
+      //      // Get array with surface fitting weights.
+      //      GetSurfaceFittingWeight(fitweights);
+
+      if (print_options.iterations)
+      {
+         //         mfem::out << min_det << " " << fitweights.Max() << " k10mindetandmaxweight\n";
+      }
 
       if (print_options.iterations)
       {
@@ -893,38 +950,43 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                    surf_fit_err_avg << " " <<
                    surf_fit_err_max << "\n";
          mfem::out << "Min/Max surface fitting weight: " <<
-                   weights.Min() << " " << weights.Max() << "\n";
+                   fitweights.Min() << " " << fitweights.Max() << "\n";
       }
 
       bool max_for_threshold = false;
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
-      if (max_for_threshold) {
-          change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_max;
-          rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      if (max_for_threshold)
+      {
+         change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_max;
+         rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       }
 
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
       SaveSurfaceFittingWeight();
-      //      UpdatePointWiseSurfaceFittingWeight(x_loc);
-//      std::cout << surf_fit_err_avg_prvs << " " <<
-//                   surf_fit_err_max << " " <<
-//                   rel_change_surf_fit_err << " " << surf_fit_rel_change_threshold <<
-//                   " k10relchange\n";
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
-//         UpdatePointWiseSurfaceFittingWeight(x_loc);
-         UpdateSurfaceFittingWeight(surf_fit_scale_factor);
-         adapt_inc_count += 1;
+         if (fitweights.Max() < weights_max_limit)
+         {
+            if (print_options.iterations)
+            {
+               //               mfem::out << norm_ratio << " " << fitweights.Max() <<  " " <<
+               //                         surf_fit_scale_factor <<
+               //                         " morm ratio-max weight-factor\n";
+            }
+            UpdateSurfaceFittingWeight(surf_fit_scale_factor);
+            adapt_inc_count += 1;
+         }
       }
       else
       {
          adapt_inc_count = 0;
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
-      if (max_for_threshold) {
-          surf_fit_err_avg_prvs = surf_fit_err_max;
+      if (max_for_threshold)
+      {
+         surf_fit_err_avg_prvs = surf_fit_err_max;
       }
       update_surf_fit_coeff = false;
    }

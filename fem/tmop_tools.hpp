@@ -142,6 +142,7 @@ protected:
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
+   mutable double weights_max_limit = 1e5;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -258,6 +259,10 @@ public:
    void SetMinimumDeterminantThreshold(double threshold)
    {
       min_detJ_threshold = threshold;
+   }
+   void SetMaximumFittingWeightLimit(double weight)
+   {
+      weights_max_limit = weight;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const

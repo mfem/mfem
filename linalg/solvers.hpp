@@ -662,6 +662,10 @@ protected:
    double gamma;
    // Eisenstat-Walker factor alpha
    double alpha;
+   mutable int final_lin_iter = 0;
+   mutable int total_lin_iter = 0;
+
+   mutable double norm_ratio;
 
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */
@@ -719,6 +723,10 @@ public:
                            const double rtol_max = 0.9,
                            const double alpha = 0.5 * (1.0 + sqrt(5.0)),
                            const double gamma = 1.0);
+
+   int GetTotalNumberOfLinearIterations() { return total_lin_iter; };
+
+   int GetMostRecentNumberOfLinearIterations() { return final_lin_iter; };
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing

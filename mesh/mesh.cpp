@@ -1888,6 +1888,67 @@ void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
    }
 }
 
+void Mesh::AddQuadAs5QuadsWithPoints(int *vi, int attr)
+{
+   int num_faces = 4;
+   static const int quad_faces[4][2] =
+   {
+      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
+   };
+
+   Vector px(4), py(4);
+   Array<int> plist(vi, 4);
+   for (int i = 0; i < 4; i++)
+   {
+      double *vp = vertices[plist[i]]();
+      px(i) = vp[0];
+      py(i) = vp[1];
+   }
+
+   int vnew_index[4];
+   double vnew[2];
+   double r = 0.25, s = 0.25;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[0] = NumOfVertices-1;
+
+   r = 0.75, s = 0.25;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[1] = NumOfVertices-1;
+
+   r = 0.75, s = 0.75;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[2] = NumOfVertices-1;
+
+   r = 0.25, s = 0.75;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[3] = NumOfVertices-1;
+
+   static const int quad_faces_new[4][2] =
+   {
+      { 1, 0}, { 2, 1}, { 3, 2}, { 0, 3}
+   };
+
+   int ti[4];
+   for (int i = 0; i < num_faces; i++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         ti[j] = vi[quad_faces[i][j]];
+         ti[j+2] = vnew_index[quad_faces_new[i][j]];
+      }
+      AddQuad(ti, attr);
+   }
+   AddQuad(vnew_index, attr);
+}
+
 void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
 {
    auto get4tuple = [&](Array<int> v)
@@ -3738,6 +3799,83 @@ void Mesh::MakeTriMeshFromQuad(int nx, int ny,
    FinalizeTopology();
 }
 
+void Mesh::Make5QuadMeshFromQuad(int nx, int ny,
+                                 double sx, double sy)
+{
+    SetEmpty();
+
+    Dim = 2;
+    spaceDim = 2;
+
+   int i, j, k;
+   NumOfElements = nx * ny * 5;
+   NumOfVertices = (nx+1) * (ny+1); //it will be enlarged later on
+   NumOfBdrElements =  (2 * nx + 2 * ny );
+   vertices.SetSize(NumOfVertices);
+   elements.SetSize(NumOfElements);
+   boundary.SetSize(NumOfBdrElements);
+   NumOfElements = 0;
+   int x, y;
+
+   double cx, cy;
+   int ind[4];
+
+   // Sets vertices and the corresponding coordinates
+   k = 0;
+   for (j = 0; j < ny+1; j++)
+   {
+      cy = ((double) j / ny) * sy;
+      for (i = 0; i < nx+1; i++)
+      {
+         cx = ((double) i / nx) * sx;
+         vertices[k](0) = cx;
+         vertices[k](1) = cy;
+         k++;
+      }
+   }
+
+   for (y = 0; y < ny; y++)
+   {
+      for (x = 0; x < nx; x++)
+      {
+         ind[0] = x + y*(nx+1);
+         ind[1] = x + 1 +y*(nx+1);
+         ind[2] = x + 1 + (y+1)*(nx+1);
+         ind[3] = x + (y+1)*(nx+1);
+         AddQuadAs5QuadsWithPoints(ind, 1);
+      }
+   }
+
+   int m = (nx+1)*ny;
+   for (i = 0; i < nx; i++)
+   {
+      boundary[i] = new Segment(i, i+1, 1);
+      boundary[nx+i] = new Segment(m+i+1, m+i, 3);
+   }
+   m = nx+1;
+   for (j = 0; j < ny; j++)
+   {
+      boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
+      boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
+   }
+
+   SetMeshGen();
+   CheckElementOrientation(true);
+
+   el_to_edge = new Table;
+   NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   GenerateFaces();
+   CheckBdrElementOrientation();
+
+   NumOfFaces = 0;
+
+   attributes.Append(1);
+   bdr_attributes.Append(1); bdr_attributes.Append(2);
+   bdr_attributes.Append(3); bdr_attributes.Append(4);
+
+   FinalizeTopology();
+}
+
 void Mesh::Make2D(int nx, int ny, Element::Type type,
                   double sx, double sy,
                   bool generate_edges, bool sfc_ordering)
@@ -4146,6 +4284,15 @@ Mesh Mesh::MakeQuadTo4TriMesh(int nx, int ny,
 {
    Mesh mesh;
    mesh.MakeTriMeshFromQuad(nx, ny, sx, sy);
+   mesh.Finalize(false, false);
+   return mesh;
+}
+
+Mesh Mesh::MakeQuadTo5QuadMesh(int nx, int ny,
+                               double sx, double sy)
+{
+   Mesh mesh;
+   mesh.Make5QuadMeshFromQuad(nx, ny, sx, sy);
    mesh.Finalize(false, false);
    return mesh;
 }

@@ -203,7 +203,6 @@ int main (int argc, char *argv[])
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
                   "303: (|T|^2)/3/tau^(2/3)-1        -- 3D shape\n\t"
-                  "304: (|T|^3)/3^{3/2}/tau-1        -- 3D shape\n\t"
                   // "311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
                   "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
                   "315: (tau-1)^2                    -- 3D no type\n\t"
@@ -215,7 +214,6 @@ int main (int argc, char *argv[])
                   "332: (1-gamma) mu_302 + gamma mu_315  -- 3D shape+size\n\t"
                   "333: (1-gamma) mu_302 + gamma mu_316  -- 3D shape+size\n\t"
                   "334: (1-gamma) mu_303 + gamma mu_316  -- 3D shape+size\n\t"
-                  "347: (1-gamma) mu_304 + gamma mu_316  -- 3D shape+size\n\t"
                   // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
                   "360: (|T|^3)/3^{3/2}-tau              -- 3D shape\n\t"
                   "A-metrics\n\t"
@@ -483,7 +481,6 @@ int main (int argc, char *argv[])
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
-      case 304: metric = new TMOP_Metric_304; break;
       // case 311: metric = new TMOP_Metric_311; break;
       case 313: metric = new TMOP_Metric_313(min_detJ); break;
       case 315: metric = new TMOP_Metric_315; break;
@@ -495,7 +492,6 @@ int main (int argc, char *argv[])
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
-      case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(min_detJ); break;
       case 360: metric = new TMOP_Metric_360; break;
       // A-metrics

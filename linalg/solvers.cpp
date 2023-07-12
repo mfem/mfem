@@ -1689,6 +1689,12 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          prec->Mult(v0, q);
          beta = sqrt(Dot(v0, q));
       }
+
+
+      if (std::isnan(beta))
+      {
+         MFEM_ABORT("nan beta in solvers");
+      }
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       rho1 = hypot(delta, beta);
 
@@ -1828,6 +1834,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
+
+   norm_ratio = 1.0;
    ProcessNewState(x);
 
    oper->Mult(x, r);
@@ -1883,6 +1891,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
 
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      auto iterative_solver = static_cast<IterativeSolver *>(prec);
+      if (iterative_solver)
+      {
+         final_lin_iter = iterative_solver->GetNumIterations();
+         total_lin_iter += final_lin_iter;
+      }
 
       if (lin_rtol_type)
       {
@@ -1905,6 +1919,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          r -= b;
       }
       norm = Norm(r);
+      norm_ratio = norm/norm0;
    }
 
    final_iter = it;

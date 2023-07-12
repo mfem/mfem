@@ -1784,10 +1784,13 @@ protected:
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
+   GridFunction *surf_fit_gf_l2, *surf_fit_grad_l2, *surf_fit_hess_l2;
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
    Array<double> surf_fit_weight_scale;
+   Vector point_jacobian_initial;
+   Vector point_jacobian_current;
    double last_active_surf_fit_const;
    bool fit_weight_point_wise = false;
 
@@ -1895,6 +1898,7 @@ protected:
    // First derivative of the surface fitting term.
    void AssembleElemVecSurfFit(const FiniteElement &el_x,
                                IsoparametricTransformation &Tpr,
+                               DenseMatrix &LocMat,
                                DenseMatrix &mat);
 
    // Second derivative of the surface fitting term.
@@ -1992,6 +1996,7 @@ public:
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
         surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_gf_l2(NULL), surf_fit_grad_l2(NULL), surf_fit_hess_l2(NULL),
         surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
@@ -2085,7 +2090,8 @@ public:
                              Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
                              AdaptivityEvaluator *aegrad = NULL,
-                             AdaptivityEvaluator *aehess = NULL);
+                             AdaptivityEvaluator *aehess = NULL,
+                             bool h1space = true);
 
    /** @brief Fitting of certain DOFs in the current mesh to the zero level set
        of a function defined on another (finer) mesh
@@ -2120,20 +2126,26 @@ public:
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
 
-   // Set the initial fitting weight by computing the norm of the gradient of
-   // the metric term and (unweighted) fitting term. This ensures that the initial
-   // weight can be set such that the fitting term dominates the metric term
-   // everywhere.
-   double ComputeInitialFittingWeight(Vector &x_loc);
-   void GetInitialFittingWeightGrads(Vector &x_loc,
-                                       ParGridFunction *metric_grad_mag,
-                                       ParGridFunction *fitting_grad_mag,
-                                       ParGridFunction *metric_fitting_ratio);
+   //   void EnableSurfaceFitting2(ParGridFunction &s0,
+   //                              Array<bool> &smarker,
+   //                              Coefficient &coeff,
+   //                              AdaptivityEvaluator &ae,
+   //                              AdaptivityEvaluator *age = NULL,
+   //                              AdaptivityEvaluator *ahe = NULL,
+   //                              const ParGridFunction *s0_grad = NULL,
+   //                              const ParGridFunction *s0_hess = NULL,
+   //                              const ParGridFunction *s0_bg = NULL,
+   //                              const ParGridFunction *s0_bg_grad = NULL,
+   //                              const ParGridFunction *s0_bg_hess = NULL);
+
+   // op = 0 means avg, 1 means min
+   void ComputePointWiseJacobian(Vector &x_loc, Vector &jac, int op = 0);
+   void ComputePointWiseJacobianAtCurrentMesh(Vector &x_loc, int op = 0);
+   void ComputePointWiseJacobianAtInitialMesh(Vector &x_loc, int op = 0);
 
    // Sets initial fitting weight based on the magnitude of the norm of the
    // gradient of the metric term and the fitting term.
-   void SetInitialFittingWeightAutomatically(Vector &x_loc, double offset = 1.0,
-                                             int type = 1);
+   void SetInitialFittingWeightAutomatically(Vector &x_loc);
 
    void DisableSurfaceFitting();
 #endif

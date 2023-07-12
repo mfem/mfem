@@ -536,6 +536,9 @@ protected:
    void MakeTriMeshFromQuad(int nx, int ny,
                             double sx, double sy);
 
+   void Make5QuadMeshFromQuad(int nx, int ny,
+                              double sx, double sy);
+
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
@@ -626,6 +629,9 @@ public:
 
    static Mesh MakeQuadTo4TriMesh(int nx = 1, int ny = 1, double sx = 1.0,
                                   double sy = 1.0);
+
+   static Mesh MakeQuadTo5QuadMesh(int nx = 1, int ny = 1, double sx = 1.0,
+                                   double sy = 1.0);
 
    /// Create a refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -759,6 +765,7 @@ public:
    void AddHexAs24TetsWithPoints(int *vi, int attr = 1);
    void AddHexAs12TetsWithPoints(int *vi, int attr = 1);
    void AddQuadAs4TrisWithPoints(int *vi, int attr = 1);
+   void AddQuadAs5QuadsWithPoints(int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);
