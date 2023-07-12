@@ -374,7 +374,7 @@ Mesh generate_mesh(int ref, int internal_bdr_attr)
          auto *vtx = mesh.GetVertex(verts[j]);
          if (vtx[0] <= 1.0)
          {
-            left = left;
+            continue;
          }
          else
          {
