@@ -13,6 +13,22 @@
 using namespace std;
 using namespace mfem;
 
+
+// function to verify correctness of parallel code
+// function f(x) = x
+void rhs_func1(const Vector & x, Vector & y)
+{
+   y = x;
+}
+
+// function f(x) = x.^2
+void rhs_func2(const Vector & x, Vector & y)
+{
+   y = x;
+   y*=x;
+}
+
+
 int get_rank(int tdof, std::vector<int> & tdof_offsets)
 {
    int size = tdof_offsets.size();
@@ -39,6 +55,14 @@ void ComputeTdofOffsets(MPI_Comm comm, int mytoffset, std::vector<int> & tdof_of
    MPI_Comm_size(comm,&num_procs);
    tdof_offsets.resize(num_procs);
    MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
+}
+
+void ComputeTdofs(MPI_Comm comm, int mytoffs, std::vector<int> & tdofs)
+{
+   int num_procs;
+   MPI_Comm_size(comm,&num_procs);
+   tdofs.resize(num_procs);
+   MPI_Allgather(&mytoffs,1,MPI_INT,&tdofs,1,MPI_INT,comm);
 }
 
 void PrintElementVertices(Mesh * mesh, int elem,  int printid)
@@ -733,25 +757,51 @@ int main(int argc, char *argv[])
    // for (auto a : attr)  cout << a << endl;
 
    // unique numbering of vertices;
-   Array<int> globalvertices1(pmesh1.GetNV());
-   Array<int> globalvertices2(pmesh2.GetNV());
+   Array<int> vertices1(pmesh1.GetNV());
+   Array<int> vertices2(pmesh2.GetNV());
 
    for (int i = 0; i<pmesh1.GetNV(); i++)
    {
-      globalvertices1[i] = i;
+      vertices1[i] = i;
    }
-   pmesh1.GetGlobalVertexIndices(globalvertices1);
+   pmesh1.GetGlobalVertexIndices(vertices1);
 
    for (int i = 0; i<pmesh2.GetNV(); i++)
    {
-      globalvertices2[i] = i;
+      vertices2[i] = i;
    }
-   pmesh2.GetGlobalVertexIndices(globalvertices2);
+   pmesh2.GetGlobalVertexIndices(vertices2);
 
+   // master mesh 1
+   int voffset1 = vertexfes1->GetMyTDofOffset();
+   int voffset2 = vertexfes2->GetMyTDofOffset();
+   int voffset = voffset1 + voffset2;
+
+   std::vector<int> vertex1_offsets;
+   ComputeTdofOffsets(vertexfes1->GetComm(),voffset1,vertex1_offsets);
+   std::vector<int> vertex2_offsets;
+   ComputeTdofOffsets(vertexfes2->GetComm(),voffset2, vertex2_offsets);
+   std::vector<int> vertex_offsets;
+   ComputeTdofOffsets(vertexfes2->GetComm(),voffset, vertex_offsets);
+
+   Array<int> globalvertices1(pmesh1.GetNV());
+   Array<int> globalvertices2(pmesh2.GetNV());
+   for (int i = 0; i<pmesh1.GetNV(); i++)
+   {
+      int rank = get_rank(vertices1[i],vertex1_offsets);
+      globalvertices1[i] = vertices1[i] + vertex2_offsets[rank];
+   }
+
+   std::vector<int> vertex1_tdoffs;
+   ComputeTdofOffsets(vertexfes1->GetComm(),nnd_1, vertex1_tdoffs);
+
+   for (int i = 0; i<pmesh2.GetNV(); i++)
+   {
+      int rank = get_rank(vertices2[i],vertex2_offsets);
+      globalvertices2[i] = vertices2[i] + vertex1_offsets[rank] + vertex1_tdoffs[rank];
+   }
 
    std::set<int> bdryVerts2;
-   std::vector<int> vertex_offsets;
-   ComputeTdofOffsets(vertexfes2,vertex_offsets);
    for (int b=0; b<pmesh2.GetNBE(); ++b)
    {
       if (attr.FindSorted(pmesh2.GetBdrAttribute(b)) >= 0)
@@ -761,13 +811,20 @@ int main(int argc, char *argv[])
          for (auto v : vert)
          {
             // skip if the processor does not own the vertex
+            // int rank = get_rank(globalvertices2[v],vertex_offsets);
+            // mfem::out << "myid, v, globalvertices2[v], rank " << myid << ", " << v << ", " << globalvertices2[v] << ", " << rank << endl; 
+            // int rank1 = get_rank(vertices2[v],vertex2_offsets);
+            // mfem::out << "myid, v, vertices2[v], rank " << myid << ", " << v << ", " << vertices2[v] << ", " << rank1 << endl; 
             if (myid != get_rank(globalvertices2[v],vertex_offsets)) { continue; }
+            // if (myid != get_rank(vertices2[v],vertex2_offsets)) { continue; }
             bdryVerts2.insert(v);
          }
       }
    }
 
    int npoints = bdryVerts2.size();
+
+   // mfem::out << "npoints = " << npoints << endl;
 
    Array<int> s_conn(npoints); // connectivity of the second/slave mesh
    Vector xyz(dim * npoints);
@@ -783,21 +840,9 @@ int main(int argc, char *argv[])
       {
          xyz[count + (i * npoints)] = pmesh2.GetVertex(v)[i] + x2[v*dim+i];
       }
-
-      // s_conn[count] = v + nnd_1; // dof1 is the master
-      // s_conn[count] = globalvertices[v] - vertexfes2->GetMyTDofOffset() + nnd_1; // dof1 is the master
-      
-      // This is wrong ... need global enumeration of vertex dofs for both meshes
-      // MFEM_ABORT("Need to compute a global numbering of vertex dofs for both meshes");
-      // s_conn[count] = globalvertices2[v] + nnd_1; // dof1 is the master
-      s_conn[count] = globalvertices2[v]; // dof1 is the master
+      s_conn[count] = globalvertices2[v];
       count++;
    }
-   // mfem::out << "nnd1 = " << n
-   // PrintArray(s_conn, "s_conn",0);
-   // PrintArray(s_conn, "s_conn",1);
-   // PrintArray(s_conn, "s_conn",2);
-   // mfem::out << "myid, size of g = " << myid << ", " << npoints*dim << endl;
    MFEM_VERIFY(count == npoints, "");
 
    // gap function
@@ -821,7 +866,6 @@ int main(int argc, char *argv[])
    if (0) // for debugging
    {
       int sz = m_xi.Size()/2;
-
       for (int i = 0; i<sz; i++)
       {
          mfem::out << "("<<xyz_recv[i+0*sz]<<","<<xyz_recv[i+1*sz]<<","<<xyz_recv[i+2*sz]<<"): -> ";
@@ -841,21 +885,16 @@ int main(int argc, char *argv[])
          }
       }
 
-
       MPI_Barrier(MPI_COMM_WORLD);
       // debug m_conn
-      std::vector<int> vertex_offsets1;
-      ComputeTdofOffsets(vertexfes1,vertex_offsets1);
-
       for (int i = 0; i< pmesh1.GetNV(); i++)
       {
          int gv = globalvertices1[i];
-         if (myid != get_rank(gv,vertex_offsets1)) continue;
-         double *vcoords = pmesh1.GetVertex(gv-vertexfes1->GetMyTDofOffset()); 
+         if (myid != get_rank(gv,vertex_offsets)) continue;
+         double *vcoords = pmesh1.GetVertex(gv-voffset); 
          mfem::out << "vertex: " << gv << " = ("<<vcoords[0] <<","<<vcoords[1]<<","<<vcoords[2]<<")" << endl;
       }
    }
-
 
    Vector xs(dim*npoints);
    xs = 0.0;
@@ -872,17 +911,13 @@ int main(int argc, char *argv[])
    Assemble_Contact(gnnd, npoints, xs, m_xi, coordsm,
                        s_conn, m_conn, g, M, dM);
 
-   // Note: s_conn and m_conn have global (unique) numbering corresponding 
-   // to their pmesh
+
+   // M.Finalize();
+   // PrintSparseMatrix(M,"M",2);
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
    // --------------------------------------------------------------------
-   std::vector<int> Moffsets;
-   int myMtoffset = vertexfes1->GetMyTDofOffset() + vertexfes2->GetMyTDofOffset();
-
-   ComputeTdofOffsets(K->GetComm(), myMtoffset, Moffsets);
-
    Array<int> M_send_count(num_procs);
    Array<int> M_send_displ(num_procs);
    Array<int> M_recv_count(num_procs);
@@ -894,7 +929,7 @@ int main(int argc, char *argv[])
    {
       int rsize = M.RowSize(i);
       if (rsize == 0) continue;
-      int rank = get_rank(i,Moffsets);
+      int rank = get_rank(i,vertex_offsets);
       M_send_count[rank] += rsize+2;
    }
 
@@ -916,8 +951,7 @@ int main(int argc, char *argv[])
    {
       int rsize = M.RowSize(i);
       if (rsize == 0) continue;
-      int rank = get_rank(i,Moffsets);
-      // mfem::out << "i, rank  = " << i << ", " << rank << endl;
+      int rank = get_rank(i,vertex_offsets);
       int j = M_send_displ[rank] + M_sendoffs[rank];
       Array<int> cols;
       Vector vals;
@@ -965,7 +999,7 @@ int main(int argc, char *argv[])
    int counter = 0;
    while (counter < M_rbuff_size)
    {
-      int row = M_recvcols[counter] - myMtoffset;
+      int row = M_recvcols[counter] - voffset;
       int size = M_recvcols[counter+1];
       Vector vals(size);
       Array<int> cols(size);
@@ -981,7 +1015,6 @@ int main(int argc, char *argv[])
    localM.Finalize();
    localM.SortColumnIndices();
    // --------------------------------------------------------------------
-
 
    // --------------------------------------------------------------------
    // Redistribute the dM_i matrices
@@ -1097,23 +1130,55 @@ int main(int argc, char *argv[])
    // Assume this is true
    MFEM_VERIFY(HYPRE_AssumedPartitionCheck(), "Hypre_AssumedPartitionCheck is False");
 
+   localDM.Threshold(1e-15);
+   localM.Threshold(1e-15);
 
-   // Construct M and DM row and col starts to construct HypreParMatrix
-   int Mrows[2]; Mrows[0] = myMtoffset; Mrows[1] = myMtoffset+nnd;
+   // Construct M row and col starts to construct HypreParMatrix
+   int Mrows[2]; Mrows[0] = vertex_offsets[myid]; Mrows[1] = vertex_offsets[myid]+nnd;
    int Mcols[2]; Mcols[0] = K->ColPart()[0]; Mcols[1] = K->ColPart()[1]; 
-
-   int DMrows[2]; DMrows[0] = K->RowPart()[0]; DMrows[1] = K->RowPart()[1];
-   int DMcols[2]; DMcols[0] = K->ColPart()[0]; DMcols[1] = K->ColPart()[1]; 
-
    HypreParMatrix hypreM(K->GetComm(),nnd,gnnd,gndofs,
                          localM.GetI(), localM.GetJ(),localM.GetData(),
                          Mrows,Mcols);
 
+   int DMrows[2]; DMrows[0] = K->RowPart()[0]; DMrows[1] = K->RowPart()[1];
+   int DMcols[2]; DMcols[0] = K->ColPart()[0]; DMcols[1] = K->ColPart()[1]; 
+
    HypreParMatrix hypreDM(K->GetComm(),ndofs,gndofs,gndofs,
                           localDM.GetI(), localDM.GetJ(),localDM.GetData(),
-                          DMrows,DMcols);                      
+                          DMrows,DMcols);  
 
-   hypreM.Print("m.dat");
+
+
+
+
+
+   HypreParMatrix * mat = ParAdd(K,&hypreDM);
+
+
+   VectorFunctionCoefficient cf1(dim,rhs_func1);
+   VectorFunctionCoefficient cf2(dim,rhs_func2);
+
+   ParGridFunction gf1(fespace1); gf1.ProjectCoefficient(cf1);
+   ParGridFunction gf2(fespace2); gf2.ProjectCoefficient(cf2);
+
+   Vector rhs1(fespace1->GetTrueVSize()), rhs2(fespace2->GetTrueVSize());
+   gf1.ParallelProject(rhs1);
+   gf2.ParallelProject(rhs2);
+
+   Vector X(rhs1.Size()+rhs2.Size());
+   X.SetVector(rhs1,0);
+   X.SetVector(rhs2,rhs1.Size());
+
+   Vector Y(X.Size());
+
+   // mat->Mult(X,Y);
+   K->Mult(X,Y);
+   double ynorm = InnerProduct(MPI_COMM_WORLD,Y,Y);
+
+   mfem::out << "ynorm = " << ynorm << endl;
+
+   // hypreM.Print("m.dat");
+   // hypreDM.Print("dm.dat");
 
 
    // --------------------------------------------------------------------
