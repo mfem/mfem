@@ -414,7 +414,8 @@ int main(int argc, char *argv[])
       error_gf -= u_gf;
 
       err_sock << "parallel " << num_procs << " " << myid << "\n";
-      err_sock << "solution\n" << pmesh << error_gf << "window_title 'Error'"  << flush;
+      err_sock << "solution\n" << pmesh << error_gf << "window_title 'Error'"  <<
+               flush;
    }
 
    {
