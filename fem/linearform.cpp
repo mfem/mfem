@@ -12,7 +12,6 @@
 // Implementation of class LinearForm
 
 #include "fem.hpp"
-#include <__nullptr>
 
 namespace mfem
 {

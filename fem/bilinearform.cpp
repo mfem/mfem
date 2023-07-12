@@ -13,7 +13,6 @@
 
 #include "fem.hpp"
 #include "../general/device.hpp"
-#include <__nullptr>
 #include <cmath>
 #include <cstddef>
 
