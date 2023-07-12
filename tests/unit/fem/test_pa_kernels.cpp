@@ -9,11 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
@@ -549,17 +544,17 @@ static void test_pa_integrator()
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   ConstantCoefficient pi(M_PI);
+   FunctionCoefficient coeff(f1);
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(coeff,ir));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(coeff,ir));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
@@ -577,5 +572,40 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 {
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
+
+TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   RT_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   FunctionCoefficient coeff(f1);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
 
 } // namespace pa_kernels
