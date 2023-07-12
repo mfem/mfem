@@ -88,8 +88,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  "isoparametric space.");
+                  "Finite element order (polynomial degree)");
    args.AddOption(&ref_levels, "-r", "--refs",
                   "Number of h-refinements.");
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -111,19 +110,27 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // 2. Read the mesh from the mesh file.
-   const char *mesh_file = "../data/disc-nurbs-unit.mesh";
+   const char *mesh_file = "../data/disc-nurbs.mesh";
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 3. Refine the mesh to increase the resolution.
+   // 3. Postprocess the mesh.
+   // 3A. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
 
-   // NOTE: Minimum second-order curvature to improve accuracy
+   // 3B. Interpolate the geometry after refinement to control geometry error.
+   // NOTE: Minimum second-order interpolation is used to improve the accuracy.
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
+
+   // 3C. Rescale the domain to a unit circle (radius = 1).
+   GridFunction *nodes = mesh.GetNodes();
+   double scale = 2*sqrt(2);
+   int size = nodes->Size();
+   *nodes /= scale;
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection H1fec(order+1, dim);
@@ -267,8 +274,9 @@ int main(int argc, char *argv[])
 
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+         // NOTE: Shift the spectrum of the Hessian matrix for additional
+         //       stability (Quasi-Newton).
          ConstantCoefficient eps_cf(-1e-6);
-         // NOTE: Quasi-Newton spectrum shift for additional stability
          if (order == 1)
          {
             // NOTE: ∇ₕuₕ = 0 for constant functions.
