@@ -141,7 +141,6 @@ int main(int argc, char *argv[])
    // 3C. Rescale the domain to a unit circle (radius = 1).
    GridFunction *nodes = mesh.GetNodes();
    double scale = 2*sqrt(2);
-   int size = nodes->Size();
    *nodes /= scale;
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
