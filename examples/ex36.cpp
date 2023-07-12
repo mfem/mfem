@@ -202,6 +202,8 @@ int main(int argc, char *argv[])
    InnerProductCoefficient squared_normDu(Du, Du);
 
    ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
+   ProductCoefficient alph_f_lam_dsigmoid(alph_f_lam, dsigmoid_cf);
+   ProductCoefficient psi_k_dsigmoid(psi_k_cf, dsigmoid_cf);
    ProductCoefficient dsimp_squared_normDu(dsimp_cf, squared_normDu);
 
    // 5. Define global system for newton iteration
@@ -234,13 +236,13 @@ int main(int argc, char *argv[])
 
    // Equation ψ
    fixedPointSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
+      new MassIntegrator(dsigmoid_cf)
    );
    fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(psi_k_cf)
+      new DomainLFIntegrator(psi_k_dsigmoid)
    );
    fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(alph_f_lam)
+      new DomainLFIntegrator(alph_f_lam_dsigmoid)
    );
 
    // Equation λ̃
@@ -342,7 +344,7 @@ int main(int argc, char *argv[])
          sout_rho << "solution\n" << mesh << f_rho << "valuerange 0.0 1.0\n" << flush;
       }
       const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant;
-      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
+      mfem::out << "||ρ - ρ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
       if (diff_penalty < tol_penalty)
       {
