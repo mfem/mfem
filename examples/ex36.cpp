@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
 
    int maxit_penalty = 10000;
    int maxit_newton = 1;
-   double tol_newton = 1e-4;
-   double tol_penalty = 1e-6;
+   double tol_newton = 1e-6;
+   double tol_penalty = 1e-4;
 
 
    int precision = 8;
