@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
          sout_u << "solution\n" << mesh << u << flush;
          GridFunction rho(&fes_L2_Qk2);
          rho.ProjectCoefficient(rho_cf);
-         sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
+         sout_rho << "solution\n" << mesh << f_rho << "valuerange 0.0 1.0\n" << flush;
       }
       const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant;
       mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
