@@ -35,21 +35,21 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int problem = 0;
+   int problem = 1;
    const char *mesh_file = "../data/rect_with_top_fixed.mesh";
-   int ref_levels = 1;
-   int order = 1;
+   int ref_levels = 3;
+   int order = 0;
    const char *device_config = "cpu";
    bool visualization = true;
    double alpha0 = 1.0;
-   double epsilon = 1e-04;
+   double epsilon = 1e-02;
    double rho0 = 1e-6;
    int simp_exp = 3;
    double max_psi = 1e07;
 
    int maxit_penalty = 10000;
-   int maxit_newton = 100;
-   double tol_newton = 1e-8;
+   int maxit_newton = 1;
+   double tol_newton = 1e-4;
    double tol_penalty = 1e-6;
 
 
@@ -82,8 +82,19 @@ int main(int argc, char *argv[])
    device.Print();
 
    // 2. Input data (mesh, source, ...)
-   Mesh mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false,
-                                     1.0, 1.0);
+   Mesh mesh;
+   switch (problem)
+   {
+      case 0:
+         mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+         break;
+      case 1:
+         mesh = Mesh(mesh_file);
+         break;
+      default:
+         mfem_error("Undefined Problem");
+   }
    // Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
    const int max_attributes = mesh.bdr_attributes.Max();
@@ -96,11 +107,28 @@ int main(int argc, char *argv[])
    // Essential boundary for each variable (numVar x numAttr)
    Array2D<int> ess_bdr(Vars::numVars, max_attributes);
    ess_bdr = 0;
-   ess_bdr(Vars::u, 2) = true;
-   ess_bdr(Vars::u, 3) = true;
+   switch (problem)
+   {
+      case 0:
+         ess_bdr(Vars::u, 2) = true;
+         ess_bdr(Vars::u, 3) = true;
+         break;
+      case 1:
+         ess_bdr(Vars::u, 0) = true;
+         break;
+   }
 
    // Source and fixed temperature
-   ConstantCoefficient heat_source(1e-02);
+   ConstantCoefficient heat_source(1.0);
+   switch (problem)
+   {
+      case 0:
+         heat_source.constant = 1e-02;
+         break;
+      case 1:
+         heat_source.constant = 1e-03;
+         break;
+   }
    ConstantCoefficient u_bdr(0.0);
    const double volume_fraction = 0.4;
    const double target_volume = volume * volume_fraction;
