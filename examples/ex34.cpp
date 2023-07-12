@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
    // 7. Define the solution vectors as a finite element grid functions
    //    corresponding to the fespaces.
    GridFunction u_gf, delta_psi_gf;
-   
+
    u_gf.MakeRef(&H1fes,x.GetBlock(0).GetData());
    delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1).GetData());
    delta_psi_gf = 0.0;
@@ -357,7 +357,8 @@ int main(int argc, char *argv[])
       error_gf.ProjectCoefficient(exact_coef);
       error_gf -= u_gf;
 
-      err_sock << "solution\n" << mesh << error_gf << "window_title 'Error'"  << flush;
+      err_sock << "solution\n" << mesh << error_gf << "window_title 'Error'"  <<
+               flush;
    }
 
    {
