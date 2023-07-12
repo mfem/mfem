@@ -258,13 +258,14 @@ int main(int argc, char *argv[])
 
 
 
-   socketstream sout_u, sout_rho;
+   socketstream sout_u, sout_rho, sout_f_rho;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       sout_u.open(vishost, visport);
       sout_rho.open(vishost, visport);
+      sout_f_rho.open(vishost, visport);
       if (!sout_u)
       {
          cout << "Unable to connect to GLVis server at "
@@ -276,16 +277,24 @@ int main(int argc, char *argv[])
       {
          sout_u.precision(precision);
          sout_u << "solution\n" << mesh << u;
+         sout_u << "window_title 'u'\n";
          sout_u << "keys jmmR**c\n";
          sout_u << flush;
          sout_rho.precision(precision);
          GridFunction rho(&fes_L2_Qk2);
          rho.ProjectCoefficient(rho_cf);
          sout_rho << "solution\n" << mesh << rho;
+         sout_rho << "window_title 'ρ'\n";
          sout_rho << "autoscale off\n";
          sout_rho << "valuerange 0.0 1.0\n";
          sout_rho << "keys jmmR**c\n";
          sout_rho << flush;
+         sout_f_rho << "solution\n" << mesh << f_rho;
+         sout_f_rho << "window_title 'ρ̃'\n";
+         sout_f_rho << "autoscale off\n";
+         sout_f_rho << "valuerange 0.0 1.0\n";
+         sout_f_rho << "keys jmmR**c\n";
+         sout_f_rho << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
       }
@@ -338,10 +347,32 @@ int main(int argc, char *argv[])
       }
       if (visualization)
       {
+         
          sout_u << "solution\n" << mesh << u << flush;
          GridFunction rho(&fes_L2_Qk2);
          rho.ProjectCoefficient(rho_cf);
-         sout_rho << "solution\n" << mesh << f_rho << "valuerange 0.0 1.0\n" << flush;
+         sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
+         sout_f_rho << "solution\n" << mesh << f_rho << "valuerange 0.0 1.0\n" << flush;
+
+
+         ostringstream filename;
+         ofstream file;
+
+         filename << "u" << std::setfill('0') << std::setw(6) << k << ".gf";
+         file.open(filename.str());
+         u.Save(file);
+         file.close();
+         file.clear();
+         filename << "rho" << std::setfill('0') << std::setw(6) << k << ".gf";
+         file.open(filename.str());
+         rho.Save(file);
+         file.close();
+         file.clear();
+         filename << "f_rho" << std::setfill('0') << std::setw(6) << k << ".gf";
+         file.open(filename.str());
+         f_rho.Save(file);
+         file.close();
+         file.clear();
       }
       const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant / std::sqrt(volume);
       mfem::out << "||ρ - ρ_k|| = " << std::scientific << diff_penalty << std::endl
