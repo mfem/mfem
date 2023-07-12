@@ -16,7 +16,13 @@ double sigmoid(const double x)
 double dsigmoiddx(const double x)
 {
    const double tmp = sigmoid(x);
-   return tmp - std::pow(tmp, 2);
+   return tmp*(1 - tmp);
+}
+
+double d2sigmoiddx2(const double x)
+{
+   const double tmp = sigmoid(x);
+   return tmp*(1 - tmp)*(1-2*tmp);
 }
 
 double logit(const double x)
@@ -218,6 +224,11 @@ MappedGridFunctionCoefficient SigmoidCoefficient(GridFunction *gf)
 MappedGridFunctionCoefficient DerSigmoidCoefficient(GridFunction *gf)
 {
    return MappedGridFunctionCoefficient(gf, dsigmoiddx);
+}
+
+MappedGridFunctionCoefficient Der2SigmoidCoefficient(GridFunction *gf)
+{
+   return MappedGridFunctionCoefficient(gf, d2sigmoiddx2);
 }
 
 double VolumeProjection(GridFunction &psi, const double target_volume,
