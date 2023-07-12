@@ -35,14 +35,14 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int problem = 1;
+   int problem = 0;
    const char *mesh_file = "../data/rect_with_top_fixed.mesh";
-   int ref_levels = 3;
+   int ref_levels = 2;
    int order = 0;
    const char *device_config = "cpu";
    bool visualization = true;
    double alpha0 = 1.0;
-   double epsilon = 1e-02;
+   double epsilon = 1e-04;
    double rho0 = 1e-6;
    int simp_exp = 3;
    double max_psi = 1e07;
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    int maxit_penalty = 10000;
    int maxit_newton = 1;
    double tol_newton = 1e-6;
-   double tol_penalty = 1e-4;
+   double tol_penalty = 1e-6;
 
 
    int precision = 8;
