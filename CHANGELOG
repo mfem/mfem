@@ -14,7 +14,7 @@ Version 4.5.3 (development)
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example code, Example 34/34p, to demonstrate the solution of
-  the obstacle problem.
+  the obstacle problem with a new finite element method.
 
 - Added a new miniapp, Mesh Quality, for evaluating mesh quality using size,
   skewness, and aspect-ratio computed from the Jacobian of the transformation.

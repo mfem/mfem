@@ -4,7 +4,7 @@
 // Compile with: make ex34p
 //
 // Sample runs: mpirun -np 2 ex34p -o 2
-//              mpirun -np 2 ex34p -o 2
+//              mpirun -np 2 ex34p -o 2 -r 4
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
@@ -85,17 +85,14 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/disc-nurbs-unit.mesh";
    int order = 1;
-   bool visualization = true;
    int max_it = 10;
-   double tol = 1e-5;
    int ref_levels = 3;
    double alpha = 1.0;
+   double tol = 1e-5;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   "isoparametric space.");
@@ -125,7 +122,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 2. Read the mesh from the given mesh file.
+   // 2. Read the mesh from the mesh file.
+   const char *mesh_file = "../data/disc-nurbs-unit.mesh";
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
@@ -135,9 +133,9 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
+   // NOTE: Minimum second-order curvature to improve accuracy
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
-   mesh.EnsureNCMesh();
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -212,6 +210,7 @@ int main(int argc, char *argv[])
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
+
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
    FunctionCoefficient exact_coef(exact_solution_obstacle);
@@ -230,20 +229,10 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
-
-   ParGridFunction u_alt_gf(&L2fes);
-   ParGridFunction error_gf(&L2fes);
-
-   ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
-   u_alt_gf.ProjectCoefficient(u_alt_cf);
-
    if (visualization)
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << u_alt_gf <<
-               "window_title 'Discrete solution'" << flush;
    }
 
    // 10. Iterate
@@ -308,9 +297,12 @@ int main(int argc, char *argv[])
 
          ParBilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+         // NOTE: Quasi-Newton spectrum shift for additional stability
          ConstantCoefficient eps_cf(-1e-6);
          if (order == 1)
          {
+            // NOTE: ∇ₕuₕ = 0 for constant functions.
+            //       Therefore, we use the mass matrix to shift the spectrum
             a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
          }
          else
@@ -401,11 +393,13 @@ int main(int argc, char *argv[])
 
    }
 
+   int num_dofs  = H1fes.GetTrueVSize() + L2fes.GetTrueVSize();
+   MPI_Allreduce(MPI_IN_PLACE, &num_dofs, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    if (myid == 0)
    {
       mfem::out << "\n Outer iterations: " << k+1
                 << "\n Total iterations: " << total_iterations
-                << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
+                << "\n dofs:             " << num_dofs
                 << endl;
    }
 
@@ -415,24 +409,21 @@ int main(int argc, char *argv[])
       socketstream err_sock(vishost, visport);
       err_sock.precision(8);
 
-      ParGridFunction error(&H1fes);
-      error = 0.0;
-      error.ProjectCoefficient(exact_coef);
-      error -= u_gf;
+      ParGridFunction error_gf(&H1fes);
+      error_gf.ProjectCoefficient(exact_coef);
+      error_gf -= u_gf;
 
       err_sock << "parallel " << num_procs << " " << myid << "\n";
-      err_sock << "solution\n" << pmesh << error << "window_title 'Error'"  << flush;
+      err_sock << "solution\n" << pmesh << error_gf << "window_title 'Error'"  << flush;
    }
 
    {
-      u_alt_gf.ProjectCoefficient(u_alt_cf);
-      error_gf = 0.0;
-      error_gf.ProjectCoefficient(exact_coef);
-      error_gf -= u_alt_gf;
-      error_gf *= -1.0;
-
       double L2_error = u_gf.ComputeL2Error(exact_coef);
       double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+
+      ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
+      ParGridFunction u_alt_gf(&L2fes);
+      u_alt_gf.ProjectCoefficient(u_alt_cf);
       double L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
 
       if (myid == 0)

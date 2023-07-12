@@ -79,17 +79,14 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/disc-nurbs-unit.mesh";
    int order = 1;
-   bool visualization = true;
    int max_it = 10;
-   double tol = 1e-5;
    int ref_levels = 3;
    double alpha = 1.0;
+   double tol = 1e-5;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   "isoparametric space.");
@@ -113,7 +110,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file.
+   // 2. Read the mesh from the mesh file.
+   const char *mesh_file = "../data/disc-nurbs-unit.mesh";
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
@@ -123,9 +121,9 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
+   // NOTE: Minimum second-order curvature to improve accuracy
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
-   mesh.EnsureNCMesh();
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection H1fec(order+1, dim);
@@ -175,6 +173,7 @@ int main(int argc, char *argv[])
    // 7. Define the solution vectors as a finite element grid functions
    //    corresponding to the fespaces.
    GridFunction u_gf, delta_psi_gf;
+   
    u_gf.MakeRef(&H1fes,x.GetBlock(0).GetData());
    delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1).GetData());
    delta_psi_gf = 0.0;
@@ -203,19 +202,10 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
-
-   GridFunction u_alt_gf(&L2fes);
-   GridFunction error_gf(&L2fes);
-
-   ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
-   u_alt_gf.ProjectCoefficient(u_alt_cf);
-
    if (visualization)
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << u_alt_gf <<
-               "window_title 'Discrete solution'" << flush;
    }
 
    // 10. Iterate
@@ -278,8 +268,11 @@ int main(int argc, char *argv[])
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
          ConstantCoefficient eps_cf(-1e-6);
+         // NOTE: Quasi-Newton spectrum shift for additional stability
          if (order == 1)
          {
+            // NOTE: ∇ₕuₕ = 0 for constant functions.
+            //       Therefore, we use the mass matrix to shift the spectrum
             a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
          }
          else
@@ -360,24 +353,20 @@ int main(int argc, char *argv[])
       socketstream err_sock(vishost, visport);
       err_sock.precision(8);
 
-      GridFunction error(&H1fes);
-      error = 0.0;
-      error.ProjectCoefficient(exact_coef);
-      error -= u_gf;
+      GridFunction error_gf(&H1fes);
+      error_gf.ProjectCoefficient(exact_coef);
+      error_gf -= u_gf;
 
-      err_sock << "solution\n" << mesh << error << "window_title 'Error'"  << flush;
+      err_sock << "solution\n" << mesh << error_gf << "window_title 'Error'"  << flush;
    }
 
    {
-      // ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
-      u_alt_gf.ProjectCoefficient(u_alt_cf);
-      error_gf = 0.0;
-      error_gf.ProjectCoefficient(exact_coef);
-      error_gf -= u_alt_gf;
-      error_gf *= -1.0;
-
       double L2_error = u_gf.ComputeL2Error(exact_coef);
       double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+
+      ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
+      GridFunction u_alt_gf(&L2fes);
+      u_alt_gf.ProjectCoefficient(u_alt_cf);
       double L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
 
       mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error <<
