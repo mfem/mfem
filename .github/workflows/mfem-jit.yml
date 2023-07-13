@@ -1,0 +1,132 @@
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+name: "JIT"
+
+permissions:
+  actions: write
+
+on:
+  push:
+    branches:
+      - next
+      - master
+  pull_request:
+  workflow_dispatch:
+
+env:
+  HYPRE_TGZ: v2.19.0.tar.gz
+  HYPRE_DIR: hypre-2.19.0
+  METIS_TGZ: metis-4.0.3.tar.gz
+  METIS_DIR: metis-4.0.3
+  MFEM_DIR: mfem
+
+jobs:
+  builds-and-tests:
+    strategy:
+      matrix:
+        os: [ubuntu-latest] #, macos-latest]
+        build-system: [make] #, cmake]
+        target: [opt] #, dbg]
+        mpi: [seq] #, par]
+        hypre-target: [int32]
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Cancel Previous Runs
+      uses: styfle/cancel-workflow-action@0.11.0
+      with:
+        access_token: ${{ github.token }}
+
+    - name: MFEM Checkout
+      uses: actions/checkout@v3
+      with:
+        path: ${{ env.MFEM_DIR }}
+
+    # MPI setup on Linux and MacOS
+    - name: MPI install (Linux)
+      if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get install mpich libmpich-dev
+
+    - name: MPI install (MacOS)
+      if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
+      run: |
+        export HOMEBREW_NO_INSTALL_CLEANUP=1
+        brew install openmpi
+
+    # HYPRE cache & install
+    - name: HYPRE cache
+      id: hypre-cache
+      if: matrix.mpi == 'par'
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.HYPRE_DIR }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_DIR }}-${{ matrix.hypre-target }}
+
+    - name: HYPRE install
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-hypre@v2.4
+      with:
+        archive: ${{ env.HYPRE_TGZ }}
+        dir: ${{ env.HYPRE_DIR }}
+        target: ${{ matrix.hypre-target }}
+        build-system: make
+
+    # METIS cache & install
+    - name: METIS cache
+      id: metis-cache
+      if: matrix.mpi == 'par'
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.METIS_DIR }}
+        key: ${{ runner.os }}-build-${{ env.METIS_DIR }}-v2.2
+
+    - name: METIS install
+      if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
+      uses: mfem/github-actions/build-metis@v2.4
+      with:
+        archive: ${{ env.METIS_TGZ }}
+        dir: ${{ env.METIS_DIR }}
+
+    # Make MFEM config and build
+    - name: MFEM config and build (Make)
+      #if: matrix.build-system == 'make'
+      uses: mfem/github-actions/build-mfem@v2.4
+      with:
+        os: ${{ matrix.os }}
+        target: ${{ matrix.target }}
+        mpi: ${{ matrix.mpi }}
+        build-system: ${{ matrix.build-system }}
+        hypre-dir: ${{ env.HYPRE_DIR }}
+        metis-dir: ${{ env.METIS_DIR }}
+        mfem-dir: ${{ env.MFEM_DIR }}
+        library-only: false
+        config-options:
+          MFEM_USE_JIT=YES
+
+    - name: MFEM info (Make)
+      #if: matrix.build-system == 'make'
+      working-directory: mfem
+      run: make info
+
+    - name: MFEM install (Make)
+      #if: matrix.build-system == 'make'
+      working-directory: ${{ env.MFEM_DIR }}
+      run: make install
+
+    - name: MFEM test
+      #if: matrix.build-system == 'make'
+      working-directory: ${{ env.MFEM_DIR }}/examples
+      run:
+        ./ex1 -pa
