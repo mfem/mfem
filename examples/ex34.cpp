@@ -218,7 +218,6 @@ int main(int argc, char *argv[])
    double increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
-
       GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
 
