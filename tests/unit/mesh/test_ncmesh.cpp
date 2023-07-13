@@ -325,6 +325,8 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       GridFunction x(&fes);
       x = 0.0;
 
+      double snorm = x.ComputeL2Error(rhs_coef);
+
       LinearForm b(&fes);
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
       b.Assemble();
@@ -353,7 +355,7 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
 #endif
 
       a.RecoverFEMSolution(X, b, x);
-      return x.ComputeL2Error(rhs_coef);
+      return x.ComputeL2Error(rhs_coef) / snorm;
    }();
 
    auto perror = [&]
@@ -364,6 +366,8 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
 
       ParGridFunction x(&fes);
       x = 0.0;
+
+      double pnorm = x.ComputeL2Error(rhs_coef);
 
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
       b.Assemble();
@@ -386,7 +390,7 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       pcg.SetPreconditioner(amg);
       pcg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
-      return x.ComputeL2Error(rhs_coef);
+      return x.ComputeL2Error(rhs_coef) / pnorm;
    }();
 
    constexpr double test_tol = 1e-9;
@@ -517,10 +521,109 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    }
 } // test case
 
+Mesh CylinderMesh(bool wedge, bool quadratic)
+{
+   double c[3];
+
+   Mesh mesh(3, 15, wedge ? 8 : 24);
+
+   for (int i=0; i<3; i++)
+   {
+      c[0] = 0.0;  c[1] = 0.0;  c[2] = 2.74 * i;
+      mesh.AddVertex(c);
+
+      for (int j=0; j<4; j++)
+      {
+         c[0] = 2.74 * ((j + 1) % 2) * (1 - j);
+         c[1] = 2.74 * (j % 2) * (2 - j);
+         c[2] = 2.74 * i;
+         mesh.AddVertex(c);
+      }
+   }
+
+   for (int i=0; i<2; i++)
+   {
+      for (int j=0; j<4; j++)
+      {
+         if (wedge)
+         {
+            mesh.AddWedge(5*i, 5*i+j+1, 5*i+(j+1)%4+1,
+                          5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+         }
+         else
+         {
+            mesh.AddTet(5*i, 5*i+j+1, 5*i+(j+1)%4+1, 5*(i+1));
+            mesh.AddTet(5*i+j+1, 5*i+(j+1)%4+1, 5*(i+1), 5*(i+1)+j+1);
+            mesh.AddTet(5*i+(j+1)%4+1, 5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+         }
+      }
+   }
+
+   mesh.FinalizeTopology();
+
+   if (quadratic)
+   {
+      mesh.SetCurvature(2);
+
+      auto quad_cyl = [](const Vector& x, Vector& d)
+      {
+         d.SetSize(3);
+         d = x;
+         double ax = fabs(x[0]);
+         double ay = fabs(x[1]);
+         double r = ax + ay;
+         if (r < 1e-6) { return; }
+
+         double sx = copysign(1.0, x[0]);
+         double sy = copysign(1.0, x[1]);
+
+         double t = ((2.0 - (1.0 + sx) * sy) * ax +
+                     (2.0 - sy) * ay) * 0.5 * M_PI / r;
+         d[0] = r * cos(t);
+         d[1] = r * sin(t);
+
+         return;
+      };
+
+      mesh.Transform(quad_cyl);
+   }
+
+   return mesh;
+}
 
 TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
 {
-   auto smesh = Mesh("../../data/p1_prism.msh");
+   auto smesh = CylinderMesh(true, false);
+
+   auto exact_soln = [](const Vector& x)
+   {
+      // sin(|| x - d ||^2) -> non polynomial but very smooth.
+      Vector d(3);
+      d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      d -= x;
+      return std::sin(d * d);
+   };
+
+   for (auto ref : {0,1,2})
+   {
+      if (ref == 1) { smesh.UniformRefinement(); }
+
+      smesh.EnsureNCMesh(true);
+
+      if (ref == 2) { smesh.UniformRefinement(); }
+
+      smesh.Finalize();
+
+      auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
+
+      // P2 ensures there are triangles without dofs
+      CheckL2Projection(pmesh, smesh, 2, exact_soln);
+   }
+} // test case
+
+TEST_CASE("P2Q1PureTet",  "[Parallel], [NCMesh]")
+{
+   auto smesh = CylinderMesh(false, false);
 
    auto exact_soln = [](const Vector& x)
    {
@@ -550,7 +653,39 @@ TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
 
 TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
 {
-   auto smesh = Mesh("../../data/p2_prism.msh");
+   auto smesh = CylinderMesh(true, true);
+
+   auto exact_soln = [](const Vector& x)
+   {
+      // sin(|| x - d ||^2) -> non polynomial but very smooth.
+      Vector d(3);
+      d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      d -= x;
+      return std::sin(d * d);
+   };
+
+   for (auto ref : {0,1,2})
+   {
+      if (ref == 1) { smesh.UniformRefinement(); }
+
+      smesh.EnsureNCMesh(true);
+
+      if (ref == 2) { smesh.UniformRefinement(); }
+
+      smesh.Finalize();
+
+      auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
+
+      for (int p = 1; p < 3; ++p)
+      {
+         CheckL2Projection(pmesh, smesh, p, exact_soln);
+      }
+   }
+} // test case
+
+TEST_CASE("PNQ2PureTet",  "[Parallel], [NCMesh]")
+{
+   auto smesh = CylinderMesh(false, true);
 
    auto exact_soln = [](const Vector& x)
    {
