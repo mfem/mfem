@@ -1,6 +1,5 @@
 
-using namespace std;
-using namespace mfem;
+#include "contact_util.hpp"
 
 void BasisEval(const Vector xi, Vector &N, DenseMatrix &dNdxi) // dNdxi is 2*4
 {
@@ -18,7 +17,6 @@ void BasisEval(const Vector xi, Vector &N, DenseMatrix &dNdxi) // dNdxi is 2*4
    dNdxi(1,2) = 0.25*(1+xi[0]);
    dNdxi(1,3) = 0.25*(1-xi[0]);
 }
-
 
 void BasisEvalDerivs(const Vector xi, Vector& N, DenseMatrix& dNdxi,
                      DenseMatrix& dN2dxi)
@@ -213,8 +211,6 @@ void SlaveToMaster(const DenseMatrix& m_coords, const Vector& s_x, Vector& xi)
    MFEM_VERIFY(pt_on_elem == true, "xi went out of bounds");
    MFEM_VERIFY(converged == true, "projection didn't converge");
 }
-
-
 
 // m_coords is expected to be 4 * 3
 void  ComputeGapJacobian(const Vector x_s, const Vector xi,
@@ -723,7 +719,6 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
    node_dg2 = dg2dx;
 };
 
-
 // coordsm : (npoints*4, 3) use what class?
 // m_conn: (npoints*4)
 void Assemble_Contact(const int m, const int npoints,
@@ -799,3 +794,234 @@ void Assemble_Contact(const int m, const int npoints,
    }
 };
 
+void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
+{
+   Array<int> attr;
+   attr.Append(2);
+   Array<int> faces;
+   Array<int> ori;
+   std::vector<Array<int> > facesVertices;
+   std::vector<int > faceid;
+   mesh.GetElementFaces(elem, faces, ori);
+   int face = -1;
+   for (int i=0; i<faces.Size(); i++)
+   {
+      face = faces[i];
+      Array<int> faceVert;
+      if (!mesh.FaceIsInterior(face)) // if on the boundary
+      {
+         mesh.GetFaceVertices(face, faceVert);
+         faceVert.Sort();
+         facesVertices.push_back(faceVert);
+         faceid.push_back(face);
+      }
+   }
+   int bdrface = facesVertices.size();
+
+   Array<int> bdryFaces;
+   // This shoulnd't need to be rebuilt
+   std::vector<Array<int> > bdryVerts;
+   for (int b=0; b<mesh.GetNBE(); ++b)
+   {
+      if (attr.FindSorted(mesh.GetBdrAttribute(b)) >= 0)  // found the contact surface
+      {
+         bdryFaces.Append(b);
+         Array<int> vert;
+         mesh.GetBdrElementVertices(b, vert);
+         vert.Sort();
+         bdryVerts.push_back(vert);
+      }
+   }
+
+   int bdrvert = bdryVerts.size();
+   cbdrface = -1;  // the face number of the contact surface element
+   int count_cbdrface = 0;  // the number of matching surfaces, used for checks
+
+   for (int i=0; i<bdrface; i++)
+   {
+      for (int j=0; j<bdrvert; j++)
+      {
+         if (facesVertices[i] == bdryVerts[j])
+         {
+            cbdrface = faceid[i];
+            count_cbdrface += 1;
+         }
+      }
+   }
+   MFEM_VERIFY(count_cbdrface == 1,"projection surface not found");
+
+};
+
+Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
+                       int & refFace, int & refNormal, bool & interior)
+{
+
+   ElementTransformation *trans = mesh.GetElementTransformation(elem);
+   const int dim = mesh.Dimension();
+   const int spaceDim = trans->GetSpaceDim();
+
+   MFEM_VERIFY(spaceDim == 3, "");
+
+   Vector n(spaceDim);
+
+   IntegrationPoint ip;
+   ip.Set(ref, dim);
+
+   trans->SetIntPoint(&ip);
+   //CalcOrtho(trans->Jacobian(), n);  // Works only for face transformations
+   const DenseMatrix jac = trans->Jacobian();
+
+   int dimNormal = -1;
+   int normalSide = -1;
+
+   const double tol = 1.0e-8;
+   for (int i=0; i<dim; ++i)
+   {
+      const double d0 = std::abs(ref[i]);
+      const double d1 = std::abs(ref[i] - 1.0);
+
+      const double d = std::min(d0, d1);
+      // TODO: this works only for hexahedral meshes!
+
+      if (d < tol)
+      {
+         MFEM_VERIFY(dimNormal == -1, "");
+         dimNormal = i;
+
+         if (d0 < tol)
+         {
+            normalSide = 0;
+         }
+         else
+         {
+            normalSide = 1;
+         }
+      }
+   }
+   // closest point on the boundary
+   if (dimNormal < 0 || normalSide < 0) // node is inside the element
+   {
+      interior = 1;
+      Vector n(3);
+      n = 0.0;
+      return n;
+   }
+
+   MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
+   refNormal = dimNormal;
+
+   MFEM_VERIFY(dim == 3, "");
+
+   {
+      // Find the reference face
+      if (dimNormal == 0)
+      {
+         refFace = (normalSide == 1) ? 2 : 4;
+      }
+      else if (dimNormal == 1)
+      {
+         refFace = (normalSide == 1) ? 3 : 1;
+      }
+      else
+      {
+         refFace = (normalSide == 1) ? 5 : 0;
+      }
+   }
+
+   std::vector<Vector> tang(2);
+
+   int tangDir[2] = {-1, -1};
+   {
+      int t = 0;
+      for (int i=0; i<dim; ++i)
+      {
+         if (i != dimNormal)
+         {
+            tangDir[t] = i;
+            t++;
+         }
+      }
+
+      MFEM_VERIFY(t == 2, "");
+   }
+
+   for (int i=0; i<2; ++i)
+   {
+      tang[i].SetSize(3);
+
+      Vector tangRef(3);
+      tangRef = 0.0;
+      tangRef[tangDir[i]] = 1.0;
+
+      jac.Mult(tangRef, tang[i]);
+   }
+
+   Vector c(3);  // Cross product
+
+   c[0] = (tang[0][1] * tang[1][2]) - (tang[0][2] * tang[1][1]);
+   c[1] = (tang[0][2] * tang[1][0]) - (tang[0][0] * tang[1][2]);
+   c[2] = (tang[0][0] * tang[1][1]) - (tang[0][1] * tang[1][0]);
+
+   c /= c.Norml2();
+
+   Vector nref(3);
+   nref = 0.0;
+   nref[dimNormal] = 1.0;
+
+   Vector ndir(3);
+   jac.Mult(nref, ndir);
+
+   ndir /= ndir.Norml2();
+
+   const double dp = ndir * c;
+
+   // TODO: eliminate c?
+   n = c;
+   if (dp < 0.0)
+   {
+      n *= -1.0;
+   }
+   interior = 0;
+   return n;
+}
+
+// WARNING: global variable, just for this little example.
+std::array<std::array<int, 3>, 8> HEX_VERT =
+{
+   {  {0,0,0},
+      {1,0,0},
+      {1,1,0},
+      {0,1,0},
+      {0,0,1},
+      {1,0,1},
+      {1,1,1},
+      {0,1,1}
+   }
+};
+
+int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
+{
+   int ref[3];
+   ref[cdim] = c;
+   ref[cdim == 0 ? 1 : 0] = fa;
+   ref[cdim == 2 ? 1 : 2] = fb;
+
+   for (int i=0; i<3; ++i) { refCrd[i] = ref[i]; }
+
+   int refv = -1;
+
+   for (int i=0; i<8; ++i)
+   {
+      bool match = true;
+      for (int j=0; j<3; ++j)
+      {
+         if (ref[j] != HEX_VERT[i][j]) { match = false; }
+      }
+
+      if (match) { refv = i; }
+   }
+
+   MFEM_VERIFY(refv >= 0, "");
+
+   return refv;
+}

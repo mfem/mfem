@@ -8,7 +8,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "nodepair.hpp"
+#include "util/contact_util.hpp"
+#include "util/util.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -32,7 +33,6 @@ void rhs_func2(const Vector & x, Vector & y)
       y(i) = cos(x(i));
    }
 }
-
 
 int get_rank(int tdof, std::vector<int> & tdof_offsets)
 {
@@ -68,332 +68,6 @@ void ComputeTdofs(MPI_Comm comm, int mytoffs, std::vector<int> & tdofs)
    MPI_Comm_size(comm,&num_procs);
    tdofs.resize(num_procs);
    MPI_Allgather(&mytoffs,1,MPI_INT,&tdofs,1,MPI_INT,comm);
-}
-
-void PrintElementVertices(Mesh * mesh, int elem,  int printid)
-{
-   int myid = Mpi::WorldRank();
-   Array<int> vertices;
-   if (myid == printid)
-   {
-      mfem::out << "myid = " << myid <<":   " <<  "elem: " << elem <<
-                ". Vertices = \n" ;
-      mesh->GetElementVertices(elem,vertices);
-      for (int i = 0; i<vertices.Size(); i++)
-      {
-         double * coords = mesh->GetVertex(vertices[i]);
-         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")"
-                   << endl;
-      }
-      mfem::out << endl;
-   }
-}
-
-void PrintFaceVertices(Mesh * mesh, int face,  int printid)
-{
-   int myid = Mpi::WorldRank();
-   Array<int> vertices;
-   if (myid == printid)
-   {
-      mfem::out << "myid = " << myid <<":   " <<  "face: " << face <<
-                ". Vertices = \n" ;
-      mesh->GetFaceVertices(face,vertices);
-      for (int i = 0; i<vertices.Size(); i++)
-      {
-         double *coords = mesh->GetVertex(vertices[i]);
-         mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")"
-                   << endl;
-      }
-      mfem::out << endl;
-   }
-}
-
-template <class T>
-void PrintArray(const Array<T> & a, const char *aname,  int printid)
-{
-   int myid = Mpi::WorldRank();
-   if (myid == printid)
-   {
-      int sz = a.Size();
-      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
-      for (int i = 0; i<sz; i++)
-      {
-         mfem::out << a[i] << "  ";
-      }
-      mfem::out << endl;
-   }
-}
-
-void PrintSet(const std::set<int> & a, const char *aname,  int printid)
-{
-   int myid = Mpi::WorldRank();
-   if (myid == printid)
-   {
-      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
-      for (std::set<int>::iterator it = a.begin(); it!= a.end(); it++)
-      {
-         mfem::out << *it << "  ";
-      }
-      mfem::out << endl;
-   }
-}
-
-void PrintVector(const Vector & a, const char *aname,  int printid)
-{
-   int myid = Mpi::WorldRank();
-   if (myid == printid)
-   {
-      int sz = a.Size();
-      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
-      for (int i = 0; i<sz; i++)
-      {
-         mfem::out << a[i] << "  ";
-      }
-      mfem::out << endl;
-   }
-}
-
-void PrintSparseMatrix(const SparseMatrix & a, const char *aname,  int printid)
-{
-   int myid = Mpi::WorldRank();
-   if (myid == printid)
-   {
-      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
-      a.PrintMatlab(mfem::out);
-   }
-   mfem::out << endl;
-}
-
-void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
-{
-   Array<int> attr;
-   attr.Append(2);
-   Array<int> faces;
-   Array<int> ori;
-   std::vector<Array<int> > facesVertices;
-   std::vector<int > faceid;
-   mesh.GetElementFaces(elem, faces, ori);
-   int face = -1;
-   for (int i=0; i<faces.Size(); i++)
-   {
-      face = faces[i];
-      Array<int> faceVert;
-      if (!mesh.FaceIsInterior(face)) // if on the boundary
-      {
-         mesh.GetFaceVertices(face, faceVert);
-         faceVert.Sort();
-         facesVertices.push_back(faceVert);
-         faceid.push_back(face);
-      }
-   }
-   int bdrface = facesVertices.size();
-
-   Array<int> bdryFaces;
-   // This shoulnd't need to be rebuilt
-   std::vector<Array<int> > bdryVerts;
-   for (int b=0; b<mesh.GetNBE(); ++b)
-   {
-      if (attr.FindSorted(mesh.GetBdrAttribute(b)) >= 0)  // found the contact surface
-      {
-         bdryFaces.Append(b);
-         Array<int> vert;
-         mesh.GetBdrElementVertices(b, vert);
-         vert.Sort();
-         bdryVerts.push_back(vert);
-      }
-   }
-
-   int bdrvert = bdryVerts.size();
-   cbdrface = -1;  // the face number of the contact surface element
-   int count_cbdrface = 0;  // the number of matching surfaces, used for checks
-
-   for (int i=0; i<bdrface; i++)
-   {
-      for (int j=0; j<bdrvert; j++)
-      {
-         if (facesVertices[i] == bdryVerts[j])
-         {
-            cbdrface = faceid[i];
-            count_cbdrface += 1;
-         }
-      }
-   }
-   MFEM_VERIFY(count_cbdrface == 1,"projection surface not found");
-
-};
-
-Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
-                       int & refFace, int & refNormal, bool & interior)
-{
-
-   ElementTransformation *trans = mesh.GetElementTransformation(elem);
-   const int dim = mesh.Dimension();
-   const int spaceDim = trans->GetSpaceDim();
-
-   MFEM_VERIFY(spaceDim == 3, "");
-
-   Vector n(spaceDim);
-
-   IntegrationPoint ip;
-   ip.Set(ref, dim);
-
-   trans->SetIntPoint(&ip);
-   //CalcOrtho(trans->Jacobian(), n);  // Works only for face transformations
-   const DenseMatrix jac = trans->Jacobian();
-
-   int dimNormal = -1;
-   int normalSide = -1;
-
-   const double tol = 1.0e-8;
-   for (int i=0; i<dim; ++i)
-   {
-      const double d0 = std::abs(ref[i]);
-      const double d1 = std::abs(ref[i] - 1.0);
-
-      const double d = std::min(d0, d1);
-      // TODO: this works only for hexahedral meshes!
-
-      if (d < tol)
-      {
-         MFEM_VERIFY(dimNormal == -1, "");
-         dimNormal = i;
-
-         if (d0 < tol)
-         {
-            normalSide = 0;
-         }
-         else
-         {
-            normalSide = 1;
-         }
-      }
-   }
-   // closest point on the boundary
-   if (dimNormal < 0 || normalSide < 0) // node is inside the element
-   {
-      interior = 1;
-      Vector n(3);
-      n = 0.0;
-      return n;
-   }
-
-   MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
-   refNormal = dimNormal;
-
-   MFEM_VERIFY(dim == 3, "");
-
-   {
-      // Find the reference face
-      if (dimNormal == 0)
-      {
-         refFace = (normalSide == 1) ? 2 : 4;
-      }
-      else if (dimNormal == 1)
-      {
-         refFace = (normalSide == 1) ? 3 : 1;
-      }
-      else
-      {
-         refFace = (normalSide == 1) ? 5 : 0;
-      }
-   }
-
-   std::vector<Vector> tang(2);
-
-   int tangDir[2] = {-1, -1};
-   {
-      int t = 0;
-      for (int i=0; i<dim; ++i)
-      {
-         if (i != dimNormal)
-         {
-            tangDir[t] = i;
-            t++;
-         }
-      }
-
-      MFEM_VERIFY(t == 2, "");
-   }
-
-   for (int i=0; i<2; ++i)
-   {
-      tang[i].SetSize(3);
-
-      Vector tangRef(3);
-      tangRef = 0.0;
-      tangRef[tangDir[i]] = 1.0;
-
-      jac.Mult(tangRef, tang[i]);
-   }
-
-   Vector c(3);  // Cross product
-
-   c[0] = (tang[0][1] * tang[1][2]) - (tang[0][2] * tang[1][1]);
-   c[1] = (tang[0][2] * tang[1][0]) - (tang[0][0] * tang[1][2]);
-   c[2] = (tang[0][0] * tang[1][1]) - (tang[0][1] * tang[1][0]);
-
-   c /= c.Norml2();
-
-   Vector nref(3);
-   nref = 0.0;
-   nref[dimNormal] = 1.0;
-
-   Vector ndir(3);
-   jac.Mult(nref, ndir);
-
-   ndir /= ndir.Norml2();
-
-   const double dp = ndir * c;
-
-   // TODO: eliminate c?
-   n = c;
-   if (dp < 0.0)
-   {
-      n *= -1.0;
-   }
-   interior = 0;
-   return n;
-}
-
-// WARNING: global variable, just for this little example.
-std::array<std::array<int, 3>, 8> HEX_VERT =
-{
-   {  {0,0,0},
-      {1,0,0},
-      {1,1,0},
-      {0,1,0},
-      {0,0,1},
-      {1,0,1},
-      {1,1,1},
-      {0,1,1}
-   }
-};
-
-int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
-{
-   int ref[3];
-   ref[cdim] = c;
-   ref[cdim == 0 ? 1 : 0] = fa;
-   ref[cdim == 2 ? 1 : 2] = fb;
-
-   for (int i=0; i<3; ++i) { refCrd[i] = ref[i]; }
-
-   int refv = -1;
-
-   for (int i=0; i<8; ++i)
-   {
-      bool match = true;
-      for (int j=0; j<3; ++j)
-      {
-         if (ref[j] != HEX_VERT[i][j]) { match = false; }
-      }
-
-      if (match) { refv = i; }
-   }
-
-   MFEM_VERIFY(refv >= 0, "");
-
-   return refv;
 }
 
 // Coordinates in xyz are assumed to be ordered as [X, Y, Z]
@@ -596,11 +270,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
       conn_loc[i] = gvert[conn_loc[i]];
    }
 
-   // mfem::out << "conn_loc = " ; conn_loc.Print(mfem::out, conn_loc.Size());
-   // need to send data (xi, conn and coords of xyz) back to the owning processor
-
    gslcomm.SendData2(dim,proc_recv,xyz_recv,xi_send, s_conn_recv, conn_loc, coordsm,xyz2,xi,s_conn2, conn, coords);
-   // mfem::out << "conn = " ; conn.Print(mfem::out, conn.Size());
 
 }
 
@@ -611,8 +281,8 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
    // 1. Parse command-line options.
-   const char *mesh_file1 = "block1.mesh";
-   const char *mesh_file2 = "block2.mesh";
+   const char *mesh_file1 = "meshes/block1.mesh";
+   const char *mesh_file2 = "meshes/block2.mesh";
 
    Array<int> attr;
    Array<int> m_attr;
@@ -932,7 +602,7 @@ int main(int argc, char *argv[])
    std::vector<SparseMatrix> dM(gnnd, SparseMatrix(gndofs,gndofs)); 
 
    Assemble_Contact(gnnd, npoints, xs, m_xi, coordsm,
-                       s_conn, m_conn, g, M, dM);
+                    s_conn, m_conn, g, M, dM);
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix

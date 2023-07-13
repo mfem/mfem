@@ -8,309 +8,18 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "nodepair.hpp"
+#include "util/util.hpp"
+#include "util/contact_util.hpp"
 
 using namespace std;
 using namespace mfem;
 
-void PrintElementVertices(Mesh * mesh, int elem)
-{
-   int myid = Mpi::WorldRank();
-   Array<int> vertices;
-   mfem::out <<  "elem: " << elem << ". Vertices = \n" ;
-   mesh->GetElementVertices(elem,vertices);
-   for (int i = 0; i<vertices.Size(); i++)
-   {
-      double *coords = mesh->GetVertex(vertices[i]);
-      mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")"
-                << endl;
-   }
-   mfem::out << endl;
-}
-
-void PrintFaceVertices(Mesh * mesh, int face)
-{
-   Array<int> vertices;
-   mfem::out << "face: " << face << ". Vertices = \n" ;
-   mesh->GetFaceVertices(face,vertices);
-   for (int i = 0; i<vertices.Size(); i++)
-   {
-      double *coords = mesh->GetVertex(vertices[i]);
-      mfem::out << "(" << coords[0] << ", " << coords[1] << ", " << coords[2] << ")"
-                << endl;
-   }
-   mfem::out << endl;
-}
-
-template <class T>
-void PrintArray(const Array<T> & a, const char *aname)
-{
-   int sz = a.Size();
-   mfem::out << aname << " = " ;
-   for (int i = 0; i<sz; i++)
-   {
-      mfem::out << a[i] << "  ";
-   }
-   mfem::out << endl;
-}
-
-void PrintSet(const std::set<int> & a, const char *aname)
-{
-   mfem::out << aname << " = " ;
-   for (std::set<int>::iterator it = a.begin(); it!= a.end(); it++)
-   {
-      mfem::out << *it << "  ";
-   }
-   mfem::out << endl;
-}
-
-
-void PrintVector(const Vector & a, const char *aname)
-{
-   int sz = a.Size();
-   mfem::out << aname << " = " ;
-   for (int i = 0; i<sz; i++)
-   {
-      mfem::out << a[i] << "  ";
-   }
-   mfem::out << endl;
-}
-
-void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
-{
-   Array<int> attr;
-   attr.Append(2);
-   Array<int> faces;
-   Array<int> ori;
-   std::vector<Array<int> > facesVertices;
-   std::vector<int > faceid;
-   mesh.GetElementFaces(elem, faces, ori);
-   int face = -1;
-   for (int i=0; i<faces.Size(); i++)
-   {
-      face = faces[i];
-      Array<int> faceVert;
-      if (!mesh.FaceIsInterior(face)) // if on the boundary
-      {
-         mesh.GetFaceVertices(face, faceVert);
-         faceVert.Sort();
-         facesVertices.push_back(faceVert);
-         faceid.push_back(face);
-      }
-   }
-   int bdrface = facesVertices.size();
-
-   Array<int> bdryFaces;
-   // This shoulnd't need to be rebuilt
-   std::vector<Array<int> > bdryVerts;
-   for (int b=0; b<mesh.GetNBE(); ++b)
-   {
-      if (attr.FindSorted(mesh.GetBdrAttribute(b)) >= 0)  // found the contact surface
-      {
-         bdryFaces.Append(b);
-         Array<int> vert;
-         mesh.GetBdrElementVertices(b, vert);
-         vert.Sort();
-         bdryVerts.push_back(vert);
-      }
-   }
-
-   int bdrvert = bdryVerts.size();
-   cbdrface = -1;  // the face number of the contact surface element
-   int count_cbdrface = 0;  // the number of matching surfaces, used for checks
-
-   for (int i=0; i<bdrface; i++)
-   {
-      for (int j=0; j<bdrvert; j++)
-      {
-         if (facesVertices[i] == bdryVerts[j])
-         {
-            cbdrface = faceid[i];
-            count_cbdrface += 1;
-         }
-      }
-   }
-   MFEM_VERIFY(count_cbdrface == 1,"projection surface not found");
-};
-
-Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
-                       int & refFace, int & refNormal, bool & interior)
-{
-   ElementTransformation *trans = mesh.GetElementTransformation(elem);
-   const int dim = mesh.Dimension();
-   const int spaceDim = trans->GetSpaceDim();
-
-   MFEM_VERIFY(spaceDim == 3, "");
-
-   Vector n(spaceDim);
-
-   IntegrationPoint ip;
-   ip.Set(ref, dim);
-
-   trans->SetIntPoint(&ip);
-   const DenseMatrix jac = trans->Jacobian();
-
-   int dimNormal = -1;
-   int normalSide = -1;
-
-   const double tol = 1.0e-8;
-   for (int i=0; i<dim; ++i)
-   {
-      const double d0 = std::abs(ref[i]);
-      const double d1 = std::abs(ref[i] - 1.0);
-
-      const double d = std::min(d0, d1);
-      // TODO: this works only for hexahedral meshes!
-
-      if (d < tol)
-      {
-         MFEM_VERIFY(dimNormal == -1, "");
-         dimNormal = i;
-
-         if (d0 < tol)
-         {
-            normalSide = 0;
-         }
-         else
-         {
-            normalSide = 1;
-         }
-      }
-   }
-   // closest point on the boundary
-   if (dimNormal < 0 || normalSide < 0) // node is inside the element
-   {
-      interior = 1;
-      Vector n(3);
-      n = 0.0;
-      return n;
-   }
-
-   MFEM_VERIFY(dimNormal >= 0 && normalSide >= 0, "");
-   refNormal = dimNormal;
-
-   MFEM_VERIFY(dim == 3, "");
-
-   {
-      // Find the reference face
-      if (dimNormal == 0)
-      {
-         refFace = (normalSide == 1) ? 2 : 4;
-      }
-      else if (dimNormal == 1)
-      {
-         refFace = (normalSide == 1) ? 3 : 1;
-      }
-      else
-      {
-         refFace = (normalSide == 1) ? 5 : 0;
-      }
-   }
-
-   std::vector<Vector> tang(2);
-
-   int tangDir[2] = {-1, -1};
-   {
-      int t = 0;
-      for (int i=0; i<dim; ++i)
-      {
-         if (i != dimNormal)
-         {
-            tangDir[t] = i;
-            t++;
-         }
-      }
-
-      MFEM_VERIFY(t == 2, "");
-   }
-
-   for (int i=0; i<2; ++i)
-   {
-      tang[i].SetSize(3);
-
-      Vector tangRef(3);
-      tangRef = 0.0;
-      tangRef[tangDir[i]] = 1.0;
-
-      jac.Mult(tangRef, tang[i]);
-   }
-
-   Vector c(3);  // Cross product
-
-   c[0] = (tang[0][1] * tang[1][2]) - (tang[0][2] * tang[1][1]);
-   c[1] = (tang[0][2] * tang[1][0]) - (tang[0][0] * tang[1][2]);
-   c[2] = (tang[0][0] * tang[1][1]) - (tang[0][1] * tang[1][0]);
-
-   c /= c.Norml2();
-
-   Vector nref(3);
-   nref = 0.0;
-   nref[dimNormal] = 1.0;
-
-   Vector ndir(3);
-   jac.Mult(nref, ndir);
-
-   ndir /= ndir.Norml2();
-
-   const double dp = ndir * c;
-
-   // TODO: eliminate c?
-   n = c;
-   if (dp < 0.0)
-   {
-      n *= -1.0;
-   }
-   interior = 0;
-   return n;
-}
-
-// WARNING: global variable, just for this little example.
-std::array<std::array<int, 3>, 8> HEX_VERT =
-{
-   {  {0,0,0},
-      {1,0,0},
-      {1,1,0},
-      {0,1,0},
-      {0,0,1},
-      {1,0,1},
-      {1,1,1},
-      {0,1,1}
-   }
-};
-
-int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
-{
-   int ref[3];
-   ref[cdim] = c;
-   ref[cdim == 0 ? 1 : 0] = fa;
-   ref[cdim == 2 ? 1 : 2] = fb;
-
-   for (int i=0; i<3; ++i) { refCrd[i] = ref[i]; }
-
-   int refv = -1;
-
-   for (int i=0; i<8; ++i)
-   {
-      bool match = true;
-      for (int j=0; j<3; ++j)
-      {
-         if (ref[j] != HEX_VERT[i][j]) { match = false; }
-      }
-
-      if (match) { refv = i; }
-   }
-
-   MFEM_VERIFY(refv >= 0, "");
-
-   return refv;
-}
 
 // Coordinates in xyz are assumed to be ordered as [X, Y, Z]
 // where X is the list of x-coordinates for all points and so on.
 // conn: connectivity of the target surface elements
 // xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
-void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn,
-                      Vector& xi)
+void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& xi)
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
@@ -446,32 +155,23 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn,
       }
    }
 
-   // PrintArray(conn, "conn");
-   // PrintVector(xi, "xi");
    int sz = xi.Size()/2;
    for (int i = 0; i<sz; i++)
    {
-      mfem::out << "("<<xi[i*(dim-1)]<<","<<xi[i*(dim-1)+1]<<"): -> ";
+      mfem::out << "\ni = " << i << ", ξᵢ = ("<<xi[i*(dim-1)]<<","<<xi[i*(dim-1)+1]<<"): -> \n";
       for (int j = 0; j<4; j++)
       {
-         double * vc = mesh.GetVertex(conn[4*i+j]);
-         if (j<3)
-         {
-            mfem::out << "("<<vc[0]<<","<<vc[1]<<","<<vc[2]<<"), ";
-         }
-         else
-         {
-            mfem::out << "("<<vc[0]<<","<<vc[1]<<","<<vc[2]<<") \n" << endl;
-         }
+         PrintVertex(&mesh,conn[4*i+j]);
       }
+      mfem::out << endl;
    }
 }
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file1 = "block1.mesh";
-   const char *mesh_file2 = "block2.mesh";
+   const char *mesh_file1 = "meshes/block1.mesh";
+   const char *mesh_file2 = "meshes/block2.mesh";
 
    Array<int> attr;
    Array<int> m_attr;
