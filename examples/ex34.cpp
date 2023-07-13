@@ -138,9 +138,9 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order-1, dim);
    FiniteElementSpace L2fes(&mesh, &L2fec);
 
-   cout << "Number of finite element unknowns: "
-        << H1fes.GetTrueVSize()
-        << " "
+   cout << "Number of H1 finite element unknowns: "
+        << H1fes.GetTrueVSize() << endl;
+   cout << "Number of L2 finite element unknowns: "
         << L2fes.GetTrueVSize() << endl;
 
    Array<int> offsets(3);
@@ -153,13 +153,11 @@ int main(int argc, char *argv[])
    x = 0.0; rhs = 0.0;
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
-   Array<int> empty;
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   Array<int> ess_bdr;
    if (mesh.bdr_attributes.Size())
    {
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
       ess_bdr = 1;
-      H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 6. Define an initial guess for the solution.
@@ -180,8 +178,8 @@ int main(int argc, char *argv[])
    //    corresponding to the fespaces.
    GridFunction u_gf, delta_psi_gf;
 
-   u_gf.MakeRef(&H1fes,x.GetBlock(0).GetData());
-   delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1).GetData());
+   u_gf.MakeRef(&H1fes,x,offsets[0]);
+   delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
    delta_psi_gf = 0.0;
 
    GridFunction u_old_gf(&H1fes);
@@ -351,7 +349,7 @@ int main(int argc, char *argv[])
 
    mfem::out << "\n Outer iterations: " << k+1
              << "\n Total iterations: " << total_iterations
-             << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
+             << "\n Total dofs:       " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
    // 11. Exact solution.
