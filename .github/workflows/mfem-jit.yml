@@ -27,18 +27,16 @@ env:
   HYPRE_DIR: hypre-2.19.0
   METIS_TGZ: metis-4.0.3.tar.gz
   METIS_DIR: metis-4.0.3
-  MFEM_DIR: mfem
 
 jobs:
-  builds-and-tests:
+  builds-JIT-tests:
     strategy:
       matrix:
         os: [ubuntu-latest] #, macos-latest]
         build-system: [make] #, cmake]
         target: [opt] #, dbg]
         mpi: [seq] #, par]
-        hypre-target: [int32]
-    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}
 
     runs-on: ${{ matrix.os }}
 
@@ -51,7 +49,7 @@ jobs:
     - name: MFEM Checkout
       uses: actions/checkout@v3
       with:
-        path: ${{ env.MFEM_DIR }}
+        path: mfem
 
     # MPI setup on Linux and MacOS
     - name: MPI install (Linux)
@@ -72,7 +70,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ${{ env.HYPRE_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_DIR }}-${{ matrix.hypre-target }}
+        key: ${{ runner.os }}-build-${{ env.HYPRE_DIR }}
 
     - name: HYPRE install
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -80,7 +78,6 @@ jobs:
       with:
         archive: ${{ env.HYPRE_TGZ }}
         dir: ${{ env.HYPRE_DIR }}
-        target: ${{ matrix.hypre-target }}
         build-system: make
 
     # METIS cache & install
@@ -110,7 +107,7 @@ jobs:
         build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_DIR }}
         metis-dir: ${{ env.METIS_DIR }}
-        mfem-dir: ${{ env.MFEM_DIR }}
+        mfem-dir: mfem
         library-only: false
         config-options:
           MFEM_USE_JIT=YES
@@ -122,11 +119,11 @@ jobs:
 
     - name: MFEM install (Make)
       #if: matrix.build-system == 'make'
-      working-directory: ${{ env.MFEM_DIR }}
+      working-directory: mfem
       run: make install
 
     - name: MFEM test
       #if: matrix.build-system == 'make'
-      working-directory: ${{ env.MFEM_DIR }}/examples
+      working-directory: mfem/examples
       run:
         ./ex1 -pa
