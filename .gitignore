@@ -58,6 +58,10 @@ examples/ex2[0-9]p
 examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/exX
+examples/*.gf
+examples/*.mesh
+examples/*.mp4
+examples/*.txt
 
 examples/refined.mesh
 examples/displaced.mesh
