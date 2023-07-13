@@ -877,78 +877,6 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
    }
 }
 
-static int ToLexOrdering3D(const int face_id, const int size1d, const int i,
-                           const int j)
-{
-   if (face_id==2 || face_id==1 || face_id==5)
-   {
-      return i + j*size1d;
-   }
-   else if (face_id==3 || face_id==4)
-   {
-      return (size1d-1-i) + j*size1d;
-   }
-   else // face_id==0
-   {
-      return i + (size1d-1-j)*size1d;
-   }
-}
-
-static int PermuteFace3D(const int face_id1, const int face_id2,
-                         const int orientation,
-                         const int size1d, const int index)
-{
-   int i=0, j=0, new_i=0, new_j=0;
-   i = index%size1d;
-   j = index/size1d;
-   // Convert from lex ordering
-   if (face_id1==3 || face_id1==4)
-   {
-      i = size1d-1-i;
-   }
-   else if (face_id1==0)
-   {
-      j = size1d-1-j;
-   }
-   // Permute based on face orientations
-   switch (orientation)
-   {
-      case 0:
-         new_i = i;
-         new_j = j;
-         break;
-      case 1:
-         new_i = j;
-         new_j = i;
-         break;
-      case 2:
-         new_i = j;
-         new_j = (size1d-1-i);
-         break;
-      case 3:
-         new_i = (size1d-1-i);
-         new_j = j;
-         break;
-      case 4:
-         new_i = (size1d-1-i);
-         new_j = (size1d-1-j);
-         break;
-      case 5:
-         new_i = (size1d-1-j);
-         new_j = (size1d-1-i);
-         break;
-      case 6:
-         new_i = (size1d-1-j);
-         new_j = i;
-         break;
-      case 7:
-         new_i = i;
-         new_j = (size1d-1-j);
-         break;
-   }
-   return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
-}
-
 // Permute dofs or quads on a face for e2 to match with the ordering of e1
 int PermuteFaceL2(const int dim, const int face_id1,
                   const int face_id2, const int orientation,
@@ -961,7 +889,7 @@ int PermuteFaceL2(const int dim, const int face_id1,
       case 2:
          return internal::PermuteFace2D(face_id1, face_id2, orientation, size1d, index);
       case 3:
-         return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
+         return internal::PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
       default:
          MFEM_ABORT("Unsupported dimension.");
          return 0;
@@ -1550,7 +1478,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     face_to_elem(nf * 4)
+     face_to_elem(nf * (sdim == 2 ? 4 : 6))
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -1559,8 +1487,13 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
 
    height = 2 * nf * vdim * d;
    width = ne * vdim * d * d;
+   if (sdim == 3)
+   {
+      height *= d;
+      width *= d;
+   }
 
-   auto f2e = Reshape(face_to_elem.HostWrite(), 4, nf);
+   auto f2e = Reshape(face_to_elem.HostWrite(), (sdim == 2) ? 4 : 6, nf); // (el0, el1, fid0, fid1[, or0, or1])
 
    Array<int> elem_indicator(ne);
    elem_indicator = 0.0;
@@ -1574,6 +1507,10 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
       {
          f2e(0, f_ind) = face.element[0].index;
          f2e(2, f_ind) = face.element[0].local_face_id;
+         if (sdim == 3)
+         {
+            f2e(4, f_ind) = face.element[0].orientation;
+         }
 
          elem_indicator[face.element[0].index] = 1;
 
@@ -1592,11 +1529,21 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
                elem_indicator[el_idx_1] = 1;
             }
             f2e(3, f_ind) = face.element[1].local_face_id;
+
+            if (sdim == 3)
+            {
+               f2e(5, f_ind) = face.element[1].orientation;
+            }
          }
          else
          {
             f2e(1, f_ind) = -1;
             f2e(3, f_ind) = -1;
+
+            if (sdim == 3)
+            {
+               f2e(5, f_ind) = -1;
+            }
          }
 
          f_ind++;
@@ -1604,10 +1551,11 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    }
 
    ne_type = elem_indicator.Sum();
-   elem_to_face.SetSize(9 * ne_type);
+   int _n = (sdim == 2) ? 9 : 13;
+   elem_to_face.SetSize(_n * ne_type);
    elem_to_face = -1;
 
-   auto e2f = Reshape(elem_to_face.HostWrite(), 9, ne_type);
+   auto e2f = Reshape(elem_to_face.HostWrite(), _n, ne_type);
    int e = 0;
    for (int el = 0; el < ne; ++el)
    {
@@ -1618,6 +1566,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    }
 
    const int nsides = (face_type == FaceType::Interior) ? 2 : 1;
+   const int side_begin = (sdim == 2) ? 5 : 7;
    for (int f = 0; f < nf; ++f)
    {
       for (int side = 0; side < nsides; ++side)
@@ -1631,7 +1580,7 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
             const int e = elem_indicator[el];
             e2f(0, e) = el;
             e2f(1 + face_id, e) = f;
-            e2f(5 + face_id, e) = side;
+            e2f(side_begin + face_id, e) = side;
          }
       }
    }
@@ -1654,7 +1603,7 @@ void L2NormalDerivativeFaceRestriction::Mult(const Vector &x, Vector &y) const
          break;
 
       default:
-         MFEM_ABORT("Not yet implemented");
+         MFEM_ABORT("Dimension not supported.");
          break;
    }
 }
@@ -1747,7 +1696,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
             else
             {
                int i, j;
-               internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+               internal::FaceQuad2Lex2D(p, q, fid0, fid1, side, i, j);
                for (int c=0; c < vd; ++c)
                {
                   double grad_n = 0;
@@ -1764,6 +1713,80 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
          } // for each p
       } // for each side
    }); // mfem::forall
+}
+
+void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int num_faces = nf;
+   const int num_elem = ne;
+
+   const FiniteElement& fe = *fes.GetFE(0);
+   const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
+
+   const int q = maps.nqpt;
+   const int d = maps.ndof;
+   const int q2d = q * q;
+
+   MFEM_ASSERT(q == d, "");
+
+   const auto G_ = Reshape(maps.G.Read(), q, d);
+   const auto f2e = Reshape(face_to_elem.Read(), 6, num_faces); // (el0, el1, fid0, fid1, or0, or1)
+
+   const auto d_x = Reshape(x.Read(), t?vd:d, d, d, t?d:ne, t?ne:vd); // t ? (vdim x d x d x d x ne) : (d x d x d x ne x vdim)
+   auto d_y = Reshape(y.Write(), q2d, vd, 2, nf);
+
+   for (int f = 0; f < num_faces; ++f)
+   {
+      const int fid0 = f2e(2, f);
+      const int fid1 = f2e(3, f);
+
+      for (int side = 0; side < 2; ++side)
+      {
+         const int el = f2e(side, f);
+         const int face_id = f2e(2 + side, f);
+         const int orientation = f2e(4 + side, f);
+         
+         const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
+         const bool xz_plane = (face_id == 1 || face_id == 3);
+         const bool yz_plane = (face_id == 2 || face_id == 4);
+
+         if (el < 0) // boundary face, set external state to zero
+         {
+            for (int p = 0; p < q2d; ++p)
+               for (int c = 0; c < vd; ++c)
+                  d_y(p, c, side, f) = 0.0;
+         }
+         else
+         {
+            for (int p = 0; p < q2d; ++p)
+            {
+               int i, j, k; // 3d lex index of quad point p
+               internal::FaceQuad2Lex3D(p, q, fid0, fid1, side, orientation, i, j, k);
+
+               for (int c = 0; c < vd; ++c)
+               {
+                  double grad_n = 0.0;
+
+                  for (int kk=0; kk < d; ++kk)
+                  {
+                     const int l = yz_plane ? kk : i; // (l, m, n) 3d lex index of interior points used in evaluating normal deriv
+                     const int m = xz_plane ? kk : j;
+                     const int n = xy_plane ? kk : k;
+
+                     const int g_row = yz_plane ? i : xz_plane ? j : k; // the fixed 1d index of the normal component of the face quad point
+                     const double g = G_(g_row, kk);
+
+                     grad_n += g * d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c);
+                  } // for kk
+
+                  d_y(p, c, side, f) = grad_n;
+               } // for c
+            } // for p
+         }
+      } // for side
+   } // for f
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector &x,
@@ -1786,11 +1809,6 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector &x,
          MFEM_ABORT("Not yet implemented");
          break;
    }
-}
-
-void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
-{
-
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
@@ -1859,7 +1877,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
                y_s[p] = d_y(p, 0, side, f);
 
                int i, j;
-               internal::EdgeQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+               internal::FaceQuad2Lex2D(p, q, fid0, fid1, side, i, j);
 
                if (face_id == 0 || face_id == 2)
                {
@@ -1899,9 +1917,114 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
    }); // for e
 }
 
-void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& x,
-                                                           Vector& y, const double a) const
-{ }
+void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
+                                                           Vector& x, const double a) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int num_faces = nf;
+   const int net = ne_type; // number of elements with faces of face type
+
+   MFEM_VERIFY(vd == 1, "vdim > 1 not supported.");
+
+   const FiniteElement& fe = *fes.GetFE(0);
+   const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
+
+   const int q = maps.nqpt;
+   const int d = maps.ndof;
+   const int q2d = maps.ndof;
+
+   auto G_ = Reshape(maps.G.Read(), q, d);
+
+   auto e2f = Reshape(elem_to_face.Read(), 13, net); // (el, f0,f1,f2,f3,f4,f5, s0,s1,s2,s3,s4,s5)
+   auto f2e = Reshape(face_to_elem.Read(), 6, num_faces); // (el0, el1, fid0, fid1, or0, or1)
+
+   auto d_x = Reshape(x.ReadWrite(), t?vd:d, d, d, t?d:ne, t?ne:vd);
+   const auto d_y = Reshape(y.Read(), q2d, vd, 2, nf);
+
+   double pp[d][d];
+   double y_s[d*d];
+   int jj;
+   double xx[d][d][d];
+
+   for (int e = 0; e < net; ++e)
+   {
+      const int el = e2f(0, e); // global element index
+
+      for (int _i=0; _i < d; ++_i)
+         for (int _j = 0; _j < d; ++_j)
+            for (int _k = 0; _k < d; ++_k)
+               xx[_i][_j][_k] = 0.0;
+
+      for (int face_id = 0; face_id < 6; ++face_id)
+      {
+         const int f = e2f(1+face_id, e);
+         
+         if (f < 0)
+            continue;
+
+         const int side = e2f(7 + face_id, e);
+         const int orientation = f2e(4 + side, f);
+         const int fid0 = f2e(2, f);
+         const int fid1 = f2e(3, f);
+
+         const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
+         const bool xz_plane = (face_id == 1 || face_id == 3);
+         const bool yz_plane = (face_id == 2 || face_id == 4);
+
+         for (int p = 0; p < q2d; ++p)
+         {
+            y_s[p] = d_y(p, 0, side, f);
+
+            int i, j, k;
+            internal::FaceQuad2Lex3D(p, q2d, fid0, fid1, side, orientation, i, j, k);
+            
+            if (xy_plane)
+            {
+               pp[i][j] = p;
+               jj = k;
+            }
+            else if (xz_plane)
+            {
+               pp[i][k] = p;
+               jj = j;
+            }
+            else // yz_plane
+            {
+               pp[j][k] = p;
+               jj = i;
+            }
+         } // for p
+
+         for (int l = 0; l < d; ++l)
+         {
+            for (int m = 0; m < d; ++m)
+            {
+               for (int n = 0; n < d; ++n)
+               {
+                  const int p = (xy_plane) ? pp[l][m] : (xz_plane) ? pp[l][n] : pp[m][n];
+                  const int kk = (xy_plane) ? n : (xz_plane) ? m : l;
+                  const double g = G_(jj, kk);
+                  xx[l][m][n] += a * g * y_s[p];
+               } // for n
+            } // for m
+         } // for l
+      } // for face_id
+
+      // map back to global array
+      for (int l = 0; l < d; ++l)
+      {
+         for (int m = 0; m < d; ++m)
+         {
+            for (int n = 0; n < d; ++n)
+            {
+               const int c = 0;
+               d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c) += xx[l][m][n];
+            } // for n
+         } // for m
+      } // for l
+   } // for e
+}
 
 InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
                                            ElementDofOrdering ordering,
@@ -2383,7 +2506,7 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
       case 2:
          return internal::ToLexOrdering2D(face_id, size1d, index);
       case 3:
-         return ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
+         return internal::ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
       default:
          MFEM_ABORT("Unsupported dimension.");
          return 0;
