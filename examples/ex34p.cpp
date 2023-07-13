@@ -160,9 +160,9 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Number of H1 finite element unknowns: "
-         << num_dofs_H1 << endl;
+           << num_dofs_H1 << endl;
       cout << "Number of L2 finite element unknowns: "
-         << num_dofs_L2 << endl;
+           << num_dofs_L2 << endl;
    }
 
    Array<int> offsets(3);
