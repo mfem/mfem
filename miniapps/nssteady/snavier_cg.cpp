@@ -270,6 +270,7 @@ void SNavierPicardCGSolver::Setup()
 {
    /// 1. Setup and assemble bilinear forms 
    K_form = new ParBilinearForm(vfes);
+   C_form = new ParBilinearForm(vfes);
    B_form = new ParMixedBilinearForm(vfes, pfes);
 
    K_form->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_vis));
