@@ -153,12 +153,16 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order-1, dim);
    ParFiniteElementSpace L2fes(&pmesh, &L2fec);
 
+   int num_dofs_H1 = H1fes.GetTrueVSize();
+   MPI_Allreduce(MPI_IN_PLACE, &num_dofs_H1, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   int num_dofs_L2 = L2fes.GetTrueVSize();
+   MPI_Allreduce(MPI_IN_PLACE, &num_dofs_L2, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    if (myid == 0)
    {
-      cout << "Number of finite element unknowns: "
-           << H1fes.GetTrueVSize()
-           << " "
-           << L2fes.GetTrueVSize() << endl;
+      cout << "Number of H1 finite element unknowns: "
+         << num_dofs_H1 << endl;
+      cout << "Number of L2 finite element unknowns: "
+         << num_dofs_L2 << endl;
    }
 
    Array<int> offsets(3);
@@ -206,8 +210,8 @@ int main(int argc, char *argv[])
    // 7. Define the solution vectors as a finite element grid functions
    //    corresponding to the fespaces.
    ParGridFunction u_gf, delta_psi_gf;
-   u_gf.MakeRef(&H1fes,x.GetBlock(0).GetData());
-   delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1).GetData());
+   u_gf.MakeRef(&H1fes,x,offsets[0]);
+   delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
    delta_psi_gf = 0.0;
 
    ParGridFunction u_old_gf(&H1fes);
@@ -400,13 +404,11 @@ int main(int argc, char *argv[])
 
    }
 
-   int num_dofs  = H1fes.GetTrueVSize() + L2fes.GetTrueVSize();
-   MPI_Allreduce(MPI_IN_PLACE, &num_dofs, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    if (myid == 0)
    {
       mfem::out << "\n Outer iterations: " << k+1
                 << "\n Total iterations: " << total_iterations
-                << "\n dofs:             " << num_dofs
+                << "\n Total dofs:       " << num_dofs_H1 + num_dofs_L2
                 << endl;
    }
 
