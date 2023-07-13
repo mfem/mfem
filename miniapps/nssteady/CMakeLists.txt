@@ -41,4 +41,9 @@ if (MFEM_USE_MPI)
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(test_manufactured_sol
+    MAIN test_manufactured_sol.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
 endif ()

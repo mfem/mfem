@@ -21,7 +21,9 @@ namespace mfem
 {
 
 /// Typedefs
-struct SolverParams {
+
+// Struct to pass slver parameters
+struct SolverParams {   
     double rtol = 1e-6;
     double atol = 1e-10;
     int maxIter = 1000;
@@ -31,6 +33,8 @@ struct SolverParams {
         : rtol(rtol_), atol(atol_), maxIter(maxIter_), pl(pl_) {}
 };
 
+// Type of segregation coefficient (if ADAPTIVE it will be adjusted to enforce Peclet < 2 )
+enum AlphaType{CONSTANT, ADAPTIVE}; 
 
 /// Container for vector coefficient holding coeff and mesh attribute (useful for BCs and forcing terms).
 class VecCoeffContainer
@@ -57,14 +61,14 @@ public:
 };
 
 /// Container for coefficient holding coeff, mesh attribute id (i.e. not the full array) and direction (x,y,z) (useful for componentwise BCs).
-class CoeffContainer
+class CompCoeffContainer
 {
 public:
-   CoeffContainer(Array<int> attr, Coefficient *coeff, int dir)
+   CompCoeffContainer(Array<int> attr, Coefficient *coeff, int dir)
       : attr(attr), coeff(coeff), dir(dir)
    {}
 
-   CoeffContainer(CoeffContainer &&obj)
+   CompCoeffContainer(CompCoeffContainer &&obj)
    {
       // Deep copy the attribute and direction
       this->attr = obj.attr;
@@ -75,12 +79,14 @@ public:
       obj.coeff = nullptr;
    }
 
-   ~CoeffContainer() { delete coeff; }
+   ~CompCoeffContainer() { delete coeff; }
 
    Array<int> attr;
    int dir;
    Coefficient *coeff;
 };
+
+
 
 /**
  * \class SNavierPicardCGSolver
@@ -211,10 +217,29 @@ public:
     /**
     * \brief Set the Fixed Point Solver parameters
     *
-    * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level) and segregation parameter @a alpha, for the outer loop of the segregated scheme.
+    * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level), for the outer loop of the segregated scheme.
     * 
     */
-    void SetFixedPointSolver(SolverParams params, double alpha_=1);
+    void SetFixedPointSolver(SolverParams params);
+
+    /**
+    * \brief Set parameter alpha. 
+    *
+    * Set segregation parameter @a alpha
+    * 
+    * \param alpha_ value for the parameter alpha (initial value if type_=ADAPTIVE)
+    * \param type_ type of parameter (AlphaType::CONSTANT, AlphaType::ADAPTIVE)
+    *
+    * * \note If AlphaType::ADAPTIVE, alpha will be computed to enforce Peclet Number Pe < 2
+    * 
+    * Given the Peclet number
+    *           \f$ \mathbb{P}_k = \frac{ \|v_k\|_K }{2 \nu h_K} \f$
+    * we can thus set @a alpha to
+    *           \f$ \alpha_k = 0.75 min_{K \in \Tau} \frac{ 4 \nu  }{ \| v_k \|_K h_K} \f$
+    * 
+    * ADAPTIVE alpha NYI!
+    */
+    void SetAlpha(double &alpha_, const AlphaType &type_);
 
     /**
     * \brief Set the Linear Solvers parameters
@@ -239,10 +264,14 @@ public:
     /**
     * \brief Set the initial condition for Velocity.
     *
-    * Solves the forward problem until convergence of the steady NS solver is reached.
+    */
+    void SetInitialConditionVel(VectorCoefficient &v_in);
+
+    /**
+    * \brief Set the initial condition for Pressure.
     *
     */
-    void SetInitialCondition(VectorCoefficient &v_in);
+    void SetInitialConditionPres(Coefficient &p_in);
 
     /**
     * \brief Solve forward problem.
@@ -255,6 +284,16 @@ public:
 
 
     /// Getter methods
+
+    /**
+    * \brief Returns pointer to the velocity FE space.
+    */
+    ParFiniteElementSpace* GetVFes(){return vfes;}
+
+    /**
+    * \brief Returns pointer to the pressure FE space.
+    */
+    ParFiniteElementSpace* GetPFes(){return pfes;}
 
     /**
     * \brief Returns the velocity solution vector.
@@ -297,6 +336,7 @@ public:
         z_gf.SetFromTrueDofs(*z);
         return z_gf;
     }
+
 private:
     /// mesh
     ParMesh* pmesh;
@@ -315,7 +355,7 @@ private:
     ParGridFunction vk_gf;          // velocity from previous iteration
     ParGridFunction pk_gf;          // pressure from previous iteration
 
-    /// (Vector) GridFunction coefficients wrapping vk_gf and pk_gf (for error computation and convection integrator)
+    /// (Vector) GridFunction coefficients wrapping vk_gf and pk_gf (for error computation)
     VectorGridFunctionCoefficient *vk_vc = nullptr;
     GridFunctionCoefficient       *pk_c  = nullptr;
 
@@ -337,7 +377,7 @@ private:
 
     // Bookkeeping for velocity dirichlet bcs (componentwise).
     std::string dir_string;    // string for direction name for printing output
-    std::vector<CoeffContainer> vel_dbcs_xyz;
+    std::vector<CompCoeffContainer> vel_dbcs_xyz;
 
     // Bookkeeping for traction (neumann) bcs.
     std::vector<VecCoeffContainer> traction_bcs;
@@ -385,6 +425,8 @@ private:
 
     /// Coefficient for steady NS segregation
     double alpha;
+    double alpha0;
+    AlphaType alphaType;
 
     /// Newton/Fixed point solver parameters
     SolverParams sParams;
@@ -430,6 +472,26 @@ private:
     /// Update solution for next iteration
     void UpdateSolution();
 
+    /**
+    * \brief Modify rhs for essential bcs.
+    *
+    * Eliminates essential boundary conditions from rhs 
+    *
+    * \param ess_tdof_list List of essential degrees of freedom
+    * \param mat_e elimiated matrix (obtained by EliminateRowsCols)
+    * \param sol, rhs reference to solution vector and rhs to be modified
+    * 
+    * \note Performs the following transformation to the rhs
+    *       f(dofs)   = v(dofs)
+    *       f(~dofs) -= mat_e*v(dofs)
+    */
+    void ModifyRHS(Array<int> &ess_tdof_list, HypreParMatrix* mat_e, Vector &sol, Vector &rhs);
+
+    // Update alpha parameter
+    void UpdateAlpha();
+
+    /// Print information about the Navier version.
+    void PrintInfo();
 };
 
 }

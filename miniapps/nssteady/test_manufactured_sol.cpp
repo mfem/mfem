@@ -1,17 +1,25 @@
+// Include mfem and I/O
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <random>
+
+// Include for defining exact solution
+#include <math.h>
+
+// Include steady ns miniapp
 #include "snavier_cg.hpp"
+
+// Include for mkdir
+#include <sys/stat.h>
 
 using namespace mfem;
 
-// Forward declarations
-void   VectorFun(const Vector &X, Vector &v);
-double ScalarFun(const Vector &X);
+// Forward declarations of functions
+void   V_exact(const Vector &X, Vector &v);
+double P_exact(const Vector &X);
 double pZero(const Vector &X);
 void   vZero(const Vector &X, Vector &v);
-std::function<void(const Vector &, Vector &)> FunctionWithParam(const double &param);
+std::function<void(const Vector &, Vector &)> RHS(const double &kin_vis);
 
 // Test
 int main(int argc, char *argv[])
@@ -29,11 +37,13 @@ int main(int argc, char *argv[])
    //
    /// 2. Parse command-line options. 
    //
-   const char *mesh_file = "../../data/star.mesh";
    int porder = 1;            // fe
    int vorder = 2;
 
-   int ser_ref_levels = 0;    // mesh
+   int n = 10;                // mesh
+   int dim = 2;
+   int elem = 0;
+   int ser_ref_levels = 0;
    int par_ref_levels = 0;
 
    double kin_vis = 0.01;     // kinematic viscosity
@@ -50,8 +60,18 @@ int main(int argc, char *argv[])
 
    // TODO: check parsing and assign variables
    mfem::OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                     "Mesh file to use.");
+   args.AddOption(&dim,
+                     "-d",
+                     "--dimension",
+                     "Dimension of the problem (2 = 2d, 3 = 3d)");
+   args.AddOption(&elem,
+                     "-e",
+                     "--element-type",
+                     "Type of elements used (0: Quad/Hex, 1: Tri/Tet)");
+   args.AddOption(&n,
+                     "-n",
+                     "--num-elements",
+                     "Number of elements in uniform mesh.");
    args.AddOption(&ser_ref_levels,
                      "-rs",
                      "--refine-serial",
@@ -115,8 +135,29 @@ int main(int argc, char *argv[])
    //
    /// 3. Read the (serial) mesh from the given mesh file on all processors.
    //
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+   Element::Type type;
+   switch (elem)
+   {
+      case 0: // quad
+         type = (dim == 2) ? Element::QUADRILATERAL: Element::HEXAHEDRON;
+         break;
+      case 1: // tri
+         type = (dim == 2) ? Element::TRIANGLE: Element::TETRAHEDRON;
+         break;
+   }
+
+   Mesh mesh;
+   switch (dim)
+   {
+      case 2: // 2d
+         mesh = Mesh::MakeCartesian2D(n,n,type,true);	
+         break;
+      case 3: // 3d
+         mesh = Mesh::MakeCartesian3D(n,n,n,type,true);	
+         break;
+   }
+
+
    for (int l = 0; l < ser_ref_levels; l++)
    {
        mesh.UniformRefinement();
@@ -141,9 +182,9 @@ int main(int argc, char *argv[])
    //
    /// 5. Define the coefficients (e.g. parameters, analytical solution/s).
    //
-   FunctionCoefficient P_ex(ScalarFun);
-   VectorFunctionCoefficient V_ex(dim,VectorFun);
-   VectorFunctionCoefficient f_coeff(dim,FunctionWithParam(kin_vis));
+   FunctionCoefficient P_ex(P_exact);
+   VectorFunctionCoefficient V_ex(dim,V_exact);
+   VectorFunctionCoefficient f_coeff(dim,RHS(kin_vis));
 
 
    //
@@ -160,7 +201,6 @@ int main(int argc, char *argv[])
 
    double alpha = 0.1;
    NSSolver->SetAlpha(alpha, AlphaType::CONSTANT);
-
 
    //
    /// 8. Set parameters of the Linear Solvers
@@ -182,7 +222,7 @@ int main(int argc, char *argv[])
    // Essential velocity bcs
    Array<int> ess_attr(pmesh->bdr_attributes.Max());
    ess_attr = 1;
-   //NSSolver->AddVelDirichletBC(&V_ex, ess_attr);
+   NSSolver->AddVelDirichletBC(&V_ex, ess_attr);
 
    // Traction (neumann) bcs
    //Array<int> trac_attr(pmesh->bdr_attributes.Max());
@@ -192,8 +232,8 @@ int main(int argc, char *argv[])
    //
    /// 10. Set initial condition
    //
-   VectorFunctionCoefficient v_in(dim, VectorFun);
-   FunctionCoefficient p_in(ScalarFun);
+   VectorFunctionCoefficient v_in(dim, vZero);
+   FunctionCoefficient p_in(pZero);
    NSSolver->SetInitialConditionVel(v_in);
    NSSolver->SetInitialConditionPres(p_in);
 
@@ -219,29 +259,45 @@ int main(int argc, char *argv[])
    //
    /// 13.1 Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
-   {
-      std::ostringstream mesh_name, v_name, p_name;
-      mesh_name << "mesh." << std::setfill('0') << std::setw(6) << myrank;
-      v_name << "sol_v." << std::setfill('0') << std::setw(6) << myrank;
-      p_name << "sol_p." << std::setfill('0') << std::setw(6) << myrank;
+   
+   // Creating output directory if not existent
+    if (mkdir(outFolder, 0777) == -1)
+        std::cerr << "Error :  " << strerror(errno) << std::endl;
+    else
+        out << "Directory created";
 
-      std::ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+   std::ostringstream mesh_name, v_name, p_name;
+   mesh_name << outFolder << "/mesh." << std::setfill('0') << std::setw(6) << myrank; 
 
-      std::ofstream v_ofs(v_name.str().c_str());
-      v_ofs.precision(8);
-      velocityPtr->Save(v_ofs);
+   v_name << outFolder << "/sol_v." << std::setfill('0') << std::setw(6) << myrank;
+   p_name << outFolder << "/sol_p." << std::setfill('0') << std::setw(6) << myrank;
 
-      std::ofstream p_ofs(p_name.str().c_str());
-      p_ofs.precision(8);
-      pressurePtr->Save(p_ofs);
-   }
+   std::ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   pmesh->Print(mesh_ofs);
+
+   std::ostringstream omesh_file, omesh_file_bdr;
+   omesh_file << outFolder << "/mesh.vtk";
+   omesh_file_bdr << outFolder << "/mesh_bdr.vtu";
+   std::ofstream omesh(omesh_file.str().c_str());
+   omesh.precision(14);
+   pmesh->PrintVTK(omesh);
+   pmesh->PrintBdrVTU(omesh_file_bdr.str());
+
+   std::ofstream v_ofs(v_name.str().c_str());
+   v_ofs.precision(8);
+   velocityPtr->Save(v_ofs);
+
+   std::ofstream p_ofs(p_name.str().c_str());
+   p_ofs.precision(8);
+   pressurePtr->Save(p_ofs);
+
 
    //
    /// 13.2 Save data in the VisIt format.
-   //
-   VisItDataCollection visit_dc("Results-steadyNS", pmesh);
+   //   
+   VisItDataCollection visit_dc("Results-VISit", pmesh);
+   visit_dc.SetPrefixPath(outFolder);
    visit_dc.RegisterField("velocity", velocityPtr);
    visit_dc.RegisterField("pressure", pressurePtr);
    visit_dc.SetFormat(!par_format ?
@@ -252,8 +308,15 @@ int main(int argc, char *argv[])
    //
    /// 13.3 Save data in the Paraview format.
    //   
-   ParaViewDataCollection paraview_dc("Results-steadyNS", pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
+   ParGridFunction* velocityExactPtr = new ParGridFunction(NSSolver->GetVFes());
+   ParGridFunction* pressureExactPtr = new ParGridFunction(NSSolver->GetPFes());
+   ParGridFunction*           rhsPtr = new ParGridFunction(NSSolver->GetVFes());
+   velocityExactPtr->ProjectCoefficient(V_ex);
+   pressureExactPtr->ProjectCoefficient(P_ex);
+   rhsPtr->ProjectCoefficient(f_coeff);
+
+   ParaViewDataCollection paraview_dc("Results-Paraview", pmesh);
+   paraview_dc.SetPrefixPath(outFolder);
    paraview_dc.SetLevelsOfDetail(vorder);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
@@ -261,6 +324,9 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(0.0);
    paraview_dc.RegisterField("velocity",velocityPtr);
    paraview_dc.RegisterField("pressure",pressurePtr);
+   paraview_dc.RegisterField("velocity_exact",velocityExactPtr);
+   paraview_dc.RegisterField("pressure_exact",pressureExactPtr);
+   paraview_dc.RegisterField("rhs",rhsPtr);
    paraview_dc.Save();
 
    //
@@ -286,14 +352,16 @@ int main(int argc, char *argv[])
    }
 
 
+   // Finalize Hypre and MPI
+   HYPRE_Finalize();
    MPI_Finalize();
+
    return 0;
 }
 
 
 
-
-void VectorFun(const Vector &X, Vector &v)
+void V_exact(const Vector &X, Vector &v)
 {
    const int dim = X.Size();
 
@@ -310,26 +378,9 @@ void VectorFun(const Vector &X, Vector &v)
    if( dim == 3) { v(2) = 0; }
 }
 
-double ScalarFun(const Vector &X)
+std::function<void(const Vector &, Vector &)> RHS(const double &kin_vis)
 {
-   const int dim = X.Size();
-
-   double x = X[0];
-   double y = X[1];
-
-   if( dim == 3) {
-      double z = X[2];
-   }
-   
-   double p = sin(x) + sin(y);
-
-   return p;
-}
-
-
-std::function<void(const Vector &, Vector &)> FunctionWithParam(const double &param)
-{
-   return [param](const Vector &X, Vector &v)
+   return [kin_vis](const Vector &X, Vector &v)
    {
       const int dim = X.Size();
 
@@ -342,13 +393,24 @@ std::function<void(const Vector &, Vector &)> FunctionWithParam(const double &pa
       
       v = 0.0;
 
-      v(0) = cos(x) + cos(x)*sin(x) - 2*param*cos(y)*sin(x);
-      v(1) = cos(y) + cos(y)*sin(y) + 2*param*cos(x)*sin(y);
+      v(0) = cos(x) + cos(x)*sin(x) - 2*kin_vis*cos(y)*sin(x);
+      v(1) = cos(y) + cos(y)*sin(y) + 2*kin_vis*cos(x)*sin(y);
       if( dim == 3) {
          v(2) = 0;
       }
    };
 }
+
+double P_exact(const Vector &X)
+{
+   double x = X[0];
+   double y = X[1];
+
+   double p = sin(x) + sin(y);
+
+   return p;
+}
+
 
 void vZero(const Vector &X, Vector &v)
 {
@@ -361,3 +423,4 @@ double pZero(const Vector &X)
 {
    return 0;
 }
+

@@ -14,6 +14,14 @@
 namespace mfem
 {
 
+const IntegrationRule&
+VectorConvectionIntegrator::GetRule(const FiniteElement &fe,
+                                       ElementTransformation &T)
+{
+   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
+   return IntRules.Get(fe.GetGeomType(), order);
+}
+
 void VectorConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
@@ -21,8 +29,8 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
    dim = el.GetDim();
 
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape, adjJ, Q_ir, pelmat, pelmat_T;
-   Vector shape, vec1, vec2, wGradu;
+   DenseMatrix dshape, adjJ, W_ir, pelmat, pelmat_T;
+   Vector shape, vec1, vec2, vec3;
 #endif
    elmat.SetSize(dim*dof);
    dshape.SetSize(dof,dim);
@@ -30,7 +38,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
    shape.SetSize(dof);
    vec1.SetSize(dim);
    vec2.SetSize(dim);
-   wGradu.SetSize(dof);
+   vec3.SetSize(dof);
    pelmat.SetSize(dof);
    DenseMatrix pelmat_T(dof);
 
@@ -38,10 +46,10 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      ir = &ConvectionIntegrator::GetRule(el,Trans);
+      ir =  &GetRule(el, Trans);
    }
 
-   W->Eval(Q_ir, Trans, *ir);
+   W->Eval(W_ir, Trans, *ir);
 
    elmat = 0.0;
    pelmat_T = 0.0;
@@ -53,14 +61,14 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), adjJ);
-      Q_ir.GetColumnReference(i, vec1);     // tmp = W
+      W_ir.GetColumnReference(i, vec1);     // tmp = W
 
       const double q = alpha ? alpha * ip.weight : ip.weight; // q = alpha*weight   || q = weight
-      vec1 *= q;
+      adjJ.Mult(vec1, vec2);               // element transformation J^{-1} |J|      
+      vec2 *= q;
 
-      adjJ.Mult(vec1, vec2);               // element transformation J^{-1} |J|
-      dshape.Mult(vec2, wGradu);           // (w . grad u)           q ( alpha J^{-1} |J| w dPhi )  
-      MultVWt(shape, wGradu, pelmat);      // (w . grad u,v)         q ( alpha J^{-1} |J| w dPhi Phi^T)
+      dshape.Mult(vec2, vec3);           // (w . grad u)           q ( alpha J^{-1} |J| w dPhi )  
+      MultVWt(shape, vec3, pelmat);      // (w . grad u,v)         q ( alpha J^{-1} |J| w dPhi Phi^T)
 
       if( SkewSym )
       {

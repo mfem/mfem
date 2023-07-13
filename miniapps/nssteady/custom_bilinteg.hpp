@@ -39,14 +39,17 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, adjJ, Q_ir, pelmat, pelmat_T;
-   Vector shape, vec1, vec2, wGradu;
+   DenseMatrix dshape, adjJ, W_ir, pelmat, pelmat_T;
+   Vector shape, vec1, vec2, vec3;
 #endif
 
 public:
    VectorConvectionIntegrator(VectorCoefficient &w, double alpha = 1.0, bool SkewSym_ = false)
       : W(&w), alpha(alpha), SkewSym(SkewSym_) {}
 
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         ElementTransformation &T);
+                                         
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
