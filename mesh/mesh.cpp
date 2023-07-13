@@ -1118,6 +1118,25 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
+FaceElementTransformations *Mesh::GetInternalBdrFaceTransformations(
+   int IntBdrElemNo)
+{
+   int fn = GetBdrFace(IntBdrElemNo);
+
+   // Check if the face is not interior
+   if (!FaceIsTrueInterior(fn))
+   {
+      return nullptr;
+   }
+
+   auto *tr = GetFaceElementTransformations(fn, 31);
+   tr->Attribute = boundary[IntBdrElemNo]->GetAttribute();
+   tr->ElementNo = IntBdrElemNo;
+   tr->ElementType = ElementTransformation::BDR_FACE;
+   tr->mesh = this;
+   return tr;
+}
+
 int Mesh::GetBdrFace(int BdrElemNo) const
 {
    int fn;

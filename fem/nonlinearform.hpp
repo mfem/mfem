@@ -50,6 +50,10 @@ protected:
    Array<NonlinearFormIntegrator*> boundary_face_integs; // owned
    Array<Array<int>*>              boundary_face_integs_marker; // not owned
 
+   /// Set of internal boundary face integrators to be applied.
+   Array<NonlinearFormIntegrator*> internal_boundary_face_integs;
+   Array<Array<int>*> internal_boundary_face_integs_marker; ///< Entries not owned.
+
    mutable SparseMatrix *Grad, *cGrad; // owned
    /// Gradient Operator when not assembled as a matrix.
    mutable OperatorHandle hGrad; // has internal ownership flag
@@ -163,6 +167,33 @@ public:
        AddBdrFaceIntegrator(). */
    const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
    { return boundary_face_integs; }
+
+   /// @brief Add new internal boundary face integrator. Assumes ownership of
+   /// @a nfi.
+   void AddInternalBoundaryFaceIntegrator(NonlinearFormIntegrator *nfi)
+   {
+      internal_boundary_face_integs.Append(nfi);
+      // nullptr -> all attributes are active
+      internal_boundary_face_integs_marker.Append(nullptr);
+   }
+
+   /** @brief Add new internal boundary face integrator, restricted to the given
+       boundary attributes.
+
+       Assumes ownership of @a nfi. The array @a internal_bdr_attr_marker is
+       stored internally as a pointer to the given Array<int> object. */
+   void AddInternalBoundaryFaceIntegrator(NonlinearFormIntegrator *nfi,
+                                          Array<int> &internal_bdr_attr_marker)
+   {
+      internal_boundary_face_integs.Append(nfi);
+      internal_boundary_face_integs_marker.Append(&internal_bdr_attr_marker);
+   }
+
+   /** @brief Access all boundary face integrators added with
+       AddBdrFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetInternalBoundaryFaceIntegrators()
+   const
+   { return internal_boundary_face_integs; }
 
    /// Specify essential boundary conditions.
    /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores

@@ -27,6 +27,8 @@ NonlinearForm::NonlinearForm(NonlinearForm &&other)
    mfem::Swap(interior_face_integs, other.interior_face_integs);
    mfem::Swap(boundary_face_integs, other.boundary_face_integs);
    mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+   mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
+   mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
 
    /// Leave the moved nonlinear form in a state as if it was just constructed
    /// with fes
@@ -46,6 +48,10 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
       for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
       for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
+      for (int i = 0; i < internal_boundary_face_integs.Size(); i++)
+      {
+         delete internal_boundary_face_integs[i];
+      }
       delete ext;
 
       /// Null out all our integs and set size of their arrays to zero
@@ -64,6 +70,11 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
          interior_face_integs[k] = nullptr;
       }
       interior_face_integs.SetSize(0);
+      for (int k = 0; k < internal_boundary_face_integs.Size(); k++)
+      {
+         internal_boundary_face_integs[k] = nullptr;
+      }
+      internal_boundary_face_integs.SetSize(0);
 
       /// Null out all our markers and set size of their arrays to zero
       for (int k = 0; k < domain_integs_marker.Size(); ++k)
@@ -76,6 +87,11 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
          boundary_face_integs_marker[k] = nullptr;
       }
       boundary_face_integs_marker.SetSize(0);
+      for (int k = 0; k < internal_boundary_face_integs_marker.Size(); ++k)
+      {
+         internal_boundary_face_integs_marker[k] = nullptr;
+      }
+      internal_boundary_face_integs_marker.SetSize(0);
 
       /// Now steal data from other nonlinear form leaving it in a state as if
       /// it was just constructed with fes
@@ -94,6 +110,8 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       mfem::Swap(interior_face_integs, other.interior_face_integs);
       mfem::Swap(boundary_face_integs, other.boundary_face_integs);
       mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+      mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
+      mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
 
       ext = other.ext;
       other.ext = nullptr;
@@ -209,6 +227,8 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
                   "Interior faces terms not yet implemented!");
       MFEM_VERIFY(!boundary_face_integs.Size(),
                   "Boundary face terms not yet implemented!");
+      MFEM_VERIFY(!internal_boundary_face_integs.Size(),
+                  "Internal boundary face terms not yet implemented!");
       return ext->GetGridFunctionEnergy(x);
    }
 
@@ -330,6 +350,12 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          }
       }
    }
+
+   if (internal_boundary_face_integs.Size())
+   {
+      MFEM_ABORT("TODO: add energy contribution from internal boundary face terms");
+   }
+
    return energy;
 }
 
@@ -489,6 +515,62 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
                    (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
                boundary_face_integs[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               py.AddElementVector(vdofs, el_y);
+            }
+         }
+      }
+   }
+
+   if (internal_boundary_face_integs.Size())
+   {
+      // Which internal boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < internal_boundary_face_integs.Size(); k++)
+      {
+         if (internal_boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         auto &bdr_marker = *internal_boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for internal boundary face "
+                     "integrator #" << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      Array<int> vdofs2;
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         auto *tr = mesh->GetInternalBdrFaceTransformations(i);
+         if (tr != nullptr)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append(vdofs2);
+
+            px.GetSubVector(vdofs, el_x);
+
+            const auto *fe1 = fes->GetFE(tr->Elem1No);
+            const auto *fe2 = fes->GetFE(tr->Elem2No);
+            for (int k = 0; k < internal_boundary_face_integs.Size(); k++)
+            {
+               if (internal_boundary_face_integs_marker[k] &&
+                   (*internal_boundary_face_integs_marker[k])[bdr_attr - 1] == 0)
+               {
+                  continue;
+               }
+
+               internal_boundary_face_integs[k]->AssembleFaceVector(
+                  *fe1, *fe2, *tr, el_x, el_y);
                py.AddElementVector(vdofs, el_y);
             }
          }
@@ -659,6 +741,62 @@ Operator &NonlinearForm::GetGradient(const Vector &x, Operator **grad_e) const
       }
    }
 
+   if (internal_boundary_face_integs.Size())
+   {
+      // Which internal boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < internal_boundary_face_integs.Size(); k++)
+      {
+         if (internal_boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         auto &bdr_marker = *internal_boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for internal boundary face "
+                     "integrator #" << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      Array<int> vdofs2;
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         auto *tr = mesh->GetInternalBdrFaceTransformations(i);
+         if (tr != nullptr)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append(vdofs2);
+
+            px.GetSubVector(vdofs, el_x);
+
+            const auto *fe1 = fes->GetFE(tr->Elem1No);
+            const auto *fe2 = fes->GetFE(tr->Elem2No);
+            for (int k = 0; k < internal_boundary_face_integs.Size(); k++)
+            {
+               if (internal_boundary_face_integs_marker[k] &&
+                   (*internal_boundary_face_integs_marker[k])[bdr_attr - 1] == 0)
+               {
+                  continue;
+               }
+
+               internal_boundary_face_integs[k]->AssembleFaceGrad(
+                  *fe1, *fe2, *tr, el_x, elmat);
+               Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+            }
+         }
+      }
+   }
+
    if (!Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
@@ -711,6 +849,10 @@ NonlinearForm::~NonlinearForm()
    for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
    for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
    for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
+   for (int i = 0; i < internal_boundary_face_integs.Size(); i++)
+   {
+      delete internal_boundary_face_integs[i];
+   }
    delete ext;
 }
 

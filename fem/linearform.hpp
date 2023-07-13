@@ -65,6 +65,10 @@ protected:
    /// Set of Internal Face Integrators to be applied.
    Array<LinearFormIntegrator*> interior_face_integs;
 
+   /// Set of internal boundary face integrators to be applied.
+   Array<LinearFormIntegrator*> internal_boundary_face_integs;
+   Array<Array<int>*> internal_boundary_face_integs_marker; ///< Entries not owned.
+
    /// The element ids where the centers of the delta functions lie
    Array<int> domain_delta_integs_elem_id;
 
@@ -170,6 +174,18 @@ public:
 
    /// Adds new Interior Face Integrator. Assumes ownership of @a lfi.
    void AddInteriorFaceIntegrator(LinearFormIntegrator *lfi);
+
+   /// @brief Add new internal boundary face integrator. Assumes ownership of
+   /// @a lfi.
+   void AddInternalBoundaryFaceIntegrator(LinearFormIntegrator *lfi);
+
+   /** @brief Add new internal boundary face integrator, restricted to the given
+       boundary attributes.
+
+       Assumes ownership of @a lfi. The array @a internal_bdr_attr_marker is
+       stored internally as a pointer to the given Array<int> object. */
+   void AddInternalBoundaryFaceIntegrator(LinearFormIntegrator *lfi,
+                                          Array<int> &internal_bdr_attr_marker);
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta

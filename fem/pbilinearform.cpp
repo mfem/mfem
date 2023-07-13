@@ -309,6 +309,11 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 
 void ParBilinearForm::Assemble(int skip_zeros)
 {
+   if (internal_boundary_face_integs.Size())
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
+   }
+
    if (interior_face_integs.Size())
    {
       pfes->ExchangeFaceNbrData();

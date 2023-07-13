@@ -113,6 +113,10 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs; // owned
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
+   /// Set of internal boundary face integrators to be applied.
+   Array<BilinearFormIntegrator*> internal_boundary_face_integs;
+   Array<Array<int>*> internal_boundary_face_integs_marker; ///< Entries not owned.
+
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -422,6 +426,18 @@ public:
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
+
+   /// @brief Add new internal boundary face integrator. Assumes ownership of
+   /// @a bfi.
+   void AddInternalBoundaryFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /** @brief Add new internal boundary face integrator, restricted to the given
+       boundary attributes.
+
+       Assumes ownership of @a bfi. The array @a internal_bdr_attr_marker is
+       stored internally as a pointer to the given Array<int> object. */
+   void AddInternalBoundaryFaceIntegrator(BilinearFormIntegrator *bfi,
+                                          Array<int> &internal_bdr_attr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)

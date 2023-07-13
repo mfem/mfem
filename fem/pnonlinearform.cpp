@@ -72,6 +72,11 @@ double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
       MFEM_ABORT("TODO: add energy contribution from shared faces");
    }
 
+   if (internal_boundary_face_integs.Size())
+   {
+      MFEM_ABORT("TODO: add energy contributions from shared internal boundary terms");
+   }
+
    MPI_Allreduce(&loc_energy, &glob_energy, 1, MPI_DOUBLE, MPI_SUM,
                  ParFESpace()->GetComm());
 
@@ -80,6 +85,11 @@ double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 
 void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   if (internal_boundary_face_integs.Size() != 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
+   }
+
    NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
 
    if (interior_face_integs.Size())
@@ -150,6 +160,11 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x,
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
+
+   if (internal_boundary_face_integs.Size() != 0)
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
+   }
 
    if (interior_face_integs.Size() == 0)
    {
