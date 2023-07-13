@@ -358,21 +358,34 @@ int main(int argc, char *argv[])
          ostringstream filename;
          ofstream file;
 
+         filename << "mesh" << std::setfill('0') << std::setw(6) << k << ".mesh";
+         mesh.Save(filename.str().c_str());
+         filename.str(std::string());
+
          filename << "u" << std::setfill('0') << std::setw(6) << k << ".gf";
          file.open(filename.str());
-         u.Save(file);
+         GridFunction u_high(&fes_L2_Qk2);
+         u_high.ProjectCoefficient(u_cf);
+         u_high.Save(file);
          file.close();
          file.clear();
+         filename.str(std::string());
+         
          filename << "rho" << std::setfill('0') << std::setw(6) << k << ".gf";
          file.open(filename.str());
          rho.Save(file);
          file.close();
          file.clear();
+         filename.str(std::string());
+         
+         GridFunction f_rho_high(&fes_L2_Qk2);
+         f_rho_high.ProjectCoefficient(f_rho_cf);
          filename << "f_rho" << std::setfill('0') << std::setw(6) << k << ".gf";
          file.open(filename.str());
-         f_rho.Save(file);
+         f_rho_high.Save(file);
          file.close();
          file.clear();
+         filename.str(std::string());
       }
       const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant / std::sqrt(volume);
       mfem::out << "||ρ - ρ_k|| = " << std::scientific << diff_penalty << std::endl
