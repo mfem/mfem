@@ -1289,11 +1289,13 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
                                  const Array<unsigned int> & elem_send,
                                  const Vector &ref_send,
                                  const Vector &coords_send,
+                                 const Array<int> &s_conn_send,
                                  Array<unsigned int> & proc_recv,
                                  Array<unsigned int> & index_recv,
                                  Array<unsigned int> & elem_recv,
                                  Vector &ref_recv,
-                                 Vector &coords_recv)
+                                 Vector &coords_recv,
+                                 Array<int> &s_conn_recv)
 {
    int nptsend = gsl_proc.Size();
    int nptElem   = elem_send.Size();
@@ -1309,7 +1311,7 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
 
-   struct out_pt { double rst[3], coords[3]; uint index, elem, proc; };
+   struct out_pt { double rst[3], coords[3]; int s_conn; uint index, elem, proc; };
    struct out_pt *pt;
    array_init(struct out_pt, outpt, nptsend);
    outpt->n=nptsend;
@@ -1319,6 +1321,7 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
       pt->index = index;
       pt->elem = elem_send[index];
       pt->proc  = gsl_proc[index];
+      pt->s_conn = s_conn_send[index];
       for (int d = 0; d < dim; ++d)
       {
          pt->rst[d]= ref_send(index*dim + d);
@@ -1337,6 +1340,7 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
    index_recv.SetSize(npt);
    ref_recv.SetSize(npt*dim);
    coords_recv.SetSize(npt*dim);
+   s_conn_recv.SetSize(npt);
 
    pt = (struct out_pt *)outpt->ptr;
    for (int index = 0; index < npt; index++)
@@ -1344,6 +1348,7 @@ void GSLIBCommunicator::SendData(int dim, const Array<unsigned int> & gsl_proc,
       index_recv[index] = pt->index;
       elem_recv[index] = pt->elem;
       proc_recv[index] = pt->proc;
+      s_conn_recv[index] = pt->s_conn;
       for (int d = 0; d < dim; ++d)
       {
          ref_recv(index*dim + d)= pt->rst[d]; // by VDIM
@@ -1360,17 +1365,19 @@ void GSLIBCommunicator::SendData2(int dim,
                                   const Array<unsigned int> & gsl_proc,
                                   const Vector &xyz_send,
                                   const Vector &xi_send,
+                                  const Array<int> &s_conn_send,
                                   const Array<int> &conn_send,
                                   const DenseMatrix &coords_send,
                                   Vector &xyz_recv,
                                   Vector &xi_recv,
+                                  Array<int> &s_conn_recv,
                                   Array<int> &conn_recv,
                                   DenseMatrix &coords_recv)
 {
    int nptsend = gsl_proc.Size();
 
    struct gslib::array *outpt = new gslib::array;
-   struct out_pt {double xyz[3], xi[2], coords[12]; int conn[4]; uint proc;};
+   struct out_pt {double xyz[3], xi[2], coords[12]; int s_conn; int conn[4]; uint proc;};
    struct out_pt *pt;
    array_init(struct out_pt, outpt, nptsend);
    outpt->n=nptsend;
@@ -1378,6 +1385,7 @@ void GSLIBCommunicator::SendData2(int dim,
    for (int index = 0; index < nptsend; index++)
    {
       pt->proc  = gsl_proc[index];
+      pt->s_conn  = s_conn_send[index];
       for (int d = 0; d < dim-1; ++d)
       {
          pt->xi[d]= xi_send(index*(dim-1) + d);
@@ -1403,12 +1411,14 @@ void GSLIBCommunicator::SendData2(int dim,
    int npt = outpt->n;
    xi_recv.SetSize(npt*(dim-1));
    xyz_recv.SetSize(npt*dim);
+   s_conn_recv.SetSize(npt);
    conn_recv.SetSize(npt*4);
    coords_recv.SetSize(npt*4,dim);
 
    pt = (struct out_pt *)outpt->ptr;
    for (int index = 0; index < npt; index++)
    {
+      s_conn_recv[index] = pt->s_conn;
       for (int d = 0; d < dim-1; ++d)
       {
          xi_recv(index*(dim-1) + d) = pt->xi[d];

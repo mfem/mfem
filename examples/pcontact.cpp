@@ -18,14 +18,19 @@ using namespace mfem;
 // function f(x) = x
 void rhs_func1(const Vector & x, Vector & y)
 {
-   y = x;
+   for (int i = 0; i<x.Size(); i++)
+   {
+      y(i) = sin(x(i));
+   }
 }
 
 // function f(x) = x.^2
 void rhs_func2(const Vector & x, Vector & y)
 {
-   y = x;
-   y*=x;
+   for (int i = 0; i<x.Size(); i++)
+   {
+      y(i) = cos(x(i));
+   }
 }
 
 
@@ -395,8 +400,8 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
 // where X is the list of x-coordinates for all points and so on.
 // conn: connectivity of the target surface elements
 // xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
-void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz, Array<int>& conn,
-                      Vector & xyz2, Vector& xi, DenseMatrix & coords)
+void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz, const Array<int> & s_conn, Array<int>& conn,
+                      Vector & xyz2, Array<int> & s_conn2, Vector& xi, DenseMatrix & coords)
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
@@ -451,8 +456,9 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
    Vector ref_recv;
 
    Vector xyz_recv;
-   gslcomm.SendData(dim,procs,elems,refcrd,xyz, proc_recv,index_recv,elems_recv,
-                    ref_recv, xyz_recv);
+   Array<int> s_conn_recv;
+   gslcomm.SendData(dim,procs,elems,refcrd,xyz, s_conn, proc_recv,index_recv,elems_recv,
+                    ref_recv, xyz_recv, s_conn_recv);
 
    int np_loc = elems_recv.Size();
    Array<int> conn_loc(np_loc*4);
@@ -590,8 +596,11 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
       conn_loc[i] = gvert[conn_loc[i]];
    }
 
+   // mfem::out << "conn_loc = " ; conn_loc.Print(mfem::out, conn_loc.Size());
    // need to send data (xi, conn and coords of xyz) back to the owning processor
-   gslcomm.SendData2(dim,proc_recv,xyz_recv,xi_send, conn_loc, coordsm,xyz2,xi,conn,coords);
+
+   gslcomm.SendData2(dim,proc_recv,xyz_recv,xi_send, s_conn_recv, conn_loc, coordsm,xyz2,xi,s_conn2, conn, coords);
+   // mfem::out << "conn = " ; conn.Print(mfem::out, conn.Size());
 
 }
 
@@ -783,7 +792,6 @@ int main(int argc, char *argv[])
    ComputeTdofOffsets(vertexfes2->GetComm(),voffset2, vertex2_offsets);
    std::vector<int> vertex_offsets;
    ComputeTdofOffsets(vertexfes2->GetComm(),voffset, vertex_offsets);
-
    Array<int> globalvertices1(pmesh1.GetNV());
    Array<int> globalvertices2(pmesh2.GetNV());
    for (int i = 0; i<pmesh1.GetNV(); i++)
@@ -811,12 +819,7 @@ int main(int argc, char *argv[])
          for (auto v : vert)
          {
             // skip if the processor does not own the vertex
-            // int rank = get_rank(globalvertices2[v],vertex_offsets);
-            // mfem::out << "myid, v, globalvertices2[v], rank " << myid << ", " << v << ", " << globalvertices2[v] << ", " << rank << endl; 
-            // int rank1 = get_rank(vertices2[v],vertex2_offsets);
-            // mfem::out << "myid, v, vertices2[v], rank " << myid << ", " << v << ", " << vertices2[v] << ", " << rank1 << endl; 
             if (myid != get_rank(globalvertices2[v],vertex_offsets)) { continue; }
-            // if (myid != get_rank(vertices2[v],vertex2_offsets)) { continue; }
             bdryVerts2.insert(v);
          }
       }
@@ -845,6 +848,9 @@ int main(int argc, char *argv[])
    }
    MFEM_VERIFY(count == npoints, "");
 
+   // globalvertices1.Print(mfem::out, globalvertices1.Size());
+   // globalvertices2.Print(mfem::out, globalvertices2.Size());
+
    // gap function
    Vector g(npoints*dim);
    g = -1.0;
@@ -860,7 +866,12 @@ int main(int argc, char *argv[])
    add(nodes0, x1, *nodes1);
 
    Vector xyz_recv;
-   FindPointsInMesh(pmesh1, globalvertices1, xyz, m_conn, xyz_recv, m_xi ,coordsm);
+   Array<int> s_conn_recv;
+   FindPointsInMesh(pmesh1, globalvertices1, xyz, s_conn, m_conn, xyz_recv, s_conn_recv, m_xi ,coordsm);
+
+   // s_conn is reordered matching m_conn ordering
+   // This can be simplified later
+   s_conn = s_conn_recv;
 
    // decode and print
    if (0) // for debugging
@@ -890,11 +901,22 @@ int main(int argc, char *argv[])
       for (int i = 0; i< pmesh1.GetNV(); i++)
       {
          int gv = globalvertices1[i];
-         if (myid != get_rank(gv,vertex_offsets)) continue;
-         double *vcoords = pmesh1.GetVertex(gv-voffset); 
-         mfem::out << "vertex: " << gv << " = ("<<vcoords[0] <<","<<vcoords[1]<<","<<vcoords[2]<<")" << endl;
+         if (myid != get_rank(gv,vertex1_offsets)) continue;
+         double *vcoords = pmesh1.GetVertex(i); 
+         mfem::out << "vertex1: " << gv << " = ("<<vcoords[0] <<","<<vcoords[1]<<","<<vcoords[2]<<")" << endl;
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+      for (int i = 0; i< pmesh2.GetNV(); i++)
+      {
+         int gv = globalvertices2[i];
+         int rank = get_rank(gv,vertex_offsets);
+         if (myid != rank) continue;
+         double *vcoords = pmesh2.GetVertex(i); 
+         mfem::out << "vertex2: " << gv << " = ("<<vcoords[0] <<","<<vcoords[1]<<","<<vcoords[2]<<")" << endl;
       }
    }
+
+   
 
    Vector xs(dim*npoints);
    xs = 0.0;
@@ -908,12 +930,9 @@ int main(int argc, char *argv[])
 
    SparseMatrix M(gnnd,gndofs);
    std::vector<SparseMatrix> dM(gnnd, SparseMatrix(gndofs,gndofs)); 
+
    Assemble_Contact(gnnd, npoints, xs, m_xi, coordsm,
                        s_conn, m_conn, g, M, dM);
-
-
-   // M.Finalize();
-   // PrintSparseMatrix(M,"M",2);
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
@@ -1149,11 +1168,7 @@ int main(int argc, char *argv[])
 
 
 
-
-
-
    HypreParMatrix * mat = ParAdd(K,&hypreDM);
-
 
    VectorFunctionCoefficient cf1(dim,rhs_func1);
    VectorFunctionCoefficient cf2(dim,rhs_func2);
@@ -1169,17 +1184,16 @@ int main(int argc, char *argv[])
    X.SetVector(rhs1,0);
    X.SetVector(rhs2,rhs1.Size());
 
-   Vector Y(X.Size());
+   Vector YDM(hypreDM.Height());
+   Vector YM(hypreM.Height());
 
-   // mat->Mult(X,Y);
-   K->Mult(X,Y);
-   double ynorm = InnerProduct(MPI_COMM_WORLD,Y,Y);
+   hypreM.Mult(X,YM);
+   hypreDM.Mult(X,YDM);
+   double ydmnorm = InnerProduct(MPI_COMM_WORLD,YDM,YDM);
+   double ymnorm = InnerProduct(MPI_COMM_WORLD,YM,YM);
 
-   mfem::out << "ynorm = " << ynorm << endl;
-
-   // hypreM.Print("m.dat");
-   // hypreDM.Print("dm.dat");
-
+   mfem::out << "ymnorm = " << ymnorm << endl;
+   mfem::out << "ydmnorm = " << ydmnorm << endl;
 
    // --------------------------------------------------------------------
    // std::set<int> dirbdryv2;

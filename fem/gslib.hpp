@@ -312,20 +312,24 @@ public:
                  const Array<unsigned int> & elem_send,
                  const Vector &ref_send,
                  const Vector &coords_send,
+                 const Array<int> &s_conn_send,
                  Array<unsigned int> & proc_recv,
                  Array<unsigned int> & index_recv,
                  Array<unsigned int> & elem_recv,
                  Vector &ref_recv,
-                 Vector &coords_recv);
+                 Vector &coords_recv,
+                 Array<int> & s_conn_recv);
 
    void SendData2(int dim,
                   const Array<unsigned int> & gsl_proc,
                   const Vector &xyz_send,
                   const Vector &xi_send,
+                  const Array<int> &s_conn_send,
                   const Array<int> &conn_send,
                   const DenseMatrix &coords_send,
                   Vector &xyz_recv,
                   Vector &ref_recv,
+                  Array<int> &s_conn_recv,
                   Array<int> &conn_recv,
                   DenseMatrix &coords_recv);
 
