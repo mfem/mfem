@@ -82,7 +82,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
          for (int side = 0; side < nsides; ++side)
          {
             int i, j;
-            internal::EdgeQuad2Lex2D(p, Q1D, fid[0], fid[1], side, i, j);
+            internal::FaceQuad2Lex2D(p, Q1D, fid[0], fid[1], side, i, j);
 
             const int el_idx = (side == 0) ? el[0] : el_1;
             auto J_el = (side == 1 && shared) ? J_shared : J;

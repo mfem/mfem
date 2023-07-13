@@ -90,9 +90,83 @@ inline int PermuteFace2D(const int face_id1, const int face_id2,
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
+MFEM_HOST_DEVICE
+inline int ToLexOrdering3D(const int face_id, const int size1d, const int i,
+                           const int j)
+{
+   if (face_id==2 || face_id==1 || face_id==5)
+   {
+      return i + j*size1d;
+   }
+   else if (face_id==3 || face_id==4)
+   {
+      return (size1d-1-i) + j*size1d;
+   }
+   else // face_id==0
+   {
+      return i + (size1d-1-j)*size1d;
+   }
+}
+
+MFEM_HOST_DEVICE
+inline int PermuteFace3D(const int face_id1, const int face_id2,
+                         const int orientation,
+                         const int size1d, const int index)
+{
+   int i=0, j=0, new_i=0, new_j=0;
+   i = index%size1d;
+   j = index/size1d;
+   // Convert from lex ordering
+   if (face_id1==3 || face_id1==4)
+   {
+      i = size1d-1-i;
+   }
+   else if (face_id1==0)
+   {
+      j = size1d-1-j;
+   }
+   // Permute based on face orientations
+   switch (orientation)
+   {
+      case 0:
+         new_i = i;
+         new_j = j;
+         break;
+      case 1:
+         new_i = j;
+         new_j = i;
+         break;
+      case 2:
+         new_i = j;
+         new_j = (size1d-1-i);
+         break;
+      case 3:
+         new_i = (size1d-1-i);
+         new_j = j;
+         break;
+      case 4:
+         new_i = (size1d-1-i);
+         new_j = (size1d-1-j);
+         break;
+      case 5:
+         new_i = (size1d-1-j);
+         new_j = (size1d-1-i);
+         break;
+      case 6:
+         new_i = (size1d-1-j);
+         new_j = i;
+         break;
+      case 7:
+         new_i = i;
+         new_j = (size1d-1-j);
+         break;
+   }
+   return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
+}
+
 // maps quadrature index on face to (row, col) index pair
 MFEM_HOST_DEVICE
-inline void EdgeQuad2Lex2D(const int qi, const int nq,
+inline void FaceQuad2Lex2D(const int qi, const int nq,
                            const int face_id0, const int face_id1, const int side,
                            int &i, int &j)
 {
@@ -109,6 +183,50 @@ inline void EdgeQuad2Lex2D(const int qi, const int nq,
       j = edge_idx;
       i = (face_id == 3) ? 0 : (nq-1);
    }
+}
+
+MFEM_HOST_DEVICE
+inline void FaceQuad2Lex3D(const int index, const int size1d, const int face_id0, const int face_id1, const int side, const int orientation, int& i, int& j, int& k)
+{
+   MFEM_VERIFY(face_id1 >= 0 || side == 0, "accessing second side but face_id1 is not valid.");
+
+   const int size2d = size1d * size1d;
+   const int face_id = (side == 0) ? face_id0 : face_id1;
+   int fidx = (side == 0) ? index : PermuteFace3D(face_id0, face_id1, side, size1d, index);
+
+   const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
+   const bool xz_plane = (face_id == 1 || face_id == 3);
+   const bool yz_plane = (face_id == 2 || face_id == 4);
+
+   const int level = (face_id == 0 || face_id == 1 || face_id == 4) ? 0 : 1;
+
+   int idx3d, strides[2];
+   if (yz_plane)
+   {
+      idx3d = level ? (size1d-1) : 0;
+      strides[0] = size1d;
+      strides[1] = size2d;
+   }
+   else if (xz_plane)
+   {
+      idx3d = level ? (size1d-1)*size1d : 0;
+      strides[0] = 1;
+      strides[1] = size2d;
+   }
+   else // xy_plane
+   {
+      idx3d = level ? (size1d-1)*size2d : 0;
+      strides[0] = 1;
+      strides[1] = size1d;
+   }
+   
+   idx3d += strides[0] * (fidx % size1d);
+   fidx /= size1d;
+   idx3d += strides[1] * (fidx % size1d);
+
+   k = idx3d / size2d;
+   j = (idx3d - k * size2d) / size1d;
+   i = idx3d - k * size2d - j * size1d;
 }
 
 } // namespace internal
