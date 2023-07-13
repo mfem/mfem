@@ -157,6 +157,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A2.2 p. 70
 void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 {
    MFEM_ASSERT(Order <= MaxOrder, "Order > MaxOrder!");
@@ -183,6 +184,7 @@ void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A2.3 p. 72
 void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
 {
    int    p = Order, rk, pk;
@@ -341,6 +343,101 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
 
 }
 
+void KnotVector::FindMaxima(Array<int> &ks,
+                            Vector &xi,
+                            Vector &u)
+{
+   Vector shape(Order+1);
+   Vector maxima(GetNCP());
+   double arg1, arg2, arg, max1, max2, max;
+
+   xi.SetSize(GetNCP());
+   u.SetSize(GetNCP());
+   ks.SetSize(GetNCP());
+   for (int j = 0; j <GetNCP(); j++)
+   {
+      maxima[j] = 0;
+      for (int d = 0; d < Order+1; d++)
+      {
+         int i = j - d;
+         if (isElement(i))
+         {
+            arg1 = 1e-16;
+            CalcShape(shape, i, arg1);
+            max1 = shape[d];
+
+            arg2 = 1-(1e-16);
+            CalcShape(shape, i, arg2);
+            max2 = shape[d];
+
+            arg = (arg1 + arg2)/2;
+            CalcShape(shape, i, arg);
+            max = shape[d];
+
+            while ( ( max > max1 ) || (max > max2) )
+            {
+               if (max1 < max2)
+               {
+                  max1 = max;
+                  arg1 = arg;
+               }
+               else
+               {
+                  max2 = max;
+                  arg2 = arg;
+               }
+
+               arg = (arg1 + arg2)/2;
+               CalcShape ( shape, i, arg);
+               max = shape[d];
+            }
+
+            if (max > maxima[j])
+            {
+               maxima[j] = max;
+               ks[j] = i;
+               xi[j] = arg;
+               u[j]  = getKnotLocation(arg, i+Order);
+            }
+         }
+      }
+   }
+}
+
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A9.1 p. 369
+void KnotVector::FindInterpolant(Array<Vector*> &x)
+{
+   int order = GetOrder();
+   int ncp = GetNCP();
+
+   // Find interpolation points
+   Vector xi_args, u_args;
+   Array<int> i_args;
+   FindMaxima(i_args,xi_args, u_args);
+
+   // Assemble collocation matrix
+   Vector shape(order+1);
+   DenseMatrix A(ncp,ncp);
+   A = 0.0;
+   for (int i = 0; i < ncp; i++)
+   {
+      CalcShape ( shape, i_args[i], xi_args[i]);
+      for (int p = 0; p < order+1; p++)
+      {
+         A(i,i_args[i] + p) =  shape[p];
+      }
+   }
+
+   // Solve problems
+   A.Invert();
+   Vector tmp;
+   for (int i= 0; i < x.Size(); i++)
+   {
+      tmp = *x[i];
+      A.Mult(tmp,*x[i]);
+   }
+}
 
 int KnotVector::findKnotSpan(double u) const
 {
@@ -392,7 +489,7 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
    int i = 0;
    for (int j = 0; j < kv.Size(); j++)
    {
-      if (knot(i) == kv[j])
+      if (abs(knot(i) - kv[j]) < 2 * std::numeric_limits<double>::epsilon())
       {
          i++;
       }
@@ -879,6 +976,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
 
    NURBSPatch &oldp  = *this;
    KnotVector &oldkv = *kv[dir];
+   oldkv.GetElements();
 
    NURBSPatch *newpatch = new NURBSPatch(this, dir, oldkv.GetOrder() + t,
                                          oldkv.GetNCP() + oldkv.GetNE()*t);
@@ -1152,6 +1250,61 @@ void NURBSPatch::SwapDirections(int dir1, int dir2)
       }
 
    swap(newpatch);
+}
+
+void NURBSPatch::Rotate(double angle, double n[])
+{
+   if (Dim == 3)
+   {
+      Rotate2D(angle);
+   }
+   else
+   {
+      if (n == NULL)
+      {
+         mfem_error("NURBSPatch::Rotate : Specify an angle for a 3D rotation.");
+      }
+
+      Rotate3D(n, angle);
+   }
+}
+
+void NURBSPatch::Get2DRotationMatrix(double angle, DenseMatrix &T)
+{
+   double s = sin(angle);
+   double c = cos(angle);
+
+   T.SetSize(2);
+   T(0,0) = c;
+   T(0,1) = -s;
+   T(1,0) = s;
+   T(1,1) = c;
+}
+
+void NURBSPatch::Rotate2D(double angle)
+{
+   if (Dim != 3)
+   {
+      mfem_error("NURBSPatch::Rotate2D : not a NURBSPatch in 2D!");
+   }
+
+   DenseMatrix T(2);
+   Vector x(2), y(NULL, 2);
+
+   Get2DRotationMatrix(angle, T);
+
+   int size = 1;
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      size *= kv[i]->GetNCP();
+   }
+
+   for (int i = 0; i < size; i++)
+   {
+      y.SetData(data + i*Dim);
+      x = y;
+      T.Mult(x, y);
+   }
 }
 
 void NURBSPatch::Get3DRotationMatrix(double n[], double angle, double r,
