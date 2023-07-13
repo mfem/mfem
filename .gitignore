@@ -29,6 +29,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.cmake
 config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
@@ -214,6 +215,7 @@ miniapps/meshing/pmesh-fitting
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
+miniapps/meshing/mesh-quality
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
@@ -316,11 +318,27 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/hdiv-linear-solver/darcy
+miniapps/hdiv-linear-solver/grad_div
+
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
 miniapps/multidomain/multidomain
 miniapps/hooke/hooke
+
+miniapps/dpg/diffusion
+miniapps/dpg/pdiffusion
+miniapps/dpg/convection-diffusion
+miniapps/dpg/pconvection-diffusion
+miniapps/dpg/acoustics
+miniapps/dpg/pacoustics
+miniapps/dpg/maxwell
+miniapps/dpg/pmaxwell
+miniapps/dpg/ParaView
+
+miniapps/spde/generate_random_field
+miniapps/spde/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes
@@ -334,6 +352,8 @@ tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+tests/unit/parallel_in_serial.mesh
+tests/unit/parallel_in_serial.gf
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed

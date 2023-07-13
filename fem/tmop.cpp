@@ -536,12 +536,23 @@ void TMOP_Metric_022::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(c4, A.GetData());
 }
 
+double TMOP_Metric_050::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_50 = 0.5 |J^t J|^2 / det(J)^2 - 1.
+   DenseMatrix JtJ(2);
+   MultAAt(Jpt, JtJ);
+   JtJ.Transpose();
+   double det = Jpt.Det();
+
+   return 0.5 * JtJ.FNorm2()/(det*det) - 1.0;
+}
+
 double TMOP_Metric_050::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_50 = 0.5*|J^t J|^2/det(J)^2 - 1
    //       = 0.5*(l1^4 + l2^4)/(l1*l2)^2 - 1
    //       = 0.5*((l1/l2)^2 + (l2/l1)^2) - 1 = 0.5*(l1/l2 - l2/l1)^2
-   //       = 0.5*(l1/l2 + l2/l1)^2 - 2 = 0.5*I1b^2 - 2
+   //       = 0.5*(l1/l2 + l2/l1)^2 - 2 = 0.5*I1b^2 - 2.
    ie.SetJacobian(Jpt.GetData());
    const double I1b = ie.Get_I1b();
    return 0.5*I1b*I1b - 2.0;
@@ -597,9 +608,16 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
 }
 
+double TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_56 = 0.5 (det(J) + 1 / det(J)) - 1.
+   const double d = Jpt.Det();
+   return 0.5 * (d + 1.0 / d) - 1.0;
+}
+
 double TMOP_Metric_056::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_56 = 0.5*(I2b + 1/I2b) - 1
+   // mu_56 = 0.5*(I2b + 1/I2b) - 1.
    ie.SetJacobian(Jpt.GetData());
    const double I2b = ie.Get_I2b();
    return 0.5*(I2b + 1.0/I2b) - 1.0;
@@ -607,8 +625,8 @@ double TMOP_Metric_056::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_056::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_56 = 0.5*(I2b + 1/I2b) - 1
-   // P = 0.5*(1 - 1/I2b^2)*dI2b
+   // mu_56 = 0.5*(I2b + 1/I2b) - 1.
+   // P = 0.5*(1 - 1/I2b^2)*dI2b.
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5 - 0.5/ie.Get_I2(), ie.Get_dI2b());
 }
@@ -618,8 +636,8 @@ void TMOP_Metric_056::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = 0.5*(1 - 1/I2b^2)*dI2b
-   // dP = (1/I2b^3)*(dI2b x dI2b) + (0.5 - 0.5/I2)*ddI2b
+   // P  = 0.5*(1 - 1/I2b^2)*dI2b.
+   // dP = (1/I2b^3)*(dI2b x dI2b) + (0.5 - 0.5/I2)*ddI2b.
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(weight/(ie.Get_I2()*ie.Get_I2b()),
@@ -629,7 +647,7 @@ void TMOP_Metric_056::AssembleH(const DenseMatrix &Jpt,
 
 double TMOP_Metric_058::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
-   // mu_58 = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
+   // mu_58 = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2.
    DenseMatrix JtJ(2);
    MultAAt(Jpt, JtJ);
    JtJ.Transpose();
@@ -667,17 +685,24 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight*(2*ie.Get_I1b() - 2.0), A.GetData());
 }
 
+double TMOP_Metric_077::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_77 = 0.5 (det(J)^2 + 1 / det(J)^2) - 1.
+   const double d = Jpt.Det();
+   return 0.5 * (d*d + 1.0/(d*d)) - 1.0;
+}
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
+   // mu_77 = 0.5 (I2 + 1 / I2) - 1.0.
    ie.SetJacobian(Jpt.GetData());
-   const double I2b = ie.Get_I2b();
-   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+   const double I2 = ie.Get_I2();
+   return  0.5*(I2 + 1.0/I2) - 1.0;
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // Using I2b^2 = I2.
-   // dmu77_dJ = 1/2 (1 - 1/I2^2) dI2_dJ.
+   // mu_77 = 0.5 (I2 + 1 / I2) - 1.0.
+   // P = 1/2 (1 - 1/I2^2) dI2_dJ.
    ie.SetJacobian(Jpt.GetData());
    const double I2 = ie.Get_I2();
    P.Set(0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2());
@@ -1089,6 +1114,43 @@ void TMOP_Metric_316::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(weight/(ie.Get_I3()*ie.Get_I3b()),
                      ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(weight*(0.5 - 0.5/ie.Get_I3()), A.GetData());
+}
+
+double TMOP_Metric_318::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_318 = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
+   double d = Jpt.Det();
+   return 0.5 * (d*d + 1.0 / (d*d)) - 1.0;
+}
+
+double TMOP_Metric_318::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_318 = mu_77_3D = 0.5 * (I3 + 1/I3) - 1.
+   ie.SetJacobian(Jpt.GetData());
+   const double I3 = ie.Get_I3();
+   return 0.5*(I3 + 1.0/I3) - 1.0;
+}
+
+void TMOP_Metric_318::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   // mu_318 = mu_77_3D = 0.5*(I3 + 1/I3) - 1.
+   // P = 0.5*(1 - 1/I3^2)*dI3 = (0.5 - 0.5/I3^2)*dI3.
+   ie.SetJacobian(Jpt.GetData());
+   P.Set(0.5 - 0.5/(ie.Get_I3()*ie.Get_I3()), ie.Get_dI3());
+}
+
+void TMOP_Metric_318::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   // P = (0.5 - 0.5/I3^2)*dI3.
+   // dP =  (1/I3^3)*(dI3 x dI3) +(0.5 - 0.5/I3^2)*ddI3
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   const double i3 = ie.Get_I3();
+   ie.Assemble_TProd(weight/(i3 * i3 * i3), ie.Get_dI3(), A.GetData());
+   ie.Assemble_ddI3(weight*(0.5 - 0.5 / (i3 * i3)), A.GetData());
 }
 
 double TMOP_Metric_321::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -1715,12 +1777,12 @@ void AnalyticAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 namespace internal
 {
 
-// MFEM_FORALL-based copy kernel -- used by protected methods below.
-// Needed as a workaround for the nvcc restriction that methods with MFEM_FORALL
+// mfem::forall-based copy kernel -- used by protected methods below.
+// Needed as a workaround for the nvcc restriction that methods with mfem::forall
 // in them must to be public.
 static inline void device_copy(double *d_dest, const double *d_src, int size)
 {
-   MFEM_FORALL(i, size, d_dest[i] = d_src[i];);
+   mfem::forall(size, [=] MFEM_HOST_DEVICE (int i) { d_dest[i] = d_src[i]; });
 }
 
 } // namespace internal
@@ -1958,16 +2020,16 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
-                                                bool use_flag,
+                                                bool reuse_flag,
                                                 int new_x_ordering)
 {
-   if (use_flag && good_tspec) { return; }
+   if (reuse_flag && good_tspec) { return; }
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
    tspec_sav = tspec;
 
-   good_tspec = use_flag;
+   good_tspec = reuse_flag;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
@@ -2105,17 +2167,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (sizeidx != -1) // Set size
             {
                par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-               double min_size = par_vals.Min();//0.001; //
-               if (lim_min_size > 0.)
+               double min_size = par_vals.Min();
+               if (lim_min_size > 0.) { min_size = lim_min_size; }
+               MFEM_VERIFY(min_size > 0.0,
+                           "Non-positive size propagated in the target definition.");
+
+               double size = fmax(shape * par_vals, min_size);
+               NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+               if (ncmesh)
                {
-                  min_size = lim_min_size;
+                  size /= ncmesh->GetElementSizeReduction(e_id);
                }
-               else
-               {
-                  MFEM_VERIFY(min_size > 0.0,
-                              "Non-positive size propagated in the target definition.");
-               }
-               const double size = std::max(shape * par_vals, min_size);
                Jtr(q).Set(std::pow(size, 1.0/dim), Jtr(q));
                DenseMatrix Jtrcomp_q(Jtrcomp.GetData(0 + 4*q), dim, dim);
                Jtrcomp_q = Jtr(q);
@@ -2606,10 +2668,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 
 void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
                                                          const double dx,
-                                                         bool use_flag,
+                                                         bool reuse_flag,
                                                          int x_ordering)
 {
-   if (use_flag && good_tspec_grad) { return; }
+   if (reuse_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fesv->GetFE(0)->GetDim(),
              cnt = x.Size()/dim;
@@ -2636,15 +2698,15 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
       }
    }
 
-   good_tspec_grad = use_flag;
+   good_tspec_grad = reuse_flag;
 }
 
-void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       double dx, bool use_flag,
-                                                       int x_ordering)
+void DiscreteAdaptTC::
+UpdateHessianTargetSpecification(const Vector &x,double dx,
+                                 bool reuse_flag, int x_ordering)
 {
 
-   if (use_flag && good_tspec_hess) { return; }
+   if (reuse_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fesv->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
@@ -2703,7 +2765,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
       }
    }
 
-   good_tspec_hess = use_flag;
+   good_tspec_hess = reuse_flag;
 }
 
 DiscreteAdaptTC::~DiscreteAdaptTC()
@@ -3098,10 +3160,10 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
 
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
+      metric->SetTargetJacobian(Jtr(i));
+      CalcInverse(Jtr(i), Jrt);
+      const double weight =
+         (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
       el.CalcDShape(ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
@@ -3217,10 +3279,10 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         const DenseMatrix &Jtr_i = Jtr(i);
-         h_metric->SetTargetJacobian(Jtr_i);
-         CalcInverse(Jtr_i, Jrt);
-         const double weight = ip.weight * Jtr_i.Det();
+         h_metric->SetTargetJacobian(Jtr(i));
+         CalcInverse(Jtr(i), Jrt);
+         const double weight =
+            (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
          el.CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
@@ -3276,10 +3338,10 @@ double TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
-      const DenseMatrix &Jtr_i = Jtr(i);
-      h_metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
+      h_metric->SetTargetJacobian(Jtr(i));
+      CalcInverse(Jtr(i), Jrt);
+      const double weight =
+         (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
       el.CalcDShape(ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
@@ -3396,10 +3458,9 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
-      const DenseMatrix &Jtr_q = Jtr(q);
-      metric->SetTargetJacobian(Jtr_q);
-      CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
+      metric->SetTargetJacobian(Jtr(q));
+      CalcInverse(Jtr(q), Jrt);
+      weights(q) = (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
@@ -3527,7 +3588,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       const DenseMatrix &Jtr_q = Jtr(q);
       metric->SetTargetJacobian(Jtr_q);
       CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
+      weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
@@ -3887,7 +3948,9 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       Vector weights(nqp);
       for (int q = 0; q < nqp; q++)
       {
-         weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
+         weights(q) = (integ_over_target) ?
+                      ir.IntPoint(q).weight * Jtr(q).Det() :
+                      ir.IntPoint(q).weight;
       }
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
@@ -3985,7 +4048,9 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
       Vector weights(nqp);
       for (int q = 0; q < nqp; q++)
       {
-         weights(q) = ir.IntPoint(q).weight * Jtr(q).Det();
+         weights(q) = (integ_over_target) ?
+                      ir.IntPoint(q).weight * Jtr(q).Det() :
+                      ir.IntPoint(q).weight;
       }
 
       if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
@@ -4076,7 +4141,8 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          const IntegrationPoint &ip = ir.IntPoint(q);
          metric->SetTargetJacobian(Jtr(q));
          CalcInverse(Jtr(q), Jrt);
-         const double weight = ip.weight * Jtr(q).Det();
+         const double weight =
+            (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;
 
          fe->CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
@@ -4103,9 +4169,10 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       }
    }
 
-   if (targetC->ContainsVolumeInfo() == false)
+   // Cases when integration is not over the target element, or when the
+   // targets don't contain volumetric iniformation.
+   if (integ_over_target == false || targetC->ContainsVolumeInfo() == false)
    {
-      // Special case when the targets don't contain volumetric information.
       lim_energy = fes->GetNE();
    }
 }
@@ -4144,17 +4211,32 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
-                                                    int x_ordering)
+void TMOP_Integrator::
+UpdateAfterMeshPositionChange(const Vector &x_new,
+                              const FiniteElementSpace &x_fes)
 {
+   if (discr_tc) { PA.Jtr_needs_update = true; }
+
+   Ordering::Type ordering = x_fes.GetOrdering();
+
+   // Update the finite difference delta if FD are used.
+   if (fdflag) { ComputeFDh(x_new, x_fes); }
+
+   // Update the target constructor if it's a discrete one.
    if (discr_tc)
    {
-      PA.Jtr_needs_update = true;
+      discr_tc->UpdateTargetSpecification(x_new, true, ordering);
+      if (fdflag)
+      {
+         discr_tc->UpdateGradientTargetSpecification(x_new, dx, true, ordering);
+         discr_tc->UpdateHessianTargetSpecification(x_new, dx, true, ordering);
+      }
    }
+
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-      adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf, x_ordering);
+      adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
    }
 
    // Update surf_fit_gf if surface fitting is enabled.
@@ -4165,16 +4247,16 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
          // Interpolate information for only DOFs marked for fitting.
          const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
          const int cnt = surf_fit_marker_dof_index.Size();
-         const int total_cnt = new_x.Size()/dim;
+         const int total_cnt = x_new.Size()/dim;
          Vector new_x_sorted(cnt*dim);
-         if (x_ordering == 0)
+         if (ordering == 0)
          {
             for (int d = 0; d < dim; d++)
             {
                for (int i = 0; i < cnt; i++)
                {
                   int dof_index = surf_fit_marker_dof_index[i];
-                  new_x_sorted(i + d*cnt) = new_x(dof_index + d*total_cnt);
+                  new_x_sorted(i + d*cnt) = x_new(dof_index + d*total_cnt);
                }
             }
          }
@@ -4185,14 +4267,14 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
                int dof_index = surf_fit_marker_dof_index[i];
                for (int d = 0; d < dim; d++)
                {
-                  new_x_sorted(d + i*dim) = new_x(d + dof_index*dim);
+                  new_x_sorted(d + i*dim) = x_new(d + dof_index*dim);
                }
             }
          }
 
          Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
          surf_fit_eval->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_gf_int, x_ordering);
+            new_x_sorted, surf_fit_gf_int, ordering);
          for (int i = 0; i < cnt; i++)
          {
             int dof_index = surf_fit_marker_dof_index[i];
@@ -4200,7 +4282,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
          }
 
          surf_fit_eval_bg_grad->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_grad_int, x_ordering);
+            new_x_sorted, surf_fit_grad_int, ordering);
          // Assumes surf_fit_grad and surf_fit_gf share the same space
          const int grad_dim = surf_fit_grad->VectorDim();
          const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4230,7 +4312,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
          }
 
          surf_fit_eval_bg_hess->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_hess_int, x_ordering);
+            new_x_sorted, surf_fit_hess_int, ordering);
          // Assumes surf_fit_hess and surf_fit_gf share the same space
          const int hess_dim = surf_fit_hess->VectorDim();
          const int hess_cnt = surf_fit_hess->Size()/hess_dim;
@@ -4261,7 +4343,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
       }
       else
       {
-         surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, x_ordering);
+         surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, ordering);
       }
    }
 }

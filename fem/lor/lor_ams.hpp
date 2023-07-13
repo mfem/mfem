@@ -82,7 +82,7 @@ public:
 
    ///@}
 
-   // The following should be protected, but contain MFEM_FORALL kernels
+   // The following should be protected, but contain mfem::forall kernels
 
    /// Construct the mesh coordinate vectors (not part of the public API).
    void FormCoordinateVectors(const Vector &X_vert);
