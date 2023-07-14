@@ -96,12 +96,9 @@ static void PADGDiffusionsetup2D(const int Q1D,
             const double dJe = detJ_el(i,j,el_idx);
             const double dJf = detJf(p, f);
 
-            // nJi(flip[side], p, side, f) = factor * nJi0 / dJe * Qp * W[p] * dJf;
-            // nJi(1-flip[side], p, side, f) = factor * nJi1 / dJe * Qp * W[p] * dJf;
             pa(2 + 2*side + flip[side], p, f) = factor * nJi0 / dJe * Qp * W[p] * dJf;
             pa(2 + 2*side + 1 - flip[side], p, f) = factor * nJi1 / dJe * Qp * W[p] * dJf;
 
-            // hi(p, f) += factor * dJf / dJe;
             hi += factor * dJf / dJe;
          }
 
@@ -114,6 +111,211 @@ static void PADGDiffusionsetup2D(const int Q1D,
          pa(1, p, f) = hi;
       }
    });
+}
+
+static void PADGDiffusionSetup3D(const int Q1D,
+                                 const int NE,
+                                 const int NF,
+                                 const Array<double>& w,
+                                 const GeometricFactors& el_geom,
+                                 const FaceGeometricFactors& face_geom,
+                                 const FaceNeighborGeometricFactors *nbr_geom,
+                                 const Vector &q,
+                                 const double sigma,
+                                 const double kappa,
+                                 Vector &pa_data,
+                                 const Array<int>& iwork_)
+{
+   const auto J = Reshape(el_geom.J.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
+   const auto detJe = Reshape(el_geom.detJ.Read(), Q1D, Q1D, Q1D, NE);
+
+   const auto detJf = Reshape(face_geom.detJ.Read(), Q1D, Q1D, NF);
+   const auto n = Reshape(face_geom.normal.Read(), Q1D, Q1D, 3, NF);
+
+   const bool const_q = (q.Size() == 1);
+   const auto Q = const_q ? Reshape(q.Read(), 1, 1, 1) : Reshape(q.Read(), Q1D, Q1D, NF);
+
+   const auto W = w.Read();
+
+   const auto iwork = Reshape(iwork_.Read(), 6, 2, NF); // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
+   constexpr int _el_ = 3; // offset in iwork for element index
+   constexpr int _fid_ = 4; // offset in iwork for local face id
+   constexpr int _or_ = 5; // offset in iwork for orientation
+
+   const auto pa = Reshape(pa_data.Write(), 8, Q1D, Q1D, NF); // (q, 1/h, J00, J01, J02, J10, J11, J12)
+
+   for (int f = 0; f < NF; ++f)
+   {
+      const int perm[2][3] = {{iwork(0, 0, f), iwork(1, 0, f), iwork(2, 0, f)},
+                              {iwork(0, 1, f), iwork(1, 1, f), iwork(2, 1, f)}};
+      const int el[] = {iwork(_el_, 0, f), iwork(_el_, 1, f)};
+      const int fid[] = {iwork(_fid_, 0, f), iwork(_fid_, 1, f)};
+      const int ortn[] = {iwork(_or_, 0, f), iwork(_or_, 1, f)};
+
+      const bool interior = el[1] >= 0;
+      const int nsides = interior ? 2 : 1;
+      const double factor = interior ? 0.5 : 1.0;
+
+      for (int p1 = 0; p1 < Q1D; ++p1)
+      {
+         for (int p2 = 0; p2 < Q1D; ++p2)
+         {
+            const double Qp = const_q ? Q(0,0,0) : Q(p1, p2, f);
+            pa(0, p1, p2, f) = kappa * Qp * W[p1] * W[p2] * detJf(p1, p2, f);
+
+            double hi = 0.0;
+            for (int side = 0; side < nsides; ++side)
+            {
+               int i, j, k;
+               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[0], i, j, k);
+
+               const int e = el[side];
+
+               double nJi[3];
+
+               nJi[0] = (-J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
+                      + ( J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
+                      + (-J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 2, f);
+               
+               nJi[1] = ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
+                      + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
+                      + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 2, f);
+               
+               nJi[2] = (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 0, f)
+                      + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 1, f)
+                      + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
+               
+               const double dJe = detJe(i,j,k,e);
+               const double dJf = detJf(p1,p2,f);
+               const double val = factor * Qp * W[p1] * W[p2] * dJf / dJe;
+
+               for (int d = 0; d < 3; ++d)
+               {
+                  pa(2+3*side + d, p1, p2, f) = val * nJi[perm[side][d]];
+               }
+
+               hi += factor * dJf / dJe;
+            }
+
+            if (nsides == 1)
+            {
+               pa(5, p1, p2, f) = 0.0;
+               pa(6, p1, p2, f) = 0.0;
+               pa(7, p1, p2, f) = 0.0;
+            }
+
+            pa(1, p1, p2, f) = hi;
+         }
+      }
+   }
+}
+
+static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh, const FaceType type, Array<int>& iwork_)
+{
+   const int ne = mesh.GetNE();
+
+   int fidx = 0;
+   iwork_.SetSize(nf * 6);
+   // 2d: (flip0, flip1, e0, e1, fid0, fid1)
+   auto iwork = Reshape(iwork_.HostWrite(), 6, nf);
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      auto face_info = mesh.GetFaceInformation(f);
+
+      if (face_info.IsOfFaceType(type))
+      {
+         const int face_id_1 = face_info.element[0].local_face_id;
+         iwork(0, fidx) = (face_id_1 == 0 || face_id_1 == 2) ? 1 : 0;
+         iwork(2, fidx) = face_info.element[0].index;
+         iwork(4, fidx) = face_id_1;
+
+         if (face_info.IsInterior())
+         {
+            const int face_id_2 = face_info.element[1].local_face_id;
+            iwork(1, fidx) = (face_id_2 == 0 || face_id_2 == 2) ? 1 : 0;
+            if (face_info.IsShared())
+            {
+               iwork(3, fidx) = ne + face_info.element[1].index;
+            }
+            else
+            {
+               iwork(3, fidx) = face_info.element[1].index;
+            }
+            iwork(5, fidx) = face_id_2;
+         }
+         else
+         {
+            iwork(1, fidx) = -1;
+            iwork(3, fidx) = -1;
+            iwork(5, fidx) = -1;
+         }
+
+         fidx++;
+      }
+   }
+}
+
+inline void nJe_permutation(int perm[3], const int face_id, const int orientation)
+{
+   // permuation: perm0 -> normal component, perm1 -> first tangential, perm2 -> second tangential
+   const bool xy_plane = (face_id == 0 || face_id == 5);
+   const bool xz_plane = (face_id == 1 || face_id == 3);
+   const bool yz_plane = (face_id == 2 || face_id == 4);
+
+   perm[0] = (xy_plane) ? 2 : (xz_plane) ? 1 : 0;
+   perm[1] = (xy_plane || xz_plane) ? 0 : 1; // TODO: is this remotely correct?
+   perm[2] = (xy_plane) ? 1 : 2;
+}
+
+static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh, const FaceType type, Array<int>& iwork_)
+{
+   const int ne = mesh.GetNE();
+
+   int fidx = 0;
+   iwork_.SetSize(nf * 12);
+   // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
+   constexpr int _e_ = 3; // offset for element index
+   constexpr int _fid_ = 4; // offset for local face id
+   constexpr int _or_ = 5; // offset for orientation
+
+   auto iwork = Reshape(iwork_.HostWrite(), 6, 2, nf);
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      auto face_info = mesh.GetFaceInformation(f);
+
+      if (face_info.IsOfFaceType(type))
+      {
+         const int fid0 = face_info.element[0].local_face_id;
+         const int or0 = face_info.element[0].orientation;
+
+         iwork(  _e_, 0, fidx) = face_info.element[0].index;
+         iwork(_fid_, 0, fidx) = fid0;
+         iwork( _or_, 0, fidx) = or0;
+
+         nJe_permutation(&iwork(0, 0, fidx), fid0, or0);
+
+         if (face_info.IsInterior())
+         {
+            const int fid1 = face_info.element[1].local_face_id;
+            const int or1 = face_info.element[1].orientation;
+
+            iwork(  _e_, 1, fidx) = face_info.element[1].index;
+            iwork(_fid_, 1, fidx) = fid1;
+            iwork( _or_, 1, fidx) = or1;
+
+            nJe_permutation(&iwork(0, 1, fidx), fid1, or1);
+         }
+         else
+         {
+            for (int i = 0; i < 6; ++i)
+            {
+               iwork(i, 1, fidx) = -1;
+            }
+         }
+
+         fidx++;
+      }
+   }
 }
 
 void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
@@ -159,7 +361,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   pa_data.SetSize(6 * nq * nf, Device::GetMemoryType());
+   const int pa_size = (dim == 2) ? (6 * nq * nf) : (8 * nq * nq * nf);
+   pa_data.SetSize(pa_size, Device::GetMemoryType());
 
    FaceQuadratureSpace fqs(mesh, *ir, type);
    CoefficientVector q(fqs, CoefficientStorage::COMPRESSED);
@@ -177,46 +380,15 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       q.SetConstant(1.0);
    }
 
-   int fidx = 0;
-   Array<int> iwork_(6 * nf);
-   // (flip0, flip1, e0, e1, fid0, fid1)
-   auto iwork = Reshape(iwork_.HostWrite(), 6, nf);
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   Array<int> iwork;
+   if (dim == 2)
    {
-      auto face_info = mesh.GetFaceInformation(f);
-
-      if (face_info.IsOfFaceType(type))
-      {
-         const int face_id_1 = face_info.element[0].local_face_id;
-         iwork(0, fidx) = (face_id_1 == 0 || face_id_1 == 2) ? 1 : 0;
-         iwork(2, fidx) = face_info.element[0].index;
-         iwork(4, fidx) = face_id_1;
-
-         if (face_info.IsInterior())
-         {
-            const int face_id_2 = face_info.element[1].local_face_id;
-            iwork(1, fidx) = (face_id_2 == 0 || face_id_2 == 2) ? 1 : 0;
-            if (face_info.IsShared())
-            {
-               iwork(3, fidx) = ne + face_info.element[1].index;
-            }
-            else
-            {
-               iwork(3, fidx) = face_info.element[1].index;
-            }
-            iwork(5, fidx) = face_id_2;
-         }
-         else
-         {
-            iwork(1, fidx) = -1;
-            iwork(3, fidx) = -1;
-            iwork(5, fidx) = -1;
-         }
-
-         fidx++;
-      }
+      PADGDiffusionSetupIwork2D(nf, mesh, type, iwork);
    }
-
+   else if (dim == 3)
+   {
+      PADGDiffusionSetupIwork3D(nf, mesh, type, iwork);
+   }
 
    if (dim == 1)
    {
@@ -225,11 +397,11 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    else if (dim == 2)
    {
       PADGDiffusionsetup2D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
-                           nbr_geom.get(), q, sigma, kappa, pa_data, iwork_);
+                           nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
    }
    else if (dim == 3)
    {
-      MFEM_ABORT("Not yet implemented");
+      PADGDiffusionSetup3D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom, nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
    }
 }
 
@@ -269,7 +441,7 @@ void PADGDiffusionApply2D(const int NF,
    auto B_ = Reshape(b.Read(), Q1D, D1D);
    auto G_ = Reshape(g.Read(), Q1D, D1D);
 
-   auto pa = Reshape(pa_data.Read(), 6, Q1D, NF);
+   auto pa = Reshape(pa_data.Read(), 6, Q1D, NF); // (q, 1/h, J00, J01, J10, J11)
 
    auto x =    Reshape(x_.Read(),         D1D, 2, NF);
    auto y =    Reshape(y_.ReadWrite(),    D1D, 2, NF);
@@ -425,6 +597,194 @@ void PADGDiffusionApply2D(const int NF,
    }); // mfem::forall
 }
 
+template <int T_D1D = 0, int T_Q1D = 0>
+static void PADGDiffusionApply3D(const int NF,
+                                 const Array<double>& b,
+                                 const Array<double>& bt,
+                                 const Array<double>& g,
+                                 const Array<double>& gt,
+                                 const double sigma,
+                                 const double kappa,
+                                 const Vector& pa_data,
+                                 const Vector& x_,
+                                 const Vector& dxdn_,
+                                 Vector& y_,
+                                 Vector& dydn_,
+                                 const int d1d = 0,
+                                 const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+
+   auto pa = Reshape(pa_data.Read(), 8, Q1D, Q1D, NF); // (q, 1/h, J0[0], J0[1], J0[2], J1[0], J1[1], J1[2])
+   auto x =    Reshape(x_.Read(),         D1D, D1D, 2, NF);
+   auto y =    Reshape(y_.ReadWrite(),    D1D, D1D, 2, NF);
+   auto dxdn = Reshape(dxdn_.Read(),      D1D, D1D, 2, NF);
+   auto dydn = Reshape(dydn_.ReadWrite(), D1D, D1D, 2, NF);
+
+   for (int f = 0; f < NF; ++f)
+   {
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double u0[max_D1D][max_D1D];
+      double u1[max_D1D][max_D1D];
+      double du0[max_D1D][max_D1D];
+      double du1[max_D1D][max_D1D];
+
+      double Bu0[max_Q1D][max_Q1D];
+      double Bu1[max_Q1D][max_Q1D];
+      double Bdu0[max_Q1D][max_Q1D];
+      double Bdu1[max_Q1D][max_Q1D];
+
+      double r[max_Q1D][max_Q1D];
+
+      // copy edge values to u0, u1 and copy normals to du0, du1
+      for (int side = 0; side < 2; ++side)
+      {
+         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+
+         for (int d1 = 0; d1 < D1D; ++d1)
+         {
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
+               u[d1][d2] = x(d1, d2, side, f);
+               du[d1][d2] = dxdn(d1, d2, side, f);
+            }
+         }
+      }
+
+      // eval u and physical normal deriv @ quad points
+      for (int side = 0; side < 2; ++side)
+      {
+         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+         double (*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
+         double (*Bdu)[max_Q1D] = (side == 0) ? Bdu0 : Bdu1;
+
+         for (int p1 = 0; p1 < Q1D; ++p1)
+         {
+            for (int p2 = 0; p2 < Q1D; ++p2)
+            {
+               const double Je[] = {pa(2+3*side + 0, p1, p2, f), pa(2+3*side + 1, p1, p2, f), pa(2+3*side + 2, p1, p2, f)};
+
+               Bu[p1][p2] = 0.0;
+               Bdu[p1][p2] = 0.0;
+
+               for (int d1 = 0; d1 < D1D; ++d1)
+               {
+                  for (int d2 = 0; d2 < D1D; ++d2)
+                  {
+                     const double b = B(p1, d1) * B(p2, d2);
+                     const double g = Je[1] * G(p1, d1) * B(p2, d2) + Je[2] * B(p1, d1) * G(p2, d2);
+
+                     Bu[p1][p2] += b * u[d1][d2];
+                     Bdu[p1][p2] += Je[0] * b * du[d1][d2] + g * u[d1][d2];
+                  }
+               }
+            }
+         }
+
+         // term: - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
+         for (int p1 = 0; p1 < Q1D; ++p1)
+         {
+            for (int p2 = 0; p2 < Q1D; ++p2)
+            {
+               const double q = pa(0, p1, p2, f);
+               const double hi = pa(1, p1, p2, f);
+               const double jump = Bu0[p1][p2] - Bu1[p1][p2];
+               const double avg = Bdu0[p1][p2] + Bdu1[p1][p2]; // {Q du/dn} * w * det(J)
+               r[p1][p2] = -avg + hi * q * jump;
+            }
+         }
+
+         // u0, u1 <- B' * r
+         for (int d1 = 0; d1 < D1D; ++d1)
+         {
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
+               double Br = 0.0;
+
+               for (int p1 = 0; p1 < Q1D; ++p1)
+               {
+                  for (int p2 = 0; p2 < Q1D; ++p2)
+                  {
+                     Br += B(p1, d1) * B(p2, d2) * r[p1][p2];
+                  }
+               }
+
+               u0[d1][d2] =  Br; // overwrite u0, u1
+               u1[d1][d2] = -Br;
+            }
+         }
+
+         for (int side = 0; side < 2; ++side)
+         {
+            double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               for (int d2 = 0; d2 < D1D; ++d2)
+               {
+                  du[d1][d2] = 0.0;
+               }
+            }
+         }
+
+         // term: < [u], {Q dv/dn} >
+         for (int side = 0; side < 2; ++side)
+         {
+            double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+            double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               for (int d2 = 0; d2 < D1D; ++d2)
+               {
+                  for (int p1 = 0; p1 < Q1D; ++p1)
+                  {
+                     for (int p2 = 0; p2 < Q1D; ++p2)
+                     {
+                        const double Je[] = {pa(2 + 2*side, p1, p2, f), pa(3 + 2*side, p1, p2, f), pa(4 + 2*side, p1, p2, f)};
+
+                        const double jump = Bu0[p1][p2] - Bu1[p1][p2];
+
+                        const double b = Je[0] * B(p1, d1) * B(p2, d2);
+                        const double g = Je[1] * G(p1, d1) * B(p2, d2) + Je[2] * B(p1, d1) * G(p2, d2);
+                        
+                        du[d1][d2] += sigma * b * jump;
+                        u[d1][d2] += sigma * g * jump;
+                     }
+                  }
+               }
+            }
+         }
+
+         // map back to y and dydn
+         for (int side = 0; side < 2; ++side)
+         {
+            const double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+            const double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+
+            for (int d1 = 0; d1 < D1D; ++d1)
+            {
+               for (int d2 = 0; d2 < D1D; ++d2)
+               {
+                  y(d1, d2, side, f) += u[d1][d2];
+                  dydn(d1, d2, side, f) += du[d1][d2];
+               }
+            }
+         }
+      }
+   }
+}
+
 static void PADGDiffusionApply(const int dim,
                                const int D1D,
                                const int Q1D,
@@ -467,7 +827,7 @@ static void PADGDiffusionApply(const int dim,
    }
    else if (dim == 3)
    {
-      MFEM_ABORT("Not yet implemented");
+      return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
