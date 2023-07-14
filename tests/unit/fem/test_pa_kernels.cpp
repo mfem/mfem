@@ -582,8 +582,9 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
    const int order = 4;
 
-   Mesh mesh("../../data/star.mesh");
-   const int dim = mesh.Dimension();
+   const int dim = GENERATE(2, 3);
+
+   Mesh mesh = (dim == 2) ? Mesh("../../data/star.mesh") : Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
 
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
