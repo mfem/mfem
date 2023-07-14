@@ -521,7 +521,7 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    }
 } // test case
 
-Mesh CylinderMesh(bool wedge, bool quadratic)
+Mesh CylinderMesh(bool wedge, bool quadratic, int variant = 0)
 {
    double c[3];
 
@@ -547,8 +547,21 @@ Mesh CylinderMesh(bool wedge, bool quadratic)
       {
          if (wedge)
          {
-            mesh.AddWedge(5*i, 5*i+j+1, 5*i+(j+1)%4+1,
-                          5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+            switch (variant)
+            {
+               case 0:
+                  mesh.AddWedge(5*i, 5*i+j+1, 5*i+(j+1)%4+1,
+                                5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+                  break;
+               case 1:
+                  mesh.AddWedge(5*i, 5*i+j+1, 5*i+(j+1)%4+1,
+                                5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+                  break;
+               case 2:
+                  mesh.AddWedge(5*i+(j+1)%4+1, 5*i, 5*i+j+1,
+                                5*(i+1)+(j+1)%4+1, 5*(i+1), 5*(i+1)+j+1);
+                  break;
+            }
          }
          else
          {
@@ -569,18 +582,18 @@ Mesh CylinderMesh(bool wedge, bool quadratic)
       {
          d.SetSize(3);
          d = x;
-         double ax = fabs(x[0]);
-         double ay = fabs(x[1]);
+         double ax = std::abs(x[0]);
+         double ay = std::abs(x[1]);
          double r = ax + ay;
          if (r < 1e-6) { return; }
 
-         double sx = copysign(1.0, x[0]);
-         double sy = copysign(1.0, x[1]);
+         double sx = std::copysign(1.0, x[0]);
+         double sy = std::copysign(1.0, x[1]);
 
          double t = ((2.0 - (1.0 + sx) * sy) * ax +
                      (2.0 - sy) * ay) * 0.5 * M_PI / r;
-         d[0] = r * cos(t);
-         d[1] = r * sin(t);
+         d[0] = r * std::cos(t);
+         d[1] = r * std::sin(t);
 
          return;
       };
@@ -588,12 +601,16 @@ Mesh CylinderMesh(bool wedge, bool quadratic)
       mesh.Transform(quad_cyl);
    }
 
+   mesh.Finalize(true);
+
    return mesh;
 }
 
 TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
 {
-   auto smesh = CylinderMesh(true, false);
+   int variant = GENERATE(0,1,2);
+   CAPTURE(variant);
+   auto smesh = CylinderMesh(true, false, variant);
 
    auto exact_soln = [](const Vector& x)
    {
@@ -653,7 +670,9 @@ TEST_CASE("P2Q1PureTet",  "[Parallel], [NCMesh]")
 
 TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
 {
-   auto smesh = CylinderMesh(true, true);
+   int variant = GENERATE(0,1,2);
+   CAPTURE(variant);
+   auto smesh = CylinderMesh(true, false, variant);
 
    auto exact_soln = [](const Vector& x)
    {
