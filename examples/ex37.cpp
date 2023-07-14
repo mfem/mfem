@@ -180,9 +180,12 @@ int main(int argc, char *argv[])
    MultiProductCoefficient neg_alphak(-1.0, alpha_k);
    MultiProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
    MultiProductCoefficient neg_dsigmoid_psi(-1.0, dsigmoid_cf, psi_cf);
-   MultiProductCoefficient neg_dsimp_squared_normDu(-1.0, dsimp_cf, squared_normDu);
-   MultiProductCoefficient neg_d2simp_squared_normDu(-1.0, d2simp_cf, squared_normDu);
-   MultiProductCoefficient neg_d2simp_squared_normDu_f_rho(-1.0, d2simp_cf, squared_normDu, f_rho_cf);
+   MultiProductCoefficient neg_dsimp_squared_normDu(-1.0, dsimp_cf,
+                                                    squared_normDu);
+   MultiProductCoefficient neg_d2simp_squared_normDu(-1.0, d2simp_cf,
+                                                     squared_normDu);
+   MultiProductCoefficient neg_d2simp_squared_normDu_f_rho(-1.0, d2simp_cf,
+                                                           squared_normDu, f_rho_cf);
    MultiProductVectorCoefficient dsimp_Du(dsimp_cf, Du);
    MultiProductVectorCoefficient neg_dsimp_Du_times2(-2.0, dsimp_cf, Du);
    MultiProductVectorCoefficient neg_dsimp_f_rho_Du(-1.0, dsimp_cf, f_rho_cf, Du);

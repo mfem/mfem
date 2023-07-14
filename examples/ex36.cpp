@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
       }
       if (visualization)
       {
-         
+
          sout_u << "solution\n" << mesh << u << flush;
          GridFunction rho(&fes_L2_Qk2);
          rho.ProjectCoefficient(rho_cf);
@@ -370,14 +370,14 @@ int main(int argc, char *argv[])
          file.close();
          file.clear();
          filename.str(std::string());
-         
+
          filename << "rho" << std::setfill('0') << std::setw(6) << k << ".gf";
          file.open(filename.str());
          rho.Save(file);
          file.close();
          file.clear();
          filename.str(std::string());
-         
+
          GridFunction f_rho_high(&fes_L2_Qk2);
          f_rho_high.ProjectCoefficient(f_rho_cf);
          filename << "f_rho" << std::setfill('0') << std::setw(6) << k << ".gf";
@@ -387,7 +387,8 @@ int main(int argc, char *argv[])
          file.clear();
          filename.str(std::string());
       }
-      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant / std::sqrt(volume);
+      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) /
+                                  alpha_k.constant / std::sqrt(volume);
       mfem::out << "||ρ - ρ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
       if (diff_penalty < tol_penalty)
