@@ -1,10 +1,10 @@
-//                                MFEM Example 34
+//                                MFEM Example 36
 //
 //
-// Compile with: make ex34
+// Compile with: make ex36
 //
-// Sample runs: ex34 -o 2
-//              ex34 -o 2 -r 4
+// Sample runs: ex36 -o 2
+//              ex36 -o 2 -r 4
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
