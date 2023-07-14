@@ -603,4 +603,23 @@ void LpErrorEstimator::ComputeEstimates()
    current_sequence = sol->FESpace()->GetSequence();
 }
 
+SolJumpEstimator::SolJumpEstimator(GridFunction &sol_)
+   : solution(&sol_) {}
+
+void SolJumpEstimator::ComputeEstimates()
+{
+   const int nelem = solution->FESpace()->GetNE();
+   error_estimates.SetSize(nelem);
+
+   FiniteElementSpace *fespace = solution->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   FiniteElementSpace *h1fes = new FiniteElementSpace(mesh, new H1_FECollection(fespace->GetMaxElementOrder(), mesh->Dimension()));
+   GridFunctionCoefficient sol_cf(solution);
+   GridFunction h1sol(h1fes);
+   h1sol.ProjectDiscCoefficient(sol_cf, mfem::GridFunction::AvgType::ARITHMETIC);
+   h1sol.ComputeElementL2Errors(sol_cf, error_estimates);
+   total_error = error_estimates.Norml2();
+   delete h1fes;
+}
+
 }  // namespace mfem
