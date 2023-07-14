@@ -29,17 +29,17 @@
 // particular finite element spaces. For example they satisfy PR=I, plus mass
 // conservation in both directions for L2 fields.
 //
-// Compile with: make lor-transferp
+// Compile with: make plor-transfer
 //
-// Sample runs:  lor-transferp
-//               lor-transferp -h1
-//               lor-transferp -t
-//               lor-transferp -m ../../data/star-q2.mesh -lref 5 -p 4
-//               lor-transferp -m ../../data/star-mixed.mesh -lref 3 -p 2
-//               lor-transferp -lref 4 -o 4 -lo 0 -p 1
-//               lor-transferp -lref 5 -o 4 -lo 0 -p 1
-//               lor-transferp -lref 5 -o 4 -lo 3 -p 2
-//               lor-transferp -lref 5 -o 4 -lo 0 -p 3
+// Sample runs:  plor-transfer
+//               plor-transfer -h1
+//               plor-transfer -t
+//               plor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               plor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
+//               plor-transfer -lref 4 -o 4 -lo 0 -p 1
+//               plor-transfer -lref 5 -o 4 -lo 0 -p 1
+//               plor-transfer -lref 5 -o 4 -lo 3 -p 2
+//               plor-transfer -lref 5 -o 4 -lo 0 -p 3
 
 #include "mfem.hpp"
 #include <fstream>
@@ -99,19 +99,7 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root())
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (Mpi::Root())
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
    // Read the mesh from the given mesh file.
    Mesh serial_mesh(mesh_file, 1, 1);
@@ -193,6 +181,11 @@ int main(int argc, char *argv[])
    R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
+   auto global_max = [](const Vector& v){
+      double max = v.Normlinf();
+      MPI_Allreduce(MPI_IN_PLACE, &max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      return max;
+   };
 
    if (gt->SupportsBackwardsOperator())
    {
@@ -207,9 +200,7 @@ int main(int argc, char *argv[])
       rho_prev -= rho;
       Vector rho_prev_true(fespace.GetTrueVSize());
       rho_prev.GetTrueDofs(rho_prev_true);
-      double l_inf_local = rho_prev_true.Normlinf();
-      double l_inf;
-      MPI_Allreduce(&l_inf_local, &l_inf, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      double l_inf = global_max(rho_prev_true);
       if (Mpi::Root())
       {
          cout.precision(12);
@@ -222,6 +213,11 @@ int main(int argc, char *argv[])
    ones = 1.0;
    ones_lor = 1.0;
    ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   auto global_sum = [](const Vector& v){
+      double sum = v.Sum();
+      MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      return sum;
+   };
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
       const Operator &P = gt->BackwardOperator();
@@ -234,13 +230,8 @@ int main(int argc, char *argv[])
       Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
       M_rho_lor.ParFESpace()->GetRestrictionOperator()->Mult(M_rho_lor,
                                                              M_rho_lor_true);
-      double local_ho_mass = M_rho_true.Sum();
-      double local_lor_mass = M_rho_lor_true.Sum();
-      double ho_mass;
-      double lor_mass;
-      MPI_Allreduce(&local_ho_mass, &ho_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM,
-                    MPI_COMM_WORLD);
+      double ho_mass = global_sum(M_rho_true);
+      double lor_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
       {
          cout << "HO -> LOR dual field: " << fabs(ho_mass - lor_mass) << endl << endl;
@@ -273,9 +264,7 @@ int main(int argc, char *argv[])
       rho_lor_prev -= rho_lor;
       Vector rho_lor_prev_true(fespace_lor.GetTrueVSize());
       rho_lor_prev.GetTrueDofs(rho_lor_prev_true);
-      double l_inf_local = rho_lor_prev_true.Normlinf();
-      double l_inf;
-      MPI_Allreduce(&l_inf_local, &l_inf, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      double l_inf = global_max(rho_lor_prev_true);
       if (Mpi::Root())
       {
          cout.precision(12);
@@ -295,20 +284,13 @@ int main(int argc, char *argv[])
       R.MultTranspose(M_rho_lor, M_rho);
       Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
       M_rho.ParFESpace()->GetRestrictionOperator()->Mult(M_rho, M_rho_true);
-      double local_ho_mass = M_rho_true.Sum();
-      double local_lor_mass = M_rho_lor_true.Sum();
-      double ho_mass;
-      double lor_mass;
-      MPI_Allreduce(&local_ho_mass, &ho_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(&local_lor_mass, &lor_mass, 1, MPI_DOUBLE, MPI_SUM,
-                    MPI_COMM_WORLD);
+      double ho_mass = global_sum(M_rho_true);
+      double lor_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
       {
          cout << "LOR -> HO dual field: " << fabs(ho_mass - lor_mass) << '\n';
       }
    }
-
-   Mpi::Finalize();
 
    delete fec;
    delete fec_lor;
