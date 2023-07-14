@@ -36,7 +36,7 @@ void Assemble_Contact(const int m, const int npoints,
                       const Vector x_s,
                       const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
-                      std::vector<SparseMatrix>& dM);
+                      Array<SparseMatrix *> & dM);
 
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface);
 
