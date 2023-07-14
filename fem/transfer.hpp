@@ -258,20 +258,10 @@ protected:
        on a refined mesh (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
-   protected:
-      // The restriction operator is represented as an Operator R. The
-      // prolongation operator is a dense matrix computed as the inverse of (R^T
-      // M_L R), and hence, is not stored.
-      Operator* R;
-      // Used to compute P = (RTxM_LH)^(-1) M_LH^T
-      Operator* M_LH;
-      Operator* RTxM_LH;
-      CGSolver pcg;
-
+   public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_);
-   public:
-      virtual ~L2ProjectionH1Space();
+      virtual ~L2ProjectionH1Space() = default;
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order H1
@@ -306,76 +296,34 @@ protected:
       virtual void SetRelTol(double p_rtol_);
       virtual void SetAbsTol(double p_atol_);
    protected:
-      /// Sets default shared options for the CGSolver
-      void InitializeCGSolver();
       /// Computes on-rank R and M_LH matrices
-      std::pair<SparseMatrix*, SparseMatrix*> ComputeSparseRAndM_LH();
-      void GetDofsByVDim(const FiniteElementSpace& fes,
-                         int vdim, const Vector& x, Vector& x_vdim) const;
-      void SetFromDofsByVDim(const FiniteElementSpace& fes,
-                             int vdim, const Vector& y_vdim, Vector& y) const;
-      /// Abstract method to return the inverse of an on-rank lumped mass matrix
-      virtual void LumpedMassInverse(Vector& ML_inv) const = 0;
-      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
-      /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
-      virtual void GetHOTDofsByVDim(int vdim, const Vector& x,
-                                    Vector& x_vdim_true) const = 0;
-      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
-      /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
-      virtual void GetLORTDofsByVDim(int vdim, const Vector& x,
-                                     Vector& x_vdim_true) const = 0;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse
-      /// (higher-order) mesh.
-      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
-                                        Vector& y) const = 0;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined
-      /// (low-order) mesh.
-      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
-                                         Vector& y) const = 0;
+      std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
+         ComputeSparseRAndM_LH();
+      virtual void GetTDofs(const FiniteElementSpace& fes,
+                            const Vector& x, Vector& X) const;
+      virtual void SetTDofs(const FiniteElementSpace& fes,
+                            const Vector& X, Vector& x) const;
+      virtual void GetTDofsByVDim(const FiniteElementSpace& fes,
+                                  int vdim, const Vector& X, Vector& X_vdim) const;
+      virtual void SetTDofsByVDim(const FiniteElementSpace& fes,
+                                  int vdim, const Vector& X_vdim, Vector& X) const;
+      /// Returns the inverse of an on-rank lumped mass matrix
+      virtual void LumpedMassInverse(Vector& ML_inv) const;
+
+      CGSolver pcg;
+      std::unique_ptr<Solver> precon;
+      // The restriction operator is represented as an Operator R. The
+      // prolongation operator is a dense matrix computed as the inverse of (R^T
+      // M_L R), and hence, is not stored.
+      std::unique_ptr<Operator> R;
+      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
+      std::unique_ptr<Operator> M_LH;
+      std::unique_ptr<Operator> RTxM_LH;
    private:
       /// Computes sparsity pattern and initializes R matrix. Based on
       /// BilinearForm::AllocMat() except maps between coarse HO elements and
       /// refined LOR elements.
-      SparseMatrix* AllocR();
-   };
-
-   /** Implements class for projection operator between a H1 high-order finite
-       element space on a coarse mesh, and a H1 low-order finite element space
-       on a refined mesh (LOR) in serial. */
-   class SerialL2ProjectionH1Space : public L2ProjectionH1Space
-   {
-   private:
-      SparseMatrix* R_sm;
-      SparseMatrix* M_LH_sm;
-      SparseMatrix* RTxM_LH_sm;
-      DSmoother Ds;
-   public:
-      SerialL2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
-                                const FiniteElementSpace& fes_lor_);
-      virtual ~SerialL2ProjectionH1Space();
-   private:
-      /// Computes inverse of a lumped mass matrix (stored as a vector)
-      virtual void LumpedMassInverse(Vector& ML_inv) const;
-      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
-      /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
-      virtual void GetHOTDofsByVDim(int vdim, const Vector& x,
-                                    Vector& x_vdim_true) const;
-      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
-      /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
-      virtual void GetLORTDofsByVDim(int vdim, const Vector& x,
-                                     Vector& x_vdim_true) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse
-      /// (higher-order) mesh.
-      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
-                                        Vector& y) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined
-      /// (low-order) mesh.
-      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
-                                         Vector& y) const;
+      std::unique_ptr<SparseMatrix> AllocR();
    };
 
 
@@ -386,47 +334,22 @@ protected:
        on a refined mesh (LOR) in parallel. */
    class ParL2ProjectionH1Space : public L2ProjectionH1Space
    {
-   private:
-      const ParFiniteElementSpace& pfes_ho;
-      const ParFiniteElementSpace& pfes_lor;
-      const ParFiniteElementSpace* pfes_ho_scalar;
-      const ParFiniteElementSpace* pfes_lor_scalar;
-      HypreParMatrix* R_par;
-      HypreParMatrix* M_LH_par;
-      HypreParMatrix* RTxM_LH_par;
-      HypreBoomerAMG* M;
    public:
       ParL2ProjectionH1Space(const ParFiniteElementSpace& pfes_ho_,
                              const ParFiniteElementSpace& pfes_lor_);
-      virtual ~ParL2ProjectionH1Space();
+      virtual ~ParL2ProjectionH1Space() = default;
    private:
+      void GetTDofsByVDim(const FiniteElementSpace& fes,
+                          int vdim, const Vector& x, Vector& x_vdim) const override;
+      void SetTDofsByVDim(const FiniteElementSpace& fes,
+                          int vdim, const Vector& x_vdim, Vector& x) const override;
       /// Computes inverse of a lumped mass matrix (stored as a vector)
-      virtual void LumpedMassInverse(Vector& ML_inv) const;
-      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
-      /// given vector dof values <tt>x</tt> on the coarse (higher-order) mesh.
-      virtual void GetHOTDofsByVDim(int vdim, const Vector& x,
-                                    Vector& x_vdim_true) const;
-      /// Sets <tt>x_vdim_true</tt>, true dof values on a chosen <tt>vdim</tt>
-      /// given vector dof values <tt>x</tt> on the refined (low-order) mesh.
-      virtual void GetLORTDofsByVDim(int vdim, const Vector& x,
-                                     Vector& x_vdim_true) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the coarse
-      /// (higher-order) mesh.
-      virtual void SetHOFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
-                                        Vector& y) const;
-      /// Sets the true dof values on a chosen <tt>vdim</tt> from
-      /// <tt>y_vdim_true</tt> onto <tt>y</tt>, vector dof values on the refined
-      /// (low-order) mesh.
-      virtual void SetLORFromTDofsByVDim(int vdim, const Vector& y_vdim_true,
-                                         Vector& y) const;
-      void GetTDofsByVDim(const ParFiniteElementSpace& pfes,
-                          const ParFiniteElementSpace& pfes_scalar,
-                          int vdim, const Vector& x, Vector& x_vdim_true) const;
-      void SetFromTDofsByVDim(const ParFiniteElementSpace& pfes,
-                              const ParFiniteElementSpace& pfes_scalar,
-                              int vdim, const Vector& y_vdim_true, Vector& y) const;
+      void LumpedMassInverse(Vector& ML_inv) const override;
+
+      const ParFiniteElementSpace& pfes_ho;
+      const ParFiniteElementSpace& pfes_lor;
    };
+
 #endif
 
    /** Mass-conservative prolongation operator going in the opposite direction
