@@ -192,7 +192,7 @@ inline void FaceQuad2Lex3D(const int index, const int size1d, const int face_id0
 
    const int size2d = size1d * size1d;
    const int face_id = (side == 0) ? face_id0 : face_id1;
-   int fidx = (side == 0) ? index : PermuteFace3D(face_id0, face_id1, side, size1d, index);
+   int fidx = (side == 0) ? index : PermuteFace3D(face_id0, face_id1, orientation, size1d, index);
 
    const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
    const bool xz_plane = (face_id == 1 || face_id == 3);
