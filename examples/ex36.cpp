@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    double max_psi = 1e07;
 
    int maxit_penalty = 10000;
-   int maxit_newton = 1;
+   int maxit_newton = 100;
    double tol_newton = 1e-6;
    double tol_penalty = 1e-6;
 
@@ -323,17 +323,16 @@ int main(int argc, char *argv[])
          // fixedPointSystem.Assemble(delta_sol); // Update system with current solution
          // fixedPointSystem.PCG(delta_sol); // Solve system
          Vector old_sol(sol);
-         // fixedPointSystem.Assemble(sol);
-         // fixedPointSystem.PCG(sol);
-         fixedPointSystem.SolveDiag(sol, ordering, true);
+         fixedPointSystem.Assemble(sol);
+         fixedPointSystem.PCG(sol);
+         // fixedPointSystem.SolveDiag(sol, ordering, true);
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
-         const double current_volume_fraction = VolumeProjection(psi,
-                                                                 target_volume) / volume;
+         const double current_volume_fraction
+            = VolumeProjection(psi, target_volume) / volume;
          // newton successive difference
-         clip_abs(psi, max_psi);
-         const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(
-                                                 sol) / old_sol.Size());
+         const double diff_newton
+            = std::sqrt(old_sol.DistanceSquaredTo(sol) / old_sol.Size());
          mfem::out << std::scientific << diff_newton << std::endl;
 
          if (diff_newton < tol_newton)
@@ -342,6 +341,7 @@ int main(int argc, char *argv[])
             break;
          }
       } // end of Newton iteration
+      clip_abs(psi, max_psi);
       if (!newton_converged)
       {
          mfem::out << "Newton failed to converge" << std::endl;
