@@ -1,4 +1,4 @@
-// Thermal compliance - Newton Iteration
+// Thermal compliance - Newton's method
 //
 // min (f, u)
 // s.t -∇⋅(r(ρ̃)∇u) = f in Ω = (0, 20) × (0, 20)
@@ -9,8 +9,8 @@
 //           0 ≤ ρ ≤ 1 a.e. Ω
 //
 // L = (f, u) - (r(ρ̃)∇u, ∇v) + (f, v)
-//    + (ϵ∇ρ̃, ∇λ̃) + (ρ̃, λ̃) - (ρ, λ)
-//    + α(logit(ρ) - logit(ρ_k)
+//    + (ϵ∇ρ̃, ∇λ̃) + (ρ̃, λ̃) - (S(ψ), λ)
+//    + α⁻¹D(S(ψ), S(ψ_k))
 
 #include "mfem.hpp"
 #include "proximalGalerkin.hpp"
@@ -37,8 +37,8 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int problem = 0;
    const char *mesh_file = "../data/rect_with_top_fixed.mesh";
-   int ref_levels = 1;
-   int order = 1;
+   int ref_levels = 2;
+   int order = 0;
    const char *device_config = "cpu";
    bool visualization = true;
    double alpha0 = 1.0;
@@ -48,9 +48,8 @@ int main(int argc, char *argv[])
    double max_psi = 1e07;
 
    int maxit_penalty = 10000;
-   int maxit_newton = 100;
-   double tol_newton = 1e-8;
-   double tol_fixedPoint = 1e-5;
+   int maxit_newton = 1;
+   double tol_newton = 1e-6;
    double tol_penalty = 1e-6;
 
 
@@ -83,8 +82,19 @@ int main(int argc, char *argv[])
    device.Print();
 
    // 2. Input data (mesh, source, ...)
-   Mesh mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false,
-                                     1.0, 1.0);
+   Mesh mesh;
+   switch (problem)
+   {
+      case 0:
+         mesh = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+         break;
+      case 1:
+         mesh = Mesh(mesh_file);
+         break;
+      default:
+         mfem_error("Undefined Problem");
+   }
    // Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
    const int max_attributes = mesh.bdr_attributes.Max();
@@ -97,11 +107,28 @@ int main(int argc, char *argv[])
    // Essential boundary for each variable (numVar x numAttr)
    Array2D<int> ess_bdr(Vars::numVars, max_attributes);
    ess_bdr = 0;
-   ess_bdr(Vars::u, 2) = true;
-   ess_bdr(Vars::u, 3) = true;
+   switch (problem)
+   {
+      case 0:
+         ess_bdr(Vars::u, 2) = true;
+         ess_bdr(Vars::u, 3) = true;
+         break;
+      case 1:
+         ess_bdr(Vars::u, 0) = true;
+         break;
+   }
 
    // Source and fixed temperature
-   ConstantCoefficient heat_source(1e-02);
+   ConstantCoefficient heat_source(1.0);
+   switch (problem)
+   {
+      case 0:
+         heat_source.constant = 1e-02;
+         break;
+      case 1:
+         heat_source.constant = 1e-03;
+         break;
+   }
    ConstantCoefficient u_bdr(0.0);
    const double volume_fraction = 0.4;
    const double target_volume = volume * volume_fraction;
@@ -175,20 +202,9 @@ int main(int argc, char *argv[])
    InnerProductCoefficient squared_normDu(Du, Du);
 
    ProductCoefficient alph_f_lam(alpha_k, f_lam_cf);
+   ProductCoefficient alph_f_lam_dsigmoid(alph_f_lam, dsigmoid_cf);
+   ProductCoefficient psi_k_dsigmoid(psi_k_cf, dsigmoid_cf);
    ProductCoefficient dsimp_squared_normDu(dsimp_cf, squared_normDu);
-
-   MultiProductCoefficient neg_alphak(-1.0, alpha_k);
-   MultiProductCoefficient neg_dsigmoid(-1.0, dsigmoid_cf);
-   MultiProductCoefficient neg_dsigmoid_psi(-1.0, dsigmoid_cf, psi_cf);
-   MultiProductCoefficient neg_dsimp_squared_normDu(-1.0, dsimp_cf,
-                                                    squared_normDu);
-   MultiProductCoefficient neg_d2simp_squared_normDu(-1.0, d2simp_cf,
-                                                     squared_normDu);
-   MultiProductCoefficient neg_d2simp_squared_normDu_f_rho(-1.0, d2simp_cf,
-                                                           squared_normDu, f_rho_cf);
-   MultiProductVectorCoefficient dsimp_Du(dsimp_cf, Du);
-   MultiProductVectorCoefficient neg_dsimp_Du_times2(-2.0, dsimp_cf, Du);
-   MultiProductVectorCoefficient neg_dsimp_f_rho_Du(-1.0, dsimp_cf, f_rho_cf, Du);
 
    // 5. Define global system for newton iteration
    BlockLinearSystem fixedPointSystem(offsets, fes, ess_bdr);
@@ -220,13 +236,13 @@ int main(int argc, char *argv[])
 
    // Equation ψ
    fixedPointSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
+      new MassIntegrator(dsigmoid_cf)
    );
    fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(psi_k_cf)
+      new DomainLFIntegrator(psi_k_dsigmoid)
    );
    fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(alph_f_lam)
+      new DomainLFIntegrator(alph_f_lam_dsigmoid)
    );
 
    // Equation λ̃
@@ -240,99 +256,16 @@ int main(int argc, char *argv[])
       new DomainLFIntegrator(dsimp_squared_normDu)
    );
 
-   // 5. Define global system for newton iteration
-   BlockLinearSystem newtonSystem(offsets, fes, ess_bdr);
-   newtonSystem.own_blocks = true;
-   for (int i=0; i<Vars::numVars; i++)
-   {
-      newtonSystem.SetDiagBlockMatrix(i, new BilinearForm(fes[i]));
-   }
-   std::vector<std::vector<int>> offDiags
-   {
-      {Vars::u, Vars::f_rho},
-      {Vars::f_rho, Vars::psi},
-      {Vars::psi, Vars::f_lam},
-      {Vars::f_lam, Vars::u},
-      {Vars::f_lam, Vars::f_rho}
-   };
-   for (auto &i : offDiags)
-   {
-      newtonSystem.SetBlockMatrix(i[0], i[1],
-                                  new MixedBilinearForm(fes[i[1]], fes[i[0]]));
-   }
-
-   // Equation u
-   newtonSystem.GetDiagBlock(Vars::u)->AddDomainIntegrator(
-      // A += (r(ρ̃^i)∇δu, ∇v)
-      new DiffusionIntegrator(simp_cf)
-   );
-   newtonSystem.GetBlock(Vars::u, Vars::f_rho)->AddDomainIntegrator(
-      new TransposeIntegrator(new MixedDirectionalDerivativeIntegrator(dsimp_Du))
-   );
-   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
-      new DomainLFIntegrator(heat_source)
-   );
-   newtonSystem.GetLinearForm(Vars::u)->AddDomainIntegrator(
-      new DomainLFGradIntegrator(neg_dsimp_f_rho_Du)
-   );
-
-   // Equation ρ̃
-   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      new DiffusionIntegrator(eps_cf)
-   );
-   newtonSystem.GetDiagBlock(Vars::f_rho)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
-   );
-   newtonSystem.GetBlock(Vars::f_rho, Vars::psi)->AddDomainIntegrator(
-      new MixedScalarMassIntegrator(neg_dsigmoid)
-   );
-   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
-      new DomainLFIntegrator(rho_cf)
-   );
-   newtonSystem.GetLinearForm(Vars::f_rho)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_dsigmoid_psi)
-   );
-
-   // Equation ψ
-   newtonSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
-   );
-   newtonSystem.GetBlock(Vars::psi, Vars::f_lam)->AddDomainIntegrator(
-      new MixedScalarMassIntegrator(neg_alphak)
-   );
-   newtonSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(psi_k_cf)
-   );
-
-   // Equation λ̃
-   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      new DiffusionIntegrator(eps_cf)
-   );
-   newtonSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
-      new MassIntegrator(one_cf)
-   );
-   newtonSystem.GetBlock(Vars::f_lam, Vars::u)->AddDomainIntegrator(
-      new MixedDirectionalDerivativeIntegrator(neg_dsimp_Du_times2)
-   );
-   newtonSystem.GetBlock(Vars::f_lam, Vars::f_rho)->AddDomainIntegrator(
-      new MixedScalarMassIntegrator(neg_d2simp_squared_normDu)
-   );
-   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_dsimp_squared_normDu)
-   );
-   newtonSystem.GetLinearForm(Vars::f_lam)->AddDomainIntegrator(
-      new DomainLFIntegrator(neg_d2simp_squared_normDu_f_rho)
-   );
 
 
-
-   socketstream sout_u, sout_rho;
+   socketstream sout_u, sout_rho, sout_f_rho;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       sout_u.open(vishost, visport);
       sout_rho.open(vishost, visport);
+      sout_f_rho.open(vishost, visport);
       if (!sout_u)
       {
          cout << "Unable to connect to GLVis server at "
@@ -344,16 +277,24 @@ int main(int argc, char *argv[])
       {
          sout_u.precision(precision);
          sout_u << "solution\n" << mesh << u;
+         sout_u << "window_title 'u'\n";
          sout_u << "keys jmmR**c\n";
          sout_u << flush;
          sout_rho.precision(precision);
          GridFunction rho(&fes_L2_Qk2);
          rho.ProjectCoefficient(rho_cf);
          sout_rho << "solution\n" << mesh << rho;
+         sout_rho << "window_title 'ρ'\n";
          sout_rho << "autoscale off\n";
          sout_rho << "valuerange 0.0 1.0\n";
          sout_rho << "keys jmmR**c\n";
          sout_rho << flush;
+         sout_f_rho << "solution\n" << mesh << f_rho;
+         sout_f_rho << "window_title 'ρ̃'\n";
+         sout_f_rho << "autoscale off\n";
+         sout_f_rho << "valuerange 0.0 1.0\n";
+         sout_f_rho << "keys jmmR**c\n";
+         sout_f_rho << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
       }
@@ -381,36 +322,9 @@ int main(int argc, char *argv[])
          // fixedPointSystem.Assemble(delta_sol); // Update system with current solution
          // fixedPointSystem.PCG(delta_sol); // Solve system
          Vector old_sol(sol);
-         fixedPointSystem.Assemble(sol);
-         fixedPointSystem.PCG(sol);
-         // fixedPointSystem.SolveDiag(sol, ordering, true);
-         // Project solution
-         // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
-         const double current_volume_fraction = VolumeProjection(psi,
-                                                                 target_volume) / volume;
-         const double diff_newton = std::sqrt(old_sol.DistanceSquaredTo(
-                                                 sol) / old_sol.Size());
-         mfem::out << std::scientific << diff_newton << std::endl;
-
-         if (diff_newton < tol_fixedPoint)
-         {
-            newton_converged = true;
-            break;
-         }
-      } // end of Fixed Point iteration
-      // newton successive difference
-      clip_abs(psi, max_psi);
-      for (int j=0; j<maxit_newton; j++) // Newton Iteration
-      {
-         mfem::out << "\tNewton Iteration " << std::setw(5) << j + 1 << ": " <<
-                   std::flush;
-         // delta_sol = 0.0; // initialize newton difference
-         // fixedPointSystem.Assemble(delta_sol); // Update system with current solution
-         // fixedPointSystem.PCG(delta_sol); // Solve system
-         Vector old_sol(sol);
-         newtonSystem.Assemble(sol);
-         newtonSystem.GMRES(sol);
-         // fixedPointSystem.SolveDiag(sol, ordering, true);
+         // fixedPointSystem.Assemble(sol);
+         // fixedPointSystem.PCG(sol);
+         fixedPointSystem.SolveDiag(sol, ordering, true);
          // Project solution
          // NOTE: Newton stopping criteria cannot see this update. Should I consider this update?
          const double current_volume_fraction = VolumeProjection(psi,
@@ -426,28 +340,62 @@ int main(int argc, char *argv[])
             newton_converged = true;
             break;
          }
-      } // end of Fixed Point iteration
+      } // end of Newton iteration
       if (!newton_converged)
       {
          mfem::out << "Newton failed to converge" << std::endl;
       }
       if (visualization)
       {
+
          sout_u << "solution\n" << mesh << u << flush;
          GridFunction rho(&fes_L2_Qk2);
          rho.ProjectCoefficient(rho_cf);
          sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
+         sout_f_rho << "solution\n" << mesh << f_rho << "valuerange 0.0 1.0\n" << flush;
+
+
+         ostringstream filename;
+         ofstream file;
+
+         filename << "mesh" << std::setfill('0') << std::setw(6) << k << ".mesh";
+         mesh.Save(filename.str().c_str());
+         filename.str(std::string());
+
+         filename << "u" << std::setfill('0') << std::setw(6) << k << ".gf";
+         file.open(filename.str());
+         GridFunction u_high(&fes_L2_Qk2);
+         u_high.ProjectCoefficient(u_cf);
+         u_high.Save(file);
+         file.close();
+         file.clear();
+         filename.str(std::string());
+
+         filename << "rho" << std::setfill('0') << std::setw(6) << k << ".gf";
+         file.open(filename.str());
+         rho.Save(file);
+         file.close();
+         file.clear();
+         filename.str(std::string());
+
+         GridFunction f_rho_high(&fes_L2_Qk2);
+         f_rho_high.ProjectCoefficient(f_rho_cf);
+         filename << "f_rho" << std::setfill('0') << std::setw(6) << k << ".gf";
+         file.open(filename.str());
+         f_rho_high.Save(file);
+         file.close();
+         file.clear();
+         filename.str(std::string());
       }
-      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) / alpha_k.constant;
-      mfem::out << "||ψ - ψ_k|| = " << std::scientific << diff_penalty << std::endl
+      const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) /
+                                  alpha_k.constant / std::sqrt(volume);
+      mfem::out << "||ρ - ρ_k|| = " << std::scientific << diff_penalty << std::endl
                 << std::endl;
       if (diff_penalty < tol_penalty)
       {
          break;
       }
    } // end of penalty iteration
-
-
 
    return 0;
 }
