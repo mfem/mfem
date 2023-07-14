@@ -1932,7 +1932,9 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
 
    const int q = maps.nqpt;
    const int d = maps.ndof;
-   const int q2d = maps.ndof;
+   const int q2d = q * q;
+
+   MFEM_VERIFY(q == d, "");
 
    auto G_ = Reshape(maps.G.Read(), q, d);
 
@@ -1943,7 +1945,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
    const auto d_y = Reshape(y.Read(), q2d, vd, 2, nf);
 
    double pp[d][d];
-   double y_s[d*d];
+   double y_s[q2d];
    int jj;
    double xx[d][d][d];
 
@@ -1977,7 +1979,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
             y_s[p] = d_y(p, 0, side, f);
 
             int i, j, k;
-            internal::FaceQuad2Lex3D(p, q2d, fid0, fid1, side, orientation, i, j, k);
+            internal::FaceQuad2Lex3D(p, q, fid0, fid1, side, orientation, i, j, k);
             
             if (xy_plane)
             {
