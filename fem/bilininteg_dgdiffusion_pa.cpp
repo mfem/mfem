@@ -167,7 +167,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
             for (int side = 0; side < nsides; ++side)
             {
                int i, j, k;
-               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[0], i, j, k);
+               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[side], i, j, k);
 
                const int e = el[side];
 
