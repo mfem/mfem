@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
    int order = 0;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool save_solutions = false;
    double alpha0 = 1.0;
    double epsilon = 1e-04;
    double rho0 = 1e-6;
@@ -354,7 +355,9 @@ int main(int argc, char *argv[])
          sout_rho << "solution\n" << mesh << rho << "valuerange 0.0 1.0\n" << flush;
          sout_f_rho << "solution\n" << mesh << f_rho << "valuerange 0.0 1.0\n" << flush;
 
-
+      }
+      if (save_solutions)
+      {
          ostringstream filename;
          ofstream file;
 
@@ -371,6 +374,8 @@ int main(int argc, char *argv[])
          file.clear();
          filename.str(std::string());
 
+         GridFunction rho(&fes_L2_Qk2);
+         rho.ProjectCoefficient(rho_cf);
          filename << "rho" << std::setfill('0') << std::setw(6) << k << ".gf";
          file.open(filename.str());
          rho.Save(file);
@@ -389,8 +394,8 @@ int main(int argc, char *argv[])
       }
       const double diff_penalty = zero_gf.ComputeL2Error(diff_rho) /
                                   alpha_k.constant / std::sqrt(volume);
-      mfem::out << "||ρ - ρ_k|| = " << std::scientific << diff_penalty << std::endl
-                << std::endl;
+      mfem::out << "||ρ - ρ_k||/α_k = " << std::scientific << diff_penalty;
+      mfem::out << std::endl;
       if (diff_penalty < tol_penalty)
       {
          break;
