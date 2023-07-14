@@ -45,8 +45,8 @@ double squircle_level_set(const Vector &x)
    else
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc + zc*zc);
-      return r-0.3;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) + std::pow(zc,
+                                                              4.0) - std::pow(0.25, 4.0);
    }
 }
 
@@ -158,14 +158,125 @@ double r_intersect(double r1, double r2)
    return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
 }
 
+// maintains positive value
 double r_union(double r1, double r2)
 {
    return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
 }
 
+//removes from r1, where r2 is positive..
 double r_remove(double r1, double r2)
 {
    return r_intersect(r1, -r2);
+}
+
+double r_circle(const Vector &x, Vector &x_center, double radius)
+{
+   double xc = x_center(0);
+   double yc = x_center(1);
+   double xv = x(0),
+          yv = x(1);
+   return std::pow(xc-xv, 2.0) + std::pow(yc-yv, 2.0) - std::pow(radius, 2.0);
+}
+
+// cool apollo capsule
+double apollo_level_set(const Vector &x)
+{
+   double xv = x(0),
+          yv = x(1);
+
+   //circle 1
+   double returnval;
+   {
+      double xcc = 3.4306-0.2311;
+      double ycc = 0.0;
+      double rcc = 0.2311;
+      Vector xc(2);
+      xc(0) = xcc;
+      xc(1) = ycc;
+
+      returnval = -r_circle(x, xc, rcc);
+   }
+
+   // circle 2
+   {
+      double xcc = 0.5543;
+      double ycc = 1.7602;
+      double rcc = 0.1956;
+      Vector xc(2);
+      xc(0) = xcc;
+      xc(1) = ycc;
+      double circle = -r_circle(x, xc, rcc);
+
+      returnval = r_union(returnval, circle);
+   }
+
+   //    // circle 3
+   {
+      double xcc = 0.5543;
+      double ycc = -1.7602;
+      double rcc = 0.1956;
+      Vector xc(2);
+      xc(0) = xcc;
+      xc(1) = ycc;
+      double circle = -r_circle(x, xc, rcc);
+
+      returnval = r_union(returnval, circle);
+   }
+
+   // big circle
+   {
+      double xcc = 4.6939;
+      double ycc = 0.0;
+      double rcc = 4.6939;
+      Vector xc(2);
+      xc(0) = xcc;
+      xc(1) = ycc;
+      double circle = -r_circle(x, xc, rcc);
+
+      double rem1 = yv-1.8368;
+      circle = r_remove(circle, rem1);
+      double rem1b = -1.8368-yv;
+      circle = r_remove(circle, rem1b);
+      double rem2 = 0.6608-xv;
+      circle = r_remove(circle, -rem2);
+      returnval = r_union(returnval, circle);
+   }
+
+   //line
+   {
+      double line1 =  -yv + 0.1938 + std::tan(M_PI - 33.0*(M_PI/180.0))*(xv-3.3254);
+      line1 *= 1;
+
+      double rem1 = yv-1.9242;
+      line1 = r_remove(line1, rem1);
+      double rem2 = 0.6608 - xv;
+      line1 = r_remove(line1, rem2);
+      double rem3 = 3.3254 - xv;
+      line1 = r_remove(line1, -rem3);
+      double rem4 = -0.1938 - yv;
+      line1 = r_remove(line1, rem4);
+      returnval = r_union(returnval, line1);
+   }
+
+   //line2
+   {
+      double line1 =  -yv - 0.1938 + std::tan(33.0*(M_PI/180.0))*(xv-3.3254);
+      line1 *= -1;
+
+      double rem1 = -1.9242-yv;
+      line1 = r_remove(line1, rem1);
+      double rem2 = 0.6608-xv;
+      line1 = r_remove(line1, rem2);
+      double rem3 = xv-3.3254;
+      line1 = r_remove(line1, rem3);
+      double rem4 = yv-0.1938;
+      line1 = r_remove(line1, rem4);
+
+      returnval = r_union(returnval, line1);
+   }
+
+   return returnval;
 }
 
 double csg_cubecylsph(const Vector &x)
@@ -204,6 +315,158 @@ double csg_cubecylsph(const Vector &x)
    in_return_val = std::min(in_return_val, -1*in_pipe_x);
 
    return in_return_val;
+}
+
+void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
+                                   int attr_to_switch)
+{
+   // Switch attribute if all but 1 of the faces of an element will be marked?
+   Array<int> element_attr(mesh->GetNE());
+   element_attr = 0;
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      Array<int> faces, ori;
+      if (mesh->Dimension() == 2)
+      {
+         mesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         mesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      bool bdr_element = false;
+      element_attr[e] = attr1;
+      int target_attr = -1;
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         mesh->GetFaceElements(faces[f], &elem1, &elem2);
+         if (elem2 >= 0)
+         {
+            attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
+            if (attr1 != attr2 && attr1 == attr_to_switch)
+            {
+               diff_attr_count += 1;
+               target_attr = attr2;
+            }
+         }
+         else
+         {
+            mesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               Vector dof_vals;
+               Array<int> dofs;
+               mat.GetElementDofValues(mesh->GetNE() + (-1-elem2), dof_vals);
+               attr2 = (int)(dof_vals(0));
+               if (attr1 != attr2 && attr1 == attr_to_switch)
+               {
+                  diff_attr_count += 1;
+                  target_attr = attr2;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+
+      if (diff_attr_count == faces.Size()-1 && !bdr_element)
+      {
+         element_attr[e] = target_attr;
+      }
+   }
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      mat(e) = element_attr[e];
+      mesh->SetAttribute(e, element_attr[e]+1);
+   }
+   mesh->SetAttributes();
+}
+
+void MakeGridFunctionWithNumberOfInterfaceFaces(
+   mfem::Mesh *mesh,
+   mfem::GridFunction &mat,
+   mfem::GridFunction &NumFaces)
+{
+   NumFaces = 0.0;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      mfem::Array<int> faces, ori;
+      mfem::Array<int> faces_ele2, ori_ele2;
+      mfem::Array<int> faces_ele1, ori_ele1;
+      if (mesh->Dimension() == 2)
+      {
+         mesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         mesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      bool bdr_element = false;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         mesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         diff_attr_count = 0;
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 != attr2 )
+            {
+               NumFaces[e] += 1;
+            }
+         }
+         else
+         {
+            mesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               mfem::Vector dof_vals;
+               mfem::Array<int> dofs;
+               mat.GetElementDofValues(mesh->GetNE() + (-1-elem2), dof_vals);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               if (attr1 != attr2 )
+               {
+                  NumFaces[e] += 1;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+   }
+
+   int counter = 0;
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      counter += (NumFaces(e) > 1);
+   }
+   std::cout<<"number of element with more than 1 face for fitting: "<<counter<<std::endl;
 }
 
 #ifdef MFEM_USE_MPI
@@ -627,7 +890,7 @@ void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
    //Now determine distance
    const double dx = AvgElementSize(mesh);
    PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
-   //   NormalizationDistanceSolver dist_solver();
+   //   NormalizationDistanceSolver dist_solver;
 
    FiniteElementSpace pfes_s(*distance_s.FESpace());
 

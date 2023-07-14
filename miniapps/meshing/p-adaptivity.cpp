@@ -26,15 +26,6 @@ double r_rectangle(const Vector &x, Vector &x_center, Vector &lengths)
    return phi_rectangle;
 }
 
-double r_circle(const Vector &x, Vector &x_center, double radius)
-{
-   double xc = x_center(0);
-   double yc = x_center(1);
-   double xv = x(0),
-          yv = x(1);
-   return std::pow(xc-xv, 2.0) + std::pow(yc-yv, 2.0) - std::pow(radius, 2.0);
-}
-
 double rectangle(const Vector &x)
 {
    Vector xc(x.Size());
@@ -58,7 +49,6 @@ double rectangle_and_circle(const Vector &x)
                                                                        0.3)) :
           r_union(r_rectangle(x, xc, lengths), -r_circle(x, xc, 0.3));
 }
-
 
 class PRefinementTransfer
 {
@@ -292,10 +282,59 @@ int main(int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(rectangle_and_circle);
    }
+   else if (surf_ls_type == 7) // inclined_line
+   {
+      ls_coeff = new FunctionCoefficient(apollo_level_set);
+   }
    else
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
    }
+
+   if (surf_ls_type == 7)
+   {
+      mesh.SetCurvature(1);
+      Vector p_min(dim), p_max(dim);
+      mesh.GetBoundingBox(p_min, p_max);
+
+      GridFunction &x_bg = *(mesh.GetNodes());
+      GridFunction dx(x_bg);
+      const int num_nodes = x_bg.Size() / dim;
+      for (int i = 0; i < num_nodes; i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            if (d == 0)
+            {
+               //                dx(i + d*num_nodes) = 0.5;
+               dx(i*dim + d) = 0.5;
+            }
+            else if (d == 1)
+            {
+               //                  dx(i + d*num_nodes) = 2.5;
+               dx(i*dim + d) = 2.5;
+            }
+         }
+      }
+      x_bg -= dx;
+   }
+
+   {
+      ofstream mesh_ofs("apollo_input_mesh_tri.mesh");
+      mesh.Print(mesh_ofs);
+   }
+
+
+
+   x.ProjectCoefficient(*ls_coeff);
+
+   //   double dx = AvgElementSize(mesh);
+   //   PDEFilter filter(mesh, dx);
+   //   GridFunctionCoefficient gfc(x);
+   //   ParGridFunction x2(x);
+   //   filter.Filter(gfc, x2);
+   //   DiffuseField(x, 20);
+
 
 
    x.ProjectCoefficient(*ls_coeff);
@@ -305,12 +344,29 @@ int main(int argc, char *argv[])
    {
       OptimizeMeshWithAMRAroundZeroLevelSet(mesh, *ls_coeff,
                                             h_iters, x);
+      x.ProjectCoefficient(*ls_coeff);
    }
    if (ndiff > 0)
    {
       DiffuseField(x, ndiff);
    }
+   else if (ndiff < 0)
+   {
+      double dx = AvgElementSize(mesh);
+      PDEFilter filter(mesh, dx);
+      GridFunctionCoefficient gfc(&x);
+      GridFunction x2(x);
+      filter.Filter(gfc, x2);
+      x = x2;
+   }
 
+   if (visualization)
+   {
+      socketstream vis1;
+      common::VisualizeField(vis1, "localhost", 19916, x,
+                             "Pre-distance Level-set function",
+                             00, 0, 700, 600, "Rjmc");
+   }
 
    if (comp_dist)
    {
@@ -321,8 +377,15 @@ int main(int argc, char *argv[])
                                 "Pre-distance Level-set function",
                                 00, 0, 700, 600, "Rjmc");
       }
-      ComputeScalarDistanceFromLevelSet(mesh, *ls_coeff, x, 0, 6, 500, false);
+      ComputeScalarDistanceFromLevelSet(mesh, *ls_coeff, x, 0, 5, 500, false);
    }
+
+   {
+      ofstream mesh_ofs("apollo_amr.mesh");
+      mesh.Print(mesh_ofs);
+   }
+   ofstream gf_ofs("apollo_dist.gf");
+   x.Save(gf_ofs);
 
    if (visualization)
    {
@@ -330,6 +393,8 @@ int main(int argc, char *argv[])
       common::VisualizeField(vis1, "localhost", 19916, x, "Level-set function",
                              00, 0, 700, 600, "Rjmc");
    }
+
+   MFEM_ABORT(" ");
 
    // Now do p-adaptivity itrations
    PRefDiffEstimator prdiff(x, -1, normalization);

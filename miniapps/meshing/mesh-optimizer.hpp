@@ -443,6 +443,8 @@ int material_id(int el_id, const GridFunction &g)
    else if (approach == 1)   // minimum value based
    {
       double minval = g_vals.Min();
+      double maxval = g_vals.Max();
+      return maxval > 0.0 ? 1.0 : 0.0;
       return minval > 0.0 ? 1.0 : 0.0;
    }
    return 0.0;
@@ -452,7 +454,9 @@ void DiffuseField(GridFunction &field, int smooth_steps)
 {
    // Setup the Laplacian operator
    BilinearForm *Lap = new BilinearForm(field.FESpace());
-   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   ConstantCoefficient ccc(1.0);
+   Lap->AddDomainIntegrator(new DiffusionIntegrator(ccc));
+   //   Lap->AddDomainIntegrator(new MassIntegrator);
    Lap->Assemble();
    Lap->Finalize();
 
