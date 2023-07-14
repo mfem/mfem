@@ -869,6 +869,15 @@ public:
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
+/**
+ * @brief Prolongate varying-order GridFunction to equal-order GridFunction by interpolation. Usually used for visualization purpose.
+ *
+ * @param x Varying order GridFunction
+ * @return GridFunction Max-order GridFunction
+ */
+// Experimental - required for visualizing functions on p-refined spaces.
+GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype=1);
+
 } // namespace mfem
 
 #endif

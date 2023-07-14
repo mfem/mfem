@@ -4547,4 +4547,47 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    return sol2d;
 }
 
+
+GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
+{
+   const FiniteElementSpace *fespace = x->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   const FiniteElementCollection *fec = fespace->FEColl();
+
+   // find the max order in the space
+   const int max_order = fespace->GetMaxElementOrder();
+
+   // create a visualization space of max order for all elements
+   FiniteElementCollection *fecInt = NULL;
+   if (fieldtype == 0)
+   {
+      fecInt = new H1_FECollection(max_order, mesh->Dimension());
+   }
+   else if (fieldtype == 1)
+   {
+      fecInt = new L2_FECollection(max_order, mesh->Dimension());
+   }
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
+                                                         fespace->GetVDim());
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   GridFunction *xInt = new GridFunction(spaceInt);
+
+   if (fespace->GetVDim() == 1)
+   {
+      GridFunctionCoefficient cf(x);
+      xInt->ProjectCoefficient(cf);
+   }
+   else
+   {
+      VectorGridFunctionCoefficient cf(x);
+      xInt->ProjectCoefficient(cf);
+   }
+
+   xInt->MakeOwner(fecInt);
+   return xInt;
+}
+
 }

@@ -80,55 +80,6 @@ enum PRefineType
 };
 
 /**
- * @brief Prolongate varying-order GridFunction to equal-order GridFunction by interpolation. Usually used for visualization purpose.
- *
- * @param x Varying order GridFunction
- * @return GridFunction Max-order GridFunction
- */
-// Experimental - required for visualizing functions on p-refined spaces.
-GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype=1)
-{
-   const FiniteElementSpace *fespace = x->FESpace();
-   Mesh *mesh = fespace->GetMesh();
-   const FiniteElementCollection *fec = fespace->FEColl();
-
-   // find the max order in the space
-   const int max_order = fespace->GetMaxElementOrder();
-
-   // create a visualization space of max order for all elements
-   FiniteElementCollection *fecInt = NULL;
-   if (fieldtype == 0)
-   {
-      fecInt = new H1_FECollection(max_order, mesh->Dimension());
-   }
-   else if (fieldtype == 1)
-   {
-      fecInt = new L2_FECollection(max_order, mesh->Dimension());
-   }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt,
-                                                         fespace->GetVDim());
-
-   IsoparametricTransformation T;
-   DenseMatrix I;
-
-   GridFunction *xInt = new GridFunction(spaceInt);
-
-   if (fespace->GetVDim() == 1)
-   {
-      GridFunctionCoefficient cf(x);
-      xInt->ProjectCoefficient(cf);
-   }
-   else
-   {
-      VectorGridFunctionCoefficient cf(x);
-      xInt->ProjectCoefficient(cf);
-   }
-
-   xInt->MakeOwner(fecInt);
-   return xInt;
-}
-
-/**
  * @brief Abstract class for numerical flux for an hyperbolic conservation laws
  * on a face with states, fluxes and characteristic speed
  *
