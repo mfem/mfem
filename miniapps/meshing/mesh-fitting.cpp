@@ -62,10 +62,10 @@
 
 //    Surface fitting to a squircle level-set - with p-refinement around the interface and using a background mesh
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 5
-//    3D
+//    Surface fitting to a circle level-set 3D function - with p-refinement around the interface and using a background mesh
 //    make mesh-fitting -j && ./mesh-fitting -m cube.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 3 -mid 303 -preft 1e-8
 
-//    Reducing order after the first fitting with high order elements around the interface
+//    Surface fitting to a squircle level-set - with p-refinement around the interface and order reduction after the fitting step
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 4 -sbgmesh -vl 0 -mo 5
 
 #include "../../mfem.hpp"
@@ -1547,6 +1547,33 @@ int main(int argc, char *argv[])
                                 "Background Mesh - Level Set",
                                 0, 680, 300, 300);
       }
+
+      // Visualization of the mesh and the orders with Paraview
+      {
+         ParaViewDataCollection paraview_dc("TEST_CLAIRE", mesh);
+         paraview_dc.SetPrefixPath("ParaView");
+         paraview_dc.SetLevelsOfDetail(fespace->GetMaxElementOrder());
+         paraview_dc.SetCycle(0);
+         paraview_dc.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc.SetHighOrderOutput(true);
+         paraview_dc.SetTime(0.0); // set the time
+         paraview_dc.RegisterField("mesh", x_max_order);
+         paraview_dc.RegisterField("order", &order_gf);
+         paraview_dc.Save();
+      }
+
+      {
+         ParaViewDataCollection paraview_dc("TEST_CLAIRE", mesh_surf_fit_bg);
+         paraview_dc.SetPrefixPath("ParaView");
+         paraview_dc.SetLevelsOfDetail(fespace->GetMaxElementOrder());
+         paraview_dc.SetCycle(1);
+         paraview_dc.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc.SetHighOrderOutput(true);
+         paraview_dc.SetTime(0.0); // set the time
+         paraview_dc.RegisterField("level set", surf_fit_bg_gf0);
+         paraview_dc.Save();
+      }
+
    }
 
    finder.FreeData();
