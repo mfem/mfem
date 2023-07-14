@@ -9,8 +9,8 @@
 //           0 ≤ ρ ≤ 1 a.e. Ω
 //
 // L = (f, u) - (r(ρ̃)∇u, ∇v) + (f, v)
-//    + (ϵ∇ρ̃, ∇λ̃) + (ρ̃, λ̃) - (ρ, λ)
-//    + α(logit(ρ) - logit(ρ_k)
+//    + (ϵ∇ρ̃, ∇λ̃) + (ρ̃, λ̃) - (S(ψ), λ)
+//    + α⁻¹D(S(ψ), S(ψ_k))
 
 #include "mfem.hpp"
 #include "proximalGalerkin.hpp"
