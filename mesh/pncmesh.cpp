@@ -435,25 +435,21 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
    entity_group = 0;
 
    CommGroup group;
-   group.reserve(128);
 
-   int begin = 0, end = 0;
-   while (begin < index_rank.Size())
+   for (auto begin = index_rank.begin(); begin != index_rank.end(); /* nothing */)
    {
-      int index = index_rank[begin].from;
-      if (index >= nentities)
-      {
-         break; // probably creating entity_conf_group (no ghosts)
-      }
-      while (end < index_rank.Size() && index_rank[end].from == index)
-      {
-         end++;
-      }
-      group.resize(end - begin);
-      for (int i = begin; i < end; i++)
-      {
-         group[i - begin] = index_rank[i].to;
-      }
+      const auto &index = begin->from;
+      if (index >= nentities) { break; }
+
+      // Locate the next connection that is not from this index
+      const auto end = std::find_if(begin, index_rank.end(),
+      [&index](const mfem::Connection &c) { return c.from != index;});
+
+      // For each connection from this index, collect the ranks connected.
+      group.resize(std::distance(begin, end));
+      std::transform(begin, end, group.begin(), [](const mfem::Connection &c) { return c.to; });
+
+      // assign this entity's group and advance the search start
       entity_group[index] = GetGroupId(group);
       begin = end;
    }
@@ -461,9 +457,9 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
 
 void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
 {
-   for (int i = 0; i < ranks.Size(); i++)
+   for (auto rank : ranks)
    {
-      entity_index_rank[entity].Append(Connection(index, ranks[i]));
+      entity_index_rank[entity].Append(Connection(index, rank));
    }
 }
 
@@ -480,9 +476,8 @@ void ParNCMesh::CalculatePMatrixGroups()
    ranks.Reserve(256);
 
    // connect slave edges to master edges and their vertices
-   for (int i = 0; i < shared_edges.masters.Size(); i++)
+   for (const auto &master_edge : shared_edges.masters)
    {
-      const Master &master_edge = shared_edges.masters[i];
       ranks.SetSize(0);
       for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
       {
@@ -502,9 +497,8 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 
    // connect slave faces to master faces and their edges and vertices
-   for (int i = 0; i < shared_faces.masters.Size(); i++)
+   for (const auto &master_face : shared_faces.masters)
    {
-      const Master &master_face = shared_faces.masters[i];
       ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {

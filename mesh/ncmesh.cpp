@@ -2176,9 +2176,9 @@ void NCMesh::UpdateVertices()
    //   - ghost (non-local) vertices (code -3)
    //   - vertices beyond the ghost layer (code -4)
 
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto & node : nodes)
    {
-      node->vert_index = -4; // assume beyond ghost layer
+      node.vert_index = -4; // assume beyond ghost layer
    }
 
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -2208,11 +2208,11 @@ void NCMesh::UpdateVertices()
    // STEP 2: assign indices of top-level local vertices, in original order
 
    NVertices = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto &node : nodes)
    {
-      if (node->vert_index == -1)
+      if (node.vert_index == -1)
       {
-         node->vert_index = NVertices++;
+         node.vert_index = NVertices++;
       }
    }
 
@@ -2308,20 +2308,20 @@ void NCMesh::UpdateVertices()
       }
 
       vertex_nodeId.SetSize(NVertices);
-      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      for (auto &node : nodes)
       {
-         if (node->HasVertex() && node->vert_index >= 0)
+         if (node.HasVertex() && node.vert_index >= 0)
          {
-            vertex_nodeId[node->vert_index] = node.index();
+            vertex_nodeId[node.vert_index] = node.index();
          }
       }
 
       NGhostVertices = 0;
-      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      for (auto &node : nodes)
       {
-         if (node->HasVertex() && node->vert_index < 0)
+         if (node.HasVertex() && node.vert_index < 0)
          {
-            node->vert_index = NVertices + (NGhostVertices++);
+            node.vert_index = NVertices + (NGhostVertices++);
          }
       }
    }
@@ -2545,13 +2545,13 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    NFaces = mesh->GetNumFaces();
    if (Dim < 2) { NFaces = 0; }
    // clear Node::edge_index and Face::index
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto &node : nodes)
    {
-      if (node->HasEdge()) { node->edge_index = -1; }
+      if (node.HasEdge()) { node.edge_index = -1; }
    }
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (auto &face : faces)
    {
-      face->index = -1;
+      face.index = -1;
    }
 
    // get edge enumeration from the Mesh
@@ -2615,19 +2615,19 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    // count ghost edges and assign their indices
    NGhostEdges = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto &node : nodes)
    {
-      if (node->HasEdge() && node->edge_index < 0)
+      if (node.HasEdge() && node.edge_index < 0)
       {
-         node->edge_index = NEdges + (NGhostEdges++);
+         node.edge_index = NEdges + (NGhostEdges++);
       }
    }
 
    // count ghost faces
    NGhostFaces = 0;
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (auto &face : faces)
    {
-      if (face->index < 0) { NGhostFaces++; }
+      if (face.index < 0) { NGhostFaces++; }
    }
 
    if (Dim == 2)
@@ -2671,9 +2671,9 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    }
 
    // assign valid indices also to faces beyond the ghost layer
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (auto &face : faces)
    {
-      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+      if (face.index < 0) { face.index = NFaces + (nghosts++); }
    }
    MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
@@ -3452,7 +3452,7 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 
    if (!type)
    {
-      MFEM_VERIFY(key >= 0, "entity not found.");
+      MFEM_VERIFY(key >= 0, "index " << index << " not found.");
    }
    else // return entity type if requested, don't abort when not found
    {

@@ -82,23 +82,23 @@ public:
    /** An override of NCMesh::Refine, which is called eventually, after making
        sure that refinements that occur on the processor boundary are sent to
        the neighbor processors so they can keep their ghost layers up to date.*/
-   virtual void Refine(const Array<Refinement> &refinements);
+   void Refine(const Array<Refinement> &refinements) override;
 
    /// Parallel version of NCMesh::LimitNCLevel.
-   virtual void LimitNCLevel(int max_nc_level);
+   void LimitNCLevel(int max_nc_level) override;
 
    /** Parallel version of NCMesh::CheckDerefinementNCLevel. */
-   virtual void CheckDerefinementNCLevel(const Table &deref_table,
-                                         Array<int> &level_ok, int max_nc_level);
+   void CheckDerefinementNCLevel(const Table &deref_table,
+                                 Array<int> &level_ok, int max_nc_level) override;
 
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
-   virtual void Derefine(const Array<int> &derefs);
+   void Derefine(const Array<int> &derefs) override;
 
    /** Gets partitioning for the coarse mesh if the current fine mesh were to
        be derefined. */
-   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
-                                            Array<int> &new_ranks) const;
+   void GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                    Array<int> &new_ranks) const;
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
@@ -116,7 +116,7 @@ public:
    int GetNGhostVertices() const { return NGhostVertices; }
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
-   int GetNGhostElements() const { return NGhostElements; }
+   int GetNGhostElements() const override { return NGhostElements; }
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
@@ -232,12 +232,12 @@ public:
 
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
        ghost edges from 'bdr_vertices' and 'bdr_edges'. */
-   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
-                                   Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges);
+   void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+                           Array<int> &bdr_vertices,
+                           Array<int> &bdr_edges) override;
 
    /// Save memory by releasing all non-essential and cached data.
-   virtual void Trim();
+   void Trim() override;
 
    /// Return total number of bytes allocated.
    std::size_t MemoryUsage(bool with_base = true) const;
@@ -267,8 +267,8 @@ protected: // implementation
    MPI_Comm MyComm;
    int NRanks;
 
-   typedef std::vector<CommGroup> GroupList;
-   typedef std::map<CommGroup, GroupId> GroupMap;
+   using GroupList = std::vector<CommGroup>;
+   using GroupMap = std::map<CommGroup, GroupId>;
 
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
@@ -299,7 +299,7 @@ protected: // implementation
    Array<int> ghost_layer;    ///< list of elements whose 'element_type' == 2.
    Array<int> boundary_layer; ///< list of type 3 elements
 
-   virtual void Update();
+   void Update() override;
 
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
@@ -313,13 +313,13 @@ protected: // implementation
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
 
-   virtual void BuildFaceList();
-   virtual void BuildEdgeList();
-   virtual void BuildVertexList();
+   void BuildFaceList() override;
+   void BuildEdgeList() override;
+   void BuildVertexList() override;
 
-   virtual void ElementSharesFace(int elem, int local, int face);
-   virtual void ElementSharesEdge(int elem, int local, int enode);
-   virtual void ElementSharesVertex(int elem, int local, int vnode);
+   void ElementSharesFace(int elem, int local, int face) override;
+   void ElementSharesEdge(int elem, int local, int enode) override;
+   void ElementSharesVertex(int elem, int local, int vnode) override;
 
    GroupId GetGroupId(const CommGroup &group);
    GroupId GetSingletonGroup(int rank);
@@ -451,8 +451,8 @@ protected: // implementation
    protected:
       ParNCMesh* pncmesh;
 
-      virtual void Encode(int);
-      virtual void Decode(int);
+      void Encode(int) override;
+      void Decode(int) override;
    };
 
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
@@ -513,8 +513,8 @@ protected: // implementation
    protected:
       ElementSet eset;
 
-      virtual void Encode(int);
-      virtual void Decode(int);
+      void Encode(int) override;
+      void Decode(int) override;
    };
 
    /** Assign new Element::rank to leaf elements and send them to their new
