@@ -1,10 +1,10 @@
-//                         MFEM Example 34 - Parallel Version
+//                         MFEM Example 36 - Parallel Version
 //
 //
-// Compile with: make ex34p
+// Compile with: make ex36p
 //
-// Sample runs: mpirun -np 4 ex34p -o 2
-//              mpirun -np 4 ex34p -o 2 -r 4
+// Sample runs: mpirun -np 4 ex36p -o 2
+//              mpirun -np 4 ex36p -o 2 -r 4
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
