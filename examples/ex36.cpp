@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
    double rho0 = 1e-6;
    int simp_exp = 3;
    double max_psi = 1e07;
+   bool opt_ver = 1;
 
    int maxit_penalty = 10000;
    int maxit_newton = 100;
@@ -235,16 +236,35 @@ int main(int argc, char *argv[])
       new DomainLFIntegrator(rho_cf)
    );
 
-   // Equation ψ
-   fixedPointSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
-      new MassIntegrator(dsigmoid_cf)
-   );
-   fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(psi_k_dsigmoid)
-   );
-   fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
-      new DomainLFIntegrator(alph_f_lam_dsigmoid)
-   );
+   switch (opt_ver)
+   {
+      case 1:
+         // Equation ψ : Version 1
+         fixedPointSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+            new MassIntegrator(one_cf)
+         );
+         fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+            new DomainLFIntegrator(psi_k_cf)
+         );
+         fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+            new DomainLFIntegrator(alph_f_lam)
+         );
+         break;
+      case 2:
+         // Equation ψ : Version 2
+         fixedPointSystem.GetDiagBlock(Vars::psi)->AddDomainIntegrator(
+            new MassIntegrator(dsigmoid_cf)
+         );
+         fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+            new DomainLFIntegrator(psi_k_dsigmoid)
+         );
+         fixedPointSystem.GetLinearForm(Vars::psi)->AddDomainIntegrator(
+            new DomainLFIntegrator(alph_f_lam_dsigmoid)
+         );
+         break;
+      default:
+         mfem_error("Undefined optimality condition version.");
+   }
 
    // Equation λ̃
    fixedPointSystem.GetDiagBlock(Vars::f_lam)->AddDomainIntegrator(
