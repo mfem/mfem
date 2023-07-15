@@ -1,8 +1,16 @@
+// Include mfem and I/O
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <random>
+
+// Include for defining exact solution
+#include <math.h>
+
+// Include steady ns miniapp
 #include "snavier_cg.hpp"
+
+// Include for mkdir
+#include <sys/stat.h>
 
 using namespace mfem;
 
@@ -219,48 +227,67 @@ int main(int argc, char *argv[])
    //
    /// 13.1 Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
-   {
-      std::ostringstream mesh_name, v_name, p_name;
-      mesh_name << "mesh." << std::setfill('0') << std::setw(6) << myrank;
-      v_name << "sol_v." << std::setfill('0') << std::setw(6) << myrank;
-      p_name << "sol_p." << std::setfill('0') << std::setw(6) << myrank;
 
-      std::ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+   // Creating output directory if not existent
+   if (mkdir(outFolder, 0777) == -1)
+      std::cerr << "Error :  " << strerror(errno) << std::endl;
+   else
+      out << "Directory created";
 
-      std::ofstream v_ofs(v_name.str().c_str());
-      v_ofs.precision(8);
-      velocityPtr->Save(v_ofs);
+   /*std::ostringstream mesh_name, v_name, p_name;
+   mesh_name << outFolder << "/mesh." << std::setfill('0') << std::setw(6) << myrank; 
 
-      std::ofstream p_ofs(p_name.str().c_str());
-      p_ofs.precision(8);
-      pressurePtr->Save(p_ofs);
-   }
+   v_name << outFolder << "/sol_v." << std::setfill('0') << std::setw(6) << myrank;
+   p_name << outFolder << "/sol_p." << std::setfill('0') << std::setw(6) << myrank;
+
+   std::ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   pmesh->Print(mesh_ofs);
+
+   std::ostringstream omesh_file, omesh_file_bdr;
+   omesh_file << outFolder << "/mesh.vtk";
+   omesh_file_bdr << outFolder << "/mesh_bdr.vtu";
+   std::ofstream omesh(omesh_file.str().c_str());
+   omesh.precision(14);
+   pmesh->PrintVTK(omesh);
+   pmesh->PrintBdrVTU(omesh_file_bdr.str());
+
+   std::ofstream v_ofs(v_name.str().c_str());
+   v_ofs.precision(8);
+   velocityPtr->Save(v_ofs);
+
+   std::ofstream p_ofs(p_name.str().c_str());
+   p_ofs.precision(8);
+   pressurePtr->Save(p_ofs);*/
+
 
    //
-   /// 13.2 Save data in the VisIt format.
-   //
-   VisItDataCollection visit_dc("Results-steadyNS", pmesh);
-   visit_dc.RegisterField("velocity", velocityPtr);
-   visit_dc.RegisterField("pressure", pressurePtr);
-   visit_dc.SetFormat(!par_format ?
-                      DataCollection::SERIAL_FORMAT :
-                      DataCollection::PARALLEL_FORMAT);
-   visit_dc.Save();
+   /// 13.2 Setup output in the solver
+   bool visit;
+   bool paraview;
+   //DataCollection::Format forma = DataCollection::PARALLEL_FORMAT
+   NSSolver->SetupOutput( outFolder, visit, paraview );
 
    //
-   /// 13.3 Save data in the Paraview format.
+   /// 13.3 Save exact solution in the Paraview format.
    //   
-   ParaViewDataCollection paraview_dc("Results-steadyNS", pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
+   ParGridFunction* velocityExactPtr = new ParGridFunction(NSSolver->GetVFes());
+   ParGridFunction* pressureExactPtr = new ParGridFunction(NSSolver->GetPFes());
+   ParGridFunction*           rhsPtr = new ParGridFunction(NSSolver->GetVFes());
+   velocityExactPtr->ProjectCoefficient(V_ex);
+   pressureExactPtr->ProjectCoefficient(P_ex);
+   rhsPtr->ProjectCoefficient(f_coeff);
+
+   ParaViewDataCollection paraview_dc("Results-Paraview-Exact", pmesh);
+   paraview_dc.SetPrefixPath(outFolder);
    paraview_dc.SetLevelsOfDetail(vorder);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("velocity",velocityPtr);
-   paraview_dc.RegisterField("pressure",pressurePtr);
+   paraview_dc.RegisterField("velocity_exact",velocityExactPtr);
+   paraview_dc.RegisterField("pressure_exact",pressureExactPtr);
+   paraview_dc.RegisterField("rhs",rhsPtr);
    paraview_dc.Save();
 
    //
@@ -286,7 +313,10 @@ int main(int argc, char *argv[])
    }
 
 
+   // Finalize Hypre and MPI
+   HYPRE_Finalize();
    MPI_Finalize();
+
    return 0;
 }
 

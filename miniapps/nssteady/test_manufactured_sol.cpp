@@ -9,9 +9,6 @@
 // Include steady ns miniapp
 #include "snavier_cg.hpp"
 
-// Include for mkdir
-#include <sys/stat.h>
-
 using namespace mfem;
 
 // Forward declarations of functions
@@ -243,6 +240,11 @@ int main(int argc, char *argv[])
    //
    NSSolver->Setup();
 
+   bool    visit = false;
+   bool paraview = true;
+   //DataCollection::Format forma = DataCollection::PARALLEL_FORMAT
+   NSSolver->SetupOutput( outFolder, visit, paraview );
+
 
    //
    /// 12. Solve the forward problem
@@ -259,14 +261,8 @@ int main(int argc, char *argv[])
    //
    /// 13.1 Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
-   
-   // Creating output directory if not existent
-    if (mkdir(outFolder, 0777) == -1)
-        std::cerr << "Error :  " << strerror(errno) << std::endl;
-    else
-        out << "Directory created";
 
-   std::ostringstream mesh_name, v_name, p_name;
+   /*std::ostringstream mesh_name, v_name, p_name;
    mesh_name << outFolder << "/mesh." << std::setfill('0') << std::setw(6) << myrank; 
 
    v_name << outFolder << "/sol_v." << std::setfill('0') << std::setw(6) << myrank;
@@ -290,23 +286,14 @@ int main(int argc, char *argv[])
 
    std::ofstream p_ofs(p_name.str().c_str());
    p_ofs.precision(8);
-   pressurePtr->Save(p_ofs);
+   pressurePtr->Save(p_ofs);*/
 
 
    //
-   /// 13.2 Save data in the VisIt format.
-   //   
-   VisItDataCollection visit_dc("Results-VISit", pmesh);
-   visit_dc.SetPrefixPath(outFolder);
-   visit_dc.RegisterField("velocity", velocityPtr);
-   visit_dc.RegisterField("pressure", pressurePtr);
-   visit_dc.SetFormat(!par_format ?
-                      DataCollection::SERIAL_FORMAT :
-                      DataCollection::PARALLEL_FORMAT);
-   visit_dc.Save();
+   /// 13.2 Setup output in the solver
 
    //
-   /// 13.3 Save data in the Paraview format.
+   /// 13.3 Save exact solution in the Paraview format.
    //   
    ParGridFunction* velocityExactPtr = new ParGridFunction(NSSolver->GetVFes());
    ParGridFunction* pressureExactPtr = new ParGridFunction(NSSolver->GetPFes());
@@ -315,15 +302,13 @@ int main(int argc, char *argv[])
    pressureExactPtr->ProjectCoefficient(P_ex);
    rhsPtr->ProjectCoefficient(f_coeff);
 
-   ParaViewDataCollection paraview_dc("Results-Paraview", pmesh);
+   ParaViewDataCollection paraview_dc("Results-Paraview-Exact", pmesh);
    paraview_dc.SetPrefixPath(outFolder);
    paraview_dc.SetLevelsOfDetail(vorder);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("velocity",velocityPtr);
-   paraview_dc.RegisterField("pressure",pressurePtr);
    paraview_dc.RegisterField("velocity_exact",velocityExactPtr);
    paraview_dc.RegisterField("pressure_exact",pressureExactPtr);
    paraview_dc.RegisterField("rhs",rhsPtr);

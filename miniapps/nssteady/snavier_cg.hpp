@@ -17,6 +17,9 @@
 #include "mfem.hpp"
 #include "custom_bilinteg.hpp"
 
+// Include for mkdir
+#include <sys/stat.h>
+
 namespace mfem
 {
 
@@ -131,7 +134,10 @@ public:
 
 class SNavierPicardCGSolver{
 public:
-    SNavierPicardCGSolver(ParMesh* mesh_,int vorder=2, int porder=1, double kin_vis_=0, bool verbose_=false);
+
+    using DiagonalPolicy = Operator::DiagonalPolicy;
+
+    SNavierPicardCGSolver(ParMesh* mesh_,int vorder_=2, int porder_=1, double kin_vis_=0, bool verbose_=false);
 
     ~SNavierPicardCGSolver();
 
@@ -262,6 +268,19 @@ public:
     void Setup();
 
     /**
+    * \brief Setup output.
+    *
+    * Setup output (V
+    * ISit, Paraview oe both) and enable output during execution.
+    *
+    * \param folderPath output folder
+    * \param filename filename
+    * \param visit_ enable VISit output
+    * \param paraview_ enable Paraview output
+    */
+    void SetupOutput( const char* folderPath= "./", bool visit=false, bool paraview=false, DataCollection::Format par_format=DataCollection::SERIAL_FORMAT );
+
+    /**
     * \brief Set the initial condition for Velocity.
     *
     */
@@ -347,6 +366,10 @@ private:
     ParFiniteElementSpace* pfes;
     FiniteElementCollection* vfec;
     FiniteElementCollection* pfec;
+    int vorder;
+    int porder;
+    int vdim;
+    int pdim;
 
     /// Grid functions
     ParGridFunction v_gf;           // velocity
@@ -397,10 +420,12 @@ private:
     Vector *z    = nullptr;    // predicted velocity vector
     Vector *vk   = nullptr;    // corrected velocity at previous iteration
     Vector *pk   = nullptr;    // pressure at previous iteration
-    Vector *f    = nullptr;    // load vector
+    Vector *fv   = nullptr;    // load vector for velocity (modified with ess bcs)
+    Vector *fp   = nullptr;    // load vector for pressure (modified with ess bcs)
     Vector *rhs1 = nullptr;    // rhs for first solve  
     Vector *rhs2 = nullptr;    // rhs for second solve
     Vector *rhs3 = nullptr;    // rhs for third solve
+    Vector *tmp = nullptr;     // tmp var to assemble rhs
 
     /// Matrices/operators
     HypreParMatrix     *K = nullptr;         // diffusion term
@@ -463,6 +488,12 @@ private:
     /// Exit flag
     int flag; 
 
+    /// Output
+    bool    visit, paraview;
+    ParaViewDataCollection* paraview_dc = nullptr;;
+    VisItDataCollection*       visit_dc = nullptr;
+
+
     /// Solve the a single iteration of the problem
     void Step();
 
@@ -480,12 +511,31 @@ private:
     * \param ess_tdof_list List of essential degrees of freedom
     * \param mat_e elimiated matrix (obtained by EliminateRowsCols)
     * \param sol, rhs reference to solution vector and rhs to be modified
+    * \param copy_sol if true (default) copies solution into rhs for ess_tdofs
     * 
     * \note Performs the following transformation to the rhs
     *       f(dofs)   = v(dofs)
     *       f(~dofs) -= mat_e*v(dofs)
     */
-    void ModifyRHS(Array<int> &ess_tdof_list, HypreParMatrix* mat_e, Vector &sol, Vector &rhs);
+    void ModifyRHS(Array<int> &ess_tdof_list, HypreParMatrix* mat_e, Vector &sol, Vector &rhs, bool copy_sol=true);
+
+    /**
+    * \brief Matrix vector multiplication, using matrices obtained by ess dofs elimination.
+    *
+    * Multiply matrix and vector, given original matrix split into modified and eliminated matrices after 
+    * ess dofs elimination. 
+    *
+    * \param ess_tdof_list List of essential degrees of freedom
+    * \param mat   modified matrix (obtained by EliminateRowsCols)
+    * \param mat_e eliminated matrix (obtained by EliminateRowsCols)
+    * \param x     vector being multiplied
+    * \param y     vector for storing the result
+    * 
+    * \note Since modified matrix has ones on the diagonal we need to remove offset at ess_tdofs
+    *       M x = mat x + mat_e x - [vec(tdofs); 0]
+    */
+    void FullMult(Array<int> &ess_tdof_list, HypreParMatrix* mat, HypreParMatrix* mat_e,
+                  Vector &x, Vector &y, Operator::DiagonalPolicy diag_policy);
 
     // Update alpha parameter
     void UpdateAlpha();
