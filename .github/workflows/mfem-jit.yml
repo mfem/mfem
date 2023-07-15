@@ -9,7 +9,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-name: "JIT"
+name: "Just-In-Time Tests"
 
 permissions:
   actions: write
@@ -23,82 +23,116 @@ on:
   workflow_dispatch:
 
 env:
-  HYPRE_TGZ: v2.19.0.tar.gz
-  HYPRE_DIR: hypre-2.19.0
-  METIS_TGZ: metis-4.0.3.tar.gz
-  METIS_DIR: metis-4.0.3
+  HYPRE_VER: 2.29.0
+  METIS_VER: 5.1.0
 
 jobs:
-  builds-JIT-tests:
+  Just-In-Time-Tests:
+   # MATRIX ###################################################################
     strategy:
       matrix:
-        os: [ubuntu-latest] #, macos-latest]
-        build-system: [make] #, cmake]
-        target: [opt] #, dbg]
-        mpi: [seq] #, par]
-    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}
+        os: [macos-latest, ubuntu-latest]
+        build-system: [cmake, make]
+        target: [dbg, opt]
+        mpi: [par, seq]
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-JIT-${{ matrix.target }}-${{ matrix.mpi }}
 
     runs-on: ${{ matrix.os }}
 
+    # CANCEL ##################################################################
     steps:
     - name: Cancel Previous Runs
       uses: styfle/cancel-workflow-action@0.11.0
       with:
         access_token: ${{ github.token }}
 
-    - name: MFEM Checkout
-      uses: actions/checkout@v3
-      with:
-        path: mfem
-
-    # MPI setup on Linux and MacOS
+    # MPI #####################################################################
     - name: MPI install (Linux)
       if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get install mpich libmpich-dev
+      run: sudo apt-get install mpich libmpich-dev
 
     - name: MPI install (MacOS)
       if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
-      run: |
-        export HOMEBREW_NO_INSTALL_CLEANUP=1
-        brew install openmpi
+      run: HOMEBREW_NO_INSTALL_CLEANUP=1 brew install openmpi
 
-    # HYPRE cache & install
-    - name: HYPRE cache
-      id: hypre-cache
-      if: matrix.mpi == 'par'
-      uses: actions/cache@v3
-      with:
-        path: ${{ env.HYPRE_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_DIR }}
-
-    - name: HYPRE install
-      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v2.4
-      with:
-        archive: ${{ env.HYPRE_TGZ }}
-        dir: ${{ env.HYPRE_DIR }}
-        build-system: make
-
-    # METIS cache & install
+    # METIS ###################################################################
     - name: METIS cache
       id: metis-cache
       if: matrix.mpi == 'par'
       uses: actions/cache@v3
       with:
-        path: ${{ env.METIS_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_DIR }}-v2.2
+        path: metis-5.0
+        key: ${{ runner.os }}-metis-5.0-shared
 
     - name: METIS install
       if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v2.4
-      with:
-        archive: ${{ env.METIS_TGZ }}
-        dir: ${{ env.METIS_DIR }}
+      run: |
+        wget --no-verbose https://mfem.github.io/tpls/metis-${{ env.METIS_VER }}.tar.gz
+        rm -rf metis-${{ env.METIS_VER }}
+        tar -xzf metis-${{ env.METIS_VER }}.tar.gz
+        install="$(pwd)/metis-5.0"
+        cd metis-${{ env.METIS_VER }}
+        make config shared=1 prefix=${install} cc=mpicc
+        make install -j3
 
-    # Make MFEM config and build
-    - name: MFEM config and build (Make)
-      #if: matrix.build-system == 'make'
+    # HYPRE ###################################################################
+    - name: HYPRE cache
+      id: hypre-cache
+      if: matrix.mpi == 'par'
+      uses: actions/cache@v3
+      with:
+        path: hypre-${{ env.HYPRE_VER }}
+        key: ${{ runner.os }}-hypre-${{ env.HYPRE_VER }}-shared
+
+    - name: HYPRE install
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
+      run: |
+        wget --no-verbose https://github.com/hypre-space/hypre/archive/v${{env.HYPRE_VER}}.tar.gz
+        rm -rf hypre-${{env.HYPRE_VER}}
+        tar -xzf v${{env.HYPRE_VER}}.tar.gz
+        install="$(pwd)/hypre-${{ env.HYPRE_VER }}/install"
+        cd hypre-${{env.HYPRE_VER}}/src
+        ./configure --prefix=${install} --disable-fortran --enable-shared CC=mpicc CFLAGS=-O1 CXX=mpic++
+        make install -j3
+
+    # On MacOS, any dynamic linker (dyld) environment variables such as
+    # DYLD_LIBRARY_PATH are purged when launching protected processes.
+    # We set DYLD which will set DYLD_LIBRARY_PATH later for each process.
+    - name: Set METIS_DIR, HYPRE_DIR and DY/LD_LIBRARY_PATH (par)
+      if: matrix.mpi == 'par'
+      run: |
+        metis_dir="$(pwd)/metis-5.0"
+        hypre_dir="$(pwd)/hypre-${{ env.HYPRE_VER }}/install"
+        echo "METIS_DIR=${metis_dir}" >> "$GITHUB_ENV"
+        echo "HYPRE_DIR=${hypre_dir}" >> "$GITHUB_ENV"
+        echo "METIS_DIR_OPT=METIS_DIR=${metis_dir}" >> "$GITHUB_ENV"
+        echo "HYPRE_DIR_OPT=HYPRE_DIR=${hypre_dir}" >> "$GITHUB_ENV"
+        echo "LD_LIBRARY_PATH=${metis_dir}/lib:${hypre_dir}/lib" >> "$GITHUB_ENV"
+        echo "DYLD=DYLD_LIBRARY_PATH=${metis_dir}/lib:${hypre_dir}/lib" >> "$GITHUB_ENV"
+
+    # HYPRE & METIS DIR #######################################################
+    - name: Set METIS_DIR and HYPRE_DIR (seq)
+      if: matrix.mpi == 'seq'
+      run: |
+        echo "METIS_DIR=unused" >> "$GITHUB_ENV"
+        echo "HYPRE_DIR=unused" >> "$GITHUB_ENV"
+
+    # MFEM ####################################################################
+    - name: MFEM Checkout
+      uses: actions/checkout@v3
+      with:
+        path: mfem
+
+    # MFEM MAKE ###############################################################
+    # MFEM debug (-pedantic -Wall -Werror) and g++ on ubuntu warns about multiple
+    # maybe-uninitialized variables.
+    # The 'no-maybe-uninitialized' option should be removed when resolved.
+    - name: Set make options (make, Linux)
+      if: matrix.build-system == 'make' && matrix.os == 'ubuntu-latest'
+      run: echo "CXXFLAGS_OPT=-Wno-maybe-uninitialized" >> "$GITHUB_ENV"
+
+    - name: MFEM config and build (make)
+      if: matrix.build-system == 'make'
       uses: mfem/github-actions/build-mfem@v2.4
       with:
         os: ${{ matrix.os }}
@@ -108,22 +142,120 @@ jobs:
         hypre-dir: ${{ env.HYPRE_DIR }}
         metis-dir: ${{ env.METIS_DIR }}
         mfem-dir: mfem
-        library-only: false
+        library-only: true
         config-options:
           MFEM_USE_JIT=YES
+          MFEM_USE_METIS_5=YES
+          CXXFLAGS="-O1 -std=c++11 ${{ env.CXXFLAGS_OPT }}"
+          ${{ env.METIS_DIR_OPT }}
+          ${{ env.HYPRE_DIR_OPT }}
 
-    - name: MFEM info (Make)
-      #if: matrix.build-system == 'make'
+    - name: MFEM info, install & set BUILD_DIR (make)
+      if: matrix.build-system == 'make'
       working-directory: mfem
-      run: make info
+      run: |
+        make info
+        make install
+        echo "BUILD_DIR=." >> "$GITHUB_ENV"
 
-    - name: MFEM install (Make)
-      #if: matrix.build-system == 'make'
+    # MFEM CMAKE ##############################################################
+    - name: Set cmake options (cmake)
+      if: matrix.build-system == 'cmake'
+      run: |
+        echo "BUILD_DIR=build" >> "$GITHUB_ENV"
+        echo "MFEM_USE_MPI=$([[ "${{matrix.mpi}}" == "par" ]] && echo "YES" || echo "NO")" >> "$GITHUB_ENV"
+        echo "MFEM_USE_METIS=$([[ "${{matrix.mpi}}" == "par" ]] && echo "YES" || echo "NO")" >> "$GITHUB_ENV"
+        echo CMAKE_BUILD_TYPE=$([[ "${{matrix.target}}" == "dbg" ]] && echo "Debug" || echo "RelWithDebInfo") >> "$GITHUB_ENV"
+
+    - name: MFEM config and build (cmake)
+      if: matrix.build-system == 'cmake'
       working-directory: mfem
-      run: make install
+      run: |
+        mkdir build && cd build
+        cmake .. -DMFEM_USE_JIT=YES \
+                 -DCMAKE_BUILD_TYPE=${{env.CMAKE_BUILD_TYPE}} -DCMAKE_VERBOSE_MAKEFILE=1 \
+                 -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O1 -g -DNDEBUG" \
+                 -DMFEM_USE_MPI=${{env.MFEM_USE_MPI}} -DHYPRE_DIR=${{env.HYPRE_DIR}} \
+                 -DMFEM_USE_METIS=${{env.MFEM_USE_METIS}} -DMFEM_USE_METIS_5=${{env.MFEM_USE_METIS}} \
+                 -DMETIS_DIR=${{env.METIS_DIR}} \
+                 -DMFEM_ENABLE_TESTING=YES -DMFEM_ENABLE_EXAMPLES=NO -DMFEM_ENABLE_MINIAPPS=NO \
+                 -DCMAKE_INSTALL_PREFIX=install -DCMAKE_INSTALL_MESSAGE=LAZY
+        make install -j3
+        make copy_data copy_miniapps_meshing_data
 
-    - name: MFEM test
-      #if: matrix.build-system == 'make'
-      working-directory: mfem/examples
-      run:
-        ./ex1 -pa
+    # SEQ EX1 #################################################################
+    - name: MFEM JIT sequential examples tests
+      if: matrix.mpi == 'seq'
+      working-directory: mfem/${{env.BUILD_DIR}}/examples
+      run: |
+        echo -e "\033[33m--- Compiling ex1\033[m"
+        make ex1
+        echo -e "\033[33m--- First run will create the JIT cache: archive + shared\033[m"
+        ./ex1 -pa -no-vis | (head -n 16 ; tail -n 2)
+        echo -e "\033[33m--- Second run will re-use the caches\033[m"
+        ./ex1 -pa -no-vis | (head -n 16 ; tail -n 2)
+        echo -e "\033[33m--- Removing the JIT shared library, but keeping the archive one\033[m"
+        rm libmjit.[^a]*
+        echo -e "\033[33m--- Now using MFEM_JIT_DEBUG environment variable to show all JIT commands\033[m"
+        MFEM_JIT_DEBUG=1 ./ex1 -pa -no-vis | (head -n 16 ; tail -n 2)
+
+    # SEQ UNIT, SEDOV & TMOP ##################################################
+    - name: MFEM JIT sequential unit tests
+      if: matrix.mpi == 'seq'
+      working-directory: mfem/${{env.BUILD_DIR}}/tests/unit
+      run: |
+        echo -e "\033[33m--- Compiling mjit_tests, sedov_tests, tmop_pa_tests\033[m"
+        make mjit_tests sedov_tests_cpu sedov_tests_debug tmop_pa_tests_cpu tmop_pa_tests_debug -j3
+        echo -e "\033[33m--- Running sequential JIT tests\033[m"
+        ./mjit_tests
+        echo -e "\033[33m--- Running sedov tests with the debug device\033[m"
+        ./sedov_tests_debug --verbose
+        echo -e "\033[33m--- Running sedov tests with the cpu device, re-using the JIT cache\033[m"
+        ./sedov_tests_cpu --verbose
+        echo -e "\033[33m--- Removing the JIT shared library, but keeping the archive one\033[m"
+        rm libmjit.[^a]*
+        ./sedov_tests_cpu --verbose
+        echo -e "\033[33m--- Running tmop tests with the debug device\033[m"
+        ./tmop_pa_tests_debug --verbose
+        echo -e "\033[33m--- Running tmop tests with the cpu device, re-using the JIT cache\033[m"
+        ./tmop_pa_tests_cpu --verbose
+
+    # PAR EX1 #################################################################
+    - name: MFEM JIT parallel examples tests
+      working-directory: mfem/${{env.BUILD_DIR}}/examples
+      if: matrix.mpi == 'par'
+      run: |
+        echo -e "\033[33m--- Compiling ex1p\033[m"
+        make ex1p
+        echo -e "\033[33m--- First run will create the JIT cache: archive + shared\033[m"
+        ${{env.DYLD}} mpirun -np 3 ./ex1p -pa -no-vis | (head -n 16 ; tail -n 2)
+        echo -e "\033[33m--- Second run will re-use the caches\033[m"
+        ${{env.DYLD}} mpirun -np 3 ./ex1p -pa -no-vis | (head -n 16 ; tail -n 2)
+        echo -e "\033[33m--- Removing the JIT shared library, but keeping the archive one\033[m"
+        rm libmjit.[^a]*
+        echo -e "\033[33m--- Using MFEM_JIT_DEBUG to see the JIT command\033[m"
+        ${{env.DYLD}} MFEM_JIT_DEBUG=1 mpirun -np 3 ./ex1p -pa -no-vis | (head -n 16 ; tail -n 2)
+        echo -e "\033[33m--- Removing all JIT cache ---\033[m"
+        rm libmjit.*
+        echo -e "\033[33m--- Now using MFEM_JIT_FORK environment variable to use a child process for the std::system\033[m"
+        ${{env.DYLD}} MFEM_JIT_FORK=1 mpirun -np 3 ./ex1p -pa -no-vis | (head -n 16 ; tail -n 2)
+
+    # PAR UNIT, SEDOV & TMOP ##################################################
+    - name: MFEM JIT parallel unit tests
+      if: matrix.mpi == 'par'
+      working-directory: mfem/${{env.BUILD_DIR}}/tests/unit
+      run: |
+        echo -e "\033[33m--- Compiling pmjit_tests, psedov_tests, ptmop_pa_tests\033[m"
+        make pmjit_tests psedov_tests_cpu ptmop_pa_tests_cpu -j3
+        echo -e "\033[33m--- Running parallel JIT tests\033[m"
+        ${{env.DYLD}} mpirun -np 2 ./pmjit_tests
+        echo -e "\033[33m--- Running sedov tests with the cpu device\033[m"
+        ${{env.DYLD}} mpirun -np 2 ./psedov_tests_cpu --verbose
+        echo -e "\033[33m--- Running sedov tests with the cpu device, re-using the JIT cache\033[m"
+        ${{env.DYLD}} mpirun -np 2 ./psedov_tests_cpu --verbose
+        echo -e "\033[33m--- Removing the JIT shared library, but keeping the archive one\033[m"
+        rm libmjit.[^a]*
+        ${{env.DYLD}} mpirun -np 2 ./psedov_tests_cpu --verbose
+        echo -e "\033[33m--- Running tmop tests with the cpu device\033[m"
+        ${{env.DYLD}} mpirun -np 2 ./ptmop_pa_tests_cpu --verbose
+

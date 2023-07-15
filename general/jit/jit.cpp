@@ -562,7 +562,8 @@ int JIT::Run(const char *kernel_name)
    if (kernel_name) { msg += kernel_name; msg += " "; }
    if (kernel_name || Get().debug) { warn(msg + cmd); }
 #else
-   if (kernel_name) { warn(msg + "compiling " + kernel_name); }
+   if (kernel_name && !Get().debug) { warn(msg + "compiling " + kernel_name); }
+   if (Get().debug) { warn(msg + cmd); }
 #endif // MFEM_DEBUG
    // In serial mode or with the std_system option set, just call std::system
    if (!mpi::IsInitialized() || Get().std_system) { return std::system(cmd); }
