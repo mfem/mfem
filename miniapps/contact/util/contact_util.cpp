@@ -721,9 +721,7 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
 
 // coordsm : (npoints*4, 3) use what class?
 // m_conn: (npoints*4)
-void Assemble_Contact(const int m, const int npoints,
-                      const Vector x_s,
-                      const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
                       Array<SparseMatrix *> & dM)
 {
@@ -732,14 +730,18 @@ void Assemble_Contact(const int m, const int npoints,
    g.SetSize(m);
    g = 0.0;
 
+
    double g_tmp = 0.;
    Vector dg(4*ndim+ndim);
    dg = 0.;
    DenseMatrix dg2(4*ndim+ndim,4*ndim+ndim);
    dg2 = 0.;
 
-   for (int i=0; i<npoints; i++)
+   int i = -1;
+   for (int k=0; k<dM.Size(); k++)
    {
+      if (!dM[k]) continue;
+      i++;
       Vector x1(ndim);
       x1[0] = x_s[i*ndim];
       x1[1] = x_s[i*ndim+1];
@@ -752,7 +754,6 @@ void Assemble_Contact(const int m, const int npoints,
       DenseMatrix coords2(4,3);
       coords2.CopyRows(coordsm, i*4,(i+1)*4-1);
 
-   //    //how to get coords2?
       dg = 0.0;
       dg2 = 0.;
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
@@ -790,14 +791,14 @@ void Assemble_Contact(const int m, const int npoints,
          dM_i[j] = j_idx[j];
          dM_j[j] = j_idx[j];
       }
-      dM[i]->AddSubMatrix(dM_i,dM_j, dg2);
+      dM[k]->AddSubMatrix(dM_i,dM_j, dg2);
    }
 };
 
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {
    Array<int> attr;
-   attr.Append(2);
+   attr.Append(3);
    Array<int> faces;
    Array<int> ori;
    std::vector<Array<int> > facesVertices;

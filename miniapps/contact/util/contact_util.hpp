@@ -32,7 +32,7 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
                      double& node_g, Vector& node_dg, DenseMatrix& node_dg2);
 // coordsm : (npoints*4, 3) use what class?
 // m_conn: (npoints*4)
-void Assemble_Contact(const int m, const int npoints,
+void Assemble_Contact(const int m, 
                       const Vector x_s,
                       const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,

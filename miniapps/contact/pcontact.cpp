@@ -129,11 +129,30 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
 
    Array<unsigned int> index_recv, elems_recv, proc_recv;
    Vector ref_recv;
-
    Vector xyz_recv;
    Array<int> s_conn_recv;
+
+   PrintVector(xyz, "xyz", 0);
+   PrintVector(xyz, "xyz", 1);
+   PrintVector(xyz, "xyz", 2);
+   PrintArray(procs, "procs", 0);
+   PrintArray(procs, "procs", 1);
+   PrintArray(procs, "procs", 2);
+
+   MPICommunicator tmpcomm(MPI_COMM_WORLD, procs);
+   Vector xyz3;
+   tmpcomm.Communicate(xyz,xyz3,3,0);
+   Array<unsigned int> oprocs = tmpcomm.GetOriginProcs();
+   tmpcomm.UpdateDestinationProcs();
+   Vector xyznew;
+   tmpcomm.Communicate(xyz3,xyznew,3,0);
+   PrintVector(xyz3, "xyz3", 1);
+   PrintVector(xyznew, "xyznew", 1);
+
    gslcomm.SendData(dim,procs,elems,refcrd,xyz, s_conn, proc_recv,index_recv,elems_recv,
                     ref_recv, xyz_recv, s_conn_recv);
+   PrintVector(xyz_recv, "xyz_recv", 1);
+
 
    int np_loc = elems_recv.Size();
    Array<int> conn_loc(np_loc*4);
@@ -310,9 +329,9 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(dim == mesh2.Dimension(), "");
 
    // boundary attribute 2 is the potential contact surface of nodes
-   attr.Append(2);
+   attr.Append(3);
    // boundary attribute 2 is the potential contact surface for master surface
-   m_attr.Append(2);
+   m_attr.Append(3);
 
    ParMesh pmesh1(MPI_COMM_WORLD, mesh1); mesh1.Clear();
    ParMesh pmesh2(MPI_COMM_WORLD, mesh2); mesh2.Clear();
@@ -362,9 +381,6 @@ int main(int argc, char *argv[])
    int gndof_1 = fespace1->GlobalTrueVSize();
    int gndof_2 = fespace2->GlobalTrueVSize();
    int gndofs = gndof_1 + gndof_2;
-   // number of nodes for each mesh
-   // int nnd_1 = pmesh1.GetNV();
-   // int nnd_2 = pmesh2.GetNV();
 
    // find the total number of vertices owned
    ParFiniteElementSpace *vertexfes1 = new ParFiniteElementSpace(&pmesh1, fec1);
@@ -498,8 +514,6 @@ int main(int argc, char *argv[])
 
    int npoints = bdryVerts2.size();
 
-   // mfem::out << "npoints = " << npoints << endl;
-
    Array<int> s_conn(npoints); // connectivity of the second/slave mesh
    Vector xyz(dim * npoints);
    xyz = 0.0;
@@ -519,8 +533,6 @@ int main(int argc, char *argv[])
    }
    MFEM_VERIFY(count == npoints, "");
 
-   // globalvertices1.Print(mfem::out, globalvertices1.Size());
-   // globalvertices2.Print(mfem::out, globalvertices2.Size());
 
    // gap function
    Vector g(npoints*dim);
@@ -599,269 +611,51 @@ int main(int argc, char *argv[])
 
    SparseMatrix M(gnnd,gndofs);
 
-   Array<SparseMatrix *> dM(npoints);
-   for (int i = 0; i<npoints; i++)
-   {
-      dM[i] = new SparseMatrix(gndofs,gndofs);
-   }
-
-   Assemble_Contact(gnnd, npoints, xs, m_xi, coordsm,
-                    s_conn, m_conn, g, M, dM);
-
-   MPICommunicator Mcomm(K->GetComm(),voffset,gnnd);
-   SparseMatrix localM(nnd,K->GetGlobalNumCols());
-   Mcomm.Communicate(M,localM);
-
-   // // --------------------------------------------------------------------
-   // // Redistribute the M matrix
-   // // --------------------------------------------------------------------
-   // Array<int> M_send_count(num_procs);
-   // Array<int> M_send_displ(num_procs);
-   // Array<int> M_recv_count(num_procs);
-   // Array<int> M_recv_displ(num_procs);
-
-   // M_send_count = 0; M_send_displ = 0;
-   // M_recv_count = 0; M_recv_displ = 0;
-   // for (int i = 0; i<M.NumRows(); i++)
-   // {
-   //    int rsize = M.RowSize(i);
-   //    if (rsize == 0) continue;
-   //    int rank = get_rank(i,vertex_offsets);
-   //    M_send_count[rank] += rsize+2;
-   // }
-
-   // // communicate so that M_recv_count is constructed
-   // MPI_Alltoall(&M_send_count[0],1,MPI_INT,&M_recv_count[0],1,MPI_INT,K->GetComm());
-   // for (int k=0; k<num_procs-1; k++)
-   // {
-   //    M_send_displ[k+1] = M_send_displ[k] + M_send_count[k];
-   //    M_recv_displ[k+1] = M_recv_displ[k] + M_recv_count[k];
-   // }
-   // int M_sbuff_size = M_send_count.Sum();
-   // int M_rbuff_size = M_recv_count.Sum();
-
-   // // now allocate space for the send buffer
-   // Array<double> M_sendvals(M_sbuff_size);  M_sendvals = 0.0;
-   // Array<int> M_sendcols(M_sbuff_size);  M_sendcols = 0;
-   // Array<int> M_sendoffs(num_procs); M_sendoffs = 0;
-   // for (int i = 0; i<M.NumRows(); i++)
-   // {
-   //    int rsize = M.RowSize(i);
-   //    if (rsize == 0) continue;
-   //    int rank = get_rank(i,vertex_offsets);
-   //    int j = M_send_displ[rank] + M_sendoffs[rank];
-   //    Array<int> cols;
-   //    Vector vals;
-   //    M.GetRow(i,cols,vals);
-   //    M_sendoffs[rank] += rsize+2;
-   //    M_sendvals[j] = (double)i;
-   //    M_sendvals[j+1] = (double)rsize;
-   //    M_sendcols[j] = i;
-   //    M_sendcols[j+1] = rsize;
-   //    for (int l=0; l<rsize ; l++)
-   //    {
-   //       M_sendvals[j+l+2] = vals[l];
-   //       M_sendcols[j+l+2] = cols[l];
-   //    }
-   // }
-
-   // // communication
-   // Array<double> M_recvvals(M_rbuff_size);
-   // Array<int> M_recvcols(M_rbuff_size);
-
-   // double * M_sendvals_ptr = nullptr;
-   // double * M_recvvals_ptr = nullptr;
-   // int * M_sendcols_ptr = nullptr;
-   // int * M_recvcols_ptr = nullptr;
-   // if (M_sbuff_size !=0 ) 
-   // {
-   //    M_sendvals_ptr = &M_sendvals[0]; 
-   //    M_sendcols_ptr = &M_sendcols[0]; 
-   // }   
-   // if (M_rbuff_size !=0 ) 
-   // {
-   //    M_recvvals_ptr = &M_recvvals[0]; 
-   //    M_recvcols_ptr = &M_recvcols[0]; 
-   // }
-
-   // MPI_Alltoallv(M_sendvals_ptr, M_send_count, M_send_displ, MPI_DOUBLE, M_recvvals_ptr,
-   //               M_recv_count, M_recv_displ, MPI_DOUBLE, K->GetComm());
-
-   // MPI_Alltoallv(M_sendcols_ptr, M_send_count, M_send_displ, MPI_INT, M_recvcols_ptr,
-   //               M_recv_count, M_recv_displ, MPI_INT, K->GetComm());
-
-
-   // SparseMatrix localM(nnd,K->GetGlobalNumCols());
-
-   int counter = 0;
-   // while (counter < M_rbuff_size)
-   // {
-   //    int row = M_recvcols[counter] - voffset;
-   //    int size = M_recvcols[counter+1];
-   //    Vector vals(size);
-   //    Array<int> cols(size);
-   //    for (int i = 0; i<size; i++)
-   //    {
-   //       vals[i] = M_recvvals[counter+2 + i];
-   //       cols[i] = M_recvcols[counter+2 + i];
-   //    }
-   //    localM.AddRow(row,cols,vals);
-   //    counter += size+2; 
-   // }
-   // MFEM_VERIFY(counter == M_rbuff_size, "inconsistent size");
-   // localM.Finalize();
-   // localM.SortColumnIndices();
-
-
-
-
-   // --------------------------------------------------------------------
-   MPICommunicator dmcomm(K->GetComm(), K->RowPart()[0], gndofs);
-   // SparseMatrix * Add(Array<SparseMatrix *> & Ai);
-   
    Array<int> npts(num_procs);
    MPI_Allgather(&npoints,1,MPI_INT,&npts[0],1,MPI_INT,MPI_COMM_WORLD);
-   npts.PartialSum();
-   npts.Prepend(0);
-   // npts.Print();
-   int mynptoffset = npts[myid];
+   npts.PartialSum(); npts.Prepend(0);
 
    int gnpts = npts[num_procs];
-   Array<SparseMatrix *> gdM(gnpts);
-   int j=0;
+   Array<SparseMatrix *> dM(gnpts);
    for (int i = 0; i<gnpts; i++)
    {
       if (i >= npts[myid] && i< npts[myid+1])
       {
-         gdM[i] = dM[j++];
+         dM[i] = new SparseMatrix(gndofs,gndofs);
       }
       else
       {
-         gdM[i] = nullptr;
+         dM[i] = nullptr;
       }
    }
 
+   Assemble_Contact(gnnd, xs, m_xi, coordsm, s_conn, m_conn, g, M, dM);
+
+   // --------------------------------------------------------------------
+   // Redistribute the M matrix
+   // --------------------------------------------------------------------
+   MPICommunicator Mcomm(K->GetComm(),voffset,gnnd);
+   SparseMatrix localM(nnd,K->GetGlobalNumCols());
+   Mcomm.Communicate(M,localM);
+   // --------------------------------------------------------------------
+
+   // --------------------------------------------------------------------
+   // Redistribute the dM_i matrices
+   // --------------------------------------------------------------------
+   MPICommunicator dmcomm(K->GetComm(), K->RowPart()[0], gndofs);
    Array<SparseMatrix*> localdMs(gnpts);
    for (int k = 0; k<gnpts; k++)
    {
       localdMs[k] = new SparseMatrix(ndofs,gndofs); 
    }
-   dmcomm.Communicate(gdM,localdMs);
+   dmcomm.Communicate(dM,localdMs);
+   // --------------------------------------------------------------------
+
+
 
    SparseMatrix localDM = *Add(localdMs);
 
-   // --------------------------------------------------------------------
-   // Redistribute the dM_i matrices
-   // --------------------------------------------------------------------
-   // std::vector<int> Koffsets;
-   // ComputeTdofOffsets(K->GetComm(), K->RowPart()[0], Koffsets);
-
-   // Array<int> dM_send_count(num_procs);
-   // Array<int> dM_send_displ(num_procs);
-   // Array<int> dM_recv_count(num_procs);
-   // Array<int> dM_recv_displ(num_procs);
-   // dM_send_count = 0; dM_send_displ = 0;
-   // dM_recv_count = 0; dM_recv_displ = 0;
-   // // loop through the dM matrices
-   // for (int k = 0; k<dM.size(); k++)
-   // {
-   //    if (dM[k].NumNonZeroElems() == 0) continue;
-   //    int nrows = dM[k].NumRows();
-   //    for (int i = 0; i<nrows; i++)
-   //    {
-   //       int rsize = dM[k].RowSize(i);
-   //       if (rsize == 0) continue;
-   //       int rank = get_rank(i,Koffsets);
-   //       dM_send_count[rank] += rsize+2;
-   //    }
-   // }
-   // // comunicate so that dM_recv_count is constructed
-   // MPI_Alltoall(&dM_send_count[0],1,MPI_INT,&dM_recv_count[0],1,MPI_INT,K->GetComm());
-   // for (int k=0; k<num_procs-1; k++)
-   // {
-   //    dM_send_displ[k+1] = dM_send_displ[k] + dM_send_count[k];
-   //    dM_recv_displ[k+1] = dM_recv_displ[k] + dM_recv_count[k];
-   // }
-   // int dM_sbuff_size = dM_send_count.Sum();
-   // int dM_rbuff_size = dM_recv_count.Sum();
-
-   // // now allocate space for the send buffer
-   // Array<double> dM_sendvals(dM_sbuff_size);  dM_sendvals = 0.0;
-   // Array<int> dM_sendcols(dM_sbuff_size);  dM_sendcols = 0;
-   // Array<int> dM_sendoffs(num_procs); dM_sendoffs = 0;
-   // for (int k = 0; k<dM.size(); k++)
-   // {
-   //    if (dM[k].NumNonZeroElems() == 0) continue;
-   //    int nrows = dM[k].NumRows();
-   //    for (int i = 0; i<nrows; i++)
-   //    {
-   //       int rsize = dM[k].RowSize(i);
-   //       if (rsize == 0) continue;
-   //       int rank = get_rank(i,Koffsets);
-   //       int j = dM_send_displ[rank] + dM_sendoffs[rank];
-   //       Array<int> cols;
-   //       Vector vals;
-   //       dM[k].GetRow(i,cols,vals);
-   //       dM_sendoffs[rank] += rsize+2;
-   //       dM_sendvals[j] = (double)i;
-   //       dM_sendvals[j+1] = (double)rsize;
-   //       dM_sendcols[j] = i;
-   //       dM_sendcols[j+1] = rsize;
-   //       for (int l=0; l<rsize ; l++)
-   //       {
-   //          dM_sendvals[j+l+2] = vals[l];
-   //          dM_sendcols[j+l+2] = cols[l];
-   //       }
-   //    }
-   // }
-
-   // // communication
-   // Array<double> dM_recvvals(dM_rbuff_size);
-   // Array<int> dM_recvcols(dM_rbuff_size);
-   // double * dM_sendvals_ptr = nullptr;
-   // double * dM_recvvals_ptr = nullptr;
-   // int * dM_sendcols_ptr = nullptr;
-   // int * dM_recvcols_ptr = nullptr;
-   // if (dM_sbuff_size !=0 ) 
-   // {
-   //    dM_sendvals_ptr = &dM_sendvals[0]; 
-   //    dM_sendcols_ptr = &dM_sendcols[0]; 
-   // }   
-   // if (dM_rbuff_size !=0 ) 
-   // {
-   //    dM_recvvals_ptr = &dM_recvvals[0]; 
-   //    dM_recvcols_ptr = &dM_recvcols[0]; 
-   // }
-
-   // MPI_Alltoallv(dM_sendvals_ptr, dM_send_count, dM_send_displ, MPI_DOUBLE, dM_recvvals_ptr,
-   //               dM_recv_count, dM_recv_displ, MPI_DOUBLE, K->GetComm());
-
-   // MPI_Alltoallv(dM_sendcols_ptr, dM_send_count, dM_send_displ, MPI_INT, dM_recvcols_ptr,
-   //               dM_recv_count, dM_recv_displ, MPI_INT, K->GetComm());
-
-   // SparseMatrix localDM(K->NumRows(),K->GetGlobalNumCols());
-
-   // counter = 0;
-   // while (counter < dM_rbuff_size)
-   // {
-   //    int row = dM_recvcols[counter] - K->GetRowStarts()[0];
-   //    int size = dM_recvcols[counter+1];
-   //    Vector vals(size);
-   //    Array<int> cols(size);
-   //    for (int i = 0; i<size; i++)
-   //    {
-   //       vals[i] = dM_recvvals[counter+2 + i];
-   //       cols[i] = dM_recvcols[counter+2 + i];
-   //    }
-   //    localDM.AddRow(row,cols,vals);
-   //    counter += size+2; 
-   // }
-   // localDM.Finalize();
-   // localDM.SortColumnIndices();
-   // MFEM_VERIFY(counter == dM_rbuff_size, "inconsistent size");
-   // // --------------------------------------------------------------------
-
-   // // Assume this is true
+   // Assume this is true
    MFEM_VERIFY(HYPRE_AssumedPartitionCheck(), "Hypre_AssumedPartitionCheck is False");
 
    localDM.Threshold(1e-15);
@@ -880,8 +674,6 @@ int main(int argc, char *argv[])
    HypreParMatrix hypreDM(K->GetComm(),ndofs,gndofs,gndofs,
                           localDM.GetI(), localDM.GetJ(),localDM.GetData(),
                           DMrows,DMcols);  
-
-
 
    HypreParMatrix * mat = ParAdd(K,&hypreDM);
 

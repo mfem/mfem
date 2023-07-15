@@ -28,7 +28,6 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
 
    mesh.EnsureNodes();
 
-   //FindPointsGSLIB finder(MPI_COMM_WORLD);
    FindPointsGSLIB finder;
 
    finder.SetDistanceToleranceForPointsFoundOnBoundary(0.5);
@@ -198,9 +197,9 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(dim == mesh2.Dimension(), "");
 
    // boundary attribute 2 is the potential contact surface of nodes
-   attr.Append(2);
+   attr.Append(3);
    // boundary attribute 2 is the potential contact surface for master surface
-   m_attr.Append(2);
+   m_attr.Append(3);
 
    //  Define a finite element space on the mesh. Here we use vector finite
    //  elements, i.e. dim copies of a scalar finite element space. The vector
@@ -404,9 +403,12 @@ int main(int argc, char *argv[])
    }
 
    SparseMatrix M(nnd,ndofs);
-   std::vector<SparseMatrix> dM(nnd, SparseMatrix(ndofs,ndofs));
-
-   Assemble_Contact(nnd, npoints, xs, m_xi, coordsm,
+   Array<SparseMatrix *> dM(npoints);
+   for (int i = 0; i<npoints; i++)
+   {
+      dM[i] = new SparseMatrix(ndofs,ndofs);
+   }
+   Assemble_Contact(nnd, xs, m_xi, coordsm,
                     s_conn, m_conn, g, M, dM);
 
    std::set<int> dirbdryv2;
