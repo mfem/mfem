@@ -23,10 +23,11 @@ MPICommunicator::MPICommunicator(MPI_Comm comm_, Array<unsigned int> & destinati
 {
    MPI_Comm_size(comm,&num_procs);
    MPI_Comm_rank(comm,&myid);   
-   send_count.SetSize(num_procs); send_count = 0;
-   send_displ.SetSize(num_procs); send_displ = 0;
-   recv_count.SetSize(num_procs); recv_count = 0;
-   recv_displ.SetSize(num_procs); recv_displ = 0;
+   send_count.SetSize(num_procs); 
+   send_displ.SetSize(num_procs); 
+   recv_count.SetSize(num_procs); 
+   recv_displ.SetSize(num_procs); 
+   resetcounts();
 }
 
 
@@ -41,7 +42,6 @@ int MPICommunicator::get_rank(int dof)
 
 void MPICommunicator::Communicate(const Vector & x_s, Vector & x_r, int vdim, int ordering)
 {
-   MFEM_VERIFY(ordering == mfem::Ordering::byNODES, "For now only ordering by nodes is implemented");
    int npts = x_s.Size()/vdim;
    MFEM_VERIFY(npts == destination_procs.Size(), "Inconsistent number of points to be send");
 
@@ -75,7 +75,8 @@ void MPICommunicator::Communicate(const Vector & x_s, Vector & x_r, int vdim, in
       sendvals[j] = (double)myid;
       for (int k = 0; k<vdim; k++)
       {
-         sendvals[j+k+1] = x_s(k*npts+i);
+         int kk = (ordering == mfem::Ordering::byNODES) ? k*npts+i : i*vdim + k;
+         sendvals[j+k+1] = x_s(kk);
       }
    }
 
@@ -94,25 +95,229 @@ void MPICommunicator::Communicate(const Vector & x_s, Vector & x_r, int vdim, in
    int n = rbuff_size/(vdim+1);
    origin_procs.SetSize(n);
    x_r.SetSize(vdim*n);
-   if (myid == 1) recvvals.Print(mfem::out, recvvals.Size());
    for (int i = 0; i<n; i++)
    {
       origin_procs[i] = (unsigned int)recvvals[(vdim+1)*i];
       for (int j=0; j<vdim; j++)
       {
-         x_r(j*n + i) = recvvals[(vdim+1)*i + j+1];
+         int kk = (ordering == mfem::Ordering::byNODES) ? j*n+i : i*vdim + j;
+         x_r(kk) = recvvals[(vdim+1)*i + j+1];
       }
    }
-   PrintArray(origin_procs, "originprocs", 0);
-   PrintArray(origin_procs, "originprocs", 1);
-   PrintArray(origin_procs, "originprocs", 2);
-   // origin_procs.Print();
+   resetcounts();
+}
+
+void MPICommunicator::Communicate(const Array<unsigned int> & x_s, Array<unsigned int> & x_r, int vdim, int ordering)
+{
+   int npts = x_s.Size()/vdim;
+   MFEM_VERIFY(npts == destination_procs.Size(), "Inconsistent number of points to be send");
+
+   // construct send count
+   for (int i = 0; i<npts; i++)
+   {
+      int rank = destination_procs[i];
+      send_count[rank] += vdim + 1; // including the sending processor id
+   }
+
+   // 2. Compute recv_count
+   MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,comm);
+
+   // 3. Compute displacements
+   for (int k=0; k<num_procs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+
+   // 4. Allocate memory and fill in send buffers
+   Array<unsigned int> sendvals(sbuff_size);  sendvals = 0.0;
+   Array<int> sendoffs(num_procs); sendoffs = 0;
+   for (int i = 0; i<npts; i++)
+   {
+      int rank = destination_procs[i];
+      int j = send_displ[rank] + sendoffs[rank];
+      sendoffs[rank] += vdim+1;
+      sendvals[j] = myid;
+      for (int k = 0; k<vdim; k++)
+      {
+         int kk = (ordering == mfem::Ordering::byNODES) ? k*npts+i : i*vdim + k;
+         sendvals[j+k+1] = x_s[kk];
+      }
+   }
+
+   // 5. Communication
+   Array<unsigned int> recvvals(rbuff_size);
+
+   unsigned int * sendvals_ptr = nullptr;
+   unsigned int * recvvals_ptr = nullptr;
+   if (sbuff_size !=0 ) { sendvals_ptr = &sendvals[0]; }   
+   if (rbuff_size !=0 ) { recvvals_ptr = &recvvals[0]; }
+
+   MPI_Alltoallv(sendvals_ptr, send_count, send_displ, MPI_UNSIGNED, recvvals_ptr,
+                 recv_count, recv_displ, MPI_UNSIGNED, comm);
+
+   // 6. Unpack
+   int n = rbuff_size/(vdim+1);
+   origin_procs.SetSize(n);
+   x_r.SetSize(vdim*n);
+   for (int i = 0; i<n; i++)
+   {
+      origin_procs[i] = recvvals[(vdim+1)*i];
+      for (int j=0; j<vdim; j++)
+      {
+         int kk = (ordering == mfem::Ordering::byNODES) ? j*n+i : i*vdim + j;
+         x_r[kk] = recvvals[(vdim+1)*i + j+1];
+      }
+   }
+   resetcounts();
 }
 
 void MPICommunicator::Communicate(const Array<int> & x_s, Array<int> & x_r, int vdim, int ordering)
 {
+   int npts = x_s.Size()/vdim;
+   MFEM_VERIFY(npts == destination_procs.Size(), "Inconsistent number of points to be send");
+
+   // construct send count
+   for (int i = 0; i<npts; i++)
+   {
+      int rank = destination_procs[i];
+      send_count[rank] += vdim + 1; // including the sending processor id
+   }
+
+   // 2. Compute recv_count
+   MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,comm);
+
+   // 3. Compute displacements
+   for (int k=0; k<num_procs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+
+   // 4. Allocate memory and fill in send buffers
+   Array<int> sendvals(sbuff_size);  sendvals = 0.0;
+   Array<int> sendoffs(num_procs); sendoffs = 0;
+   for (int i = 0; i<npts; i++)
+   {
+      int rank = destination_procs[i];
+      int j = send_displ[rank] + sendoffs[rank];
+      sendoffs[rank] += vdim+1;
+      sendvals[j] = myid;
+      for (int k = 0; k<vdim; k++)
+      {
+         int kk = (ordering == mfem::Ordering::byNODES) ? k*npts+i : i*vdim + k;
+         sendvals[j+k+1] = x_s[kk];
+      }
+   }
+
+   // 5. Communication
+   Array<int> recvvals(rbuff_size);
+
+   int * sendvals_ptr = nullptr;
+   int * recvvals_ptr = nullptr;
+   if (sbuff_size !=0 ) { sendvals_ptr = &sendvals[0]; }   
+   if (rbuff_size !=0 ) { recvvals_ptr = &recvvals[0]; }
+
+   MPI_Alltoallv(sendvals_ptr, send_count, send_displ, MPI_INT, recvvals_ptr,
+                 recv_count, recv_displ, MPI_INT, comm);
+
+   // 6. Unpack
+   int n = rbuff_size/(vdim+1);
+   origin_procs.SetSize(n);
+   x_r.SetSize(vdim*n);
+   for (int i = 0; i<n; i++)
+   {
+      origin_procs[i] = (unsigned int)recvvals[(vdim+1)*i];
+      for (int j=0; j<vdim; j++)
+      {
+         int kk = (ordering == mfem::Ordering::byNODES) ? j*n+i : i*vdim + j;
+         x_r[kk] = recvvals[(vdim+1)*i + j+1];
+      }
+   }
+   resetcounts();
+}
+
+void MPICommunicator::Communicate(const DenseMatrix & A_s, DenseMatrix & A_r, int vdim, int ordering)
+{
+   // matrix width corresponds to dim coordinates
+   // matrix rows might include vdim copies
+   int npts = A_s.Height()/vdim;
+   int dim = A_s.Width();
+   MFEM_VERIFY(npts == destination_procs.Size(), "Inconsistent number of points to be send");
+
+   // construct send count
+   for (int i = 0; i<npts; i++)
+   {
+      int rank = destination_procs[i];
+      send_count[rank] += dim*vdim + 1; // including the sending processor id
+   }
+
+   // 2. Compute recv_count
+   MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,comm);
+
+   // 3. Compute displacements
+   for (int k=0; k<num_procs-1; k++)
+   {
+      send_displ[k+1] = send_displ[k] + send_count[k];
+      recv_displ[k+1] = recv_displ[k] + recv_count[k];
+   }
+   int sbuff_size = send_count.Sum();
+   int rbuff_size = recv_count.Sum();
+
+   // 4. Allocate memory and fill in send buffers
+   Array<double> sendvals(sbuff_size);  sendvals = 0.0;
+   Array<int> sendoffs(num_procs); sendoffs = 0;
+   for (int i = 0; i<npts; i++)
+   {
+      int rank = destination_procs[i];
+      int j = send_displ[rank] + sendoffs[rank];
+      sendoffs[rank] += dim*vdim+1;
+      sendvals[j] = myid;
+      for (int k = 0; k<vdim; k++)
+      {
+         int kk = (ordering == mfem::Ordering::byNODES) ? k*npts+i : i*vdim + k;
+         for (int d=0; d<dim; d++)
+         {
+            sendvals[j+k*dim+d+1] = A_s(kk,d);
+         }
+      }
+   }
+   // 5. Communication
+   Array<double> recvvals(rbuff_size);
+
+   double * sendvals_ptr = nullptr;
+   double * recvvals_ptr = nullptr;
+   if (sbuff_size !=0 ) { sendvals_ptr = &sendvals[0]; }   
+   if (rbuff_size !=0 ) { recvvals_ptr = &recvvals[0]; }
+
+   MPI_Alltoallv(sendvals_ptr, send_count, send_displ, MPI_DOUBLE, recvvals_ptr,
+                 recv_count, recv_displ, MPI_DOUBLE, comm);
+
+   // 6. Unpack
+   int n = rbuff_size/(dim*vdim+1);
+   origin_procs.SetSize(n);
+   A_r.SetSize(vdim*n,dim);
+
+   for (int i = 0; i<n; i++)
+   {
+      origin_procs[i] = (unsigned int)recvvals[(dim*vdim+1)*i];
+      for (int j=0; j<vdim; j++)
+      {
+         int kk = (ordering == mfem::Ordering::byNODES) ? j*n+i : i*vdim + j;
+         for (int d=0; d<dim; d++)
+         {
+            A_r(kk,d) = recvvals[(dim*vdim+1)*i + j*dim + d+1];
+         }
+      }
+   }
+   resetcounts();
 
 }
+
 
 void MPICommunicator::Communicate(const SparseMatrix & mat_s , SparseMatrix & mat_r)
 {
@@ -209,6 +414,7 @@ void MPICommunicator::Communicate(const SparseMatrix & mat_s , SparseMatrix & ma
    MFEM_VERIFY(counter == rbuff_size, "inconsistent rbuff size");
    mat_r.Finalize();
    mat_r.SortColumnIndices();
+   resetcounts();
 }
 
 void MPICommunicator::Communicate(const Array<SparseMatrix*> & vmat_s, Array<SparseMatrix*> & vmat_r)
@@ -320,4 +526,5 @@ void MPICommunicator::Communicate(const Array<SparseMatrix*> & vmat_s, Array<Spa
       vmat_r[i]->Finalize();
       vmat_r[i]->SortColumnIndices();
    }
+   resetcounts();
 }

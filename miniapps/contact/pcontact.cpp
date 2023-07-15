@@ -127,32 +127,18 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
    int myid = Mpi::WorldRank();
    GSLIBCommunicator gslcomm(MPI_COMM_WORLD);
 
-   Array<unsigned int> index_recv, elems_recv, proc_recv;
+   Array<unsigned int> index_recv,elems_recv, proc_recv;
    Vector ref_recv;
    Vector xyz_recv;
    Array<int> s_conn_recv;
 
-   PrintVector(xyz, "xyz", 0);
-   PrintVector(xyz, "xyz", 1);
-   PrintVector(xyz, "xyz", 2);
-   PrintArray(procs, "procs", 0);
-   PrintArray(procs, "procs", 1);
-   PrintArray(procs, "procs", 2);
+   MPICommunicator mycomm(MPI_COMM_WORLD, procs);
+   mycomm.Communicate(xyz,xyz_recv,3,mfem::Ordering::byNODES);
+   mycomm.Communicate(elems,elems_recv,1,mfem::Ordering::byVDIM);
+   mycomm.Communicate(refcrd,ref_recv,3,mfem::Ordering::byVDIM);
+   mycomm.Communicate(s_conn,s_conn_recv,1,mfem::Ordering::byVDIM);
 
-   MPICommunicator tmpcomm(MPI_COMM_WORLD, procs);
-   Vector xyz3;
-   tmpcomm.Communicate(xyz,xyz3,3,0);
-   Array<unsigned int> oprocs = tmpcomm.GetOriginProcs();
-   tmpcomm.UpdateDestinationProcs();
-   Vector xyznew;
-   tmpcomm.Communicate(xyz3,xyznew,3,0);
-   PrintVector(xyz3, "xyz3", 1);
-   PrintVector(xyznew, "xyznew", 1);
-
-   gslcomm.SendData(dim,procs,elems,refcrd,xyz, s_conn, proc_recv,index_recv,elems_recv,
-                    ref_recv, xyz_recv, s_conn_recv);
-   PrintVector(xyz_recv, "xyz_recv", 1);
-
+   proc_recv = mycomm.GetOriginProcs();
 
    int np_loc = elems_recv.Size();
    Array<int> conn_loc(np_loc*4);
@@ -290,8 +276,12 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
       conn_loc[i] = gvert[conn_loc[i]];
    }
 
-   gslcomm.SendData2(dim,proc_recv,xyz_recv,xi_send, s_conn_recv, conn_loc, coordsm,xyz2,xi,s_conn2, conn, coords);
-
+   mycomm.UpdateDestinationProcs();
+   mycomm.Communicate(xyz_recv,xyz2,3,mfem::Ordering::byNODES);
+   mycomm.Communicate(xi_send,xi,2,mfem::Ordering::byVDIM);
+   mycomm.Communicate(s_conn_recv,s_conn2,1,mfem::Ordering::byVDIM);
+   mycomm.Communicate(conn_loc,conn,4,mfem::Ordering::byVDIM);
+   mycomm.Communicate(coordsm,coords,4,mfem::Ordering::byVDIM);
 }
 
 int main(int argc, char *argv[])
