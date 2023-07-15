@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
    double rho0 = 1e-6;
    int simp_exp = 3;
    double max_psi = 1e07;
-   int opt_ver = 1;
+   int opt_ver = 2;
 
    int maxit_penalty = 10000;
    int maxit_newton = 100;
