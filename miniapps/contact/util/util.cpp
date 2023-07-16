@@ -129,6 +129,36 @@ void PrintVector(const Vector & a, const char *aname,  int printid)
    }
 }
 
+void PrintVector(const std::vector<int> & a, const char *aname,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   if (myid == printid)
+   {
+      int sz = a.size();
+      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
+      for (int i = 0; i<sz; i++)
+      {
+         mfem::out << a[i] << "  ";
+      }
+      mfem::out << endl;
+   }
+}
+
+void PrintVector(const std::vector<unsigned int> & a, const char *aname,  int printid)
+{
+   int myid = Mpi::WorldRank();
+   if (myid == printid)
+   {
+      int sz = a.size();
+      mfem::out << "myid = " << myid <<":   " << aname << " = " ;
+      for (int i = 0; i<sz; i++)
+      {
+         mfem::out << a[i] << "  ";
+      }
+      mfem::out << endl;
+   }
+}
+
 void PrintSparseMatrix(const SparseMatrix & a, const char *aname,  int printid)
 {
    int myid = Mpi::WorldRank();
