@@ -93,6 +93,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pgridfunc_save_serial.cpp
   fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadinterpolator.cpp
@@ -352,7 +353,7 @@ if (MFEM_USE_HIP)
    set_property(SOURCE ${DEBUG_DEVICE_SRCS}
                 PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
-mfem_add_executable(debug_device_tests unit_test_main.cpp ${DEBUG_DEVICE_SRCS})
+mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
 target_link_libraries(debug_device_tests mfem)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)

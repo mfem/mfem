@@ -514,7 +514,7 @@ void CopyConvertMemory(Memory<SrcT> &src, MemoryClass dst_mc, Memory<DstT> &dst)
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(src, capacity);
    auto dst_p = mfem::Write(dst, capacity);
-   MFEM_FORALL(i, capacity, dst_p[i] = src_p[i];);
+   mfem::forall(capacity, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 
 
@@ -697,7 +697,7 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
    // Perform the copy using the configured mfem Device
    auto src_p = mfem::Read(mem_csr.J, nnz);
    auto dst_p = mfem::Write(dst_J, nnz);
-   MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
+   mfem::forall(nnz, [=] MFEM_HOST_DEVICE (int i) { dst_p[i] = src_p[i]; });
 }
 #endif
 
@@ -1489,7 +1489,10 @@ void HypreParMatrix::GetDiag(Vector &diag) const
       double *d_diag = diag.Write();
       const HYPRE_Int *A_diag_i = A->diag->i;
       const double *A_diag_d = A->diag->data;
-      MFEM_FORALL(i, size, d_diag[i] = A_diag_d[A_diag_i[i]];);
+      mfem::forall(size, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_diag[i] = A_diag_d[A_diag_i[i]];
+      });
    }
    else
 #endif
@@ -2993,10 +2996,7 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    for (int i = 0; i < nprocs; ++i)
    {
       globalNum += all_num_loc[i];
-      if (rank == 0)
-      {
-         MFEM_VERIFY(globalNum >= 0, "overflow in global size");
-      }
+      MFEM_VERIFY(globalNum >= 0, "overflow in global size");
       if (i < rank)
       {
          firstLocal += all_num_loc[i];
@@ -3061,9 +3061,6 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             const int nrows = blocks(i,j)->NumRows();
             const int ncols = blocks(i,j)->NumCols();
 
-            MFEM_VERIFY(nrows > 0 &&
-                        ncols > 0, "Invalid block in HypreParMatrixFromBlocks");
-
             if (rowOffsets[i+1] == 0)
             {
                rowOffsets[i+1] = nrows;
@@ -3085,14 +3082,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             }
          }
       }
-
-      MFEM_VERIFY(rowOffsets[i+1] > 0, "Invalid input blocks");
       rowOffsets[i+1] += rowOffsets[i];
    }
 
    for (int j=0; j<numBlockCols; ++j)
    {
-      MFEM_VERIFY(colOffsets[j+1] > 0, "Invalid input blocks");
       colOffsets[j+1] += colOffsets[j];
    }
 
