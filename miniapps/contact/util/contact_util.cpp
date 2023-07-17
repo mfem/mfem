@@ -886,6 +886,7 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
 
       if (d < tol)
       {
+         mfem::out << "dimNormal = " << dimNormal << endl;
          MFEM_VERIFY(dimNormal == -1, "");
          dimNormal = i;
 

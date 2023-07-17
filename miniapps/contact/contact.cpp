@@ -153,17 +153,6 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
          conn[4*i+p] = faceVert[p];
       }
    }
-
-   int sz = xi.Size()/2;
-   for (int i = 0; i<sz; i++)
-   {
-      mfem::out << "\ni = " << i << ", ξᵢ = ("<<xi[i*(dim-1)]<<","<<xi[i*(dim-1)+1]<<"): -> \n";
-      for (int j = 0; j<4; j++)
-      {
-         PrintVertex(&mesh,conn[4*i+j]);
-      }
-      mfem::out << endl;
-   }
 }
 
 int main(int argc, char *argv[])
@@ -386,7 +375,7 @@ int main(int argc, char *argv[])
    DenseMatrix coordsm(npoints*4, dim);
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
-   x1 = 0.0; // x1 order: [xyz xyz... xyz]
+   x1 = 1e-4; // x1 order: [xyz xyz... xyz]
    add(nodes0, x1, *nodes1);
 
    FindPointsInMesh(mesh1, xyz, m_conn, m_xi);
@@ -401,7 +390,6 @@ int main(int argc, char *argv[])
          }
       }
    }
-
    SparseMatrix M(nnd,ndofs);
    Array<SparseMatrix *> dM(npoints);
    for (int i = 0; i<npoints; i++)
@@ -459,16 +447,5 @@ int main(int argc, char *argv[])
       Dirichlet_dof.Append(v*dim + 2);
       Dirichlet_val.Append(0.);
    }
-   //M.Print();
-   /*Vector eps(ndofs);
-   Vector sol(ndofs); sol = 0.;
-   for(int i=0;i<ndofs;i++) eps[i] = 1e-5 * i ;
-   for(int i=0;i<9;i++)
-   {
-     cout<<i<<endl;
-     dM[s_conn[i]].Mult(eps,sol);
-     sol.Print();
-   }
-   */
    return 0;
 }

@@ -281,7 +281,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
    mycomm.Communicate(coordsm,coords,4,mfem::Ordering::byVDIM);
 }
 
-void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn, Vector & xyz, Array<int>& conn,
+void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn, const ParGridFunction &x1, Vector & xyz, Array<int>& conn,
                       Vector& xi, DenseMatrix & coords)
 {
    const int dim = mesh.Dimension();
@@ -491,7 +491,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       {
          for (int k=0; k<dim; k++)
          {
-            coordsm(i*4+j,k) = mesh.GetVertex(conn_loc[i*4+j])[k];
+            coordsm(i*4+j,k) = mesh.GetVertex(conn_loc[i*4+j])[k]+x1[dim*conn_loc[i*4+j]+k];
          }
       }
    }
@@ -535,7 +535,10 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    Mesh mesh1(mesh_file1, 1, 1);
    Mesh mesh2(mesh_file2, 1, 1);
@@ -760,7 +763,7 @@ int main(int argc, char *argv[])
    DenseMatrix coordsm(npoints*4, dim);
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
-   x1 = 0.0; // x1 order: [xyz xyz... xyz]
+   x1 = 1e-4; // x1 order: [xyz xyz... xyz]
    add(nodes0, x1, *nodes1);
 
    // s_conn is reordered matching m_conn ordering
@@ -773,8 +776,7 @@ int main(int argc, char *argv[])
 
 
    // note that s_conn and xyz are reordered.
-   FindPointsInMesh(pmesh1, globalvertices1, s_conn, xyz, m_conn, m_xi ,coordsm);
-
+   FindPointsInMesh(pmesh1, globalvertices1, s_conn, x1, xyz, m_conn, m_xi ,coordsm);
 
    // decode and print
    if (0) // for debugging
@@ -850,7 +852,6 @@ int main(int argc, char *argv[])
    }
 
    Assemble_Contact(gnnd, xs, m_xi, coordsm, s_conn, m_conn, g, M, dM);
-
    // --------------------------------------------------------------------
    // Redistribute the M matrix
    // --------------------------------------------------------------------
