@@ -415,8 +415,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
           CPardisoSolver ASolver(MPI_COMM_WORLD);
           ASolver.SetOperator(*Ah);
           ASolver.Mult(b, Xhat);
-        #else
-	  MFEM_VERIFY(false, "linSolver 0 will not work unless MFEM is compiled with MUMPS or MKL");
+	#else
+	  MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
         #endif
       #endif
 
@@ -425,10 +425,10 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    else if(linSolver == 1 || linSolver == 2)
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
-      HypreParMatrix * Huuloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0))));
-      HypreParMatrix * Wmmloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1))));
-      HypreParMatrix * Juloc  = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0))));
-      HypreParMatrix * JuTloc = new HypreParMatrix(*dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2))));
+      HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
+      HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
+      HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
+      HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
       
       
       HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
@@ -457,7 +457,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 	     AreducedSolver.SetOperator(*Areduced);
 	     AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
            #else
-	     MFEM_VERIFY(false, "linSovler 1 will not work unless MFEM is compiled with MUMPS or MKL");
+	     MFEM_VERIFY(false, "linSolver 1 will not work unless compiled with MUMPS or MKL");
            #endif
          #endif
       }
@@ -483,10 +483,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
       Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
-      delete Wmmloc;
-      delete Huuloc;
       delete JuTDJu;
-      delete Juloc;
       delete Areduced;
    }
 
@@ -606,7 +603,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
             sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true : false;
             if(sufficientDecrease)
             {
-               if(iAmRoot) { cout << "A-5.4. Case I -- accepted step length.\n"; } 
+               if(iAmRoot) { cout << "Line search successful: sufficient decrease in log-barrier objective.\n"; } 
                // accept the trial step
                lineSearchSuccess = true;
                break;
@@ -616,7 +613,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
          {
             if(thxtrial <= (1. - gTheta) * thx0 || phxtrial <= phx0 - gPhi * thx0)
             {
-               if(iAmRoot) { cout << "A-5.4. Case II -- accepted step length.\n"; } 
+               if(iAmRoot) { cout << "Line search successful: infeasibility or log-barrier objective decreased.\n"; } 
                // accept the trial step
                lineSearchSuccess = true;
                break;

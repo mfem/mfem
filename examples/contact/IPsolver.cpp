@@ -102,7 +102,7 @@ void InteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 {
   BlockVector x0block(block_offsetsx); x0block = 0.0;
   x0block.GetBlock(0).Set(1.0, x0);
-  // hard coded initialization :(
+  // To do: give options for user specificiation of initialization m0
   x0block.GetBlock(1) = 100.;
   x0block.GetBlock(1).Add(1.0, ml);
   BlockVector xfblock(block_offsetsx); xfblock = 0.0;
@@ -158,20 +158,14 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
   for(jOpt = 0; jOpt < max_iter; jOpt++)
   {
-    if(iAmRoot)
-    {
-      cout << "interior-point solve step " << jOpt << endl;
-    }
+    mfem::out << "interior-point solve step " << jOpt << endl;
     // A-2. Check convergence of overall optimization problem
     printOptimalityError = false;
     Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
     if(Eevalmu0 < rel_tol)
     {
       converged = true;
-      if(iAmRoot)
-      {
-        cout << "solved optimization problem :)\n";
-      }
+      mfem::out << "solved optimization problem :)\n";
       break;
     }
     
@@ -184,10 +178,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
       if(Eeval < kEps * mu_k)
       {
-        if(iAmRoot)
-        {
-          cout << "solved barrier subproblem :), for mu = " << mu_k << endl;
-        }
+        mfem::out << "solved barrier subproblem, for mu = " << mu_k << endl;
         // A-3.1. Recompute the barrier parameter
         mu_k  = max(rel_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
         // A-3.2. Re-initialize the filter
@@ -202,10 +193,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
     
     // A-4. Compute the search direction
     // solve for (uhat, mhat, lhat)
-    if(iAmRoot)
-    {
-      cout << "\n** A-4. IP-Newton solve **\n";
-    }
+    mfem::out << "\n** A-4. IP-Newton solve **\n";
     zlhat = 0.0; Xhatuml = 0.0;
     // why do we have Xhatuml ....???
     // TO DO: remove Xhatuml in favor of passing Xhat
@@ -229,19 +217,13 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
 
     // A-5. Backtracking line search.
-    if(iAmRoot)
-    {
-      cout << "\n** A-5. Linesearch **\n";
-      cout << "mu = " << mu_k << endl;
-    }
+    mfem::out << "\n** A-5. Linesearch **\n";
+    mfem::out << "mu = " << mu_k << endl;
+    
     lineSearch(Xk, Xhat, mu_k);
-
+    
     if(lineSearchSuccess)
     {
-      if(iAmRoot)
-      {
-        cout << "lineSearch successful :)\n";
-      }
       if(!switchCondition || !sufficientDecrease)
       {
         F1.Append( (1. - gTheta) * thx0);
@@ -257,21 +239,15 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
     }
     else
     {
-      if(iAmRoot)
-      {
-        cout << "lineSearch not successful :(\n";
-        cout << "attempting feasibility restoration with theta = " << thx0 << endl;
-        cout << "no feasibility restoration implemented, exiting now \n";
-      }
+      mfem::out << "lineSearch not successful :(\n";
+      mfem::out << "attempting feasibility restoration with theta = " << thx0 << endl;
+      mfem::out << "no feasibility restoration implemented, exiting now \n";
       break;
-      //cout << "feasibility restoration!!! :( :( :(\n";
-      //problem->feasibilityRestoration(x, 1.e-12);
-      //      break;
     }
     //
-    if(jOpt + 1 == max_iter && iAmRoot) 
+    if(jOpt + 1 == max_iter) 
     { 
-      cout << "maximum optimization iterations :(\n";
+      mfem::out << "maximum optimization iterations :(\n";
     }
   }
   // done with optimization routine, just reassign data to xf reference so
@@ -404,10 +380,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     {
       // Direct solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
       // where Wmm = D for contact problems
-      SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
-      SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
-      SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
-      SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
+      SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
+      SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
+      SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
+      SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
       Vector D(dimM); D = 0.0;
       Vector one(dimM); one = 1.0;
       Wmmloc->Mult(one, D);
@@ -438,10 +414,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
       Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
-      delete Wmmloc;
-      delete Huuloc;
       delete JuTDJu;
-      delete Juloc;
       delete Areduced;
     }
   #else
@@ -452,10 +425,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
     // where Wmm = D for contact problems
     // here the iterative solver is a Jacobi-preconditioned CG-solve
-    SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
-    SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
-    SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
-    SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
+    SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
+    SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
+    SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
+    SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
     Vector D(dimM); D = 0.0;
     Vector one(dimM); one = 1.0;
     Wmmloc->Mult(one, D);
@@ -491,10 +464,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
     Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
-    delete Wmmloc;
-    delete Huuloc;
     delete JuTDJu;
-    delete Juloc;
     delete Areduced;
   }
   else if(linSolver > 2)
@@ -502,10 +472,11 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
     // where Wmm = D for contact problems
     // here the iterative solver is a Jacobi-preconditioned CG-solve
-    SparseMatrix * Huuloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0))));
-    SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
-    SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
-    SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
+    SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
+    SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
+    SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
+    SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
+
     Vector D(dimM); D = 0.0;
     Vector one(dimM); one = 1.0;
     Wmmloc->Mult(one, D);
@@ -541,10 +512,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
     Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
-    delete Wmmloc;
-    delete Huuloc;
     delete JuTDJu;
-    delete Juloc;
     delete Areduced;
   }
     
@@ -616,20 +584,20 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
   descentDirection = Dxphi0_xhat < 0. ? true : false;
   if(descentDirection)
   {
-    cout << "is a descent direction for the log-barrier objective\n";
+    mfem::out << "is a descent direction for the log-barrier objective\n";
   }
   else
   {
-    cout << "is not a descent direction for the log-barrier objective\n";
+    mfem::out << "is not a descent direction for the log-barrier objective\n";
   }
-  cout << "Dxphi^T xhat / (|| Dxphi||_2 * || xhat ||_2) = " << Dxphi0_xhat / (sqrt(InnerProduct(xhat, xhat)) * sqrt(InnerProduct(Dxphi0, Dxphi0))) << endl;
+  mfem::out << "Dxphi^T xhat / (|| Dxphi||_2 * || xhat ||_2) = " << Dxphi0_xhat / (sqrt(InnerProduct(xhat, xhat)) * sqrt(InnerProduct(Dxphi0, Dxphi0))) << endl;
   thx0 = theta(x0);
   phx0 = phi(x0, mu);
 
   lineSearchSuccess = false;
   for(int i = 0; i < maxBacktrack; i++)
   {
-    cout << "\n--------- alpha = " << alpha << " ---------\n";
+    mfem::out << "\n--------- alpha = " << alpha << " ---------\n";
 
     // ----- A-5.2. Compute trial point: xtrial = x0 + alpha_i xhat
     xtrial.Set(1.0, x0);
@@ -642,7 +610,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
     filterCheck(thxtrial, phxtrial);    
     if(!inFilterRegion)
     {
-      cout << "not in filter region :)\n";
+      mfem::out << "not in filter region :)\n";
       // ------ A.5.4: Check sufficient decrease
       if(!descentDirection)
       {
@@ -652,9 +620,9 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
       {
         switchCondition = (alpha * pow(abs(Dxphi0_xhat), sPhi) > delta * pow(thx0, sTheta)) ? true : false;
       }
-      cout << "theta(x0) = "     << thx0     << ", thetaMin = "                  << thetaMin             << endl;
-      cout << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "     << (1. - gTheta) * thx0 << endl;
-      cout << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = " << phx0 - gPhi * thx0   << endl;
+      mfem::out << "theta(x0) = "     << thx0     << ", thetaMin = "                  << thetaMin             << endl;
+      mfem::out << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "     << (1. - gTheta) * thx0 << endl;
+      mfem::out << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = " << phx0 - gPhi * thx0   << endl;
       
       // Case I      
       if(thx0 <= thetaMin && switchCondition)
@@ -662,7 +630,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
         sufficientDecrease = phxtrial <= phx0 + eta * alpha * Dxphi0_xhat ? true : false;
         if(sufficientDecrease)
         {
-          if(iAmRoot) { cout << "A-5.4. Case I -- accepted step length.\n"; } 
+          mfem::out << "Accepted step length -- sufficient decrease in log-barrier objective.\n"; 
           // accept the trial step
           lineSearchSuccess = true;
           break;
@@ -672,7 +640,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
       {
         if(thxtrial <= (1. - gTheta) * thx0 || phxtrial <= phx0 - gPhi * thx0)
         {
-          if(iAmRoot) { cout << "A-5.4. Case II -- accepted step length.\n"; } 
+          mfem::out << "Accepted step length -- decrease in either constraint violation or log-barrier objective.\n"; 
           // accept the trial step
           lineSearchSuccess = true;
           break;
@@ -681,7 +649,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
       // A-5.5: Initialize the second-order correction
       if((!(thx0 < thxtrial)) && i == 0)
       {
-        cout << "second order correction\n";
+        mfem::out << "second order correction\n";
         problem->c(xtrial, ckSoc);
         problem->c(x0, ck0);
         ckSoc.Add(alphaMax, ck0);
@@ -694,7 +662,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
     }
     else
     {
-      cout << "in filter region\n";
+      mfem::out << "in filter region\n";
     }
 
     // include more if needed
@@ -761,12 +729,12 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
   ll1 =  l.Norml1();
   sc = max(sMax, zl1 / (double(dimM)) ) / sMax;
   sd = max(sMax, (ll1 + zl1) / (double(dimC + dimM))) / sMax;
-  if(iAmRoot && print)
+  if(print)
   {
-    cout << "evaluating optimality error for mu = " << mu << endl;
-    cout << "stationarity measure = "    << E1 / sd << endl;
-    cout << "feasibility measure  = "    << E2      << endl;
-    cout << "complimentarity measure = " << E3 / sc << endl;
+    mfem::out << "evaluating optimality error for mu = " << mu << endl;
+    mfem::out << "stationarity measure = "    << E1 / sd << endl;
+    mfem::out << "feasibility measure  = "    << E2      << endl;
+    mfem::out << "complimentarity measure = " << E3 / sc << endl;
   }
   return max(max(E1 / sd, E2), E3 / sc);
 }
