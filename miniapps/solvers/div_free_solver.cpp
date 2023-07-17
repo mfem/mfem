@@ -622,17 +622,8 @@ int DivFreeSolver::GetNumIterations() const
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
 
-BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearForm> &a,
-                                                   const shared_ptr<ParMixedBilinearForm> &b,
-                                                   const IterSolveParameters &param,
-                                                   const Array<int> &ess_bdr_attr)
-   : DarcySolver(a->ParFESpace()->GetTrueVSize(), b->TestParFESpace()->GetTrueVSize()),
-     trial_space(*a->ParFESpace()), test_space(*b->TestParFESpace()), elimination_(false),
-     solver_(a->ParFESpace()->GetComm())
+void BlockHybridizationSolver::Init(const int ne)
 {
-    ParMesh &pmesh(*trial_space.GetParMesh());
-    const int ne = pmesh.GetNE();
-
     hat_offsets.SetSize(ne + 1);
     hat_offsets[0] = 0;
     for (int i = 0; i < ne; ++i)
@@ -665,23 +656,11 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     ipiv = new int[ipiv_offsets.Last()];
 
     mixed_dofs.Reserve(ipiv_offsets.Last());
+}
 
-    Array<int> ess_dof_marker;
-    for (int attr : ess_bdr_attr)
-    {
-        if (attr)
-        {
-            elimination_ = true;
-            trial_space.GetEssentialVDofs(ess_bdr_attr, ess_dof_marker);
-            break;
-        }
-    }
-
-    const int order = trial_space.FEColl()->GetOrder()-1;
-    DG_Interface_FECollection fec(order, pmesh.Dimension());
-    c_fes = new ParFiniteElementSpace(&pmesh, &fec);
-    ParFiniteElementSpace &c_space(*c_fes);
-
+void BlockHybridizationSolver::ConstructCt(const ParFiniteElementSpace &c_space)
+{
+    ParMesh &pmesh(*trial_space.GetParMesh());
     Ct = new SparseMatrix(hat_offsets.Last(), c_space.GetNDofs());
     Array<int> dofs, c_dofs;
     const double eps = 1e-12;
@@ -744,10 +723,20 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         Ct->AddSubMatrix(dofs, c_dofs, elmat);
     }
     Ct->Finalize();
+}
 
+void BlockHybridizationSolver::ConstructH(const shared_ptr<ParBilinearForm> &a,
+                                          const shared_ptr<ParMixedBilinearForm> &b,
+                                          const Array<int> &marker,
+                                          const ParFiniteElementSpace &c_space)
+{
+    ParMesh &pmesh(*trial_space.GetParMesh());
+    const int ne = pmesh.GetNE();
+    const double eps = 1e-12;
     SparseMatrix H(Ct->Width());
     DenseMatrix Ct_local, Minv_Ct_local, H_local;
 
+    Array<int> dofs, c_dofs;
     Array<int> c_dof_marker(Ct->Width());
     c_dof_marker = -1;
     int c_mark_start = 0;
@@ -781,7 +770,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
             FiniteElementSpace::AdjustVDofs(dofs);
             for (int j = 0; j < trial_size; ++j)
             {
-                if (ess_dof_marker[dofs[j]])
+                if (marker[dofs[j]])
                 {
                     for (int k = 0; k < matrix_size; ++k)
                     {
@@ -825,7 +814,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         {
             mixed_dofs.Append(hat_offsets.Last() + test_offset + j);
         }
-        
+
         Ct_local.SetSize(M.Height(), c_dofs.Size()); // Ct_local = [C 0]^T
         Ct_local = 0.0;
         for (int j = 0; j < trial_size; ++j)
@@ -862,6 +851,39 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     dH.MakeSquareBlockDiag(c_space.GetComm(), c_space.GlobalVSize(),
                            c_space.GetDofOffsets(), &H);
     pH.MakePtAP(dH, pP);
+}
+
+BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearForm> &a,
+                                                   const shared_ptr<ParMixedBilinearForm> &b,
+                                                   const IterSolveParameters &param,
+                                                   const Array<int> &ess_bdr_attr)
+   : DarcySolver(a->ParFESpace()->GetTrueVSize(), b->TestParFESpace()->GetTrueVSize()),
+     trial_space(*a->ParFESpace()), test_space(*b->TestParFESpace()), elimination_(false),
+     solver_(a->ParFESpace()->GetComm())
+{
+    ParMesh &pmesh(*trial_space.GetParMesh());
+    const int ne = pmesh.GetNE();
+
+    Init(ne);
+
+    Array<int> ess_dof_marker;
+    for (int attr : ess_bdr_attr)
+    {
+        if (attr)
+        {
+            elimination_ = true;
+            trial_space.GetEssentialVDofs(ess_bdr_attr, ess_dof_marker);
+            break;
+        }
+    }
+
+    const int order = trial_space.FEColl()->GetOrder()-1;
+    DG_Interface_FECollection fec(order, pmesh.Dimension());
+    c_fes = new ParFiniteElementSpace(&pmesh, &fec);
+    ParFiniteElementSpace &c_space(*c_fes);
+
+    ConstructCt(c_space);
+    ConstructH(a, b, ess_dof_marker, c_space);
 
     M = new HypreBoomerAMG(*pH.As<HypreParMatrix>());
     M->SetPrintLevel(0);

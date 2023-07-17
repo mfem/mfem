@@ -261,6 +261,13 @@ class BlockHybridizationSolver : public DarcySolver
    HypreBoomerAMG *M;
    OperatorPtr pH;
    CGSolver solver_;
+
+   void Init(const int ne);
+   void ConstructCt(const ParFiniteElementSpace &c_space);
+   void ConstructH(const std::shared_ptr<ParBilinearForm> &a,
+                   const std::shared_ptr<ParMixedBilinearForm> &b,
+                   const Array<int> &marker,
+                   const ParFiniteElementSpace &c_space);
 public:
    BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,
                             const std::shared_ptr<ParMixedBilinearForm> &b,
