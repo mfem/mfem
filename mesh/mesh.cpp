@@ -7944,7 +7944,7 @@ void Mesh::GetNode(int i, double *coord) const
       FiniteElementSpace *fes = Nodes->FESpace();
       for (int j = 0; j < spaceDim; j++)
       {
-         coord[j] = (*Nodes)(fes->DofToVDof(i, j));
+         coord[j] = AsConst(*Nodes)(fes->DofToVDof(i, j));
       }
    }
    else
