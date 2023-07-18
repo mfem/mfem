@@ -3,7 +3,7 @@
 // Compile with: make ex35p
 //
 // Sample runs:  mpirun -np 4 ex35p -p 0 -o 2
-//               mpirun -np 4 ex35p -p 0 -o 2 -pbc 22\ 23\ 24 -em 0
+//               mpirun -np 4 ex35p -p 0 -o 2 -pbc '22 23 24' -em 0
 //               mpirun -np 4 ex35p -p 1 -o 1 -rp 2
 //               mpirun -np 4 ex35p -p 1 -o 2
 //               mpirun -np 4 ex35p -p 2 -o 1 -rp 2 -c 15
