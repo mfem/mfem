@@ -37,6 +37,13 @@ ParContactProblem::ParContactProblem(ParFiniteElementSpace * fesU_,
    block_offsetsx[2] = fesM->GetTrueVSize();
    block_offsetsx.PartialSum();
    ml.SetSize(fesM->GetTrueVSize()); ml = 0.0;
+   Vector negIdentDiag(fesM->GetTrueVSize());
+   negIdentDiag = -1.0;
+   SparseMatrix * diag = new SparseMatrix(negIdentDiag);
+   Ih = new HypreParMatrix(fesM->GetComm(), fesM->GlobalTrueVSize(),
+                                             fesM->GetTrueDofOffsets(), diag);
+   HypreStealOwnership(*Ih,*diag);
+   delete diag;
 }
 
 double ParContactProblem::CalcObjective(const BlockVector &x) const { return E(x.GetBlock(0)); }
@@ -69,22 +76,18 @@ HypreParMatrix * ParContactProblem::Duc(const BlockVector &x)
 
 HypreParMatrix * ParContactProblem::Dmc(const BlockVector &x) 
 { 
-   Vector negIdentDiag(fesM->GetTrueVSize());
-   negIdentDiag = -1.0;
-   SparseMatrix * diag = new SparseMatrix(negIdentDiag);
-   HypreParMatrix * Ih = new HypreParMatrix(fesM->GetComm(), fesM->GlobalTrueVSize(),
-                                             fesM->GetTrueDofOffsets(), diag);
-   HypreStealOwnership(*Ih,*diag);
-   delete diag;
    return Ih;
 } 
 
-ParContactProblem::~ParContactProblem() {}
+ParContactProblem::~ParContactProblem() 
+{
+   delete Ih;
+}
 
 ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_, 
                                        ParFiniteElementSpace *fesM_, 
                                        double (*fSource)(const Vector &)) : 
-                                       ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize())
+                                       ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), J(nullptr)
 {
    Kform = new ParBilinearForm(fesU);
    Kform->AddDomainIntegrator(new MassIntegrator);
@@ -101,6 +104,13 @@ ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_,
    fform->ParallelAssemble(F);
    f.SetSize(F.Size());
    f.Set(1.0, F);
+   
+   Vector iDiag(fesU->GetTrueVSize()); iDiag = 1.0;
+   SparseMatrix * Jacg = new SparseMatrix(iDiag);
+   
+   J = new HypreParMatrix(fesU->GetComm(),fesU->GlobalTrueVSize(),fesU->GetTrueDofOffsets(),Jacg);
+   HypreStealOwnership(*J, *Jacg);
+   delete Jacg;
 }
 
 double ParObstacleProblem::E(const Vector &d) const
@@ -116,13 +126,13 @@ void ParObstacleProblem::DdE(const Vector &d, Vector &gradE) const
    gradE.SetSize(K.Height());
    MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::DdE - Inconsistent dimensions");
    K.Mult(d, gradE);
-   MFEM_VERIFY(K.Height() == f.Size(), "ParObstacleProblem::DdE - Inconsistent dimensions");
+   MFEM_VERIFY(f.Size() == K.Height(), "ParObstacleProblem::DdE - Inconsistent dimensions");
    gradE.Add(-1.0, f);
 }
 
 HypreParMatrix * ParObstacleProblem::DddE(const Vector &d)
 {
-   return new HypreParMatrix(K); 
+   return &K; 
 }
 
 // g(d) = d >= 0
@@ -134,27 +144,23 @@ void ParObstacleProblem::g(const Vector &d, Vector &gd) const
 
 HypreParMatrix * ParObstacleProblem::Ddg(const Vector &d)
 {
-   Vector iDiag(fesU->GetTrueVSize()); iDiag = 1.0;
-   SparseMatrix * Jacg = new SparseMatrix(iDiag);
-   
-   HypreParMatrix * Ah = new HypreParMatrix(fesU->GetComm(),fesU->GlobalTrueVSize(),fesU->GetTrueDofOffsets(),Jacg);
-   HypreStealOwnership(*Ah, *Jacg);
-   delete Jacg;
-   return Ah;
+   return J;
 }
 
 ParObstacleProblem::~ParObstacleProblem()
 {
    delete Kform;
    delete fform;
+   delete J;
 }
 
+// Dirichlet Obstacle Problem
 ParDirichletObstacleProblem::ParDirichletObstacleProblem(ParFiniteElementSpace *fesU_, 
                                        ParFiniteElementSpace *fesM_, 
 				       double (*fSource)(const Vector &),
 				       double (*obstacleSource)(const Vector &),
 				       Array<int> tdof_list,
-				       Vector &xDC) : 
+                                       Vector &xDC) : 
                                        ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), psi(fesU->GetTrueVSize()), J(nullptr)
 {
    // elastic energy functional terms	
@@ -218,13 +224,13 @@ void ParDirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
    gradE.SetSize(K.Height());
    MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::DdE - Inconsistent dimensions");
    K.Mult(d, gradE);
-   MFEM_VERIFY(K.Height() == f.Size(), "ParObstacleProblem::DdE - Inconsistent dimensions");
+   MFEM_VERIFY(f.Size() == K.Height(), "ParObstacleProblem::DdE - Inconsistent dimensions");
    gradE.Add(-1.0, f);
 }
 
 HypreParMatrix * ParDirichletObstacleProblem::DddE(const Vector &d)
 {
-   return new HypreParMatrix(K); 
+   return &K; 
 }
 
 // g(d) = d >= 0
@@ -238,7 +244,7 @@ void ParDirichletObstacleProblem::g(const Vector &d, Vector &gd) const
 
 HypreParMatrix * ParDirichletObstacleProblem::Ddg(const Vector &d)
 {
-   return new HypreParMatrix(*J);
+   return J;
 }
 
 ParDirichletObstacleProblem::~ParDirichletObstacleProblem()
@@ -247,7 +253,3 @@ ParDirichletObstacleProblem::~ParDirichletObstacleProblem()
    delete fform;
    delete J;
 }
-
-
-
-

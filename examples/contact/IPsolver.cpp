@@ -384,10 +384,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
       SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
       SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
-      Vector D(dimM); D = 0.0;
+      Vector DVec(dimM); DVec = 0.0;
       Vector one(dimM); one = 1.0;
-      Wmmloc->Mult(one, D);
-      SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
+      D->Mult(one, DVec);
+      SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, DVec);     // Ju^T D Ju
       SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
 
       
@@ -420,7 +420,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   #else
     MFEM_VERIFY(linSolver > 1, "linSolver = 0, 1 require MFEM_USE_SUITESPARSE=YES");
   #endif
-  if (linSolver == 2)
+  else
   { 
     // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
     // where Wmm = D for contact problems
@@ -429,10 +429,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
     SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
     SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
-    Vector D(dimM); D = 0.0;
+    Vector DVec(dimM); DVec = 0.0;
     Vector one(dimM); one = 1.0;
-    Wmmloc->Mult(one, D);
-    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
+    D->Mult(one, DVec);
+    SparseMatrix *JuTDJu   = Mult_AtDA(*Juloc, DVec);     // Ju^T D Ju
     SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
 
     /* prepare the reduced rhs */
@@ -444,64 +444,32 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     JuTloc->Mult(tempVec, breduced);
     breduced.Add(1.0, b.GetBlock(0));
     
-    /* set up an iterative solver */
-    DSmoother AreducedPrec((SparseMatrix &)(*Areduced));
-    CGSolver AreducedSolver;
-    AreducedSolver.SetOperator(*Areduced);
-    AreducedSolver.SetAbsTol(1.e-12);
-    AreducedSolver.SetRelTol(1.e-8);
-    AreducedSolver.SetMaxIter(500);
-    AreducedSolver.SetPreconditioner(AreducedPrec);
-    AreducedSolver.SetPrintLevel(1);
-    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-    
-    // now propagate solved uhat to obtain mhat and lhat
-    // xm = Ju xu - bl
-    Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
-    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
-
-    // xl = Wmm xm - bm
-    Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
-
-    delete JuTDJu;
-    delete Areduced;
-  }
-  else if(linSolver > 2)
-  { 
-    // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
-    // where Wmm = D for contact problems
-    // here the iterative solver is a Jacobi-preconditioned CG-solve
-    SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
-    SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
-    SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
-    SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
-
-    Vector D(dimM); D = 0.0;
-    Vector one(dimM); one = 1.0;
-    Wmmloc->Mult(one, D);
-    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
-    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
-
-    /* prepare the reduced rhs */
-    // breduced = bu + Ju^T (bm + Wmm bl)
-    Vector breduced(dimU); breduced = 0.0;
-    Vector tempVec(dimM); tempVec = 0.0;
-    Wmmloc->Mult(b.GetBlock(2), tempVec);
-    tempVec.Add(1.0, b.GetBlock(1));
-    JuTloc->Mult(tempVec, breduced);
-    breduced.Add(1.0, b.GetBlock(0));
-    
-    /* set up an iterative solver */
-    GSSmoother AreducedPrec((SparseMatrix &)(*Areduced));
-    GMRESSolver AreducedSolver;
-    AreducedSolver.SetOperator(*Areduced);
-    AreducedSolver.SetAbsTol(1.e-12);
-    AreducedSolver.SetRelTol(1.e-8);
-    AreducedSolver.SetMaxIter(500);
-    AreducedSolver.SetPreconditioner(AreducedPrec);
-    AreducedSolver.SetPrintLevel(1);
-    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    if (linSolver == 2)
+    {
+      /* Jacobi preconditioned conjugate-gradient solve */
+      DSmoother AreducedPrec((SparseMatrix &)(*Areduced));
+      CGSolver AreducedSolver;
+      AreducedSolver.SetOperator(*Areduced);
+      AreducedSolver.SetAbsTol(1.e-12);
+      AreducedSolver.SetRelTol(1.e-8);
+      AreducedSolver.SetMaxIter(500);
+      AreducedSolver.SetPreconditioner(AreducedPrec);
+      AreducedSolver.SetPrintLevel(1);
+      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    }
+    else
+    {
+      /* Gauss-Seidel preconditioned GMRES solve */
+      GSSmoother AreducedPrec((SparseMatrix &)(*Areduced));
+      GMRESSolver AreducedSolver;
+      AreducedSolver.SetOperator(*Areduced);
+      AreducedSolver.SetAbsTol(1.e-12);
+      AreducedSolver.SetRelTol(1.e-8);
+      AreducedSolver.SetMaxIter(500);
+      AreducedSolver.SetPreconditioner(AreducedPrec);
+      AreducedSolver.SetPrintLevel(1);
+      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    }
     
     // now propagate solved uhat to obtain mhat and lhat
     // xm = Ju xu - bl
@@ -528,14 +496,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   {
     delete Wmm;
   }
-  delete Huu;
-  delete Hum;
-  delete Hmu;
-  delete Hmm;
-  delete Hum;
   delete D;
-  delete Ju;
-  delete Jm;
   delete JuT;
   delete JmT;
 }
@@ -800,8 +761,8 @@ void InteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Vecto
   JacmT = Transpose(*Jacm);
   JacuT->Mult(l, y.GetBlock(0));
   JacmT->Mult(l, y.GetBlock(1));
-  delete Jacu; delete JacuT;
-  delete Jacm; delete JacmT;
+  delete JacuT; 
+  delete JacmT;
   y.Add(1.0, gradxf);
   (y.GetBlock(1)).Add(-1.0, zl);
 }

@@ -237,8 +237,6 @@ int main(int argc, char *argv[])
   delete QPContact;
   delete QPContactOptimizer;
   
-  delete K;
-  delete J;
   delete Jreduced;
   delete contact;
   return 0;

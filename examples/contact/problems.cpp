@@ -69,6 +69,9 @@ void ContactProblem::InitializeParentData(int dimd, int dims)
   block_offsetsx[2] = dimM;
   block_offsetsx.PartialSum();
   ml.SetSize(dimM); ml = 0.0;
+  Vector negIdentVec(dimM);
+  negIdentVec = -1.0;
+  negIdentity  = new SparseMatrix(negIdentVec);
 }
 
 double ContactProblem::CalcObjective(const BlockVector &x) const { return E(x.GetBlock(0)); }
@@ -95,12 +98,13 @@ SparseMatrix* ContactProblem::Duc(const BlockVector &x) { return Ddg(x.GetBlock(
 
 SparseMatrix* ContactProblem::Dmc(const BlockVector &x) 
 { 
-  Vector negIdentDiag(dimM);
-  negIdentDiag = -1.0;
-  return new SparseMatrix(negIdentDiag);
+  return negIdentity;
 } 
 
-ContactProblem::~ContactProblem() {}
+ContactProblem::~ContactProblem() 
+{
+  delete negIdentity;
+}
 
 
 
@@ -146,7 +150,7 @@ void ObstacleProblem::DdE(const Vector &d, Vector &gradE) const
 
 SparseMatrix* ObstacleProblem::DddE(const Vector &d)
 {
-  return new SparseMatrix(K); 
+  return &K; 
 }
 
 // g(d) = d >= 0
@@ -157,7 +161,7 @@ void ObstacleProblem::g(const Vector &d, Vector &gd) const
 
 SparseMatrix* ObstacleProblem::Ddg(const Vector &d)
 {
-  return new SparseMatrix(*J);
+  return J;
 }
 
 ObstacleProblem::~ObstacleProblem()
@@ -256,7 +260,7 @@ void DirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
 
 SparseMatrix* DirichletObstacleProblem::DddE(const Vector &d)
 {
-  return new SparseMatrix(*K); 
+  return K; 
 }
 
 // g(d) = d - \psi >= 0
@@ -270,7 +274,7 @@ void DirichletObstacleProblem::g(const Vector &d, Vector &gd) const
 
 SparseMatrix* DirichletObstacleProblem::Ddg(const Vector &d)
 {
-  return new SparseMatrix(*J);
+  return J;
 }
 
 DirichletObstacleProblem::~DirichletObstacleProblem()
@@ -322,7 +326,7 @@ void QPContactProblem::DdE(const Vector &d, Vector &gradE) const
 // Hessian(E) = K
 SparseMatrix* QPContactProblem::DddE(const Vector &d)
 {
-  return new SparseMatrix(*K); 
+  return K; 
 }
 
 // g(d) = J * d + g0 >= 0
@@ -335,7 +339,7 @@ void QPContactProblem::g(const Vector &d, Vector &gd) const
 // Jacobian(g) = J
 SparseMatrix* QPContactProblem::Ddg(const Vector &d)
 {
-  return new SparseMatrix(*J);
+  return J;
 }
 
 QPContactProblem::~QPContactProblem()
@@ -759,6 +763,7 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
 ExContactBlockTL::ExContactBlockTL(int ref_levels)
    : 
    ContactProblem(),
+   block_offsets(3),
    mesh1{nullptr},
    mesh2{nullptr},
    fec1{nullptr},
@@ -769,8 +774,6 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    nodes2{nullptr},
    x1{nullptr},
    x2{nullptr},
-   b1{nullptr},
-   b2{nullptr},
    lambda1_func{nullptr},
    lambda2_func{nullptr},
    mu1_func{nullptr},
@@ -809,13 +812,11 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    fec1     = new H1_FECollection(1, dim);
    fespace1 = new FiniteElementSpace(mesh1, fec1, dim, Ordering::byVDIM);
    ndof_1   = fespace1->GetTrueVSize();
-   cout << "Number of finite element unknowns for mesh1: " << ndof_1 << endl;
    mesh1->SetNodalFESpace(fespace1);
 
    fec2 = new H1_FECollection(1, dim);
    fespace2 = new FiniteElementSpace(mesh2, fec2, dim, Ordering::byVDIM);
    ndof_2   = fespace2->GetTrueVSize();
-   cout << "Number of finite element unknowns for mesh2: " << ndof_2 << endl;
    
    // degrees of freedom of both meshes
    ndofs = ndof_1 + ndof_2;
@@ -900,23 +901,18 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    (*x2) = 0.0;
    for(int i = 0; i < Dirichlet_dof.Size(); i++)
    {
-     if(Dirichlet_dof[i] >= ndof_1)
-     {
-       (*x2)(Dirichlet_dof[i] - ndof_1) = Dirichlet_val[i];
-       ess_tdof_list2.Append(Dirichlet_dof[i] - ndof_1);
-     }
-     else
+     if(Dirichlet_dof[i] < ndof_1)
      {
        (*x1)(Dirichlet_dof[i]) = Dirichlet_val[i];
        ess_tdof_list1.Append(Dirichlet_dof[i]);
      }
+     else
+     {
+       (*x2)(Dirichlet_dof[i] - ndof_1) = Dirichlet_val[i];
+       ess_tdof_list2.Append(Dirichlet_dof[i] - ndof_1);
+     }
    }
   
-
-   b1 = new LinearForm(fespace1);
-   b2 = new LinearForm(fespace2);
-   b1->Assemble();
-   b2->Assemble();
 
    lambda1.SetSize(mesh1->attributes.Max());
    mu1.SetSize(mesh1->attributes.Max());
@@ -952,30 +948,19 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    B2.SetSize(ndof_2); B2 = 0.0;
    a2->EliminateVDofsInRHS(ess_tdof_list2, (*x2), B2);
    
-   K = new SparseMatrix(ndofs, ndofs);
-   for (int i=0; i<A1.Height(); i++) // 1,1 block
-   {
-      Array<int> col_tmp;
-      mfem::Vector v_tmp;
-      col_tmp = 0;
-      v_tmp = 0.0;
-      A1.GetRow(i, col_tmp, v_tmp);
-      K->SetRow(i, col_tmp, v_tmp);
-   }
-   for (int i=0; i<A2.Height(); i++) // 2, 2 block
-   {
-      Array<int> col_tmp;
-      mfem::Vector v_tmp;
-      col_tmp = 0;
-      v_tmp = 0.0;
-      A2.GetRow(i, col_tmp, v_tmp);
-      for (int j=0; j<col_tmp.Size(); j++)
-      {
-         col_tmp[j] += ndof_1;
-      }
-      K->SetRow(i+ndof_1, col_tmp, v_tmp);  // mesh1 top left corner
-   }
-   K->Finalize(1,false);
+   //block_offsets.SetSize(3);
+   block_offsets[0] = 0;
+   block_offsets[1] = ndof_1;
+   block_offsets[2] = ndof_2;
+   block_offsets.PartialSum();
+   BlockMatrix ABlock(block_offsets, block_offsets);
+   ABlock.SetBlock(0, 0, &A1);
+   ABlock.SetBlock(1, 1, &A2);
+   K = ABlock.CreateMonolithic();
+ 
+   B = new BlockVector(block_offsets);
+   B->GetBlock(0).Set(1.0, B1);
+   B->GetBlock(1).Set(1.0, B2);
    // Construct node to segment contact constraint.
    attr.Sort();
 
@@ -985,7 +970,6 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    xyz.SetSize(dim * npoints);
    xyz = 0.0;
 
-   cout << "Boundary vertices for contact surface vertices in mesh 2" << endl;
 
    // construct the nodal coordinates on mesh2 to be projected, including displacement
    int count = 0;
@@ -1018,7 +1002,6 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    coordsm = new DenseMatrix(4*npoints, dim);
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
-   // Tucker modification, removing the nullifying of x1...
    (*x1) = 0.0; // x1 order: [xyz xyz... xyz]
    add(nodes0, *x1, *nodes1); // issues with moving the mesh nodes?
 
@@ -1067,8 +1050,6 @@ ExContactBlockTL::~ExContactBlockTL()
    delete fespace2;
    delete x1;
    delete x2;
-   delete b1;
-   delete b2;
    delete lambda1_func;
    delete lambda2_func;
    delete mu1_func;
@@ -1079,6 +1060,7 @@ ExContactBlockTL::~ExContactBlockTL()
    delete coordsm;
    delete M;
    delete dM;
+   delete B;
 }
 
 FiniteElementSpace ExContactBlockTL::GetVh1()
@@ -1166,46 +1148,19 @@ void ExContactBlockTL::update_hess()
 
 double ExContactBlockTL::E(const Vector &d) const
 {
-  double obj_val = 0.0;
-  Number * x = new Number[ndofs];
-  
-  for(int i = 0; i < ndofs; i++)
-  {
-    x[i] = d(i);
-  }
-  
-  bool boolreturned;
-  boolreturned = eval_f(0, x, true, obj_val);
-  
-  delete x;  
-  return obj_val;
+  return (0.5 * K->InnerProduct(d, d) - InnerProduct(d, *B));
 }
 
 void ExContactBlockTL::DdE(const Vector &d, Vector &gradE) const
 {
-  Number * x = new Number[ndofs];
-  Number * grad_obj = new Number[ndofs];
-  
-  for(int i = 0; i < ndofs; i++)
-  {
-    x[i] = d(i);
-  }
-  
-  bool boolreturned;
-  boolreturned = eval_grad_f(0, x, true, grad_obj);
-  
-  for(int i = 0; i < ndofs; i++)
-  {
-    gradE(i) = grad_obj[i];
-  }
-  
-  delete x;
-  delete grad_obj;
+  gradE = 0.0;
+  K->Mult(d, gradE);
+  gradE.Add(-1.0, *B); 
 }
 
 SparseMatrix* ExContactBlockTL::DddE(const Vector &d) // second argument for SparseMatrix
 {
-  return new SparseMatrix(*K); 
+  return K; 
 }
 
 
@@ -1248,83 +1203,10 @@ SparseMatrix* ExContactBlockTL::Ddg(const Vector &d)
     (*x2)(i-ndof_1) = d(i);
   }
   //update_g();
-  return new SparseMatrix(*M);
+  return M;
 }
 
 
-bool ExContactBlockTL::eval_f(
-   Index         n,
-   const Number* x,
-   bool          new_x,
-   Number&       obj_value
-) const
-{
-   {
-      for (auto i=0; i<ndof_1; i++)
-      {
-         (*x1)[i] = x[i];
-      }
-      for (auto i=ndof_1; i<n; i++)
-      {
-         (*x2)[i-ndof_1] = x[i];
-      }
-   }
-
-   obj_value  = 0;
-   obj_value += A1.InnerProduct(*x1, *x1);
-   obj_value += A2.InnerProduct(*x2, *x2);
-   obj_value *= 0.5;
-   
-   // --- addition
-   obj_value -= InnerProduct(*x1, B1);
-   obj_value -= InnerProduct(*x2, B2);
-   // ---
-   
-   return true;
-}
-
-bool ExContactBlockTL::eval_grad_f(
-   Index         n,
-   const Number* x,
-   bool          new_x,
-   Number*       grad_f
-) const
-{
-   //   if(new_x)
-   {
-      for (auto i=0; i<ndof_1; i++)
-      {
-         (*x1)[i] = x[i];
-      }
-      for (auto i=ndof_1; i<n; i++)
-      {
-         (*x2)[i-ndof_1] = x[i];
-      }
-   }
-
-   // return the gradient of the objective function grad_{x} f(x)
-   mfem::Vector temp1(ndof_1);
-   mfem::Vector temp2(ndof_2);
-
-   A1.Mult(*x1, temp1);
-   A2.Mult(*x2, temp2);
-
-   // --- addition
-   temp1.Add(-1.0, B1);
-   temp2.Add(-1.0, B2);
-   // ---
-
-   for (auto i=0; i<ndof_1; i++)
-   {
-      grad_f[i] = temp1[i];
-   }
-   for (auto i=0; i<ndof_2; i++)
-   {
-      grad_f[i+ndof_1] = temp2[i];
-   }
-
-   return true;
-}
 
 bool ExContactBlockTL::eval_g(
    Index         n,

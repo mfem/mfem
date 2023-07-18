@@ -57,6 +57,7 @@ protected:
     int dimD;
     int dimS;
     Array<int> block_offsetsx;
+    SparseMatrix * negIdentity;
 public:
     //ContactProblem(int, int);        // constructor
     ContactProblem();
@@ -170,23 +171,6 @@ public:
    /** default destructor */
    virtual ~ExContactBlockTL();
 
-
-   /* Method to return the objective value */
-   virtual bool eval_f(
-      Index         n,
-      const Number* x,
-      bool          new_x,
-      Number&       obj_value
-   ) const;
-
-   /* Method to return the gradient of the objective */
-   virtual bool eval_grad_f(
-      Index         n,
-      const Number* x,
-      bool          new_x,
-      Number*       grad_f
-   ) const;
-
    /* Method to return the constraint residuals */
    virtual bool eval_g(
       Index         n,
@@ -271,8 +255,6 @@ private:
    GridFunction* nodes2;
    mutable GridFunction* x1;
    mutable GridFunction* x2;
-   LinearForm* b1;
-   LinearForm* b2;
    PWConstCoefficient* lambda1_func;
    PWConstCoefficient* lambda2_func;
    PWConstCoefficient* mu1_func;
@@ -304,7 +286,7 @@ private:
    mfem::Vector B1, X1;
    SparseMatrix A2;
    mfem::Vector B2, X2;
-
+   BlockVector *B;
    SparseMatrix* K;
    mutable mfem::Vector gapv;
    mutable mfem::Vector m_xi;
@@ -318,7 +300,7 @@ private:
 
    Array<int> Dirichlet_dof;
    Array<double> Dirichlet_val;
-
+   Array<int> block_offsets;
 public: 
    Mesh * GetMesh1() {return mesh1;}
    Mesh * GetMesh2() {return mesh2;}

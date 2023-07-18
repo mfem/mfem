@@ -54,6 +54,7 @@ class ParContactProblem : public ParOptProblem
 {
 protected:
     Array<int> block_offsetsx;
+    HypreParMatrix * Ih;
 public:
     ParContactProblem(ParFiniteElementSpace * fesU_, ParFiniteElementSpace * fesM_);        // constructor
     double CalcObjective(const BlockVector &) const; // objective e
@@ -89,6 +90,7 @@ protected:
    ParLinearForm   *fform;
    Array<int> empty_tdof_list; // needed for calls to FormSystemMatrix
    HypreParMatrix  K;
+   HypreParMatrix  *J;
    Vector f;
 public : 
    ParObstacleProblem(ParFiniteElementSpace*, ParFiniteElementSpace*, double (*fSource)(const Vector &));
@@ -100,14 +102,14 @@ public :
    virtual ~ParObstacleProblem();
 };
 
-// min e(d) = 0.5 d^T K d - f^T d, g(d) = d >= \psi
-// with additional essential boundary conditions imposed on d 
 class ParDirichletObstacleProblem : public ParContactProblem
 {
 protected:
+   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d + \psi >= 0
+   // stiffness matrix used to define objective
    ParBilinearForm *Kform;
    ParLinearForm   *fform;
-   Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
    HypreParMatrix  K;
    HypreParMatrix  *J;
    ParFiniteElementSpace *Vh;

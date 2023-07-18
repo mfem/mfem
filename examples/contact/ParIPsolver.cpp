@@ -494,16 +494,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    }
 
    // free memory
-   delete Huu;
-   delete Hum;
-   delete Hmu;
-   delete Hmm;
-   delete Hum;
    delete D;
-   delete Ju;
-   delete Jm;
    delete JuT;
    delete JmT;
+   if(Hmm != nullptr)
+   {
+      delete Wmm;
+   }
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
@@ -779,8 +776,8 @@ void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Ve
    JacuT->Mult(l, y.GetBlock(0));
    JacmT->Mult(l, y.GetBlock(1));
    
-   delete Jacu; delete JacuT;
-   delete Jacm; delete JacmT;
+   delete JacuT;
+   delete JacmT;
    
    y.Add(1.0, gradxf);
    (y.GetBlock(1)).Add(-1.0, zl);
