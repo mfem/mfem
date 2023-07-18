@@ -39,7 +39,7 @@ public:
    /// Evaluate the second derivative of the dimensionless RBF with respect to r
    virtual double BaseDerivative2(double r) const = 0;
 
-   /// The support radius, outside of which the function is zero
+   /// The support radius, outside of which the function is zero if the function has compact support
    virtual double Radius() const { return GlobalRadius; }
 
    /// Does function have compact support?
