@@ -41,6 +41,8 @@ Meshing improvements
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+- Added HIP support to the SUNDIALS interface.
+
 - TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
   338. Added the tmop-metric-magnitude tool for tracking how metrics change
   under geometric perturbations.
