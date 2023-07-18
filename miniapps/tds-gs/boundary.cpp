@@ -17,8 +17,8 @@ double N_coefficient(const Vector &x, const double & rho_gamma, const double & m
     // coefficient blows up at r=0, however psi=0 at r=0
     return 0.0;
   }
-  return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr * mu);
-  // return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr);
+  // return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr * mu);
+  return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr);
 }
 
 double M_coefficient(const Vector &x, const Vector &y, const double & mu)
@@ -44,10 +44,10 @@ double M_coefficient(const Vector &x, const Vector &y, const double & mu)
   // complete elliptic integral of second kind
   double E = elliptic_em(kxy);
   
-  return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
-    / (4.0 * M_PI * pow(xr * yr, 1.5) * mu);
   // return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
-  //   / (4.0 * M_PI * pow(xr * yr, 1.5));
+  //   / (4.0 * M_PI * pow(xr * yr, 1.5) * mu);
+  return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
+    / (4.0 * M_PI * pow(xr * yr, 1.5));
 }
 
 double BoundaryCoefficient::Eval(ElementTransformation & T,

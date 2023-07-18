@@ -192,7 +192,7 @@ def main():
 
     dz = [a-b for a, b in zip(zr, zl)]
 
-    R = 16
+    R = 16.5
 
 
     rlim, zlim = _VacuumVesselMetalWallCoordinates()

@@ -64,8 +64,8 @@ ur_coeff=1.0
 N_control=40
 
 do_control=1
-weight_coils=1e-16
-weight_solenoids=1e-16
+weight_coils=1e-06
+weight_solenoids=1e-06
 
 ./main.o \
     -m $mesh_file \

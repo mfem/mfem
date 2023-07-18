@@ -38,6 +38,9 @@ private:
 
   bool include_plasma = true;
 
+  GridFunction hat;
+  GridFunction ones;
+
   Vector *g;
   Vector *uv_currents;
   mutable Vector Plasma_Vec;
@@ -94,7 +97,18 @@ public:
     ess_bdr[box_axis-1] = 1;
     fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
 
-    
+    Vector pw_vector(3000);
+    pw_vector = 1.0;
+    pw_vector(1100-1) = 0.0;
+    PWConstCoefficient pw_coeff(pw_vector);
+    GridFunction hat_(fespace);
+    hat_.ProjectCoefficient(pw_coeff);
+    hat = hat_;
+    // hat.Save("hat.gf");
+
+    GridFunction ones_(fespace);
+    ones_ = 1.0;
+    ones = ones_;
   }
   virtual void Mult(const Vector &psi, Vector &y) const;
   virtual Operator &GetGradient(const Vector &psi) const;
@@ -106,6 +120,11 @@ public:
   double compute_obj(const Vector &psi);
   Vector* compute_grad_obj(const Vector &psi);
   SparseMatrix* compute_hess_obj(const Vector &psi);
+
+  double get_mu() {
+    return model->get_mu();
+  }
+
   
   SparseMatrix * GetF() {
     return F;

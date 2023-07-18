@@ -276,17 +276,10 @@ SparseMatrix* SysOperator::compute_hess_obj(const Vector &psi) {
 
 void SysOperator::Mult(const Vector &psi, Vector &y) const {
   // diff_operator * psi - plasma_term(psi) * psi - coil_term
-
-  Vector pw_vector(3000);
-  pw_vector = 1.0;
-  pw_vector(1100-1) = 0.0;
-  PWConstCoefficient pw_coeff(pw_vector);
-  GridFunction hat(fespace);
-  hat.ProjectCoefficient(pw_coeff);
-  hat.Save("hat.gf");
   
   GridFunction x(fespace);
   x = psi;
+  // x.Save("x.gf");
   model->set_alpha_bar(*alpha_bar);
 
   double val_ma, val_x;
@@ -307,12 +300,15 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
     printf(" val_ma: %f, val_x: %f \n", val_ma, val_x);
     printf(" ind_ma: %d, ind_x: %d \n", ind_ma, ind_x);
   }
+
+  // GridFunction pt(fespace);
+  // pt.ProjectCoefficient(nlgcoeff1);
+  // pt.Save("pt.gf");
+  
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
 
-  GridFunction ones(fespace);
-  ones = 1.0;
   Plasma_Current = plasma_term(ones);
   Plasma_Current *= -1.0;
   
@@ -325,7 +321,8 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   }
 
   double weight = 1.0;
-  F->AddMult(*uv_currents, y, -1.0 / weight);
+  // F->AddMult(*uv_currents, y, -1.0 / weight);
+  F->AddMult(*uv_currents, y, -model->get_mu());
 
   // deal with boundary conditions
   Vector u_b_exact, u_tmp, u_b;
@@ -335,20 +332,9 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   u_tmp -= u_b_exact;
   y.SetSubVector(boundary_dofs, u_tmp);
 
-  // GridFunction ygf(fespace);
-  // ygf = y;
-  // ConstantCoefficient zero(0.0);
-  // ygf.ProjectCoefficient(zero, 1100);
-  // y = ygf;
   for (int k = 0; k < psi.Size(); ++k) {
     y[k] *= hat[k];
   }
-  // what is this???
-  // for (int k = 0; k < psi.Size(); ++k) {
-  //   if (abs(psi[k]) > 1e-6) {
-  //     y[k] = 0.0;
-  //   }
-  // }
 }
 
 
