@@ -1333,15 +1333,14 @@ public:
        @param intOrder    Number of integration points per RBF point in each dimension
        @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2 from face
    */
-   KernelFECollection(const int D, // dimension
-                      const int numPointsD, // number of points in each dimension, >= 2
-                      const int rbfType, // type of base radial basis function
-                      const int order, // order for reproducing kernels, -1 for none
-                      const double h, // smoothing parameter
-                      const double faceFactor =
-                         0.0, // 0.0 (points dx/2 from faces) to 1.0 (points on faces)
-                      const int intOrder = 2, // num integration points per 1d point
-                      const int distNorm = 2, // norm for distance calculation, usually 2
+   KernelFECollection(const int D,
+                      const int numPointsD,
+                      const int rbfType,
+                      const int order,
+                      const double h,
+                      const double faceFactor = 0.0,
+                      const int intOrder = 2,
+                      const int distNorm = 2,
                       const int mapType = FiniteElement::VALUE);
    virtual ~KernelFECollection();
 
