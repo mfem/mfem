@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-const double RBFFunction::GlobalRadius = 1.e10;
+const double RBFKernel::GlobalRadius = 1.e10;
 
 const double GaussianRBF::hNorm = 0.37619048746124223;
 

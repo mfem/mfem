@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+<// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,37 +17,41 @@
 namespace mfem
 {
 
-/* Pure virtual class for dimensionless radial basis functions (RBFs)
-   RBFs are primarily shaped like Gaussians and are used here as an
-   alternative to polynomials in RBF and RK elements. The input for these
-   is a dimensionless radius r = ||x|| / h, where ||x|| is a distance and
-   h is the smoothing parameter, which controls the gradient of the RBF.
-   For reference: https://doi.org/10.1017/S0962492900000015 */
-class RBFFunction
+/** @brief Pure virtual class for dimensionless radial basis functions (RBFs).
+    Many RBFs are shaped like a Gaussian and are used here as an alternative
+    to polynomials in RBF and RK elements. The input for these
+    is a dimensionless radius r = ||x|| / h, where ||x|| is a distance and
+    h is the smoothing parameter, which controls the gradient of the RBF.
+    For reference: https://doi.org/10.1017/S0962492900000015 */
+class RBFKernel
 {
 public:
    static const double GlobalRadius; // functions with r>=GR are considered global
-   RBFFunction() { };
-   virtual ~RBFFunction() { }
+   RBFKernel() { };
+   virtual ~RBFKernel() { }
 
-   // The r is a normalized distance
+   /// Evaluate the dimensionless RBF
    virtual double BaseFunction(double r) const = 0;
+
+   /// Evaluate the derivative of the dimensionless RBF with respect to r
    virtual double BaseDerivative(double r) const = 0;
+
+   /// Evaluate the second derivative of the dimensionless RBF with respect to r
    virtual double BaseDerivative2(double r) const = 0;
 
-   // The support radius, outside of which the function is zero
+   /// The support radius, outside of which the function is zero
    virtual double Radius() const { return GlobalRadius; }
 
-   // Does function have compact support?
+   /// Does function have compact support?
    virtual bool CompactSupport() const { return false; }
 
-   /* This normalizes the smoothing parameter h such that h doesn't need to
-      be changed based on the choice of basis function */
+   /** #brief This normalizes the smoothing parameter h such that h doesn't
+       need to be changed based on the choice of basis function */
    virtual double HNorm() const = 0;
 };
 
-// Gaussian RBF, exp(-r^2)
-class GaussianRBF : public RBFFunction
+/// Gaussian RBF, exp(-r^2)
+class GaussianRBF : public RBFKernel
 {
    // hNorm minimizes integral of Gaussian minus Wendland kernel over r=0,1
    static const double hNorm;
@@ -62,8 +66,8 @@ public:
    virtual double HNorm() const { return hNorm; }
 };
 
-// Multiquadric RBF, sqrt(1+r^2)
-class MultiquadricRBF : public RBFFunction
+/// Multiquadric RBF, sqrt(1+r^2)
+class MultiquadricRBF : public RBFKernel
 {
    // Same as inverse multiquadric
    static const double hNorm;
@@ -78,8 +82,8 @@ public:
    virtual double HNorm() const { return hNorm; }
 };
 
-// Inverse multiquadric RBF, 1/sqrt(1+r^2)
-class InvMultiquadricRBF : public RBFFunction
+/// Inverse multiquadric RBF, 1/sqrt(1+r^2)
+class InvMultiquadricRBF : public RBFKernel
 {
    // hNorm minimizes integral of Gaussian minus InvMQ kernel over r=0,0.5
    static const double hNorm;
@@ -94,9 +98,9 @@ public:
    virtual double HNorm() const { return hNorm; }
 };
 
-/* Same as the Gaussian, but subtracted by a factor such that the
-   function is exactly zero at the chosen radius */
-class CompactGaussianRBF : public RBFFunction
+/** @brief Identitcal to the Gaussian RBF, but subtracted by a factor
+    such that the function is exactly zero at the chosen radius */
+class CompactGaussianRBF : public RBFKernel
 {
    static const double hNorm;
    const double radius;
@@ -116,8 +120,8 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Same as the Gaussian, but truncated (set to zero) at the chosen radius
-class TruncatedGaussianRBF : public RBFFunction
+/// Identical to the Gaussian, but truncated (set to zero) at the chosen radius
+class TruncatedGaussianRBF : public RBFKernel
 {
    static const double hNorm;
    const double radius;
@@ -136,8 +140,8 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Wendland 11 RBF, (1-r)^3 * (1+3r) if r < 1
-class Wendland11RBF : public RBFFunction
+/// Wendland 11 RBF, (1-r)^3 * (1+3r) if r < 1
+class Wendland11RBF : public RBFKernel
 {
    static const double radius;
 
@@ -155,8 +159,8 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Wendland 31 RBF, (1-r)^4 * (1+4r) if r < 1
-class Wendland31RBF : public RBFFunction
+/// Wendland 31 RBF, (1-r)^4 * (1+4r) if r < 1
+class Wendland31RBF : public RBFKernel
 {
    static const double radius;
 
@@ -174,8 +178,8 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Wendland 33 RBF, (1-r)^8 * (1+8r+25r^2+32r^3) if r < 1
-class Wendland33RBF : public RBFFunction
+/// Wendland 33 RBF, (1-r)^8 * (1+8r+25r^2+32r^3) if r < 1
+class Wendland33RBF : public RBFKernel
 {
    static const double radius;
 
@@ -193,11 +197,11 @@ public:
    virtual bool CompactSupport() const { return true; }
 };
 
-// Class for storing and creating the various RBFs
+/// Class for storing and creating the various RBFs
 class RBFType
 {
 public:
-   // Assign integers to each type of function
+   /// Represent each type of function for input/output
    enum
    {
       Gaussian = 0,
@@ -211,8 +215,8 @@ public:
       NumRBFTypes = 8
    };
 
-   // Return the requested RBF
-   static RBFFunction *GetRBF(const int rbfType)
+   /// Return the requested RBF
+   static RBFKernel *GetRBF(const int rbfType)
    {
       switch (rbfType)
       {
@@ -237,7 +241,7 @@ public:
       return NULL;
    }
 
-   // Abort if rbfType is invalid
+   /// Abort if rbfType is invalid
    static int Check(const int rbfType)
    {
       MFEM_VERIFY(0 <= rbfType && rbfType < NumRBFTypes,
@@ -245,7 +249,7 @@ public:
       return rbfType;
    }
 
-   // Convert rbf int to identifier for storage
+   /// Convert rbf int to identifier for storage
    static char GetChar(const int rbfType)
    {
       static const char ident[] = { 'G', 'M', 'I',
@@ -255,7 +259,7 @@ public:
       return ident[Check(rbfType)];
    }
 
-   // Convert identifier to rbf int
+   /// Convert identifier to rbf int
    static int GetType(const char rbfIdent)
    {
       switch (rbfIdent)
@@ -274,7 +278,7 @@ public:
    }
 };
 
-// Dimensionless distance metrics, whose output is the input for RBFs
+/// Dimensionless distance metrics, whose output is the input for RBFs
 class DistanceMetric
 {
 protected:
@@ -295,7 +299,7 @@ public:
    static DistanceMetric *GetDistance(int dim, int pnorm);
 };
 
-// Dimensionless distance with r = |x| + |y| + ...
+/// Dimensionless distance with r = |x| + |y| + ...
 class L1Distance : public DistanceMetric
 {
 public:
@@ -310,7 +314,7 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-// Dimensionless distance with r = (x^2 + y^2 + ...)^(1/2)
+/// Dimensionless distance with r = (x^2 + y^2 + ...)^(1/2)
 class L2Distance : public DistanceMetric
 {
 public:
@@ -325,7 +329,7 @@ public:
                            DenseMatrix &ddr) const;
 };
 
-// Dimensionless distance with r = (x^p + y^p + ...)^(1/p)
+/// Dimensionless distance with r = (x^p + y^p + ...)^(1/p)
 class LpDistance : public DistanceMetric
 {
    const int p;
@@ -347,8 +351,8 @@ public:
 };
 
 
-/* Pure virtual class for a finite element with radial basis functions
-   instead of polynomials inside each element */
+/** @brief Pure virtual class for a finite element with radial basis functions
+    instead of polynomials inside each element */
 class KernelFiniteElement : public ScalarFiniteElement
 {
 private:
@@ -359,17 +363,17 @@ public:
       : ScalarFiniteElement(D, G, Do, O, F) { }
    virtual ~KernelFiniteElement() { }
 
-   // Converts integration rule to vector
+   /// Converts integration rule to vector
    virtual void IntRuleToVec(const IntegrationPoint &ip,
                              Vector &vec) const;
 
-   // Is base RBF compact?
+   /// Is base RBF compact?
    virtual bool IsCompact() const = 0;
 
-   // Return base kernel
-   virtual const RBFFunction *Kernel() const = 0;
+   /// Return base kernel
+   virtual const RBFKernel *Kernel() const = 0;
 
-   // Get range of i,j,k indices that are nonzero for compact support
+   /// Get range of i,j,k indices that are nonzero for compact support
    virtual bool TensorIndexed() const { return false; }
    virtual void GetTensorIndices(const Vector &ip,
                                  int (&indices)[3][2]) const
@@ -398,7 +402,8 @@ public:
    { CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this); }
 };
 
-// Finite element using base radial basis functions without polynomial corrections
+/** @brief Finite element using base radial basis functions without
+    polynomial corrections. */
 class RBFFiniteElement : public KernelFiniteElement
 {
 private:
@@ -412,12 +417,12 @@ private:
    int dimPoints[3];
    int numPointsD; // Number of points across the element in each D
    double delta; // Distance between points
-   double h; // Shape parameter, approx number of points in 1d support radius
+   double h; // Shape parameter
    double hPhys; // Shape parameter times distance between points times HNorm
    double hPhysInv; // Inverse hPhys
    double radPhys; // Radius adjusted by h
    double faceFactor; // 1.0 = points end on face, 0.0 = points end at dx/2 from face
-   const RBFFunction *rbf;
+   const RBFKernel *rbf;
    const DistanceMetric *distance;
    void InitializeGeometry();
 
@@ -427,6 +432,15 @@ private:
                             Vector &y) const;
 
 public:
+   /** @brief Construct RBFFiniteElement
+       @param D           Reference space dimension
+       @param numPointsD  Number of points across the element in each dimension
+       @param rbfType     Type of radial basis function, from RBFType
+       @param distNorm    Norm used for distance, usually 2 = Euclidean distance
+       @param intOrder    Number of integration points per RBF point in each dimension
+       @param h           Shape parameter, approximately equal to the number of points in the support radius in one dimension
+       @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2 from face
+   */
    RBFFiniteElement(const int D,
                     const int numPointsD,
                     const int rbfType,
@@ -451,7 +465,7 @@ public:
    }
 
    virtual bool IsCompact() const { return isCompact; }
-   virtual const RBFFunction *Kernel() const { return rbf; }
+   virtual const RBFKernel *Kernel() const { return rbf; }
 
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const;
@@ -461,9 +475,9 @@ public:
                             DenseMatrix &hess) const;
 };
 
-/* Reproducing kernel finite element, which includes polynomial corrections
-   to the standard radial basis function finite element to guarantee a
-   chosen order of accuracy */
+/** @brief Reproducing kernel finite element, which includes polynomial
+    corrections to the standard radial basis function finite element
+    to guarantee a chosen order of accuracy */
 class RKFiniteElement : public KernelFiniteElement
 {
 private:
@@ -529,6 +543,16 @@ private:
                             Vector &y) const;
 
 public:
+   /** @brief Construct RBFFiniteElement
+       @param D           Reference space dimension
+       @param numPointsD  Number of points across the element in each dimension
+       @param rbfType     Type of radial basis function, from RBFType
+       @param distNorm    Norm used for distance, usually 2 = Euclidean distance
+       @param order       Order of polynomial correction, >= 0
+       @param intOrder    Number of integration points per RBF point in each dimension
+       @param h           Shape parameter, approximately equal to the number of points in the support radius in one dimension
+       @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2 from face
+   */
    RKFiniteElement(const int D,
                    const int numPointsD,
                    const int rbfType,
@@ -540,7 +564,7 @@ public:
    virtual ~RKFiniteElement() { delete baseFE; }
 
    virtual bool IsCompact() const { return baseFE->IsCompact(); }
-   virtual const RBFFunction *Kernel() const { return baseFE->Kernel(); }
+   virtual const RBFKernel *Kernel() const { return baseFE->Kernel(); }
 
    static int GetNumPoly(int polyOrd, int dim);
 
@@ -548,7 +572,6 @@ public:
                           Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   // Could put in a method to calculate shape and dshape simultaneously
 };
 
 } // end namespace mfem

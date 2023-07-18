@@ -1305,11 +1305,11 @@ public:
    virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-/* Radial basis function collection
-   Instead of using polynomials as a basis, these methods use
-   Gaussian-like functions centered at chosen points. Reproducing
-   kernels augment the radial basis functions so that the resultant
-   basis can exactly represent functions of a chosen polynomial degree. */
+/** @brief Radial basis function collection.
+    Instead of using polynomials as a basis, these methods use
+    Gaussian-like functions centered at chosen points. Reproducing
+    kernels augment the radial basis functions so that the resultant
+    basis can exactly represent functions of a chosen polynomial degree. */
 class KernelFECollection : public FiniteElementCollection
 {
 private:
@@ -1322,6 +1322,17 @@ private:
    bool ValidGeomType(Geometry::Type GeomType) const;
 
 public:
+   /** @brief Create a radial basis function or reproducing kernel finite
+       element collection.
+       @param D           Reference space dimension
+       @param numPointsD  Number of points across the element in each dimension
+       @param rbfType     Type of radial basis function, from RBFType
+       @param order       Order of polynomial correction, >= 0 for RK or -1 for RBF
+       @param h           Shape parameter, approximately equal to the number of points in the support radius in one dimension, should generally be > order
+       @param distNorm    Norm used for distance, usually 2 = Euclidean distance
+       @param intOrder    Number of integration points per RBF point in each dimension
+       @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2 from face
+   */
    KernelFECollection(const int D, // dimension
                       const int numPointsD, // number of points in each dimension, >= 2
                       const int rbfType, // type of base radial basis function
