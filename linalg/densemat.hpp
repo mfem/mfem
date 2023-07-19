@@ -474,6 +474,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva);
 /// Calculate the inverse transpose of a matrix (for NxN matrices, N=1,2,3)
 void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva);
 
+/// Reverse-mode sensitivities of inv(A) with respect to the entries in A
+void CalcInverseRevDiff(const DenseMatrix &a, const DenseMatrix &inva_bar,
+                        DenseMatrix &a_bar);
+
 /** For a given Nx(N-1) (N=2,3) matrix J, compute a vector n such that
     n_k = (-1)^{k+1} det(J_k), k=1,..,N, where J_k is the matrix J with the
     k-th row removed. Note: J^t.n = 0, det([n|J])=|n|^2=det(J^t.J). */

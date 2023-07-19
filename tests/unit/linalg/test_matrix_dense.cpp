@@ -521,6 +521,231 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
    }
 }
 
+TEST_CASE("DenseMatrix CalcInverseRevDiff", "[DenseMatrix]")
+{
+   constexpr double eps_fd = 1e-5; // 2nd-order finite-difference step size
+
+   SECTION("1x1 matrix")
+   {
+      double A_data[1] = { 3.1415926};
+      double invA_bar_data[1] = {-2.0};
+
+      DenseMatrix A(A_data, 1, 1);
+      DenseMatrix invA_bar(invA_bar_data, 1, 1);
+      DenseMatrix A_bar(1, 1), invA_fd(1, 1);
+      DenseMatrix A_pert(1, 1), invA_pert(1, 1);
+
+      // Compute the derivative using reverse mode
+      A_bar = 0.0;
+      CalcInverseRevDiff(A, invA_bar, A_bar);
+
+      // Compute the derivative using central finite-difference approximation
+      A_pert = A;
+      A_pert(0, 0) += eps_fd;
+      CalcInverse(A_pert, invA_fd);
+      A_pert(0, 0) -= 2.0 * eps_fd;
+      CalcInverse(A_pert, invA_pert);
+      invA_fd -= invA_pert;
+      invA_fd *= 1/(2.0 * eps_fd);
+      // sum up derivative with weights
+      double A_bar_fd = invA_fd(0, 0) * invA_bar(0, 0);
+      REQUIRE(A_bar(0, 0) == Approx(A_bar_fd));
+   }
+
+   SECTION("2x1 matrix")
+   {
+      double A_data[2] = {2.0, -3.0};
+      double invA_bar_data[2] = {-1.5, 4.0};
+
+      DenseMatrix A(A_data, 2, 1);
+      DenseMatrix invA_bar(invA_bar_data, 1, 2);
+      DenseMatrix A_bar(2,1), invA_fd(1,2);
+      DenseMatrix A_pert(2,1), invA_pert(1,2);
+
+      // Compute the derivatives using reverse mode
+      A_bar = 0.0;
+      CalcInverseRevDiff(A, invA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 2; ++i)
+      {
+         // Pertrub A(i,0) and evaluate derivative of inverse
+         A_pert = A;
+         A_pert(i, 0) += eps_fd;
+         CalcInverse(A_pert, invA_fd);
+         A_pert(i, 0) -= 2.0 * eps_fd;
+         CalcInverse(A_pert, invA_pert);
+         invA_fd -= invA_pert;
+         invA_fd *= 1 / (2.0 * eps_fd);
+         // sum up derivative with weights
+         double A_bar_fd = 0.0;
+         for (int k = 0; k < 2; ++k)
+         {
+            A_bar_fd += invA_fd(0, k) * invA_bar(0, k);
+         }
+         REQUIRE(A_bar(i, 0) == Approx(A_bar_fd));
+      }
+   }
+
+   SECTION("2x2 matrix")
+   {
+      double A_data[4] = {2.0, -3.0, 4.0, -1.0};
+      double invA_bar_data[4] = {1.0, 4.0, 2.0, -3.0};
+
+      DenseMatrix A(A_data, 2, 2);
+      DenseMatrix invA_bar(invA_bar_data, 2, 2);
+      DenseMatrix A_bar(2,2), invA_fd(2,2);
+      DenseMatrix A_pert(2,2), invA_pert(2,2);
+
+      // Compute the derivatives using reverse mode
+      A_bar = 0.0;
+      CalcInverseRevDiff(A, invA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 2; ++i)
+      {
+         for (int j = 0; j < 2; ++j)
+         {
+            // Pertrub A(i,j) and evaluate derivative of inverse
+            A_pert = A;
+            A_pert(i,j) += eps_fd;
+            CalcInverse(A_pert, invA_fd);
+            A_pert(i,j) -= 2.0*eps_fd;
+            CalcInverse(A_pert, invA_pert);
+            invA_fd -= invA_pert;
+            invA_fd *= 1/(2.0*eps_fd);
+            // sum up derivative with weights
+            double A_bar_fd = 0.0;
+            for (int k = 0; k < 2; ++k)
+            {
+               for (int l = 0; l < 2; ++l)
+               {
+                  A_bar_fd += invA_fd(k,l)*invA_bar(k,l);
+               }
+            }
+            REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+
+   SECTION("3x1 matrix")
+   {
+      double A_data[3] = {2.0, -3.0, 3.1415926};
+      double invA_bar_data[3] = {-1.5, 4.0, 2.71828};
+
+      DenseMatrix A(A_data, 3, 1);
+      DenseMatrix invA_bar(invA_bar_data, 1, 3);
+      DenseMatrix A_bar(3, 1), invA_fd(1, 3);
+      DenseMatrix A_pert(3, 1), invA_pert(1, 3);
+
+      // Compute the derivatives using reverse mode
+      A_bar = 0.0;
+      CalcInverseRevDiff(A, invA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 3; ++i)
+      {
+         // Pertrub A(i,0) and evaluate derivative of inverse
+         A_pert = A;
+         A_pert(i, 0) += eps_fd;
+         CalcInverse(A_pert, invA_fd);
+         A_pert(i, 0) -= 2.0 * eps_fd;
+         CalcInverse(A_pert, invA_pert);
+         invA_fd -= invA_pert;
+         invA_fd *= 1 / (2.0 * eps_fd);
+         // sum up derivative with weights
+         double A_bar_fd = 0.0;
+         for (int k = 0; k < 3; ++k)
+         {
+            A_bar_fd += invA_fd(0, k) * invA_bar(0, k);
+         }
+         REQUIRE(A_bar(i, 0) == Approx(A_bar_fd));
+      }
+   }
+
+   SECTION("3x2 matrix")
+   {
+      double A_data[6] = {1.0, 5.0, 3.0, -2.0, 6.0, -9.0};
+      double invA_bar_data[6] = {3.0, 6.0, -8.0, 1.0, -7.0, 5.0};
+      // double invA_bar_data[6] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+      DenseMatrix invA_bar(invA_bar_data, 2, 3);
+      DenseMatrix invA_pert(2, 3), invA_fd(2, 3);
+      DenseMatrix A(A_data, 3, 2);
+      DenseMatrix A_bar(3, 2), A_pert(3, 2);
+
+      // Compute the derivatives using reverse mode
+      A_bar = 0.0;
+      CalcInverseRevDiff(A, invA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 3; ++i)
+      {
+         for (int j = 0; j < 2; ++j)
+         {
+            // Pertrub A(i,j) and evaluate derivative of inverse
+            A_pert = A;
+            A_pert(i,j) += eps_fd;
+            CalcInverse(A_pert, invA_fd);
+            A_pert(i,j) -= 2.0*eps_fd;
+            CalcInverse(A_pert, invA_pert);
+            invA_fd -= invA_pert;
+            invA_fd *= 1/(2.0*eps_fd);
+            // sum up derivative with weights
+            double A_bar_fd = 0.0;
+            for (int k = 0; k < 3; ++k)
+            {
+               for (int l = 0; l < 2; ++l)
+               {
+                  A_bar_fd += invA_fd(l, k)*invA_bar(l, k);
+               }
+            }
+            REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+
+   SECTION("3x3 matrix")
+   {
+      double A_data[9] = {1.0, 5.0, 3.0, -2.0, 6.0, -9.0, 4.0, -7.0, 8.0};
+      double invA_bar_data[9] = {3.0, 6.0, -8.0, 1.0, -7.0, 5.0, 2.0, 4.0, -9.0};
+
+      DenseMatrix A(A_data, 3, 3);
+      DenseMatrix invA_bar(invA_bar_data, 3, 3);
+      DenseMatrix A_bar(3,3), invA_fd(3,3);
+      DenseMatrix A_pert(3,3), invA_pert(3,3);
+
+      // Compute the derivatives using reverse mode
+      A_bar = 0.0;
+      CalcInverseRevDiff(A, invA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 3; ++i)
+      {
+         for (int j = 0; j < 3; ++j)
+         {
+            // Pertrub A(i,j) and evaluate derivative of inverse
+            A_pert = A;
+            A_pert(i,j) += eps_fd;
+            CalcInverse(A_pert, invA_fd);
+            A_pert(i,j) -= 2.0*eps_fd;
+            CalcInverse(A_pert, invA_pert);
+            invA_fd -= invA_pert;
+            invA_fd *= 1/(2.0*eps_fd);
+            // sum up derivative with weights
+            double A_bar_fd = 0.0;
+            for (int k = 0; k < 3; ++k)
+            {
+               for (int l = 0; l < 3; ++l)
+               {
+                  A_bar_fd += invA_fd(k,l)*invA_bar(k,l);
+               }
+            }
+            REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+}
+
 TEST_CASE("DenseMatrix WeightRevDiff", "[DenseMatrix]")
 {
    // This also tests DenseMatrix::DetRevDiff indirectly
