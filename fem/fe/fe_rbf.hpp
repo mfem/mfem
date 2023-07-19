@@ -306,7 +306,7 @@ public:
    virtual void DDDistance(const Vector &x,
                            DenseMatrix &ddr) const = 0;
 
-   /// @brief Create an Lp distance metric for the requested dimension and norm
+   /// Create an Lp distance metric for the requested dimension and norm
    static DistanceMetric *GetDistance(int dim, int pnorm);
 };
 
