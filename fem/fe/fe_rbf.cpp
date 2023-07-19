@@ -633,13 +633,18 @@ void RBFFiniteElement::InitializeGeometry()
    dimPoints[0] = numPointsD;
    dimPoints[1] = dim > 1 ? numPointsD : 1;
    dimPoints[2] = dim > 2 ? numPointsD : 1;
+
+   /* The center points for the RBFs are a Cartesian grid of evenly-spaced points
+      If faceFactor is 1.0, these points start and end on the element faces.
+      If faceFactor is 0.0, these points start and end at dx/2 from the faces.
+      Otherwise, it is a linear interpolation between those extrema. */
    switch (dim)
    {
       case 1:
          for (int i = 0; i < numPointsD; ++i)
          {
-            Nodes.IntPoint(i).x = 0.5 * factorD + (factorD + factorC) * static_cast<double>
-                                  (i);
+            Nodes.IntPoint(i).x
+               = 0.5 * factorD + (factorD + factorC) * static_cast<double>(i);
          }
          break;
       case 2:
@@ -648,10 +653,10 @@ void RBFFiniteElement::InitializeGeometry()
             for (int j = 0; j < numPointsD; ++j)
             {
                int l = j + numPointsD * i;
-               Nodes.IntPoint(l).x = 0.5 * factorD + (factorD + factorC) * static_cast<double>
-                                     (i);
-               Nodes.IntPoint(l).y = 0.5 * factorD + (factorD + factorC) * static_cast<double>
-                                     (j);
+               Nodes.IntPoint(l).x
+                  = 0.5 * factorD + (factorD + factorC) * static_cast<double>(i);
+               Nodes.IntPoint(l).y
+                  = 0.5 * factorD + (factorD + factorC) * static_cast<double>(j);
             }
          }
          break;
@@ -663,12 +668,12 @@ void RBFFiniteElement::InitializeGeometry()
                for (int k = 0; k < numPointsD; ++k)
                {
                   int l = k + numPointsD * (j + numPointsD * i);
-                  Nodes.IntPoint(l).x = 0.5 * factorD + (factorD + factorC) * static_cast<double>
-                                        (i);
-                  Nodes.IntPoint(l).y = 0.5 * factorD + (factorD + factorC) * static_cast<double>
-                                        (j);
-                  Nodes.IntPoint(l).z = 0.5 * factorD + (factorD + factorC) * static_cast<double>
-                                        (k);
+                  Nodes.IntPoint(l).x
+                     = 0.5 * factorD + (factorD + factorC) * static_cast<double>(i);
+                  Nodes.IntPoint(l).y
+                     = 0.5 * factorD + (factorD + factorC) * static_cast<double>(j);
+                  Nodes.IntPoint(l).z
+                     = 0.5 * factorD + (factorD + factorC) * static_cast<double>(k);
                }
             }
          }
