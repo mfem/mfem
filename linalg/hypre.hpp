@@ -1751,7 +1751,10 @@ private:
    void MakeSolver(int sdim, int cycle_type);
 
    /// Construct the gradient and interpolation matrices associated with
-   /// @a edge_fespace, and add them to the solver.
+   /// @a edge_fespace, and add them to the solver which is assumed to have
+   /// cycle type @a cycle_type. @a trace_space and @a p specify if the
+   /// FECollection associated with @a edge_fespace is defined on the trace of
+   /// the mesh and its order in most cases.
    void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
                                      bool trace_space, int p, int cycle_type);
 
