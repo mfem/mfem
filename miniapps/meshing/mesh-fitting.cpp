@@ -508,8 +508,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    //FunctionCoefficient ls_coeff(circle_level_set);
-   //   FunctionCoefficient ls_coeff(squircle_level_set);
-   FunctionCoefficient ls_coeff(apollo_level_set);
+   FunctionCoefficient ls_coeff(squircle_level_set);
+   //FunctionCoefficient ls_coeff(apollo_level_set);
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -950,7 +950,8 @@ int main(int argc, char *argv[])
    while (iter_pref<max_iter_pref && faces_to_update)
    {
       std::cout << "REFINEMENT NUMBER: " << iter_pref << std::endl;
-      if (iter_pref > 0)
+
+      if (iter_pref >= 0)
       {
          surface_fit_const = 1e6;
       }
@@ -1086,6 +1087,7 @@ int main(int argc, char *argv[])
          {
             surf_fit_gf0.ProjectCoefficient(ls_coeff);
          }
+         /*
          if (visualization)
          {
             x_max_order = ProlongToMaxOrder(&x, 0);
@@ -1096,6 +1098,7 @@ int main(int argc, char *argv[])
                                    1100, 0, 500, 500);
             mesh->SetNodalGridFunction(&x);
          }
+          */
          //         MFEM_ABORT(" ");
 
          //         surf_fit_gf0.ProjectCoefficient(ls_coeff);
@@ -1199,9 +1202,9 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis2, "localhost", 19916, mat,
                                    "Materials before fitting",
                                    600, 680, 300, 300);
-            common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
-                                   "Dofs to Move",
-                                   900, 680, 300, 300);
+            //common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
+            //                       "Dofs to Move",
+            //                       900, 680, 300, 300);
          }
          mesh->SetNodalGridFunction(&x);
       }
@@ -1220,7 +1223,6 @@ int main(int argc, char *argv[])
          }
          //         surf_fit_gf0.ProjectCoefficient(ls_coeff);
          tmop_integ->CopyGridFunction(surf_fit_gf0);
-         std::cout << "Test 1" << std::endl;
          if (prefine)
          {
             delete surf_fit_gf0_max_order;
@@ -1229,7 +1231,6 @@ int main(int argc, char *argv[])
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
          x_max_order = ProlongToMaxOrder(&x, 0);
          mesh->SetNodalGridFunction(x_max_order);
-         std::cout << "Test 2" << std::endl;
          double error_bg_sum = 0.0;
          double min_face_error = std::numeric_limits<double>::max();
          double max_face_error = std::numeric_limits<double>::min();
@@ -1265,7 +1266,7 @@ int main(int argc, char *argv[])
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, fitting_error_gf,
                                    "Fitting Error before any fitting",
-                                   600, 680, 300, 300);
+                                   900, 680, 300, 300);
          }
          std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " <<
                    std::endl;
@@ -1523,9 +1524,9 @@ int main(int argc, char *argv[])
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
                                    600, 680, 300, 300);
-            common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
-                                   "Surface dof",
-                                   900, 680, 300, 300);
+            //common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
+            //                       "Surface dof",
+            //                       900, 680, 300, 300);
          }
          double err_avg, err_max;
          tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
@@ -1576,7 +1577,7 @@ int main(int argc, char *argv[])
             socketstream vis2, vis3;
             common::VisualizeField(vis2, "localhost", 19916, fitting_error_gf,
                                    "Fitting Error after fitting",
-                                   600, 680, 300, 300);
+                                   900, 680, 300, 300);
          }
 
          std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " <<
