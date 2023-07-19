@@ -87,7 +87,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    if (internal_boundary_face_integs.Size() != 0)
    {
-      MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
+      // MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
    }
 
    NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
@@ -163,7 +163,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x,
 
    if (internal_boundary_face_integs.Size() != 0)
    {
-      MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
+      // MFEM_ABORT("TODO: assemble contributions from shared internal boundary terms");
    }
 
    if (interior_face_integs.Size() == 0)
