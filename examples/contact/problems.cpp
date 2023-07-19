@@ -1005,7 +1005,7 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    (*x1) = 0.0; // x1 order: [xyz xyz... xyz]
    add(nodes0, *x1, *nodes1); // issues with moving the mesh nodes?
 
-   FindPointsInMesh(*mesh1, xyz, m_conn, m_xi); // memory is leaked when this function is called
+   FindPointsInMesh(*mesh1, xyz, m_conn, m_xi); 
 
    for (int i=0; i<npoints; i++)
    {
