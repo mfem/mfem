@@ -62,7 +62,8 @@ LinearForm::LinearForm(LinearForm &&other)
    mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
    mfem::Swap(interior_face_integs, other.interior_face_integs);
    mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
-   mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
+   mfem::Swap(internal_boundary_face_integs_marker,
+              other.internal_boundary_face_integs_marker);
 
    other.fes = nullptr;
 
@@ -128,7 +129,7 @@ LinearForm& LinearForm::operator=(LinearForm &&other)
          internal_boundary_face_integs[k] = nullptr;
       }
       internal_boundary_face_integs.SetSize(0);
-   
+
       /// Null out all markers
       for (int k = 0; k < domain_integs_marker.Size(); ++k)
       {
@@ -163,7 +164,8 @@ LinearForm& LinearForm::operator=(LinearForm &&other)
       mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
       mfem::Swap(interior_face_integs, other.interior_face_integs);
       mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
-      mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
+      mfem::Swap(internal_boundary_face_integs_marker,
+                 other.internal_boundary_face_integs_marker);
 
       fes = other.fes;
       other.fes = nullptr;

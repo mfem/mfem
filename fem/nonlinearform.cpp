@@ -28,7 +28,8 @@ NonlinearForm::NonlinearForm(NonlinearForm &&other)
    mfem::Swap(boundary_face_integs, other.boundary_face_integs);
    mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
    mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
-   mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
+   mfem::Swap(internal_boundary_face_integs_marker,
+              other.internal_boundary_face_integs_marker);
 
    /// Leave the moved nonlinear form in a state as if it was just constructed
    /// with fes
@@ -111,7 +112,8 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       mfem::Swap(boundary_face_integs, other.boundary_face_integs);
       mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
       mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
-      mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
+      mfem::Swap(internal_boundary_face_integs_marker,
+                 other.internal_boundary_face_integs_marker);
 
       ext = other.ext;
       other.ext = nullptr;

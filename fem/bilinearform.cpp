@@ -134,7 +134,8 @@ BilinearForm::BilinearForm(BilinearForm &&other)
    mfem::Swap(boundary_face_integs, other.boundary_face_integs);
    mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
    mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
-   mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
+   mfem::Swap(internal_boundary_face_integs_marker,
+              other.internal_boundary_face_integs_marker);
 
    /// Leave the moved nonlinear form in a state as if it was just constructed
    /// with fes
@@ -251,7 +252,8 @@ BilinearForm& BilinearForm::operator=(BilinearForm &&other)
       mfem::Swap(boundary_face_integs, other.boundary_face_integs);
       mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
       mfem::Swap(internal_boundary_face_integs, other.internal_boundary_face_integs);
-      mfem::Swap(internal_boundary_face_integs_marker, other.internal_boundary_face_integs_marker);
+      mfem::Swap(internal_boundary_face_integs_marker,
+                 other.internal_boundary_face_integs_marker);
 
       element_matrices = other.element_matrices;
       other.element_matrices = nullptr;

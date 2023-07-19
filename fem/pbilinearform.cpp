@@ -42,7 +42,7 @@ ParBilinearForm& ParBilinearForm::operator=(ParBilinearForm &&other)
    {
       BilinearForm::operator=(std::move(other));
       pfes = other.pfes;
-      
+
       Xaux = std::move(other.Xaux);
       Yaux = std::move(other.Yaux);
 
