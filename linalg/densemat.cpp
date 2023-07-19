@@ -2868,7 +2868,9 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
             g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
             f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
             t = 1.0 / (e*g - f*f);
-            e *= t; g *= t; f *= t;
+            e *= t;
+            g *= t;
+            f *= t;
 
             id[0] = d[0]*g - d[3]*f;
             id[1] = d[3]*e - d[0]*f;
@@ -2938,6 +2940,194 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
          inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
          break;
    }
+}
+
+void CalcInverseRevDiff(const DenseMatrix &a, const DenseMatrix &inva_bar,
+                        DenseMatrix &a_bar)
+{
+#ifdef MFEM_DEBUG
+   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
+   {
+      mfem_error("CalcInverseRevDiff(...)");
+   }
+   if (a.Width() != a_bar.Width() ||
+       a.Height() != a_bar.Height() ||
+       a_bar.Width() != inva_bar.Height() ||
+       a_bar.Height() != inva_bar.Width())
+   {
+      mfem_error("CalcInverseRevDiff(...)");
+   }
+#endif
+
+   if (a.Width() < a.Height())
+   {
+      const double *d = a.Data();
+      const double *id_bar = inva_bar.Data();
+      double *d_bar = a_bar.Data();
+      if (a.Height() == 2)
+      {
+         double t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
+
+         /// id[0] = d[0] * t;
+         d_bar[0] += id_bar[0] * t;
+         double t_bar = id_bar[0] * d[0];
+
+         /// id[1] = d[1] * t;
+         d_bar[1] += id_bar[1] * t;
+         t_bar += id_bar[1] * d[1];
+
+         /// t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
+         d_bar[0] -= t_bar * 2 * d[0] / pow(d[0]*d[0] + d[1]*d[1], 2);
+         d_bar[1] -= t_bar * 2 * d[1] / pow(d[0]*d[0] + d[1]*d[1], 2);
+      }
+      else
+      {
+         if (a.Width() == 1)
+         {
+            double t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+
+            /// id[0] = d[0] * t;
+            d_bar[0] += id_bar[0] * t;
+            double t_bar = id_bar[0] * d[0];
+
+            /// id[1] = d[1] * t;
+            d_bar[1] += id_bar[1] * t;
+            t_bar += id_bar[1] * d[1];
+
+            /// id[2] = d[2] * t;
+            d_bar[2] += id_bar[2] * t;
+            t_bar += id_bar[2] * d[2];
+
+            /// t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+            d_bar[0] -= t_bar * 2 * d[0] / pow(d[0]*d[0] + d[1]*d[1] + d[2]*d[2], 2);
+            d_bar[1] -= t_bar * 2 * d[1] / pow(d[0]*d[0] + d[1]*d[1] + d[2]*d[2], 2);
+            d_bar[2] -= t_bar * 2 * d[2] / pow(d[0]*d[0] + d[1]*d[1] + d[2]*d[2], 2);
+         }
+         else
+         {
+            double e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+            double g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+            double f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+            double t = 1.0 / (e*g - f*f);
+
+            double ee = e * t;
+            double gg = g * t;
+            double ff = f * t;
+
+            /// id[0] = d[0]*g - d[3]*f;
+            d_bar[0] += id_bar[0]*gg;
+            double gg_bar = id_bar[0] * d[0];
+            d_bar[3] += -id_bar[0] * ff;
+            double ff_bar = -id_bar[0] * d[3];
+
+            /// id[1] = d[3]*e - d[0]*f;
+            d_bar[3] += id_bar[1] * ee;
+            double ee_bar = id_bar[1] * d[3];
+            d_bar[0] += -id_bar[1] * ff;
+            ff_bar -= id_bar[1] * d[0];
+
+            /// id[2] = d[1]*g - d[4]*f;
+            d_bar[1] += id_bar[2] * gg;
+            gg_bar += id_bar[2] * d[1];
+            d_bar[4] += -id_bar[2] * ff;
+            ff_bar -= id_bar[2] * d[4];
+
+            /// id[3] = d[4]*e - d[1]*f;
+            d_bar[4] += id_bar[3] * ee;
+            ee_bar += id_bar[3] * d[4];
+            d_bar[1] += -id_bar[3] * ff;
+            ff_bar -= id_bar[3] * d[1];
+
+            /// id[4] = d[2]*g - d[5]*f;
+            d_bar[2] += id_bar[4] * gg;
+            gg_bar += id_bar[4] * d[2];
+            d_bar[5] += -id_bar[4] * ff;
+            ff_bar -= id_bar[4] * d[5];
+
+            /// id[5] = d[5]*e - d[2]*f;
+            d_bar[5] += id_bar[5] * ee;
+            ee_bar += id_bar[5] * d[5];
+            d_bar[2] += -id_bar[5] * ff;
+            ff_bar -= id_bar[5] * d[2];
+
+
+            /// double ff = f * t;
+            double t_bar = ff_bar * f;
+            double f_bar = ff_bar * t;
+
+            /// double gg = g * t;
+            t_bar += gg_bar * g;
+            double g_bar = gg_bar * t;
+
+            /// double ee = e * t;
+            t_bar += ee_bar * e;
+            double e_bar = ee_bar * t;
+
+            // /// f *= t;
+            // double t_bar = f_bar * f / t;
+            // f_bar *= t;
+
+            // /// g *= t;
+            // t_bar += g_bar * g / t;
+            // g_bar *= t;
+
+            // /// e *= t;
+            // t_bar += e_bar * e / t;
+            // e_bar *= t;
+
+            /// double t = 1.0 / (e*g - f*f);
+            e_bar -= t_bar * g / pow(e*g - f*f, 2);
+            g_bar -= t_bar * e / pow(e*g - f*f, 2);
+            f_bar += t_bar * 2*f / pow(e*g - f*f, 2);
+
+            /// double f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+            d_bar[0] += f_bar * d[3];
+            d_bar[3] += f_bar * d[0];
+            d_bar[1] += f_bar * d[4];
+            d_bar[4] += f_bar * d[1];
+            d_bar[2] += f_bar * d[5];
+            d_bar[5] += f_bar * d[2];
+
+            /// double g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+            d_bar[3] += g_bar * 2 * d[3];
+            d_bar[4] += g_bar * 2 * d[4];
+            d_bar[5] += g_bar * 2 * d[5];
+
+            /// double e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+            d_bar[0] += e_bar * 2 * d[0];
+            d_bar[1] += e_bar * 2 * d[1];
+            d_bar[2] += e_bar * 2 * d[2];
+         }
+      }
+      return;
+   }
+
+#ifdef MFEM_DEBUG
+   double t = a.Det();
+   MFEM_ASSERT(std::abs(t) > 1.0e-14 * pow(a.FNorm()/a.Width(), a.Width()),
+               "singular matrix!");
+#endif
+
+   double inva_buffer[9] = {};
+   DenseMatrix inva(inva_buffer, a.Height(), a.Width());
+
+   switch (a.Height())
+   {
+      case 1:
+         inva(0,0) = 1.0 / a.Det();
+         break;
+      case 2:
+         kernels::CalcInverse<2>(a.Data(), inva.Data());
+         break;
+      case 3:
+         kernels::CalcInverse<3>(a.Data(), inva.Data());
+         break;
+   }
+
+   double tmp_buffer[9] = {};
+   DenseMatrix tmp(tmp_buffer, a.Height(), a.Width());
+   MultAtB(inva, inva_bar, tmp);
+   AddMult_a_ABt(-1, tmp, inva, a_bar);
 }
 
 void CalcOrtho(const DenseMatrix &J, Vector &n)

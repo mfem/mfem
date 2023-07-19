@@ -196,6 +196,47 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
       }
    }
 
+   SECTION("InverseJacobianRevDiff")
+   {
+      // invJ_bar(i,j) is the weight on the (i,j)th entry of the Inverse;
+      // the values are not important for this test.
+      double invJ_bar_data[4] = {2.0, -3.0, 4.0, -1.0};
+      DenseMatrix invJ_bar(invJ_bar_data, 2, 2);
+      DenseMatrix invJ_fd(2,2);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans.SetIntPoint(&ip);
+         // reverse-mode differentiation of Inverse of mapping
+         coords_bar = 0.0;
+         trans.InverseJacobianRevDiff(invJ_bar, coords_bar);
+         // get the weighted derivatives using finite difference method
+         for (int n = 0; n < coords.Width(); ++n)
+         {
+            for (int di = 0; di < coords.Height(); ++di)
+            {
+               coords(di, n) += eps_fd;
+               trans.SetIntPoint(&ip); // force re-evaluation of Inverse
+               invJ_fd = trans.InverseJacobian();
+               coords(di, n) -= 2.0*eps_fd;
+               trans.SetIntPoint(&ip); // force re-evaluation of Inverse
+               invJ_fd -= trans.InverseJacobian();
+               invJ_fd *= 1.0/(2.0*eps_fd);
+               coords(di, n) += eps_fd;
+               double invJ_bar_fd = 0.0;
+               for (int j = 0; j < invJ_bar.Height(); ++j)
+               {
+                  for (int k = 0; k < invJ_bar.Width(); ++k)
+                  {
+                     invJ_bar_fd += invJ_bar(j,k)*invJ_fd(j,k);
+                  }
+               }
+               REQUIRE(coords_bar(di, n) == Approx(invJ_bar_fd));
+            }
+         }
+      }
+   }
+
    SECTION("WeightRevDiff")
    {
       for (int i = 0; i < ir->GetNPoints(); i++)
