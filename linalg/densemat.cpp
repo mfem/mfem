@@ -2534,7 +2534,7 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
 }
 
 void CalcInverseRevDiff(const DenseMatrix &a, const DenseMatrix &inva_bar,
-                         DenseMatrix &a_bar)
+                        DenseMatrix &a_bar)
 {
 #ifdef MFEM_DEBUG
    if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
@@ -2600,7 +2600,7 @@ void CalcInverseRevDiff(const DenseMatrix &a, const DenseMatrix &inva_bar,
             double g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
             double f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
             double t = 1.0 / (e*g - f*f);
-            
+
             double ee = e * t;
             double gg = g * t;
             double ff = f * t;
@@ -2699,7 +2699,7 @@ void CalcInverseRevDiff(const DenseMatrix &a, const DenseMatrix &inva_bar,
                "singular matrix!");
 #endif
 
-   double inva_buffer[9] = {}; 
+   double inva_buffer[9] = {};
    DenseMatrix inva(inva_buffer, a.Height(), a.Width());
 
    switch (a.Height())
@@ -2715,7 +2715,7 @@ void CalcInverseRevDiff(const DenseMatrix &a, const DenseMatrix &inva_bar,
          break;
    }
 
-   double tmp_buffer[9] = {}; 
+   double tmp_buffer[9] = {};
    DenseMatrix tmp(tmp_buffer, a.Height(), a.Width());
    MultAtB(inva, inva_bar, tmp);
    AddMult_a_ABt(-1, tmp, inva, a_bar);

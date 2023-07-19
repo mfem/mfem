@@ -481,7 +481,7 @@ public:
    /// @warning This routine does not initialize PointMat_bar, and instead
    /// accumulates (with += or -=) contributions to its derivative.
    void InverseJacobianRevDiff(const DenseMatrix &adjJ_bar,
-                                DenseMatrix &PointMat_bar);
+                               DenseMatrix &PointMat_bar);
 
    /// @brief Reverse-mode differentiation of Weight()
    /// @param[out] PointMat_bar - derivative of functional w.r.t. PointMat
