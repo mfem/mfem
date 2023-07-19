@@ -373,11 +373,17 @@ public:
    /// Return base kernel
    virtual const RBFKernel *Kernel() const = 0;
 
-   /// Get range of i,j,k indices that are nonzero for compact support
+   /** @brief Return whether shape function is a tensor product, used in providing indices for compact support */
    virtual bool TensorIndexed() const { return false; }
+
+   /** @brief Get range of indices (start and end for each dimension) that
+       that are nonzero for compact support for the given integration point */
    virtual void GetTensorIndices(const Vector &ip,
                                  int (&indices)[3][2]) const
    { MFEM_ABORT("GetTensorIndices(...)"); }
+
+   /** @brief Return total number of points in each dimension for tensor-
+       indexed points */
    virtual void GetTensorNumPoints(int (&tNumPoints)[3]) const
    { MFEM_ABORT("GetTensorNumPoints(...)"); }
 
@@ -413,15 +419,15 @@ private:
    mutable DenseMatrix ddr_scr;
    mutable int cInd[3][2];
 #endif
-   bool isCompact; // Is the RBF with the given h compact?
+   bool isCompact;
    int dimPoints[3];
-   int numPointsD; // Number of points across the element in each D
+   int numPointsD;
    double delta; // Distance between points
-   double h; // Shape parameter
+   double h;
    double hPhys; // Shape parameter times distance between points times HNorm
    double hPhysInv; // Inverse hPhys
    double radPhys; // Radius adjusted by h
-   double faceFactor; // 1.0 = points end on face, 0.0 = points end at dx/2 from face
+   double faceFactor;
    const RBFKernel *rbf;
    const DistanceMetric *distance;
    void InitializeGeometry();
