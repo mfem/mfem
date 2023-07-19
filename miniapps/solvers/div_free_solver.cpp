@@ -902,11 +902,14 @@ BlockHybridizationSolver::~BlockHybridizationSolver()
     delete c_fes;
 }
 
-void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
+void BlockHybridizationSolver::ReduceRHS(const Vector &b,
+                                         const Vector &sol,
+                                         BlockVector &rhs,
+                                         Vector &b_r) const
 {
     const SparseMatrix &R = *trial_space.GetRestrictionMatrix();
-    Vector x_e(x);
-    if (elimination_) { EliminateEssentialBC(y, x_e);}
+    Vector x_e(b);
+    if (elimination_) { EliminateEssentialBC(sol, x_e);}
     Vector x0(R.Width());
     BlockVector block_x(x_e.GetData(), offsets_);
     R.MultTranspose(block_x.GetBlock(0), x0);
@@ -914,15 +917,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     ParMesh &pmesh(*trial_space.GetParMesh());
     const int ne = pmesh.GetNE();
 
-    Array<int> block_offsets(3);
-    block_offsets[0] = 0;
-    block_offsets[1] = hat_offsets.Last();
-    block_offsets[2] = offsets_[2] - offsets_[1];
-    block_offsets.PartialSum();
-
-    BlockVector rhs(block_offsets);
-    rhs.SetVector(block_x.GetBlock(1), block_offsets[1]);
-
+    rhs.SetVector(block_x.GetBlock(1), hat_offsets.Last());
     Array<bool> dof_marker(x0.Size());
     dof_marker = false;
     Array<int> dofs;
@@ -959,23 +954,22 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
         rhs.SetSubVector(dofs, Minv_sub_vec);
     }
+    Ct->MultTranspose(rhs.GetBlock(0), b_r);
+}
 
-    Vector rhs_r(Ct->Width());
-    Ct->MultTranspose(rhs.GetBlock(0), rhs_r);
-
-    Vector rhs_true(pH.Ptr()->Height());
-    const Operator &P(*c_fes->GetProlongationMatrix());
-    P.MultTranspose(rhs_r, rhs_true);
-
-    Vector lambda_true(rhs_true.Size());
-    lambda_true = 0.0;
-
-    solver_.Mult(rhs_true, lambda_true);
-
-    P.Mult(lambda_true, rhs_r);
+void BlockHybridizationSolver::ComputeSolution(Vector &y,
+                                               BlockVector &rhs,
+                                               const Vector &rhs_r,
+                                               Array<int> &block_offsets) const
+{
     BlockVector Ct_lambda(block_offsets);
     Ct->Mult(rhs_r, Ct_lambda.GetBlock(0));
     Ct_lambda.GetBlock(1) = 0.0;
+
+    ParMesh &pmesh(*trial_space.GetParMesh());
+    const int ne = pmesh.GetNE();
+    Array<int> dofs;
+    Vector Minv_sub_vec;
 
     for (int i = 0; i < ne; ++i)
     {
@@ -991,6 +985,8 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         rhs.AddElementVector(dofs, Minv_sub_vec);
     }
 
+    const SparseMatrix &R = *trial_space.GetRestrictionMatrix();
+    Vector x0(R.Width());
     Vector sub_vec;
     for (int i = 0; i < ne; ++i)
     {
@@ -1001,4 +997,31 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     BlockVector block_y(y, offsets_);
     R.Mult(x0, block_y.GetBlock(0));
     y.SetVector(rhs.GetBlock(1), offsets_[1]);
+}
+
+void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
+{
+    Array<int> block_offsets(3);
+    block_offsets[0] = 0;
+    block_offsets[1] = hat_offsets.Last();
+    block_offsets[2] = offsets_[2] - offsets_[1];
+    block_offsets.PartialSum();
+
+    BlockVector rhs(block_offsets);
+
+    Vector rhs_r(Ct->Width());
+    rhs_r = 0.0;
+    ReduceRHS(x, y, rhs, rhs_r);
+
+    Vector rhs_true(pH.Ptr()->Height());
+    const Operator &P(*c_fes->GetProlongationMatrix());
+    P.MultTranspose(rhs_r, rhs_true);
+
+    Vector lambda_true(rhs_true.Size());
+    lambda_true = 0.0;
+
+    solver_.Mult(rhs_true, lambda_true);
+
+    P.Mult(lambda_true, rhs_r);
+    ComputeSolution(y, rhs, rhs_r, block_offsets);
 }

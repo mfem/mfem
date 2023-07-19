@@ -268,6 +268,11 @@ class BlockHybridizationSolver : public DarcySolver
                    const std::shared_ptr<ParMixedBilinearForm> &b,
                    const Array<int> &marker,
                    const ParFiniteElementSpace &c_space);
+   void ReduceRHS(const Vector &b, const Vector &sol, BlockVector &rhs, Vector &b_r) const;
+   void ComputeSolution(Vector &y,
+                     BlockVector &rhs,
+                     const Vector &rhs_r,
+                     Array<int> &block_offsets) const;
 public:
    BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,
                             const std::shared_ptr<ParMixedBilinearForm> &b,
