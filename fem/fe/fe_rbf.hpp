@@ -284,18 +284,29 @@ class DistanceMetric
 protected:
    int dim;
 public:
+   /** @brief Create a distance metric
+       @param D    Reference space dimension */
    DistanceMetric(int D) { dim = D; }
    virtual ~DistanceMetric() { }
 
+   /// Set the reference dimension
    virtual void SetDim(int D) { dim = D; }
 
+   /// Given a vector of length D, return a physical distance
    virtual void Distance(const Vector &x,
                          double &r) const = 0;
+
+   /** @brief Given a vector of length D, return the gradient of the
+       distance with respect to the original coordinates */
    virtual void DDistance(const Vector &x,
                           Vector &dr) const = 0;
+
+   /** @brief Given a vector of length D, return the Hessian of the
+       distance with respect to the original coordinates */
    virtual void DDDistance(const Vector &x,
                            DenseMatrix &ddr) const = 0;
 
+   /// @brief Create an Lp distance metric for the requested dimension and norm
    static DistanceMetric *GetDistance(int dim, int pnorm);
 };
 
