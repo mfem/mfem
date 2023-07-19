@@ -754,8 +754,8 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
       {
          conn[4*i+p] = faceVert[p];
       }
-
    }
+   finder.FreeData();
 }
 
 
