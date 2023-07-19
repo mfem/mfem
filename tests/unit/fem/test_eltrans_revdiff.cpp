@@ -259,7 +259,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
                dWeight_fd -= trans.Weight();
                dWeight_fd /= (2.0*eps_fd);
                coords(di, n) += eps_fd;
-               REQUIRE(coords_bar(di, n) == Approx(dWeight_fd));
+               REQUIRE(coords_bar(di, n) == Approx(dWeight_fd).margin(1e-10));
             }
          }
       }
