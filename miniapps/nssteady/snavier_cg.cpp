@@ -3,19 +3,17 @@
 namespace mfem{
 
 /// Constructor
-SNavierPicardCGSolver::SNavierPicardCGSolver(ParMesh* mesh_,
-                                             int vorder_,
-                                             int porder_,
+SNavierPicardCGSolver::SNavierPicardCGSolver(ParMesh* mesh,
+                                             int vorder,
+                                             int porder,
                                              double kin_vis_,
-                                             bool verbose_)
+                                             bool verbose):
+pmesh(mesh), vorder(vorder), porder(porder), verbose(verbose)
 {
    // mesh
-   pmesh=mesh_;
    dim=pmesh->Dimension();
 
    // FE collection and spaces for velocity and pressure
-   vorder = vorder_;
-   porder = porder_;
    vfec=new H1_FECollection(vorder,dim);
    vfes=new ParFiniteElementSpace(pmesh,vfec,dim);
    pfec=new H1_FECollection(porder);
@@ -39,27 +37,24 @@ SNavierPicardCGSolver::SNavierPicardCGSolver(ParMesh* mesh_,
    pk_gf.SetSpace(pfes); pk_gf=0.0;
 
    // initialize vectors
-   v    = new Vector(vdim);
-   vk   = new Vector(vdim);
-   z    = new Vector(vdim);
-   p    = new Vector(pdim);
-   pk   = new Vector(pdim);
-   fv   = new Vector(vdim);
-   fp   = new Vector(pdim);
-   rhs1 = new Vector(vdim);
-   rhs2 = new Vector(pdim);
-   rhs3 = new Vector(vdim);
-   tmp = new Vector(vdim);
-
+   v    = new Vector(vdim); *v = 0.0;
+   vk   = new Vector(vdim); *vk = 0.0; 
+   z    = new Vector(vdim); *z = 0.0; 
+   p    = new Vector(pdim); *p = 0.0; 
+   pk   = new Vector(pdim); *pk = 0.0; 
+   fv   = new Vector(vdim); *fv = 0.0; 
+   fp   = new Vector(pdim); *fp = 0.0; 
+   rhs1 = new Vector(vdim); *rhs1 = 0.0; 
+   rhs2 = new Vector(pdim); *rhs2 = 0.0;
+   rhs3 = new Vector(vdim); *rhs3 = 0.0; 
+   tmp  = new Vector(vdim); *tmp = 0.0; 
+   
    // setup GridFunctionCoefficients
    vk_vc = new VectorGridFunctionCoefficient(&vk_gf);
    pk_c  = new GridFunctionCoefficient(&pk_gf);
 
    // set kinematic viscosity
    kin_vis.constant = kin_vis_;
-
-   // set verbosity level
-   verbose=verbose_;
 
    // Error computation setup
    err_v = err_p = 0;
@@ -273,8 +268,6 @@ void SNavierPicardCGSolver::Setup()
   
    K = K_form->ParallelAssemble();
    B = B_form->ParallelAssemble();
-   A  = new HypreParMatrix();            // Create Matrices S, A (not initialized internally by any function)
-   S  = new HypreParMatrix(); 
 
 
    /// 2. Setup and assemble linear form for rhs
@@ -336,15 +329,14 @@ void SNavierPicardCGSolver::Setup()
    // NOTE: alternatively the following function performs the modification on both matrix and rhs
    //       EliminateRowsCols(const Array<int> &rows_cols, const HypreParVector &x, HypreParVector &b)
    Ke = K->EliminateRowsCols(vel_ess_tdof);  // Remove rows/cols for ess tdofs
-   K->EliminateZeroRows();                   // Set diag to 1
    Be  = B->EliminateCols(vel_ess_tdof);
    Bt  = B->Transpose(); 
    Bte = Be->Transpose(); 
 
-   ModifyRHS(vel_ess_tdof, Ke, *v, *fv);         // Modify rhs for velocity    rhs -= Ke u
+   //ModifyRHS(vel_ess_tdof, Ke, *v, *fv);         // Modify rhs for velocity    rhs -= Ke u
    //ModifyRHS(vel_ess_tdof, Bte, *p, *fv);         // Modify rhs for velocity    rhs -= Bt p   Not needed as we don't prescribe EssPres bcs
 
-   ModifyRHS(vel_ess_tdof, Be, *v, *fp, false);  // Modify rhs for pressure ( no pressure ess bcs)
+   ModifyRHS(vel_ess_tdof, Be, *v, *fp, false);  // Modify rhs for pressure ( no pressure ess bcs)   fp = 0 - Be v
 
    // Update grid function and vector for provisional velocity
    // CHECK: do we need to initialize also vk?
@@ -358,8 +350,8 @@ void SNavierPicardCGSolver::Setup()
    invA_pc->SetSystemsOptions(dim);
    invA_pc->SetPrintLevel(s1Params.pl);
    invA_pc->SetElasticityOptions(vfes);
-   invA = new CGSolver(vfes->GetComm());
-   invA->iterative_mode = false;
+   invA = new CGSolver(pmesh->GetComm());
+   invA->iterative_mode = true;     // uses 2nd argument of mult as initial guess
    invA->SetPrintLevel(s1Params.pl);
    invA->SetRelTol(s1Params.rtol);
    //invA->SetAbsTol(s1Params.atol);
@@ -370,19 +362,21 @@ void SNavierPicardCGSolver::Setup()
    // NOTE: test different approaches to deal with Schur Complement:
    // * now using Jacobi, but this may not be a good approximation when involving Brinkman Volume Penalization
    // * alternative may be to use Multigrid to get better approximation
-   auto Kd = new HypreParVector(MPI_COMM_WORLD, K->GetGlobalNumRows(), K->GetRowStarts());
+   HypreParVector* Kd = new HypreParVector(pmesh->GetComm(), K->GetGlobalNumRows(), K->GetRowStarts());
+   HypreParMatrix* local = new HypreParMatrix(*Bt); // local = Bt
    K->GetDiag(*Kd);
-   *S = *Bt;    // S = Bt
-   S->InvScaleRows(*Kd);  // S = Kd^{-1} Bt
-   S = ParMult(B, S);     // S = B Kd^{-1} Bt
+   local->InvScaleRows(*Kd);  // local = Kd^{-1} Bt
+   S = ParMult(B, local);     // S = B Kd^{-1} Bt
+   delete local; local=nullptr;
+   delete Kd; Kd = nullptr;
 
    invS_pc = new HypreBoomerAMG(*S);
-   invS_pc->SetSystemsOptions(dim);
+   //invS_pc->SetSystemsOptions(dim);
    invS_pc->SetPrintLevel(s2Params.pl);
-   invS = new CGSolver(pfes->GetComm());
-   invS->iterative_mode = false;
+   invS = new CGSolver(pmesh->GetComm());
+   invS->iterative_mode = true;
    invS->SetOperator(*S);
-   invS->SetPreconditioner(*invS_pc);
+   //invS->SetPreconditioner(*invS_pc);
    invS->SetPrintLevel(s2Params.pl);
    invS->SetRelTol(s2Params.rtol);
    //invS->SetAbsTol(s2Params.atol);
@@ -391,20 +385,25 @@ void SNavierPicardCGSolver::Setup()
    // 5.3 Velocity correction
    // solved with CGSolver preconditioned with HypreBoomerAMG 
    invK_pc = new HypreBoomerAMG(*K);
-   invK_pc->SetSystemsOptions(dim);
+   //invK_pc->SetSystemsOptions(dim);
    invK_pc->SetPrintLevel(s3Params.pl);
-   invK = new CGSolver(vfes->GetComm());
-   invK->iterative_mode = false;
+   invK = new CGSolver(pmesh->GetComm());
+   invK->iterative_mode = true;
    invK->SetOperator(*K);
    invK->SetPreconditioner(*invK_pc);
    invK->SetPrintLevel(s3Params.pl);
    invK->SetRelTol(s3Params.rtol);
    //invK->SetAbsTol(s3Params.atol);
    invK->SetMaxIter(s3Params.maxIter);
+
 }
 
 void SNavierPicardCGSolver::FSolve()
 {
+#ifdef MFEM_DEBUG
+   PrintMatricesVectors( "setup", 0); // Export matrices/vectors before step
+#endif
+
    PrintInfo();
 
    if (pmesh->GetMyRank() == 0)
@@ -424,9 +423,8 @@ void SNavierPicardCGSolver::FSolve()
              << "Res" << std::setw(12) << "AbsTol" << "\n";
 
 
-   // Export solution
-   if ( visit ){ visit_dc->Save(); }
-   if ( paraview ){ paraview_dc->Save(); }
+   // Export initial solution
+   SaveResults( 0 );
 
    for (iter = 0; iter < sParams.maxIter; iter++)
    {
@@ -435,6 +433,9 @@ void SNavierPicardCGSolver::FSolve()
 
       // Solve current iteration.
       Step();
+
+      // Output results
+      SaveResults( iter+1 );
 
       // Compute errors.
       ComputeError();
@@ -446,18 +447,6 @@ void SNavierPicardCGSolver::FSolve()
       mfem::out << iter << "   " << std::setw(3)
                 << std::setprecision(2) << std::scientific << err_v
                 << "   " << sParams.atol << "\n";
-
-      // Output results
-      if ( visit ){ 
-         visit_dc->SetCycle(iter+1);
-         visit_dc->SetTime(iter+1);
-         visit_dc->Save();
-      }
-      if ( paraview ){
-         paraview_dc->SetCycle(iter+1);
-         paraview_dc->SetTime(iter+1);
-         paraview_dc->Save();
-      }
 
       // Check convergence.
       if (err_v < sParams.atol)
@@ -478,12 +467,10 @@ void SNavierPicardCGSolver::SetupOutput( const char* folderPath, bool visit_, bo
 {
    visit    = visit_;
    paraview = paraview_;
+   outfolder = folderPath;
 
    // Creating output directory if not existent
-   if (mkdir(folderPath, 0777) == -1)
-      std::cerr << "Error :  " << strerror(errno) << std::endl;
-   else
-      out << "Directory created";
+   if (mkdir(folderPath, 0777) == -1) {std::cerr << "Error :  " << strerror(errno) << std::endl;}
 
    // Create output data collections   
    if( visit )
@@ -517,48 +504,71 @@ void SNavierPicardCGSolver::SetupOutput( const char* folderPath, bool visit_, bo
 void SNavierPicardCGSolver::Step()
 {
    /// Assemble convective term with new velocity vk and modify matrix for essential bcs.
-   delete C_form;
+   delete C_form; C_form = nullptr;
    C_form = new ParBilinearForm(vfes);
-   C_form->AddDomainIntegrator(new VectorConvectionIntegrator(*vk_vc, alpha));
+   C_form->AddDomainIntegrator(new VectorConvectionIntegrator(*vk_vc, 1));
    C_form->Assemble(); C_form->Finalize();
-   C = C_form->ParallelAssemble();
-   Ce = C->EliminateRowsCols(vel_ess_tdof);
-   //C->EliminateZeroRows(); // CHECK: We should leave it zeroed out otherwise we get 2 on diagonal of A
+   C = C_form->ParallelAssemble();              
 
    /// Solve.
    // 1: Velocity prediction      ( K + alpha*C(vk) ) z = f - (1-alpha)*C(uk)*k
-   A = Add(1,*K,1,*C);            // Assemble operator
+   // Assemble rhs
+   rhs1->Set(1,*fv);                           // rhs1 = fv
+   C->Mult(*vk,*tmp);                          // tmp = C*vk
+   rhs1->Add(alpha-1, *tmp);                   // rhs1 = fv += (alpha-1)*C*vk      
+   
+   // Assemble operator
+   A = Add(1.0, *K, alpha, *C);                // A = Km + alpha C                   
+   A->Add(1, *Ke);                             // A = Km + Ke + alpha C 
+
+#ifdef MFEM_DEBUG
+   PrintMatricesVectors( "prestep", iter);  // Export matrices/vectors after assembly of A, before modifications
+#endif
+  
+   Ae = A->EliminateRowsCols(vel_ess_tdof);
+
+   ModifyRHS(vel_ess_tdof, Ae, *z, *rhs1);
+
    invA->SetOperator(*A);     
    invA_pc->SetOperator(*A);
- 
-   *rhs1 = *fv;                      // Assemble rhs                      // rhs1 = fv
-   FullMult(vel_ess_tdof, C, Ce, *vk, *tmp, DiagonalPolicy::DIAG_ZERO);   // tmp = C*vk
-   rhs1->Add(alpha-1, *tmp);                                              // rhs1 = fv += (alpha-1)*C*vk      
-   ModifyRHS(vel_ess_tdof, Ce, *z, *rhs1);
 
    invA->Mult(*rhs1,*z);
 
-   // 2: Pressure correction                    B*K^-1*B^T p = B*z
-   FullMult(vel_ess_tdof, B, Be, *z, *rhs2, DiagonalPolicy::DIAG_ZERO);   // rhs2 = B z
-   rhs2->Add(1, *fp);                                                     // rhs2 += fp        
+#ifdef MFEM_DEBUG
+   PrintMatricesVectors( "step1", iter);  // Export matrices/vectors after 1st step
+#endif
+
+   // 2: Pressure correction                   B*K^-1*B^T p = B*z
+   FullMult(B, Be, *z, *rhs2);                 // rhs2 = B z
+   rhs2->Add(1, *fp);                          // rhs2 += fp        
 
    invS->Mult(*rhs2, *p);
 
+#ifdef MFEM_DEBUG
+   PrintMatricesVectors( "step2", iter);  // Export matrices/vectors after 2nd step
+#endif
+
    // 3: Velocity correction         K u = K*z - B^T*p = f - (1-alpha)*C(uk)*uk - alpha C(uk) z - B^T*p  
    // NOTE: Could be more efficient storing and reusing rhs1, SparseMatrix -alpha C(uk)
-   FullMult(vel_ess_tdof, K, Ke, *z, *rhs3, DiagonalPolicy::DIAG_ONE);     // rhs3 = K z
-   FullMult(vel_ess_tdof, Bt, Bte, *p, *tmp, DiagonalPolicy::DIAG_ZERO);   // tmp  = Bt p  
-   rhs3->Add(-1, *tmp);                                                    // rhs3 -= tmp        
+   FullMult(K, Ke, *z, *rhs3);   // rhs3 = K z
+   FullMult(Bt, Bte, *p, *tmp);  // tmp  = Bt p  
+   rhs3->Add(-1, *tmp);          // rhs3 -= tmp        
    ModifyRHS(vel_ess_tdof, Ke, *v, *rhs3);
 
    invK->Mult(*rhs3,*v);
 
+#ifdef MFEM_DEBUG
+   PrintMatricesVectors( "step3", iter);  // Export matrices/vectors after 3rd step
+#endif
+
    /// Update GridFunctions for solution.
    v_gf.SetFromTrueDofs(*v);
    p_gf.SetFromTrueDofs(*p);
+   z_gf.SetFromTrueDofs(*z);
 
-   delete C;
-   delete Ce;
+   delete A; A = nullptr;
+   delete Ae; Ae = nullptr;
+   delete C; C = nullptr;
 }
 
 void SNavierPicardCGSolver::ComputeError()
@@ -618,17 +628,26 @@ void SNavierPicardCGSolver::ModifyRHS(Array<int> &ess_tdof_list, HypreParMatrix*
 
 }
 
-void SNavierPicardCGSolver::FullMult(Array<int> &ess_tdof_list, HypreParMatrix* mat,
-                                     HypreParMatrix* mat_e, Vector &x, Vector &y,
-                                     DiagonalPolicy diag_policy)
+void SNavierPicardCGSolver::FullMult(HypreParMatrix* mat, HypreParMatrix* mat_e, Vector &x, Vector &y)
 {
    mat->Mult(x, y);        // y =  mat x
    mat_e->AddMult(x, y);   // y += mat_e x
+}
 
-   // Remove offset if modified matrix has ones on the diagonal
-   if (diag_policy == DiagonalPolicy::DIAG_ONE)
+void SNavierPicardCGSolver::SaveResults( int iter )
+{
+
+   if ( visit ) // Save to GLVis format if visit enabled
+   { 
+      visit_dc->SetCycle(iter);
+      visit_dc->SetTime(iter);
+      visit_dc->Save();
+   }
+   if ( paraview ) // Save to Paraview format if visit enabled
    {
-      y.AddElementVector(ess_tdof_list, -1, x);  // y -= x(ess_tdof)   
+      paraview_dc->SetCycle(iter);
+      paraview_dc->SetTime(iter);
+      paraview_dc->Save();
    }
 }
 
@@ -648,7 +667,84 @@ void SNavierPicardCGSolver::PrintInfo()
    }
 }
 
+void SNavierPicardCGSolver::PrintMatricesVectors( const char* id, int num )
+{
+   // Create folder
+   std::string folderName(outfolder);
+   folderName += "/MatVecs_iter";
+   folderName += std::to_string(num);
 
+   if (mkdir(folderName.c_str(), 0777) == -1) {std::cerr << "Error :  " << strerror(errno) << std::endl;}
+
+   //Create files
+   std::ofstream K_file(std::string(folderName) + '/' + "K_" + std::string(id) + ".dat");
+   std::ofstream C_file(std::string(folderName) + '/' + "C_" + std::string(id) + ".dat");
+   std::ofstream A_file(std::string(folderName) + '/' + "A_" + std::string(id) + ".dat");
+   std::ofstream S_file(std::string(folderName) + '/' + "S_" + std::string(id) + ".dat");
+   std::ofstream B_file(std::string(folderName) + '/' + "B_" + std::string(id) + ".dat");
+   std::ofstream Bt_file(std::string(folderName) + '/' + "Bt_" + std::string(id) + ".dat");
+
+   std::ofstream fv_file(std::string(folderName) + '/' + "fv_" + std::string(id) + ".dat");
+   std::ofstream fp_file(std::string(folderName) + '/' + "fp_" + std::string(id) + ".dat");
+   std::ofstream rhs1_file(std::string(folderName) + '/' + "rhs1_" + std::string(id) + ".dat");
+   std::ofstream rhs2_file(std::string(folderName) + '/' + "rhs2_" + std::string(id) + ".dat");
+   std::ofstream rhs3_file(std::string(folderName) + '/' + "rhs3_" + std::string(id) + ".dat");
+   std::ofstream dofs_file(std::string(folderName) + '/' + "dofs_" + std::string(id) + ".dat");
+
+   std::ofstream v_file(std::string(folderName) + '/' + "v_" + std::string(id) + ".dat");
+   std::ofstream vk_file(std::string(folderName) + '/' + "vk_" + std::string(id) + ".dat");
+   std::ofstream p_file(std::string(folderName) + '/' + "p_" + std::string(id) + ".dat");
+   std::ofstream pk_file(std::string(folderName) + '/' + "pk_" + std::string(id) + ".dat");
+   std::ofstream z_file(std::string(folderName) + '/' + "z_" + std::string(id) + ".dat");
+
+   // Print matrices in matlab format
+   K->PrintMatlab(K_file);
+   if(C==nullptr)
+   {
+      C = new HypreParMatrix();
+      C->PrintMatlab(C_file);
+      delete C; C = nullptr;
+   }
+   else
+   {
+      C->PrintMatlab(C_file);
+   }
+
+   if(A==nullptr)
+   {
+      A = new HypreParMatrix();
+      A->PrintMatlab(C_file);
+      delete A; A = nullptr;
+   }
+   else
+   {
+      A->PrintMatlab(A_file);
+   }
+
+   S->PrintMatlab(S_file);
+   B->PrintMatlab(B_file);
+   Bt->PrintMatlab(Bt_file);
+
+   fv->Print(fv_file,1);
+   fp->Print(fp_file,1);
+   rhs1->Print(rhs1_file,1);
+   rhs2->Print(rhs2_file,1);
+   rhs3->Print(rhs3_file,1);
+
+   v->Print(v_file,1);
+   vk->Print(vk_file,1);
+   p->Print(p_file,1);
+   pk->Print(pk_file,1);
+   z->Print(z_file,1);
+
+
+   for (int i = 0; i < vel_ess_tdof.Size(); ++i)
+   {
+      dofs_file << vel_ess_tdof[i] << std::endl;
+   }
+   dofs_file.close();
+
+}
 
 /// Destructor
 SNavierPicardCGSolver::~SNavierPicardCGSolver()
@@ -666,13 +762,26 @@ SNavierPicardCGSolver::~SNavierPicardCGSolver()
    delete K;
    delete B;
    delete Bt;
-   delete C;
-   delete A;
+   //delete A;
+   //delete C;
    delete S;
    delete Ke;
    delete Be;
    delete Bte;
-   delete Ce;
+   //delete Ae;
+
+   delete fv;
+   delete fp;
+   delete rhs1;
+   delete rhs2;
+   delete rhs3;
+   delete tmp;
+
+   delete vk_vc;
+   delete pk_c;
+
+   delete fcoeff;
+   delete traction;
 
    delete invA;     
    delete invK;     
@@ -681,6 +790,9 @@ SNavierPicardCGSolver::~SNavierPicardCGSolver()
    delete invA_pc;  
    delete invK_pc;  
    delete invS_pc;  
+
+   delete paraview_dc;
+   delete visit_dc;
 }
 
 }
