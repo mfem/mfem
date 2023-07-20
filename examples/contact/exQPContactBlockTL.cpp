@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
   }
   SparseMatrix *J;
   Vector g0(nconstraints); g0 = 0.0;
-  J = contact->Ddg(d0); contact->g(d0, g0);
+  contact->g(d0, g0); J = contact->Ddg(d0);
   Vector temp(nconstraints);
   J->Mult(d0, temp);
   g0.Add(-1.0, temp);

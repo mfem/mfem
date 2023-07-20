@@ -1112,9 +1112,7 @@ void ExContactBlockTL::update_g() const
          }
       }
    }
-   M->Clear();
    delete M;
-   M = nullptr;
    M = new SparseMatrix(nnd,ndofs);
    for (int i=0; i<nnd; i++)
    {
@@ -1184,8 +1182,8 @@ void ExContactBlockTL::g(const Vector &d, Vector &gd) const
     gd(i) = gapx[i];
   }
   
-  delete x;
-  delete gapx;
+  delete[] x;
+  delete[] gapx;
 }
 
 SparseMatrix* ExContactBlockTL::Ddg(const Vector &d)
