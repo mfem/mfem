@@ -951,7 +951,7 @@ int main(int argc, char *argv[])
    {
       std::cout << "REFINEMENT NUMBER: " << iter_pref << std::endl;
 
-      if (iter_pref >= 0)
+      if (iter_pref > 0)
       {
          surface_fit_const = 1e6;
       }
