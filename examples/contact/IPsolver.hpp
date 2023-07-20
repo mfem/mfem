@@ -38,7 +38,7 @@ protected:
 
     Vector ckSoc;
     SparseMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, *D, * Ju, * Jm, * JuT, * JmT;
-    
+    SparseMatrix * Huucl, *HLuucl;    
     int jOpt;
     bool converged;
     

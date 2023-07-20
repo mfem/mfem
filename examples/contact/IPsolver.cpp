@@ -11,7 +11,7 @@ using namespace mfem;
 
 
 InteriorPointSolver::InteriorPointSolver(OptProblem * Problem) : problem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), saveLogBarrierIterates(false)
+Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Huucl(nullptr), HLuucl(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), saveLogBarrierIterates(false)
 {
   rel_tol  = 1.e-2;
   max_iter = 20;
@@ -288,7 +288,7 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
   
   if(Hmm != nullptr)
   {
-    Wmm = Hmm;
+    Wmm = new SparseMatrix(*Hmm);
     Wmm->Add(1.0, *D);
   }
   else
@@ -298,7 +298,18 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
 
   Ju = problem->Duc(x); JuT = Transpose(*Ju);
   Jm = problem->Dmc(x); JmT = Transpose(*Jm);
-  
+ 
+  Huucl = problem->lDuuc(x, l);
+  if(Huucl != nullptr)
+  {
+    HLuucl = Add(*Huucl, *Huu);
+    Ak.SetBlock(0, 0, HLuucl);
+  } 
+  else
+  {
+    Ak.SetBlock(0, 0, Huu);
+  }
+
   //         IP-Newton system matrix
   //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
   //          [H_(m,u)  W_(m,m)   J_m^T]
@@ -492,9 +503,13 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   }
 
   // free memory
-  if(!(Hmm == nullptr))
+  if(Hmm != nullptr)
   {
     delete Wmm;
+  }
+  if( Huucl != nullptr)
+  {
+    delete HLuucl;
   }
   delete D;
   delete JuT;
@@ -551,7 +566,7 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
   {
     mfem::out << "is not a descent direction for the log-barrier objective\n";
   }
-  mfem::out << "Dxphi^T xhat / (|| Dxphi||_2 * || xhat ||_2) = " << Dxphi0_xhat / (sqrt(InnerProduct(xhat, xhat)) * sqrt(InnerProduct(Dxphi0, Dxphi0))) << endl;
+  mfem::out << "Dxphi^T xhat / (|| Dxphi||_2 * || xhat ||_2) = " << Dxphi0_xhat / (xhat.Norml2() * Dxphi0.Norml2()) << endl;
   thx0 = theta(x0);
   phx0 = phi(x0, mu);
 
@@ -709,7 +724,7 @@ double InteriorPointSolver::theta(const BlockVector &x)
 {
   Vector cx(dimC); cx = 0.0;
   problem->c(x, cx);
-  return sqrt(InnerProduct(cx, cx));
+  return cx.Norml2();
 }
 
 // log-barrier objective

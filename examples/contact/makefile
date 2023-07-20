@@ -91,3 +91,17 @@ clean: clean-build
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
+
+# For out-of-source builds, link the data files from the source tree:
+ifneq ($(SRC),)
+DATA_FILES = block1.mesh rotatedblock2.mesh
+$(DATA_FILES): %: $(SRC)%
+	ln -sf $(<) .
+copy-data: | $(DATA_FILES)
+# For out-of-source builds, the test and sample runs for 'field-interp' need
+# data from the meshing miniapps directory:
+exQPContactBlockTL: | mesh-data
+.PHONY: mesh-data
+mesh-data:
+	$(MAKE) -C ./ copy-data
+endif

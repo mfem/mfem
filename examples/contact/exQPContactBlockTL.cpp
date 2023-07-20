@@ -1,9 +1,9 @@
-//                                Contact example
+//                                Quadratic-Programming (QP) Contact example
 //
-// Compile with: make contact
+// Compile with: make exQPContactBlockTL
 //
-// Sample runs:  ./contact -m1 block1.mesh -m2 block2.mesh -at "5 6 7 8"
-// Sample runs:  ./contact -m1 block1_d.mesh -m2 block2_d.mesh -at "5 6 7 8"
+// Sample runs:  ./exQPContactBlockTL
+
 
 #include <fstream>
 #include <iostream>
@@ -47,8 +47,16 @@ int main(int argc, char *argv[])
     }
   }
 	
+  Mesh * mesh1 = new Mesh("block1.mesh", 1, 1);
+  Mesh * mesh2 = new Mesh("rotatedblock2.mesh", 1, 1);
+  for(int i = 0; i < ref_levels; i++)
+  {
+     mesh1->UniformRefinement();
+     mesh2->UniformRefinement(); 
+  }
+
   // Create an instance of the nlp
-  ExContactBlockTL * contact = new ExContactBlockTL(ref_levels);
+  ExContactBlockTL * contact = new ExContactBlockTL(mesh1, mesh2, 1);
   int ndofs = contact->GetDimD();
   int nconstraints = contact->GetDimS();
   
@@ -83,35 +91,27 @@ int main(int argc, char *argv[])
 
   double normJTei;
 
-  int reduced_nconstraints = 0; // find actual number of constraints
-  
-  
   Array<int> nonZeroRows;
   for(int i = 0; i < nconstraints; i++)
   {
-    ei(i) = 1.0;
-    J->MultTranspose(ei, JTei);
-    // nullify contributions from Dirichlet constrined dofs
-    for(int j = 0; j < DirichletDofs.Size(); j++)
-    {
-      JTei(DirichletDofs[j]) = 0.0;
-    }
-    normJTei = sqrt(InnerProduct(JTei, JTei));
+    Array<int> col_tmp;
+    Vector v_tmp; v_tmp = 0.0;
+    J->GetRow(i, col_tmp, v_tmp);
+    normJTei = v_tmp.Norml2();
     if (normJTei > 1.e-12)
     {
-      reduced_nconstraints += 1;
       nonZeroRows.Append(i);
     }
-    ei(i) = 0.0;
   }
-  cout << "number of linearized constraints = " << reduced_nconstraints << endl; // 9 constraints 
+  mfem::out << J->Height() << " linearized constraints\n";
+  mfem::out << nonZeroRows.Size() << " (reduced) linearized constraints\n"; 
   
   // remove zero rows of the gap function Jacobian and corresponding gap function entries
-  SparseMatrix * Jreduced = new SparseMatrix(reduced_nconstraints, ndofs);
-  Vector g0reduced(reduced_nconstraints); g0reduced = 0.0; 
+  SparseMatrix * Jreduced = new SparseMatrix(nonZeroRows.Size(), ndofs);
+  Vector g0reduced(nonZeroRows.Size()); g0reduced = 0.0; 
   
   
-  for(int i = 0; i < reduced_nconstraints; i++)
+  for(int i = 0; i < nonZeroRows.Size(); i++)
   {
     Array<int> col_tmp;
     Vector v_tmp; v_tmp = 0.0;
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
     
     /* obtain subset of columns of the given nonZero Jacobian row that are not Dirichlet constrained */
     bool freeDof;
-    Array<int> loc_indicies;
+    Array<int> free_col_indicies;
     for(int j = 0; j < col_tmp.Size(); j++)
     {
       freeDof = true;
@@ -132,16 +132,16 @@ int main(int argc, char *argv[])
       }
       if(freeDof)
       {
-        loc_indicies.Append(j);
+        free_col_indicies.Append(j);
       }
     }
 
-    Array<int> col_tmp_reduced(loc_indicies.Size());
-    Vector v_tmp_reduced(loc_indicies.Size());
-    for(int j = 0; j < loc_indicies.Size(); j++)
+    Array<int> col_tmp_reduced(free_col_indicies.Size());
+    Vector v_tmp_reduced(free_col_indicies.Size());
+    for(int j = 0; j < free_col_indicies.Size(); j++)
     {
-      col_tmp_reduced[j] = col_tmp[loc_indicies[j]];
-      v_tmp_reduced(j)   = v_tmp(loc_indicies[j]);
+      col_tmp_reduced[j] = col_tmp[free_col_indicies[j]];
+      v_tmp_reduced(j)   = v_tmp(free_col_indicies[j]);
     }
 
     Jreduced->SetRow(i, col_tmp_reduced, v_tmp_reduced);
@@ -170,13 +170,6 @@ int main(int argc, char *argv[])
  
   
   
-  Mesh * mesh1 = new Mesh("../../data/block1.mesh", 1, 1);
-  Mesh * mesh2 = new Mesh("../../data/rotatedblock2.mesh", 1, 1);
-  for(int i = 0; i < ref_levels; i++)
-  {
-     mesh1->UniformRefinement();
-     mesh2->UniformRefinement(); 
-  }
   int gdim = mesh1->Dimension();
   FiniteElementCollection * fec = new H1_FECollection(1, gdim);
   FiniteElementSpace * fespace1 = new FiniteElementSpace(mesh1, fec, gdim, Ordering::byVDIM);

@@ -35,6 +35,10 @@ public:
     virtual void c(const BlockVector &, Vector &) const = 0;
     virtual SparseMatrix* Duc(const BlockVector &) = 0;
     virtual SparseMatrix* Dmc(const BlockVector &) = 0;
+    virtual SparseMatrix* lDuuc(const BlockVector &, const Vector &) = 0;
+    virtual SparseMatrix* lDumc(const BlockVector &, const Vector &) = 0;
+    virtual SparseMatrix* lDmuc(const BlockVector &, const Vector &) = 0;
+    virtual SparseMatrix* lDmmc(const BlockVector &, const Vector &) = 0;
     // TO DO: include Hessian terms of constraint c
     // TO DO: include log-barrier lumped-mass and pass that
     // to the optimizer
@@ -58,6 +62,9 @@ protected:
     int dimS;
     Array<int> block_offsetsx;
     SparseMatrix * negIdentity;
+    SparseMatrix * zeroMatum;
+    SparseMatrix * zeroMatmu;
+    SparseMatrix * zeroMatmm;
 public:
     //ContactProblem(int, int);        // constructor
     ContactProblem();
@@ -72,11 +79,16 @@ public:
     void c(const BlockVector &, Vector &) const;
     SparseMatrix* Duc(const BlockVector &);
     SparseMatrix* Dmc(const BlockVector &);
+    SparseMatrix* lDuuc(const BlockVector &, const Vector &);
+    SparseMatrix* lDumc(const BlockVector &, const Vector &);
+    SparseMatrix* lDmuc(const BlockVector &, const Vector &);
+    SparseMatrix* lDmmc(const BlockVector &, const Vector &);
     virtual double E(const Vector &) const = 0;           // objective e(d) (energy function)
     virtual void DdE(const Vector &, Vector &) const = 0; // gradient of objective De / Dd
     virtual SparseMatrix* DddE(const Vector &) = 0;       // Hessian of objective D^2 e / D d^2
     virtual void g(const Vector &, Vector &) const = 0;   // inequality constraint g(d) >= 0 (gap function)
     virtual SparseMatrix* Ddg(const Vector &) = 0;        // Jacobian of inequality constraint Dg / Dd
+    virtual SparseMatrix* lDddg(const Vector &, const Vector &) = 0;
     int GetDimD() const { return dimD; };
     int GetDimS() const { return dimS; };
     virtual ~ContactProblem();
@@ -93,6 +105,7 @@ protected:
    Array<int> empty_tdof_list; // needed for calls to FormSystemMatrix
    SparseMatrix  K;
    SparseMatrix  *J;
+   SparseMatrix *zeroMatdd;
    FiniteElementSpace *Vh;
    Vector f;
 public : 
@@ -102,6 +115,7 @@ public :
    SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
    SparseMatrix* Ddg(const Vector &);
+   SparseMatrix * lDddg(const Vector &, const Vector &);
    // TO DO: include lumped-mass for the log-barrier term
    //SparseMatrix* GetLogBarrierLumpedMass();
    virtual ~ObstacleProblem();
@@ -117,6 +131,7 @@ protected:
    Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
    SparseMatrix  *K;
    SparseMatrix  *J;
+   SparseMatrix  *zeroMatdd;
    FiniteElementSpace *Vh;
    Vector f;
    Vector psi;
@@ -128,6 +143,7 @@ public :
    SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
    SparseMatrix* Ddg(const Vector &);
+   SparseMatrix * lDddg(const Vector &, const Vector &);
    virtual ~DirichletObstacleProblem();
 };
 
@@ -137,6 +153,7 @@ class QPContactProblem : public ContactProblem
 protected:
   SparseMatrix *K;
   SparseMatrix *J;
+  SparseMatrix *zeroMatdd;
   Vector f;
   Vector g0;
 public:
@@ -146,12 +163,10 @@ public:
   SparseMatrix* DddE(const Vector &);
   void g(const Vector &, Vector &) const;
   SparseMatrix* Ddg(const Vector &);
+  SparseMatrix * lDddg(const Vector &, const Vector &);
   virtual ~QPContactProblem();
 };
 
-
-typedef int Index;
-typedef double Number;
 
 class ExContactBlockTL : public ContactProblem
 {
@@ -161,62 +176,20 @@ public:
    SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
    SparseMatrix* Ddg(const Vector &);
+   SparseMatrix * lDddg(const Vector &, const Vector &);
    FiniteElementSpace GetVh1();
    FiniteElementSpace GetVh2();
+   SparseMatrix *zeroMatdd;
 public:
    /** default constructor */
-   ExContactBlockTL(int );
+   ExContactBlockTL(Mesh *, Mesh *, int);
    
 
    /** default destructor */
    virtual ~ExContactBlockTL();
 
-   /* Method to return the constraint residuals */
-   virtual bool eval_g(
-      Index         n,
-      const Number* x,
-      bool          new_x,
-      Index         m,
-      Number*       cons
-   ) const;
-
-   /* Method to return:
-      1) The structure of the Jacobian (if "values" is NULL)
-      2) The values of the Jacobian (if "values" is not NULL)
-   */
-   virtual bool eval_jac_g(
-      Index         n,
-      const Number* x,
-      bool          new_x,
-      Index         m,
-      Index         nele_jac,
-      Index*        iRow,
-      Index*        jCol,
-      Number*       values
-   ) const;
-
-   /* Method to return:
-    *   1) The structure of the Hessian of the Lagrangian (if "values" is NULL)
-    *   2) The values of the Hessian of the Lagrangian (if "values" is not NULL)
-   */
-   virtual bool eval_h(
-      Index         n,
-      const Number* x,
-      bool          new_x,
-      Number        obj_factor,
-      Index         m,
-      const Number* lambda,
-      bool          new_lambda,
-      Index         nele_hess,
-      Index*        iRow,
-      Index*        jCol,
-      Number*       values
-   );
-
 private:
    void update_g() const;
-   void update_jac();
-   void update_hess();
 
 private:
    /**@name Methods to block default compiler methods.
@@ -306,7 +279,6 @@ public:
    Mesh * GetMesh2() {return mesh2;}
    Array<int> GetDirichletDofs() {return Dirichlet_dof;}
    Array<double> GetDirichletVals() {return Dirichlet_val;}
-
 };
 
 

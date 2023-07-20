@@ -72,6 +72,9 @@ void ContactProblem::InitializeParentData(int dimd, int dims)
   Vector negIdentVec(dimM);
   negIdentVec = -1.0;
   negIdentity  = new SparseMatrix(negIdentVec);
+  zeroMatum = nullptr;
+  zeroMatmu = nullptr;
+  zeroMatmm = nullptr;
 }
 
 double ContactProblem::CalcObjective(const BlockVector &x) const { return E(x.GetBlock(0)); }
@@ -100,6 +103,26 @@ SparseMatrix* ContactProblem::Dmc(const BlockVector &x)
 { 
   return negIdentity;
 } 
+
+SparseMatrix* ContactProblem::lDuuc(const BlockVector &x, const Vector &l)
+{
+  return lDddg(x.GetBlock(0), l);
+}
+
+SparseMatrix* ContactProblem::lDumc(const BlockVector &x, const Vector &l)
+{
+  return zeroMatum;
+}
+
+SparseMatrix* ContactProblem::lDmuc(const BlockVector &x, const Vector &l)
+{
+  return zeroMatmu;
+}
+
+SparseMatrix* ContactProblem::lDmmc(const BlockVector &x, const Vector &l)
+{
+  return zeroMatmm;
+}
 
 ContactProblem::~ContactProblem() 
 {
@@ -132,7 +155,8 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
 
   Vector iDiag(dimD); iDiag = 1.0;
   J = new SparseMatrix(iDiag);
-
+  
+  zeroMatdd = nullptr;
 }
 
 double ObstacleProblem::E(const Vector &d) const
@@ -162,6 +186,11 @@ void ObstacleProblem::g(const Vector &d, Vector &gd) const
 SparseMatrix* ObstacleProblem::Ddg(const Vector &d)
 {
   return J;
+}
+
+SparseMatrix* ObstacleProblem::lDddg(const Vector &d, const Vector &l)
+{
+  return zeroMatdd;
 }
 
 ObstacleProblem::~ObstacleProblem()
@@ -243,6 +272,8 @@ DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vect
     }
   }
   J->Finalize();
+
+  zeroMatdd = nullptr;
 }
 
 double DirichletObstacleProblem::E(const Vector &d) const
@@ -277,6 +308,11 @@ SparseMatrix* DirichletObstacleProblem::Ddg(const Vector &d)
   return J;
 }
 
+SparseMatrix* DirichletObstacleProblem::lDddg(const Vector &d, const Vector &l)
+{
+  return zeroMatdd;
+}
+
 DirichletObstacleProblem::~DirichletObstacleProblem()
 {
   delete Kform;
@@ -305,6 +341,8 @@ QPContactProblem::QPContactProblem(const SparseMatrix Kin, const SparseMatrix Ji
   dimD = K->Height();
   dimS = J->Height();
   InitializeParentData(dimD, dimS);
+  
+  zeroMatdd = nullptr;
 }
 
 // E(d) = 1 / 2 d^T K d + f^T d
@@ -340,6 +378,11 @@ void QPContactProblem::g(const Vector &d, Vector &gd) const
 SparseMatrix* QPContactProblem::Ddg(const Vector &d)
 {
   return J;
+}
+
+SparseMatrix* QPContactProblem::lDddg(const Vector &d, const Vector &l)
+{
+  return zeroMatdd;
 }
 
 QPContactProblem::~QPContactProblem()
@@ -508,8 +551,7 @@ mfem::Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
       }
    }
 
-   std::vector<mfem::
-   Vector> tang(2);
+   std::vector<mfem::Vector> tang(2);
 
    int tangDir[2] = {-1, -1};
    {
@@ -760,12 +802,12 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
 
 
 /* Constructor. */
-ExContactBlockTL::ExContactBlockTL(int ref_levels)
+ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    : 
    ContactProblem(),
    block_offsets(3),
-   mesh1{nullptr},
-   mesh2{nullptr},
+   mesh1(mesh1in),
+   mesh2(mesh2in),
    fec1{nullptr},
    fec2{nullptr},
    fespace1{nullptr},
@@ -785,21 +827,6 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    M{nullptr},
    dM{nullptr}
 {
-   // 1. Parse command-line options.
-   mesh_file1 = "../../data/block1.mesh";
-   mesh_file2 = "../../data/rotatedblock2.mesh";
-   const char *mf1 = mesh_file1.c_str();
-   const char *mf2 = mesh_file2.c_str();
-
-   mesh1 = new Mesh(mf1, 1, 1);
-   mesh2 = new Mesh(mf2, 1, 1);
-   {
-     for(int l = 0; l < ref_levels; l++)
-     {
-       mesh1->UniformRefinement();
-       mesh2->UniformRefinement();
-     }
-   }
 
    dim = mesh1->Dimension();
    MFEM_VERIFY(dim == mesh2->Dimension(), "");
@@ -1023,6 +1050,7 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
    dimD = ndofs;
    dimS = nnd;
    InitializeParentData(dimD, dimS);
+   zeroMatdd = nullptr;
    // ---
    
    M = new SparseMatrix(nnd,ndofs);
@@ -1042,8 +1070,6 @@ ExContactBlockTL::ExContactBlockTL(int ref_levels)
 
 ExContactBlockTL::~ExContactBlockTL()
 {
-   delete mesh1;
-   delete mesh2;
    delete fec1;
    delete fec2;
    delete fespace1;
@@ -1059,6 +1085,10 @@ ExContactBlockTL::~ExContactBlockTL()
    delete K;
    delete coordsm;
    delete M;
+   for (int i=0; i<nnd; i++)
+   {
+      (*dM)[i].Clear();
+   }
    delete dM;
    delete B;
 }
@@ -1130,19 +1160,6 @@ void ExContactBlockTL::update_g() const
    }
 }
 
-void ExContactBlockTL::update_jac()
-{
-   assert(0 && "cannot reach here");
-   update_g();
-}
-
-void ExContactBlockTL::update_hess()
-{
-   assert(0 && "cannot reach here");
-   update_g();
-}
-
-
 
 double ExContactBlockTL::E(const Vector &d) const
 {
@@ -1166,24 +1183,16 @@ SparseMatrix* ExContactBlockTL::DddE(const Vector &d) // second argument for Spa
 // g(d) = d >= 0
 void ExContactBlockTL::g(const Vector &d, Vector &gd) const
 {
-  Number * x    = new Number[ndofs];
-  Number * gapx = new Number[nnd];
-  
-  for(int i = 0; i < ndofs; i++)
-  {
-    x[i] = d(i);
-  }
-  
-  bool boolreturned;
-  boolreturned = eval_g(ndofs, x, true, nnd, gapx);
-  
-  for(int i = 0; i < nnd; i++)
-  {
-    gd(i) = gapx[i];
-  }
-  
-  delete[] x;
-  delete[] gapx;
+   for (auto i=0; i<ndof_1; i++)
+   {
+      (*x1)[i] = d(i);
+   }
+   for (auto i=ndof_1; i<ndofs; i++)
+   {
+      (*x2)[i-ndof_1] = d(i);
+   }
+   update_g();
+   gd.Set(1.0, gapv);
 }
 
 SparseMatrix* ExContactBlockTL::Ddg(const Vector &d)
@@ -1192,199 +1201,13 @@ SparseMatrix* ExContactBlockTL::Ddg(const Vector &d)
   // only do so after eval_jac_g has been updated in order 
   // that the gap function Jacobian data that is stored in 
   // the SparseMatrix member data M is updated
-  for(int i = 0; i < ndof_1; i++)
-  {
-    (*x1)(i) = d(i);
-  }
-  for(int i = ndof_1; i < ndofs; i++)
-  {
-    (*x2)(i-ndof_1) = d(i);
-  }
   //update_g();
   return M;
 }
 
 
-
-bool ExContactBlockTL::eval_g(
-   Index         n,
-   const Number* x,
-   bool          new_x,
-   Index         m,
-   Number*       cons
-) const
+SparseMatrix* ExContactBlockTL::lDddg(const Vector &d, const Vector &l)
 {
-   assert(n == ndofs);
-   assert(m == nnd);
-
-   //   if(new_x)
-   {
-      for (auto i=0; i<ndof_1; i++)
-      {
-         (*x1)[i] = x[i];
-      }
-      for (auto i=ndof_1; i<n; i++)
-      {
-         (*x2)[i-ndof_1] = x[i];
-      }
-      update_g();
-   }
-
-   for (auto i=0; i<m; i++)
-   {
-      cons[i] = gapv[i];
-   }
-
-   return true;
+  // to do use dMi data
+  return zeroMatdd;
 }
-
-bool ExContactBlockTL::eval_jac_g(
-   Index         n,
-   const Number* x,
-   bool          new_x,
-   Index         m,
-   Index         nele_jac,
-   Index*        iRow,
-   Index*        jCol,
-   Number*       values
-) const
-{
-   assert(n == ndofs);
-   assert(m == nnd);
-   assert(n*m == nele_jac); // TODO: dense matrix for now
-   if (new_x)
-   {
-      for (auto i=0; i<ndof_1; i++)
-      {
-         (*x1)[i] = x[i];
-      }
-      for (auto i=ndof_1; i<n; i++)
-      {
-         (*x2)[i-ndof_1] = x[i];
-      }
-      // TODO: do something here to update jac
-   }
-
-   // TODO: we use dense Jac for now
-   if ( values == nullptr )
-   {
-      // return the structure of the jacobian of the constraints
-      for (auto i=0; i<m; i++)
-      {
-         for (auto j=0; j<n; j++)
-         {
-            iRow[i*n+j] = i;
-            jCol[i*n+j] = j;
-         }
-      }
-   }
-   else
-   {
-      const int *M_i = M->GetI();
-      const int *M_j = M->GetJ();
-      const double *M_data = M->GetData();
-
-      for (auto i=0; i<nele_jac; i++)
-      {
-         values[i] = 0.0;
-      }
-      for (auto i=0; i<m; i++)
-      {
-         for (auto k=M_i[i]; k<M_i[i+1]; k++)
-         {
-            values[i*n+M_j[k]] = M_data[k];
-         }
-      }
-   }
-   return true;
-}
-
-bool ExContactBlockTL::eval_h(
-   Index         n,
-   const Number* x,
-   bool          new_x,
-   Number        obj_factor,
-   Index         m,
-   const Number* lambda,
-   bool          new_lambda,
-   Index         nele_hess,
-   Index*        iRow,
-   Index*        jCol,
-   Number*       values
-)
-{
-   assert(n == ndofs);
-   assert(m == nnd);
-   assert((n*n+n)/2 == nele_hess); // TODO: dense matrix for now
-
-   if (new_x)
-   {
-      for (auto i=0; i<ndof_1; i++)
-      {
-         (*x1)[i] = x[i];
-      }
-      for (auto i=ndof_1; i<n; i++)
-      {
-         (*x2)[i-ndof_1] = x[i];
-      }
-      // TODO: do something here to update hes
-   }
-
-   // TODO: we use dense Hes for now
-   if ( values == nullptr )
-   {
-      // return the structure. This is a symmetric matrix, fill the lower left triangle only.
-      int k = 0;
-      for (auto i=0; i<n; i++)
-      {
-         for (auto j=0; j<=i; j++)
-         {
-            iRow[k] = i;
-            jCol[k] = j;
-            k++;
-         }
-      }
-   }
-   else
-   {
-      // return the values
-      for (auto k=0; k<nele_hess; k++)
-      {
-         values[k] = 0.0;
-      }
-
-      const int *K_i = K->GetI();
-      const int *K_j = K->GetJ();
-      const double *K_data = K->GetData();
-      for (auto i=0; i<n; i++)
-      {
-         for (auto k=K_i[i]; k<K_i[i+1]; k++)
-         {
-            if (K_j[k]<=i)
-            {
-               values[(i*i+i)/2+K_j[k]] += K_data[k] * obj_factor;
-            }
-         }
-      }
-
-      for (auto con_idx=0; con_idx<m; con_idx++)
-      {
-         const int *dM_i = dM->at(con_idx).GetI();
-         const int *dM_j = dM->at(con_idx).GetJ();
-         const double *dM_data = dM->at(con_idx).GetData();
-         for (auto i=0; i<n; i++)
-         {
-            for (auto k=dM_i[i]; k<dM_i[i+1]; k++)
-            {
-               if (dM_j[k]<=i)
-               {
-                  values[(i*i+i)/2+dM_j[k]] += dM_data[k] * lambda[con_idx];
-               }
-            }
-         }
-      }
-   }
-
-   return true;
-}
-
