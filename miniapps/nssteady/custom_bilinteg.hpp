@@ -38,10 +38,8 @@ protected:
    int dim, ne, nq, dofs1D, quad1D;
 
 private:
-#ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, W_ir, pelmat, pelmat_T;
    Vector shape, vec1, vec2, vec3;
-#endif
 
 public:
    VectorConvectionIntegrator(VectorCoefficient &w, double alpha = 1.0, bool SkewSym_ = false)

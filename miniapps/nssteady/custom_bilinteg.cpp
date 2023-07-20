@@ -28,10 +28,6 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
    int dof = el.GetDof();
    dim = el.GetDim();
 
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape, adjJ, W_ir, pelmat, pelmat_T;
-   Vector shape, vec1, vec2, vec3;
-#endif
    elmat.SetSize(dim*dof);
    dshape.SetSize(dof,dim);
    adjJ.SetSize(dim);

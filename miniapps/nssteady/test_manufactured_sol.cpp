@@ -179,9 +179,9 @@ int main(int argc, char *argv[])
    //
    /// 5. Define the coefficients (e.g. parameters, analytical solution/s).
    //
-   FunctionCoefficient P_ex(P_exact);
-   VectorFunctionCoefficient V_ex(dim,V_exact);
-   VectorFunctionCoefficient f_coeff(dim,RHS(kin_vis));
+   FunctionCoefficient *P_ex = new FunctionCoefficient(P_exact);
+   VectorFunctionCoefficient *V_ex = new VectorFunctionCoefficient(dim, V_exact);
+   VectorFunctionCoefficient *f_coeff = new VectorFunctionCoefficient(dim, RHS(kin_vis));
 
 
    //
@@ -193,7 +193,8 @@ int main(int argc, char *argv[])
    //
    /// 7. Set parameters of the Fixed Point Solver
    // 
-   SolverParams sFP = {1e-6, 1e-10, 1000, 1};   // rtol, atol, maxIter, print level
+   //SolverParams sFP = {1e-6, 1e-10, 1000, 1};   // rtol, atol, maxIter, print level
+   SolverParams sFP = {1e-6, 1e-10, 1000, 1}; 
    NSSolver->SetFixedPointSolver(sFP);
 
    double alpha = 0.1;
@@ -214,12 +215,12 @@ int main(int argc, char *argv[])
    // Acceleration term
    Array<int> domain_attr(pmesh->attributes.Max());
    domain_attr = 1;
-   NSSolver->AddAccelTerm(&f_coeff,domain_attr);
+   NSSolver->AddAccelTerm(f_coeff,domain_attr);
 
    // Essential velocity bcs
    Array<int> ess_attr(pmesh->bdr_attributes.Max());
    ess_attr = 1;
-   NSSolver->AddVelDirichletBC(&V_ex, ess_attr);
+   NSSolver->AddVelDirichletBC(V_ex, ess_attr);
 
    // Traction (neumann) bcs
    //Array<int> trac_attr(pmesh->bdr_attributes.Max());
@@ -244,6 +245,26 @@ int main(int argc, char *argv[])
    bool paraview = true;
    //DataCollection::Format forma = DataCollection::PARALLEL_FORMAT
    NSSolver->SetupOutput( outFolder, visit, paraview );
+
+   // Export exact solution
+   ParGridFunction* velocityExactPtr = new ParGridFunction(NSSolver->GetVFes());
+   ParGridFunction* pressureExactPtr = new ParGridFunction(NSSolver->GetPFes());
+   ParGridFunction*           rhsPtr = new ParGridFunction(NSSolver->GetVFes());
+   velocityExactPtr->ProjectCoefficient(*V_ex);
+   pressureExactPtr->ProjectCoefficient(*P_ex);
+   rhsPtr->ProjectCoefficient(*f_coeff);
+
+   ParaViewDataCollection paraview_dc("Results-Paraview-Exact", pmesh);
+   paraview_dc.SetPrefixPath(outFolder);
+   paraview_dc.SetLevelsOfDetail(vorder);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetTime(0.0);
+   paraview_dc.RegisterField("velocity_exact",velocityExactPtr);
+   paraview_dc.RegisterField("pressure_exact",pressureExactPtr);
+   paraview_dc.RegisterField("rhs",rhsPtr);
+   paraview_dc.Save();
 
 
    //
@@ -292,27 +313,6 @@ int main(int argc, char *argv[])
    //
    /// 13.2 Setup output in the solver
 
-   //
-   /// 13.3 Save exact solution in the Paraview format.
-   //   
-   ParGridFunction* velocityExactPtr = new ParGridFunction(NSSolver->GetVFes());
-   ParGridFunction* pressureExactPtr = new ParGridFunction(NSSolver->GetPFes());
-   ParGridFunction*           rhsPtr = new ParGridFunction(NSSolver->GetVFes());
-   velocityExactPtr->ProjectCoefficient(V_ex);
-   pressureExactPtr->ProjectCoefficient(P_ex);
-   rhsPtr->ProjectCoefficient(f_coeff);
-
-   ParaViewDataCollection paraview_dc("Results-Paraview-Exact", pmesh);
-   paraview_dc.SetPrefixPath(outFolder);
-   paraview_dc.SetLevelsOfDetail(vorder);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("velocity_exact",velocityExactPtr);
-   paraview_dc.RegisterField("pressure_exact",pressureExactPtr);
-   paraview_dc.RegisterField("rhs",rhsPtr);
-   paraview_dc.Save();
 
    //
    // 13.4 Send the solution by socket to a GLVis server.
@@ -336,6 +336,13 @@ int main(int argc, char *argv[])
              << std::endl;
    }
 
+
+   // Free memory
+   delete pmesh;
+   delete NSSolver;
+   delete velocityExactPtr;
+   delete pressureExactPtr;
+   delete rhsPtr;
 
    // Finalize Hypre and MPI
    HYPRE_Finalize();

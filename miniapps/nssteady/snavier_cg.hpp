@@ -43,9 +43,11 @@ enum AlphaType{CONSTANT, ADAPTIVE};
 class VecCoeffContainer
 {
 public:
-   VecCoeffContainer(Array<int> attr, VectorCoefficient *coeff)
-      : attr(attr), coeff(coeff)
-   {}
+   VecCoeffContainer(Array<int> attr, VectorCoefficient *coeff_)
+      : attr(attr)
+   {
+      this->coeff = coeff_;
+   }
 
    VecCoeffContainer(VecCoeffContainer &&obj)
    {
@@ -57,10 +59,14 @@ public:
       obj.coeff = nullptr;
    }
 
-   ~VecCoeffContainer() { delete coeff; }
+   ~VecCoeffContainer()
+   {
+        delete coeff;
+        coeff=nullptr;
+    }
 
    Array<int> attr;
-   VectorCoefficient *coeff;
+   VectorCoefficient *coeff = nullptr;
 };
 
 /// Container for coefficient holding coeff, mesh attribute id (i.e. not the full array) and direction (x,y,z) (useful for componentwise BCs).
@@ -82,7 +88,11 @@ public:
       obj.coeff = nullptr;
    }
 
-   ~CompCoeffContainer() { delete coeff; }
+   ~CompCoeffContainer()
+   {
+        delete coeff;
+        coeff=nullptr;
+    }
 
    Array<int> attr;
    int dir;
@@ -135,9 +145,7 @@ public:
 class SNavierPicardCGSolver{
 public:
 
-    using DiagonalPolicy = Operator::DiagonalPolicy;
-
-    SNavierPicardCGSolver(ParMesh* mesh_,int vorder_=2, int porder_=1, double kin_vis_=0, bool verbose_=false);
+    SNavierPicardCGSolver(ParMesh* mesh,int vorder=2, int porder=1, double kin_vis_=0, bool verbose=false);
 
     ~SNavierPicardCGSolver();
 
@@ -358,14 +366,14 @@ public:
 
 private:
     /// mesh
-    ParMesh* pmesh;
+    ParMesh* pmesh=nullptr;
     int dim;
 
     /// Velocity and Pressure FE spaces
-    ParFiniteElementSpace* vfes;
-    ParFiniteElementSpace* pfes;
-    FiniteElementCollection* vfec;
-    FiniteElementCollection* pfec;
+    ParFiniteElementSpace* vfes=nullptr;
+    ParFiniteElementSpace* pfes=nullptr;
+    FiniteElementCollection* vfec=nullptr;
+    FiniteElementCollection* pfec=nullptr;
     int vorder;
     int porder;
     int vdim;
@@ -409,10 +417,10 @@ private:
     std::vector<VecCoeffContainer> accel_terms;
 
     /// Bilinear/linear forms 
-    ParBilinearForm      *K_form;
-    ParMixedBilinearForm *B_form;
-    ParBilinearForm      *C_form; // NOTE: or BilinearForm if VectorConvectionIntegrator works
-    ParLinearForm        *f_form;
+    ParBilinearForm      *K_form=nullptr;
+    ParMixedBilinearForm *B_form=nullptr;
+    ParBilinearForm      *C_form=nullptr; // NOTE: or BilinearForm if VectorConvectionIntegrator works
+    ParLinearForm        *f_form=nullptr;
 
     /// Vectors
     Vector *v    = nullptr;    // corrected velocity vector
@@ -430,14 +438,14 @@ private:
     /// Matrices/operators
     HypreParMatrix     *K = nullptr;         // diffusion term
     HypreParMatrix     *B = nullptr;         // divergence
-    HypreParMatrix     *C = nullptr;         // (linearized) convective term
     HypreParMatrix     *A = nullptr;         // A = K + alpha C
+    HypreParMatrix     *C = nullptr;         // convective term
     HypreParMatrix     *S = nullptr;         // S = B Kdiag-1 Bt
     HypreParMatrix    *Bt = nullptr;
     HypreParMatrix    *Ke = nullptr;         // Matrices after bc elimination
     HypreParMatrix    *Be = nullptr;
     HypreParMatrix   *Bte = nullptr;
-    HypreParMatrix    *Ce = nullptr;
+    HypreParMatrix    *Ae = nullptr;
 
     /// Kinematic viscosity.
     ConstantCoefficient kin_vis;
@@ -492,7 +500,7 @@ private:
     bool    visit, paraview;
     ParaViewDataCollection* paraview_dc = nullptr;;
     VisItDataCollection*       visit_dc = nullptr;
-
+    const char* outfolder = nullptr;
 
     /// Solve the a single iteration of the problem
     void Step();
@@ -531,17 +539,20 @@ private:
     * \param x     vector being multiplied
     * \param y     vector for storing the result
     * 
-    * \note Since modified matrix has ones on the diagonal we need to remove offset at ess_tdofs
-    *       M x = mat x + mat_e x - [vec(tdofs); 0]
     */
-    void FullMult(Array<int> &ess_tdof_list, HypreParMatrix* mat, HypreParMatrix* mat_e,
-                  Vector &x, Vector &y, Operator::DiagonalPolicy diag_policy);
+    void FullMult(HypreParMatrix* mat, HypreParMatrix* mat_e, Vector &x, Vector &y);
 
     // Update alpha parameter
     void UpdateAlpha();
 
+    // Save results in Paraview or GLVis format
+    void SaveResults( int iter );
+
     /// Print information about the Navier version.
     void PrintInfo();
+
+    /// Output matrices in matlab format (for debug).
+    void PrintMatricesVectors( const char* id, int num );
 };
 
 }
