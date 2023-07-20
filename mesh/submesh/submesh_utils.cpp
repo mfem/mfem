@@ -44,8 +44,8 @@ bool ElementHasAttribute(const Element &el, const Array<int> &attributes)
 }
 
 std::tuple< Array<int>, Array<int> >
-AddElementsToMesh(const Mesh& parent,
-                  Mesh& mesh,
+AddElementsToMesh(const Mesh &parent,
+                  Mesh &mesh,
                   const Array<int> &attributes,
                   bool from_boundary)
 {
@@ -54,8 +54,25 @@ AddElementsToMesh(const Mesh& parent,
    const int ne = from_boundary ? parent.GetNBE() : parent.GetNE();
    for (int i = 0; i < ne; i++)
    {
-      const Element *pel = from_boundary ?
-                           parent.GetBdrElement(i) : parent.GetElement(i);
+      const Element *pel;
+      if (from_boundary)
+      {
+         pel = parent.GetBdrElement(i);
+         if (parent.Nonconforming())
+         {
+            // Works in 2D or 3D
+            int f, info1, info2, nc;
+            f = parent.GetBdrElementEdgeIndex(i);
+            parent.GetFaceInfos(f, &info1, &info2, &nc);
+            MFEM_VERIFY(nc == -1 && info2 < 0,
+                        "SubMesh::From::Boundary should only be used for "
+                        "nonconforming meshes on true external boundaries");
+         }
+      }
+      else
+      {
+         pel = parent.GetElement(i);
+      }
       if (!ElementHasAttribute(*pel, attributes)) { continue; }
 
       Array<int> v;
@@ -86,11 +103,11 @@ AddElementsToMesh(const Mesh& parent,
                                              parent_element_ids);
 }
 
-void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
-                        const FiniteElementSpace& parentfes,
-                        const SubMesh::From& from,
-                        const Array<int>& parent_element_ids,
-                        Array<int>& vdof_to_vdof_map)
+void BuildVdofToVdofMap(const FiniteElementSpace &subfes,
+                        const FiniteElementSpace &parentfes,
+                        const SubMesh::From &from,
+                        const Array<int> &parent_element_ids,
+                        Array<int> &vdof_to_vdof_map)
 {
    auto *m = subfes.GetMesh();
    vdof_to_vdof_map.SetSize(subfes.GetVSize());
@@ -177,7 +194,7 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
    }
 }
 
-Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
+Array<int> BuildFaceMap(const Mesh &pm, const Mesh &sm,
                         const Array<int> &parent_element_ids)
 {
    // TODO: Check if parent is really a parent of mesh

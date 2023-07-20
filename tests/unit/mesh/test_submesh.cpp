@@ -57,11 +57,17 @@ void test_2d(Element::Type element_type,
 {
    constexpr int dim = 2;
    const int vdim = (field_type == FieldType::SCALAR) ? 1 : dim;
+   const bool nonconforming = false;
    double Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian2D(5, 5, element_type, true, 1.0, Hy, false);
 
    if (from == SubMesh::From::Boundary)
    {
+      if (nonconforming)
+      {
+         mesh.EnsureNCMesh();
+         mesh.RandomRefinement(0.5);
+      }
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
          Element *el = mesh.GetBdrElement(i);
@@ -228,11 +234,17 @@ void test_3d(Element::Type element_type,
 {
    constexpr int dim = 3;
    const int vdim = (field_type == FieldType::SCALAR) ? 1 : dim;
+   const bool nonconforming = false;
    double Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, element_type, 1.0, Hy, 1.0, false);
 
    if (from == SubMesh::From::Boundary)
    {
+      if (nonconforming)
+      {
+         mesh.EnsureNCMesh();
+         mesh.RandomRefinement(0.5);
+      }
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
          Element *el = mesh.GetBdrElement(i);

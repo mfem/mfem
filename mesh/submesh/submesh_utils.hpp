@@ -68,8 +68,8 @@ bool ElementHasAttribute(const Element &el, const Array<int> &attributes);
  * boundary of the parent.
  */
 std::tuple< Array<int>, Array<int> >
-AddElementsToMesh(const Mesh& parent,
-                  Mesh& mesh, const Array<int> &attributes,
+AddElementsToMesh(const Mesh &parent,
+                  Mesh &mesh, const Array<int> &attributes,
                   bool from_boundary = false);
 
 /**
@@ -80,7 +80,7 @@ AddElementsToMesh(const Mesh& parent,
  * @param mesh The Mesh to match its parents faces.
  * @param parent_element_ids The Mesh element to parent element id map.
  */
-Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
+Array<int> BuildFaceMap(const Mesh &parent, const Mesh &mesh,
                         const Array<int> &parent_element_ids);
 
 /**
@@ -99,11 +99,11 @@ Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
  * @param[in] parent_element_ids
  * @param[out] vdof_to_vdof_map
  */
-void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
-                        const FiniteElementSpace& parentfes,
-                        const SubMesh::From& from,
-                        const Array<int>& parent_element_ids,
-                        Array<int>& vdof_to_vdof_map);
+void BuildVdofToVdofMap(const FiniteElementSpace &subfes,
+                        const FiniteElementSpace &parentfes,
+                        const SubMesh::From &from,
+                        const Array<int> &parent_element_ids,
+                        Array<int> &vdof_to_vdof_map);
 
 /**
  * @brief Identify the root parent of a given SubMesh.

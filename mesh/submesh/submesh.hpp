@@ -105,7 +105,7 @@ public:
     *
     * SubMesh element id (array index) to parent Mesh element id.
     */
-   const Array<int>& GetParentElementIDMap() const
+   const Array<int> &GetParentElementIDMap() const
    {
       return parent_element_ids_;
    }
@@ -115,7 +115,7 @@ public:
     *
     * SubMesh element id (array index) to parent Mesh face id.
     */
-   const Array<int>& GetParentFaceIDMap() const
+   const Array<int> &GetParentFaceIDMap() const
    {
       return parent_face_ids_;
    }
@@ -125,7 +125,7 @@ public:
     *
     * SubMesh vertex id (array index) to parent Mesh vertex id.
     */
-   const Array<int>& GetParentVertexIDMap() const
+   const Array<int> &GetParentVertexIDMap() const
    {
       return parent_vertex_ids_;
    }

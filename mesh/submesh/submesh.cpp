@@ -29,12 +29,11 @@ SubMesh SubMesh::CreateFromBoundary(const Mesh &parent,
 }
 
 SubMesh::SubMesh(const Mesh &parent, From from,
-                 Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
+                 Array<int> attributes)
+   : parent_(parent), from_(from), attributes_(attributes)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("SubMesh does not support non-conforming meshes");
-   }
+   MFEM_VERIFY(!Nonconforming() || from == SubMesh::From::Boundary,
+               "SubMesh does not support nonconforming meshes with From::Domain");
 
    if (from == From::Domain)
    {
