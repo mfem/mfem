@@ -167,6 +167,17 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
+   /** Abstract method used for assembling InteriorFaceIntegrators in a
+       MixedBilinearForm. */
+   /** This code is copyied from Ryan's code. See GitHub issue
+    *  "DG Stokes example #3215" */
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not

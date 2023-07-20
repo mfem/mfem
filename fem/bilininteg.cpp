@@ -153,6 +153,17 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
               " Integrator class.");
 }
 
+/** This code is copyied from Ryan's code. See GitHub issue
+ *  "DG Stokes example #3215" */
+void BilinearFormIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_fe1, const FiniteElement &trial_fe2,
+   const FiniteElement &test_fe1, const FiniteElement &test_fe2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ABORT("AssembleFaceMatrix (mixed form) is not implemented for this"
+              " Integrator class.");
+}
+
 void BilinearFormIntegrator::AssembleTraceFaceMatrix (int elem,
                                                       const FiniteElement &trial_face_fe,
                                                       const FiniteElement &test_fe1,

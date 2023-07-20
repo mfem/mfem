@@ -732,6 +732,14 @@ protected:
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
 
+   /** This code is copyied from Ryan's code. See GitHub issue
+    *  "DG Stokes example #3215" */
+   /// Set of interior face integrators.
+   Array<BilinearFormIntegrator*> interior_face_integs;
+   /// Set of boundary face Integrators to be applied.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
+
 private:
    /// Copy construction is not supported; body is undefined.
    MixedBilinearForm(const MixedBilinearForm &);
@@ -820,6 +828,24 @@ public:
    void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
                                    Array<int> &bdr_marker);
 
+   /** This code is copyied from Ryan's code. See GitHub issue
+    *  "DG Stokes example #3215" */
+   /// Newly added section ///
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
+   /// end of newly added section ///
+
+
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
 
@@ -841,6 +867,21 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
+
+   /** This code is copyied from Ryan's code. See GitHub issue
+    *  "DG Stokes example #3215" */
+   /// Newly added section ///
+   /// Access all integrators added with AddInteriorFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
+
+   /// Access all integrators added with AddBdrFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
+   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBFBFI_Marker()
+   { return &boundary_face_integs_marker; }
+   /// End of newly added section ///
 
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }

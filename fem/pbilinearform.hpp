@@ -226,6 +226,15 @@ protected:
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;
 
+   /** This code is copyied from Ryan's code. See GitHub issue
+    *  "DG Stokes example #3215" */
+   /// Newly added section ///
+   bool keep_nbr_block = false;
+   // Allocate mat - called when (mat == NULL && interior_face_integs.Size() > 0)
+   void pAllocMat();
+   void AssembleSharedFaces(int skip_zeros = 1);
+   /// End of newly added section ///
+
 private:
    /// Copy construction is not supported; body is undefined.
    ParMixedBilinearForm(const ParMixedBilinearForm &);
@@ -265,6 +274,18 @@ public:
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
    }
+
+   /** This code is copyied from Ryan's code. See GitHub issue
+    *  "DG Stokes example #3215" */
+   /// Newly added section ///
+   /** When set to true and the ParBilinearForm has interior face integrators,
+       the local SparseMatrix will include the rows (in addition to the columns)
+       corresponding to face-neighbor dofs. The default behavior is to disregard
+       those rows. Must be called before the first Assemble call. */
+   void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+   /// End of newly added section ///
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    HypreParMatrix *ParallelAssemble();
