@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -291,6 +291,10 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
 
+   // The prolongation operation is only well-defined when the LOR space has at
+   // least as many DOFs as the high-order space.
+   const bool build_P = fes_lor.GetTrueVSize() >= fes_ho.GetTrueVSize();
+
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0) { return; }
 
@@ -319,8 +323,11 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
    // R will contain the restriction (L^2 projection operator) defined on each
    // coarse HO element (and corresponding patch of LOR elements)
    R.SetSize(offsets[nel_ho]);
-   // P will contain the corresponding prolongation operator
-   P.SetSize(offsets[nel_ho]);
+   if (build_P)
+   {
+      // P will contain the corresponding prolongation operator
+      P.SetSize(offsets[nel_ho]);
+   }
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation &emb_tr = ip_tr.Transf;
@@ -341,7 +348,6 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
       DenseMatrix R_iho(&R[offsets[iho]], ndof_lor*nref, ndof_ho);
-      DenseMatrix P_iho(&P[offsets[iho]], ndof_ho, ndof_lor*nref);
 
       DenseMatrix Minv_lor(ndof_lor*nref, ndof_lor*nref);
       DenseMatrix M_mixed(ndof_lor*nref, ndof_ho);
@@ -385,10 +391,15 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       }
       mfem::Mult(Minv_lor, M_mixed, R_iho);
 
-      mfem::MultAtB(R_iho, M_lor, RtMlor);
-      mfem::Mult(RtMlor, R_iho, RtMlorR);
-      RtMlorR_inv.Factor();
-      RtMlorR_inv.Mult(RtMlor, P_iho);
+      if (build_P)
+      {
+         DenseMatrix P_iho(&P[offsets[iho]], ndof_ho, ndof_lor*nref);
+
+         mfem::MultAtB(R_iho, M_lor, RtMlor);
+         mfem::Mult(RtMlor, R_iho, RtMlorR);
+         RtMlorR_inv.Factor();
+         RtMlorR_inv.Mult(RtMlor, P_iho);
+      }
    }
 }
 
@@ -462,6 +473,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
+   if (fes_ho.GetNE() == 0) { return; }
+   MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat,yel_mat;
@@ -497,6 +510,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
    const Vector &x, Vector &y) const
 {
+   if (fes_ho.GetNE() == 0) { return; }
+   MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
    DenseMatrix xel_mat,yel_mat;
@@ -898,6 +913,11 @@ void L2ProjectionGridTransfer::BuildF()
    }
 }
 
+bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
+{
+   return ran_fes.GetTrueVSize() >= dom_fes.GetTrueVSize();
+}
+
 
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
@@ -1161,7 +1181,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int dy = 0; dy < D1D; ++dy)
       {
@@ -1208,7 +1228,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int dz = 0; dz < D1D; ++dz)
       {
@@ -1280,7 +1300,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -1319,7 +1339,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1451,13 +1471,11 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    {
       tmpL.SetSize(lFESpace_.GetVSize());
       tmpH.SetSize(hFESpace_.GetVSize());
-      R->EnsureMultTranspose();
    }
    // P can be null and R not null
    else if (R)
    {
       tmpH.SetSize(hFESpace_.GetVSize());
-      R->EnsureMultTranspose();
    }
 }
 

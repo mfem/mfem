@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@ static void Det1D(const int NE,
 
    auto Y = Reshape(y, q1d, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < q1d; q++)
       {
@@ -73,7 +73,7 @@ static void Det2D(const int NE,
    const auto X = Reshape(x,  D1D, D1D, DIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
@@ -137,7 +137,7 @@ static void Det3D(const int NE,
       GM = d_buff->Write();
    }
 
-   MFEM_FORALL_3D_GRID(e, NE, Q1D, Q1D, Q1D, GRID,
+   mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
       const int bid = MFEM_BLOCK_ID(x);
       MFEM_SHARED double BG[2][MQ1*MD1];
@@ -239,7 +239,7 @@ void TensorDeterminants(const int NE,
          {
             constexpr int MD = 6;
             constexpr int MQ = 6;
-            // Highest orders that fit in shared mememory
+            // Highest orders that fit in shared memory
             if (D1D <= MD && Q1D <= MQ)
             { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
             // Last fall-back will use global memory
