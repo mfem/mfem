@@ -581,7 +581,7 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
    const bool have_data_dir = mfem_data_dir != "";
-   const int order = 2;
+   const int order = GENERATE(1,2,3);
 
    std::vector<std::string> mesh_filenames =
    {
