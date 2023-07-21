@@ -189,15 +189,15 @@ static void PADGDiffusionSetup3D(const int Q1D,
                nJi[0] = (-J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
                       + ( J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
                       + (-J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 2, f);
-               
+
                nJi[1] = ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
                       + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
                       + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 2, f);
-               
+
                nJi[2] = (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 0, f)
                       + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 1, f)
                       + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
-               
+
                const double dJe = detJe(i,j,k,e);
                const double dJf = detJf(p1,p2,f);
                const double val = factor * Qp * W[p1] * W[p2] * dJf / dJe;
@@ -356,10 +356,9 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el.GetOrder(), T0);
    dim = mesh.Dimension();
-   nq = ir->Size();
-   const int nq1d = pow(double(ir->Size()), 1.0/(dim - 1));
+   const int q1d = pow(double(ir->Size()), 1.0/(dim - 1));
 
-   auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*nq1d - 3);
+   auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*q1d - 3);
    auto el_geom = mesh.GetGeometricFactors(
                      vol_ir,
                      GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
@@ -380,7 +379,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   const int pa_size = (dim == 2) ? (6 * nq * nf) : (8 * nq * nq * nf);
+   const int pa_size = (dim == 2) ? (6 * q1d * nf) : (8 * q1d * q1d * nf);
    pa_data.SetSize(pa_size, Device::GetMemoryType());
 
    FaceQuadratureSpace fqs(mesh, *ir, type);
@@ -709,95 +708,95 @@ static void PADGDiffusionApply3D(const int NF,
                }
             }
          }
+      }
 
-         // term: - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
-         for (int p1 = 0; p1 < Q1D; ++p1)
+      // term: - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
+      for (int p1 = 0; p1 < Q1D; ++p1)
+      {
+         for (int p2 = 0; p2 < Q1D; ++p2)
          {
-            for (int p2 = 0; p2 < Q1D; ++p2)
-            {
-               const double q = pa(0, p1, p2, f);
-               const double hi = pa(1, p1, p2, f);
-               const double jump = Bu0[p1][p2] - Bu1[p1][p2];
-               const double avg = Bdu0[p1][p2] + Bdu1[p1][p2]; // {Q du/dn} * w * det(J)
-               r[p1][p2] = -avg + hi * q * jump;
-            }
+            const double q = pa(0, p1, p2, f);
+            const double hi = pa(1, p1, p2, f);
+            const double jump = Bu0[p1][p2] - Bu1[p1][p2];
+            const double avg = Bdu0[p1][p2] + Bdu1[p1][p2]; // {Q du/dn} * w * det(J)
+            r[p1][p2] = -avg + hi * q * jump;
          }
+      }
 
-         // u0, u1 <- B' * r
+      // u0, u1 <- B' * r
+      for (int d1 = 0; d1 < D1D; ++d1)
+      {
+         for (int d2 = 0; d2 < D1D; ++d2)
+         {
+            double Br = 0.0;
+
+            for (int p1 = 0; p1 < Q1D; ++p1)
+            {
+               for (int p2 = 0; p2 < Q1D; ++p2)
+               {
+                  Br += B(p1, d1) * B(p2, d2) * r[p1][p2];
+               }
+            }
+
+            u0[d1][d2] =  Br; // overwrite u0, u1
+            u1[d1][d2] = -Br;
+         }
+      }
+
+      for (int side = 0; side < 2; ++side)
+      {
+         double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+
          for (int d1 = 0; d1 < D1D; ++d1)
          {
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               double Br = 0.0;
+               du[d1][d2] = 0.0;
+            }
+         }
+      }
 
+      // term: < [u], {Q dv/dn} >
+      for (int side = 0; side < 2; ++side)
+      {
+         double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+
+         for (int d1 = 0; d1 < D1D; ++d1)
+         {
+            for (int d2 = 0; d2 < D1D; ++d2)
+            {
                for (int p1 = 0; p1 < Q1D; ++p1)
                {
                   for (int p2 = 0; p2 < Q1D; ++p2)
                   {
-                     Br += B(p1, d1) * B(p2, d2) * r[p1][p2];
-                  }
-               }
+                     const double Je[] = {pa(2 + 2*side, p1, p2, f), pa(3 + 2*side, p1, p2, f), pa(4 + 2*side, p1, p2, f)};
 
-               u0[d1][d2] =  Br; // overwrite u0, u1
-               u1[d1][d2] = -Br;
-            }
-         }
+                     const double jump = Bu0[p1][p2] - Bu1[p1][p2];
 
-         for (int side = 0; side < 2; ++side)
-         {
-            double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+                     const double b = Je[0] * B(p1, d1) * B(p2, d2);
+                     const double g = Je[1] * G(p1, d1) * B(p2, d2) + Je[2] * B(p1, d1) * G(p2, d2);
 
-            for (int d1 = 0; d1 < D1D; ++d1)
-            {
-               for (int d2 = 0; d2 < D1D; ++d2)
-               {
-                  du[d1][d2] = 0.0;
-               }
-            }
-         }
-
-         // term: < [u], {Q dv/dn} >
-         for (int side = 0; side < 2; ++side)
-         {
-            double (*du)[max_D1D] = (side == 0) ? du0 : du1;
-            double (*u)[max_D1D] = (side == 0) ? u0 : u1;
-
-            for (int d1 = 0; d1 < D1D; ++d1)
-            {
-               for (int d2 = 0; d2 < D1D; ++d2)
-               {
-                  for (int p1 = 0; p1 < Q1D; ++p1)
-                  {
-                     for (int p2 = 0; p2 < Q1D; ++p2)
-                     {
-                        const double Je[] = {pa(2 + 2*side, p1, p2, f), pa(3 + 2*side, p1, p2, f), pa(4 + 2*side, p1, p2, f)};
-
-                        const double jump = Bu0[p1][p2] - Bu1[p1][p2];
-
-                        const double b = Je[0] * B(p1, d1) * B(p2, d2);
-                        const double g = Je[1] * G(p1, d1) * B(p2, d2) + Je[2] * B(p1, d1) * G(p2, d2);
-                        
-                        du[d1][d2] += sigma * b * jump;
-                        u[d1][d2] += sigma * g * jump;
-                     }
+                     du[d1][d2] += sigma * b * jump;
+                     u[d1][d2] += sigma * g * jump;
                   }
                }
             }
          }
+      }
 
-         // map back to y and dydn
-         for (int side = 0; side < 2; ++side)
+      // map back to y and dydn
+      for (int side = 0; side < 2; ++side)
+      {
+         const double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         const double (*du)[max_D1D] = (side == 0) ? du0 : du1;
+
+         for (int d1 = 0; d1 < D1D; ++d1)
          {
-            const double (*u)[max_D1D] = (side == 0) ? u0 : u1;
-            const double (*du)[max_D1D] = (side == 0) ? du0 : du1;
-
-            for (int d1 = 0; d1 < D1D; ++d1)
+            for (int d2 = 0; d2 < D1D; ++d2)
             {
-               for (int d2 = 0; d2 < D1D; ++d2)
-               {
-                  y(d1, d2, side, f) += u[d1][d2];
-                  dydn(d1, d2, side, f) += du[d1][d2];
-               }
+               y(d1, d2, side, f) += u[d1][d2];
+               dydn(d1, d2, side, f) += du[d1][d2];
             }
          }
       }
