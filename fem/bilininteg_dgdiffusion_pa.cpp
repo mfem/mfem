@@ -756,7 +756,7 @@ static void PADGDiffusionApply3D(const int NF,
          }
       }
 
-      // term: < [u], {Q dv/dn} >
+      // term: sigma * < [u], {Q dv/dn} >
       for (int side = 0; side < 2; ++side)
       {
          double (*du)[max_D1D] = (side == 0) ? du0 : du1;
@@ -770,7 +770,7 @@ static void PADGDiffusionApply3D(const int NF,
                {
                   for (int p2 = 0; p2 < Q1D; ++p2)
                   {
-                     const double Je[] = {pa(2 + 2*side, p1, p2, f), pa(3 + 2*side, p1, p2, f), pa(4 + 2*side, p1, p2, f)};
+                     const double Je[] = {pa(2+3*side + 0, p1, p2, f), pa(2+3*side + 1, p1, p2, f), pa(2+3*side + 2, p1, p2, f)};
 
                      const double jump = Bu0[p1][p2] - Bu1[p1][p2];
 
