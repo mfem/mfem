@@ -52,7 +52,8 @@ void FillFaceMap(const int n_face_dofs_per_component,
 void GetTensorFaceMap(const int dim, const int order, const int face_id,
                       Array<int> &face_map);
 
-// maps face index (in counter-clockwise order) to Lexocographic index
+/// @brief Given a face DOF index in native (counter-clockwise) ordering, return
+/// the corresponding DOF index in lexicographic ordering.
 MFEM_HOST_DEVICE
 inline int ToLexOrdering2D(const int face_id, const int size1d, const int i)
 {
@@ -66,15 +67,17 @@ inline int ToLexOrdering2D(const int face_id, const int size1d, const int i)
    }
 }
 
-// permutes face index from native ordering to lexocographic
+/// @brief Given a face DOF index on a shared face, ordered lexicographically
+/// relative to element 1, return the corresponding face DOF index ordered
+/// lexicographically relative to element 2.
 MFEM_HOST_DEVICE
 inline int PermuteFace2D(const int face_id1, const int face_id2,
-                         const int orientation,
-                         const int size1d, const int index)
+                         const int orientation, const int size1d,
+                         const int index)
 {
    int new_index;
-   // Convert from lex ordering
-   if (face_id1==2 || face_id1==3)
+   // Convert from element 1 lex ordering to native ordering
+   if (face_id1 == 2 || face_id1 == 3)
    {
       new_index = size1d-1-index;
    }
@@ -83,10 +86,11 @@ inline int PermuteFace2D(const int face_id1, const int face_id2,
       new_index = index;
    }
    // Permute based on face orientations
-   if (orientation==1)
+   if (orientation == 1)
    {
       new_index = size1d-1-new_index;
    }
+   // Covert to element 2 lex ordering
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
@@ -164,15 +168,24 @@ inline int PermuteFace3D(const int face_id1, const int face_id2,
    return ToLexOrdering3D(face_id2, size1d, new_i, new_j);
 }
 
-// maps quadrature index on face to (row, col) index pair
+/// @brief Given a face DOF (or quadrature) index ordered lexicographically
+/// relative to element 1, return the associated (i, j) coordinates.
+///
+/// The returned coordinates will be relative to element 1 or element 2
+/// according to the value of side (side == 0 corresponds element 1).
 MFEM_HOST_DEVICE
-inline void FaceQuad2Lex2D(const int qi, const int nq,
-                           const int face_id0, const int face_id1, const int side,
-                           int &i, int &j)
+inline void FaceQuad2Lex2D(const int qi, const int nq, const int face_id0,
+                           const int face_id1, const int side, int &i, int &j)
 {
+   // Note: in 2D, a consistently ordered mesh will always have the element 2
+   // face reversed relative to element 1, so orientation is determined entirely
+   // by side. (In 3D, separate orientation information is needed).
+   const int orientation = side;
+
    const int face_id = (side == 0) ? face_id0 : face_id1;
-   const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1, side,
-                                                         nq, qi);
+   const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1,
+                                                         orientation, nq, qi);
+
    if (face_id == 0 || face_id == 2)
    {
       i = edge_idx;
@@ -186,15 +199,20 @@ inline void FaceQuad2Lex2D(const int qi, const int nq,
 }
 
 MFEM_HOST_DEVICE
-inline void FaceQuad2Lex3D(const int index, const int size1d, const int face_id0, const int face_id1, const int side, const int orientation, int& i, int& j, int& k)
+inline void FaceQuad2Lex3D(const int index, const int size1d,
+                           const int face_id0, const int face_id1, const int side, const int orientation,
+                           int& i, int& j, int& k)
 {
-   MFEM_VERIFY(face_id1 >= 0 || side == 0, "accessing second side but face_id1 is not valid.");
+   MFEM_VERIFY(face_id1 >= 0 ||
+               side == 0, "accessing second side but face_id1 is not valid.");
 
    const int size2d = size1d * size1d;
    const int face_id = (side == 0) ? face_id0 : face_id1;
-   int fidx = (side == 0) ? index : PermuteFace3D(face_id0, face_id1, orientation, size1d, index);
+   int fidx = (side == 0) ? index : PermuteFace3D(face_id0, face_id1, orientation,
+                                                  size1d, index);
 
-   const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
+   const bool xy_plane = (face_id == 0 ||
+                          face_id == 5); // is this face parallel to the x,y plane in reference coo
    const bool xz_plane = (face_id == 1 || face_id == 3);
    const bool yz_plane = (face_id == 2 || face_id == 4);
 
@@ -219,7 +237,7 @@ inline void FaceQuad2Lex3D(const int index, const int size1d, const int face_id0
       strides[0] = 1;
       strides[1] = size1d;
    }
-   
+
    idx3d += strides[0] * (fidx % size1d);
    fidx /= size1d;
    idx3d += strides[1] * (fidx % size1d);
