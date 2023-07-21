@@ -148,7 +148,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
    const bool const_q = (q.Size() == 1);
    const auto Q = const_q ? Reshape(q.Read(), 1, 1, 1) : Reshape(q.Read(), Q1D, Q1D, NF);
 
-   const auto W = w.Read();
+   const auto W = Reshape(w.Read(), Q1D, Q1D);
 
    const auto iwork = Reshape(iwork_.Read(), 6, 2, NF); // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
    constexpr int _el_ = 3; // offset in iwork for element index
@@ -174,9 +174,11 @@ static void PADGDiffusionSetup3D(const int Q1D,
          for (int p2 = 0; p2 < Q1D; ++p2)
          {
             const double Qp = const_q ? Q(0,0,0) : Q(p1, p2, f);
-            pa(0, p1, p2, f) = kappa * Qp * W[p1] * W[p2] * detJf(p1, p2, f);
+            pa(0, p1, p2, f) = kappa * Qp * W(p1, p2) * detJf(p1, p2, f);
 
             double hi = 0.0;
+            const double dJf = detJf(p1,p2,f);
+
             for (int side = 0; side < nsides; ++side)
             {
                int i, j, k;
@@ -199,8 +201,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
                       + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
 
                const double dJe = detJe(i,j,k,e);
-               const double dJf = detJf(p1,p2,f);
-               const double val = factor * Qp * W[p1] * W[p2] * dJf / dJe;
+               const double val = factor * Qp * W(p1, p2) * dJf / dJe;
 
                for (int d = 0; d < 3; ++d)
                {
