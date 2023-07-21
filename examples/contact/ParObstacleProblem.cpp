@@ -32,8 +32,9 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    int FEorder = 1; // order of the finite elements
-   int linSolver = 0;
+   int linSolver = 2;
    int maxIPMiters = 30;
+   int ref_levels = 3;
    OptionsParser args(argc, argv);
    args.AddOption(&FEorder, "-o", "--order",\
 	 	  "Order of the finite elements.");
@@ -41,6 +42,8 @@ int main(int argc, char *argv[])
         "IP-Newton linear system solution strategy.");
    args.AddOption(&maxIPMiters, "-IPMiters", "--IPMiters",\
 	 	  "Maximum number of IPM iterations");
+   args.AddOption(&ref_levels, "-r", "--mesh_refinement", \
+		  "Mesh Refinement");
   
    args.Parse();
    if(!args.Good())
@@ -60,7 +63,6 @@ int main(int argc, char *argv[])
    Mesh mesh(meshFile, 1, 1);
    int dim = mesh.Dimension(); // geometric dimension of the meshed domain
    {
-      int ref_levels = 3;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();

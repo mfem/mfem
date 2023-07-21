@@ -84,17 +84,20 @@ ParContactProblem::~ParContactProblem()
    delete Ih;
 }
 
+
+// Obstacle Problem, no essential boundary conditions enforced
+// Hessian of energy term is K + M (stiffness + mass)
 ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_, 
                                        ParFiniteElementSpace *fesM_, 
                                        double (*fSource)(const Vector &)) : 
-                                       ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), J(nullptr)
+                                       ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), psi(fesU->GetTrueVSize()), J(nullptr)
 {
    Kform = new ParBilinearForm(fesU);
    Kform->AddDomainIntegrator(new MassIntegrator);
    Kform->AddDomainIntegrator(new DiffusionIntegrator);
    Kform->Assemble();
    Kform->Finalize();
-   Kform->FormSystemMatrix(empty_tdof_list, K);
+   Kform->FormSystemMatrix(ess_tdof_list, K);
 
    FunctionCoefficient fcoeff(fSource);
    fform = new ParLinearForm(fesU);
@@ -104,6 +107,8 @@ ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_,
    fform->ParallelAssemble(F);
    f.SetSize(F.Size());
    f.Set(1.0, F);
+
+   psi = 0.0;
    
    Vector iDiag(fesU->GetTrueVSize()); iDiag = 1.0;
    SparseMatrix * Jacg = new SparseMatrix(iDiag);
@@ -113,55 +118,13 @@ ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_,
    delete Jacg;
 }
 
-double ParObstacleProblem::E(const Vector &d) const
-{
-   Vector Kd(K.Height()); Kd = 0.0;
-   MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::E - Inconsistent dimensions");
-   K.Mult(d, Kd);
-   return 0.5 * InnerProduct(MPI_COMM_WORLD, d, Kd) - InnerProduct(MPI_COMM_WORLD, f, d);
-}
-
-void ParObstacleProblem::DdE(const Vector &d, Vector &gradE) const
-{
-   gradE.SetSize(K.Height());
-   MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::DdE - Inconsistent dimensions");
-   K.Mult(d, gradE);
-   MFEM_VERIFY(f.Size() == K.Height(), "ParObstacleProblem::DdE - Inconsistent dimensions");
-   gradE.Add(-1.0, f);
-}
-
-HypreParMatrix * ParObstacleProblem::DddE(const Vector &d)
-{
-   return &K; 
-}
-
-// g(d) = d >= 0
-void ParObstacleProblem::g(const Vector &d, Vector &gd) const
-{
-   gd.SetSize(d.Size());
-   gd.Set(1.0, d);
-}
-
-HypreParMatrix * ParObstacleProblem::Ddg(const Vector &d)
-{
-   return J;
-}
-
-ParObstacleProblem::~ParObstacleProblem()
-{
-   delete Kform;
-   delete fform;
-   delete J;
-}
-
-// Dirichlet Obstacle Problem
-ParDirichletObstacleProblem::ParDirichletObstacleProblem(ParFiniteElementSpace *fesU_, 
+// Obstacle Problem, essential boundary conditions enforced
+// Hessian of energy term is K (stiffness)
+ParObstacleProblem::ParObstacleProblem(ParFiniteElementSpace *fesU_, 
                                        ParFiniteElementSpace *fesM_, 
 				       double (*fSource)(const Vector &),
 				       double (*obstacleSource)(const Vector &),
-				       Array<int> tdof_list,
-                                       Vector &xDC) : 
-                                       ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), psi(fesU->GetTrueVSize()), J(nullptr)
+				       Array<int> tdof_list, Vector &xDC) : ParContactProblem(fesU_,fesM_), f(fesU->GetTrueVSize()), psi(fesU->GetTrueVSize()), J(nullptr)
 {
    // elastic energy functional terms	
    ess_tdof_list = tdof_list;
@@ -211,7 +174,7 @@ ParDirichletObstacleProblem::ParDirichletObstacleProblem(ParFiniteElementSpace *
 
 
 
-double ParDirichletObstacleProblem::E(const Vector &d) const
+double ParObstacleProblem::E(const Vector &d) const
 {
    Vector Kd(K.Height()); Kd = 0.0;
    MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::E - Inconsistent dimensions");
@@ -219,7 +182,7 @@ double ParDirichletObstacleProblem::E(const Vector &d) const
    return 0.5 * InnerProduct(MPI_COMM_WORLD, d, Kd) - InnerProduct(MPI_COMM_WORLD, f, d);
 }
 
-void ParDirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
+void ParObstacleProblem::DdE(const Vector &d, Vector &gradE) const
 {
    gradE.SetSize(K.Height());
    MFEM_VERIFY(d.Size() == K.Width(), "ParObstacleProblem::DdE - Inconsistent dimensions");
@@ -228,13 +191,13 @@ void ParDirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
    gradE.Add(-1.0, f);
 }
 
-HypreParMatrix * ParDirichletObstacleProblem::DddE(const Vector &d)
+HypreParMatrix * ParObstacleProblem::DddE(const Vector &d)
 {
    return &K; 
 }
 
-// g(d) = d >= 0
-void ParDirichletObstacleProblem::g(const Vector &d, Vector &gd) const
+// g(d) = d >= \psi
+void ParObstacleProblem::g(const Vector &d, Vector &gd) const
 {
    MFEM_VERIFY(d.Size() == J->Width(), "ParObstacleProblem::g - Inconsistent dimensions");
    J->Mult(d, gd);
@@ -242,12 +205,12 @@ void ParDirichletObstacleProblem::g(const Vector &d, Vector &gd) const
    gd.Add(-1.0, psi);
 }
 
-HypreParMatrix * ParDirichletObstacleProblem::Ddg(const Vector &d)
+HypreParMatrix * ParObstacleProblem::Ddg(const Vector &d)
 {
    return J;
 }
 
-ParDirichletObstacleProblem::~ParDirichletObstacleProblem()
+ParObstacleProblem::~ParObstacleProblem()
 {
    delete Kform;
    delete fform;

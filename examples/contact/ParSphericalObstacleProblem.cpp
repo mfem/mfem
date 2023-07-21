@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
    int dimD = Vh->GetTrueVSize();
    Vector xDC(dimD); xDC = 0.0;
 
-   ParDirichletObstacleProblem problem(Vh, Vh, &fRhs, &spherical_obstacle, boundary_dofs, xDC);
+   ParObstacleProblem problem(Vh, Vh, &fRhs, &spherical_obstacle, boundary_dofs, xDC);
    Vector x0(dimD); x0.Set(1.0, xDC);
    Vector xf(dimD); xf = 0.0;
 

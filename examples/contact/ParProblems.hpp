@@ -84,28 +84,7 @@ public:
 class ParObstacleProblem : public ParContactProblem
 {
 protected:
-   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= 0
-   // stiffness matrix used to define objective
-   ParBilinearForm *Kform;
-   ParLinearForm   *fform;
-   Array<int> empty_tdof_list; // needed for calls to FormSystemMatrix
-   HypreParMatrix  K;
-   HypreParMatrix  *J;
-   Vector f;
-public : 
-   ParObstacleProblem(ParFiniteElementSpace*, ParFiniteElementSpace*, double (*fSource)(const Vector &));
-   double E(const Vector &) const;
-   void DdE(const Vector &, Vector &) const;
-   HypreParMatrix * DddE(const Vector &);
-   void g(const Vector &, Vector &) const;
-   HypreParMatrix * Ddg(const Vector &);
-   virtual ~ParObstacleProblem();
-};
-
-class ParDirichletObstacleProblem : public ParContactProblem
-{
-protected:
-   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d + \psi >= 0
+   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= \psi
    // stiffness matrix used to define objective
    ParBilinearForm *Kform;
    ParLinearForm   *fform;
@@ -115,14 +94,15 @@ protected:
    ParFiniteElementSpace *Vh;
    Vector f;
    Vector psi;
-public : 
-   ParDirichletObstacleProblem(ParFiniteElementSpace*, ParFiniteElementSpace*, double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list, Vector &);
+public :
+   ParObstacleProblem(ParFiniteElementSpace*, ParFiniteElementSpace*, double (*fSource)(const Vector &));
+   ParObstacleProblem(ParFiniteElementSpace*, ParFiniteElementSpace*, double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list, Vector &);
    double E(const Vector &) const;
    void DdE(const Vector &, Vector &) const;
    HypreParMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
    HypreParMatrix* Ddg(const Vector &);
-   virtual ~ParDirichletObstacleProblem();
+   virtual ~ParObstacleProblem();
 };
 
 #endif
