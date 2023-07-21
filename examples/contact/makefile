@@ -18,7 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = obstacleProblem SphericalobstacleProblem DirichletObstacleProblem exQPContactBlockTL
+SEQ_EXAMPLES = ObstacleProblem SphericalObstacleProblem DirichletObstacleProblem exQPContactBlockTL
 PAR_EXAMPLES = ParObstacleProblem
 EXAMPLES = $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 
@@ -36,8 +36,8 @@ endif
 
 all: $(EXAMPLES)
 
-obstacleProblem: obstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) obstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+ObstacleProblem: ObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
 SphericalObstacleProblem: SphericalObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) SphericalObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
@@ -50,7 +50,7 @@ exQPContactBlockTL: exQPContactBlockTL.o problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) exQPContactBlockTL.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
 
-obstacleProblem.o: $(SRC)obstacleProblem.cpp $(CONFIG_MK)
+ObstacleProblem.o: $(SRC)ObstacleProblem.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
 
 SphericalObstacleProblem.o: $(SRC)SphericalObstacleProblem.cpp $(CONFIG_MK)

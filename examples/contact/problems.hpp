@@ -98,32 +98,6 @@ public:
 class ObstacleProblem : public ContactProblem
 {
 protected:
-   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= 0
-   // stiffness matrix used to define objective
-   BilinearForm *Kform;
-   LinearForm   *fform;
-   Array<int> empty_tdof_list; // needed for calls to FormSystemMatrix
-   SparseMatrix  K;
-   SparseMatrix  *J;
-   SparseMatrix *zeroMatdd;
-   FiniteElementSpace *Vh;
-   Vector f;
-public : 
-   ObstacleProblem(FiniteElementSpace* , double (*fSource)(const Vector &));
-   double E(const Vector &) const;
-   void DdE(const Vector &, Vector &) const;
-   SparseMatrix* DddE(const Vector &);
-   void g(const Vector &, Vector &) const;
-   SparseMatrix* Ddg(const Vector &);
-   SparseMatrix * lDddg(const Vector &, const Vector &);
-   // TO DO: include lumped-mass for the log-barrier term
-   //SparseMatrix* GetLogBarrierLumpedMass();
-   virtual ~ObstacleProblem();
-};
-
-class DirichletObstacleProblem : public ContactProblem
-{
-protected:
    // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d + \psi >= 0
    // stiffness matrix used to define objective
    BilinearForm *Kform;
@@ -137,14 +111,15 @@ protected:
    Vector psi;
    Vector xDC;
 public : 
-   DirichletObstacleProblem(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);
+   ObstacleProblem(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);
+   ObstacleProblem(FiniteElementSpace*, double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &));
    double E(const Vector &) const;
    void DdE(const Vector &, Vector &) const;
    SparseMatrix* DddE(const Vector &);
    void g(const Vector &, Vector &) const;
    SparseMatrix* Ddg(const Vector &);
    SparseMatrix * lDddg(const Vector &, const Vector &);
-   virtual ~DirichletObstacleProblem();
+   virtual ~ObstacleProblem();
 };
 
 

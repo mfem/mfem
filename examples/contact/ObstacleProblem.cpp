@@ -9,9 +9,9 @@ using namespace mfem;
 
 
 
-double fRhs(const Vector &pt);
-double obstacle(const Vector &pt);
-double dmanufacturedFun(const Vector &pt);
+double dmanufacturedFun(const Vector &);
+double fRhs(const Vector &);
+double obstacle(const Vector &);
 
 int main(int argc, char *argv[])
 {
@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
   int linSolver = 0;
   int maxIPMiters = 30;
   bool iAmRoot = true;
-  int ref_levels = 3; 
+  
   OptionsParser args(argc, argv);
   args.AddOption(&FEorder, "-o", "--order",\
 		  "Order of the finite elements.");
@@ -27,8 +27,6 @@ int main(int argc, char *argv[])
        "IP-Newton linear system solution strategy.");
   args.AddOption(&maxIPMiters, "-IPMiters", "--IPMiters",\
 		  "Maximum number of IPM iterations");
-  args.AddOption(&ref_levels, "-r", "--mesh_refinement", \
-		  "Mesh Refinement");
   
   args.Parse();
   if(!args.Good())
@@ -47,28 +45,21 @@ int main(int argc, char *argv[])
   const char *meshFile = "../../data/inline-quad.mesh";
   Mesh *mesh = new Mesh(meshFile, 1, 1);
   int dim = mesh->Dimension(); // geometric dimension of the domain
-  for (int l = 0; l < ref_levels; l++)
   {
-      mesh->UniformRefinement();
+     int ref_levels = 3;
+     for (int l = 0; l < ref_levels; l++)
+     {
+        mesh->UniformRefinement();
+     }
   }
 
   FiniteElementCollection *fec = new H1_FECollection(FEorder, dim);
   FiniteElementSpace      *Vh  = new FiniteElementSpace(mesh, fec);
-  Array<int> ess_tdof_list;
-  if (mesh->bdr_attributes.Size())
-  {
-     Array<int> ess_bdr(mesh->bdr_attributes.Max());
-     ess_bdr = 1;
-     Vh->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-  }
+  ObstacleProblem problem(Vh, &fRhs, &obstacle);
   
-  double DC_val = 0.0;
-  int dimD = Vh->GetTrueVSize();
-  Vector x0(dimD); x0 = DC_val;
+  int dimD = problem.GetDimD();
+  Vector x0(dimD); x0 = 0.0;
   Vector xf(dimD); xf = 0.0;
-
-  ObstacleProblem problem(Vh, x0, &fRhs, &obstacle, ess_tdof_list);
-  
 
   InteriorPointSolver optimizer(&problem); 
   optimizer.SetTol(1.e-7);
@@ -79,11 +70,10 @@ int main(int argc, char *argv[])
   GridFunction d_gf(Vh);
 
   d_gf = xf;
-  
+
   FunctionCoefficient dm_fc(dmanufacturedFun); // pseudo-manufactured solution
   GridFunction dm_gf(Vh);
   dm_gf.ProjectCoefficient(dm_fc);
-
   
   ParaViewDataCollection paraview_dc("BarrierProblemSolution", mesh);
   paraview_dc.SetPrefixPath("ParaView");
@@ -96,7 +86,7 @@ int main(int argc, char *argv[])
   paraview_dc.RegisterField("d(x) (pseudo-manufactured)", &dm_gf);
   paraview_dc.Save();
   
-
+  
   delete Vh;
   delete fec;
   delete mesh;
@@ -104,11 +94,9 @@ int main(int argc, char *argv[])
 }
 
 
-
-double dmanufacturedFun(const Vector &pt)
+double dmanufacturedFun(const Vector &x)
 {
-  double alpha = 16.5;
-  return sin(M_PI * pt(1)) * (sin(M_PI * pt(0)) - alpha * pow(pt(0) * (1. - pt(0)), 2));
+  return cos(2*M_PI*x(0)) + 0.2 - 2.0*(pow(x(0),3) - 1.5*pow(x(0),2));
 }
 
 
@@ -118,19 +106,14 @@ double dmanufacturedFun(const Vector &pt)
 // the solution of the optimization problem satisfies the PDE
 // -div(grad(d)) + d = f + homogeneous Neumann conditions on the unit interval,
 // for d(x) = cos(2 \pi x) + a0 + a3 (x^3 - 1.5 x^2), a2 = 0.2, a3 = -2
-
-double fRhs(const Vector &pt)
+double fRhs(const Vector &x)
 {
-  double alpha = 16.5;
-  double fx;
-  fx = pow(M_PI, 2) * sin(M_PI * pt(0));
-  fx += alpha * (2. * pow(pt(0), 2) + 2. * pow(1.-pt(0), 2) - 8. * pt(0) * (1.-pt(0)));
-  fx += pow(M_PI, 2) * sin(M_PI * pt(0)) * dmanufacturedFun(pt);
-  fx *= sin(M_PI * pt(1));
+  double fx = 0.;
+  fx = 0.2 - 2.0 * (pow(x(0),3)- 1.5*pow(x(0),2.) - 6 * x(0) + 3.) + (1. + pow(2.*M_PI,2))*cos(2.*M_PI*x(0));
   return fx;
 }
 
-double obstacle(const Vector &pt)
+double obstacle(const Vector &x)
 {
   return 0.0;
 }

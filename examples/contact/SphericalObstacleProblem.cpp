@@ -84,12 +84,9 @@ int main(int argc, char *argv[])
   Vector x0(dimD); x0 = 0.0;
   Vector xf(dimD); xf = 0.0;
   
-  DirichletObstacleProblem problem(Vh, x0, &fRhs, &spherical_obstacle, ess_tdof_list);
-  
-
-  
-
+  ObstacleProblem problem(Vh, x0, &fRhs, &spherical_obstacle, ess_tdof_list);
   InteriorPointSolver optimizer(&problem); 
+  
   optimizer.SetTol(1.e-7);
   optimizer.SetLinearSolver(linSolver);
   optimizer.SetMaxIter(maxIPMiters);

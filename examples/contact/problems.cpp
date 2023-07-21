@@ -132,19 +132,21 @@ ContactProblem::~ContactProblem()
 
 
 
-//ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem(fes->GetTrueVSize(), fes->GetTrueVSize()), Vh(fes), f(dimD)
-ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &)) : ContactProblem()
+//-------------------
+ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &), 
+		double (*obstacleSource)(const Vector &)) : ContactProblem()
 {
   Vh = fes;
   dimD = fes->GetTrueVSize();
-  dimS = fes->GetTrueVSize();
+  dimS = dimD;
   InitializeParentData(dimD, dimS);
+
   Kform = new BilinearForm(Vh);
-  Kform->AddDomainIntegrator(new MassIntegrator);
   Kform->AddDomainIntegrator(new DiffusionIntegrator);
+  Kform->AddDomainIntegrator(new MassIntegrator);
   Kform->Assemble();
   Kform->Finalize();
-  Kform->FormSystemMatrix(empty_tdof_list, K);
+  K = new SparseMatrix(Kform->SpMat());
 
   FunctionCoefficient fcoeff(fSource);
   fform = new LinearForm(Vh);
@@ -152,56 +154,22 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
   fform->Assemble();
   f.SetSize(dimD);
   f.Set(1.0, *fform);
-
-  Vector iDiag(dimD); iDiag = 1.0;
-  J = new SparseMatrix(iDiag);
+    
+  // define obstacle function
+  FunctionCoefficient psicoeff(obstacleSource);
+  GridFunction psi_gf(Vh);
+  psi_gf.ProjectCoefficient(psicoeff);
+  psi.SetSize(dimS); psi = 0.0;
+  psi.Set(1.0, psi_gf);
   
+  // ------ construct dimS x dimD Jacobian with zero columns correspodning to Dirichlet dofs
+  Vector one(dimD); one = 1.0;
+  J = new SparseMatrix(one);
   zeroMatdd = nullptr;
 }
 
-double ObstacleProblem::E(const Vector &d) const
-{
-  Vector Kd(dimD); Kd = 0.0;
-  K.Mult(d, Kd);
-  return 0.5 * InnerProduct(d, Kd) - InnerProduct(f, d);
-}
 
-void ObstacleProblem::DdE(const Vector &d, Vector &gradE) const
-{
-  K.Mult(d, gradE);
-  gradE.Add(-1.0, f);
-}
-
-SparseMatrix* ObstacleProblem::DddE(const Vector &d)
-{
-  return &K; 
-}
-
-// g(d) = d >= 0
-void ObstacleProblem::g(const Vector &d, Vector &gd) const
-{
-  gd.Set(1.0, d);
-}
-
-SparseMatrix* ObstacleProblem::Ddg(const Vector &d)
-{
-  return J;
-}
-
-SparseMatrix* ObstacleProblem::lDddg(const Vector &d, const Vector &l)
-{
-  return zeroMatdd;
-}
-
-ObstacleProblem::~ObstacleProblem()
-{
-  delete Kform;
-  delete fform;
-  delete J;
-}
-
-//-------------------
-DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vector &x0DC, double (*fSource)(const Vector &), 
+ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, Vector &x0DC, double (*fSource)(const Vector &), 
 		double (*obstacleSource)(const Vector &),
 		Array<int> tdof_list) : ContactProblem()
 {
@@ -276,20 +244,25 @@ DirichletObstacleProblem::DirichletObstacleProblem(FiniteElementSpace *fes, Vect
   zeroMatdd = nullptr;
 }
 
-double DirichletObstacleProblem::E(const Vector &d) const
+
+
+
+
+
+double ObstacleProblem::E(const Vector &d) const
 {
   Vector Kd(dimD); Kd = 0.0;
   K->Mult(d, Kd);
   return 0.5 * InnerProduct(d, Kd) - InnerProduct(f, d);
 }
 
-void DirichletObstacleProblem::DdE(const Vector &d, Vector &gradE) const
+void ObstacleProblem::DdE(const Vector &d, Vector &gradE) const
 {
   K->Mult(d, gradE);
   gradE.Add(-1.0, f);
 }
 
-SparseMatrix* DirichletObstacleProblem::DddE(const Vector &d)
+SparseMatrix* ObstacleProblem::DddE(const Vector &d)
 {
   return K; 
 }
@@ -297,23 +270,23 @@ SparseMatrix* DirichletObstacleProblem::DddE(const Vector &d)
 // g(d) = d - \psi >= 0
 //        d - \psi - s  = 0
 //                   s >= 0
-void DirichletObstacleProblem::g(const Vector &d, Vector &gd) const
+void ObstacleProblem::g(const Vector &d, Vector &gd) const
 {
   J->Mult(d, gd);
   gd.Add(-1., psi);
 }
 
-SparseMatrix* DirichletObstacleProblem::Ddg(const Vector &d)
+SparseMatrix* ObstacleProblem::Ddg(const Vector &d)
 {
   return J;
 }
 
-SparseMatrix* DirichletObstacleProblem::lDddg(const Vector &d, const Vector &l)
+SparseMatrix* ObstacleProblem::lDddg(const Vector &d, const Vector &l)
 {
   return zeroMatdd;
 }
 
-DirichletObstacleProblem::~DirichletObstacleProblem()
+ObstacleProblem::~ObstacleProblem()
 {
   delete Kform;
   delete fform;
