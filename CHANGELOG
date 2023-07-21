@@ -56,7 +56,8 @@ Discretization improvements
 
 - Added support for p-refined meshes in FindPointsGSLIB.
 
-- Introduced support for higher order non conformal Nedelec elements on simplices.
+- Introduced support for higher order non conformal Nedelec elements on
+  simplices in ParMesh.
 
 Linear and nonlinear solvers
 ----------------------------
