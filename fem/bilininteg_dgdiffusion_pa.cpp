@@ -54,15 +54,15 @@ static void PADGDiffusionsetup2D(const int Q1D,
 
    const auto W = w.Read();
 
-   // (flip0, flip1, e0, e1, fid0, fid1)
+   // (normal0, normal1, e0, e1, fid0, fid1)
    const auto iwork = Reshape(iwork_.Read(), 6, NF);
 
-   // (q, 1/h, J00, J01, J10, J11)
+   // (q, 1/h, J0_0, J0_1, J1_0, J1_1)
    auto pa = Reshape(pa_data.Write(), 6, Q1D, NF);
 
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      const int flip[] = {iwork(0, f), iwork(1, f)};
+      const int normal_dir[] = {iwork(0, f), iwork(1, f)};
       const int el[] = {iwork(2, f), iwork(3, f)};
       const int fid[] = {iwork(4, f), iwork(5, f)};
 
@@ -72,6 +72,9 @@ static void PADGDiffusionsetup2D(const int Q1D,
 
       const bool shared = el[1] >= NE;
       const int el_1 = shared ? el[1] - NE : el[1];
+
+      const int sgn0 = (fid[0] == 0 || fid[0] == 1) ? 1 : -1;
+      const int sgn1 = (fid[1] == 0 || fid[1] == 1) ? 1 : -1;
 
       for (int p = 0; p < Q1D; ++p)
       {
@@ -84,20 +87,30 @@ static void PADGDiffusionsetup2D(const int Q1D,
             int i, j;
             internal::FaceQuad2Lex2D(p, Q1D, fid[0], fid[1], side, i, j);
 
+            // Always opposite direction in "native" ordering
+            // Need to multiply the native=>lex0 with native=>lex1 and negate
+            const int sgn = (side == 1) ? -1*sgn0*sgn1 : 1;
+
             const int el_idx = (side == 0) ? el[0] : el_1;
             auto J_el = (side == 1 && shared) ? J_shared : J;
             auto detJ_el = (side == 1 && shared) ? detJ_shared : detJe;
 
-            const double nJi0 = n(p,0,f)*J_el(i,j, 1,1, el_idx)
-                                - n(p,1,f)*J_el(i,j,0,1,el_idx);
-            const double nJi1 = -n(p,0,f)*J_el(i,j,1,0, el_idx)
-                                + n(p,1,f)*J_el(i,j,0,0,el_idx);
+            double nJi[2];
+            nJi[0] = n(p,0,f)*J_el(i,j, 1,1, el_idx) - n(p,1,f)*J_el(i,j,0,1,el_idx);
+            nJi[1] = -n(p,0,f)*J_el(i,j,1,0, el_idx) + n(p,1,f)*J_el(i,j,0,0,el_idx);
 
             const double dJe = detJ_el(i,j,el_idx);
             const double dJf = detJf(p, f);
 
-            pa(2 + 2*side + flip[side], p, f) = factor * nJi0 / dJe * Qp * W[p] * dJf;
-            pa(2 + 2*side + 1 - flip[side], p, f) = factor * nJi1 / dJe * Qp * W[p] * dJf;
+            const double w = factor * Qp * W[p] * dJf / dJe;
+
+            const int ni = normal_dir[side];
+            const int ti = 1 - ni;
+
+            // Normal
+            pa(2 + 2*side + 0, p, f) = w * nJi[ni];
+            // Tangential
+            pa(2 + 2*side + 1, p, f) = sgn * w * nJi[ti];
 
             hi += factor * dJf / dJe;
          }
@@ -210,13 +223,19 @@ static void PADGDiffusionSetup3D(const int Q1D,
    }
 }
 
-static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh, const FaceType type, Array<int>& iwork_)
+static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh,
+                                      const FaceType type, Array<int>& iwork_)
 {
    const int ne = mesh.GetNE();
 
    int fidx = 0;
    iwork_.SetSize(nf * 6);
-   // 2d: (flip0, flip1, e0, e1, fid0, fid1)
+
+   // normal0 and normal1 are the indices of the face normal direction relative
+   // to the element in reference coordinates, i.e. if the face is normal to the
+   // x-vector (left or right face), then it will be 0, otherwise 1.
+
+   // 2d: (normal0, normal1, e0, e1, fid0, fid1)
    auto iwork = Reshape(iwork_.HostWrite(), 6, nf);
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
@@ -225,14 +244,14 @@ static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh, const Face
       if (face_info.IsOfFaceType(type))
       {
          const int face_id_1 = face_info.element[0].local_face_id;
-         iwork(0, fidx) = (face_id_1 == 0 || face_id_1 == 2) ? 1 : 0;
+         iwork(0, fidx) = (face_id_1 == 1 || face_id_1 == 3) ? 0 : 1;
          iwork(2, fidx) = face_info.element[0].index;
          iwork(4, fidx) = face_id_1;
 
          if (face_info.IsInterior())
          {
             const int face_id_2 = face_info.element[1].local_face_id;
-            iwork(1, fidx) = (face_id_2 == 0 || face_id_2 == 2) ? 1 : 0;
+            iwork(1, fidx) = (face_id_2 == 1 || face_id_2 == 3) ? 0 : 1;
             if (face_info.IsShared())
             {
                iwork(3, fidx) = ne + face_info.element[1].index;
@@ -507,7 +526,7 @@ void PADGDiffusionApply2D(const int NF,
 
          MFEM_FOREACH_THREAD(p,x,Q1D)
          {
-            const double Je_side[] = {pa(2 + 2*side, p, f), pa(3 + 2*side, p, f)};
+            const double Je_side[] = {pa(2 + 2*side, p, f), pa(2 + 2*side + 1, p, f)};
 
             Bu[p] = 0.0;
             Bdu[p] = 0.0;
@@ -575,8 +594,8 @@ void PADGDiffusionApply2D(const int NF,
             {
                const double Je[] = {pa(2 + 2*side, p, f), pa(2 + 2*side + 1, p, f)};
                const double jump = Bu0[p] - Bu1[p];
-               const double r_p = Je[0] * jump;
-               const double w_p = Je[1] * jump;
+               const double r_p = Je[0] * jump; // normal
+               const double w_p = Je[1] * jump; // tangential
                du[d] += sigma * B(p, d) * r_p;
                u[d] += sigma * G(p, d) * w_p;
             }
