@@ -580,11 +580,22 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 
 TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
+   const bool have_data_dir = mfem_data_dir != "";
    const int order = 2;
 
-   const int dim = GENERATE(3);
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/fichera.mesh",
+   };
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+   }
+   std::string mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
 
-   Mesh mesh = (dim == 2) ? Mesh("../../data/star.mesh") : Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   Mesh mesh(mesh_fname.c_str());
+   const int dim = mesh.Dimension();
 
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
