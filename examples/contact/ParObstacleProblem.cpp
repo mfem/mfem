@@ -1,15 +1,15 @@
 //                         Obstacle Problem
 //
 //
-// Compile with: make obstacleProblem
+// Compile with: make ParObstacleProblem
 //
-// Sample runs: ./obstacleProblem
+// Sample runs: mpirun -np 4 ./ParObstacleProblem
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve the
 //              bound-constrained energy minimization problem
 //
-//                      minimize ||∇u||² subject to u ≥ ϕ in H¹₀.
+//                      minimize (||∇u||² + ||u||²) subject to u ≥ ϕ in H¹.
 
 #include "mfem.hpp"
 #include "ParProblems.hpp"
