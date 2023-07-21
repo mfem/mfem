@@ -11,19 +11,18 @@ using namespace mfem;
 
 
 
-// abstract OptProblem class
-// of the form
-// min_(u,m) f(u,m) s.t. c(u,m)=0 and m>=ml
-// the primal variable (u, m) is represented as a BlockVector
-
-class OptProblem
+// abstract GeneralOptProblem class
+// to describe elements of the problem
+// min_(u,m) f(u,m) 
+// such that c(u,m)=0 and m >= ml
+class GeneralOptProblem
 {
 protected:
     int dimU, dimM, dimC;
     Array<int> block_offsetsx;
     Vector ml;
 public:
-    OptProblem();
+    GeneralOptProblem();
     virtual double CalcObjective(const BlockVector &) const = 0;
     virtual void Duf(const BlockVector &, Vector &) const = 0;
     virtual void Dmf(const BlockVector &, Vector &) const = 0;
@@ -47,15 +46,15 @@ public:
     int GetDimM() const { return dimM; }; 
     int GetDimC() const { return dimC; };
     Vector Getml() const { return ml; };
-    ~OptProblem();
+    ~GeneralOptProblem();
 };
 
 
-// abstract ContactProblem class
+// abstract OptProblem class
 // of the form
 // min_d e(d) s.t. g(d) >= 0
 // TO DO: add functionality for gap function Hessian apply 
-class ContactProblem : public OptProblem
+class OptProblem : public GeneralOptProblem
 {
 protected:
     int dimD;
@@ -66,8 +65,8 @@ protected:
     SparseMatrix * zeroMatmu;
     SparseMatrix * zeroMatmm;
 public:
-    //ContactProblem(int, int);        // constructor
-    ContactProblem();
+    //OptProblem(int, int);        // constructor
+    OptProblem();
     void InitializeParentData(int, int);
     double CalcObjective(const BlockVector &) const; // objective e
     void Duf(const BlockVector &, Vector &) const;
@@ -91,11 +90,11 @@ public:
     virtual SparseMatrix* lDddg(const Vector &, const Vector &) = 0;
     int GetDimD() const { return dimD; };
     int GetDimS() const { return dimS; };
-    virtual ~ContactProblem();
+    virtual ~OptProblem();
 };
 
 
-class ObstacleProblem : public ContactProblem
+class ObstacleProblem : public OptProblem
 {
 protected:
    // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d + \psi >= 0
@@ -123,7 +122,7 @@ public :
 };
 
 
-class QPContactProblem : public ContactProblem
+class QPOptProblem : public OptProblem
 {
 protected:
   SparseMatrix *K;
@@ -132,18 +131,18 @@ protected:
   Vector f;
   Vector g0;
 public:
-  QPContactProblem(const SparseMatrix, const SparseMatrix, const Vector, const Vector);
+  QPOptProblem(const SparseMatrix, const SparseMatrix, const Vector, const Vector);
   double E(const Vector &) const;
   void DdE(const Vector &, Vector &) const;
   SparseMatrix* DddE(const Vector &);
   void g(const Vector &, Vector &) const;
   SparseMatrix* Ddg(const Vector &);
   SparseMatrix * lDddg(const Vector &, const Vector &);
-  virtual ~QPContactProblem();
+  virtual ~QPOptProblem();
 };
 
 
-class ExContactBlockTL : public ContactProblem
+class ExContactBlockTL : public OptProblem
 {
 public:
    double E(const Vector &) const;

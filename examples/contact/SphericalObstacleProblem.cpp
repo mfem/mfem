@@ -13,7 +13,7 @@
 
 
 #include "mfem.hpp"
-#include "problems.hpp"
+#include "Problems.hpp"
 #include "IPsolver.hpp"
 #include <fstream>
 #include <iostream>

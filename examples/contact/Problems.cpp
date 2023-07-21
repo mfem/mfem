@@ -10,7 +10,7 @@
 #include <array>
 
 #include "mfem.hpp"
-#include "problems.hpp"
+#include "Problems.hpp"
 #include "nodepair.hpp"
 
 
@@ -18,15 +18,15 @@ using namespace std;
 using namespace mfem;
 
 
-OptProblem::OptProblem() {}
+GeneralOptProblem::GeneralOptProblem() {}
 
-void OptProblem::CalcObjectiveGrad(const BlockVector &x, BlockVector &y) const
+void GeneralOptProblem::CalcObjectiveGrad(const BlockVector &x, BlockVector &y) const
 {
   Duf(x, y.GetBlock(0));
   Dmf(x, y.GetBlock(1));
 }
 
-OptProblem::~OptProblem()
+GeneralOptProblem::~GeneralOptProblem()
 {
   block_offsetsx.DeleteAll();
 }
@@ -35,7 +35,7 @@ OptProblem::~OptProblem()
 // min E(d) s.t. g(d) >= 0
 // min_(d,s) E(d) s.t. c(d,s) := g(d) - s = 0, s >= 0
 
-/*ContactProblem::ContactProblem(int dimd, int dimg) : OptProblem(), dimD(dimd), dimS(dimg), block_offsetsx(3)
+/*OptProblem::OptProblem(int dimd, int dimg) : OptProblem(), dimD(dimd), dimS(dimg), block_offsetsx(3)
 {
   dimU = dimD;
   dimM = dimS;
@@ -47,7 +47,7 @@ OptProblem::~OptProblem()
   ml.SetSize(dimM); ml = 0.0;
 }*/
 
-ContactProblem::ContactProblem() : OptProblem(), block_offsetsx(3)
+OptProblem::OptProblem() : GeneralOptProblem(), block_offsetsx(3)
 {
   /*dimU = dimD;
   dimM = dimS;
@@ -59,7 +59,7 @@ ContactProblem::ContactProblem() : OptProblem(), block_offsetsx(3)
   ml.SetSize(dimM); ml = 0.0;*/
 }
 
-void ContactProblem::InitializeParentData(int dimd, int dims)
+void OptProblem::InitializeParentData(int dimd, int dims)
 {
   dimU = dimd;
   dimM = dims;
@@ -77,54 +77,54 @@ void ContactProblem::InitializeParentData(int dimd, int dims)
   zeroMatmm = nullptr;
 }
 
-double ContactProblem::CalcObjective(const BlockVector &x) const { return E(x.GetBlock(0)); }
+double OptProblem::CalcObjective(const BlockVector &x) const { return E(x.GetBlock(0)); }
 
-void ContactProblem::Duf(const BlockVector &x, Vector &y) const { DdE(x.GetBlock(0), y); }
+void OptProblem::Duf(const BlockVector &x, Vector &y) const { DdE(x.GetBlock(0), y); }
 
-void ContactProblem::Dmf(const BlockVector &x, Vector &y) const { y = 0.0; }
+void OptProblem::Dmf(const BlockVector &x, Vector &y) const { y = 0.0; }
 
-SparseMatrix* ContactProblem::Duuf(const BlockVector &x) { return DddE(x.GetBlock(0)); }
+SparseMatrix* OptProblem::Duuf(const BlockVector &x) { return DddE(x.GetBlock(0)); }
 
-SparseMatrix* ContactProblem::Dumf(const BlockVector &x) { return nullptr; }
+SparseMatrix* OptProblem::Dumf(const BlockVector &x) { return nullptr; }
 
-SparseMatrix* ContactProblem::Dmuf(const BlockVector &x) { return nullptr; }
+SparseMatrix* OptProblem::Dmuf(const BlockVector &x) { return nullptr; }
 
-SparseMatrix* ContactProblem::Dmmf(const BlockVector &x) { return nullptr; }
+SparseMatrix* OptProblem::Dmmf(const BlockVector &x) { return nullptr; }
 
-void ContactProblem::c(const BlockVector &x, Vector &y) const // c(u,m) = g(u) - m 
+void OptProblem::c(const BlockVector &x, Vector &y) const // c(u,m) = g(u) - m 
 {
   g(x.GetBlock(0), y);
   y.Add(-1.0, x.GetBlock(1));  
 }
 
-SparseMatrix* ContactProblem::Duc(const BlockVector &x) { return Ddg(x.GetBlock(0)); }
+SparseMatrix* OptProblem::Duc(const BlockVector &x) { return Ddg(x.GetBlock(0)); }
 
-SparseMatrix* ContactProblem::Dmc(const BlockVector &x) 
+SparseMatrix* OptProblem::Dmc(const BlockVector &x) 
 { 
   return negIdentity;
 } 
 
-SparseMatrix* ContactProblem::lDuuc(const BlockVector &x, const Vector &l)
+SparseMatrix* OptProblem::lDuuc(const BlockVector &x, const Vector &l)
 {
   return lDddg(x.GetBlock(0), l);
 }
 
-SparseMatrix* ContactProblem::lDumc(const BlockVector &x, const Vector &l)
+SparseMatrix* OptProblem::lDumc(const BlockVector &x, const Vector &l)
 {
   return zeroMatum;
 }
 
-SparseMatrix* ContactProblem::lDmuc(const BlockVector &x, const Vector &l)
+SparseMatrix* OptProblem::lDmuc(const BlockVector &x, const Vector &l)
 {
   return zeroMatmu;
 }
 
-SparseMatrix* ContactProblem::lDmmc(const BlockVector &x, const Vector &l)
+SparseMatrix* OptProblem::lDmmc(const BlockVector &x, const Vector &l)
 {
   return zeroMatmm;
 }
 
-ContactProblem::~ContactProblem() 
+OptProblem::~OptProblem() 
 {
   delete negIdentity;
 }
@@ -134,7 +134,7 @@ ContactProblem::~ContactProblem()
 
 //-------------------
 ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(const Vector &), 
-		double (*obstacleSource)(const Vector &)) : ContactProblem()
+		double (*obstacleSource)(const Vector &)) : OptProblem()
 {
   Vh = fes;
   dimD = fes->GetTrueVSize();
@@ -171,7 +171,7 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
 
 ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, Vector &x0DC, double (*fSource)(const Vector &), 
 		double (*obstacleSource)(const Vector &),
-		Array<int> tdof_list) : ContactProblem()
+		Array<int> tdof_list) : OptProblem()
 {
   Vh = fes;
   ess_tdof_list = tdof_list; 
@@ -299,7 +299,7 @@ ObstacleProblem::~ObstacleProblem()
 // linear approximation of the gap function constraint
 // E(d) = 1 / 2 d^T K d + f^T d
 // g(d) = J d + g0
-QPContactProblem::QPContactProblem(const SparseMatrix Kin, const SparseMatrix Jin, const Vector fin, const Vector g0in) : ContactProblem()
+QPOptProblem::QPOptProblem(const SparseMatrix Kin, const SparseMatrix Jin, const Vector fin, const Vector g0in) : OptProblem()
 {
   K = new SparseMatrix(Kin);
   J = new SparseMatrix(Jin);
@@ -319,7 +319,7 @@ QPContactProblem::QPContactProblem(const SparseMatrix Kin, const SparseMatrix Ji
 }
 
 // E(d) = 1 / 2 d^T K d + f^T d
-double QPContactProblem::E(const Vector &d) const
+double QPOptProblem::E(const Vector &d) const
 {
   Vector Kd(dimD); Kd = 0.0;
   K->Mult(d, Kd);
@@ -328,37 +328,37 @@ double QPContactProblem::E(const Vector &d) const
 
 
 // gradient(E) = K d + f
-void QPContactProblem::DdE(const Vector &d, Vector &gradE) const
+void QPOptProblem::DdE(const Vector &d, Vector &gradE) const
 {
   K->Mult(d, gradE);
   gradE.Add(1.0, f);
 }
 
 // Hessian(E) = K
-SparseMatrix* QPContactProblem::DddE(const Vector &d)
+SparseMatrix* QPOptProblem::DddE(const Vector &d)
 {
   return K; 
 }
 
 // g(d) = J * d + g0 >= 0
-void QPContactProblem::g(const Vector &d, Vector &gd) const
+void QPOptProblem::g(const Vector &d, Vector &gd) const
 {
   J->Mult(d, gd);
   gd.Add(1.0, g0);
 }
 
 // Jacobian(g) = J
-SparseMatrix* QPContactProblem::Ddg(const Vector &d)
+SparseMatrix* QPOptProblem::Ddg(const Vector &d)
 {
   return J;
 }
 
-SparseMatrix* QPContactProblem::lDddg(const Vector &d, const Vector &l)
+SparseMatrix* QPOptProblem::lDddg(const Vector &d, const Vector &l)
 {
   return zeroMatdd;
 }
 
-QPContactProblem::~QPContactProblem()
+QPOptProblem::~QPOptProblem()
 {
   delete K;
   delete J;
@@ -777,7 +777,7 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
 /* Constructor. */
 ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    : 
-   ContactProblem(),
+   OptProblem(),
    block_offsets(3),
    mesh1(mesh1in),
    mesh2(mesh2in),

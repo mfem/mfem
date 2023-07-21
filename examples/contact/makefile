@@ -36,18 +36,18 @@ endif
 
 all: $(EXAMPLES)
 
-ObstacleProblem: ObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) ObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+ObstacleProblem: ObstacleProblem.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ObstacleProblem.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
-SphericalObstacleProblem: SphericalObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) SphericalObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+SphericalObstacleProblem: SphericalObstacleProblem.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) SphericalObstacleProblem.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
-DirichletObstacleProblem: DirichletObstacleProblem.o problems.o IPsolver.o $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) DirichletObstacleProblem.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+DirichletObstacleProblem: DirichletObstacleProblem.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) DirichletObstacleProblem.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
 
-exQPContactBlockTL: exQPContactBlockTL.o problems.o IPsolver.o $(MFEM_LIB_FILE)
-	$(MFEM_CXX) $(MFEM_FLAGS) exQPContactBlockTL.o problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+exQPContactBlockTL: exQPContactBlockTL.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) exQPContactBlockTL.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
 
 ObstacleProblem.o: $(SRC)ObstacleProblem.cpp $(CONFIG_MK)
@@ -62,7 +62,7 @@ DirichletObstacleProblem.o: $(SRC)DirichletObstacleProblem.cpp $(CONFIG_MK)
 exQPContactBlockTL.o: $(SRC)exQPContactBlockTL.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
-problems.o: $(SRC)problems.cpp $(CONFIG_MK)
+Problems.o: $(SRC)Problems.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
 
 IPsolver.o: $(SRC)IPsolver.cpp $(CONFIG_MK)

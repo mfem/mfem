@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "problems.hpp"
+#include "Problems.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -13,7 +13,7 @@ using namespace mfem;
 class InteriorPointSolver
 {
 protected:
-    OptProblem* problem;
+    GeneralOptProblem* optProblem;
     double rel_tol;
     int  max_iter;
     double mu_k; // \mu_k
@@ -49,19 +49,10 @@ protected:
 
     int linSolver;
 
-
-    // not sure if this data is needed or if it can 
-    // all be accounted for in the problem class
-    // which variables have equality constraints
-    //Array<int> eqConstrainedVariables;
-    //Array<double> eqConstrainedValues;
-
-
-
 public:
-    InteriorPointSolver(OptProblem*);
+    InteriorPointSolver(GeneralOptProblem*);
     void Mult(const BlockVector& , BlockVector&); // used when the user wants to be aware of bound-constrained variable m >= ml
-    void Mult(const Vector&, Vector &); // useful when the user doesn't need to know about bound-constrained variable   m >= ml
+    void Mult(const Vector&, Vector &); // useful when the user doesn't need to know about bound-constrained variable   m >= ml, e.g., when m is a slack variable
     double MaxStepSize(Vector& , Vector& , Vector& , double);
     double MaxStepSize(Vector& , Vector& , double);
     void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &);

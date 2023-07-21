@@ -10,7 +10,7 @@
 #include <array>
 
 #include "mfem.hpp"
-#include "problems.hpp"
+#include "Problems.hpp"
 #include "IPsolver.hpp"
 
 using namespace std;
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
   }
 
 
-  QPContactProblem *QPContact = new QPContactProblem(*K, *Jreduced, f, g0reduced);
+  QPOptProblem *QPContact = new QPOptProblem(*K, *Jreduced, f, g0reduced);
   
   InteriorPointSolver * QPContactOptimizer = new InteriorPointSolver(QPContact);
   QPContactOptimizer->SetTol(1.e-6);

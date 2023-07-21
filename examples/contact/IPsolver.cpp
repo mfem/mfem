@@ -1,6 +1,6 @@
 #include "mfem.hpp"
 #include "IPsolver.hpp"
-#include "problems.hpp"
+#include "Problems.hpp"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -10,7 +10,7 @@ using namespace mfem;
 
 
 
-InteriorPointSolver::InteriorPointSolver(OptProblem * Problem) : problem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
+InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * Problem) : optProblem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
 Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Huucl(nullptr), HLuucl(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), saveLogBarrierIterates(false)
 {
   rel_tol  = 1.e-2;
@@ -44,9 +44,9 @@ Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Huucl(nullptr), HLuucl(n
 
   kEps   = 1.e1;
 
-  dimU = problem->GetDimU();
-  dimM = problem->GetDimM();
-  dimC = problem->GetDimC();
+  dimU = optProblem->GetDimU();
+  dimM = optProblem->GetDimM();
+  dimC = optProblem->GetDimC();
   ckSoc.SetSize(dimC);
   
   block_offsetsumlz[0] = 0;
@@ -60,7 +60,7 @@ Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Huucl(nullptr), HLuucl(n
   for(int i = 0; i < block_offsetsx.Size(); i++)    { block_offsetsx[i]   = block_offsetsuml[i] ; }
 
   // lower-bound for the inequality constraint m >= ml
-  ml = problem->Getml();
+  ml = optProblem->Getml();
   
   lk.SetSize(dimC);  lk  = 0.0;
   zlk.SetSize(dimM); zlk = 0.0;
@@ -262,8 +262,8 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
   // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
   //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
 
-  Huu = problem->Duuf(x); Hum = problem->Dumf(x);
-  Hmu = problem->Dmuf(x); Hmm = problem->Dmmf(x);
+  Huu = optProblem->Duuf(x); Hum = optProblem->Dumf(x);
+  Hmu = optProblem->Dmuf(x); Hmm = optProblem->Dmmf(x);
 
   Vector DiagLogBar(dimM); DiagLogBar = 0.0;
   for(int ii = 0; ii < dimM; ii++)
@@ -296,10 +296,10 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
     Wmm = D;
   }
 
-  Ju = problem->Duc(x); JuT = Transpose(*Ju);
-  Jm = problem->Dmc(x); JmT = Transpose(*Jm);
+  Ju = optProblem->Duc(x); JuT = Transpose(*Ju);
+  Jm = optProblem->Dmc(x); JmT = Transpose(*Jm);
  
-  Huucl = problem->lDuuc(x, l);
+  Huucl = optProblem->lDuuc(x, l);
   if(Huucl != nullptr)
   {
     HLuucl = Add(*Huucl, *Huu);
@@ -348,7 +348,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   }
   if(!socSolve) 
   {
-    problem->c(x, b.GetBlock(2));
+    optProblem->c(x, b.GetBlock(2));
   }
   else
   {
@@ -626,8 +626,8 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
       if((!(thx0 < thxtrial)) && i == 0)
       {
         mfem::out << "second order correction\n";
-        problem->c(xtrial, ckSoc);
-        problem->c(x0, ck0);
+        optProblem->c(xtrial, ckSoc);
+        optProblem->c(x0, ck0);
         ckSoc.Add(alphaMax, ck0);
         // A-5.6 Compute the second-order correction.
         IPNewtonSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
@@ -691,7 +691,7 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
   DxL(x, l, zl, gradL);
   E1 = gradL.Normlinf();
 
-  problem->c(x, cx);
+  optProblem->c(x, cx);
   E2 = cx.Normlinf();
 
   for(int ii = 0; ii < dimM; ii++) 
@@ -723,14 +723,14 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
 double InteriorPointSolver::theta(const BlockVector &x)
 {
   Vector cx(dimC); cx = 0.0;
-  problem->c(x, cx);
+  optProblem->c(x, cx);
   return cx.Norml2();
 }
 
 // log-barrier objective
 double InteriorPointSolver::phi(const BlockVector &x, double mu)
 {
-  double fx = problem->CalcObjective(x); 
+  double fx = optProblem->CalcObjective(x); 
   double logBarrierLoc = 0.0;
   for(int i = 0; i < dimM; i++) 
   { 
@@ -747,7 +747,7 @@ double InteriorPointSolver::phi(const BlockVector &x, double mu)
 // gradient of log-barrier objective with respect to x = (u, m)
 void InteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
 {
-  problem->CalcObjectiveGrad(x, y);
+  optProblem->CalcObjectiveGrad(x, y);
   for(int i = 0; i < dimM; i++) 
   { 
     y(dimU + i) -= mu / (x(dimU + i));
@@ -759,8 +759,8 @@ void InteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
 // L(x, l, zl) = f(x) + l^T c(x) - zl^T m
 double InteriorPointSolver::L(const BlockVector &x, const Vector &l, const Vector &zl)
 {
-  double fx = problem->CalcObjective(x);
-  Vector cx(dimC); problem->c(x, cx);
+  double fx = optProblem->CalcObjective(x);
+  Vector cx(dimC); optProblem->c(x, cx);
   return (fx + InnerProduct(cx, l) - InnerProduct(x.GetBlock(1), zl));
 }
 
@@ -768,10 +768,10 @@ void InteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Vecto
 {
   // evaluate the gradient of the objective with respect to the primal variables x = (u, m)
   BlockVector gradxf(block_offsetsx); gradxf = 0.0;
-  problem->CalcObjectiveGrad(x, gradxf);
+  optProblem->CalcObjectiveGrad(x, gradxf);
   
   SparseMatrix *Jacu, *Jacm, *JacuT, *JacmT;
-  Jacu = problem->Duc(x); Jacm = problem->Dmc(x);
+  Jacu = optProblem->Duc(x); Jacm = optProblem->Dmc(x);
   JacuT = Transpose(*Jacu);
   JacmT = Transpose(*Jacm);
   JacuT->Mult(l, y.GetBlock(0));
