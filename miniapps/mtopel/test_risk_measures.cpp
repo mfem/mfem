@@ -22,16 +22,26 @@ int main()
     for(double id=0.00;id<1.0; id=id+0.05){
         std::cout<<"id="<<id<<" VaR(id)="<<rm.VaR(id)<<" CVaR(id)="<<rm.CVaR(id);
         std::cout<<" mean="<< rm.Mean()<<" STD="<<rm.STD()<<" EVaR="<<rm.EVaR(id);
-        std::cout<<" CVaRe t="<<rm.CVaRe_Find_t(id,1e-1)<<std::endl;
+        std::cout<<std::endl;
+        //std::cout<<" EvaR_t="<<rm.EVaR_Find_t(id)<<std::endl;
+        //std::cout<<" CVaRe t="<<rm.CVaRe_Find_t(id,1e-1)<<std::endl;
         std::cout<<"id="<<id<<" VaR(id)="<<ra.VaR(id)<<" CVaR(id)="<<ra.CVaR(id);
         std::cout<<" mean="<< ra.Mean()<<" STD="<<ra.STD()<<" EVaR="<<ra.EVaR(id);
-        std::cout<<" CVaRe t="<<ra.CVaRe_Find_t(id,1e-1)<<std::endl;
+        std::cout<<std::endl;
+        //std::cout<<" EvaR_t="<<ra.EVaR_Find_t(id)<<std::endl;
+        //std::cout<<" CVaRe t="<<ra.CVaRe_Find_t(id,1e-1)<<std::endl;
+
+        std::cout<<"rm.dt="<<rm.dEVaR(id,0.5)<<" ad="<<rm.ADEVaRt(id,0.5)<<std::endl;
+        std::cout<<"ra.dt="<<ra.dEVaR(id,0.5)<<" ad="<<rm.ADEVaRt(id,0.5)<<std::endl;
     }
 
 
 
     rm.Test_EVaR_Grad();
     ra.Test_EVaR_Grad();
+
+
+
 
 
 

@@ -956,8 +956,8 @@ int main(int argc, char *argv[])
       //oddens.ProjectCoefficient(holes);
       //oddens*=0.3;
       //oddens.GetTrueDofs(vtmpv);
-      //oddens=0.3;
-      oddens.ProjectCoefficient(stripes);
+      oddens=0.3;
+      //oddens.ProjectCoefficient(stripes);
       oddens.GetTrueDofs(vtmpv);
       if(mycolor==0){fsolv->Mult(vtmpv,vdens);}
       //make sure that all communicators run with the same density

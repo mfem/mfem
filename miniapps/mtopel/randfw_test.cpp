@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("rf_0.2",&rg02);
 
 
-   for(int i=0;i<10;i++){
+   for(int i=0;i<2;i++){
        paraview_dc.SetCycle(i);
        paraview_dc.SetTime(double(i));
 
@@ -137,11 +137,11 @@ int main(int argc, char *argv[])
        rf.Sample();
        rg10.ProjectCoefficient(uf);
 
-       rf.SetCorrelationLen(0.05);
+       rf.SetCorrelationLen(0.5);
        rf.Sample();
        rg05.ProjectCoefficient(uf);
 
-       rf.SetCorrelationLen(0.02);
+       rf.SetCorrelationLen(0.2);
        rf.Sample();
        rg02.ProjectCoefficient(uf);
 

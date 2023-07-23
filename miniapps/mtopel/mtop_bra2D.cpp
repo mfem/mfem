@@ -4,6 +4,7 @@
 #include <random>
 #include "MMA.hpp"
 
+#include "mtop_coefficients.hpp"
 #include "mtop_solvers.hpp"
 
 
@@ -203,7 +204,7 @@ public:
         return cvar/ww;
     }
 
-    void CVar(mfem::Vector& grad)
+    double EVaR(mfem::Vector& grad, double beta=0.98)
     {
         grad=0.0;
         mfem::Vector cgrad(grad.Size()); cgrad=0.0;
@@ -217,37 +218,258 @@ public:
 
         double vv;
         for(int i=0;i<16;i++){
+                prob[i]/=tprob;
                 vv=Compliance(i,1.0,0.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,0));
                 vv=Compliance(i,0.0,1.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,1));
                 vv=Compliance(i,0.0,0.0,1.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,2));
         }
 
-        std::sort(vals.begin(),vals.end());
-        double cdf[48]; cdf[0]=std::get<1>(vals[0]);
+        int myrank;
+        MPI_Comm_rank(pdens.ParFESpace()->GetComm(),&myrank );
+
+        double tt=1.0;
+        double shift=0.0;
+        //find t
+        {
+            std::vector<double> vvals; vvals.resize(48);
+            std::vector<double> vprob; vprob.resize(48);
+            for(int i=0;i<48;i++){
+                vvals[i]=std::get<0>(vals[i]);
+                vprob[i]=std::get<1>(vals[i]);
+                if(shift<vvals[i]){shift=vvals[i];}
+
+            }
+            mfem::RiskMeasures rmeas(vvals,vprob);
+            if(flagt ==false){
+                tt=rmeas.EVaR_Find_t(beta,1.0,1e-8,100);
+                tprev=tt;
+                flagt=true;
+            }else{
+                tt=rmeas.EVaR_Find_t(beta,tprev,1.0,1e-8,100);
+                tprev=tt;
+            }
+
+            if(myrank==0){
+                std::cout<<" tt="<<tt
+                         <<" VaR="<<rmeas.VaR(beta)
+                         <<" CVaR="<<rmeas.CVaR(beta)
+                         <<" EVaR="<<rmeas.EVaR(beta)
+                         <<" aEVaR="<<rmeas.EVaR(1.0-beta)
+                         <<" EVaRt="<<rmeas.EVaRt(beta,tt)
+                         <<" Max="<<rmeas.Max()<<std::endl;
+            }
+        }
+
+
+        double evar=0.0;
+        for(int i=0;i<48;i++){
+            double lw=(std::get<1>(vals[i]))*std::exp((std::get<0>(vals[i])-shift)/tt);
+            evar=evar+lw;
+            //compute the gradients
+            int ii=std::get<2>(vals[i]);
+            int pp=std::get<3>(vals[i]);
+            double vv[3]={0.0,0.0,0.0}; vv[pp]=1.0;
+            GetComplianceGrad(ii,vv[0],vv[1],vv[2],cgrad);
+            grad.Add(lw,cgrad);
+        }
+
+        grad/=evar;
+        evar=shift+tt*std::log(evar/(1.0-beta));
+        if(myrank==0){std::cout<<"EVaR="<<evar<<std::endl;}
+
+        return evar;
+
+    }
+
+
+    double CVaRe(mfem::Vector& grad, double beta=0.98, double ee=1.0)
+    {
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+
+        std::vector<std::tuple<double,double,int,int>> vals;
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double vv;
+        for(int i=0;i<16;i++){
+                prob[i]/=tprob;
+                vv=Compliance(i,1.0,0.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,0));
+                vv=Compliance(i,0.0,1.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,1));
+                vv=Compliance(i,0.0,0.0,1.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,2));
+        }
+
+        int myrank;
+        MPI_Comm_rank(pdens.ParFESpace()->GetComm(),&myrank );
+
+
+        //find t-parameter
+        double tt=0.0;
+        {
+            std::vector<double> vvals; vvals.resize(48);
+            std::vector<double> vprob; vprob.resize(48);
+            for(int i=0;i<48;i++){
+                vvals[i]=std::get<0>(vals[i]);
+                vprob[i]=std::get<1>(vals[i]);
+            }
+
+            mfem::RiskMeasures rmeas(vvals,vprob);
+
+            tt=rmeas.CVaRe_Find_t(beta,ee,1.0,1e-8,10);
+
+            if(myrank==0){
+                std::cout<<"reg VaR="<<tt
+                         <<" VaR="<<rmeas.VaR(beta)
+                         <<" reg CVaR="<<rmeas.CVaRe(beta,ee)<<" "<<rmeas.CVaRet(beta,ee,tt)
+                         <<" CVaR="<<rmeas.CVaR(beta)<<std::endl;
+            }
+        }
+
+        //evaluate the gradients
+        std::function<double(double)> rff=[&ee](double y)
+        {
+            if(y<0.0){
+                return 0.0;
+            }else if(y<ee){
+                return y*y*y/(ee*ee)-y*y*y*y/(2.0*ee*ee*ee);
+            }else{
+                return y-ee/2.0;
+            }
+        };
+
+        std::function<double(double)> rff3=[&ee,&rff](double y)
+        {
+            return   rff(y+ee/2.0);
+        };
+
+
+        std::function<double(double)> drff=[&ee](double y)
+        {
+            if(y<0.0){
+                return 0.0;
+            }else if(y<ee){
+                return 3.0*y*y/(ee*ee)-4.0*y*y*y/(2.0*ee*ee*ee);
+            }else{
+                return 1.0;
+            }
+        };
+
+        std::function<double(double)> drff3=[&ee,&drff](double y)
+        {
+            return drff(y+ee/2.0);
+        };
+
+
+
+        double cvar=0.0;
+        for(int i=0;i<48;i++){
+            cvar=cvar+(std::get<1>(vals[i]))*rff3(std::get<0>(vals[i])-tt);
+            //compute the gradients
+            int ii=std::get<2>(vals[i]);
+            int pp=std::get<3>(vals[i]);
+            double vv[3]={0.0,0.0,0.0}; vv[pp]=1.0;
+            GetComplianceGrad(ii,vv[0],vv[1],vv[2],cgrad);
+            grad.Add(std::get<1>(vals[i])*drff3(std::get<0>(vals[i])-tt),cgrad);
+        }
+
+        grad/=(1.0-beta);
+
+        if(myrank==0){std::cout<<"reg CVaR="<<tt+cvar/(1.0-beta)<<std::endl;}
+
+        return tt+cvar/(1.0-beta);
+    }
+
+    double CVar(mfem::Vector& grad, double beta=0.98)
+    {
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+
+        std::vector<std::tuple<double,double,int,int>> vals;
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+
+        double vv;
+        for(int i=0;i<16;i++){
+                prob[i]/=tprob;
+                vv=Compliance(i,1.0,0.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,0));
+                vv=Compliance(i,0.0,1.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,1));
+                vv=Compliance(i,0.0,0.0,1.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,2));
+        }
+
+        std::sort(vals.begin(),vals.end(),std::greater<std::tuple<double,double,int,int>>());
         double var;
-        double ww=0.0;
-        for(int i=1;i<48;i++){
-            cdf[i]=cdf[i-1]+std::get<1>(vals[i]);
-            if(cdf[i]>0.98*tprob){
-                var=std::get<0>(vals[i]);
+        double cvar;
+        int vi=47;
+        double cp;
+        for(int i=0;i<47;i++){
+            if((cp+std::get<1>(vals[i]))>(1.0-beta)){
+                vi=i;
                 break;
+            }else{
+                cp=cp+std::get<1>(vals[i]);
             }
         }
+        var=std::get<0>(vals[vi]);
 
-        //evaluate the probability
-        for(int i=1;i<48;i++){
-            cdf[i]=cdf[i-1]+std::get<1>(vals[i]);
-            if(!(std::get<0>(vals[i])<var)){
-                ww=ww+std::get<1>(vals[i]);
-                //compute the gradients
-                int ii=std::get<2>(vals[i]);
-                int pp=std::get<3>(vals[i]);
-                double vv[3]={0.0,0.0,0.0}; vv[pp]=1.0;
-                GetComplianceGrad(ii,vv[0],vv[1],vv[2],cgrad);grad.Add(std::get<1>(vals[i]),cgrad);
+        int myrank;
+        MPI_Comm_rank(pdens.ParFESpace()->GetComm(),&myrank );
 
+        if(myrank==0){
+        std::cout<<"my var="<<var<<" ";}
+
+        {
+            std::vector<double> sampl; sampl.resize(48);
+            std::vector<double> proba; proba.resize(48);
+            for(int i=0;i<48;i++){
+                sampl[i]=std::get<0>(vals[i]);
+                proba[i]=std::get<1>(vals[i]);
             }
+
+            mfem::RiskMeasures rmeas(sampl,proba);
+
+            var=rmeas.VaR(beta);
         }
-        grad/=ww;
+        if(myrank==0){
+        std::cout<<"go var="<<var<<std::endl;}
+
+        cvar=0.0;
+        for(int i=0;i<vi;i++){
+            cvar=cvar+(std::get<1>(vals[i]))*(std::get<0>(vals[i]));
+            //compute the gradients
+            int ii=std::get<2>(vals[i]);
+            int pp=std::get<3>(vals[i]);
+            double vv[3]={0.0,0.0,0.0}; vv[pp]=1.0;
+            GetComplianceGrad(ii,vv[0],vv[1],vv[2],cgrad);
+            grad.Add(std::get<1>(vals[i]),cgrad);
+        }
+
+        //add the contribution of VaR
+        cvar=cvar+(1.0-beta-cp)*(std::get<0>(vals[vi]));
+        {
+            int ii=std::get<2>(vals[vi]);
+            int pp=std::get<3>(vals[vi]);
+            double vv[3]={0.0,0.0,0.0}; vv[pp]=1.0;
+            GetComplianceGrad(ii,vv[0],vv[1],vv[2],cgrad);
+            grad.Add(1.0-beta-cp,cgrad);
+        }
+
+        grad/=(1.0-beta);
+        cvar/=(1.0-beta);
+
+        if(myrank==0){
+            std::cout<<"cvar="<<cvar<<std::endl;
+        }
+
+
+
+        return cvar;
     }
 
     double MeanSTD(double alpha=0.0)
@@ -470,6 +692,9 @@ private:
 
 
     mfem::ParGridFunction sol;
+
+    double flagt=false;
+    double tprev;
 
 };
 
@@ -798,7 +1023,10 @@ int main(int argc, char *argv[])
           //alco->MeanCompliance(ograd);
           //alco->CVar(ograd);
           //alco->MeanSTD(ograd,0.5);
-          alco->GetComplianceGrad(0,0.0,0.0,1.0,ograd);
+          //alco->GetComplianceGrad(0,0.0,0.0,1.0,ograd);
+          //alco->CVar(ograd);
+          //alco->CVaRe(ograd,0.98,1.0);
+          alco->EVaR(ograd,0.70);
           vobj->Grad(vdens,vgrad);
           //compute the original gradients
           fsolv->MultTranspose(ograd,ogrado);

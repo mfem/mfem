@@ -280,13 +280,13 @@ public:
     {
         esolv=new mfem::ElasticitySolver(pmesh_,vorder);
         esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
-        esolv->SetNewtonSolver(1e-8,1e-12,1,0);
-        esolv->SetLinearSolver(1e-10,1e-12,100);
+        esolv->SetNewtonSolver(1e-8,1e-8,1,0);
+        esolv->SetLinearSolver(1e-10,1e-8,100);
 
         esola=new mfem::ElasticitySolver(pmesh_,vorder);
         esola->AddMaterial(new mfem::LinIsoElasticityCoefficient(E,nu));
-        esola->SetNewtonSolver(1e-8,1e-12,1,0);
-        esola->SetLinearSolver(1e-10,1e-12,100);
+        esola->SetNewtonSolver(1e-8,1e-8,1,0);
+        esola->SetLinearSolver(1e-10,1e-8,100);
 
         pmesh=pmesh_;
         dfes=nullptr;
@@ -427,14 +427,18 @@ public:
         for(int i=0;i<n;i++){
 
             if(seeds.size()<(i+1)){
-                int seed = uint(generator);
+                int seed1 = uint(generator);
+                int seed2 = static_cast<int>(std::time(nullptr));
+                int seed=seed1/2+seed2/2;
                 seeds.push_back(seed);
             }
             gf->Sample(seeds[i]);
 
 
             if(seeda.size()<(i+1)){
-                int seed = uint(generator);
+                int seed1 = uint(generator);
+                int seed2 = static_cast<int>(std::time(nullptr));
+                int seed=seed1/2+seed2/2;
                 seeda.push_back(seed);
             }
             af->Sample(seeda[i]);
@@ -578,7 +582,9 @@ public:
             }*/
 
             if(seeds.size()<(i+1)){
-                int seed = uint(generator);
+                int seed1 = uint(generator);
+                int seed2 = static_cast<int>(std::time(nullptr));
+                int seed=seed1/2+seed2/2;
                 seeds.push_back(seed);
             }
             gf->Sample(seeds[i]);
@@ -847,6 +853,7 @@ int main(int argc, char *argv[])
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(3,1.0);
+   fsolv->AddBC(2,0.0);
    fsolv->AddBC(4,0.0);
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
@@ -935,8 +942,8 @@ int main(int argc, char *argv[])
       //oddens.ProjectCoefficient(holes);
       //oddens*=0.3;
       //oddens.GetTrueDofs(vtmpv);
-      //oddens=0.3;
-      oddens.ProjectCoefficient(stripes);
+      oddens=0.3;
+      //oddens.ProjectCoefficient(stripes);
       oddens.GetTrueDofs(vtmpv);
       if(mycolor==0){fsolv->Mult(vtmpv,vdens);}
       //make sure that all communicators run with the same density

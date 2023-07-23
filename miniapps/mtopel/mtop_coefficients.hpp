@@ -3,15 +3,20 @@
 
 #include "mfem.hpp"
 #include <random>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+
 
 #include "../spde/boundary.hpp"
 #include "../spde/spde_solver.hpp"
+#include "../../linalg/dual.hpp"
 
 namespace mfem {
 
 class RiskMeasures{
 public:
-    RiskMeasures(std::vector<double> samples_)
+    RiskMeasures(const std::vector<double>& samples_)
     {
         samples.resize(samples_.size());
         std::copy(samples_.begin(),samples_.end(),samples.begin());
@@ -28,7 +33,7 @@ public:
         std::cout<<std::endl;
     }
 
-    RiskMeasures(std::vector<double> samples_, std::vector<double> prob_)
+    RiskMeasures(const std::vector<double>& samples_,const std::vector<double>& prob_)
     {
         samples.resize(samples_.size());
         std::copy(samples_.begin(),samples_.end(),samples.begin());
@@ -46,6 +51,7 @@ public:
 
         std::sort(ind.begin(),ind.end(),Comp(samples));
 
+        /*
         for(size_t i=0;i<samples.size();i++){
             std::cout<<samples[ind[i]]<<" ";
         }
@@ -54,6 +60,7 @@ public:
             std::cout<<prob[ind[i]]<<" ";
         }
         std::cout<<std::endl;
+        */
 
     }
 
@@ -180,6 +187,7 @@ public:
 
         double t=0.0;
         //find t
+        t=CVaRe_Find_t(beta,eps);
 
         return CVaRet(beta,eps,t);
     }
@@ -275,7 +283,7 @@ public:
         double tn;
         for(int i=0;i<max_it;i++){
             double dF=dCVaRe(beta,eps,t);
-            std::cout<<"i="<<i<<" dF="<<dF<<" t="<<t<<std::endl;
+            //std::cout<<"i="<<i<<" dF="<<dF<<" t="<<t<<std::endl;
             tn=a*(b-t)*std::exp(alpha*dF)+b*(t-a);
             tn=tn/((b-t)*std::exp(alpha*dF)+t-a);
             if(fabs(tn-t)<rerr){ t=tn; break;}
@@ -327,7 +335,7 @@ public:
     }
 
     //eval EVaR
-    double EVaR(double beta, double alpha=1.0, double eps=1e-8, int max_it=1000){
+    double EVaR(double beta, double alpha=1.0, double eps=1e-4, int max_it=1000){
 
 
         if(fabs(beta)<std::numeric_limits<double>::epsilon()){
@@ -338,46 +346,147 @@ public:
             return samples[ind[0]];
         }
 
-        double t=fabs(Max());
-        double tm=fabs(Min());
-        if(t<tm){t=tm;}
-
         //find t
-        t=EVaR_Find_t(beta,t,alpha,eps,max_it);
+        double t=EVaR_Find_t(beta,alpha,eps,max_it);
         return EVaRt(beta,t);
     }
 
     // For given beta and t evaluates EVaR
-    double EVaRt(double beta, double t){
+    template<typename tfloat>
+    tfloat EVaRt(tfloat beta, tfloat t){
 
         double shift=Max();
 
-        double lt=0.0;
+        tfloat lt; lt=0.0;
         if(prob.size()!=0){
             for(size_t i=0;i<samples.size();i++){
-                lt=lt+prob[i]*std::exp((samples[i]-shift)/t);
+                lt=lt+prob[i]*exp((samples[i]-shift)/t);
             }
         }else{
             double sp=1.0/double(samples.size());
             for(size_t i=0;i<samples.size();i++){
-                lt=lt+sp*std::exp((samples[i]-shift)/t);
+                lt=lt+sp*exp((samples[i]-shift)/t);
             }
         }
 
         lt=lt/(1.0-beta);
-        lt=std::log(lt);
+        lt=log(lt);
         return shift+t*lt;
     }
 
-    double EVaR_Find_t(double beta, double alpha=1.0, double eps=1e-8, int max_it=1000)
+    double ADEVaRt(double beta, double t)
     {
-        double t=fabs(Max());
-        double tm=fabs(Min());
-        if(t<tm){t=tm;}
-        return EVaR_Find_t(beta,t,alpha,eps,max_it);
+        typedef internal::dual<double,double> ADType;
+        typedef internal::dual<ADType,ADType> SDType;
+        SDType abeta;
+        SDType adt;
+        SDType lt;
+
+        abeta.value.value=beta;
+        abeta.value.gradient=0.0;
+        abeta.gradient.value=0.0;
+        abeta.gradient.gradient=0.0;
+
+        lt.value.value=t;
+        lt.value.gradient=1.0;
+        lt.gradient.value=1.0;
+        lt.gradient.gradient=1.0;
+
+
+        bool flag=true;
+        while(flag){
+            SDType rez=EVaRt(abeta,lt);
+            double dt=-rez.value.gradient/rez.gradient.gradient;
+            lt.value.value+=dt;
+            std::cout<<" dt="<<dt<<" xn="<<lt.value.value<<" rp="<<rez.value.value<<std::endl;
+            if(fabs(dt)<1e-4){break;}
+        }
+
+
+
+        adt.value.value=t;
+        adt.value.gradient=1.0;
+        adt.gradient.value=1.0;
+        adt.gradient.gradient=1.0;
+
+
+        SDType rez=EVaRt(abeta,adt);
+
+        std::cout<<" rez.v="<<rez.value.value<<" rez.d="<<rez.value.gradient;
+        std::cout<<" rez.g="<<rez.gradient.value<<" rez.s="<<rez.gradient.gradient<<std::endl;
+
+        return rez.value.gradient;
+
     }
 
-    double EVaR_Find_t(double beta, double t, double alpha=1.0, double eps=1e-8, int max_it=1000)
+    double EVaR_Find_t(double beta, double alpha=1.0, double eps=1e-4, int max_it=1000)
+    {
+        double tmax=fabs(Mean());
+        std::vector<std::tuple<double,double>> dat;
+        std::vector<std::tuple<double,double>> tad;
+        std::vector<double> tt;
+
+        double dt=tmax/10.0;
+        double t=0.0;
+        double e;
+
+        for(int i=0;i<12;i++){
+            t=t+dt; e=EVaRt(beta,t);
+            dat.push_back(std::make_tuple(e,t));
+        }
+
+        std::sort(dat.begin(),dat.end());
+        //for(int i=0;i<12;i++){ std::cout<<std::get<0>(dat[i])<<" ";} std::cout<<std::endl;
+
+        for(int i=0;i<4;i++){ tad.push_back(dat[i]);}
+        dat.clear();
+
+        t=0.25*std::get<1>(tad[0])+0.75*std::get<1>(tad[1]);
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+
+        t=0.5*std::get<1>(tad[0])+0.5*std::get<1>(tad[1]);
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+
+        t=0.75*std::get<1>(tad[0])+0.25*std::get<1>(tad[1]);
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+
+        t=0.25*std::get<1>(tad[0])+0.75*std::get<1>(tad[2]);
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+
+        t=0.5*(std::get<1>(tad[0])+std::get<1>(tad[2]));
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+
+        t=0.75*std::get<1>(tad[0])+0.25*std::get<1>(tad[2]);
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+
+
+        for(int i=0;i<6;i++){tt.push_back(std::get<1>(tad[i]));}
+        std::sort(tt.begin(),tt.end());
+        dt=tt[0]/3.0;
+        e=EVaRt(beta,dt);
+        tad.push_back(std::make_tuple(e,dt));
+        t=tt[6]+dt;
+        e=EVaRt(beta,t);
+        tad.push_back(std::make_tuple(e,t));
+        std::sort(tad.begin(),tad.end());
+
+        //for(int i=0;i<tad.size();i++){ std::cout<<std::get<0>(tad[i])<<" ";} std::cout<<std::endl;
+        //for(int i=0;i<tad.size();i++){ std::cout<<std::get<1>(tad[i])<<" ";} std::cout<<std::endl;
+
+
+
+        double tmin=std::get<1>(tad[0]);
+
+        return EVaR_Find_t(beta,tmin,alpha,eps,max_it);
+    }
+
+    double EVaR_Find_t(double beta, double t, double alpha=1.0, double eps=1e-4, int max_it=1000)
     {
         //find t
         double inc=0.0;
@@ -386,12 +495,17 @@ public:
         while(fabs(inc-1.0)>eps)
         {
             dF=dEVaR(beta,t);
-            //std::cout<<" i="<<iter<<" dF="<<dF<<" inc="<<exp(-alpha*dF)<<" t="<<t<<std::endl;
+            //std::cout<<" i="<<iter<<" dF="<<dF<<" inc="<<exp(-alpha*dF)<<" t="<<t<<" e="<<EVaRt(beta,t*exp(-alpha*dF))<<std::endl;
             inc=exp(-alpha*dF);
+            if(inc>1.1){inc=1.1;}
+            if(inc<0.9){inc=0.9;}
             t=t*inc;
             iter++;
             if(iter==max_it){
-                MFEM_WARNING("Maximum number of iterations in EVaR_Find_t has been reached!!!")
+                //MFEM_WARNING("Maximum number of iterations in EVaR_Find_t has been reached!!!")
+                break;
+            }
+            if(t<1e-8){
                 break;
             }
         }
