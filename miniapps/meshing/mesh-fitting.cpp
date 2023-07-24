@@ -68,11 +68,16 @@
 //    Surface fitting to a squircle level-set - with p-refinement around the interface and order reduction after the fitting step
 //    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 4 -sbgmesh -vl 0 -mo 5
 
-//    squircle 3D:
-//    make mesh-fitting -j && ./mesh-fitting -m cube.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 3 -mid 303 -preft 1e-11
+//    squircle 2D:
+//    make mesh-fitting -j && ./mesh-fitting -m square01.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 5 -preft 1e-11 -lsf 1
 
-//    apollo:
-//    make mesh-fitting -j && ./mesh-fitting -m apollo_input_mesh_tri.mesh -rs 1 -o 1 -oi 3 -sbgmesh -vl 2 -mo 4 -mid 2 -no-cus-mat -ni 100 -marking -tid 4 -preft 1e-4 -sft 1e-10 -sfa 2.0 -sfc 1.0 -bgamr 2 -fix-bnd -bgm apollo_amr.mesh -bgls apollo_dist.gf  -li 1000
+//    cercle 3D:
+//    make mesh-fitting -j && ./mesh-fitting -m cube.mesh -rs 3 -o 1 -oi 1 -sbgmesh -vl 0 -mo 3 -mid 303 -preft 1e-8
+//    squircle 3D:
+//    make mesh-fitting -j && ./mesh-fitting -m cube.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 3 -mid 303 -preft 1e-11 -lsf 1
+
+//    apollo 2D:
+//    make mesh-fitting -j && ./mesh-fitting -m apollo_input_mesh_tri.mesh -rs 1 -o 1 -oi 3 -sbgmesh -vl 2 -mo 4 -mid 2 -no-cus-mat -ni 100 -marking -tid 4 -preft 1e-4 -sft 1e-10 -sfa 2.0 -sfc 1.0 -bgamr 2 -fix-bnd -bgm apollo_amr.mesh -bgls apollo_dist.gf  -li 1000 -lsf 2
 
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -514,10 +519,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    FunctionCoefficient ls_coeff(circle_level_set);
-   std::cout << "ls " << ls_function << std::endl;
    if (ls_function==1)
    {
-      std::cout << "Hello" << std::endl;
       //FunctionCoefficient ls_coeff(squircle_level_set);
       ls_coeff = FunctionCoefficient(squircle_level_set);
    }
