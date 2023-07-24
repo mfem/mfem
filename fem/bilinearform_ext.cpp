@@ -508,7 +508,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
          for (int i = 0; i < bFISz; ++i)
          {
-            if (intFaceIntegrators[i]->RequiresFaceNormalDerivatives())
+            if (bdrFaceIntegrators[i]->RequiresFaceNormalDerivatives())
             {
                bdrFaceIntegrators[i]->AddMultPAFaceNormalDerivatives(bdr_face_X, bdr_face_dXdn,
                                                                      bdr_face_Y, bdr_face_dYdn);
