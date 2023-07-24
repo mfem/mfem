@@ -142,7 +142,8 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
    Vector xi_send(np_loc*(dim-1));
    for (int i=0; i<np_loc; ++i)
    {
-      int refFace, refNormal, refNormalSide;
+      int refFace, refNormal;
+      // int refNormalSide;
       bool is_interior = -1;
 
       Vector normal = GetNormalVector(mesh, elems_recv[i],
@@ -167,15 +168,15 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
          // get nodes!
 
          GridFunction *nodes = mesh.GetNodes();
-         DenseMatrix coords(4,3);
-         for (int i=0; i<4; i++)
+         DenseMatrix coord(4,3);
+         for (int j=0; j<4; j++)
          {
-            for (int j=0; j<3; j++)
+            for (int k=0; k<3; k++)
             {
-               coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
+               coord(j,k) = (*nodes)[cbdrVert[j]*3+k];
             }
          }
-         SlaveToMaster(coords, xs, xi_tmp);
+         SlaveToMaster(coord, xs, xi_tmp);
 
          for (int j=0; j<dim-1; ++j)
          {
@@ -192,7 +193,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
             {
                if (j == refNormal)
                {
-                  refNormalSide = (ref_recv[(i*dim) + j] > 0.5);
+                  // refNormalSide = (ref_recv[(i*dim) + j] > 0.5); // not used
                }
                else
                {
@@ -371,7 +372,8 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
    Vector xi_send(np_loc*(dim-1));
    for (int i=0; i<np_loc; ++i)
    {
-      int refFace, refNormal, refNormalSide;
+      int refFace, refNormal; 
+      // int refNormalSide;
       bool is_interior = -1;
 
       Vector normal = GetNormalVector(mesh, elems_recv[i],
@@ -396,15 +398,15 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
          // get nodes!
 
          GridFunction *nodes = mesh.GetNodes();
-         DenseMatrix coords(4,3);
-         for (int i=0; i<4; i++)
+         DenseMatrix coord(4,3);
+         for (int j=0; j<4; j++)
          {
-            for (int j=0; j<3; j++)
+            for (int k=0; k<3; k++)
             {
-               coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
+               coord(j,k) = (*nodes)[cbdrVert[j]*3+k];
             }
          }
-         SlaveToMaster(coords, xs, xi_tmp);
+         SlaveToMaster(coord, xs, xi_tmp);
 
          for (int j=0; j<dim-1; ++j)
          {
@@ -421,7 +423,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
             {
                if (j == refNormal)
                {
-                  refNormalSide = (ref_recv[(i*dim) + j] > 0.5);
+                  // refNormalSide = (ref_recv[(i*dim) + j] > 0.5); // not used
                }
                else
                {
@@ -896,7 +898,7 @@ int main(int argc, char *argv[])
                           localDM.GetI(), localDM.GetJ(),localDM.GetData(),
                           DMrows,DMcols);  
 
-   HypreParMatrix * mat = ParAdd(K,&hypreDM);
+   // HypreParMatrix * mat = ParAdd(K,&hypreDM);
 
    VectorFunctionCoefficient cf1(dim,rhs_func1);
    VectorFunctionCoefficient cf2(dim,rhs_func2);

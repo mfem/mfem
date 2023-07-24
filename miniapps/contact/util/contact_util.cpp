@@ -774,9 +774,9 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       Array<int> j_idx(5*ndim); j_idx = 0;
       for (int j=0; j< 5; j++)
       {
-         for (int k=0; k<ndim; k++)
+         for (int d=0; d<ndim; d++)
          {
-            j_idx[j*ndim+k] = node_conn[j]*ndim+k;
+            j_idx[j*ndim+d] = node_conn[j]*ndim+d;
          }
       }
       DenseMatrix M_v_tmp(1, ndim*(4+1));   // SetData now?
@@ -904,7 +904,6 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
    if (dimNormal < 0 || normalSide < 0) // node is inside the element
    {
       interior = 1;
-      Vector n(3);
       n = 0.0;
       return n;
    }

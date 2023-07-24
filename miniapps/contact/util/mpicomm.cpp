@@ -401,8 +401,8 @@ void MPICommunicator::Communicate(const SparseMatrix & mat_s , SparseMatrix & ma
    {
       int row = recvcols[counter] - offset;
       int size = recvcols[counter+1];
-      Vector vals(size);
-      Array<int> cols(size);
+      vals.SetSize(size);
+      cols.SetSize(size);
       for (int i = 0; i<size; i++)
       {
          vals[i] = recvvals[counter+2 + i];

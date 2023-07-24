@@ -67,7 +67,8 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    // extract information
    for (int i=0; i<np; ++i)
    {
-      int refFace, refNormal, refNormalSide;
+      int refFace, refNormal;
+      // int refNormalSide;
       bool is_interior = -1;
       Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim),
                                       refFace, refNormal, is_interior);
@@ -88,15 +89,15 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
          Vector xi_tmp(dim-1);
          // get nodes!
          GridFunction *nodes = mesh.GetNodes();
-         DenseMatrix coords(4,3);
-         for (int i=0; i<4; i++)
+         DenseMatrix coord(4,3);
+         for (int j=0; j<4; j++)
          {
-            for (int j=0; j<3; j++)
+            for (int k=0; k<3; k++)
             {
-               coords(i,j) = (*nodes)[cbdrVert[i]*3+j];
+               coord(j,k) = (*nodes)[cbdrVert[j]*3+k];
             }
          }
-         SlaveToMaster(coords, xs, xi_tmp);
+         SlaveToMaster(coord, xs, xi_tmp);
 
          for (int j=0; j<dim-1; ++j)
          {
@@ -113,7 +114,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
             {
                if (j == refNormal)
                {
-                  refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+                  // refNormalSide = (refcrd[(i*dim) + j] > 0.5); // not used
                }
                else
                {
