@@ -138,7 +138,6 @@ void SlaveToMaster(const DenseMatrix& m_coords, const Vector& s_x, Vector& xi)
    int dim = 3;
    xi.SetSize(dim-1);
    xi = 0.0;
-   double r = 1e10;
    int max_iter = 15;
    double off_el_xi = 1e-2;
    double proj_newton_tol = 1e-13;
@@ -817,7 +816,6 @@ void Assemble_Contact(const int m, const int npoints, const int ndofs,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
                       std::vector<SparseMatrix>& dM)
 {
-   int n = ndofs;
    int ndim = 3;
 
    g.SetSize(m);

@@ -681,7 +681,8 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
    // extract information
    for (int i=0; i<np; ++i)
    {
-      int refFace, refNormal, refNormalSide;
+      int refFace, refNormal;
+      // int refNormalSide;
       bool is_interior = -1;
       mfem::Vector normal = GetNormalVector(mesh, elems[i],
                                             refcrd.GetData() + (i*dim),
@@ -727,7 +728,7 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
             {
                if (j == refNormal)
                {
-                  refNormalSide = (refcrd[(i*dim) + j] > 0.5);
+                  // refNormalSide = (refcrd[(i*dim) + j] > 0.5); // not used
                }
                else
                {
@@ -778,7 +779,6 @@ void FindPointsInMesh(Mesh & mesh, mfem::Vector const& xyz, Array<int>& conn,
 ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    : 
    OptProblem(),
-   block_offsets(3),
    mesh1(mesh1in),
    mesh2(mesh2in),
    fec1{nullptr},
@@ -798,7 +798,8 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    K{nullptr},
    coordsm{nullptr},
    M{nullptr},
-   dM{nullptr}
+   dM{nullptr},
+   block_offsets(3)
 {
 
    dim = mesh1->Dimension();

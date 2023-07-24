@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "problems.hpp"
+#include "Problems.hpp"
 #include "IPsolver.hpp"
 #include <fstream>
 #include <iostream>
@@ -11,6 +11,7 @@ using namespace mfem;
 
 double dmanufacturedFun(const Vector &);
 double fRhs(const Vector &);
+double obstacle(const Vector &);
 
 int main(int argc, char *argv[])
 {
@@ -54,14 +55,14 @@ int main(int argc, char *argv[])
 
   FiniteElementCollection *fec = new H1_FECollection(FEorder, dim);
   FiniteElementSpace      *Vh  = new FiniteElementSpace(mesh, fec);
-  ObstacleProblem problem(Vh, &fRhs);
+  ObstacleProblem problem(Vh, &fRhs, &obstacle);
   
   int dimD = problem.GetDimD();
-  Vector x0(dimD); x0 = 100.0;
+  Vector x0(dimD); x0 = 0.0;
   Vector xf(dimD); xf = 0.0;
 
   InteriorPointSolver optimizer(&problem); 
-  optimizer.SetTol(1.e-8);
+  optimizer.SetTol(1.e-7);
   optimizer.SetLinearSolver(linSolver);
   optimizer.SetMaxIter(maxIPMiters);
   optimizer.Mult(x0, xf);
@@ -112,3 +113,7 @@ double fRhs(const Vector &x)
   return fx;
 }
 
+double obstacle(const Vector &x)
+{
+  return 0.0;
+}

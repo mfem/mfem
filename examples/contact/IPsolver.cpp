@@ -11,7 +11,7 @@ using namespace mfem;
 
 
 InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * Problem) : optProblem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Huucl(nullptr), HLuucl(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), saveLogBarrierIterates(false)
+Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), Huucl(nullptr), HLuucl(nullptr), saveLogBarrierIterates(false)
 {
   rel_tol  = 1.e-2;
   max_iter = 20;
