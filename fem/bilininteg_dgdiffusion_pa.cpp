@@ -205,7 +205,9 @@ static void PADGDiffusionSetup3D(const int Q1D,
 
                for (int d = 0; d < 3; ++d)
                {
-                  pa(2+3*side + d, p1, p2, f) = val * nJi[perm[side][d]];
+                  const int idx = std::abs(perm[side][d]) - 1;
+                  const int sgn = (perm[side][d] < 0) ? -1 : 1;
+                  pa(2+3*side + d, p1, p2, f) = sgn * val * nJi[idx];
                }
 
                hi += factor * dJf / dJe;
@@ -275,16 +277,76 @@ static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh,
    }
 }
 
-inline void nJe_permutation(int perm[3], const int face_id, const int orientation)
+// assigns to perm the permuation: perm[0] -> normal component, perm[1] -> first tangential, perm[2] -> second tangential according to the lexocographic ordering.
+inline void FaceNormalPermutation(int perm[3], const int face_id)
 {
-   // permuation: perm0 -> normal component, perm1 -> first tangential, perm2 -> second tangential
    const bool xy_plane = (face_id == 0 || face_id == 5);
    const bool xz_plane = (face_id == 1 || face_id == 3);
    const bool yz_plane = (face_id == 2 || face_id == 4);
 
-   perm[0] = (xy_plane) ? 2 : (xz_plane) ? 1 : 0;
-   perm[1] = (xy_plane || xz_plane) ? 0 : 1; // TODO: is this remotely correct?
-   perm[2] = (xy_plane) ? 1 : 2;
+   perm[0] = (xy_plane) ? 3 : (xz_plane) ? 2 : 1;
+   perm[1] = (xy_plane || xz_plane) ? 1 : 2;
+   perm[2] = (xy_plane) ? 2 : 3;
+}
+
+// assigns to perm the permutation as in FaceNormalPermutation for the second element on the face but signed to indicate the sign of the normal derivative.
+inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const int face_id2, const int orientation)
+{
+   // lex ordering
+   FaceNormalPermutation(perm, face_id2);
+
+   // convert from lex ordering to natural
+   if (face_id1 == 3 || face_id1 == 4)
+   {
+      perm[1] *= -1;
+   }
+   else if (face_id1 == 0)
+   {
+      perm[2] *= -1;
+   }
+
+   // permute based on face orientation
+   switch (orientation)
+   {
+   case 1:
+      std::swap(perm[1], perm[2]);
+      break;
+   case 2:
+      std::swap(perm[1], perm[2]);
+      perm[2] *= -1;
+      break;
+   case 3:
+      perm[1] *= -1;
+      break;
+   case 4:
+      perm[1] *= -1;
+      perm[2] *= -1;
+      break;
+   case 5:
+      std::swap(perm[1], perm[2]);
+      perm[1] *= -1;
+      perm[2] *= -1;
+      break;
+   case 6:
+      std::swap(perm[1], perm[2]);
+      perm[1] *= -1;
+      break;
+   case 7:
+      perm[2] *= -1;
+      break;
+   default:
+      break;
+   }
+
+   // convert back to lex
+   if (face_id2 == 3 || face_id2 == 4)
+   {
+      perm[1] *= -1;
+   }
+   else if (face_id2 == 0)
+   {
+      perm[2] *= -1;
+   }
 }
 
 static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh, const FaceType type, Array<int>& iwork_)
@@ -312,7 +374,7 @@ static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh, const Face
          iwork(_fid_, 0, fidx) = fid0;
          iwork( _or_, 0, fidx) = or0;
 
-         nJe_permutation(&iwork(0, 0, fidx), fid0, or0);
+         FaceNormalPermutation(&iwork(0, 0, fidx), fid0);
 
          if (face_info.IsInterior())
          {
@@ -323,7 +385,7 @@ static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh, const Face
             iwork(_fid_, 1, fidx) = fid1;
             iwork( _or_, 1, fidx) = or1;
 
-            nJe_permutation(&iwork(0, 1, fidx), fid1, or1);
+            SignedFaceNormalPermutation(&iwork(0, 1, fidx), fid0, fid1, or1);
          }
          else
          {
