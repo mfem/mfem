@@ -1,5 +1,5 @@
 
-#include "contact_util.hpp"
+#include "problems_util.hpp"
 
 void BasisEval(const Vector xi, Vector &N, DenseMatrix &dNdxi) // dNdxi is 2*4
 {
@@ -1025,4 +1025,142 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
    MFEM_VERIFY(refv >= 0, "");
 
    return refv;
+}
+
+
+void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& xi)
+{
+   const int dim = mesh.Dimension();
+   const int np = xyz.Size() / dim;
+
+   MFEM_VERIFY(np * dim == xyz.Size(), "");
+
+   mesh.EnsureNodes();
+
+   FindPointsGSLIB finder;
+
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(0.5);
+
+   const double bb_t = 0.5;
+   finder.Setup(mesh, bb_t);
+
+   finder.FindPoints(xyz);
+
+   /// Return code for each point searched by FindPoints: inside element (0), on
+   /// element boundary (1), or not found (2).
+   Array<unsigned int> codes = finder.GetCode();
+
+   /// Return element number for each point found by FindPoints.
+   Array<unsigned int> elems = finder.GetElem();
+
+   /// Return reference coordinates for each point found by FindPoints.
+   Vector refcrd = finder.GetReferencePosition();
+
+   /// Return distance between the sought and the found point in physical space,
+   /// for each point found by FindPoints.
+   Vector dist = finder.GetDist();
+
+   MFEM_VERIFY(dist.Size() == np, "");
+   MFEM_VERIFY(refcrd.Size() == np * dim, "");
+   MFEM_VERIFY(elems.Size() == np, "");
+   MFEM_VERIFY(codes.Size() == np, "");
+
+   bool allfound = true;
+   for (auto code : codes)
+      if (code == 2) { allfound = false; }
+
+   MFEM_VERIFY(allfound, "A point was not found");
+
+   cout << "Maximum distance of projected points: " << dist.Max() << endl;
+
+   // extract information
+   for (int i=0; i<np; ++i)
+   {
+      int refFace, refNormal;
+      // int refNormalSide;
+      bool is_interior = -1;
+      Vector normal = GetNormalVector(mesh, elems[i], refcrd.GetData() + (i*dim),
+                                      refFace, refNormal, is_interior);
+
+      int phyFace;
+      if (is_interior)
+      {
+         phyFace = -1; // the id of the face that has the closest point
+         FindSurfaceToProject(mesh, elems[i], phyFace);
+
+         Array<int> cbdrVert;
+         mesh.GetFaceVertices(phyFace, cbdrVert);
+         Vector xs(dim);
+         xs[0] = xyz[i + 0*np];
+         xs[1] = xyz[i + 1*np];
+         xs[2] = xyz[i + 2*np];
+
+         Vector xi_tmp(dim-1);
+         // get nodes!
+         GridFunction *nodes = mesh.GetNodes();
+         DenseMatrix coord(4,3);
+         for (int j=0; j<4; j++)
+         {
+            for (int k=0; k<3; k++)
+            {
+               coord(j,k) = (*nodes)[cbdrVert[j]*3+k];
+            }
+         }
+         SlaveToMaster(coord, xs, xi_tmp);
+
+         for (int j=0; j<dim-1; ++j)
+         {
+            xi[i*(dim-1)+j] = xi_tmp[j];
+         }
+         // now get get the projection to the surface
+      }
+      else
+      {
+         Vector faceRefCrd(dim-1);
+         {
+            int fd = 0;
+            for (int j=0; j<dim; ++j)
+            {
+               if (j == refNormal)
+               {
+                  // refNormalSide = (refcrd[(i*dim) + j] > 0.5); // not used
+               }
+               else
+               {
+                  faceRefCrd[fd] = refcrd[(i*dim) + j];
+                  fd++;
+               }
+            }
+            MFEM_VERIFY(fd == dim-1, "");
+         }
+
+         for (int j=0; j<dim-1; ++j)
+         {
+            xi[i*(dim-1)+j] = faceRefCrd[j]*2.0 - 1.0;
+         }
+      }
+
+      // Get the element face
+      Array<int> faces;
+      Array<int> ori;
+      int face;
+
+      if (is_interior)
+      {
+         face = phyFace;
+      }
+      else
+      {
+         mesh.GetElementFaces(elems[i], faces, ori);
+         face = faces[refFace];
+      }
+
+      Array<int> faceVert;
+      mesh.GetFaceVertices(face, faceVert);
+
+      for (int p=0; p<4; p++)
+      {
+         conn[4*i+p] = faceVert[p];
+      }
+   }
 }

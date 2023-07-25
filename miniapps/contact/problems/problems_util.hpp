@@ -43,3 +43,9 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface);
 Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
                        int & refFace, int & refNormal, bool & interior);
 int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd);
+
+// Coordinates in xyz are assumed to be ordered as [X, Y, Z]
+// where X is the list of x-coordinates for all points and so on.
+// conn: connectivity of the target surface elements
+// xi: surface reference cooridnates for the cloest point, involves a linear transformation from [0,1] to [-1,1]
+void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& xi);
