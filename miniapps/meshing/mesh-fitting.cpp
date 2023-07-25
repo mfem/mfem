@@ -1101,19 +1101,6 @@ int main(int argc, char *argv[])
          {
             surf_fit_gf0.ProjectCoefficient(ls_coeff);
          }
-         /*
-         if (visualization)
-         {
-            x_max_order = ProlongToMaxOrder(&x, 0);
-            mesh->SetNodalGridFunction(x_max_order);
-            socketstream vis1;
-            common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
-                                   "Interpolated level-set function after p-refinement",
-                                   1100, 0, 500, 500);
-            mesh->SetNodalGridFunction(&x);
-         }
-          */
-         //         MFEM_ABORT(" ");
 
          //         surf_fit_gf0.ProjectCoefficient(ls_coeff);
          if (surf_bg_mesh)
