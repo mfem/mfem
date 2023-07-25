@@ -520,12 +520,10 @@ int main(int argc, char *argv[])
    FunctionCoefficient ls_coeff(circle_level_set);
    if (ls_function==1)
    {
-      //FunctionCoefficient ls_coeff(squircle_level_set);
       ls_coeff = FunctionCoefficient(squircle_level_set);
    }
    else if (ls_function==2)
    {
-      //FunctionCoefficient ls_coeff(apollo_level_set);
       ls_coeff = FunctionCoefficient(apollo_level_set);
    }
 
