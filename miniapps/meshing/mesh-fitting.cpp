@@ -205,7 +205,6 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
 double ComputeIntegrateError(const FiniteElementSpace* fes, GridFunction* lss,
                              const int el)
 {
-   // TODO
    double error = 0.0;
    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
    int intorder = 2*fe->GetOrder() + 3;
@@ -949,10 +948,6 @@ int main(int argc, char *argv[])
       mesh->SetNodalGridFunction(&x);
    }
 
-   clock_t t_start, t_end;
-
-   // TODO: BOUCLE
-   t_start = clock();
    int max_iter_pref;
    if (pref_order_increase == 0)
    {
@@ -1001,7 +996,7 @@ int main(int argc, char *argv[])
             // has been p-refined`
             PRefinementTransfer preft_fespace = PRefinementTransfer(*fespace);
             PRefinementTransfer preft_surf_fit_fes = PRefinementTransfer(surf_fit_fes);
-            // TODO
+
             int max_order = fespace->GetMaxElementOrder();
             Array<int> faces_order_increase;
 
@@ -1228,7 +1223,6 @@ int main(int argc, char *argv[])
          mesh->SetNodalGridFunction(&x);
       }
 
-      // TODO: Compute Integrate Error
       if (iter_pref==0)
       {
          if (surf_bg_mesh && strcmp(bg_mesh_file, "NULL") != 0)
@@ -1267,7 +1261,6 @@ int main(int argc, char *argv[])
             }
             else
             {
-               // TODO
                error_bg_face = ComputeIntegrateError(x_max_order->FESpace(),
                                                      surf_fit_gf0_max_order,
                                                      inter_faces[i]);
@@ -1552,7 +1545,6 @@ int main(int argc, char *argv[])
          std::cout << "Avg fitting error: " << err_avg << std::endl
                    << "Max fitting error: " << err_max << std::endl;
 
-         // TODO: Compute Integrate Error
          //         surf_fit_gf0.ProjectCoefficient(ls_coeff);
          if (surf_bg_mesh && strcmp(bg_mesh_file, "NULL") != 0)
          {
@@ -1736,10 +1728,6 @@ int main(int argc, char *argv[])
       delete S;
       delete S_prec;
    }
-   t_end = clock();
-
-   std::cout << "Loop time: " << 1.0*double(t_end-t_start)/CLOCKS_PER_SEC << "s"
-             << std::endl;
 
    if (visualization)
    {
