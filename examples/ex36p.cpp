@@ -30,8 +30,8 @@
 //
 //
 // [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
-//     preserving finite element method for pointwise bound constraints
-//     (in preparation).
+//     preserving finite element method for pointwise bound constraints.
+//     arXiv:2307.12444 [math.NA]
 
 
 #include "mfem.hpp"
