@@ -806,9 +806,9 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    MFEM_VERIFY(dim == mesh2->Dimension(), "");
 
    // boundary attribute 2 is the potential contact surface of nodes
-   attr.Append(2);
+   attr.Append(3);
    // boundary attribute 2 is the potential contact surface for master surface
-   m_attr.Append(2);
+   m_attr.Append(3);
 
    fec1     = new H1_FECollection(1, dim);
    fespace1 = new FiniteElementSpace(mesh1, fec1, dim, Ordering::byVDIM);
@@ -833,9 +833,9 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
 
 
    Array<int> ess_bdr1(mesh1->bdr_attributes.Max());
-   ess_bdr1 = 0;
+   ess_bdr1 = 0; ess_bdr1[1] = 1;
    Array<int> ess_bdr2(mesh2->bdr_attributes.Max());
-   ess_bdr2 = 0;
+   ess_bdr2 = 0; ess_bdr2[1] = 1;
    
    for (int b=0; b<mesh2->GetNBE(); ++b)
    {
@@ -850,70 +850,17 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
       }
    }
    
-   std::set<int> dirbdryv2;
-   for (int b=0; b<mesh2->GetNBE(); ++b)
-   {
-      if (mesh2->GetBdrAttribute(b) == 1)
-      {
-         Array<int> vert;
-         mesh2->GetBdrElementVertices(b, vert);
-         for (auto v : vert)
-         {
-            dirbdryv2.insert(v);
-         }
-      }
-   }
-   std::set<int> dirbdryv1;
-   for (int b=0; b<mesh1->GetNBE(); ++b)
-   {
-      if (mesh1->GetBdrAttribute(b) == 1)
-      {
-         Array<int> vert;
-         mesh1->GetBdrElementVertices(b, vert);
-         for (auto v : vert)
-         {
-            dirbdryv1.insert(v);
-         }
-      }
-   }
-
-   for (auto v : dirbdryv2)
-   {
-      for (int i=0; i<dim; ++i)
-      {
-         Dirichlet_dof.Append(v*dim + i + ndof_1);
-         Dirichlet_val.Append(0.);
-      }
-   }
-   double delta = 0.1;
-   for (auto v : dirbdryv1)
-   {
-      Dirichlet_dof.Append(v*dim + 0);
-      Dirichlet_val.Append(delta);
-      Dirichlet_dof.Append(v*dim + 1);
-      Dirichlet_val.Append(0.);
-      Dirichlet_dof.Append(v*dim + 2);
-      Dirichlet_val.Append(0.);
-   }
-
    x1 = new GridFunction(fespace1);
    x2 = new GridFunction(fespace2);
    (*x1) = 0.0;
    (*x2) = 0.0;
-   for(int i = 0; i < Dirichlet_dof.Size(); i++)
-   {
-     if(Dirichlet_dof[i] < ndof_1)
-     {
-       (*x1)(Dirichlet_dof[i]) = Dirichlet_val[i];
-       ess_tdof_list1.Append(Dirichlet_dof[i]);
-     }
-     else
-     {
-       (*x2)(Dirichlet_dof[i] - ndof_1) = Dirichlet_val[i];
-       ess_tdof_list2.Append(Dirichlet_dof[i] - ndof_1);
-     }
-   }
   
+   Vector delta_vec(dim); delta_vec = 0.0; delta_vec[0] = 0.1;
+   VectorConstantCoefficient delta_cf(delta_vec);
+   x1->ProjectBdrCoefficient(delta_cf,ess_bdr1);
+   fespace1->GetEssentialTrueDofs(ess_bdr1,ess_tdof_list1);
+   fespace2->GetEssentialTrueDofs(ess_bdr2,ess_tdof_list2);
+
 
    lambda1.SetSize(mesh1->attributes.Max());
    mu1.SetSize(mesh1->attributes.Max());
@@ -1003,8 +950,8 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    coordsm = new DenseMatrix(4*npoints, dim);
 
    // adding displacement to mesh1 using a fixed grid function from mesh1
-   (*x1) = 0.0; // x1 order: [xyz xyz... xyz]
-   add(nodes0, *x1, *nodes1); // issues with moving the mesh nodes?
+   Vector displ(x1->Size()); displ = 0.0;
+   add(nodes0, displ, *nodes1); // issues with moving the mesh nodes?
 
    FindPointsInMesh(*mesh1, xyz, m_conn, m_xi); 
 
@@ -1015,7 +962,7 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
          for (int k=0; k<dim; k++)
          {
             (*coordsm)(i*4+j,k) = mesh1->GetVertex(m_conn[i*4+j])[k]+
-                                  (*x1)[dim*m_conn[i*4+j]+k];
+                                  displ[dim*m_conn[i*4+j]+k];
          }
       }
    }

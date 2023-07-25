@@ -251,8 +251,10 @@ private:
 public: 
    Mesh * GetMesh1() {return mesh1;}
    Mesh * GetMesh2() {return mesh2;}
-   Array<int> GetDirichletDofs() {return Dirichlet_dof;}
-   Array<double> GetDirichletVals() {return Dirichlet_val;}
+   GridFunction & GetMesh1GridFunction() {return *x1;}
+   GridFunction & GetMesh2GridFunction() {return *x2;}
+   Array<int> & GetMesh1DirichletDofs() {return ess_tdof_list1;}
+   Array<int> & GetMesh2DirichletDofs() {return ess_tdof_list2;}
 };
 
 
