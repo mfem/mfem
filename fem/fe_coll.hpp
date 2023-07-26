@@ -1319,7 +1319,6 @@ private:
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    int *SegDofOrd[2]; // for rotating segment dofs in 1D
    int *OtherDofOrd;
-   bool ValidGeomType(Geometry::Type GeomType) const;
 
 public:
    /** @brief Create a radial basis function or reproducing kernel finite
