@@ -78,7 +78,6 @@ int main(int argc, char *argv[])
   
   d0.SetVector(x1,0);
   d0.SetVector(x2,x1.Size());
-  d0.Print();
   SparseMatrix *K;
   Vector f(ndofs); f = 0.0;
   contact->DdE(d0, f); K = contact->DddE(d0);
