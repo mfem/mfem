@@ -220,8 +220,6 @@ public:
       Pk,  ///< Polynomials of order k
       Qk,  ///< Tensor products of polynomials of order k
       rQk, ///< Refined tensor products of polynomials of order k
-      RBF, ///< Radial basis functions
-      RK,  ///< Reproducing kernels
    };
 };
 

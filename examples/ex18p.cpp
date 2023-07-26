@@ -178,8 +178,9 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    FiniteElementCollection *fec =
       rk ?
-      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_type,
-                                                       order, rbf_h, rk_face_factor) :
+      (FiniteElementCollection*)new LocalKernelFECollection(dim, rk_num_points,
+                                                            rbf_type,
+                                                            order, rbf_h, rk_face_factor) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, fec);

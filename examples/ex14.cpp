@@ -129,8 +129,9 @@ int main(int argc, char *argv[])
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec =
       rk ?
-      (FiniteElementCollection*)new KernelFECollection(dim, rk_num_points, rbf_type,
-                                                       order, rbf_h, rk_face_factor) :
+      (FiniteElementCollection*)new LocalKernelFECollection(dim, rk_num_points,
+                                                            rbf_type,
+                                                            order, rbf_h, rk_face_factor) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;

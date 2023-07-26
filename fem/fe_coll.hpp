@@ -1310,7 +1310,7 @@ public:
     Gaussian-like functions centered at chosen points. Reproducing
     kernels augment the radial basis functions so that the resultant
     basis can exactly represent functions of a chosen polynomial degree. */
-class KernelFECollection : public FiniteElementCollection
+class LocalKernelFECollection : public FiniteElementCollection
 {
 private:
    int maxDim;
@@ -1333,16 +1333,16 @@ public:
        @param intOrder    Number of integration points per RBF point in each dimension
        @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2 from face
    */
-   KernelFECollection(const int D,
-                      const int numPointsD,
-                      const int rbfType,
-                      const int order,
-                      const double h,
-                      const double faceFactor = 0.0,
-                      const int intOrder = 2,
-                      const int distNorm = 2,
-                      const int mapType = FiniteElement::VALUE);
-   virtual ~KernelFECollection();
+   LocalKernelFECollection(const int D,
+                           const int numPointsD,
+                           const int rbfType,
+                           const int order,
+                           const double h,
+                           const double faceFactor = 0.0,
+                           const int intOrder = 2,
+                           const int distNorm = 2,
+                           const int mapType = FiniteElement::VALUE);
+   virtual ~LocalKernelFECollection();
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;

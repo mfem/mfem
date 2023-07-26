@@ -57,7 +57,7 @@ Discretization improvements
 - Added support for p-refined meshes in FindPointsGSLIB.
 
 - Added radial basis functions and reproducing kernels as alternatives to 
-  polynomial functions. These are accessed through the KernelFECollection.
+  polynomial functions. These are accessed through the LocalKernelFECollection.
 
 Linear and nonlinear solvers
 ----------------------------

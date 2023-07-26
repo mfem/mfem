@@ -366,15 +366,15 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
       if (!strncmp(name, "RK", 2))
       {
          int order = atoi(name + 2);
-         fec = new KernelFECollection(dim, numPoints, rbfType,
-                                      order, h, faceFactor,
-                                      intOrder, distNorm, mapType);
+         fec = new LocalKernelFECollection(dim, numPoints, rbfType,
+                                           order, h, faceFactor,
+                                           intOrder, distNorm, mapType);
       }
       else
       {
-         fec = new KernelFECollection(dim, numPoints, rbfType,
-                                      -1, h, faceFactor,
-                                      intOrder, distNorm, mapType);
+         fec = new LocalKernelFECollection(dim, numPoints, rbfType,
+                                           -1, h, faceFactor,
+                                           intOrder, distNorm, mapType);
       }
    }
    else
@@ -3540,15 +3540,15 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    return NULL;
 }
 
-KernelFECollection::KernelFECollection(const int dim,
-                                       const int numPointsD,
-                                       const int rbfType,
-                                       const int order,
-                                       const double h,
-                                       const double faceFactor,
-                                       const int intOrder,
-                                       const int distNorm,
-                                       const int mapType)
+LocalKernelFECollection::LocalKernelFECollection(const int dim,
+                                                 const int numPointsD,
+                                                 const int rbfType,
+                                                 const int order,
+                                                 const double h,
+                                                 const double faceFactor,
+                                                 const int intOrder,
+                                                 const int distNorm,
+                                                 const int mapType)
 {
    const char *mapStr = NULL;
    switch (mapType)
@@ -3674,7 +3674,7 @@ KernelFECollection::KernelFECollection(const int dim,
    }
 }
 
-KernelFECollection::~KernelFECollection()
+LocalKernelFECollection::~LocalKernelFECollection()
 {
    delete [] OtherDofOrd;
    delete [] SegDofOrd[0];
@@ -3685,18 +3685,19 @@ KernelFECollection::~KernelFECollection()
 }
 
 const FiniteElement *
-KernelFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+LocalKernelFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return L2_Elements[GeomType];
 }
 
 const FiniteElement *
-KernelFECollection::TraceFiniteElementForGeometry(Geometry::Type GeomType) const
+LocalKernelFECollection::TraceFiniteElementForGeometry(Geometry::Type GeomType)
+const
 {
    return Tr_Elements[GeomType];
 }
 
-int KernelFECollection::DofForGeometry(Geometry::Type GeomType) const
+int LocalKernelFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    if (L2_Elements[GeomType])
    {
@@ -3705,8 +3706,9 @@ int KernelFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0;
 }
 
-const int *KernelFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                      int Or) const
+const int *LocalKernelFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType,
+   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
