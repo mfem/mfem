@@ -413,6 +413,12 @@ void StopWatch::Start()
    M->Start();
 }
 
+void StopWatch::Restart()
+{
+   Clear();
+   Start();
+}
+
 void StopWatch::Stop()
 {
    M->Stop();
