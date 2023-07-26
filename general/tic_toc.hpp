@@ -49,6 +49,10 @@ public:
    /// Stop the stopwatch.
    void Stop();
 
+   /// @brief Clears and restarts the stopwatch. Equivalent to Clear() followed by
+   /// Start().
+   void Restart();
+
    /// Return the time resolution available to the stopwatch.
    double Resolution();
 
