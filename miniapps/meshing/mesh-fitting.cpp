@@ -77,7 +77,7 @@
 //    make mesh-fitting -j && ./mesh-fitting -m cube.mesh -rs 2 -o 1 -oi 1 -sbgmesh -vl 0 -mo 3 -mid 303 -preft 1e-11 -lsf 1
 
 //    apollo 2D:
-//    make mesh-fitting -j && ./mesh-fitting -m apollo_input_mesh_tri.mesh -rs 1 -o 1 -oi 3 -sbgmesh -vl 2 -mo 4 -mid 2 -no-cus-mat -ni 100 -marking -tid 4 -preft 1e-4 -sft 1e-10 -sfa 2.0 -sfc 1.0 -bgamr 2 -fix-bnd -bgm apollo_amr.mesh -bgls apollo_dist.gf  -li 1000 -lsf 2
+//    make mesh-fitting -j && ./mesh-fitting -m apollo_input_mesh_tri.mesh -rs 1 -o 1 -oi 3 -sbgmesh -vl 2 -mo 4 -mid 2 -no-cus-mat -ni 100 -marking -tid 4 -preft 1e-8 -sft 1e-10 -sfa 2.0 -sfc 1.0 -bgamr 2 -fix-bnd -bgm apollo_amr.mesh -bgls apollo_dist.gf -li 1000 -lsf 2
 
 #include "../../mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -961,7 +961,6 @@ int main(int argc, char *argv[])
    bool faces_to_update(true);
    while (iter_pref<max_iter_pref && faces_to_update)
    {
-      std::cout << "Test 8" << std::endl;
       std::cout << "REFINEMENT NUMBER: " << iter_pref << std::endl;
 
       if (iter_pref > 0)
@@ -1330,7 +1329,6 @@ int main(int argc, char *argv[])
          init_metric_energy = a.GetGridFunctionEnergy(x);
          surf_fit_coeff.constant   = surface_fit_const;
       }
-      std::cout << "Test 1" << std::endl;
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the starting mesh and metric values.
       // Note that for combinations of metrics, this only shows the first metric.
@@ -1475,7 +1473,7 @@ int main(int argc, char *argv[])
       delete x_max_order;
       x_max_order = ProlongToMaxOrder(&x, 0);
       mesh->SetNodalGridFunction(x_max_order);
-      std::cout << "Test 2" << std::endl;
+
       // 15. Save the optimized mesh to a file. This output can be viewed later
       //     using GLVis: "glvis -m optimized.mesh".
       {
@@ -1582,7 +1580,7 @@ int main(int argc, char *argv[])
                    std::endl;
          std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " "
                    << error_bg_sum << std::endl;
-         std::cout << "Test 3" << std::endl;
+
          // Reduce the orders of the polynom if needed
          if (reduce_order
              && iter_pref > 0 && pref_order_increase > 1)
@@ -1685,7 +1683,6 @@ int main(int argc, char *argv[])
                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
          }
-         std::cout << "Test 4" << std::endl;
       }
 
       // Visualize the mesh displacement.
@@ -1706,16 +1703,12 @@ int main(int argc, char *argv[])
               << "keys jRmclA" << endl;
       }
        */
-      std::cout << "Test 5" << std::endl;
       mesh->SetNodalGridFunction(&x); // Need this for the loop
-      std::cout << "Test 6" << std::endl;
 
       iter_pref++; // Update the loop iterator
-      std::cout << "Iter " << iter_pref << std::endl;
 
       delete S;
       delete S_prec;
-      std::cout << "Test 7" << std::endl;
    }
 
    if (visualization)
