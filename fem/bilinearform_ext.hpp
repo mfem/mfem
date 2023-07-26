@@ -68,6 +68,9 @@ class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
+   /// Attributes of all mesh elements.
+   Array<int> elem_attributes, bdr_attributes;
+   mutable Vector tmp_evec; // Work array
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;
    mutable Vector bdr_face_X, bdr_face_Y;
@@ -91,6 +94,25 @@ public:
 
 protected:
    void SetupRestrictionOperators(const L2FaceValues m);
+
+   /// @brief Accumulate the action (or transpose) of the integrator on @a x
+   /// into @a y, taking into account the (possibly null) @a markers array.
+   ///
+   /// If @a markers is non-null, then only those elements or boundary elements
+   /// whose attribute is marked in the markers array will be added to @a y.
+   ///
+   /// @param integ The integrator (domain, boundary, or boundary face).
+   /// @param x Input E-vector.
+   /// @param markers Marked attributes (possibly null, meaning all attributes).
+   /// @param attributes Array of element or boundary element attributes.
+   /// @param transpose Compute the action or transpose of the integrator .
+   /// @param y Output E-vector
+   void AddMultWithMarkers(const BilinearFormIntegrator &integ,
+                           const Vector &x,
+                           const Array<int> *markers,
+                           const Array<int> &attributes,
+                           const bool transpose,
+                           Vector &y) const;
 };
 
 /// Data and methods for element-assembled bilinear forms
