@@ -13,6 +13,7 @@
 #define MFEM_TIC_TOC
 
 #include "../config/config.hpp"
+#include <memory>
 
 #ifndef MFEM_TIMER_TYPE
 #ifndef _WIN32
@@ -34,7 +35,7 @@ class StopWatch;
 class StopWatch
 {
 private:
-   internal::StopWatch *M;
+   std::unique_ptr<internal::StopWatch> M; ///< Pointer to implementation.
 
 public:
    /// Creates a new (stopped) StopWatch object.
@@ -68,9 +69,8 @@ public:
    /// was started.
    double SystTime();
 
-   /// @cond
+   /// Default destructor.
    ~StopWatch();
-   /// @endcond
 };
 
 
