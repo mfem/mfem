@@ -955,12 +955,13 @@ int main(int argc, char *argv[])
    {
       max_iter_pref = (pref_max_order-mesh_poly_deg)/pref_order_increase +1 ;
    }
-   //std::cout << "Max Order || Init order || Pref order increase || Nbr of iterations" << std::endl;
-   //std::cout << pref_max_order << " || " << mesh_poly_deg << " || " << pref_order_increase << " || " << max_iter_pref << std::endl;
+   std::cout << "Max Order || Init order || Pref order increase || Nbr of iterations" << std::endl;
+   std::cout << pref_max_order << " || " << mesh_poly_deg << " || " << pref_order_increase << " || " << max_iter_pref << std::endl;
    int iter_pref(0);
    bool faces_to_update(true);
    while (iter_pref<max_iter_pref && faces_to_update)
    {
+      std::cout << "Test 8" << std::endl;
       std::cout << "REFINEMENT NUMBER: " << iter_pref << std::endl;
 
       if (iter_pref > 0)
@@ -1189,19 +1190,11 @@ int main(int argc, char *argv[])
          }
          if (visualization && iter_pref==0)
          {
-            socketstream vis1, vis2, vis3, vis4;
-            /*
-             if (surf_bg_mesh)
-             {
-                 common::VisualizeField(vis4, "localhost", 19916, *surf_fit_grad,
-                                        "Grad",
-                                        300, 600, 300, 300);
-             }
-             */
-            common::VisualizeField(vis2, "localhost", 19916, mat,
+            socketstream vis1, vis2;
+            common::VisualizeField(vis1, "localhost", 19916, mat,
                                    "Materials before fitting",
                                    600, 680, 300, 300);
-            //common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
+            //common::VisualizeField(vis2, "localhost", 19916, *surf_fit_mat_gf_max_order,
             //                       "Dofs to Move",
             //                       900, 680, 300, 300);
          }
@@ -1260,9 +1253,16 @@ int main(int argc, char *argv[])
          }
          if (visualization && iter_pref==0)
          {
-            socketstream vis2, vis3;
-            common::VisualizeField(vis2, "localhost", 19916, fitting_error_gf,
+            socketstream vis1;
+            common::VisualizeField(vis1, "localhost", 19916, fitting_error_gf,
                                    "Fitting Error before any fitting",
+                                   900, 680, 300, 300);
+         }
+         if (visualization && iter_pref==1)
+         {
+            socketstream vis1;
+            common::VisualizeField(vis1, "localhost", 19916, fitting_error_gf,
+                                   "Fitting Error after first fitting, before p-ref",
                                    900, 680, 300, 300);
          }
          std::cout << "Integrate fitting error on BG: " << error_bg_sum << " " <<
@@ -1330,7 +1330,7 @@ int main(int argc, char *argv[])
          init_metric_energy = a.GetGridFunctionEnergy(x);
          surf_fit_coeff.constant   = surface_fit_const;
       }
-
+      std::cout << "Test 1" << std::endl;
       mesh->SetNodalGridFunction(x_max_order);
       // Visualize the starting mesh and metric values.
       // Note that for combinations of metrics, this only shows the first metric.
@@ -1475,7 +1475,7 @@ int main(int argc, char *argv[])
       delete x_max_order;
       x_max_order = ProlongToMaxOrder(&x, 0);
       mesh->SetNodalGridFunction(x_max_order);
-
+      std::cout << "Test 2" << std::endl;
       // 15. Save the optimized mesh to a file. This output can be viewed later
       //     using GLVis: "glvis -m optimized.mesh".
       {
@@ -1518,10 +1518,10 @@ int main(int argc, char *argv[])
       {
          if (visualization && iter_pref==max_iter_pref-1)
          {
-            socketstream vis2, vis3;
-            common::VisualizeField(vis2, "localhost", 19916, mat, "Materials after fitting",
+            socketstream vis1, vis2;
+            common::VisualizeField(vis1, "localhost", 19916, mat, "Materials after fitting",
                                    600, 680, 300, 300);
-            //common::VisualizeField(vis3, "localhost", 19916, *surf_fit_mat_gf_max_order,
+            //common::VisualizeField(vis2, "localhost", 19916, *surf_fit_mat_gf_max_order,
             //                       "Surface dof",
             //                       900, 680, 300, 300);
          }
@@ -1570,8 +1570,8 @@ int main(int argc, char *argv[])
 
          if (visualization && iter_pref==0)
          {
-            socketstream vis2, vis3;
-            common::VisualizeField(vis2, "localhost", 19916, fitting_error_gf,
+            socketstream vis1;
+            common::VisualizeField(vis1, "localhost", 19916, fitting_error_gf,
                                    "Fitting Error after fitting",
                                    900, 680, 300, 300);
          }
@@ -1582,6 +1582,7 @@ int main(int argc, char *argv[])
                    std::endl;
          std::cout << fespace->GetMaxElementOrder() << " " << fespace->GetNDofs() << " "
                    << error_bg_sum << std::endl;
+         std::cout << "Test 3" << std::endl;
          // Reduce the orders of the polynom if needed
          if (reduce_order
              && iter_pref > 0 && pref_order_increase > 1)
@@ -1684,7 +1685,7 @@ int main(int argc, char *argv[])
                surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
             }
          }
-
+         std::cout << "Test 4" << std::endl;
       }
 
       // Visualize the mesh displacement.
@@ -1705,13 +1706,16 @@ int main(int argc, char *argv[])
               << "keys jRmclA" << endl;
       }
        */
-
+      std::cout << "Test 5" << std::endl;
       mesh->SetNodalGridFunction(&x); // Need this for the loop
+      std::cout << "Test 6" << std::endl;
 
       iter_pref++; // Update the loop iterator
+      std::cout << "Iter " << iter_pref << std::endl;
 
       delete S;
       delete S_prec;
+      std::cout << "Test 7" << std::endl;
    }
 
    if (visualization)
