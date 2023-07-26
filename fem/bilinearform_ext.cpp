@@ -307,17 +307,35 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
          f_to_be[f] = i;
       }
       const int nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-      MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
       bdr_attributes.SetSize(nf_bdr);
       int f_ind = 0;
+      int missing_bdr_elems = 0;
       for (int f = 0; f < mesh.GetNumFaces(); ++f)
       {
+         if (!mesh.GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
+         {
+            continue;
+         }
+         int attribute = 1; // default value
          if (f_to_be.find(f) != f_to_be.end())
          {
             const int be = f_to_be[f];
-            bdr_attributes[f_ind] = mesh.GetBdrAttribute(be);
-            ++f_ind;
+            attribute = mesh.GetBdrAttribute(be);
          }
+         else
+         {
+            // If a boundary face does not correspond to the a boundary element,
+            // we assign it the default attribute of 1. We also generate a
+            // warning at runtime with the number of such missing elements.
+            ++missing_bdr_elems;
+         }
+         bdr_attributes[f_ind] = attribute;
+         ++f_ind;
+      }
+      if (missing_bdr_elems)
+      {
+         MFEM_WARNING("Missing " << missing_bdr_elems << " boundary elements "
+                      "for boundary faces.");
       }
    }
 }
