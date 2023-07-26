@@ -1332,7 +1332,7 @@ public:
                           points in the support radius in one dimension, should
                           generally be > order
        @param distNorm    Norm used for distance, usually 2 = Euclidean distance
-       @param intOrder    Number of integration points per RBF point in each 
+       @param intOrder    Number of integration points per RBF point in each
                           dimension
        @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2
                           from face
