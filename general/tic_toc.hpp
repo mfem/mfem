@@ -37,6 +37,7 @@ private:
    internal::StopWatch *M;
 
 public:
+   /// Creates a new (stopped) StopWatch object.
    StopWatch();
 
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
@@ -51,18 +52,21 @@ public:
    /// Return the time resolution available to the stopwatch.
    double Resolution();
 
-   /** Return the number of real seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of real seconds elapsed since the stopwatch was
+   /// started.
    double RealTime();
 
-   /** Return the number of user seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of user seconds elapsed since the stopwatch was
+   /// started.
    double UserTime();
 
-   /** Return the number of system seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of system seconds elapsed since the stopwatch
+   /// was started.
    double SystTime();
+
+   /// @cond
    ~StopWatch();
+   /// @endcond
 };
 
 
