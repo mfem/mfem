@@ -1321,16 +1321,21 @@ private:
    int *OtherDofOrd;
 
 public:
-   /** @brief Create a radial basis function or reproducing kernel finite
-       element collection.
+   /** @brief Create a radial basis function (RBF) or reproducing kernel (RK)
+       finite element collection.
        @param D           Reference space dimension
        @param numPointsD  Number of points across the element in each dimension
        @param rbfType     Type of radial basis function, from RBFType
-       @param order       Order of polynomial correction, >= 0 for RK or -1 for RBF
-       @param h           Shape parameter, approximately equal to the number of points in the support radius in one dimension, should generally be > order
+       @param order       Order of polynomial correction, >= 0 for RK or -1 for
+                          RBF
+       @param h           Shape parameter, approximately equal to the number of
+                          points in the support radius in one dimension, should
+                          generally be > order
        @param distNorm    Norm used for distance, usually 2 = Euclidean distance
-       @param intOrder    Number of integration points per RBF point in each dimension
-       @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2 from face
+       @param intOrder    Number of integration points per RBF point in each 
+                          dimension
+       @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2
+                          from face
    */
    LocalKernelFECollection(const int D,
                            const int numPointsD,
