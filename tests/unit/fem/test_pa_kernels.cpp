@@ -694,8 +694,9 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
    // std::string mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
 
    // Mesh mesh(mesh_fname.c_str());
-   const int perm1 = 0;//GENERATE(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23);
-   const int perm2 = 0;//GENERATE(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23);
+   // GENERATE(range(0, 24));
+   const int perm1 = 0;
+   const int perm2 = 0;
    Mesh mesh = mesh_3d_orientation(perm1, perm2);
    const int dim = mesh.Dimension();
 

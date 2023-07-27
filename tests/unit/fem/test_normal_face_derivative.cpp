@@ -23,7 +23,7 @@ double f(const Vector& x)
    {
       F += __C[d] * x[d];
    }
-   
+
    return F;
 }
 
@@ -84,7 +84,7 @@ TEST_CASE("Normal Face Derivative", "[FaceRestriction]")
 
          qfref[p + np * (0 + 2 * f)] = val / nx;
          qfref[p + np * (1 + 2 * f)] = (face_type == FaceType::Interior) ?
-                                              (val / nx) : 0.0;
+                                       (val / nx) : 0.0;
       }
    }
 
@@ -95,7 +95,7 @@ TEST_CASE("Normal Face Derivative", "[FaceRestriction]")
 
    // test transpose
    SparseMatrix A = PA2Sparse(&dfr);
-   
+
    Vector y(qf.Size());
    y.Randomize(1);
 
@@ -118,7 +118,7 @@ SparseMatrix PA2Sparse(const Operator * op)
    const int n = op->NumCols();
 
    SparseMatrix A(m, n);
-   
+
    Vector x(n), y(m);
    x = 0.0;
 
