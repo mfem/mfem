@@ -578,35 +578,141 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
 
+void rotate_3d_vertices(int *v, int ref_face, int rot)
+{
+   std::vector<int> face_1, face_2;
+
+   switch (ref_face/2)
+   {
+      case 0:
+         face_1 = {v[0], v[1], v[2], v[3]};
+         face_2 = {v[4], v[5], v[6], v[7]};
+         break;
+      case 1:
+         face_1 = {v[1], v[5], v[6], v[2]};
+         face_2 = {v[0], v[4], v[7], v[3]};
+         break;
+      case 2:
+         face_1 = {v[4], v[5], v[1], v[0]};
+         face_2 = {v[7], v[6], v[2], v[3]};
+         break;
+   }
+   if (ref_face % 2 == 0)
+   {
+      std::reverse(face_1.begin(), face_1.end());
+      std::reverse(face_2.begin(), face_2.end());
+      std::swap(face_1, face_2);
+   }
+
+   std::rotate(face_1.begin(), face_1.begin() + rot, face_1.end());
+   std::rotate(face_2.begin(), face_2.begin() + rot, face_2.end());
+
+   for (int i=0; i<4; ++i)
+   {
+      v[i] = face_1[i];
+      v[i+4] = face_2[i];
+   }
+}
+
+Mesh mesh_3d_orientation(int face_perm_1, int face_perm_2)
+{
+   static const int dim = 3;
+   static const int nv = 12;
+   static const int nel = 2;
+   Mesh mesh(dim, nv, nel);
+   double x[dim];
+   x[0] = 0.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh.AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh.AddVertex(x);
+   x[0] = 2.0;   x[1] = 0.0;   x[2] = 0.0;
+   mesh.AddVertex(x);
+   x[0] = 0.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh.AddVertex(x);
+   x[0] = 1.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh.AddVertex(x);
+   x[0] = 2.0;   x[1] = 1.0;   x[2] = 0.0;
+   mesh.AddVertex(x);
+   x[0] = 0.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh.AddVertex(x);
+   x[0] = 1.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh.AddVertex(x);
+   x[0] = 2.0;   x[1] = 0.0;   x[2] = 1.0;
+   mesh.AddVertex(x);
+   x[0] = 0.0;   x[1] = 1.0;   x[2] = 1.0;
+   mesh.AddVertex(x);
+   x[0] = 1.25;   x[1] = 1.0;   x[2] = 1.0;
+   mesh.AddVertex(x);
+   x[0] = 2.0;   x[1] = 1.0;   x[2] = 1.0;
+   mesh.AddVertex(x);
+
+   int el[8];
+
+   el[0] = 0;
+   el[1] = 1;
+   el[2] = 4;
+   el[3] = 3;
+   el[4] = 6;
+   el[5] = 7;
+   el[6] = 10;
+   el[7] = 9;
+   rotate_3d_vertices(el, face_perm_1/4, face_perm_1%4);
+   mesh.AddHex(el);
+
+   el[0] = 1;
+   el[1] = 2;
+   el[2] = 5;
+   el[3] = 4;
+   el[4] = 7;
+   el[5] = 8;
+   el[6] = 11;
+   el[7] = 10;
+   rotate_3d_vertices(el, face_perm_2/4, face_perm_2%4);
+   mesh.AddHex(el);
+
+   mesh.FinalizeHexMesh(true);
+   mesh.GenerateBoundaryElements();
+   mesh.Finalize();
+   return mesh;
+}
+
 TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
    const bool have_data_dir = mfem_data_dir != "";
-   const int order = GENERATE(1,2,3);
+   const int order = 2;//GENERATE(1,2,3);
 
-   std::vector<std::string> mesh_filenames =
-   {
-      "../../data/star.mesh",
-      "../../data/fichera.mesh",
-   };
-   if (have_data_dir)
-   {
-      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
-   }
-   std::string mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
+   // std::vector<std::string> mesh_filenames =
+   // {
+   //    // "../../data/star.mesh",
+   //    // "../../data/fichera.mesh",
+   //    "../../data/unstructured_hex.v22.msh"
+   // };
+   // if (have_data_dir)
+   // {
+   //    mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+   // }
+   // std::string mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
 
-   Mesh mesh(mesh_fname.c_str());
+   // Mesh mesh(mesh_fname.c_str());
+   const int perm1 = 0;//GENERATE(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23);
+   const int perm2 = 0;//GENERATE(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23);
+   Mesh mesh = mesh_3d_orientation(perm1, perm2);
    const int dim = mesh.Dimension();
 
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
-   x.Randomize(1);
+   // x.Randomize(1);
+   FunctionCoefficient F([](const Vector& x) -> double {return x[0] + 2*x[1] * 4*x[2];});
+   x.ProjectCoefficient(F);
 
    ConstantCoefficient pi(M_PI);
 
-   const double sigma = -1.0;
-   const double kappa = 20.0;
+   const double sigma = 0.0;
+   const double kappa = 0.0;
+
+   std::cout << perm1 << " " << perm2 << "\n";
 
    BilinearForm blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
