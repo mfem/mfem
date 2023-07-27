@@ -64,7 +64,7 @@ void CurlCurlIntegrator::AssembleDiagonalMF(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->GetDiagonal(diag);
+      if (ceedOp) { ceedOp->GetDiagonal(diag); }
    }
    else
    {
@@ -77,7 +77,7 @@ void CurlCurlIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMult(x, y);
+      if (ceedOp) { ceedOp->AddMult(x, y); }
    }
    else
    {

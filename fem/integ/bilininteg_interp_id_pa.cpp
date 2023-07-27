@@ -794,7 +794,7 @@ void IdentityInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMult(x, y);
+      if (ceedOp) { ceedOp->AddMult(x, y); }
    }
    else
    {
@@ -819,7 +819,7 @@ void IdentityInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMultTranspose(x, y);
+      if (ceedOp) { ceedOp->AddMultTranspose(x, y); }
    }
    else
    {

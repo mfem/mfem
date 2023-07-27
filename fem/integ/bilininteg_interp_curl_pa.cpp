@@ -40,7 +40,7 @@ void CurlInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMult(x, y);
+      if (ceedOp) { ceedOp->AddMult(x, y); }
    }
    else
    {
@@ -53,7 +53,7 @@ void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->AddMultTranspose(x, y);
+      if (ceedOp) { ceedOp->AddMultTranspose(x, y); }
    }
    else
    {
