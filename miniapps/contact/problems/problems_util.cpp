@@ -723,11 +723,12 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
 // m_conn: (npoints*4)
 void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
-                      Array<SparseMatrix *> & dM)
+                      Array<SparseMatrix *> & dM, bool reduced)
 {
    int ndim = 3;
 
-   g.SetSize(m);
+   int npoints = s_conn.Size();
+   g.SetSize((reduced)? npoints : m);
    g = 0.0;
 
 
@@ -757,7 +758,8 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       dg = 0.0;
       dg2 = 0.;
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
-      g[s_conn[i]] = g_tmp; // should be unique
+      int row = (reduced) ? i : s_conn[i];
+      g[row] = g_tmp; // should be unique
       Array<int> m_conn_i(4);
       m_conn.GetSubArray(4*i, 4, m_conn_i);
 
@@ -768,9 +770,6 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
          node_conn[j+1] = m_conn_i[j];
       }
 
-      Array<int>  M_i_tmp(1);
-      M_i_tmp[0] = s_conn[i];
-
       Array<int> j_idx(5*ndim); j_idx = 0;
       for (int j=0; j< 5; j++)
       {
@@ -779,9 +778,7 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
             j_idx[j*ndim+d] = node_conn[j]*ndim+d;
          }
       }
-      DenseMatrix M_v_tmp(1, ndim*(4+1));   // SetData now?
-      M_v_tmp.SetRow(0, dg);
-      M.AddSubMatrix(M_i_tmp, j_idx, M_v_tmp);
+      M.AddRow(row,j_idx,dg);
 
       Array<int> dM_i(ndim*(4+1));
       Array<int> dM_j(ndim*(4+1));
@@ -886,7 +883,6 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
 
       if (d < tol)
       {
-         mfem::out << "dimNormal = " << dimNormal << endl;
          MFEM_VERIFY(dimNormal == -1, "");
          dimNormal = i;
 
@@ -1044,7 +1040,7 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
    const double bb_t = 0.5;
    finder.Setup(mesh, bb_t);
 
-   finder.FindPoints(xyz);
+   finder.FindPoints(xyz,mfem::Ordering::byVDIM);
 
    /// Return code for each point searched by FindPoints: inside element (0), on
    /// element boundary (1), or not found (2).
@@ -1091,9 +1087,9 @@ void FindPointsInMesh(Mesh & mesh, Vector const& xyz, Array<int>& conn, Vector& 
          Array<int> cbdrVert;
          mesh.GetFaceVertices(phyFace, cbdrVert);
          Vector xs(dim);
-         xs[0] = xyz[i + 0*np];
-         xs[1] = xyz[i + 1*np];
-         xs[2] = xyz[i + 2*np];
+         xs[0] = xyz[i*dim];
+         xs[1] = xyz[i*dim + 1];
+         xs[2] = xyz[i*dim + 2];
 
          Vector xi_tmp(dim-1);
          // get nodes!
