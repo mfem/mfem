@@ -71,8 +71,8 @@ int num_equations_ = -1;
 double ion_mass_   = 0.0;
 double ion_charge_ = 0.0;
 
-const double specific_heat_ratio_ = 1.4;
-const double gas_constant_ = 1.0;
+//const double specific_heat_ratio_ = 1.4;
+//const double gas_constant_ = 1.0;
 
 // Scalar coefficient for diffusion of momentum
 //static double diffusion_constant_ = 0.1;
