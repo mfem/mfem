@@ -271,6 +271,8 @@ Coefficient * CoefFactory::GetScalarCoef(std::string &name,
    }
    else
    {
+      MFEM_ABORT("Unrecognized Coefficient type: \"" << name << "\""
+                 << " - WARNING Possible typo");
       return NULL;
    }
    return sCoefs[--coef_idx];
@@ -393,6 +395,8 @@ VectorCoefficient * CoefFactory::GetVectorCoef(std::string &name,
    }
    else
    {
+      MFEM_ABORT("Unrecognized VectorCoefficient type: \"" << name << "\""
+                 << " - WARNING Possible typo");
       return NULL;
    }
    return vCoefs[--coef_idx];
@@ -464,6 +468,8 @@ MatrixCoefficient * CoefFactory::GetMatrixCoef(std::string &name,
    }
    else
    {
+      MFEM_ABORT("Unrecognized MatrixCoefficient type: \"" << name << "\""
+                 << " - WARNING Possible typo");
       return NULL;
    }
    return mCoefs[--coef_idx];
