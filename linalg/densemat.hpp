@@ -961,6 +961,12 @@ public:
    DenseMatrixSVD(int h, int w,
                   bool left_singular_vectors=false,
                   bool right_singlular_vectors=false);
+   DenseMatrixSVD(DenseMatrix &M,
+                  char left_singular_vectors='A',
+                  char right_singlular_vectors='A');
+   DenseMatrixSVD(int h, int w,
+                  char left_singular_vectors='A',
+                  char right_singlular_vectors='A');
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
