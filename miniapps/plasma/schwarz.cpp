@@ -656,7 +656,8 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
    // TODO: generalize to 3D
    const int dim = 2;
 
-   Vector bvec(dim);
+   int bdim = BCoef.GetVDim();
+   Vector bvec(bdim);
    bvec = 0.0;
 
    const int nv = pmesh->GetNV();
@@ -1011,6 +1012,11 @@ int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh,
    bool paraview = false;
    if (paraview)
    {
+      MPI_Comm comm = pmesh->GetComm();
+      int num_procs, myid;
+      MPI_Comm_size(comm, &num_procs);
+      MPI_Comm_rank(comm, &myid);
+
       Array<int> v(pmesh->GetNV()), edge(pmesh->GetNEdges());
       v = 0;
       edge = 0;
@@ -1020,7 +1026,9 @@ int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh,
          v[i] = (*pathFlags)[i];
       }
 
-      ParaViewPrintAttributes("pv_patches", *pmesh, 1, &edge, &v);
+      ostringstream oss;
+      oss << "pv_patches_" << myid;
+      ParaViewPrintAttributes(oss.str(), *pmesh, 1, &edge, &v);
    }
 
    return npaths;
