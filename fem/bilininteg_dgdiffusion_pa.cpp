@@ -174,15 +174,15 @@ static void PADGDiffusionSetup3D(const int Q1D,
          for (int p2 = 0; p2 < Q1D; ++p2)
          {
             const double Qp = const_q ? Q(0,0,0) : Q(p1, p2, f);
-            pa(0, p1, p2, f) = kappa * Qp * W(p1, p2) * detJf(p1, p2, f);
+            const double dJf = detJf(p1,p2,f);
+            pa(0, p1, p2, f) = kappa * Qp * W(p1, p2) * dJf;
 
             double hi = 0.0;
-            const double dJf = detJf(p1,p2,f);
 
             for (int side = 0; side < nsides; ++side)
             {
                int i, j, k;
-               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[side], i, j, k);
+               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j, k);
 
                const int e = el[side];
 
@@ -212,7 +212,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
 
                hi += factor * dJf / dJe;
             }
-
+            
             if (nsides == 1)
             {
                pa(5, p1, p2, f) = 0.0;
@@ -294,6 +294,8 @@ inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const i
 {
    // lex ordering
    FaceNormalPermutation(perm, face_id2);
+   // perm[1] = 1;
+   // perm[2] = 2;
 
    // convert from lex ordering to natural
    if (face_id1 == 3 || face_id1 == 4)
@@ -347,6 +349,21 @@ inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const i
    {
       perm[2] *= -1;
    }
+
+   // int si = (perm[1] < 0) ? -1 : 1;
+   // int i = si * perm[1];
+   // int sj = (perm[2] < 0) ? -1 : 1;
+   // int j = sj * perm[2];
+
+   // FaceNormalPermutation(perm, face_id2);
+
+   // int x = perm[i] * si;
+   // int y = perm[j] * sj;
+
+   // perm[1] = x;
+   // perm[2] = y;
+
+   // std::cout << perm[0] << " " << perm[1] << " " << perm[2] << "\n";
 }
 
 static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh, const FaceType type, Array<int>& iwork_)
@@ -772,6 +789,15 @@ static void PADGDiffusionApply3D(const int NF,
             }
          }
       }
+
+      // if (NF == 1)
+      // for (int p1 = 0; p1 < Q1D; ++p1)
+      // {
+      //    for (int p2 = 0; p2 < Q1D; ++p2)
+      //    {
+      //       std::cout << Bdu0[p1][p2] << " - " << Bdu1[p1][p2] << " = " << Bdu0[p1][p2] - Bdu1[p1][p2]  << "\n";
+      //    }
+      // }
 
       // term: - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
       for (int p1 = 0; p1 < Q1D; ++p1)

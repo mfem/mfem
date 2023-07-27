@@ -237,9 +237,11 @@ inline void FaceQuad2Lex3D(const int index, const int size1d,
       strides[1] = size1d;
    }
 
-   idx3d += strides[0] * (fidx % size1d);
-   fidx /= size1d;
-   idx3d += strides[1] * (fidx % size1d);
+   const int _i = fidx % size1d;
+   const int _j = fidx / size1d;
+
+   idx3d += strides[0] * _i;
+   idx3d += strides[1] * _j;
 
    k = idx3d / size2d;
    j = (idx3d - k * size2d) / size1d;
