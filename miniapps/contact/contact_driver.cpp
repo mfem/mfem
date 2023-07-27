@@ -48,20 +48,6 @@ int main(int argc, char *argv[])
    int ndofs2 = prob2.GetNumDofs();
    int ndofs = ndofs1 + ndofs2;
 
-   Array<int> ess_tdofs1 = prob1.GetEssentialDofs();
-   Array<int> ess_tdofs2 = prob2.GetEssentialDofs();
-   int sz1 = ess_tdofs1.Size();
-   int sz2 = ess_tdofs2.Size();
-   Array<int> DirichletDofs(sz1+sz2);
-   for (int i = 0; i<sz1; i++)
-   {
-      DirichletDofs[i] = ess_tdofs1[i];
-   }
-   for (int i = 0; i<sz2; i++)
-   {
-      DirichletDofs[i+sz1] = ess_tdofs2[i]+ndofs1;
-   }
-
    GridFunction x1 = prob1.GetDisplacementGridFunction();
    GridFunction x2 = prob2.GetDisplacementGridFunction();
    
