@@ -250,7 +250,7 @@ protected:
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
        or different DofToQuad::Mode are used. */
-   mutable Array<DofToQuad*> dof2quad_array;
+   mutable Array<DofToQuad *> dof2quad_array;
 
 public:
    /// Enumeration for range_type and deriv_range_type
@@ -1025,8 +1025,8 @@ public:
    };
 
 private:
-   typedef std::map< int, Array<double*>* > PointsMap;
-   typedef std::map< int, Array<Basis*>* > BasisMap;
+   typedef std::map<int, Array<double*>*> PointsMap;
+   typedef std::map<int, Array<Basis*>*> BasisMap;
 
    MemoryType h_mt;
    PointsMap points_container;

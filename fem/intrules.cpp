@@ -726,7 +726,7 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
          ClosedGL(np, &ir);
          break;
       }
-      default:
+      case Quadrature1D::Invalid:
       {
          MFEM_ABORT("Asking for an unknown type of 1D Quadrature points, "
                     "type = " << type);
@@ -820,7 +820,10 @@ void QuadratureFunctions1D::CalculateUniformWeights(IntegrationRule *ir,
          hinv = p+1;
          ihoffset = 1;
          break;
-      default:
+      case Quadrature1D::GaussLegendre:
+      case Quadrature1D::GaussLobatto:
+      case Quadrature1D::ClosedGL:
+      case Quadrature1D::Invalid:
          MFEM_ABORT("invalid Quadrature1D type: " << type);
    }
    // set w0 = (-1)^p*(p!)/(hinv^p)
@@ -929,10 +932,10 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
-IntegrationRules::IntegrationRules(int Ref, int type_):
-   quad_type(type_)
+IntegrationRules::IntegrationRules(int ref, int type)
+   : quad_type(type)
 {
-   refined = Ref;
+   refined = ref;
 
    if (refined < 0) { own_rules = 0; return; }
 
@@ -964,11 +967,19 @@ IntegrationRules::IntegrationRules(int Ref, int type_):
 
    CubeIntRules.SetSize(32, h_mt);
    CubeIntRules = NULL;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   IntRuleLocks.SetSize(Geometry::NUM_GEOMETRIES, h_mt);
+   for (int i = 0; i < Geometry::NUM_GEOMETRIES; i++)
+   {
+      omp_init_lock(&IntRuleLocks[i]);
+   }
+#endif
 }
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 {
-   Array<IntegrationRule *> *ir_array;
+   Array<IntegrationRule *> *ir_array = NULL;
 
    switch (GeomType)
    {
@@ -980,9 +991,9 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
-      default:
-         mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
-         ir_array = NULL;
+      case Geometry::INVALID:
+      case Geometry::NUM_GEOMETRIES:
+         MFEM_ABORT("Unknown type of reference element!");
    }
 
    if (Order < 0)
@@ -990,32 +1001,31 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       Order = 0;
    }
 
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_set_lock(&IntRuleLocks[GeomType]);
+#endif
+
    if (!HaveIntRule(*ir_array, Order))
    {
-#ifdef MFEM_USE_LEGACY_OPENMP
-      #pragma omp critical
-#endif
+      IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
+      int RealOrder = Order;
+      while (RealOrder+1 < ir_array->Size() && (*ir_array)[RealOrder+1] == ir)
       {
-         if (!HaveIntRule(*ir_array, Order))
-         {
-            IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
-            int RealOrder = Order;
-            while (RealOrder+1 < ir_array->Size() &&
-                   (*ir_array)[RealOrder+1] == ir)
-            {
-               RealOrder++;
-            }
-            ir->SetOrder(RealOrder);
-         }
+         RealOrder++;
       }
+      ir->SetOrder(RealOrder);
    }
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_unset_lock(&IntRuleLocks[GeomType]);
+#endif
 
    return *(*ir_array)[Order];
 }
 
 void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 {
-   Array<IntegrationRule *> *ir_array;
+   Array<IntegrationRule *> *ir_array = NULL;
 
    switch (GeomType)
    {
@@ -1027,10 +1037,14 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
-      default:
-         mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
-         ir_array = NULL;
+      case Geometry::INVALID:
+      case Geometry::NUM_GEOMETRIES:
+         MFEM_ABORT("Unknown type of reference element!");
    }
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_set_lock(&IntRuleLocks[GeomType]);
+#endif
 
    if (HaveIntRule(*ir_array, Order))
    {
@@ -1040,16 +1054,19 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
    AllocIntRule(*ir_array, Order);
 
    (*ir_array)[Order] = &IntRule;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_unset_lock(&IntRuleLocks[GeomType]);
+#endif
 }
 
-void IntegrationRules::DeleteIntRuleArray(Array<IntegrationRule *> &ir_array)
+void IntegrationRules::DeleteIntRuleArray(
+   Array<IntegrationRule *> &ir_array) const
 {
-   int i;
-   IntegrationRule *ir = NULL;
-
    // Many of the intrules have multiple contiguous copies in the ir_array
    // so we have to be careful to not delete them twice.
-   for (i = 0; i < ir_array.Size(); i++)
+   IntegrationRule *ir = NULL;
+   for (int i = 0; i < ir_array.Size(); i++)
    {
       if (ir_array[i] != NULL && ir_array[i] != ir)
       {
@@ -1061,6 +1078,13 @@ void IntegrationRules::DeleteIntRuleArray(Array<IntegrationRule *> &ir_array)
 
 IntegrationRules::~IntegrationRules()
 {
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   for (int i = 0; i < Geometry::NUM_GEOMETRIES; i++)
+   {
+      omp_destroy_lock(&IntRuleLocks[i]);
+   }
+#endif
+
    if (!own_rules) { return; }
 
    DeleteIntRuleArray(PointIntRules);
@@ -1095,10 +1119,11 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return PrismIntegrationRule(Order);
       case Geometry::PYRAMID:
          return PyramidIntegrationRule(Order);
-      default:
-         mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
-         return NULL;
+      case Geometry::INVALID:
+      case Geometry::NUM_GEOMETRIES:
+         MFEM_ABORT("Unknown type of reference element!");
    }
+   return NULL;
 }
 
 
@@ -1107,7 +1132,7 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 {
    if (Order > 1)
    {
-      mfem_error("Point Integration Rule of Order > 1 not defined");
+      MFEM_ABORT("Point Integration Rule of Order > 1 not defined");
       return NULL;
    }
 
@@ -1169,7 +1194,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
          QuadratureFunctions1D::OpenHalfUniform(n, ir);
          break;
       }
-      default:
+      case Quadrature1D::Invalid:
       {
          MFEM_ABORT("unknown Quadrature1D type: " << quad_type);
       }
@@ -1717,8 +1742,8 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
 
    for (int k=0; k<npts; k++)
    {
-      const IntegrationPoint & ipc = irc.IntPoint(k);
-      IntegrationPoint & ipp = PyramidIntRules[Order]->IntPoint(k);
+      const IntegrationPoint &ipc = irc.IntPoint(k);
+      IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(k);
       ipp.x = ipc.x * (1.0 - ipc.z);
       ipp.y = ipc.y * (1.0 - ipc.z);
       ipp.z = ipc.z;
@@ -1730,8 +1755,8 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
 // Integration rules for reference prism
 IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
 {
-   const IntegrationRule & irt = Get(Geometry::TRIANGLE, Order);
-   const IntegrationRule & irs = Get(Geometry::SEGMENT, Order);
+   const IntegrationRule &irt = Get(Geometry::TRIANGLE, Order);
+   const IntegrationRule &irs = Get(Geometry::SEGMENT, Order);
    int nt = irt.GetNPoints();
    int ns = irs.GetNPoints();
    AllocIntRule(PrismIntRules, Order);
@@ -1739,12 +1764,12 @@ IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
 
    for (int ks=0; ks<ns; ks++)
    {
-      const IntegrationPoint & ips = irs.IntPoint(ks);
+      const IntegrationPoint &ips = irs.IntPoint(ks);
       for (int kt=0; kt<nt; kt++)
       {
          int kp = ks * nt + kt;
-         const IntegrationPoint & ipt = irt.IntPoint(kt);
-         IntegrationPoint & ipp = PrismIntRules[Order]->IntPoint(kp);
+         const IntegrationPoint &ipt = irt.IntPoint(kt);
+         IntegrationPoint &ipp = PrismIntRules[Order]->IntPoint(kp);
          ipp.x = ipt.x;
          ipp.y = ipt.y;
          ipp.z = ips.x;

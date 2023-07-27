@@ -65,10 +65,10 @@ public:
 
    /** @brief Return an IntegrationRule consisting of all vertices of the given
        Geometry::Type, @a GeomType. */
-   const IntegrationRule *GetVertices(int GeomType);
+   const IntegrationRule *GetVertices(int GeomType) const;
 
    /// Return the center of the given Geometry::Type, @a GeomType.
-   const IntegrationPoint &GetCenter(int GeomType)
+   const IntegrationPoint &GetCenter(int GeomType) const
    { return GeomCenter[GeomType]; }
 
    /// Get a random point in the reference element specified by @a GeomType.
@@ -97,9 +97,9 @@ public:
 
    const DenseMatrix &GetGeomToPerfGeomJac(int GeomType) const
    { return *GeomToPerfGeomJac[GeomType]; }
-   DenseMatrix *GetPerfGeomToGeomJac(int GeomType)
-   { return PerfGeomToGeomJac[GeomType]; }
-   void GetPerfPointMat(int GeomType, DenseMatrix &pm);
+   const DenseMatrix &GetPerfGeomToGeomJac(int GeomType) const
+   { return *PerfGeomToGeomJac[GeomType]; }
+   void GetPerfPointMat(int GeomType, DenseMatrix &pm) const;
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
 
@@ -123,7 +123,7 @@ public:
    }
 
    /// Return the number of boundary "faces" of a given Geometry::Type.
-   int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
+   int NumBdr(int GeomType) const { return NumBdrArray[GeomType]; }
 };
 
 template <> struct
@@ -317,27 +317,27 @@ public:
    int Type;
 
    RefinedGeometry(int NPts, int NRefG, int NRefE, int NBdrE = 0) :
-      RefPts(NPts), RefGeoms(NRefG), RefEdges(NRefE), NumBdrEdges(NBdrE) { }
+      RefPts(NPts), RefGeoms(NRefG), RefEdges(NRefE), NumBdrEdges(NBdrE) {}
 };
 
 class GeometryRefiner
 {
 private:
-   int type; // Quadrature1D type (ClosedUniform is default)
+   int Type; // Quadrature1D type (ClosedUniform is default)
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 
-   RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times, int ETimes,
-                                int Type);
-   IntegrationRule *FindInIntPts(Geometry::Type Geom, int NPts);
+   RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times,
+                                int ETimes) const;
+   IntegrationRule *FindInIntPts(Geometry::Type Geom, int NPts) const;
 
 public:
-   GeometryRefiner();
+   GeometryRefiner(int t = Quadrature1D::ClosedUniform) : Type(t) {}
 
    /// Set the Quadrature1D type of points to use for subdivision.
-   void SetType(const int t) { type = t; }
+   void SetType(int t) { Type = t; }
    /// Get the Quadrature1D type of points used for subdivision.
-   int GetType() const { return type; }
+   int GetType() const { return Type; }
 
    RefinedGeometry *Refine(Geometry::Type Geom, int Times, int ETimes = 1);
 
@@ -345,10 +345,10 @@ public:
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
 
    /// Get the Refinement level based on number of points
-   virtual int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
+   static int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
 
    /// Get the Refinement level based on number of elements
-   virtual int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
+   static int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
 
    ~GeometryRefiner();
 };
