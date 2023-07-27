@@ -1493,7 +1493,8 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
       width *= d;
    }
 
-   auto f2e = Reshape(face_to_elem.HostWrite(), (sdim == 2) ? 4 : 6, nf); // (el0, el1, fid0, fid1[, or0, or1])
+   // (el0, el1, fid0, fid1[, or0, or1])
+   auto f2e = Reshape(face_to_elem.HostWrite(), (sdim == 2) ? 4 : 6, nf);
 
    Array<int> elem_indicator(ne);
    elem_indicator = 0.0;
@@ -1732,9 +1733,11 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    MFEM_ASSERT(q == d, "");
 
    const auto G_ = Reshape(maps.G.Read(), q, d);
-   const auto f2e = Reshape(face_to_elem.Read(), 6, num_faces); // (el0, el1, fid0, fid1, or0, or1)
+   // (el0, el1, fid0, fid1, or0, or1)
+   const auto f2e = Reshape(face_to_elem.Read(), 6, num_faces);
 
-   const auto d_x = Reshape(x.Read(), t?vd:d, d, d, t?d:ne, t?ne:vd); // t ? (vdim x d x d x d x ne) : (d x d x d x ne x vdim)
+   // t ? (vdim x d x d x d x ne) : (d x d x d x ne x vdim)
+   const auto d_x = Reshape(x.Read(), t?vd:d, d, d, t?d:ne, t?ne:vd);
    auto d_y = Reshape(y.Write(), q2d, vd, 2, nf);
 
    for (int f = 0; f < num_faces; ++f)
@@ -1747,8 +1750,9 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
          const int el = f2e(side, f);
          const int face_id = f2e(2 + side, f);
          const int orientation = f2e(4 + side, f);
-         
-         const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
+
+         // is this face parallel to the x,y plane in reference coo
+         const bool xy_plane = (face_id == 0 || face_id == 5);
          const bool xz_plane = (face_id == 1 || face_id == 3);
          const bool yz_plane = (face_id == 2 || face_id == 4);
 
@@ -1756,7 +1760,9 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
          {
             for (int p = 0; p < q2d; ++p)
                for (int c = 0; c < vd; ++c)
+               {
                   d_y(p, c, side, f) = 0.0;
+               }
          }
          else
          {
@@ -1771,16 +1777,17 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 
                   for (int kk=0; kk < d; ++kk)
                   {
-                     const int l = yz_plane ? kk : i; // (l, m, n) 3d lex index of interior points used in evaluating normal deriv
+                     // (l, m, n) 3d lex index of interior points used in evaluating normal deriv
+                     const int l = yz_plane ? kk : i;
                      const int m = xz_plane ? kk : j;
                      const int n = xy_plane ? kk : k;
 
-                     const int g_row = yz_plane ? i : xz_plane ? j : k; // the fixed 1d index of the normal component of the face quad point
+                     // the fixed 1d index of the normal component of the face quad point
+                     const int g_row = yz_plane ? i : xz_plane ? j : k;
                      const double g = G_(g_row, kk);
 
                      grad_n += g * d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c);
                   } // for kk
-
                   d_y(p, c, side, f) = grad_n;
                } // for c
             } // for p
@@ -1938,8 +1945,10 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
 
    auto G_ = Reshape(maps.G.Read(), q, d);
 
-   auto e2f = Reshape(elem_to_face.Read(), 13, net); // (el, f0,f1,f2,f3,f4,f5, s0,s1,s2,s3,s4,s5)
-   auto f2e = Reshape(face_to_elem.Read(), 6, num_faces); // (el0, el1, fid0, fid1, or0, or1)
+   // (el, f0,f1,f2,f3,f4,f5, s0,s1,s2,s3,s4,s5)
+   auto e2f = Reshape(elem_to_face.Read(), 13, net);
+   // (el0, el1, fid0, fid1, or0, or1)
+   auto f2e = Reshape(face_to_elem.Read(), 6, num_faces);
 
    auto d_x = Reshape(x.ReadWrite(), t?vd:d, d, d, t?d:ne, t?ne:vd);
    const auto d_y = Reshape(y.Read(), q2d, vd, 2, nf);
@@ -1956,21 +1965,26 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
       for (int _i=0; _i < d; ++_i)
          for (int _j = 0; _j < d; ++_j)
             for (int _k = 0; _k < d; ++_k)
+            {
                xx[_i][_j][_k] = 0.0;
+            }
 
       for (int face_id = 0; face_id < 6; ++face_id)
       {
          const int f = e2f(1+face_id, e);
-         
+
          if (f < 0)
+         {
             continue;
+         }
 
          const int side = e2f(7 + face_id, e);
          const int orientation = f2e(4 + side, f);
          const int fid0 = f2e(2, f);
          const int fid1 = f2e(3, f);
 
-         const bool xy_plane = (face_id == 0 || face_id == 5); // is this face parallel to the x,y plane in reference coo
+         // is this face parallel to the x,y plane in reference coo
+         const bool xy_plane = (face_id == 0 || face_id == 5);
          const bool xz_plane = (face_id == 1 || face_id == 3);
          const bool yz_plane = (face_id == 2 || face_id == 4);
 
@@ -1980,7 +1994,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
 
             int i, j, k;
             internal::FaceQuad2Lex3D(p, q, fid0, fid1, side, orientation, i, j, k);
-            
+
             if (xy_plane)
             {
                pp[i][j] = p;

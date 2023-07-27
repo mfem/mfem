@@ -146,21 +146,27 @@ static void PADGDiffusionSetup3D(const int Q1D,
    const auto n = Reshape(face_geom.normal.Read(), Q1D, Q1D, 3, NF);
 
    const bool const_q = (q.Size() == 1);
-   const auto Q = const_q ? Reshape(q.Read(), 1, 1, 1) : Reshape(q.Read(), Q1D, Q1D, NF);
+   const auto Q = const_q ? Reshape(q.Read(), 1, 1, 1)
+                  : Reshape(q.Read(), Q1D, Q1D, NF);
 
    const auto W = Reshape(w.Read(), Q1D, Q1D);
 
-   const auto iwork = Reshape(iwork_.Read(), 6, 2, NF); // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
+   // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
+   const auto iwork = Reshape(iwork_.Read(), 6, 2, NF);
    constexpr int _el_ = 3; // offset in iwork for element index
    constexpr int _fid_ = 4; // offset in iwork for local face id
    constexpr int _or_ = 5; // offset in iwork for orientation
 
-   const auto pa = Reshape(pa_data.Write(), 8, Q1D, Q1D, NF); // (q, 1/h, J00, J01, J02, J10, J11, J12)
+   // (q, 1/h, J00, J01, J02, J10, J11, J12)
+   const auto pa = Reshape(pa_data.Write(), 8, Q1D, Q1D, NF);
 
    for (int f = 0; f < NF; ++f)
    {
-      const int perm[2][3] = {{iwork(0, 0, f), iwork(1, 0, f), iwork(2, 0, f)},
-                              {iwork(0, 1, f), iwork(1, 1, f), iwork(2, 1, f)}};
+      const int perm[2][3] =
+      {
+         {iwork(0, 0, f), iwork(1, 0, f), iwork(2, 0, f)},
+         {iwork(0, 1, f), iwork(1, 1, f), iwork(2, 1, f)}
+      };
       const int el[] = {iwork(_el_, 0, f), iwork(_el_, 1, f)};
       const int fid[] = {iwork(_fid_, 0, f), iwork(_fid_, 1, f)};
       const int ortn[] = {iwork(_or_, 0, f), iwork(_or_, 1, f)};
@@ -182,23 +188,33 @@ static void PADGDiffusionSetup3D(const int Q1D,
             for (int side = 0; side < nsides; ++side)
             {
                int i, j, k;
-               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j, k);
+               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j,
+                                        k);
 
                const int e = el[side];
 
                double nJi[3];
 
-               nJi[0] = (-J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
-                      + ( J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
-                      + (-J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 2, f);
+               nJi[0] = (-J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2,
+                                                                                 e)) * n(p1, p2, 0, f)
+                        + ( J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2,
+                                                                                   e)) * n(p1, p2, 1, f)
+                        + (-J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1,
+                                                                                   e)) * n(p1, p2, 2, f);
 
-               nJi[1] = ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
-                      + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
-                      + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 2, f);
+               nJi[1] = ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2,
+                                                                                 e)) * n(p1, p2, 0, f)
+                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2,
+                                                                                   e)) * n(p1, p2, 1, f)
+                        + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1,
+                                                                                   e)) * n(p1, p2, 2, f);
 
-               nJi[2] = (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 0, f)
-                      + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 1, f)
-                      + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
+               nJi[2] = (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2,
+                                                                                 e)) * n(p1, p2, 0, f)
+                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2,
+                                                                                   e)) * n(p1, p2, 1, f)
+                        + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1,
+                                                                                   e)) * n(p1, p2, 2, f);
 
                const double dJe = detJe(i,j,k,e);
                const double val = factor * Qp * W(p1, p2) * dJf / dJe;
@@ -212,7 +228,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
 
                hi += factor * dJf / dJe;
             }
-            
+
             if (nsides == 1)
             {
                pa(5, p1, p2, f) = 0.0;
@@ -290,7 +306,8 @@ inline void FaceNormalPermutation(int perm[3], const int face_id)
 }
 
 // assigns to perm the permutation as in FaceNormalPermutation for the second element on the face but signed to indicate the sign of the normal derivative.
-inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const int face_id2, const int orientation)
+inline void SignedFaceNormalPermutation(int perm[3], const int face_id1,
+                                        const int face_id2, const int orientation)
 {
    // lex ordering
    FaceNormalPermutation(perm, face_id2);
@@ -310,34 +327,36 @@ inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const i
    // permute based on face orientation
    switch (orientation)
    {
-   case 1:
-      std::swap(perm[1], perm[2]);
-      break;
-   case 2:
-      std::swap(perm[1], perm[2]);
-      perm[2] *= -1;
-      break;
-   case 3:
-      perm[1] *= -1;
-      break;
-   case 4:
-      perm[1] *= -1;
-      perm[2] *= -1;
-      break;
-   case 5:
-      std::swap(perm[1], perm[2]);
-      perm[1] *= -1;
-      perm[2] *= -1;
-      break;
-   case 6:
-      std::swap(perm[1], perm[2]);
-      perm[1] *= -1;
-      break;
-   case 7:
-      perm[2] *= -1;
-      break;
-   default:
-      break;
+      case 0:
+         break;
+      case 1:
+         std::swap(perm[1], perm[2]);
+         break;
+      case 2:
+         std::swap(perm[1], perm[2]);
+         perm[2] *= -1;
+         break;
+      case 3:
+         perm[1] *= -1;
+         break;
+      case 4:
+         perm[1] *= -1;
+         perm[2] *= -1;
+         break;
+      case 5:
+         std::swap(perm[1], perm[2]);
+         perm[1] *= -1;
+         perm[2] *= -1;
+         break;
+      case 6:
+         std::swap(perm[1], perm[2]);
+         perm[1] *= -1;
+         break;
+      case 7:
+         perm[2] *= -1;
+         break;
+      default:
+         break;
    }
 
    // convert back to lex
@@ -363,10 +382,11 @@ inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const i
    // perm[1] = x;
    // perm[2] = y;
 
-   // std::cout << perm[0] << " " << perm[1] << " " << perm[2] << "\n";
+   // mfem::out << perm[0] << " " << perm[1] << " " << perm[2] << "\n";
 }
 
-static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh, const FaceType type, Array<int>& iwork_)
+static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh,
+                                      const FaceType type, Array<int>& iwork_)
 {
    const int ne = mesh.GetNE();
 
@@ -499,7 +519,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    }
    else if (dim == 3)
    {
-      PADGDiffusionSetup3D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom, nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
+      PADGDiffusionSetup3D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
+                           nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
    }
 }
 
@@ -719,7 +740,8 @@ static void PADGDiffusionApply3D(const int NF,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
 
-   auto pa = Reshape(pa_data.Read(), 8, Q1D, Q1D, NF); // (q, 1/h, J0[0], J0[1], J0[2], J1[0], J1[1], J1[2])
+   // (q, 1/h, J0[0], J0[1], J0[2], J1[0], J1[1], J1[2])
+   auto pa = Reshape(pa_data.Read(), 8, Q1D, Q1D, NF);
    auto x =    Reshape(x_.Read(),         D1D, D1D, 2, NF);
    auto y =    Reshape(y_.ReadWrite(),    D1D, D1D, 2, NF);
    auto dxdn = Reshape(dxdn_.Read(),      D1D, D1D, 2, NF);
@@ -795,7 +817,7 @@ static void PADGDiffusionApply3D(const int NF,
       // {
       //    for (int p2 = 0; p2 < Q1D; ++p2)
       //    {
-      //       std::cout << Bdu0[p1][p2] << " - " << Bdu1[p1][p2] << " = " << Bdu0[p1][p2] - Bdu1[p1][p2]  << "\n";
+      //       mfem::out << Bdu0[p1][p2] << " - " << Bdu1[p1][p2] << " = " << Bdu0[p1][p2] - Bdu1[p1][p2]  << "\n";
       //    }
       // }
 
@@ -934,7 +956,8 @@ static void PADGDiffusionApply(const int dim,
    }
    else if (dim == 3)
    {
-      return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
+      return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y,
+                                  dydn, D1D, Q1D);
    }
    MFEM_ABORT("Unknown kernel.");
 }
