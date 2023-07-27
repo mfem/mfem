@@ -28,6 +28,7 @@
 
 #include "../common/pfem_extras.hpp"
 #include "transport_solver.hpp"
+#include "transport_coefs.hpp"
 #include "g_eqdsk_data.hpp"
 
 using namespace std;
@@ -259,7 +260,7 @@ double TiFunc(const Vector &x, double t)
          double b = 0.8;
 
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-         double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
+         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
          return Ti_min_ +
                 (Ti_max_ - Ti_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r)) +
                                        0.5 * exp(-200.0 * rs));
@@ -289,7 +290,7 @@ double TeFunc(const Vector &x, double t)
          double b = 0.8;
 
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
          return Te_min_ +
                 (Te_max_ - Te_min_) * (0.5 + 0.5 * cos(M_PI * sqrt(r))) +
                 0.5 * Te_exp_ * exp(-400.0 * rs);
@@ -931,6 +932,8 @@ Mesh * BuildSol1DMesh(const Vector &sol1d);
 
 void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err);
 
+void UmanskyTestWidth(ParGridFunction &u);
+
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
@@ -969,10 +972,20 @@ int main(int argc, char *argv[])
 
    ttol.prec.type    = 1;
    ttol.prec.log_lvl = 0;
+#ifdef MFEM_USE_SUPERLU
+   ttol.prec.l_use_superlu = false;
+#endif
+   ttol.prec.l_use_algebraic_D_cg = false;
+   ttol.prec.l_use_lor_cg = true;
+   ttol.prec.l_use_air_cg = true;
+   ttol.prec.l_use_schwarz = false;
+
+   ttol.prec.r_diag_prec = false;
 
    // 2. Parse command-line options.
    // problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   const char *et_file = "";
    const char *bc_file = "";
    const char *ic_file = "";
    const char *ec_file = "";
@@ -1000,11 +1013,10 @@ int main(int argc, char *argv[])
 
    int ode_solver_type = 1;
    int ode_limiter_type = 2;
-   int logging = 0;
+   int logging = 1;
    bool     imex = false;
    bool ode_epus = false;
    bool      amr = true;
-   int    op_flag = 31;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
    double kP_acc = 0.0;
@@ -1024,10 +1036,13 @@ int main(int argc, char *argv[])
    // double dt_rel_tol = 0.1;
    double cfl = 0.3;
 
-   Array<int> term_flags;
+   TransportEquationTerms eqn_terms(5);
+   int &op_flag = eqn_terms.GetEquationBitMask();
+   Array<int> &term_flags = eqn_terms.GetTermFlags();
    Array<int> vis_flags;
    const char *device_config = "cpu";
    bool check_grad = false;
+   bool umansky_test = false;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -1069,6 +1084,8 @@ int main(int argc, char *argv[])
                   "Build a mesh using the algortihm from sol1d."
                   " Needs three parameters: number of elements, "
                   " width of mesh, and beta");
+   args.AddOption(&et_file, "-et", "--et-file",
+                  "Equation term selection input file.");
    args.AddOption(&bc_file, "-bc", "--bc-file",
                   "Boundary condition input file.");
    args.AddOption(&ic_file, "-ic", "--ic-file",
@@ -1151,6 +1168,9 @@ int main(int argc, char *argv[])
                   "Type of preconditioner: 1-AMG, 2-SuperLU");
    args.AddOption(&ttol.prec.log_lvl, "-plog", "--prec-logging-level",
                   "Output level for preconditioner.");
+   args.AddOption(&ttol.prec.l_use_schwarz, "-schwarz", "--use-schwarz",
+                  "-no-schwarz","--no-use-schwarz",
+                  "Use Schwarz smoothing with CG preconditioner");
    args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
                   "Error tolerance for initial condition.");
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
@@ -1269,6 +1289,10 @@ int main(int argc, char *argv[])
                   "--no-check-gradient",
                   "Verify that the gradient returned by DGTransportTDO "
                   "is valid then exit.");
+   args.AddOption(&umansky_test, "-umansky", "--umansky-test", "-no-umansky",
+                  "--no-umansky-test",
+                  "Measures the width of a transition as in "
+                  "Umansky et al. 2005.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
 
@@ -1290,7 +1314,48 @@ int main(int argc, char *argv[])
    {
       dg.kappa = (double)(order+1)*(order+1);
    }
-   if (op_flag < 0) { op_flag = 0; }
+   if (strncmp(et_file,"",1) != 0)
+   {
+      // Check for command line settings and use them to override the
+      // settings from the file.
+      int cmd_op_flag = op_flag;
+      int max_cmd_term_flag = term_flags.Max();
+
+      if (cmd_op_flag == -1 || max_cmd_term_flag == -1)
+      {
+         // Cache the equation term flags set on the command line
+         Array<int> cmd_term_flags = term_flags;
+
+         if (mpi.Root() && cmd_op_flag == -1 && max_cmd_term_flag == -1)
+         {
+            cout << "Reading enabled equations and their enabled terms from "
+                 << et_file << endl << endl;
+         }
+         else if (mpi.Root() && cmd_op_flag == -1)
+         {
+            cout << "Reading enabled equations from "
+                 << et_file << endl << endl;
+         }
+         else if (mpi.Root() && max_cmd_term_flag == -1)
+         {
+            cout << "Reading enabled equation terms from "
+                 << et_file << endl << endl;
+         }
+         ifstream etfs(et_file);
+         eqn_terms.LoadEquationTerms(etfs);
+
+         if (cmd_op_flag != -1)
+         {
+            // Reset equation selection flag to value set on command line
+            op_flag = cmd_op_flag;
+         }
+         if (max_cmd_term_flag != -1)
+         {
+            // Reset equation term flags to those set on the command line
+            term_flags = cmd_term_flags;
+         }
+      }
+   }
    /*
    if (ode_exp_solver_type < 0)
    {
@@ -1339,12 +1404,13 @@ int main(int argc, char *argv[])
       ode_weights.SetSize(5);
       ode_weights = 1.0;
    }
-
+   /*
    if (term_flags.Size() != 5)
    {
       term_flags.SetSize(5);
       term_flags = -1; // Turn on default equation terms
    }
+   */
    if (vis_flags.Size() == 5)
    {
       Array<int> old_vis_flags = vis_flags;
@@ -1376,7 +1442,7 @@ int main(int argc, char *argv[])
          t_final = 1.0;
       }
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   if (mpi.Root()) { args.PrintOptions(cout); cout << '\n'; }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -2178,7 +2244,16 @@ int main(int argc, char *argv[])
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
 
+      if (mpi.Root())
+      {
+         cout << "Registering fields" << endl;
+      }
       oper.RegisterDataFields(*dc);
+
+      if (mpi.Root())
+      {
+         cout << "Preparing fields" << endl;
+      }
       oper.PrepareDataFields();
 
       dc->SetCycle(0);
@@ -2527,6 +2602,11 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
    */
+   if (umansky_test)
+   {
+      UmanskyTestWidth(ion_energy);
+   }
+
    if (mpi.Root()) { ofs_controller.close(); }
    // Free the used memory.
    delete eqdsk;
@@ -2870,6 +2950,97 @@ void InitialCondition(const Vector &x, Vector &y)
 
    // y.Print(cout, dim+2); cout << endl;
    */
+}
+
+double FindYVal(ParGridFunction &u, double u_target, double x,
+                double y0, double y1)
+{
+   ParMesh * pmesh = u.ParFESpace()->GetParMesh();
+
+   MPI_Comm comm = pmesh->GetComm();
+   int nranks = pmesh->GetNRanks();
+   // int myrank = pmesh->GetMyRank();
+   Vector ucVec(nranks);
+
+   Array<int> elem;
+   Array<IntegrationPoint> ips;
+   DenseMatrix point_mat(2, 1);
+   point_mat(0,0) = x;
+
+   double tol = 1e-5;
+
+   double a = y0;
+   double b = y1;
+   double c = 0.5 * (a + b);
+   double ua = 1.0 - u_target;
+   double ub = 0.0 - u_target;
+   double uc = 1.0;
+
+   while (std::abs(uc) > tol)
+   {
+      point_mat(1,0) = c;
+      int nfound = pmesh->FindPoints(point_mat, elem, ips);
+
+      if (nfound != 1)
+      {
+         MFEM_ABORT("Point (" << x << ", " << c << ") not found");
+      }
+
+      if (elem[0] >= 0)
+      {
+         uc = u.GetValue(elem[0], ips[0]) - u_target;
+      }
+      else
+      {
+         uc = -DBL_MAX;
+      }
+
+      MPI_Allgather(&uc, 1, MPI_DOUBLE, ucVec.GetData(), 1, MPI_DOUBLE, comm);
+
+      for (int i=0; i<nranks; i++)
+      {
+         if (ucVec[i] > -0.5 * DBL_MAX)
+         {
+            uc = ucVec[i];
+            break;
+         }
+      }
+
+      if (ua * uc < 0.0)
+      {
+         b = c;
+         ub = uc;
+      }
+      else
+      {
+         a = c;
+         ua = uc;
+      }
+
+      c = 0.5 * (a + b);
+   }
+   return c;
+}
+
+void UmanskyTestWidth(ParGridFunction &u)
+{
+   ParMesh * pmesh = u.ParFESpace()->GetParMesh();
+   int myrank = pmesh->GetMyRank();
+
+   Vector min, max;
+   pmesh->GetBoundingBox(min,max);
+
+   double xMid = 0.5 * (max[0] + min[0]);
+   double y0 = min[1];
+   double y1 = max[1];
+
+   double y25 = FindYVal(u, 0.25, xMid, y0, y1);
+   double y75 = FindYVal(u, 0.75, xMid, y0, y1);
+
+   if (myrank == 0)
+   {
+      cout << "Width: " << y25 - y75 << endl;
+   }
 }
 
 /** Coefficient which returns a * x[c] + b */
@@ -3584,6 +3755,178 @@ public:
    }
 };
 
+class EllipticTestSol : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double v_cent_;
+   double v_bdry_;
+   double v_bump_;
+   double w_bump_;
+   double x_bump_;
+   double y_bump_;
+
+   mutable Vector x_;
+
+public:
+   EllipticTestSol()
+      : a_(0.4), b_(0.8), v_cent_(1.0), v_bdry_(0.0),
+        v_bump_(0.0), w_bump_(1.0), x_bump_(0.0), y_bump_(0.0), x_(2) {}
+
+   EllipticTestSol(double a, double b, double v_cent, double v_bdry,
+                   double v_bump, double fwhm_bump, double x_bump, double y_bump)
+      : a_(a), b_(b), v_cent_(v_cent), v_bdry_(v_bdry),
+        v_bump_(0.0), w_bump_(1.0), x_bump_(0.0), y_bump_(0.0), x_(2)
+   {
+      this->SetBump(v_bump, fwhm_bump, x_bump, y_bump);
+   }
+
+   EllipticTestSol(double a, double b, double v_cent, double v_bdry)
+      : a_(a), b_(b), v_cent_(v_cent), v_bdry_(v_bdry),
+        v_bump_(0.0), w_bump_(1.0), x_bump_(0.0), y_bump_(0.0), x_(2) {}
+
+   void SetBump(double val, double fwhm, double x_cent, double y_cent)
+   {
+      v_bump_ = val;
+      w_bump_ = 4.0 * M_LN2 / std::pow(fwhm, 2);
+      x_bump_ = x_cent;
+      y_bump_ = y_cent;
+   }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double r = pow(x_[0] / a_, 2) + pow(x_[1] / b_, 2);
+      double rs = pow(x_[0] - x_bump_, 2) + pow(x_[1] - y_bump_, 2);
+      return v_cent_ +
+             (v_bdry_ - v_cent_) * (0.5 - 0.5 * cos(M_PI * sqrt(r))) +
+             v_bump_ * exp(- w_bump_ * rs);
+   }
+};
+
+class EllipticTestSrc : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double v_cent_;
+   double v_bdry_;
+   double D_perp_;
+
+   mutable Vector x_;
+
+public:
+   EllipticTestSrc()
+      : a_(0.4), b_(0.8), v_cent_(1.0), v_bdry_(0.0), D_perp_(1.0), x_(2) {}
+
+   EllipticTestSrc(double a, double b, double v_cent, double v_bdry,
+                   double D_perp)
+      : a_(a), b_(b), v_cent_(v_cent), v_bdry_(v_bdry), D_perp_(D_perp), x_(2)
+   { }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double r = std::sqrt(std::pow(x_[0], 2) + pow(x_[1], 2));
+      double d = std::sqrt(std::pow(x_[0] / a_, 2) + std::pow(x_[1] / b_, 2));
+      double k = std::sqrt(std::pow(x_[0] / (a_ * a_), 2) +
+                           std::pow(x_[1] / (b_ * b_), 2));
+
+      if (d < 1e-6)
+      {
+         return 0.5 * M_PI * M_PI * (v_cent_ - v_bdry_) * D_perp_ *
+                (a_ * a_ + b_ * b_) * std::pow(a_ * b_, -2);
+      }
+
+      double cd = std::cos(M_PI * d);
+      double sd = std::sin(M_PI * d);
+
+      return 0.5 * M_PI * (v_cent_ - v_bdry_) * D_perp_ * std::pow(d, -2) *
+             (M_PI * k * k * cd + r * r * sd / (a_ * a_ * b_ * b_ * d));
+   }
+};
+
+class EllipticBField : public VectorCoefficient
+{
+private:
+   double a_;
+   double b_;
+   double B_amp_;
+
+   mutable Vector x_;
+
+public:
+   EllipticBField()
+      : VectorCoefficient(3), a_(0.4), b_(0.8), B_amp_(a_), x_(2) {}
+
+   EllipticBField(double a, double b, double B_max)
+      : VectorCoefficient(3), a_(a), b_(b), B_amp_(B_max), x_(2)
+   {
+      B_amp_ *= std::min(a_, b_);
+   }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      V.SetSize(3);
+
+      V[0] = -B_amp_ * x_[1] / (b_ * b_);
+      V[1] =  B_amp_ * x_[0] / (a_ * a_);
+      V[2] =  0.0;
+   }
+};
+
+class UmanskyTestDBC : public Coefficient
+{
+private:
+   int p_;
+   double Lx_, Ly_, hx_, hy_;
+   mutable Vector x_;
+
+public:
+   UmanskyTestDBC(int p, double Lx, double Ly, double hx, double hy)
+      : p_(p), Lx_(Lx), Ly_(Ly), hx_(hx), hy_(hy), x_(2)
+   {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      if (x_[0] < hx_ && x_[1] < hy_)
+      {
+         return 0.5 *
+                (1.0 -
+                 std::pow(1.0 - x_[0] / hx_, p_) +
+                 std::pow(1.0 - x_[1] / hy_, p_));
+      }
+      else if (x_[0] > Lx_ - hx_ && x_[1] > Ly_ - hy_)
+      {
+         return 0.5 *
+                (1.0 +
+                 std::pow(1.0 - (Lx_ - x_[0]) / hx_, p_) -
+                 std::pow(1.0 - (Ly_ - x_[1]) / hy_, p_));
+      }
+      // else if (x_[0] > Lx_ - hx_ || x_[1] < hy_)
+      else if (hx_ * (x_[1] + hy_) < hy_ * x_[0])
+      {
+         return 1.0;
+      }
+      // else if (x_[0] < hx_ || x_[1] > Ly_ - hy_)
+      else if (hx_ * x_[1] > hy_ * (x_[0] + hx_))
+      {
+         return 0.0;
+      }
+      else
+      {
+         return 0.5 * (1.0 + std::tanh(M_LN10 * (x_[0] / hx_ - x_[1] / hy_)));
+      }
+   }
+};
+
 Coefficient *
 Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
@@ -3735,6 +4078,29 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       coef_idx = sCoefs.Append(new RobinBCTestSol(mi, ni, Te, vi, chi, q,
                                                   al, bl, ar, br));
    }
+   else if (name == "EllipticTestSol")
+   {
+      double a, b, v_cent, v_bdry, v_bump, fwhm_bump, x_bump, y_bump;
+      input >> a >> b >> v_cent >> v_bdry
+            >> v_bump >> fwhm_bump >> x_bump >> y_bump;
+      coef_idx = sCoefs.Append(new EllipticTestSol(a, b, v_cent, v_bdry,
+                                                   v_bump, fwhm_bump,
+                                                   x_bump, y_bump));
+   }
+   else if (name == "EllipticTestSrc")
+   {
+      double a, b, v_cent, v_bdry, D_perp;
+      input >> a >> b >> v_cent >> v_bdry >> D_perp;
+      coef_idx = sCoefs.Append(new EllipticTestSrc(a, b, v_cent, v_bdry,
+                                                   D_perp));
+   }
+   else if (name == "UmanskyTestDBC")
+   {
+      int p;
+      double Lx, Ly, hx, hy;
+      input >> p >> Lx >> Ly >> hx >> hy;
+      coef_idx = sCoefs.Append(new UmanskyTestDBC(p, Lx, Ly, hx, hy));
+   }
    else
    {
       return TransportCoefFactory::GetScalarCoef(name, input);
@@ -3751,6 +4117,13 @@ Transport2DCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
       double w, vz;
       input >> w >> vz;
       coef_idx = vCoefs.Append(new CirculationVector(w, vz));
+   }
+   else if (name == "EllipticBField")
+   {
+      double a, b, v;
+      input >> a >> b >> v;
+      std::cout << "read in " << a << " " << b << " " << v << std::endl;
+      coef_idx = vCoefs.Append(new EllipticBField(a, b, v));
    }
    else
    {

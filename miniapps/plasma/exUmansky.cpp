@@ -31,6 +31,7 @@
 
 #include "mfem.hpp"
 #include "transport_solver.hpp"
+#include "schwarz.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -38,53 +39,50 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::plasma::transport;
 
-class CustomSolverMonitor : public IterativeSolverMonitor
-{
-public:
-   CustomSolverMonitor(const ParMesh *m,
-                       ParGridFunction *f) :
-      pmesh(m),
-      pgf(f) {}
-
-   void MonitorSolution(int i, double norm, const Vector &x, bool final)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      int  num_procs, myid;
-
-      MPI_Comm_size(pmesh->GetComm(),&num_procs);
-      MPI_Comm_rank(pmesh->GetComm(),&myid);
-
-      pgf->SetFromTrueDofs(x);
-
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << *pgf
-               << "window_title 'Iteration no " << i << "'"
-               << "keys rRjlc\n" << flush;
-   }
-
-private:
-   const ParMesh *pmesh;
-   ParGridFunction *pgf;
-};
-
 class DBCCoefficient : public Coefficient
 {
 private:
+   int p_;
    double Lx_, Ly_, hx_, hy_;
    mutable Vector x_;
 
 public:
-   DBCCoefficient(double Lx, double Ly, int nx, int ny)
-      : Lx_(Lx), Ly_(Ly), hx_(Lx/nx), hy_(Ly/ny), x_(2)
+   DBCCoefficient(int p, double Lx, double Ly, int nx, int ny)
+      : p_(p), Lx_(Lx), Ly_(Ly), hx_(Lx/nx), hy_(Ly/ny), x_(2)
    {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
 
+      if (x_[0] < hx_ && x_[1] < hy_)
+      {
+         return 0.5 *
+                (1.0 -
+                 std::pow(1.0 - x_[0] / hx_, p_) +
+                 std::pow(1.0 - x_[1] / hy_, p_));
+      }
+      else if (x_[0] > Lx_ - hx_ && x_[1] > Ly_ - hy_)
+      {
+         return 0.5 *
+                (1.0 +
+                 std::pow(1.0 - (Lx_ - x_[0]) / hx_, p_) -
+                 std::pow(1.0 - (Ly_ - x_[1]) / hy_, p_));
+      }
+      else if (x_[0] > Lx_ - hx_ || x_[1] < hy_)
+      {
+         return 1.0;
+      }
+      else if (x_[0] < hx_ || x_[1] > Ly_ - hy_)
+      {
+         return 0.0;
+      }
+      else
+      {
+         return 0.5;
+      }
+
+      /*
       if (x_[0] < hx_)
       {
          if (x_[1] < hy_)
@@ -119,8 +117,13 @@ public:
       {
          return 0.5;
       }
+      */
+
    }
 };
+
+double FindYVal(ParGridFunction &u, double target, double x,
+                double y0, double y1);
 
 int main(int argc, char *argv[])
 {
@@ -133,16 +136,17 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    // const char *mesh_file = "./umansky_10x10.mesh";
    int ser_ref_levels = 0;
-   int par_ref_levels = 1;
+   int par_ref_levels = 0;
    int order = 1;
    int dim = 2;
    int nx = 10;
    int ny = 10;
-   double Lx = 10.0;
-   double Ly = 10.0;
+   double Lx = 1.0;
+   double Ly = 1.0;
    double K_eta = 1.0;
    double K_xi = 1.0;
    double A_K = -1.0;
+   double theta_m_deg = -1.0;
    double theta_m = 0.0;
    double sigma = -1.0;
    double kappa = -1.0;
@@ -172,6 +176,8 @@ int main(int argc, char *argv[])
                   "Parallel diffusion coefficient.");
    args.AddOption(&A_K, "-A-K", "--A-K",
                   "Anisotropy ratio.");
+   args.AddOption(&theta_m_deg, "-theta-m", "--theta-m",
+                  "theta_m = atan2(Ly, Lx) (entered in degrees).");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -206,8 +212,15 @@ int main(int argc, char *argv[])
       K_eta = 1.0;
       K_xi = A_K;
    }
+   if (theta_m_deg > 0.0)
+   {
+      theta_m = M_PI * theta_m_deg / 180.0;
+      Lx = Ly * tan(theta_m);
+   }
+   else
    {
       theta_m = atan2(Ly, Lx);
+      theta_m_deg = 180.0 * theta_m / M_PI;
    }
    if (myid == 0)
    {
@@ -245,6 +258,7 @@ int main(int argc, char *argv[])
    //    use discontinuous finite elements of the specified order >= 0.
    FiniteElementCollection *fec = new DG_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(&pmesh, fec);
+   ParFiniteElementSpace *vfespace = new ParFiniteElementSpace(&pmesh, fec, 2);
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -255,8 +269,18 @@ int main(int argc, char *argv[])
    //    right-hand side of the FEM linear system.
    if (myid == 0)
    {
+      cout << endl;
+      cout << "=================================" << endl;
+      cout << "Benchmark Parameters" << endl;
+      cout << "=================================" << endl;
+      cout << "Lx:                      " << Lx << endl;
+      cout << "Ly:                      " << Ly << endl;
       cout << "Angle theta_m (radians): " << theta_m << endl;
-      cout << "Angle theta_m (degrees): " << 180.0 * theta_m / M_PI << endl;
+      cout << "Angle theta_m (degrees): " << theta_m_deg << endl;
+      cout << "Tangent of theta_m:      " << tan(theta_m) << endl;
+      cout << "K_xi:                    " << K_xi << endl;
+      cout << "K_eta:                   " << K_eta << endl;
+      cout << "A_K:                     " << A_K << endl;
    }
    ConstantCoefficient one_Coef(1.0);
    ConstantCoefficient zero_Coef(0.0);
@@ -267,16 +291,37 @@ int main(int argc, char *argv[])
    ConstantCoefficient K_xi_Coef(K_xi);
    ConstantCoefficient K_eta_Coef(K_eta);
 
-   /*
-   Vector DBC_vals(pmesh.bdr_attributes.Max());
-   DBC_vals = 0.0; DBC_vals[0] = 1.0; DBC_vals[1] = 1.0;
-   PWConstCoefficient DBC_Coef(DBC_vals);
-   */
    int nf = (int)pow(2, ser_ref_levels + par_ref_levels);
-   DBCCoefficient DBC_Coef(Lx, Ly, nx * nf, ny * nf);
+   DBCCoefficient DBC_Coef(order, Lx, Ly, nx * nf, ny * nf);
+
+   if (visualization)
+   {
+      ParGridFunction bc(fespace);
+      bc.ProjectCoefficient(DBC_Coef);
+
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << bc << flush;
+   }
 
    Vector B_vec(2); B_vec[0] = cos(theta_m); B_vec[1] = sin(theta_m);
    VectorConstantCoefficient B_Coef(B_vec);
+
+   if (visualization)
+   {
+      ParGridFunction bfield(vfespace);
+      bfield.ProjectCoefficient(B_Coef);
+
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << bfield << flush;
+   }
 
    DenseMatrix K_mat(2);
    K_mat(0,0) = K_xi * B_vec[0] * B_vec[0] + K_eta * B_vec[1] * B_vec[1];
@@ -309,7 +354,7 @@ int main(int argc, char *argv[])
    //    is no need for dof elimination. After serial and parallel assembly we
    //    extract the corresponding parallel matrix A.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one_Coef));
+   a->AddDomainIntegrator(new DiffusionIntegrator(K_Coef));
    a->AddInteriorFaceIntegrator(new DGAdvDiffIntegrator(K_Coef,
                                                         Zero_Coef,
                                                         &K_xi_Coef,
@@ -333,7 +378,7 @@ int main(int argc, char *argv[])
    HypreParMatrix *A = a->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
    HypreParVector *X = x.ParallelProject();
-
+   /*
    {
       HypreParVector y(*X);
       HypreParVector Ay(*X);
@@ -350,7 +395,7 @@ int main(int argc, char *argv[])
       cout << "y^T(A-A^T)y " << (yAy - yATy) << endl;
       cout << "y^T(A-A^T)y/yTAy " << (yAy - yATy) / yAy << endl;
    }
-
+   */
    delete a;
    delete b;
 
@@ -368,7 +413,6 @@ int main(int argc, char *argv[])
    }
    else
    {
-      // CustomSolverMonitor monitor(&pmesh, &x);
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetAbsTol(0.0);
       gmres.SetRelTol(1e-12);
@@ -377,7 +421,6 @@ int main(int argc, char *argv[])
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
       gmres.SetPreconditioner(*amg);
-      // gmres.SetMonitor(monitor);
       gmres.Mult(*B, *X);
    }
    delete amg;
@@ -385,6 +428,14 @@ int main(int argc, char *argv[])
    // 12. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor.
    x = *X;
+
+   double y25 = FindYVal(x, 0.25, 0.5 * Lx, 0.0, Ly);
+   double y75 = FindYVal(x, 0.75, 0.5 * Lx, 0.0, Ly);
+
+   if (myid == 0)
+   {
+      cout << "Width: " << y25 - y75 << endl;
+   }
 
    // 13. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
@@ -422,4 +473,74 @@ int main(int argc, char *argv[])
    delete fec;
 
    return 0;
+}
+
+double FindYVal(ParGridFunction &u, double u_target, double x,
+                double y0, double y1)
+{
+   ParMesh * pmesh = u.ParFESpace()->GetParMesh();
+
+   MPI_Comm comm = pmesh->GetComm();
+   int nranks = pmesh->GetNRanks();
+   // int myrank = pmesh->GetMyRank();
+   Vector ucVec(nranks);
+
+   Array<int> elem;
+   Array<IntegrationPoint> ips;
+   DenseMatrix point_mat(2, 1);
+   point_mat(0,0) = x;
+
+   double tol = 1e-5;
+
+   double a = y0;
+   double b = y1;
+   double c = 0.5 * (a + b);
+   double ua = 1.0 - u_target;
+   double ub = 0.0 - u_target;
+   double uc = 1.0;
+
+   while (std::abs(uc) > tol)
+   {
+      point_mat(1,0) = c;
+      int nfound = pmesh->FindPoints(point_mat, elem, ips);
+
+      if (nfound != 1)
+      {
+         MFEM_ABORT("Point (" << x << ", " << c << ") not found");
+      }
+
+      if (elem[0] >= 0)
+      {
+         uc = u.GetValue(elem[0], ips[0]) - u_target;
+      }
+      else
+      {
+         uc = -DBL_MAX;
+      }
+
+      MPI_Allgather(&uc, 1, MPI_DOUBLE, ucVec.GetData(), 1, MPI_DOUBLE, comm);
+
+      for (int i=0; i<nranks; i++)
+      {
+         if (ucVec[i] > -0.5 * DBL_MAX)
+         {
+            uc = ucVec[i];
+            break;
+         }
+      }
+
+      if (ua * uc < 0.0)
+      {
+         b = c;
+         ub = uc;
+      }
+      else
+      {
+         a = c;
+         ua = uc;
+      }
+
+      c = 0.5 * (a + b);
+   }
+   return c;
 }
