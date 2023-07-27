@@ -234,6 +234,7 @@ protected:
    const IntegrationPoint *ip0;
    int init_guess_type; // algorithm to use
    int qpts_type; // Quadrature1D type for the initial guess type
+   GeometryRefiner refiner; // geometry refiner for initial guess
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
@@ -277,6 +278,7 @@ public:
         ip0(NULL),
         init_guess_type(Center),
         qpts_type(Quadrature1D::OpenHalfUniform),
+        refiner(qpts_type),
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
@@ -301,7 +303,8 @@ public:
    { ip0 = &init_ip; SetInitialGuessType(GivenPoint); }
 
    /// Set the Quadrature1D type used for the `Closest*` initial guess types.
-   void SetInitGuessPointsType(int q_type) { qpts_type = q_type; }
+   void SetInitGuessPointsType(int q_type)
+   { qpts_type = q_type; refiner.SetType(q_type); }
 
    /// Set the relative order used for the `Closest*` initial guess types.
    /** The number of points in each spatial direction is given by the formula
@@ -361,7 +364,7 @@ public:
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape,d2shape;
+   DenseMatrix dshape, d2shape;
    Vector shape;
 
    const FiniteElement *FElem;
