@@ -185,5 +185,5 @@ public:
    virtual ~SchwarzSmoother();
 };
 
-void TotBFunc(const Vector &x, Vector &B);
+//void TotBFunc(const Vector &x, Vector &B);
 
