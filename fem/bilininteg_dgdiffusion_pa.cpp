@@ -782,19 +782,6 @@ static void PADGDiffusionApply3D(const int NF,
          }
       }
 
-      // if (NF == 1)
-      // for (int p1 = 0; p1 < Q1D; ++p1)
-      // {
-      //    for (int p2 = 0; p2 < Q1D; ++p2)
-      //    {
-      //       double e = std::abs(std::abs(Bdu0[p1][p2]) - std::abs(Bdu1[p1][p2]));
-      //       std::stringstream s;
-      //       s << Bdu0[p1][p2] << " " << Bdu1[p1][p2];
-      //       MFEM_ASSERT(e < 1e-12, s.str());
-      //       // mfem::out << Bdu0[p1][p2] << " - " << Bdu1[p1][p2] << " = " << Bdu0[p1][p2] - Bdu1[p1][p2]  << "\n";
-      //    }
-      // }
-
       // term: - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
       for (int p1 = 0; p1 < Q1D; ++p1)
       {
@@ -930,8 +917,18 @@ static void PADGDiffusionApply(const int dim,
    }
    else if (dim == 3)
    {
-      return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y,
-                                  dydn, D1D, Q1D);
+      switch ((D1D << 4) | Q1D)
+      {
+      case 0x23: return PADGDiffusionApply3D<2,3>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x34: return PADGDiffusionApply3D<3,4>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x45: return PADGDiffusionApply3D<4,5>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x56: return PADGDiffusionApply3D<5,6>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x67: return PADGDiffusionApply3D<6,7>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x78: return PADGDiffusionApply3D<7,8>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x89: return PADGDiffusionApply3D<8,9>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x9A: return PADGDiffusionApply3D<9,10>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      default:   return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
+      }
    }
    MFEM_ABORT("Unknown kernel.");
 }
