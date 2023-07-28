@@ -1697,7 +1697,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
             else
             {
                int i, j;
-               internal::FaceQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+               internal::FaceIdxToVolIdx2D(p, q, fid0, fid1, side, i, j);
                for (int c=0; c < vd; ++c)
                {
                   double grad_n = 0;
@@ -1721,7 +1721,6 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    const int vd = vdim;
    const bool t = byvdim;
    const int num_faces = nf;
-   const int num_elem = ne;
 
    const FiniteElement& fe = *fes.GetFE(0);
    const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
@@ -1769,7 +1768,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
             for (int p = 0; p < q2d; ++p)
             {
                int i, j, k; // 3d lex index of quad point p
-               internal::FaceQuad2Lex3D(p, q, fid0, fid1, side, orientation, i, j, k);
+               internal::FaceIdxToVolIdx3D(p, q, fid0, fid1, side, orientation, i, j, k);
 
                for (int c = 0; c < vd; ++c)
                {
@@ -1884,7 +1883,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
                y_s[p] = d_y(p, 0, side, f);
 
                int i, j;
-               internal::FaceQuad2Lex2D(p, q, fid0, fid1, side, i, j);
+               internal::FaceIdxToVolIdx2D(p, q, fid0, fid1, side, i, j);
 
                if (face_id == 0 || face_id == 2)
                {
@@ -1986,14 +1985,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
          // is this face parallel to the x,y plane in reference coo
          const bool xy_plane = (face_id == 0 || face_id == 5);
          const bool xz_plane = (face_id == 1 || face_id == 3);
-         const bool yz_plane = (face_id == 2 || face_id == 4);
 
          for (int p = 0; p < q2d; ++p)
          {
             y_s[p] = d_y(p, 0, side, f);
 
             int i, j, k;
-            internal::FaceQuad2Lex3D(p, q, fid0, fid1, side, orientation, i, j, k);
+            internal::FaceIdxToVolIdx3D(p, q, fid0, fid1, side, orientation, i, j, k);
 
             if (xy_plane)
             {
