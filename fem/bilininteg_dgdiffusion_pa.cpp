@@ -298,46 +298,50 @@ inline void FaceNormalPermutation(int perm[3], const int face_id)
 }
 
 // assigns to perm the permutation as in FaceNormalPermutation for the second element on the face but signed to indicate the sign of the normal derivative.
-inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const int face_id2, const int orientation)
+inline void SignedFaceNormalPermutation(int perm[3],
+                                        const int face_id1,
+                                        const int face_id2,
+                                        const int orientation)
 {
-   int i = 1, j = 2;
+   FaceNormalPermutation(perm, face_id2);
 
+   // Sets perm according to the inverse of PermuteFace3D
    if (face_id2 == 3 || face_id2 == 4)
    {
-      i *= -1;
+      perm[1] *= -1;
    }
    else if (face_id2 == 0)
    {
-      j *= -1;
+      perm[2] *= -1;
    }
 
    switch (orientation)
    {
       case 1:
-         std::swap(i, j);
+         std::swap(perm[1], perm[2]);
          break;
       case 2:
-         std::swap(i, j);
-         i *= -1;
+         std::swap(perm[1], perm[2]);
+         perm[1] *= -1;
          break;
       case 3:
-         i *= -1;
+         perm[1] *= -1;
          break;
       case 4:
-         i *= -1;
-         j *= -1;
+         perm[1] *= -1;
+         perm[2] *= -1;
          break;
       case 5:
-         std::swap(i, j);
-         i *= -1;
-         j *= -1;
+         std::swap(perm[1], perm[2]);
+         perm[1] *= -1;
+         perm[2] *= -1;
          break;
       case 6:
-         std::swap(i, j);
-         j *= -1;
+         std::swap(perm[1], perm[2]);
+         perm[2] *= -1;
          break;
       case 7:
-         j *= -1;
+         perm[2] *= -1;
          break;
       default:
          break;
@@ -345,25 +349,12 @@ inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const i
 
    if (face_id1 == 3 || face_id1 == 4)
    {
-      i *= -1;
+      perm[1] *= -1;
    }
    else if (face_id1 == 0)
    {
-      j *= -1;
+      perm[2] *= -1;
    }
-
-   const int si = (i < 0) ? -1 : 1;
-   const int sj = (j < 0) ? -1 : 1;
-   i = si * i;
-   j = sj * j;
-
-   FaceNormalPermutation(perm, face_id2);
-
-   const int x = perm[i] * si;
-   const int y = perm[j] * sj;
-
-   perm[1] = x;
-   perm[2] = y;
 }
 
 static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh,
