@@ -164,11 +164,13 @@ enum class Problem { Mass,
                      Diffusion,
                      VectorMass,
                      VectorDiffusion,
-                     MassDiffusion,
                      HDivMass,
                      HCurlMass,
                      DivDiv,
                      CurlCurl,
+                     MassDiffusion,
+                     HDivMassDivDiv,
+                     HCurlMassCurlCurl,
                      MixedVectorGradient,
                      MixedVectorCurl
                    };
@@ -192,9 +194,6 @@ std::string GetString(Problem pb)
       case Problem::VectorDiffusion:
          return "VectorDiffusion";
          break;
-      case Problem::MassDiffusion:
-         return "MassDiffusion";
-         break;
       case Problem::HDivMass:
          return "HDivMass";
          break;
@@ -206,6 +205,15 @@ std::string GetString(Problem pb)
          break;
       case Problem::CurlCurl:
          return "CurlCurl";
+         break;
+      case Problem::MassDiffusion:
+         return "MassDiffusion";
+         break;
+      case Problem::HDivMassDivDiv:
+         return "HDivMassDivDiv";
+         break;
+      case Problem::HCurlMassCurlCurl:
+         return "HCurlMassCurlCurl";
          break;
       case Problem::MixedVectorGradient:
          return "MixedVectorGradient";
@@ -294,13 +302,68 @@ void InitCoeff(Mesh &mesh, FiniteElementCollection &fec, const int dim,
    }
 }
 
+class DiffusionIntegrator2 : public DiffusionIntegrator
+{
+public:
+   DiffusionIntegrator2(Coefficient &q, const IntegrationRule *ir = nullptr)
+      : DiffusionIntegrator(q, ir) {}
+
+   DiffusionIntegrator2(VectorCoefficient &q,
+                        const IntegrationRule *ir = nullptr)
+      : DiffusionIntegrator(q, ir) {}
+
+   DiffusionIntegrator2(MatrixCoefficient &q,
+                        const IntegrationRule *ir = nullptr)
+      : DiffusionIntegrator(q, ir) {}
+
+   using NonlinearFormIntegrator::GetRule;
+   const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                  const FiniteElement &test_fe,
+                                  ElementTransformation &Trans) const override
+   { return MassIntegrator::GetRuleStatic(trial_fe, test_fe, Trans); }
+};
+
+class DivDivIntegrator2 : public DivDivIntegrator
+{
+public:
+   DivDivIntegrator2(Coefficient &q, const IntegrationRule *ir = nullptr)
+      : DivDivIntegrator(q, ir) {}
+
+   using NonlinearFormIntegrator::GetRule;
+   const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                  const FiniteElement &test_fe,
+                                  ElementTransformation &Trans) const override
+   { return VectorFEMassIntegrator::GetRuleStatic(trial_fe, test_fe, Trans); }
+};
+
+class CurlCurlIntegrator2 : public CurlCurlIntegrator
+{
+public:
+   CurlCurlIntegrator2(Coefficient &q, const IntegrationRule *ir = nullptr)
+      : CurlCurlIntegrator(q, ir) {}
+
+   CurlCurlIntegrator2(VectorCoefficient &q,
+                       const IntegrationRule *ir = nullptr)
+      : CurlCurlIntegrator(q, ir) {}
+
+   CurlCurlIntegrator2(MatrixCoefficient &q,
+                       const IntegrationRule *ir = nullptr)
+      : CurlCurlIntegrator(q, ir) {}
+
+   using NonlinearFormIntegrator::GetRule;
+   const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                  const FiniteElement &test_fe,
+                                  ElementTransformation &Trans) const override
+   { return VectorFEMassIntegrator::GetRuleStatic(trial_fe, test_fe, Trans); }
+};
+
 void test_ceed_operator(const char *input, int order,
                         const CeedCoeffType coeff_type, const Problem pb,
                         const AssemblyLevel assembly, bool mixed_p, bool bdr_integ)
 {
-   std::string section = "assembly: " + GetString(assembly) + "\n" +
+   std::string section = "pb: " + GetString(pb) + "\n" +
                          "coeff_type: " + GetString(coeff_type) + "\n" +
-                         "pb: " + GetString(pb) + "\n" +
+                         "assembly: " + GetString(assembly) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
                          (mixed_p ? "mixed_p: true\n" : "") +
                          (bdr_integ ? "bdr_integ: true\n" : "") +
@@ -368,12 +431,6 @@ void test_ceed_operator(const char *input, int order,
          AddIntegrator(k_ref, new VectorDiffusionIntegrator(*coeff));
          AddIntegrator(k_test, new VectorDiffusionIntegrator(*coeff));
          break;
-      case Problem::MassDiffusion:
-         AddIntegrator(k_ref, new MassIntegrator(*coeff));
-         AddIntegrator(k_test, new MassIntegrator(*coeff));
-         AddIntegrator(k_ref, new DiffusionIntegrator(*coeff));
-         AddIntegrator(k_test, new DiffusionIntegrator(*coeff));
-         break;
       default:
          MFEM_ABORT("Unexpected problem type.");
    }
@@ -387,6 +444,8 @@ void test_ceed_operator(const char *input, int order,
    // Compare ceed with mfem
    GridFunction x(&fes), y_ref(&fes), y_test(&fes);
    Vector d_ref(fes.GetTrueVSize()), d_test(fes.GetTrueVSize());
+   d_ref.UseDevice(true);
+   d_test.UseDevice(true);
 
    x.Randomize(1);
 
@@ -433,39 +492,61 @@ void test_ceed_vectorfe_operator(const char *input, int order,
                                  const CeedCoeffType coeff_type, const Problem pb,
                                  const AssemblyLevel assembly, bool bdr_integ)
 {
-   std::string section = "assembly: " + GetString(assembly) + "\n" +
+   std::string section = "pb: " + GetString(pb) + "\n" +
                          "coeff_type: " + GetString(coeff_type) + "\n" +
-                         "pb: " + GetString(pb) + "\n" +
+                         "assembly: " + GetString(assembly) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
                          (bdr_integ ? "bdr_integ: true\n" : "") +
                          "mesh: " + input;
    INFO(section);
    Mesh mesh(input, 1, 1);
+
+
+   // //XX TODO WIP
+   // const int ref_levels = 2;
+   // for (int l = 0; l < ref_levels; l++)
+   // {
+   //    mesh.UniformRefinement();
+   // }
+
+
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
    FiniteElementCollection *fec = nullptr;
-   if ((pb == Problem::HDivMass || pb == Problem::DivDiv) && bdr_integ)
+   if ((pb == Problem::HDivMass || pb == Problem::DivDiv ||
+        pb == Problem::HDivMassDivDiv) && bdr_integ)
    {
       // Boundary RT elements in 2D and 3D are actually L2
       return;
    }
-   if (pb == Problem::CurlCurl && dim - bdr_integ < 2)
+   if ((pb == Problem::CurlCurl || pb == Problem::HCurlMassCurlCurl) &&
+       dim - bdr_integ < 2)
    {
       // No 1D ND curl shape
+      return;
+   }
+   if (assembly == AssemblyLevel::NONE && (pb == Problem::MassDiffusion ||
+                                           pb == Problem::HDivMassDivDiv ||
+                                           pb == Problem::HCurlMassCurlCurl))
+   {
+      // No MF assembly for these integrators.
       return;
    }
    switch (pb)
    {
       case Problem::Mass:
       case Problem::Diffusion:
+      case Problem::MassDiffusion:
          fec = new H1_FECollection(order, dim);
          break;
       case Problem::HDivMass:
       case Problem::DivDiv:
+      case Problem::HDivMassDivDiv:
          fec = new RT_FECollection(order-1, dim);
          break;
       case Problem::HCurlMass:
       case Problem::CurlCurl:
+      case Problem::HCurlMassCurlCurl:
          fec = new ND_FECollection(order, dim);
          break;
       default:
@@ -489,6 +570,11 @@ void test_ceed_vectorfe_operator(const char *input, int order,
       delete mcoeff;
       delete fec;
       return;
+   }
+   if (!coeff && (pb == Problem::MassDiffusion || pb == Problem::HDivMassDivDiv ||
+                  (pb == Problem::HCurlMassCurlCurl && dim - bdr_integ < 3)))
+   {
+      coeff = new ConstantCoefficient(1.0);
    }
 
    // Build the BilinearForm
@@ -514,59 +600,137 @@ void test_ceed_vectorfe_operator(const char *input, int order,
          AddIntegrator(k_test, new MassIntegrator(*coeff));
          break;
       case Problem::Diffusion:
-         if (coeff)
+         if (mcoeff)
          {
-            AddIntegrator(k_ref, new DiffusionIntegrator(*coeff));
-            AddIntegrator(k_test, new DiffusionIntegrator(*coeff));
+            AddIntegrator(k_ref, new DiffusionIntegrator(*mcoeff));
+            AddIntegrator(k_test, new DiffusionIntegrator(*mcoeff));
          }
          else if (vcoeff)
          {
             AddIntegrator(k_ref, new DiffusionIntegrator(*vcoeff));
             AddIntegrator(k_test, new DiffusionIntegrator(*vcoeff));
          }
-         else if (mcoeff)
+         else if (coeff)
          {
-            AddIntegrator(k_ref, new DiffusionIntegrator(*mcoeff));
-            AddIntegrator(k_test, new DiffusionIntegrator(*mcoeff));
+            AddIntegrator(k_ref, new DiffusionIntegrator(*coeff));
+            AddIntegrator(k_test, new DiffusionIntegrator(*coeff));
+         }
+         break;
+      case Problem::MassDiffusion:
+         if (mcoeff)
+         {
+            AddIntegrator(k_ref, new DiffusionIntegrator2(*mcoeff));
+            AddIntegrator(k_ref, new MassIntegrator(*coeff));
+            AddIntegrator(k_test, new DiffusionMassIntegrator(*mcoeff, *coeff));
+         }
+         else if (vcoeff)
+         {
+            AddIntegrator(k_ref, new DiffusionIntegrator2(*vcoeff));
+            AddIntegrator(k_ref, new MassIntegrator(*coeff));
+            AddIntegrator(k_test, new DiffusionMassIntegrator(*vcoeff, *coeff));
+         }
+         else if (coeff)
+         {
+            AddIntegrator(k_ref, new DiffusionIntegrator2(*coeff));
+            AddIntegrator(k_ref, new MassIntegrator(*coeff));
+            AddIntegrator(k_test, new DiffusionMassIntegrator(*coeff, *coeff));
          }
          break;
       case Problem::HDivMass:
       case Problem::HCurlMass:
-         if (coeff)
+         if (mcoeff)
          {
-            AddIntegrator(k_ref, new VectorFEMassIntegrator(*coeff));
-            AddIntegrator(k_test, new VectorFEMassIntegrator(*coeff));
+            AddIntegrator(k_ref, new VectorFEMassIntegrator(*mcoeff));
+            AddIntegrator(k_test, new VectorFEMassIntegrator(*mcoeff));
          }
          else if (vcoeff)
          {
             AddIntegrator(k_ref, new VectorFEMassIntegrator(*vcoeff));
             AddIntegrator(k_test, new VectorFEMassIntegrator(*vcoeff));
          }
-         else if (mcoeff)
+         else if (coeff)
          {
-            AddIntegrator(k_ref, new VectorFEMassIntegrator(*mcoeff));
-            AddIntegrator(k_test, new VectorFEMassIntegrator(*mcoeff));
+            AddIntegrator(k_ref, new VectorFEMassIntegrator(*coeff));
+            AddIntegrator(k_test, new VectorFEMassIntegrator(*coeff));
          }
          break;
       case Problem::DivDiv:
          AddIntegrator(k_ref, new DivDivIntegrator(*coeff));
          AddIntegrator(k_test, new DivDivIntegrator(*coeff));
          break;
-      case Problem::CurlCurl:
-         if (coeff)
+      case Problem::HDivMassDivDiv:
+         if (mcoeff)
          {
-            AddIntegrator(k_ref, new CurlCurlIntegrator(*coeff));
-            AddIntegrator(k_test, new CurlCurlIntegrator(*coeff));
+            AddIntegrator(k_ref, new DivDivIntegrator2(*coeff));
+            AddIntegrator(k_ref, new VectorFEMassIntegrator(*mcoeff));
+            AddIntegrator(k_test, new DivDivMassIntegrator(*coeff, *mcoeff));
+         }
+         else if (vcoeff)
+         {
+            AddIntegrator(k_ref, new DivDivIntegrator2(*coeff));
+            AddIntegrator(k_ref, new VectorFEMassIntegrator(*vcoeff));
+            AddIntegrator(k_test, new DivDivMassIntegrator(*coeff, *vcoeff));
+         }
+         else if (coeff)
+         {
+            AddIntegrator(k_ref, new DivDivIntegrator2(*coeff));
+            AddIntegrator(k_ref, new VectorFEMassIntegrator(*coeff));
+            AddIntegrator(k_test, new DivDivMassIntegrator(*coeff, *coeff));
+         }
+         break;
+      case Problem::CurlCurl:
+         if (mcoeff)
+         {
+            AddIntegrator(k_ref, new CurlCurlIntegrator(*mcoeff));
+            AddIntegrator(k_test, new CurlCurlIntegrator(*mcoeff));
          }
          else if (vcoeff)
          {
             AddIntegrator(k_ref, new CurlCurlIntegrator(*vcoeff));
             AddIntegrator(k_test, new CurlCurlIntegrator(*vcoeff));
          }
-         else if (mcoeff)
+         else if (coeff)
          {
-            AddIntegrator(k_ref, new CurlCurlIntegrator(*mcoeff));
-            AddIntegrator(k_test, new CurlCurlIntegrator(*mcoeff));
+            AddIntegrator(k_ref, new CurlCurlIntegrator(*coeff));
+            AddIntegrator(k_test, new CurlCurlIntegrator(*coeff));
+         }
+         break;
+      case Problem::HCurlMassCurlCurl:
+         if (mcoeff)
+         {
+            if (coeff)
+            {
+               AddIntegrator(k_ref, new CurlCurlIntegrator2(*coeff));
+               AddIntegrator(k_ref, new VectorFEMassIntegrator(*mcoeff));
+               AddIntegrator(k_test, new CurlCurlMassIntegrator(*coeff, *mcoeff));
+            }
+            else
+            {
+               AddIntegrator(k_ref, new CurlCurlIntegrator2(*mcoeff));
+               AddIntegrator(k_ref, new VectorFEMassIntegrator(*mcoeff));
+               AddIntegrator(k_test, new CurlCurlMassIntegrator(*mcoeff, *mcoeff));
+            }
+         }
+         else if (vcoeff)
+         {
+            if (coeff)
+            {
+               AddIntegrator(k_ref, new CurlCurlIntegrator2(*coeff));
+               AddIntegrator(k_ref, new VectorFEMassIntegrator(*vcoeff));
+               AddIntegrator(k_test, new CurlCurlMassIntegrator(*coeff, *vcoeff));
+            }
+            else
+            {
+               AddIntegrator(k_ref, new CurlCurlIntegrator2(*vcoeff));
+               AddIntegrator(k_ref, new VectorFEMassIntegrator(*vcoeff));
+               AddIntegrator(k_test, new CurlCurlMassIntegrator(*vcoeff, *vcoeff));
+            }
+         }
+         else if (coeff)
+         {
+            AddIntegrator(k_ref, new CurlCurlIntegrator2(*coeff));
+            AddIntegrator(k_ref, new VectorFEMassIntegrator(*coeff));
+            AddIntegrator(k_test, new CurlCurlMassIntegrator(*coeff, *coeff));
          }
          break;
       default:
@@ -575,17 +739,15 @@ void test_ceed_vectorfe_operator(const char *input, int order,
 
    // Timer for profiling
    const int trials = 1;
-   const bool debug = false;
+   const bool debug = false;  //XX TODO PROFILING
    StopWatch chrono_setup_ref, chrono_setup_test;
    StopWatch chrono_apply_ref, chrono_apply_test;
-   chrono_setup_ref.Clear();
    chrono_setup_ref.Start();
 
    k_ref.Assemble();
    k_ref.Finalize();
 
    chrono_setup_ref.Stop();
-   chrono_setup_test.Clear();
    chrono_setup_test.Start();
 
    k_test.SetAssemblyLevel(assembly);
@@ -596,10 +758,13 @@ void test_ceed_vectorfe_operator(const char *input, int order,
    // Compare ceed with mfem
    GridFunction x(&fes), y_ref(&fes), y_test(&fes);
    Vector d_ref(fes.GetTrueVSize()), d_test(fes.GetTrueVSize());
+   d_ref.UseDevice(true);
+   d_test.UseDevice(true);
 
    x.Randomize(1);
 
-   chrono_apply_ref.Clear();
+   k_ref.Mult(x, y_ref);  // Warm-up...
+
    chrono_apply_ref.Start();
 
    for (int trial = 0; trial < trials; trial++)
@@ -608,7 +773,9 @@ void test_ceed_vectorfe_operator(const char *input, int order,
    }
 
    chrono_apply_ref.Stop();
-   chrono_apply_test.Clear();
+
+   k_test.Mult(x, y_test);  // Warm-up...
+
    chrono_apply_test.Start();
 
    for (int trial = 0; trial < trials; trial++)
@@ -633,7 +800,8 @@ void test_ceed_vectorfe_operator(const char *input, int order,
 
    // // TODO: Debug
    // if (!UsesTensorBasis(fes) && order > 1 &&
-   //     (pb == Problem::HCurlMass || pb == Problem::CurlCurl) &&
+   //     (pb == Problem::HCurlMass || pb == Problem::CurlCurl ||
+   //      pb == Problem::HCurlMassCurlCurl) &&
    //    d_test.Norml2() > 0.1 * d_ref.Norml2())
    // {
    //    out << "\nH(CURL) DIAGONAL ASSEMBLY DELTA\n\n";
@@ -649,52 +817,76 @@ void test_ceed_vectorfe_operator(const char *input, int order,
    REQUIRE(d_test.Norml2() <
            (mesh.Nonconforming() ||
             (!UsesTensorBasis(fes) && order > 1 &&
-             (pb == Problem::HCurlMass || pb == Problem::CurlCurl)) ?
+             (pb == Problem::HCurlMass || pb == Problem::CurlCurl ||
+              pb == Problem::HCurlMassCurlCurl)) ?
             1.0 : 1.e-12) * std::max(d_ref.Norml2(), 1.0));
 
    if (debug)
    {
-      // Estimates only for !bdr_integ, non-mixed meshes
+      // Estimates only for non-mixed meshes
       std::size_t mem_test = 0;
-      if (!bdr_integ && mesh.GetNumGeometries(dim) == 1)
+      int P = 0, Q = 0;
+      if (mesh.GetNumGeometries(dim) == 1)
       {
-         const FiniteElement &fe = *fes.GetFE(0);
-         ElementTransformation &T = *mesh.GetElementTransformation(0);
-         const int Q = (*k_ref.GetDBFI())[0]->GetRule(fe, T).GetNPoints();
-         const int P = fe.GetDof();
+         // Estimate for QFunction memory
+         const FiniteElement &fe = bdr_integ ? *fes.GetBE(0) : *fes.GetFE(0);
+         ElementTransformation &T =
+            bdr_integ ? *mesh.GetBdrElementTransformation(0) :
+            *mesh.GetElementTransformation(0);
+         P = fe.GetDof();
+         Q = bdr_integ ? (*k_ref.GetBBFI())[0]->GetRule(fe, T).GetNPoints() :
+             (*k_ref.GetDBFI())[0]->GetRule(fe, T).GetNPoints();
+         const int Qd = dim - bdr_integ;
          switch (pb)
          {
             case Problem::Mass:
                mem_test = Q * 1 * 8;
                mem_test += P * 4;
+               break;
             case Problem::Diffusion:
-               mem_test = Q * (dim * (dim + 1)) / 2 * 8;
+               mem_test = Q * (Qd * (Qd + 1)) / 2 * 8;
+               mem_test += P * 4;
+               break;
+            case Problem::MassDiffusion:
+               mem_test = Q * ((Qd * (Qd + 1)) + 1) / 2 * 8;
                mem_test += P * 4;
                break;
             case Problem::HDivMass:
-               mem_test = Q * (dim * (dim + 1)) / 2 * 8;
-               mem_test += P * 4;
+               mem_test = Q * (Qd * (Qd + 1)) / 2 * 8;
+               mem_test += P * (4 + 1); // Orientations in bool
+               break;
             case Problem::DivDiv:
                mem_test = Q * 1 * 8;
-               mem_test += P * 4;
+               mem_test += P * (4 + 1);
+               break;
+            case Problem::HDivMassDivDiv:
+               mem_test = Q * (1 + (Qd * (Qd + 1)) / 2 * 8) * 8;
+               mem_test += P * (4 + 1);
                break;
             case Problem::HCurlMass:
-               mem_test = Q * (dim * (dim + 1)) / 2 * 8;
-               mem_test += P * 3 * 4;  // Tri-diagonal curl orientations
+               mem_test = Q * (Qd * (Qd + 1)) / 2 * 8;
+               mem_test += P * (4 + 3 * 1);  // Tri-diagonal curl orientations in int8
+               break;
             case Problem::CurlCurl:
-               mem_test = Q * (dim - bdr_integ < 3 ? 1 : dim * (dim + 1) / 2) * 8;
-               mem_test += P * 3 * 4;
+               mem_test = Q * (Qd < 3 ? 1 : Qd * (Qd + 1) / 2) * 8;
+               mem_test += P * (4 + 3 * 1);
+               break;
+            case Problem::HCurlMassCurlCurl:
+               mem_test = Q * (Qd < 3 ? 1 : Qd * (Qd + 1) / 2) * 8;
+               mem_test += Q * (Qd * (Qd + 1)) / 2 * 8;
+               mem_test += P * (4 + 3 * 1);
                break;
             default:
                MFEM_ABORT("Unexpected problem type.");
          }
-         mem_test *= mesh.GetNE();  // Estimate for QFunction memory
+         mem_test *= bdr_integ ? mesh.GetNBE() : mesh.GetNE();
       }
       std::size_t mem_ref = k_ref.SpMat().NumNonZeroElems() * (8 + 4) +
                             k_ref.Height() * 4;
 
       out << "\n" << section << "\n";
-      out << "benchmark (" << fes.GetTrueVSize() << " unknowns)\n"
+      out << "benchmark (" << fes.GetTrueVSize() << " unknowns, "
+          << "P = " << P << ", Q = " << Q << ")\n"
           << "    setup: ref = "
           << chrono_setup_ref.RealTime() * 1e3 << " ms\n"
           << "           test = "
@@ -718,9 +910,9 @@ void test_ceed_mixed_operator(const char *input, int order,
                               const CeedCoeffType coeff_type, const Problem pb,
                               const AssemblyLevel assembly, bool bdr_integ)
 {
-   std::string section = "assembly: " + GetString(assembly) + "\n" +
+   std::string section = "pb: " + GetString(pb) + "\n" +
                          "coeff_type: " + GetString(coeff_type) + "\n" +
-                         "pb: " + GetString(pb) + "\n" +
+                         "assembly: " + GetString(assembly) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
                          (bdr_integ ? "bdr_integ: true\n" : "") +
                          "mesh: " + input;
@@ -857,6 +1049,18 @@ void test_ceed_mixed_operator(const char *input, int order,
    y_t_test.Add((pb == Problem::MixedVectorCurl) ? -1.0 : 1.0, y_t_ref);
 
    REQUIRE(y_t_test.Norml2() < 1.e-12 * std::max(y_t_ref.Norml2(), 1.0));
+
+   // Test full assembly
+   {
+      SparseMatrix *mat_ref = &k_ref.SpMat();
+      SparseMatrix *mat_test = ceed::CeedOperatorFullAssemble(k_test);
+      SparseMatrix *mat_diff = Add(1.0, *mat_ref, -1.0, *mat_test);
+
+      REQUIRE(mat_diff->MaxNorm() < 1.e-12 * std::max(mat_ref->MaxNorm(), 1.0));
+      delete mat_diff;
+      delete mat_test;
+   }
+
    delete gf;
    delete coeff_fes;
    delete coeff;
@@ -870,9 +1074,9 @@ void test_ceed_nloperator(const char *input, int order,
                           const CeedCoeffType coeff_type,
                           const NLProblem pb, const AssemblyLevel assembly)
 {
-   std::string section = "assembly: " + GetString(assembly) + "\n" +
+   std::string section = "pb: " + GetString(pb) + "\n" +
                          "coeff_type: " + GetString(coeff_type) + "\n" +
-                         "pb: " + GetString(pb) + "\n" +
+                         "assembly: " + GetString(assembly) + "\n" +
                          "order: " + std::to_string(order) + "\n" +
                          "mesh: " + input;
    INFO(section);
@@ -992,11 +1196,18 @@ void test_ceed_convection(const char *input, int order,
 void test_ceed_full_assembly(const char *input, int order,
                              const AssemblyLevel assembly)
 {
-   std::string section = "assembly: " + GetString(assembly) + "\n" +
-                         "order: " + std::to_string(order) + "\n" +
-                         "mesh: " + input;
-   INFO(section);
    Mesh mesh(input, 1, 1);
+
+
+
+   // //XX TODO WIP
+   // const int ref_levels = 2;
+   // for (int l = 0; l < ref_levels; l++)
+   // {
+   //    mesh.UniformRefinement();
+   // }
+
+
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
 
@@ -1012,20 +1223,31 @@ void test_ceed_full_assembly(const char *input, int order,
    for (int t = 0; t < 3; t++)
    {
       FiniteElementCollection *fec = nullptr;
+      Problem pb;
       switch (t)
       {
          case 0:
             fec = new H1_FECollection(order, dim);
+            pb = Problem::MassDiffusion;
             break;
          case 1:
             fec = new ND_FECollection(order, dim);
+            pb = Problem::HCurlMassCurlCurl;
             break;
          case 2:
             fec = new RT_FECollection(order - 1, dim);
+            pb = Problem::HDivMassDivDiv;
             break;
          default:
             MFEM_ABORT("Unexpected problem type.");
+            pb = Problem::MassDiffusion;  // Silence compiler warning
       }
+
+      std::string section = "pb: " + GetString(pb) + "\n" +
+                            "assembly: " + GetString(assembly) + "\n" +
+                            "order: " + std::to_string(order) + "\n" +
+                            "mesh: " + input;
+      INFO(section);
 
       FiniteElementSpace fes(&mesh, fec, 1);
       BilinearForm k_test(&fes);
@@ -1034,34 +1256,68 @@ void test_ceed_full_assembly(const char *input, int order,
       switch (t)
       {
          case 0:
+            k_ref.AddDomainIntegrator(new DiffusionIntegrator2(diff_coeff));
             k_ref.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-            k_test.AddDomainIntegrator(new MassIntegrator(mass_coeff));
             k_ref.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
-            k_test.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
-            k_ref.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-            k_test.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-            break;
-         case 1:
-            k_ref.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-            k_test.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-            k_ref.AddBoundaryIntegrator(new VectorFEMassIntegrator(mass_coeff));
-            k_test.AddBoundaryIntegrator(new VectorFEMassIntegrator(mass_coeff));
-            if (dim < 3)
+            if (assembly == AssemblyLevel::NONE)
             {
-               k_ref.AddDomainIntegrator(new CurlCurlIntegrator(mass_coeff));
-               k_test.AddDomainIntegrator(new CurlCurlIntegrator(mass_coeff));
+               k_test.AddDomainIntegrator(new DiffusionIntegrator2(diff_coeff));
+               k_test.AddDomainIntegrator(new MassIntegrator(mass_coeff));
             }
             else
             {
-               k_ref.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
-               k_test.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+               k_test.AddDomainIntegrator(new DiffusionMassIntegrator(diff_coeff, mass_coeff));
             }
+            k_test.AddBoundaryIntegrator(new MassIntegrator(mass_coeff));
+            break;
+         case 1:
+            if (dim < 3)
+            {
+               k_ref.AddDomainIntegrator(new CurlCurlIntegrator2(mass_coeff));
+            }
+            else
+            {
+               k_ref.AddDomainIntegrator(new CurlCurlIntegrator2(diff_coeff));
+            }
+            k_ref.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            k_ref.AddBoundaryIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            if (assembly == AssemblyLevel::NONE)
+            {
+               if (dim < 3)
+               {
+                  k_test.AddDomainIntegrator(new CurlCurlIntegrator2(mass_coeff));
+               }
+               else
+               {
+                  k_test.AddDomainIntegrator(new CurlCurlIntegrator2(diff_coeff));
+               }
+               k_test.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            }
+            else
+            {
+               if (dim < 3)
+               {
+                  k_test.AddDomainIntegrator(new CurlCurlMassIntegrator(mass_coeff, mass_coeff));
+               }
+               else
+               {
+                  k_test.AddDomainIntegrator(new CurlCurlMassIntegrator(diff_coeff, mass_coeff));
+               }
+            }
+            k_test.AddBoundaryIntegrator(new VectorFEMassIntegrator(mass_coeff));
             break;
          case 2:
+            k_ref.AddDomainIntegrator(new DivDivIntegrator2(mass_coeff));
             k_ref.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-            k_test.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-            k_ref.AddDomainIntegrator(new DivDivIntegrator(mass_coeff));
-            k_test.AddDomainIntegrator(new DivDivIntegrator(mass_coeff));
+            if (assembly == AssemblyLevel::NONE)
+            {
+               k_test.AddDomainIntegrator(new DivDivIntegrator2(mass_coeff));
+               k_test.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+            }
+            else
+            {
+               k_test.AddDomainIntegrator(new DivDivMassIntegrator(mass_coeff, mass_coeff));
+            }
             break;
          default:
             MFEM_ABORT("Unexpected problem type.");
@@ -1090,6 +1346,17 @@ void test_ceed_linear_interpolator(const char *input, int order)
                          "mesh: " + input;
    INFO(section);
    Mesh mesh(input, 1, 1);
+
+
+
+   // //XX TODO WIP
+   // const int ref_levels = 2;
+   // for (int l = 0; l < ref_levels; l++)
+   // {
+   //    mesh.UniformRefinement();
+   // }
+
+
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
    H1_FECollection h1_fec(order, dim);
@@ -1109,18 +1376,17 @@ void test_ceed_linear_interpolator(const char *input, int order)
 
    // Timer for profiling
    const int trials = 1;
-   const bool debug = false;
+   const bool debug = false;  //XX TODO PROFILING
    StopWatch chrono_setup_grad_ref, chrono_setup_grad_test;
    StopWatch chrono_apply_grad_ref, chrono_apply_grad_test;
+   StopWatch chrono_assemble_grad_test;
    StopWatch chrono_apply_id_ref, chrono_apply_id_test;
-   chrono_setup_grad_ref.Clear();
    chrono_setup_grad_ref.Start();
 
    grad_ref.Assemble();
    grad_ref.Finalize();
 
    chrono_setup_grad_ref.Stop();
-   chrono_setup_grad_test.Clear();
    chrono_setup_grad_test.Start();
 
    grad_test.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -1135,7 +1401,8 @@ void test_ceed_linear_interpolator(const char *input, int order)
 
       x.Randomize(1);
 
-      chrono_apply_grad_ref.Clear();
+      grad_ref.Mult(x, y_ref);  // Warm-up
+
       chrono_apply_grad_ref.Start();
 
       for (int trial = 0; trial < trials; trial++)
@@ -1144,7 +1411,9 @@ void test_ceed_linear_interpolator(const char *input, int order)
       }
 
       chrono_apply_grad_ref.Stop();
-      chrono_apply_grad_test.Clear();
+
+      grad_test.Mult(x, y_test);  // Warm-up
+
       chrono_apply_grad_test.Start();
 
       for (int trial = 0; trial < trials; trial++)
@@ -1160,6 +1429,8 @@ void test_ceed_linear_interpolator(const char *input, int order)
 
       x_t.Randomize(1);
 
+      grad_ref.MultTranspose(x_t, y_t_ref);  // Warm-up
+
       chrono_apply_grad_ref.Start();
 
       for (int trial = 0; trial < trials; trial++)
@@ -1168,6 +1439,9 @@ void test_ceed_linear_interpolator(const char *input, int order)
       }
 
       chrono_apply_grad_ref.Stop();
+
+      grad_test.MultTranspose(x_t, y_t_test);  // Warm-up
+
       chrono_apply_grad_test.Start();
 
       for (int trial = 0; trial < trials; trial++)
@@ -1180,6 +1454,23 @@ void test_ceed_linear_interpolator(const char *input, int order)
       y_t_test -= y_t_ref;
 
       REQUIRE(y_t_test.Norml2() < 1.e-12);
+   }
+
+   // Test full assembly
+   {
+      SparseMatrix *mat_ref = &grad_ref.SpMat();
+
+      chrono_assemble_grad_test.Start();
+
+      SparseMatrix *mat_test = ceed::CeedOperatorFullAssemble(grad_test, true);
+
+      chrono_assemble_grad_test.Stop();
+
+      SparseMatrix *mat_diff = Add(1.0, *mat_ref, -1.0, *mat_test);
+
+      REQUIRE(mat_diff->MaxNorm() < 1.e-12 * std::max(mat_ref->MaxNorm(), 1.0));
+      delete mat_diff;
+      delete mat_test;
    }
 
    // Discrete curl
@@ -1218,6 +1509,17 @@ void test_ceed_linear_interpolator(const char *input, int order)
          y_t_test -= y_t_ref;
 
          REQUIRE(y_t_test.Norml2() < 1.e-10);
+      }
+
+      // Test full assembly
+      {
+         SparseMatrix *mat_ref = &curl_ref.SpMat();
+         SparseMatrix *mat_test = ceed::CeedOperatorFullAssemble(curl_test, true);
+         SparseMatrix *mat_diff = Add(1.0, *mat_ref, -1.0, *mat_test);
+
+         REQUIRE(mat_diff->MaxNorm() < 1.e-12 * std::max(mat_ref->MaxNorm(), 1.0));
+         delete mat_diff;
+         delete mat_test;
       }
    }
 
@@ -1298,7 +1600,24 @@ void test_ceed_linear_interpolator(const char *input, int order)
          y_exact->ProjectCoefficient(vf_coeff);
       }
 
-      chrono_apply_id_ref.Clear();
+      switch (t)  // Warm-up
+      {
+         case 0:
+            id_h1_ref.Mult(*x, *y_ref);
+            id_h1_ref.MultTranspose(*y_exact, *y_t_ref);
+            break;
+         case 1:
+            id_nd_ref.Mult(*x, *y_ref);
+            id_nd_ref.MultTranspose(*y_exact, *y_t_ref);
+            break;
+         case 2:
+            id_rt_ref.Mult(*x, *y_ref);
+            id_rt_ref.MultTranspose(*y_exact, *y_t_ref);
+            break;
+         default:
+            MFEM_ABORT("Unexpected problem type.");
+      }
+
       chrono_apply_id_ref.Start();
 
       for (int trial = 0; trial < trials; trial++)
@@ -1323,7 +1642,25 @@ void test_ceed_linear_interpolator(const char *input, int order)
       }
 
       chrono_apply_id_ref.Stop();
-      chrono_apply_id_test.Clear();
+
+      switch (t)  // Warm-up
+      {
+         case 0:
+            id_h1_test.Mult(*x, *y_test);
+            id_h1_test.MultTranspose(*y_exact, *y_t_test);
+            break;
+         case 1:
+            id_nd_test.Mult(*x, *y_test);
+            id_nd_test.MultTranspose(*y_exact, *y_t_test);
+            break;
+         case 2:
+            id_rt_test.Mult(*x, *y_test);
+            id_rt_test.MultTranspose(*y_exact, *y_t_test);
+            break;
+         default:
+            MFEM_ABORT("Unexpected problem type.");
+      }
+
       chrono_apply_id_test.Start();
 
       for (int trial = 0; trial < trials; trial++)
@@ -1378,6 +1715,8 @@ void test_ceed_linear_interpolator(const char *input, int order)
           << chrono_setup_grad_ref.RealTime() * 1e3 << " ms\n"
           << "           test = "
           << chrono_setup_grad_test.RealTime() * 1e3 << " ms\n"
+          << "           test (full assembly) = "
+          << chrono_assemble_grad_test.RealTime() * 1e3 << " ms\n"
           << "    apply: ref = "
           << chrono_apply_grad_ref.RealTime() * 1e3 / trials << " ms\n"
           << "           test = "
@@ -1390,12 +1729,12 @@ void test_ceed_linear_interpolator(const char *input, int order)
    }
 }
 
-TEST_CASE("CEED mass & diffusion", "[CEED]")
+TEST_CASE("CEED mass and diffusion", "[CEED]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,
                               CeedCoeffType::Quad);
-   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,Problem::MassDiffusion,
+   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1,2);
    auto bdr_integ = GENERATE(false,true);
@@ -1418,7 +1757,7 @@ TEST_CASE("CEED p-adaptivity", "[CEED]")
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Grid,
                               CeedCoeffType::Quad);
-   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,Problem::MassDiffusion,
+   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
                       Problem::VectorMass,Problem::VectorDiffusion);
    auto order = GENERATE(1);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
@@ -1433,14 +1772,26 @@ TEST_CASE("CEED p-adaptivity", "[CEED]")
 
 TEST_CASE("CEED vector FE operators", "[CEED], [VectorFE]")
 {
+   //XX TODO PROFILING
+   // auto assembly = GENERATE(AssemblyLevel::PARTIAL);
+   // auto coeff_type = GENERATE(CeedCoeffType::MatConst);
+   // auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
+   //                    Problem::HDivMass,Problem::DivDiv,
+   //                    Problem::HCurlMass,Problem::CurlCurl);
+   // auto order = GENERATE(4);
+   // auto bdr_integ = GENERATE(false);
+   // auto mesh = GENERATE("../../data/fichera.mesh",
+   //                      "../../data/fichera-r1.mesh",
+   //                      "../../data/fichera-tet.mesh",
+   //                      "../../data/fichera-r1-tet.mesh");
+
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::Const,CeedCoeffType::Quad,
                               CeedCoeffType::VecConst,CeedCoeffType::VecQuad,
                               CeedCoeffType::MatConst,CeedCoeffType::MatQuad);
-   auto pb = GENERATE(Problem::Mass,Problem::Diffusion,
-                      Problem::HDivMass,Problem::DivDiv,
-                      Problem::HCurlMass,Problem::CurlCurl);
-   auto order = GENERATE(1,3);
+   auto pb = GENERATE(Problem::HDivMass,Problem::DivDiv,Problem::HDivMassDivDiv,
+                      Problem::HCurlMass,Problem::CurlCurl,Problem::HCurlMassCurlCurl);
+   auto order = GENERATE(1,2);
    auto bdr_integ = GENERATE(false,true);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
@@ -1541,18 +1892,27 @@ TEST_CASE("CEED full assembly", "[CEED]")
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
+                        "../../data/inline-tri.mesh",
+                        "../../data/inline-tet.mesh",
                         "../../data/star-q2.mesh",
                         "../../data/fichera-q2.mesh",
                         "../../data/amr-quad.mesh",
                         "../../data/fichera-amr.mesh",
                         "../../data/square-mixed.mesh",
                         "../../data/fichera-mixed.mesh");
-   int order = 1;
+   int order = 2;
    test_ceed_full_assembly(mesh, order, assembly);
 } // test case
 
 TEST_CASE("CEED linear interpolators", "[CEED]")
 {
+   // //XX TODO PROFILING
+   // auto mesh = GENERATE("../../data/fichera.mesh",
+   //                      "../../data/fichera-r1.mesh",
+   //                      "../../data/fichera-tet.mesh",
+   //                      "../../data/fichera-r1-tet.mesh");
+   // int order = 4;
+
    auto mesh = GENERATE("../../data/inline-quad.mesh",
                         "../../data/inline-hex.mesh",
                         "../../data/star-q2.mesh",

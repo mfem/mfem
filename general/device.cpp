@@ -426,7 +426,7 @@ static void CeedDeviceSetup(const char *ceed_spec)
                    "WARNING!!!\n" << std::endl;
       }
 #ifdef MFEM_DEBUG
-      CeedSetErrorHandler(internal::ceed, CeedErrorStore);
+      CeedSetErrorHandler(internal::ceed, CeedErrorAbort);
 #endif
    }
 #else
