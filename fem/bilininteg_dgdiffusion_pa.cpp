@@ -85,7 +85,7 @@ static void PADGDiffusionsetup2D(const int Q1D,
          for (int side = 0; side < nsides; ++side)
          {
             int i, j;
-            internal::FaceQuad2Lex2D(p, Q1D, fid[0], fid[1], side, i, j);
+            internal::FaceIdxToVolIdx2D(p, Q1D, fid[0], fid[1], side, i, j);
 
             // Always opposite direction in "native" ordering
             // Need to multiply the native=>lex0 with native=>lex1 and negate
@@ -188,7 +188,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
             for (int side = 0; side < nsides; ++side)
             {
                int i, j, k;
-               internal::FaceQuad2Lex3D(
+               internal::FaceIdxToVolIdx3D(
                   p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j, k);
 
                const int e = el[side];

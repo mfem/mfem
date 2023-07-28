@@ -174,7 +174,7 @@ inline int PermuteFace3D(const int face_id1, const int face_id2,
 /// The returned coordinates will be relative to element 1 or element 2
 /// according to the value of side (side == 0 corresponds element 1).
 MFEM_HOST_DEVICE
-inline void FaceQuad2Lex2D(const int qi, const int nq, const int face_id0,
+inline void FaceIdxToVolIdx2D(const int qi, const int nq, const int face_id0,
                            const int face_id1, const int side, int &i, int &j)
 {
    // Note: in 2D, a consistently ordered mesh will always have the element 2
@@ -186,20 +186,15 @@ inline void FaceQuad2Lex2D(const int qi, const int nq, const int face_id0,
    const int edge_idx = (side == 0) ? qi : PermuteFace2D(face_id0, face_id1,
                                                          orientation, nq, qi);
 
-   if (face_id == 0 || face_id == 2)
-   {
-      i = edge_idx;
-      j = (face_id == 0) ? 0 : (nq-1);
-   }
-   else
-   {
-      j = edge_idx;
-      i = (face_id == 3) ? 0 : (nq-1);
-   }
+   const int level = (face_id == 0 || face_id == 3) ? 0 : (nq-1);
+   const bool x_axis = (face_id == 0 || face_id == 2);
+
+   i = x_axis ? edge_idx : level;
+   j = x_axis ? level : edge_idx;
 }
 
 MFEM_HOST_DEVICE
-inline void FaceQuad2Lex3D(const int index, const int size1d,
+inline void FaceIdxToVolIdx3D(const int index, const int size1d,
                            const int face_id0, const int face_id1,
                            const int side, const int orientation,
                            int& i, int& j, int& k)
@@ -207,46 +202,21 @@ inline void FaceQuad2Lex3D(const int index, const int size1d,
    MFEM_VERIFY(face_id1 >= 0 || side == 0,
                "Accessing second side but face_id1 is not valid.");
 
-   const int size2d = size1d * size1d;
    const int face_id = (side == 0) ? face_id0 : face_id1;
    const int fidx = (side == 0) ? index
                     : PermuteFace3D(face_id0, face_id1, orientation, size1d, index);
 
-   // const bool xy_plane = (face_id == 0 || face_id == 5);
-   const bool xz_plane = (face_id == 1 || face_id == 3);
+   const bool xy_plane = (face_id == 0 || face_id == 5);
    const bool yz_plane = (face_id == 2 || face_id == 4);
 
-   const int level = (face_id == 0 || face_id == 1 || face_id == 4) ? 0 : 1;
-
-   int idx3d, strides[2];
-   if (yz_plane)
-   {
-      idx3d = level ? (size1d-1) : 0;
-      strides[0] = size1d;
-      strides[1] = size2d;
-   }
-   else if (xz_plane)
-   {
-      idx3d = level ? (size1d-1)*size1d : 0;
-      strides[0] = 1;
-      strides[1] = size2d;
-   }
-   else // xy_plane
-   {
-      idx3d = level ? (size1d-1)*size2d : 0;
-      strides[0] = 1;
-      strides[1] = size1d;
-   }
+   const int level = (face_id == 0 || face_id == 1 || face_id == 4) ? 0 : (size1d-1);
 
    const int _i = fidx % size1d;
    const int _j = fidx / size1d;
 
-   idx3d += strides[0] * _i;
-   idx3d += strides[1] * _j;
-
-   k = idx3d / size2d;
-   j = (idx3d - k * size2d) / size1d;
-   i = idx3d - k * size2d - j * size1d;
+   k = xy_plane ? level : _j;
+   j = yz_plane ? _i : xy_plane ? _j : level;
+   i = yz_plane ? level : _i;
 }
 
 } // namespace internal
