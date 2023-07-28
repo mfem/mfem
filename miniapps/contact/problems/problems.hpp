@@ -10,6 +10,7 @@ private:
    int ndofs;
    FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
+
    Vector lambda, mu;
    PWConstCoefficient lambda_cf, mu_cf;
    Array<int> ess_bdr, ess_tdof_list;
@@ -20,9 +21,13 @@ private:
    Vector B,X;
    void Init();
 public:
-   ElasticityProblem(const char *mesh_file , int order_ = 1) : order(order_) 
+   ElasticityProblem(const char *mesh_file , int ref, int order_ = 1) : order(order_) 
    {
       mesh = new Mesh(mesh_file,1,1);
+      for (int i = 0; i<ref; i++)
+      {
+         mesh->UniformRefinement();
+      }
       Init();
    }
 
@@ -75,30 +80,38 @@ class ContactProblem
 private:
    ElasticityProblem * prob1 = nullptr;
    ElasticityProblem * prob2 = nullptr;
+   GridFunction nodes0;
+   GridFunction *nodes1 = nullptr;
+   std::set<int> contact_vertices;
+   bool recompute = true;
+
+protected:
+   int npoints=0;
    SparseMatrix *K =nullptr;
    BlockVector *B = nullptr;
-   int npoints=0;
    Vector gapv;
    Array<SparseMatrix*> dM;
    SparseMatrix * M=nullptr;
-   std::set<int> contact_vertices;
    void ComputeContactVertrices();
 public:
    ContactProblem(ElasticityProblem * prob1_, ElasticityProblem * prob2_);
 
    ElasticityProblem * GetElasticityProblem1() {return prob1;}
    ElasticityProblem * GetElasticityProblem2() {return prob2;}
+
+   int GetNumDofs() {return K->Height();}
+   int GetNumContraints() {return npoints;}
    Vector & GetGapFunction() {return gapv;}
    SparseMatrix * GetJacobian() {return M;}
    Array<SparseMatrix*> & GetHessian() {return dM;}
    void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2, bool reduced=false);
 
-   double E(const Vector & d) const;
-   void DdE(const Vector &d, Vector &gradE) const;
-   SparseMatrix* DddE(const Vector &d);
+   virtual double E(const Vector & d);
+   virtual void DdE(const Vector &d, Vector &gradE);
+   virtual SparseMatrix* DddE(const Vector &d);
    void g(const Vector &d, Vector &gd, bool reduced);
-   SparseMatrix* Ddg(const Vector &d);
-   SparseMatrix* lDddg(const Vector &d, const Vector &l);
+   virtual SparseMatrix* Ddg(const Vector &d);
+   virtual SparseMatrix* lDddg(const Vector &d, const Vector &l);
 
    ~ContactProblem()
    {
@@ -110,9 +123,48 @@ public:
          delete dM[i];
       }
    }
-
-
-
 };
 
 
+class QPContactProblem : public ContactProblem
+{
+private:
+   int dimD, dimS;
+public:
+   QPContactProblem(ElasticityProblem * prob1_, ElasticityProblem * prob2_);
+
+   double E(const Vector & d);
+   void DdE(const Vector &d, Vector &gradE);
+   SparseMatrix* DddE(const Vector &d);
+   void g(const Vector &d, Vector &gd);
+   SparseMatrix* Ddg(const Vector &d);
+   SparseMatrix* lDddg(const Vector &d, const Vector &l);
+};
+
+
+class QPOptContactProblem
+{
+private:
+   ContactProblem * problem = nullptr;
+   int dimU, dimM, dimC;
+   Array<int> block_offsets;
+   Vector ml;
+   SparseMatrix * NegId = nullptr;
+public:
+   QPOptContactProblem(ContactProblem * problem_);
+   int GetDimU();
+   int GetDimM();
+   int GetDimC();
+   Vector & Getml();
+   SparseMatrix * Duuf(const BlockVector &);
+   SparseMatrix * Dumf(const BlockVector &);
+   SparseMatrix * Dmuf(const BlockVector &);
+   SparseMatrix * Dmmf(const BlockVector &);
+   SparseMatrix * Duc(const BlockVector &);
+   SparseMatrix * Dmc(const BlockVector &);
+   SparseMatrix * lDuuc(const BlockVector &, const Vector &);
+   void c(const BlockVector &, Vector &);
+   double CalcObjective(const BlockVector &);
+   void CalcObjectiveGrad(const BlockVector &, BlockVector &);
+   ~QPOptContactProblem();
+};
