@@ -31,10 +31,11 @@ namespace ceed
 
 struct Coefficient
 {
-   CeedVector coeff_vector = nullptr;
    const int ncomp;
    const CeedEvalMode emode;
-   Coefficient(int ncomp_, CeedEvalMode emode_) : ncomp(ncomp_), emode(emode_) {}
+   CeedVector coeff_vector;
+   Coefficient(int ncomp, CeedEvalMode emode)
+      : ncomp(ncomp), emode(emode), coeff_vector(nullptr) {}
    virtual ~Coefficient()
    {
       CeedVectorDestroy(&coeff_vector);
@@ -44,20 +45,22 @@ struct Coefficient
 struct GridCoefficient : Coefficient
 {
    const mfem::GridFunction &gf;
-   CeedBasis basis = nullptr;
-   CeedElemRestriction restr = nullptr;
-   GridCoefficient(const mfem::GridFunction &gf_)
-      : Coefficient(gf_.VectorDim(), CEED_EVAL_INTERP), gf(gf_)
+   CeedBasis basis;
+   CeedElemRestriction restr;
+   GridCoefficient(const mfem::GridFunction &gf, Ceed ceed)
+      : Coefficient(gf.VectorDim(), CEED_EVAL_INTERP), gf(gf),
+        basis(nullptr), restr(nullptr)
    {
-      InitVector(gf, coeff_vector);
+      InitVector(gf, ceed, coeff_vector);
    }
 };
 
 struct QuadCoefficient : Coefficient
 {
    mfem::Vector vector;
-   CeedElemRestriction restr = nullptr;
-   QuadCoefficient(int ncomp_) : Coefficient(ncomp_, CEED_EVAL_NONE) {}
+   CeedElemRestriction restr;
+   QuadCoefficient(int ncomp)
+      : Coefficient(ncomp, CEED_EVAL_NONE), restr(nullptr) {}
 };
 
 /** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
@@ -68,19 +71,20 @@ struct QuadCoefficient : Coefficient
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
     @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
+    @param[in] ceed The Ceed object.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficient(mfem::Coefficient &Q,
                             mfem::Mesh &mesh,
                             const mfem::IntegrationRule &ir,
                             bool use_bdr,
+                            Ceed ceed,
                             Coefficient *&coeff_ptr)
 {
    if (mfem::GridFunctionCoefficient *gf_coeff =
           dynamic_cast<mfem::GridFunctionCoefficient *>(&Q))
    {
-      GridCoefficient *ceed_coeff =
-         new GridCoefficient(*gf_coeff->GetGridFunction());
+      auto *ceed_coeff = new GridCoefficient(*gf_coeff->GetGridFunction(), ceed);
       coeff_ptr = ceed_coeff;
    }
    else if (mfem::QuadratureFunctionCoefficient *qf_coeff =
@@ -88,7 +92,7 @@ inline void InitCoefficient(mfem::Coefficient &Q,
    {
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(1);
+      auto *ceed_coeff = new QuadCoefficient(1);
       const mfem::QuadratureFunction &qfunc = qf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension.");
@@ -97,20 +101,27 @@ inline void InitCoefficient(mfem::Coefficient &Q,
                   " QuadratureFunction appear to be different.");
       qfunc.Read();
       ceed_coeff->vector.MakeRef(const_cast<mfem::QuadratureFunction &>(qfunc), 0);
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
    else
    {
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(1);
+      auto *ceed_coeff = new QuadCoefficient(1);
       ceed_coeff->vector.SetSize(nq * ne);
       auto C = Reshape(ceed_coeff->vector.HostWrite(), nq, ne);
+      mfem::IsoparametricTransformation T;
       for (int e = 0; e < ne; ++e)
       {
-         auto &T = use_bdr ? *mesh.GetBdrElementTransformation(e) :
-                   *mesh.GetElementTransformation(e);
+         if (use_bdr)
+         {
+            mesh.GetBdrElementTransformation(e, &T);
+         }
+         else
+         {
+            mesh.GetElementTransformation(e, &T);
+         }
          for (int q = 0; q < nq; ++q)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
@@ -118,7 +129,7 @@ inline void InitCoefficient(mfem::Coefficient &Q,
             C(q, e) = Q.Eval(T, ip);
          }
       }
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
 }
@@ -131,19 +142,20 @@ inline void InitCoefficient(mfem::Coefficient &Q,
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
     @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
+    @param[in] ceed The Ceed object.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficient(mfem::VectorCoefficient &VQ,
                             mfem::Mesh &mesh,
                             const mfem::IntegrationRule &ir,
                             bool use_bdr,
+                            Ceed ceed,
                             Coefficient *&coeff_ptr)
 {
    if (mfem::VectorGridFunctionCoefficient *vgf_coeff =
           dynamic_cast<mfem::VectorGridFunctionCoefficient *>(&VQ))
    {
-      GridCoefficient *ceed_coeff =
-         new GridCoefficient(*vgf_coeff->GetGridFunction());
+      auto *ceed_coeff = new GridCoefficient(*vgf_coeff->GetGridFunction(), ceed);
       coeff_ptr = ceed_coeff;
    }
    else if (mfem::VectorQuadratureFunctionCoefficient *vqf_coeff =
@@ -152,7 +164,7 @@ inline void InitCoefficient(mfem::VectorCoefficient &VQ,
       const int vdim = vqf_coeff->GetVDim();
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(vdim);
+      auto *ceed_coeff = new QuadCoefficient(vdim);
       const mfem::QuadratureFunction &qfunc = vqf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == vdim * nq * ne,
                   "Incompatible QuadratureFunction dimension.");
@@ -161,7 +173,7 @@ inline void InitCoefficient(mfem::VectorCoefficient &VQ,
                   " QuadratureFunction appear to be different.");
       qfunc.Read();
       ceed_coeff->vector.MakeRef(const_cast<mfem::QuadratureFunction &>(qfunc), 0);
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
    else
@@ -169,24 +181,31 @@ inline void InitCoefficient(mfem::VectorCoefficient &VQ,
       const int vdim = VQ.GetVDim();
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(vdim);
+      auto *ceed_coeff = new QuadCoefficient(vdim);
       ceed_coeff->vector.SetSize(vdim * nq * ne);
       auto C = Reshape(ceed_coeff->vector.HostWrite(), vdim, nq, ne);
-      mfem::DenseMatrix Q_ir;
+      mfem::IsoparametricTransformation T;
+      mfem::DenseMatrix Q_ip;
       for (int e = 0; e < ne; ++e)
       {
-         auto &T = use_bdr ? *mesh.GetBdrElementTransformation(e) :
-                   *mesh.GetElementTransformation(e);
-         VQ.Eval(Q_ir, T, ir);
+         if (use_bdr)
+         {
+            mesh.GetBdrElementTransformation(e, &T);
+         }
+         else
+         {
+            mesh.GetElementTransformation(e, &T);
+         }
+         VQ.Eval(Q_ip, T, ir);
          for (int q = 0; q < nq; ++q)
          {
             for (int i = 0; i < vdim; ++i)
             {
-               C(i, q, e) = Q_ir(i, q);
+               C(i, q, e) = Q_ip(i, q);
             }
          }
       }
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
 }
@@ -199,12 +218,14 @@ inline void InitCoefficient(mfem::VectorCoefficient &VQ,
     @param[in] mesh is the mesh.
     @param[in] ir is the integration rule.
     @param[in] use_bdr is a flag to construct the coefficient on mesh boundaries.
+    @param[in] ceed The Ceed object.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficient(mfem::MatrixCoefficient &MQ,
                             mfem::Mesh &mesh,
                             const mfem::IntegrationRule &ir,
                             bool use_bdr,
+                            Ceed ceed,
                             Coefficient *&coeff_ptr)
 {
    // Assumes matrix coefficient is symmetric
@@ -212,14 +233,21 @@ inline void InitCoefficient(mfem::MatrixCoefficient &MQ,
    const int ncomp = (vdim * (vdim + 1)) / 2;
    const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
    const int nq = ir.GetNPoints();
-   QuadCoefficient *ceed_coeff = new QuadCoefficient(ncomp);
+   auto *ceed_coeff = new QuadCoefficient(ncomp);
    ceed_coeff->vector.SetSize(ncomp * nq * ne);
    auto C = Reshape(ceed_coeff->vector.HostWrite(), ncomp, nq, ne);
+   mfem::IsoparametricTransformation T;
    mfem::DenseMatrix Q_ip;
    for (int e = 0; e < ne; ++e)
    {
-      auto &T = use_bdr ? *mesh.GetBdrElementTransformation(e) :
-                *mesh.GetElementTransformation(e);
+      if (use_bdr)
+      {
+         mesh.GetBdrElementTransformation(e, &T);
+      }
+      else
+      {
+         mesh.GetElementTransformation(e, &T);
+      }
       for (int q = 0; q < nq; ++q)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
@@ -235,7 +263,7 @@ inline void InitCoefficient(mfem::MatrixCoefficient &MQ,
          }
       }
    }
-   InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+   InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
    coeff_ptr = ceed_coeff;
 }
 
@@ -250,6 +278,7 @@ inline void InitCoefficient(mfem::MatrixCoefficient &MQ,
     @param[in] nelem is the number of elements.
     @param[in] indices are the indices of the elements of same type in the
                        `FiniteElementSpace`.
+    @param[in] ceed The Ceed object.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficientWithIndices(mfem::Coefficient &Q,
@@ -258,13 +287,13 @@ inline void InitCoefficientWithIndices(mfem::Coefficient &Q,
                                        bool use_bdr,
                                        int nelem,
                                        const int *indices,
+                                       Ceed ceed,
                                        Coefficient *&coeff_ptr)
 {
    if (mfem::GridFunctionCoefficient *gf_coeff =
           dynamic_cast<mfem::GridFunctionCoefficient *>(&Q))
    {
-      GridCoefficient *ceed_coeff =
-         new GridCoefficient(*gf_coeff->GetGridFunction());
+      auto *ceed_coeff = new GridCoefficient(*gf_coeff->GetGridFunction(), ceed);
       coeff_ptr = ceed_coeff;
    }
    else if (mfem::QuadratureFunctionCoefficient *qf_coeff =
@@ -272,7 +301,7 @@ inline void InitCoefficientWithIndices(mfem::Coefficient &Q,
    {
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(1);
+      auto *ceed_coeff = new QuadCoefficient(1);
       ceed_coeff->vector.SetSize(nq * nelem);
       const mfem::QuadratureFunction &qfunc = qf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == nq * ne,
@@ -292,20 +321,27 @@ inline void InitCoefficientWithIndices(mfem::Coefficient &Q,
          out(q, sub_e) = in(q, e);
       });
       m_indices.DeleteDevice();
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
    else
    {
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(1);
+      auto *ceed_coeff = new QuadCoefficient(1);
       ceed_coeff->vector.SetSize(nq * nelem);
       auto C = Reshape(ceed_coeff->vector.HostWrite(), nq, nelem);
+      mfem::IsoparametricTransformation T;
       for (int i = 0; i < nelem; ++i)
       {
          const int e = indices[i];
-         auto &T = use_bdr ? *mesh.GetBdrElementTransformation(e) :
-                   *mesh.GetElementTransformation(e);
+         if (use_bdr)
+         {
+            mesh.GetBdrElementTransformation(e, &T);
+         }
+         else
+         {
+            mesh.GetElementTransformation(e, &T);
+         }
          for (int q = 0; q < nq; ++q)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
@@ -313,7 +349,7 @@ inline void InitCoefficientWithIndices(mfem::Coefficient &Q,
             C(q, i) = Q.Eval(T, ip);
          }
       }
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
 }
@@ -329,6 +365,7 @@ inline void InitCoefficientWithIndices(mfem::Coefficient &Q,
     @param[in] nelem is the number of elements.
     @param[in] indices are the indices of the elements of same type in the
                        `FiniteElementSpace`.
+    @param[in] ceed The Ceed object.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficientWithIndices(mfem::VectorCoefficient &VQ,
@@ -337,13 +374,13 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient &VQ,
                                        bool use_bdr,
                                        int nelem,
                                        const int *indices,
+                                       Ceed ceed,
                                        Coefficient *&coeff_ptr)
 {
    if (mfem::VectorGridFunctionCoefficient *vgf_coeff =
           dynamic_cast<mfem::VectorGridFunctionCoefficient *>(&VQ))
    {
-      GridCoefficient *ceed_coeff =
-         new GridCoefficient(*vgf_coeff->GetGridFunction());
+      auto *ceed_coeff = new GridCoefficient(*vgf_coeff->GetGridFunction(), ceed);
       coeff_ptr = ceed_coeff;
    }
    else if (mfem::VectorQuadratureFunctionCoefficient *vqf_coeff =
@@ -352,7 +389,7 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient &VQ,
       const int vdim = vqf_coeff->GetVDim();
       const int ne = use_bdr ? mesh.GetNBE() : mesh.GetNE();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(vdim);
+      auto *ceed_coeff = new QuadCoefficient(vdim);
       ceed_coeff->vector.SetSize(vdim * nq * nelem);
       const mfem::QuadratureFunction &qfunc = vqf_coeff->GetQuadFunction();
       MFEM_VERIFY(qfunc.Size() == vdim * nq * ne,
@@ -375,32 +412,39 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient &VQ,
          }
       });
       m_indices.DeleteDevice();
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
    else
    {
       const int vdim = VQ.GetVDim();
       const int nq = ir.GetNPoints();
-      QuadCoefficient *ceed_coeff = new QuadCoefficient(vdim);
+      auto *ceed_coeff = new QuadCoefficient(vdim);
       ceed_coeff->vector.SetSize(vdim * nq * nelem);
       auto C = Reshape(ceed_coeff->vector.HostWrite(), vdim, nq, nelem);
-      mfem::DenseMatrix Q_ir;
+      mfem::IsoparametricTransformation T;
+      mfem::DenseMatrix Q_ip;
       for (int i = 0; i < nelem; ++i)
       {
          const int e = indices[i];
-         auto &T = use_bdr ? *mesh.GetBdrElementTransformation(e) :
-                   *mesh.GetElementTransformation(e);
-         VQ.Eval(Q_ir, T, ir);
+         if (use_bdr)
+         {
+            mesh.GetBdrElementTransformation(e, &T);
+         }
+         else
+         {
+            mesh.GetElementTransformation(e, &T);
+         }
+         VQ.Eval(Q_ip, T, ir);
          for (int q = 0; q < nq; ++q)
          {
             for (int d = 0; d < vdim; ++d)
             {
-               C(d, q, i) = Q_ir(d, q);
+               C(d, q, i) = Q_ip(d, q);
             }
          }
       }
-      InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+      InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
       coeff_ptr = ceed_coeff;
    }
 }
@@ -416,6 +460,7 @@ inline void InitCoefficientWithIndices(mfem::VectorCoefficient &VQ,
     @param[in] nelem is the number of elements.
     @param[in] indices are the indices of the elements of same type in the
                        `FiniteElementSpace`.
+    @param[in] ceed The Ceed object.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`. */
 inline void InitCoefficientWithIndices(mfem::MatrixCoefficient &MQ,
@@ -424,21 +469,29 @@ inline void InitCoefficientWithIndices(mfem::MatrixCoefficient &MQ,
                                        bool use_bdr,
                                        int nelem,
                                        const int *indices,
+                                       Ceed ceed,
                                        Coefficient *&coeff_ptr)
 {
    // Assumes matrix coefficient is symmetric
    const int vdim = MQ.GetVDim();
    const int ncomp = (vdim * (vdim + 1)) / 2;
    const int nq = ir.GetNPoints();
-   QuadCoefficient *ceed_coeff = new QuadCoefficient(ncomp);
+   auto *ceed_coeff = new QuadCoefficient(ncomp);
    ceed_coeff->vector.SetSize(ncomp * nq * nelem);
    auto C = Reshape(ceed_coeff->vector.HostWrite(), ncomp, nq, nelem);
+   mfem::IsoparametricTransformation T;
    mfem::DenseMatrix Q_ip;
    for (int i = 0; i < nelem; ++i)
    {
       const int e = indices[i];
-      auto &T = use_bdr ? *mesh.GetBdrElementTransformation(e) :
-                *mesh.GetElementTransformation(e);
+      if (use_bdr)
+      {
+         mesh.GetBdrElementTransformation(e, &T);
+      }
+      else
+      {
+         mesh.GetElementTransformation(e, &T);
+      }
       for (int q = 0; q < nq; ++q)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
@@ -454,25 +507,28 @@ inline void InitCoefficientWithIndices(mfem::MatrixCoefficient &MQ,
          }
       }
    }
-   InitVector(ceed_coeff->vector, ceed_coeff->coeff_vector);
+   InitVector(ceed_coeff->vector, ceed, ceed_coeff->coeff_vector);
    coeff_ptr = ceed_coeff;
 }
 
 template <typename CoeffType>
-inline void InitCoefficient(CoeffType &Q, mfem::Mesh &mesh,
+inline void InitCoefficient(CoeffType &Q,
+                            mfem::Mesh &mesh,
                             const mfem::IntegrationRule &ir,
                             bool use_bdr,
                             int nelem,
                             const int *indices,
+                            Ceed ceed,
                             Coefficient *&coeff_ptr)
 {
    if (indices)
    {
-      InitCoefficientWithIndices(Q, mesh, ir, use_bdr, nelem, indices, coeff_ptr);
+      InitCoefficientWithIndices(Q, mesh, ir, use_bdr, nelem, indices,
+                                 ceed, coeff_ptr);
    }
    else
    {
-      InitCoefficient(Q, mesh, ir, use_bdr, coeff_ptr);
+      InitCoefficient(Q, mesh, ir, use_bdr, ceed, coeff_ptr);
    }
 }
 

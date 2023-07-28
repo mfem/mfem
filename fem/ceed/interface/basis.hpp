@@ -43,7 +43,7 @@ void InitBasis(const FiniteElementSpace &fes,
 
     @param[in] fes The finite element space.
     @param[in] ir The integration rule.
-    @param[in] use_bdr Create the basis and restriction for boundary elements.
+    @param[in] use_bdr Create the basis for boundary elements.
     @param[in] indices The indices of the elements of same type in the
                        `FiniteElementSpace`. If `indices == nullptr`, assumes
                        that the `FiniteElementSpace` is not mixed.
@@ -56,16 +56,10 @@ inline void InitBasis(const FiniteElementSpace &fes,
                       Ceed ceed,
                       CeedBasis *basis)
 {
-   const mfem::FiniteElement *fe;
-   if (indices)
-   {
-      fe = use_bdr ? fes.GetBE(indices[0]) : fes.GetFE(indices[0]);
-   }
-   else
-   {
-      fe = use_bdr ? fes.GetBE(0) : fes.GetFE(0);
-   }
-   InitBasis(fes, *fe, ir, ceed, basis);
+   const int first_index = indices ? indices[0] : 0;
+   const mfem::FiniteElement &fe =
+      use_bdr ? *fes.GetBE(first_index) : *fes.GetFE(first_index);
+   InitBasis(fes, fe, ir, ceed, basis);
 }
 
 inline void InitBasis(const FiniteElementSpace &fes,

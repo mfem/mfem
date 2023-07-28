@@ -27,6 +27,9 @@ namespace internal
 
 // Definition in general/device.cpp.
 extern Ceed ceed;
+#ifdef MFEM_USE_OPENMP
+#pragma omp threadprivate(ceed)
+#endif
 
 } // namespace internal
 

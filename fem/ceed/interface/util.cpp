@@ -38,30 +38,35 @@ namespace ceed
 void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
 {
 #ifdef MFEM_USE_CEED
-   auto itb = mfem::internal::ceed_basis_map.begin();
-   while (itb != mfem::internal::ceed_basis_map.end())
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel
+#endif
    {
-      if (std::get<0>(itb->first) == fes)
+      auto itb = internal::ceed_basis_map.begin();
+      while (itb != internal::ceed_basis_map.end())
       {
-         CeedBasisDestroy(&itb->second);
-         itb = mfem::internal::ceed_basis_map.erase(itb);
+         if (std::get<0>(itb->first) == fes)
+         {
+            CeedBasisDestroy(&itb->second);
+            itb = internal::ceed_basis_map.erase(itb);
+         }
+         else
+         {
+            itb++;
+         }
       }
-      else
+      auto itr = internal::ceed_restr_map.begin();
+      while (itr != internal::ceed_restr_map.end())
       {
-         itb++;
-      }
-   }
-   auto itr = mfem::internal::ceed_restr_map.begin();
-   while (itr != mfem::internal::ceed_restr_map.end())
-   {
-      if (std::get<0>(itr->first) == fes)
-      {
-         CeedElemRestrictionDestroy(&itr->second);
-         itr = mfem::internal::ceed_restr_map.erase(itr);
-      }
-      else
-      {
-         itr++;
+         if (std::get<0>(itr->first) == fes)
+         {
+            CeedElemRestrictionDestroy(&itr->second);
+            itr = internal::ceed_restr_map.erase(itr);
+         }
+         else
+         {
+            itr++;
+         }
       }
    }
 #endif
@@ -69,12 +74,12 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
 
 #ifdef MFEM_USE_CEED
 
-void InitVector(const mfem::Vector &v, CeedVector &cv)
+void InitVector(const mfem::Vector &v, Ceed ceed, CeedVector &cv)
 {
-   CeedVectorCreate(mfem::internal::ceed, v.Size(), &cv);
+   CeedVectorCreate(ceed, v.Size(), &cv);
    CeedScalar *cv_ptr;
    CeedMemType mem;
-   CeedGetPreferredMemType(mfem::internal::ceed, &mem);
+   CeedGetPreferredMemType(ceed, &mem);
    if (Device::Allows(Backend::DEVICE_MASK) && mem == CEED_MEM_DEVICE)
    {
       cv_ptr = const_cast<CeedScalar *>(v.Read());

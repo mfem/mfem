@@ -45,6 +45,35 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    }
 }
 
+static void InitTensorBasis(const mfem::FiniteElementSpace &fes,
+                            const mfem::FiniteElement &fe,
+                            const mfem::IntegrationRule &ir,
+                            Ceed ceed,
+                            CeedBasis *basis)
+{
+   const mfem::DofToQuad &maps = fe.GetDofToQuad(ir, mfem::DofToQuad::TENSOR);
+   const int dim = fe.GetDim();
+   const int ncomp = fes.GetVDim();
+   const int P = maps.ndof;
+   const int Q = maps.nqpt;
+   mfem::Vector qX(Q), qW(Q);
+   // The x-coordinates of the first `Q` points of the integration rule are
+   // the points of the corresponding 1D rule. We also scale the weights
+   // accordingly.
+   double w_sum = 0.0;
+   for (int i = 0; i < Q; i++)
+   {
+      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+      qX(i) = ip.x;
+      qW(i) = ip.weight;
+      w_sum += ip.weight;
+   }
+   qW *= 1.0 / w_sum;
+   CeedBasisCreateTensorH1(ceed, dim, ncomp, P, Q,
+                           maps.Bt.GetData(), maps.Gt.GetData(),
+                           qX.GetData(), qW.GetData(), basis);
+}
+
 static void InitNonTensorBasis(const mfem::FiniteElementSpace &fes,
                                const mfem::FiniteElement &fe,
                                const mfem::IntegrationRule &ir,
@@ -84,35 +113,6 @@ static void InitNonTensorBasis(const mfem::FiniteElementSpace &fes,
                         maps.Bt.GetData(), maps.Gt.GetData(),
                         qX.GetData(), qW.GetData(), basis);
    }
-}
-
-static void InitTensorBasis(const mfem::FiniteElementSpace &fes,
-                            const mfem::FiniteElement &fe,
-                            const mfem::IntegrationRule &ir,
-                            Ceed ceed,
-                            CeedBasis *basis)
-{
-   const mfem::DofToQuad &maps = fe.GetDofToQuad(ir, mfem::DofToQuad::TENSOR);
-   const int dim = fe.GetDim();
-   const int ncomp = fes.GetVDim();
-   const int P = maps.ndof;
-   const int Q = maps.nqpt;
-   mfem::Vector qX(Q), qW(Q);
-   // The x-coordinates of the first `Q` points of the integration rule are
-   // the points of the corresponding 1D rule. We also scale the weights
-   // accordingly.
-   double w_sum = 0.0;
-   for (int i = 0; i < Q; i++)
-   {
-      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
-      qX(i) = ip.x;
-      qW(i) = ip.weight;
-      w_sum += ip.weight;
-   }
-   qW *= 1.0 / w_sum;
-   CeedBasisCreateTensorH1(ceed, dim, ncomp, P, Q,
-                           maps.Bt.GetData(), maps.Gt.GetData(),
-                           qX.GetData(), qW.GetData(), basis);
 }
 
 #if 0
@@ -200,14 +200,14 @@ void InitBasis(const FiniteElementSpace &fes,
                CeedBasis *basis)
 {
    // Check for fes -> basis in hash table
-   const int ncomp = fes.GetVDim();
    const int P = fe.GetDof();
    const int Q = ir.GetNPoints();
-   BasisKey basis_key(&fes, nullptr, &ir, {ncomp, P, Q});
-   auto basis_itr = mfem::internal::ceed_basis_map.find(basis_key);
+   const int ncomp = fes.GetVDim();
+   BasisKey basis_key(&fes, nullptr, &ir, {P, Q, ncomp});
 
    // Init or retrieve key values
-   if (basis_itr == mfem::internal::ceed_basis_map.end())
+   auto basis_itr = internal::ceed_basis_map.find(basis_key);
+   if (basis_itr == internal::ceed_basis_map.end())
    {
       const bool tensor =
          dynamic_cast<const mfem::TensorBasisElement *>(&fe) != nullptr;
@@ -220,7 +220,7 @@ void InitBasis(const FiniteElementSpace &fes,
       {
          InitNonTensorBasis(fes, fe, ir, ceed, basis);
       }
-      mfem::internal::ceed_basis_map[basis_key] = *basis;
+      internal::ceed_basis_map[basis_key] = *basis;
    }
    else
    {
@@ -236,14 +236,14 @@ void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
                            CeedBasis *basis)
 {
    // Check for fes -> basis in hash table
-   const int ncomp = trial_fes.GetVDim() + test_fes.GetVDim();
-   const int P = trial_fe.GetDof();
-   const int Q = test_fe.GetDof();
-   BasisKey basis_key(&trial_fes, &test_fes, nullptr, {ncomp, P, Q});
-   auto basis_itr = mfem::internal::ceed_basis_map.find(basis_key);
+   const int P1 = trial_fe.GetDof();
+   const int P2 = test_fe.GetDof();
+   const int ncomp = trial_fes.GetVDim();  // Assumed same as test_fes
+   BasisKey basis_key(&trial_fes, &test_fes, nullptr, {P1, P2, ncomp});
 
    // Init or retrieve key values
-   if (basis_itr == mfem::internal::ceed_basis_map.end())
+   auto basis_itr = internal::ceed_basis_map.find(basis_key);
+   if (basis_itr == internal::ceed_basis_map.end())
    {
 #if 0
       if (trial_fe.GetMapType() == test_fe.GetMapType())
@@ -257,7 +257,7 @@ void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
          InitMfemInterpolatorBasis(trial_fes, test_fes, trial_fe, test_fe,
                                    ceed, basis);
       }
-      mfem::internal::ceed_basis_map[basis_key] = *basis;
+      internal::ceed_basis_map[basis_key] = *basis;
    }
    else
    {

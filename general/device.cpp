@@ -33,7 +33,6 @@ occa::device occaDevice;
 
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
-
 ceed::BasisMap ceed_basis_map;
 ceed::RestrMap ceed_restr_map;
 #endif
@@ -149,19 +148,24 @@ Device::~Device()
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
 #ifdef MFEM_USE_CEED
-      // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
-      for (auto entry : internal::ceed_basis_map)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel
+#endif
       {
-         CeedBasisDestroy(&entry.second);
+         // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
+         for (auto entry : internal::ceed_basis_map)
+         {
+            CeedBasisDestroy(&entry.second);
+         }
+         internal::ceed_basis_map.clear();
+         for (auto entry : internal::ceed_restr_map)
+         {
+            CeedElemRestrictionDestroy(&entry.second);
+         }
+         internal::ceed_restr_map.clear();
+         // Destroy Ceed context
+         CeedDestroy(&internal::ceed);
       }
-      internal::ceed_basis_map.clear();
-      for (auto entry : internal::ceed_restr_map)
-      {
-         CeedElemRestrictionDestroy(&entry.second);
-      }
-      internal::ceed_restr_map.clear();
-      // Destroy Ceed context
-      CeedDestroy(&internal::ceed);
 #endif
       mm.Destroy();
    }
@@ -407,19 +411,24 @@ static void OccaDeviceSetup(const int dev)
 static void CeedDeviceSetup(const char *ceed_spec)
 {
 #ifdef MFEM_USE_CEED
-   CeedInit(ceed_spec, &internal::ceed);
-   const char *ceed_backend;
-   CeedGetResource(internal::ceed, &ceed_backend);
-   size_t ceed_spec_len = strlen(ceed_spec);
-   if (strncmp(ceed_spec, ceed_backend, ceed_spec_len))
-   {
-      mfem::out << std::endl << "WARNING!!!\n"
-                "libCEED is not using the requested backend!!!\n"
-                "WARNING!!!\n" << std::endl;
-   }
-#ifdef MFEM_DEBUG
-   CeedSetErrorHandler(internal::ceed, CeedErrorStore);
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel
 #endif
+   {
+      CeedInit(ceed_spec, &internal::ceed);
+      const char *ceed_backend;
+      CeedGetResource(internal::ceed, &ceed_backend);
+      size_t ceed_spec_len = strlen(ceed_spec);
+      if (strncmp(ceed_spec, ceed_backend, ceed_spec_len))
+      {
+         mfem::out << std::endl << "WARNING!!!\n"
+                   "libCEED is not using the requested backend!!!\n"
+                   "WARNING!!!\n" << std::endl;
+      }
+#ifdef MFEM_DEBUG
+      CeedSetErrorHandler(internal::ceed, CeedErrorStore);
+#endif
+   }
 #else
    MFEM_CONTRACT_VAR(ceed_spec);
 #endif

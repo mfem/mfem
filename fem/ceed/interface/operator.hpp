@@ -14,6 +14,9 @@
 
 #include "../../../linalg/operator.hpp"
 #include "ceed.hpp"
+#ifdef MFEM_USE_OPENMP
+#include <vector>
+#endif
 
 namespace mfem
 {
@@ -26,21 +29,40 @@ class Operator : public mfem::Operator
 {
 protected:
 #ifdef MFEM_USE_CEED
+#ifndef MFEM_USE_OPENMP
    CeedOperator oper, oper_t;
    CeedVector u, v;
+#else
+   std::vector<CeedOperator> thread_ops, thread_ops_t;
+   std::vector<CeedVector> thread_u, thread_v;
+#endif
 
+#ifndef MFEM_USE_OPENMP
    Operator() : oper(nullptr), oper_t(nullptr), u(nullptr), v(nullptr) {}
+#else
+   Operator() {}
+#endif
 #endif
 
 public:
 #ifdef MFEM_USE_CEED
-   /// This class takes ownership of op and will delete it
+   /// This constructor takes ownership of the operator and will delete it
    Operator(CeedOperator op);
 
-   CeedOperator &GetCeedOperator() { return oper; }
-   CeedOperator &GetCeedOperatorTranspose() { return oper_t; }
-   CeedVector &GetCeedVectorU() { return u; }
-   CeedVector &GetCeedVectorV() { return v; }
+   operator CeedOperator() const
+   {
+#ifndef MFEM_USE_OPENMP
+      return oper;
+#else
+      MFEM_VERIFY(thread_ops.size() == 1,
+                  "Threaded ceed:Operator should access CeedOperators by thread index");
+      return thread_ops[0];
+#endif
+   }
+#ifdef MFEM_USE_OPENMP
+   CeedOperator operator[](std::size_t i) const { return thread_ops[i]; }
+   std::size_t Size() const { return thread_ops.size(); }
+#endif
 #endif
 
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
@@ -51,15 +73,7 @@ public:
                          const double a = 1.0) const override;
    void GetDiagonal(mfem::Vector &diag) const;
 
-   virtual ~Operator()
-   {
-#ifdef MFEM_USE_CEED
-      CeedOperatorDestroy(&oper);
-      CeedOperatorDestroy(&oper_t);
-      CeedVectorDestroy(&u);
-      CeedVectorDestroy(&v);
-#endif
-   }
+   virtual ~Operator();
 };
 
 } // namespace ceed

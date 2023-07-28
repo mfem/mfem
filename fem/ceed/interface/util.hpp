@@ -12,16 +12,16 @@
 #ifndef MFEM_LIBCEED_UTIL
 #define MFEM_LIBCEED_UTIL
 
-#include <array>
-#include <functional>
-#include <string>
-#include <tuple>
-#include <unordered_map>
 #include "../../../general/error.hpp"
 #include "ceed.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed/backend.h>
 #endif
+#include <array>
+#include <functional>
+#include <tuple>
+#include <unordered_map>
+#include <string>
 
 namespace mfem
 {
@@ -55,7 +55,7 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
   } while(0);
 
 /// Initialize a CeedVector from an mfem::Vector
-void InitVector(const mfem::Vector &v, CeedVector &cv);
+void InitVector(const mfem::Vector &v, Ceed ceed, CeedVector &cv);
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
@@ -101,8 +101,8 @@ using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 
 // Hash table for CeedElemRestriction
 using RestrKey =
-   std::tuple<const mfem::FiniteElementSpace *, std::array<int, 3>,
-   std::array<int, 3>, int>;
+   std::tuple<const mfem::FiniteElementSpace *, std::array<int, 4>,
+   std::array<int, 3>>;
 struct RestrHash
 {
    std::size_t operator()(const RestrKey &k) const
@@ -111,15 +111,14 @@ struct RestrHash
                 CeedHash(std::get<0>(k)),
                 CeedHashCombine(
                    CeedHashCombine(
-                      CeedHashCombine(
-                         CeedHashCombine(CeedHash(std::get<1>(k)[0]),
-                                         CeedHash(std::get<1>(k)[1])),
-                         CeedHash(std::get<1>(k)[2])),
-                      CeedHashCombine(
-                         CeedHashCombine(CeedHash(std::get<2>(k)[0]),
-                                         CeedHash(std::get<2>(k)[1])),
-                         CeedHash(std::get<2>(k)[2]))),
-                   CeedHash(std::get<3>(k))));
+                      CeedHashCombine(CeedHash(std::get<1>(k)[0]),
+                                      CeedHash(std::get<1>(k)[1])),
+                      CeedHashCombine(CeedHash(std::get<1>(k)[2]),
+                                      CeedHash(std::get<1>(k)[3]))),
+                   CeedHashCombine(
+                      CeedHashCombine(CeedHash(std::get<2>(k)[0]),
+                                      CeedHash(std::get<2>(k)[1])),
+                      CeedHash(std::get<2>(k)[2]))));
    }
 };
 using RestrMap =
@@ -136,7 +135,13 @@ namespace internal
 /** @warning These maps have a tendency to create bugs when adding new "types"
     of CeedBasis and CeedElemRestriction. Definitions in general/device.cpp. */
 extern ceed::BasisMap ceed_basis_map;
+#ifdef MFEM_USE_OPENMP
+#pragma omp threadprivate(ceed_basis_map)
+#endif
 extern ceed::RestrMap ceed_restr_map;
+#ifdef MFEM_USE_OPENMP
+#pragma omp threadprivate(ceed_restr_map)
+#endif
 #endif
 
 } // namespace internal
