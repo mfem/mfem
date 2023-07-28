@@ -200,18 +200,19 @@ inline void FaceQuad2Lex2D(const int qi, const int nq, const int face_id0,
 
 MFEM_HOST_DEVICE
 inline void FaceQuad2Lex3D(const int index, const int size1d,
-                           const int face_id0, const int face_id1, const int side, const int orientation,
+                           const int face_id0, const int face_id1,
+                           const int side, const int orientation,
                            int& i, int& j, int& k)
 {
-   MFEM_VERIFY(face_id1 >= 0 ||
-               side == 0, "accessing second side but face_id1 is not valid.");
+   MFEM_VERIFY(face_id1 >= 0 || side == 0,
+               "Accessing second side but face_id1 is not valid.");
 
    const int size2d = size1d * size1d;
    const int face_id = (side == 0) ? face_id0 : face_id1;
-   int fidx = (side == 0) ? index : PermuteFace3D(face_id0, face_id1, orientation,
-                                                  size1d, index);
+   const int fidx = (side == 0) ? index
+                    : PermuteFace3D(face_id0, face_id1, orientation, size1d, index);
 
-   const bool xy_plane = (face_id == 0 || face_id == 5);
+   // const bool xy_plane = (face_id == 0 || face_id == 5);
    const bool xz_plane = (face_id == 1 || face_id == 3);
    const bool yz_plane = (face_id == 2 || face_id == 4);
 
