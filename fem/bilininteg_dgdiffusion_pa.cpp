@@ -290,7 +290,7 @@ inline void FaceNormalPermutation(int perm[3], const int face_id)
 {
    const bool xy_plane = (face_id == 0 || face_id == 5);
    const bool xz_plane = (face_id == 1 || face_id == 3);
-   const bool yz_plane = (face_id == 2 || face_id == 4);
+   // const bool yz_plane = (face_id == 2 || face_id == 4);
 
    perm[0] = (xy_plane) ? 3 : (xz_plane) ? 2 : 1;
    perm[1] = (xy_plane || xz_plane) ? 1 : 2;
@@ -369,8 +369,6 @@ inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const i
 static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh,
                                       const FaceType type, Array<int>& iwork_)
 {
-   const int ne = mesh.GetNE();
-
    int fidx = 0;
    iwork_.SetSize(nf * 12);
    // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
