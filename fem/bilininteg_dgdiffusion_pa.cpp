@@ -195,26 +195,17 @@ static void PADGDiffusionSetup3D(const int Q1D,
 
                double nJi[3];
 
-               nJi[0] = (-J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2,
-                                                                                 e)) * n(p1, p2, 0, f)
-                        + ( J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2,
-                                                                                   e)) * n(p1, p2, 1, f)
-                        + (-J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1,
-                                                                                   e)) * n(p1, p2, 2, f);
+               nJi[0] = (  -J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
+                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
+                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 2, f);
 
-               nJi[1] = ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2,
-                                                                                 e)) * n(p1, p2, 0, f)
-                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2,
-                                                                                   e)) * n(p1, p2, 1, f)
-                        + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1,
-                                                                                   e)) * n(p1, p2, 2, f);
+               nJi[1] = (   J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
+                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
+                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 2, f);
 
-               nJi[2] = (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2,
-                                                                                 e)) * n(p1, p2, 0, f)
-                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2,
-                                                                                   e)) * n(p1, p2, 1, f)
-                        + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1,
-                                                                                   e)) * n(p1, p2, 2, f);
+               nJi[2] = (  -J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 0, f)
+                        + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 1, f)
+                        + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
 
                const double dJe = detJe(i,j,k,e);
                const double val = factor * Qp * W(p1, p2) * dJf / dJe;
@@ -306,83 +297,72 @@ inline void FaceNormalPermutation(int perm[3], const int face_id)
 }
 
 // assigns to perm the permutation as in FaceNormalPermutation for the second element on the face but signed to indicate the sign of the normal derivative.
-inline void SignedFaceNormalPermutation(int perm[3], const int face_id1,
-                                        const int face_id2, const int orientation)
+inline void SignedFaceNormalPermutation(int perm[3], const int face_id1, const int face_id2, const int orientation)
 {
-   // lex ordering
-   FaceNormalPermutation(perm, face_id2);
-   // perm[1] = 1;
-   // perm[2] = 2;
+   int i = 1, j = 2;
 
-   // convert from lex ordering to natural
-   if (face_id1 == 3 || face_id1 == 4)
+   if (face_id2 == 3 || face_id2 == 4)
    {
-      perm[1] *= -1;
+      i *= -1;
    }
-   else if (face_id1 == 0)
+   else if (face_id2 == 0)
    {
-      perm[2] *= -1;
+      j *= -1;
    }
 
-   // permute based on face orientation
    switch (orientation)
    {
-      case 0:
-         break;
       case 1:
-         std::swap(perm[1], perm[2]);
+         std::swap(i, j);
          break;
       case 2:
-         std::swap(perm[1], perm[2]);
-         perm[2] *= -1;
+         std::swap(i, j);
+         i *= -1;
          break;
       case 3:
-         perm[1] *= -1;
+         i *= -1;
          break;
       case 4:
-         perm[1] *= -1;
-         perm[2] *= -1;
+         i *= -1;
+         j *= -1;
          break;
       case 5:
-         std::swap(perm[1], perm[2]);
-         perm[1] *= -1;
-         perm[2] *= -1;
+         std::swap(i, j);
+         i *= -1;
+         j *= -1;
          break;
       case 6:
-         std::swap(perm[1], perm[2]);
-         perm[1] *= -1;
+         std::swap(i, j);
+         j *= -1;
          break;
       case 7:
-         perm[2] *= -1;
+         j *= -1;
          break;
       default:
          break;
    }
 
-   // convert back to lex
-   if (face_id2 == 3 || face_id2 == 4)
+   if (face_id1 == 3 || face_id1 == 4)
    {
-      perm[1] *= -1;
+      i *= -1;
    }
-   else if (face_id2 == 0)
+   else if (face_id1 == 0)
    {
-      perm[2] *= -1;
+      j *= -1;
    }
 
-   // int si = (perm[1] < 0) ? -1 : 1;
-   // int i = si * perm[1];
-   // int sj = (perm[2] < 0) ? -1 : 1;
-   // int j = sj * perm[2];
+   const int si = (i < 0) ? -1 : 1;
+   const int sj = (j < 0) ? -1 : 1;
+   i = si * i;
+   j = sj * j;
 
-   // FaceNormalPermutation(perm, face_id2);
+   FaceNormalPermutation(perm, face_id2);
 
-   // int x = perm[i] * si;
-   // int y = perm[j] * sj;
+   const int x = perm[i] * si;
+   const int y = perm[j] * sj;
 
-   // perm[1] = x;
-   // perm[2] = y;
-
-   // mfem::out << perm[0] << " " << perm[1] << " " << perm[2] << "\n";
+   perm[1] = x;
+   perm[2] = y;
 }
 
 static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh,
@@ -817,7 +797,11 @@ static void PADGDiffusionApply3D(const int NF,
       // {
       //    for (int p2 = 0; p2 < Q1D; ++p2)
       //    {
-      //       mfem::out << Bdu0[p1][p2] << " - " << Bdu1[p1][p2] << " = " << Bdu0[p1][p2] - Bdu1[p1][p2]  << "\n";
+      //       double e = std::abs(std::abs(Bdu0[p1][p2]) - std::abs(Bdu1[p1][p2]));
+      //       std::stringstream s;
+      //       s << Bdu0[p1][p2] << " " << Bdu1[p1][p2];
+      //       MFEM_ASSERT(e < 1e-12, s.str());
+      //       // mfem::out << Bdu0[p1][p2] << " - " << Bdu1[p1][p2] << " = " << Bdu0[p1][p2] - Bdu1[p1][p2]  << "\n";
       //    }
       // }
 
