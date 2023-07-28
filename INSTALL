@@ -628,9 +628,13 @@ The specific libraries and their options are:
   both MPI and hypre.
   If MFEM_USE_CUDA is enabled, we expect that SUNDIALS is built with support
   for CUDA.
-  URL: http://computation.llnl.gov/projects/sundials/sundials-software
+  If MFEM_USE_HIP is enabled, we expect that SUNDIALS is built with support
+  for HIP.
+  URL: http://computing.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support.
+  Versions: SUNDIALS >= 5.0.0,
+            SUNDIALS >= 5.4.0 for CUDA support, and
+            SUNDIALS >= 5.7.0 for HIP support.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html

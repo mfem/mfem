@@ -49,6 +49,10 @@
 #include "ginkgo.hpp"
 #endif
 
+#ifdef MFEM_USE_MKL_PARDISO
+#include "pardiso.hpp"
+#endif
+
 #ifdef MFEM_USE_MPI
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
