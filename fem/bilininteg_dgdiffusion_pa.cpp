@@ -188,13 +188,13 @@ static void PADGDiffusionSetup3D(const int Q1D,
             for (int side = 0; side < nsides; ++side)
             {
                int i, j, k;
-               internal::FaceQuad2Lex3D(p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j,
-                                        k);
+               internal::FaceQuad2Lex3D(
+                  p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j, k);
 
                const int e = el[side];
 
+               // *INDENT-OFF*
                double nJi[3];
-
                nJi[0] = (  -J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
                         + ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
                         + (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 2, f);
@@ -206,6 +206,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
                nJi[2] = (  -J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 0, f)
                         + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 1, f)
                         + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
+               // *INDENT-ON*
 
                const double dJe = detJe(i,j,k,e);
                const double val = factor * Qp * W(p1, p2) * dJf / dJe;
