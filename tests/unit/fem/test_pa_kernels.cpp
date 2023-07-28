@@ -678,42 +678,36 @@ Mesh mesh_3d_orientation(int face_perm_1, int face_perm_2)
 
 TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
+   const int order = GENERATE(1, 2);
+
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
    const bool have_data_dir = mfem_data_dir != "";
-   const int order = 2;//GENERATE(1,2,3);
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
+   const auto mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
 
-   // std::vector<std::string> mesh_filenames =
-   // {
-   //    // "../../data/star.mesh",
-   //    // "../../data/fichera.mesh",
-   //    "../../data/unstructured_hex.v22.msh"
-   // };
-   // if (have_data_dir)
-   // {
-   //    mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
-   // }
-   // std::string mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
-
-   // Mesh mesh(mesh_fname.c_str());
-   // GENERATE(range(0, 24));
-   const int perm1 = 0;
-   const int perm2 = 0;
-   Mesh mesh = mesh_3d_orientation(perm1, perm2);
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
    const int dim = mesh.Dimension();
 
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
-   // x.Randomize(1);
-   FunctionCoefficient F([](const Vector& x) -> double {return x[0] + 2*x[1] * 4*x[2];});
-   x.ProjectCoefficient(F);
+   x.Randomize(1);
 
    ConstantCoefficient pi(M_PI);
 
-   const double sigma = 0.0;
-   const double kappa = 0.0;
-
-   std::cout << perm1 << " " << perm2 << "\n";
+   const double sigma = -1.0;
+   const double kappa = 10.0;
 
    BilinearForm blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
