@@ -271,7 +271,7 @@ protected:
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
-   Array<StatelessDofTransformation*> DoFTransArray;
+   Array<StatelessDofTransformation *> DoFTransArray;
    mutable DofTransformation DoFTrans;
    mutable VDofTransformation VDoFTrans;
 
