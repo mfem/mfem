@@ -585,7 +585,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
       SetTDofsByVDim(fes_lor, d, Y_dim, Y);
    }
 
-   SetTDofs(fes_lor, Y, y);
+   SetTDofs(fes_lor, std::move(Y), y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
@@ -606,7 +606,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
       SetTDofsByVDim(fes_ho, d, Y_dim, Y);
    }
 
-   SetTDofs(fes_ho, Y, y);
+   SetTDofs(fes_ho, std::move(Y), y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
@@ -631,7 +631,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       SetTDofsByVDim(fes_ho, d, Y_dim, Y);
    }
 
-   SetTDofs(fes_ho, Y, y);
+   SetTDofs(fes_ho, std::move(Y), y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
@@ -653,10 +653,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
       Xbar = 0.0;
       pcg.Mult(X_dim, Xbar);
       M_LH->Mult(Xbar, Y_dim);
-      SetTDofsByVDim(fes_lor, d, Y_dim, y);
+      SetTDofsByVDim(fes_lor, d, Y_dim, Y);
    }
 
-   SetTDofs(fes_lor, Y, y);
+   SetTDofs(fes_lor, std::move(Y), y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(double p_rtol_)
@@ -747,9 +747,19 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
    // Allocate M_LH (same sparsity pattern as R)
    // L refers to the low-order refined mesh (DOFs correspond to rows)
    // H refers to the higher-order mesh (DOFs correspond to columns)
+   Memory<int> I(r_and_mlh.first->Height() + 1);
+   for (int icol = 0; icol < r_and_mlh.first->Height() + 1; ++icol)
+   {
+      I[icol] = r_and_mlh.first->GetI()[icol];
+   }
+   Memory<int> J(r_and_mlh.first->NumNonZeroElems());
+   for (int jcol = 0; jcol < r_and_mlh.first->NumNonZeroElems(); ++jcol)
+   {
+      J[jcol] = r_and_mlh.first->GetJ()[jcol];
+   }
    r_and_mlh.second = std::unique_ptr<SparseMatrix>(new SparseMatrix(
-      r_and_mlh.first->GetI(), r_and_mlh.first->GetJ(), NULL,
-      r_and_mlh.first->Height(), r_and_mlh.first->Width(), false, true, true));
+      I, J, NULL,
+      r_and_mlh.first->Height(), r_and_mlh.first->Width(), true, true, true));
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
@@ -817,7 +827,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofs(
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTDofs(
-   const FiniteElementSpace& fes, const Vector& X, Vector& x) const
+   const FiniteElementSpace& fes, Vector&& X, Vector& x) const
 {
    const Operator* P = fes.GetProlongationMatrix();
    if (P)
@@ -826,7 +836,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTDofs(
    }
    else
    {
-      x.NewDataAndSize(X.GetData(), X.Size());
+      x = std::move(X);
    }
 }
 

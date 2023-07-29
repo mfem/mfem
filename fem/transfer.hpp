@@ -302,7 +302,7 @@ protected:
       virtual void GetTDofs(const FiniteElementSpace& fes,
                             const Vector& x, Vector& X) const;
       virtual void SetTDofs(const FiniteElementSpace& fes,
-                            const Vector& X, Vector& x) const;
+                            Vector&& X, Vector& x) const;
       virtual void GetTDofsByVDim(const FiniteElementSpace& fes,
                                   int vdim, const Vector& X, Vector& X_vdim) const;
       virtual void SetTDofsByVDim(const FiniteElementSpace& fes,
