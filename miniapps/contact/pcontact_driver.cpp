@@ -76,8 +76,8 @@ int main(int argc, char *argv[])
    ParContactProblem contact(&prob1,&prob2);
    Vector displ1(prob1.GetNumDofs()), displ2(prob2.GetNumDofs());
    displ1 = 0.0; displ2 = 0.0;
-   contact.ComputeGapFunctionAndDerivatives(displ1,displ2,true);
-   // contact.ComputeGapFunctionAndDerivatives(displ1,displ2,false);
+   // contact.ComputeGapFunctionAndDerivatives(displ1,displ2,true);
+   contact.ComputeGapFunctionAndDerivatives(displ1,displ2,false);
 
    return 0;
 

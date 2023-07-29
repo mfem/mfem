@@ -287,24 +287,26 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    // Construct M row and col starts to construct HypreParMatrix
    int Mrows[2]; 
    int Mcols[2]; 
-
+   int nrows, gnrows;
    if (reduced)
    {
-      Mrows[0] = constraints_starts[0]; Mrows[1] = constraints_starts[1];
-      Mcols[0] = K->ColPart()[0]; Mcols[1] = K->ColPart()[1]; 
-      M = new HypreParMatrix(K->GetComm(),npoints,gnpoints,gndofs,
-                             localS.GetI(), localS.GetJ(),localS.GetData(),
-                             Mrows,Mcols);
+      Mrows[0] = constraints_starts[0];
+      Mrows[1] = constraints_starts[1];
+      nrows = npoints;
+      gnrows = gnpoints;
    }
    else
    {
-      Mrows[0] = vertex_offsets[myid]; Mrows[1] = vertex_offsets[myid]+nv;
-      Mcols[0] = K->ColPart()[0]; Mcols[1] = K->ColPart()[1]; 
-      M = new HypreParMatrix(K->GetComm(),nv,gnv,gndofs,
+      Mrows[0] = vertex_offsets[myid];
+      Mrows[1] = vertex_offsets[myid]+nv;
+      nrows = nv;
+      gnrows = gnv;
+   }
+   Mcols[0] = K->ColPart()[0]; 
+   Mcols[1] = K->ColPart()[1]; 
+   M = new HypreParMatrix(K->GetComm(),nrows,gnrows,gndofs,
                           localS.GetI(), localS.GetJ(),localS.GetData(),
                           Mrows,Mcols);
-   }
-   
 }
 
 
