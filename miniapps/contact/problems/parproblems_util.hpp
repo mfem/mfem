@@ -11,5 +11,11 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
                       Vector & xyz2, Array<int> & s_conn2, Vector& xi, DenseMatrix & coords);
 
 // somewhat simplified version of the above
-void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn, const ParGridFunction &x1, Vector & xyz, Array<int>& conn,
+void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn, const Vector &x1, Vector & xyz, Array<int>& conn,
                       Vector& xi, DenseMatrix & coords);                   
+
+int get_rank(int tdof, std::vector<int> & tdof_offsets);
+void ComputeTdofOffsets(const ParFiniteElementSpace * pfes,
+                        std::vector<int> & tdof_offsets);
+void ComputeTdofOffsets(MPI_Comm comm, int mytoffset, std::vector<int> & tdof_offsets);
+void ComputeTdofs(MPI_Comm comm, int mytoffs, std::vector<int> & tdofs);

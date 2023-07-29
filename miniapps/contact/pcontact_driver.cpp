@@ -34,41 +34,6 @@ void rhs_func2(const Vector & x, Vector & y)
    }
 }
 
-int get_rank(int tdof, std::vector<int> & tdof_offsets)
-{
-   int size = tdof_offsets.size();
-   if (size == 1) { return 0; }
-   std::vector<int>::iterator up;
-   up=std::upper_bound(tdof_offsets.begin(), tdof_offsets.end(),tdof); //
-   return std::distance(tdof_offsets.begin(),up)-1;
-}
-
-void ComputeTdofOffsets(const ParFiniteElementSpace * pfes,
-                        std::vector<int> & tdof_offsets)
-{
-   MPI_Comm comm = pfes->GetComm();
-   int num_procs;
-   MPI_Comm_size(comm, &num_procs);
-   tdof_offsets.resize(num_procs);
-   int mytoffset = pfes->GetMyTDofOffset();
-   MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
-}
-
-void ComputeTdofOffsets(MPI_Comm comm, int mytoffset, std::vector<int> & tdof_offsets)
-{
-   int num_procs;
-   MPI_Comm_size(comm,&num_procs);
-   tdof_offsets.resize(num_procs);
-   MPI_Allgather(&mytoffset,1,MPI_INT,&tdof_offsets[0],1,MPI_INT,comm);
-}
-
-void ComputeTdofs(MPI_Comm comm, int mytoffs, std::vector<int> & tdofs)
-{
-   int num_procs;
-   MPI_Comm_size(comm,&num_procs);
-   tdofs.resize(num_procs);
-   MPI_Allgather(&mytoffs,1,MPI_INT,&tdofs,1,MPI_INT,comm);
-}
 
 int main(int argc, char *argv[])
 {
@@ -78,8 +43,10 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // 1. Parse command-line options.
    const char *mesh_file1 = "meshes/block1.mesh";
-   const char *mesh_file2 = "meshes/block2.mesh";
+   const char *mesh_file2 = "meshes/rotatedblock2.mesh";
+   // const char *mesh_file2 = "meshes/block2.mesh";
    int order = 1;
+   int ref = 0;
    Array<int> attr;
    Array<int> m_attr;
 
@@ -102,8 +69,17 @@ int main(int argc, char *argv[])
    }
 
 
-   ParElasticityProblem prob1(MPI_COMM_WORLD,mesh_file1,order);
-   ParElasticityProblem prob2(MPI_COMM_WORLD,mesh_file2,order);
+   ParElasticityProblem prob1(MPI_COMM_WORLD,mesh_file1,ref,order); prob1.FormLinearSystem();
+   ParElasticityProblem prob2(MPI_COMM_WORLD,mesh_file2,ref,order); prob2.FormLinearSystem();
+
+
+   ParContactProblem contact(&prob1,&prob2);
+   Vector displ1(prob1.GetNumDofs()), displ2(prob2.GetNumDofs());
+   displ1 = 0.0; displ2 = 0.0;
+   contact.ComputeGapFunctionAndDerivatives(displ1,displ2,true);
+   // contact.ComputeGapFunctionAndDerivatives(displ1,displ2,false);
+
+   return 0;
 
    ParMesh *pmesh1 = prob1.GetMesh();
    ParMesh *pmesh2 = prob2.GetMesh();
@@ -169,8 +145,8 @@ int main(int argc, char *argv[])
 
    // Define the displacement vector x as a finite element grid function
    // corresponding to fespace. GridFunction is a derived class of Vector.
-   ParGridFunction x1 = prob1.GetGridFunction();
-   ParGridFunction x2 = prob2.GetGridFunction();
+   ParGridFunction x1 = prob1.GetDisplacementGridFunction();
+   ParGridFunction x2 = prob2.GetDisplacementGridFunction();
 
    HypreParMatrix A1 = prob1.GetOperator();
    HypreParMatrix A2 = prob2.GetOperator();

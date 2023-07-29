@@ -10,7 +10,6 @@ private:
    int ndofs;
    FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
-
    Vector lambda, mu;
    PWConstCoefficient lambda_cf, mu_cf;
    Array<int> ess_bdr, ess_tdof_list;
