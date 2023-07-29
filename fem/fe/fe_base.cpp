@@ -401,7 +401,7 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
          }
       }
    }
-   else
+   else if (range_type == VECTOR)
    {
       d2q->B.SetSize(nqpt*dim*dof);
       d2q->Bt.SetSize(dof*nqpt*dim);
@@ -418,6 +418,10 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
             }
          }
       }
+   }
+   else
+   {
+      // Skip B and Bt for unknown range type
    }
    switch (deriv_type)
    {
@@ -472,7 +476,7 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
             {
                for (int j = 0; j < dof; j++)
                {
-                  d2q->G[i+nqpt*(d+dim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
+                  d2q->G[i+nqpt*(d+cdim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
                }
             }
          }
@@ -480,7 +484,8 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
       }
       case NONE:
       default:
-         MFEM_ABORT("invalid finite element derivative type");
+         // Skip G and Gt for unknown derivative type
+         break;
    }
    dof2quad_array.Append(d2q);
    return *d2q;
