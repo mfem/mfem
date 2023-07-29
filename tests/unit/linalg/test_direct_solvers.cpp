@@ -17,6 +17,9 @@ using namespace mfem;
 #ifdef MFEM_USE_SUITESPARSE
 #define DIRECT_SOLVE_SERIAL
 #endif
+#ifdef MFEM_USE_MKL_PARDISO
+#define DIRECT_SOLVE_SERIAL
+#endif
 #ifdef MFEM_USE_MUMPS
 #define DIRECT_SOLVE_PARALLEL
 #endif
@@ -138,20 +141,41 @@ TEST_CASE("Serial Direct Solvers", "[CUDA]")
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
+#ifdef MFEM_USE_SUITESPARSE
+      {
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
 
-      Vector Y(X.Size());
-      A->Mult(X, Y);
-      Y -= B;
-      REQUIRE(Y.Norml2() < 1.e-12);
+         Vector Y(X.Size());
+         A->Mult(X, Y);
+         Y -= B;
+         REQUIRE(Y.Norml2() < 1.e-12);
 
-      a.RecoverFEMSolution(X, b, x);
-      VectorFunctionCoefficient grad(dim, gradexact);
-      double error = x.ComputeH1Error(&uex, &grad);
-      REQUIRE(error < 1.e-12);
+         a.RecoverFEMSolution(X, b, x);
+         VectorFunctionCoefficient grad(dim, gradexact);
+         double error = x.ComputeH1Error(&uex, &grad);
+         REQUIRE(error < 1.e-12);
+      }
+#endif
+#ifdef MFEM_USE_MKL_PARDISO
+      {
+         PardisoSolver pardiso_solver;
+         pardiso_solver.SetOperator(*A);
+         pardiso_solver.Mult(B, X);
+
+         Vector Y(X.Size());
+         A->Mult(X, Y);
+         Y -= B;
+         REQUIRE(Y.Norml2() < 1.e-12);
+
+         a.RecoverFEMSolution(X, b, x);
+         VectorFunctionCoefficient grad(dim, gradexact);
+         double error = x.ComputeH1Error(&uex, &grad);
+         REQUIRE(error < 1.e-12);
+      }
+#endif
    }
 }
 
