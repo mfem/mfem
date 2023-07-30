@@ -754,6 +754,10 @@ int main(int argc, char *argv[])
                      "-csp",
                      "--comm_split",
                      "How many communicators should we use for the simulations.");
+   args.AddOption(&restart,
+                     "-rstr",
+                     "--restart",
+                     "Restart the optimization from previous design.");
    args.Parse();
    if (!args.Good())
    {
@@ -856,6 +860,19 @@ int main(int argc, char *argv[])
        }
    }
 
+   if(restart)
+   {
+       //read the mesh and the design
+       std::ostringstream oss;
+       oss << std::setw(10) << std::setfill('0') << myrank;
+       std::string mname="pmesh_"+oss.str()+".msh";
+
+       std::ifstream in;
+       in.open(mname.c_str(),std::ios::in);
+       pmesh.Load(in,1,0);
+       in.close();
+   }
+
    if(myrank==0)
    {
        std::cout<<"num el="<<pmesh.GetNE()<<std::endl;
@@ -933,6 +950,23 @@ int main(int argc, char *argv[])
    double dcpl;
 
 
+   if(restart)
+   {
+       //read the mesh and the design
+       std::ostringstream oss;
+       oss << std::setw(10) << std::setfill('0') << myrank;
+       std::string gname="design_"+oss.str()+".gf";
+       std::ifstream in;
+       in.open(gname.c_str(),std::ios::in);
+       mfem::ParGridFunction ndes(&pmesh,in);
+       in.close();
+       oddens.ProjectGridFunction(ndes);//avoids mixing the FE spaces
+       oddens.GetTrueDofs(vtmpv);
+       fsolv->Mult(vtmpv,vdens);
+       pgdens.SetFromTrueDofs(vdens);
+   }
+
+
    {
       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
 
@@ -949,19 +983,22 @@ int main(int argc, char *argv[])
       }
       //alco->GetARand(emod);
 
-      CoeffHoles holes;
-      //StripesCoefX stripes(corr_len);
-      StripesCoefX stripes(0.25);	
-      //oddens.ProjectCoefficient(holes);
-      //oddens*=0.3;
-      //oddens.GetTrueDofs(vtmpv);
-      oddens=0.3;
-      //oddens.ProjectCoefficient(stripes);
-      oddens.GetTrueDofs(vtmpv);
-      if(mycolor==0){fsolv->Mult(vtmpv,vdens);}
+      //set the initial density if restart is off
+      if(restart==0){
+          CoeffHoles holes;
+          //StripesCoefX stripes(corr_len);
+          StripesCoefX stripes(0.25);
+          //oddens.ProjectCoefficient(holes);
+          //oddens*=0.3;
+          //oddens.GetTrueDofs(vtmpv);
+          oddens=0.3;
+          //oddens.ProjectCoefficient(stripes);
+          oddens.GetTrueDofs(vtmpv);
+          if(mycolor==0){fsolv->Mult(vtmpv,vdens);}
+      }
+
       //make sure that all communicators run with the same density
       MPI_Bcast(vdens.GetData(),vdens.Size(),MPI_DOUBLE,0,ccomm);
-
       pgdens.SetFromTrueDofs(vdens);
 
       if(mycolor==0){paraview_dc.Save();}
@@ -970,11 +1007,11 @@ int main(int argc, char *argv[])
       for(int i=1;i<max_it;i++){
 
 
-          if(i<10){
+          if((i<10)&&(restart==0)){
               vobj->SetProjection(0.5,2.0);
               alco->SetDensity(vdens,0.5,8.0,2.0);
               alco->SetSIMP(true);
-          }else if(i<250){
+          }else if(i<100){
               vobj->SetProjection(0.5,2.0);
               alco->SetDensity(vdens,0.5,8.0,3.0);
               alco->SetSIMP(true);
@@ -1049,6 +1086,24 @@ int main(int argc, char *argv[])
                   paraview_dc.SetTime(i*1.0);
                   paraview_dc.Save();
               }
+          }
+
+          if(i%10==0){
+                  //save the mesh and the design
+                  std::ostringstream oss;
+                  oss << std::setw(10) << std::setfill('0') << myrank;
+                  std::string mname="pmesh_"+oss.str()+".msh";
+                  std::string gname="design_"+oss.str()+".gf";
+                  std::ofstream out;
+                  out.open(mname.c_str(),std::ios::out);
+                  pmesh.ParPrint(out);
+                  out.close();
+
+                  //save the design
+                  oddens.SetFromTrueDofs(vtmpv);
+                  out.open(gname.c_str(),std::ios::out);
+                  oddens.Save(out);
+                  out.close();
           }
       }
    }
