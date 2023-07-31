@@ -36,8 +36,8 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(transport2d
     MAIN transport2d.cpp
-    EXTRA_SOURCES transport_solver.cpp g_eqdsk_data.cpp plasma.cpp
-    EXTRA_HEADERS transport_solver.hpp g_eqdsk_data.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    EXTRA_SOURCES transport_solver.cpp transport_coefs.cpp flux_vectors.cpp g_eqdsk_data.cpp pgridfuncarray.cpp plasma.cpp schwarz.cpp
+    EXTRA_HEADERS transport_solver.hpp transport_coefs.hpp flux_vectors.hpp g_eqdsk_data.hpp pgridfuncarray.hpp plasma.hpp schwarz.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(linear_hyp_1d
