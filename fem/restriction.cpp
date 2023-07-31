@@ -1739,12 +1739,24 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    const auto d_x = Reshape(x.Read(), t?vd:d, d, d, t?d:ne, t?ne:vd);
    auto d_y = Reshape(y.Write(), q2d, vd, 2, nf);
 
-   for (int f = 0; f < num_faces; ++f)
+   mfem::forall_2D(num_faces, 2, q2d, [=] MFEM_HOST_DEVICE (int f) -> void
    {
+      MFEM_SHARED double G_s[MAX_Q1D * MAX_D1D];
+      DeviceMatrix G(G_s, q, d);
+
+      if (MFEM_THREAD_ID(x) == 0)
+      {
+         MFEM_FOREACH_THREAD(j, y, d*q)
+         {
+            G[j] = G_[j];
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       const int fid0 = f2e(2, f);
       const int fid1 = f2e(3, f);
 
-      for (int side = 0; side < 2; ++side)
+      MFEM_FOREACH_THREAD(side, x, 2)
       {
          const int el = f2e(side, f);
          const int face_id = f2e(2 + side, f);
@@ -1755,17 +1767,16 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
          const bool xz_plane = (face_id == 1 || face_id == 3);
          const bool yz_plane = (face_id == 2 || face_id == 4);
 
-         if (el < 0) // boundary face, set external state to zero
+         MFEM_FOREACH_THREAD(p, y, q2d)
          {
-            for (int p = 0; p < q2d; ++p)
+            if (el < 0)
+            {
                for (int c = 0; c < vd; ++c)
                {
                   d_y(p, c, side, f) = 0.0;
                }
-         }
-         else
-         {
-            for (int p = 0; p < q2d; ++p)
+            }
+            else
             {
                int i, j, k; // 3d lex index of quad point p
                internal::FaceIdxToVolIdx3D(p, q, fid0, fid1, side, orientation, i, j, k);
@@ -1789,10 +1800,10 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
                   } // for kk
                   d_y(p, c, side, f) = grad_n;
                } // for c
-            } // for p
-         }
+            }
+         } // for p
       } // for side
-   } // for f
+   });
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector &x,
