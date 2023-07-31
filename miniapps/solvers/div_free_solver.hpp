@@ -245,9 +245,10 @@ class BramblePasciakSolver : public DarcySolver
    BlockDiagonalPreconditioner pc_;
    SparseMatrix *local_minus_id;
    Array<int> ess_zero_dofs_;
-   HypreParMatrix *ConstructMassPreconditioner(const std::shared_ptr<ParBilinearForm> &a) const;
+   HypreParMatrix *ConstructMassPreconditioner(const
+                                               std::shared_ptr<ParBilinearForm> &a) const;
    void Init(HypreParMatrix *A, HypreParMatrix *B, HypreParMatrix *Q,
-      const IterSolveParameters &param);
+             const IterSolveParameters &param);
 
 public:
    BramblePasciakSolver(
