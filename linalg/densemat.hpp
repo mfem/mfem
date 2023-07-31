@@ -972,7 +972,7 @@ public:
     */
    MFEM_DEPRECATED DenseMatrixSVD(DenseMatrix &M,
                                   bool left_singular_vectors=false,
-                                  bool right_singlular_vectors=false);
+                                  bool right_singular_vectors=false);
 
    /**
     * @brief Constructor for the DenseMatrixSVD
@@ -987,7 +987,7 @@ public:
     */
    MFEM_DEPRECATED DenseMatrixSVD(int h, int w,
                                   bool left_singular_vectors=false,
-                                  bool right_singlular_vectors=false);
+                                  bool right_singular_vectors=false);
    
    /**
     * @brief Constructor for the DenseMatrixSVD
