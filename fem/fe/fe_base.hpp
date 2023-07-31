@@ -14,6 +14,7 @@
 
 #include "../intrules.hpp"
 #include "../geom.hpp"
+#include "../doftrans.hpp"
 
 #include <map>
 
@@ -576,6 +577,7 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
+
    /** @brief Return the mapping from lexicographic face DOFs to lexicographic
        element DOFs for the given local face @a face_id. */
    /** Given the @a ith DOF (lexicographically ordered) on the face referenced
@@ -589,6 +591,12 @@ public:
        (quadrilateral and hexahedral) elements. Its functionality may change
        when simplex elements are supported in the future. */
    virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
+   /** @brief Return a DoF transformation object for this particular type of
+       basis.
+   */
+   virtual StatelessDofTransformation * GetDofTransformation() const
+   { return NULL; }
 
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
@@ -1288,9 +1296,9 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override
    {
-      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
-      return GetTensorDofToQuad(*this, ir, mode, basis1d, true,
-                                dof2quad_array);
+      return (mode == DofToQuad::FULL) ?
+             FiniteElement::GetDofToQuad(ir, mode) :
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,

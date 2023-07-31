@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
    {
-      ParLinearForm *b = new ParLinearForm(fespace);
+      b = new ParLinearForm(fespace);
       b->AddDomainIntegrator(new DomainLFIntegrator(one));
       b->Assemble();
 
