@@ -941,8 +941,8 @@ public:
 
 /**
  @brief Class for Singular Value Decomposition of a DenseMatrix
- 
- Singular Value Decomposition (SVD) of a DenseMatrix with the use of the DGESVD 
+
+ Singular Value Decomposition (SVD) of a DenseMatrix with the use of the DGESVD
  driver from LAPACK.
  */
 class DenseMatrixSVD
@@ -963,15 +963,15 @@ public:
 
    /**
     @brief Constructor for the DenseMatrixSVD
-   
-    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left 
-    and right singular vectors can be choosen according to the parameters for 
+
+    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
+    and right singular vectors can be choosen according to the parameters for
     the LAPACK DGESVD.
-   
+
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
-    @param [in] left_singular_vectors optional parameter to define if first 
+    @param [in] left_singular_vectors optional parameter to define if first
     left singular vectors should be computed
-    @param [in] right_singular_vectors optional parameter to define if first 
+    @param [in] right_singular_vectors optional parameter to define if first
     right singular vectors should be computed
     */
    MFEM_DEPRECATED DenseMatrixSVD(DenseMatrix &M,
@@ -980,16 +980,16 @@ public:
 
    /**
     @brief Constructor for the DenseMatrixSVD
-   
-    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left 
+
+    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
     and right singular
     vectors can be choosen according to the parameters for the LAPACK DGESVD.
-   
+
     @param [in] h height of the matrix
     @param [in] w width of the matrix
-    @param [in] left_singular_vectors optional parameter to define if first 
+    @param [in] left_singular_vectors optional parameter to define if first
     left singular vectors should be computed
-    @param [in] right_singular_vectors optional parameter to define if first 
+    @param [in] right_singular_vectors optional parameter to define if first
     right singular vectors should be computed
     */
    MFEM_DEPRECATED DenseMatrixSVD(int h, int w,
@@ -998,23 +998,23 @@ public:
 
    /**
     @brief Constructor for the DenseMatrixSVD
-   
-    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left 
-    and right singular vectors can be choosen according to the parameters for 
+
+    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
+    and right singular vectors can be choosen according to the parameters for
     the LAPACK DGESVD.
-   
+
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
-    @param [in] left_singular_vectors optional parameter to define which left 
+    @param [in] left_singular_vectors optional parameter to define which left
     singular vectors should be computed
-    @param [in] right_singular_vectors optional parameter to define which right 
+    @param [in] right_singular_vectors optional parameter to define which right
     singular vectors should be computed
-   
+
     Options for computation of singular vectors:
-   
+
     'A': All singular vectors are computed (default)
-   
+
     'S': The first min(n,m) singular vectors are computed
-   
+
     'N': No singular vectors are computed
     */
    DenseMatrixSVD(DenseMatrix &M,
@@ -1023,24 +1023,24 @@ public:
 
    /**
     @brief Constructor for the DenseMatrixSVD
-   
-    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left 
-    and right singular vectors can be choosen according to the 
+
+    Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
+    and right singular vectors can be choosen according to the
     parameters for the LAPACK DGESVD.
-   
+
     @param [in] h height of the matrix
     @param [in] w width of the matrix
-    @param [in] left_singular_vectors optional parameter to define which left 
+    @param [in] left_singular_vectors optional parameter to define which left
     singular vectors should be computed
-    @param [in] right_singular_vectors optional parameter to define which right 
+    @param [in] right_singular_vectors optional parameter to define which right
     singular vectors should be computed
-   
+
     Options for computation of singular vectors:
-   
+
     'A': All singular vectors are computed (default)
-   
+
     'S': The first min(n,m) singular vectors are computed
-   
+
     'N': No singular vectors are computed
     */
    DenseMatrixSVD(int h, int w,
@@ -1049,38 +1049,38 @@ public:
 
    /**
     @brief Evaluate the SVD
-   
-    Call of the DGESVD driver from LAPACK for the DenseMatrix M. The singular 
+
+    Call of the DGESVD driver from LAPACK for the DenseMatrix M. The singular
     vectors are computed according to the setup in the call of the constructor.
-   
+
     @param [in] M DenseMatrix the SVD should be evaluated for
     */
    void Eval(DenseMatrix &M);
 
    /**
     @brief Return singular values
-   
+
     @return sv Vector containing all singular values
     */
    Vector &Singularvalues() { return sv; }
 
    /**
     @brief Return specific singular value
-   
+
     @return sv(i) i-th singular value
     */
    double Singularvalue(int i) { return sv(i); }
 
    /**
     @brief Return left singular vectors
-   
+
     @return U DenseMatrix containing left singular vectors
     */
    DenseMatrix &LeftSingularvectors() { return U; }
 
    /**
     @brief Return right singular vectors
-   
+
     @return Vt DenseMatrix containing right singular vectors
     */
    DenseMatrix &RightSingularvectors() { return Vt; }
