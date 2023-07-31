@@ -113,6 +113,12 @@ examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
 examples/flux.*
+examples/dsol.*
+examples/cond.*
+examples/cond_j.*
+examples/cond_mesh.*
+examples/port_mesh.*
+examples/port_mode.*
 
 examples/amgx/ex1
 examples/amgx/ex1p
@@ -352,6 +358,8 @@ tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+tests/unit/parallel_in_serial.mesh
+tests/unit/parallel_in_serial.gf
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed

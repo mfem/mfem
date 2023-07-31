@@ -105,6 +105,8 @@ namespace mfem {
  * - <a class="el" href="ex32p_8cpp_source.html">Example 32p</a>: parallel anisotropic Maxwell eigensolver
  * - <a class="el" href="ex33_8cpp_source.html">Example 33</a>: nodal H1 FEM for the fractional Laplacian problem
  * - <a class="el" href="ex33p_8cpp_source.html">Example 33p</a>: parallel nodal H1 FEM for the fractional Laplacian problem
+ * - <a class="el" href="ex36_8cpp_source.html">Example 36</a>: Proximal Galerkin FEM for the obstacle problem
+ * - <a class="el" href="ex36p_8cpp_source.html">Example 36p</a>: parallel Proximal Galerkin FEM for the obstacle problem
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
