@@ -50,6 +50,7 @@ double squircle_level_set(const Vector &x)
    }
 }
 
+
 double inclined_line(const Vector &x)
 {
    double xv = x(0), yv = x(1);
@@ -278,6 +279,7 @@ double apollo_level_set(const Vector &x)
 
    return returnval;
 }
+
 
 double csg_cubecylsph(const Vector &x)
 {
@@ -908,4 +910,78 @@ void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
    DiffuseField(distance_s, nDiffuse);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
+}
+
+double pipe_dist(const Vector &x, int pipedir, Vector x_pipe_center,
+                 double radius, double minv, double maxv)
+{
+   Vector x_pipe_copy = x_pipe_center;
+   x_pipe_copy -= x;
+   x_pipe_copy(pipedir-1) = 0.0;
+   double dist = x_pipe_copy.Norml2() - radius*radius;
+   return dist;
+}
+
+double cube_dist_smooth(const Vector &x, Vector &x_center, Vector &lengths)
+{
+   double xc = x_center(0);
+   double yc = x_center(1);
+   double zc = x_center(2);
+   double xv = x(0),
+           yv = x(1),
+           zv = x(2);
+   double lx = lengths(0);
+   double ly = lengths(1);
+   double lz = lengths(2);
+   double phi_vertical = std::pow(lx*0.5, 2.0) - std::pow(xv-xc, 2.0);
+   double phi_horizontal = std::pow(ly*0.5, 2.0) - std::pow(yv-yc, 2.0);
+   double phi_3 = std::pow(lz*0.5, 2.0) - std::pow(zv-zc, 2.0);
+
+   double phi_rectangle = r_intersect(phi_vertical, phi_horizontal);
+   return r_intersect(phi_rectangle, phi_3);
+}
+
+double csg_cubecylsph_smooth(const Vector &x)
+{
+   //   double pwrr = 4.0;
+   Vector xcc = x;
+   xcc = 0.5;
+   const int dim = x.Size();
+   const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+   MFEM_VERIFY(dim == 3, "Only 3D supported for this level set");
+   Vector x2 = x;
+   x2 -= xcc;
+   double rsph = 0.375;
+   double rcube = 0.3; // 0.325
+   double dsph = x2.Norml2() - rsph;
+//   double dcube = std::pow(xc*xc + yc*yc + zc*zc, 0.5) - rcube;
+   Vector rcubel(3);
+   rcubel = 2*rcube;
+   double dcube = cube_dist_smooth(x, xcc, rcubel);
+   //    return std::max(dsph, dcube); // return here for sphere + cube
+   double dist1 = r_union(dsph, -dcube);
+//   return dist1;
+
+   int pipedir = 1;
+   Vector x_pipe_center(3);
+   x_pipe_center = 0.5;
+   double xmin = 1.0-rsph;
+   double xmax = 1.0+rsph;
+   double pipe_radius = 0.25;
+   double in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin,
+                                xmax);
+//   double dist2 = std::max(dist1, -in_pipe_x);
+   double dist2 = r_union(dist1, -in_pipe_x);
+
+   pipedir = 2;
+   in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+//   double dist3 = std::max(dist2, -in_pipe_x);
+   double dist3 = r_union(dist2, -in_pipe_x);
+
+   pipedir = 3;
+   in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+//   double dist4 = std::max(dist3, -in_pipe_x);
+   double dist4 = r_union(dist3, -in_pipe_x);
+
+   return dist4;
 }

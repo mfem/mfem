@@ -526,6 +526,10 @@ int main(int argc, char *argv[])
    {
       ls_coeff = FunctionCoefficient(apollo_level_set);
    }
+   else if (ls_function==3)
+   {
+      ls_coeff = FunctionCoefficient(csg_cubecylsph_smooth);
+   }
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -548,7 +552,7 @@ int main(int argc, char *argv[])
          mesh_surf_fit_bg = new Mesh(*mesh);
          if (bg_amr_iter == 0)
          {
-            for (int ref = 0; ref < 2; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
+            for (int ref = 0; ref < 1; ref++) { mesh_surf_fit_bg->UniformRefinement(); } // Refine the mesh in an uniform way x times
          }
       }
       mesh_surf_fit_bg->SetCurvature(1);
