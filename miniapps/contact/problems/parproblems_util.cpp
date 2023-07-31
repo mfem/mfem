@@ -338,7 +338,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
          {
             xi_send[i*(dim-1)+j] = xi_tmp[j];
          }
-         // now get get the projection to the surface
+         // now get the projection to the surface
       }
       else
       {

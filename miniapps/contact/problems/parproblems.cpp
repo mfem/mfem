@@ -219,6 +219,8 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    
    add(nodes0, displ1, *nodes1);
 
+   xyz.Print();
+
    FindPointsInMesh(*pmesh1, globalvertices1, conn2, displ1, xyz, conn1, xi1, coordsm);
 
 
@@ -312,32 +314,138 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
 
 double ParContactProblem::E(const Vector & d)
 {
-
+   Vector kd(K->Height());
+   K->Mult(d,kd);
+   return 0.5 * InnerProduct(comm,d, kd) - InnerProduct(comm,d, *B);
 }
 
 void ParContactProblem::DdE(const Vector &d, Vector &gradE)
 {
-
+   gradE.SetSize(K->Height());
+   K->Mult(d, gradE);
+   gradE.Add(-1.0, *B); 
 }
 
 HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 {
-
+  return K; 
 }
 
 void ParContactProblem::g(const Vector &d, Vector &gd, bool reduced)
 {
+   int ndof1 = prob1->GetNumDofs();
+   int ndof2 = prob2->GetNumDofs();
+   double * data = d.GetData();
+   Vector displ1(data,ndof1);
+   Vector displ2(&data[ndof1],ndof2);
+   if (recompute)
+   {
+      ComputeGapFunctionAndDerivatives(displ1, displ2, reduced);
+      recompute = false;
+   }
 
+   gd = GetGapFunction();
 }
 
 HypreParMatrix* ParContactProblem::Ddg(const Vector &d)
 {
-
+  return GetJacobian();
 }
 
 HypreParMatrix* ParContactProblem::lDddg(const Vector &d, const Vector &l)
 {
-
+   return nullptr; // for now
 }
 
 
+QPOptParContactProblem::QPOptParContactProblem(ParContactProblem * problem_)
+: problem(problem_)
+{
+   dimU = problem->GetNumDofs();
+   dimM = problem->GetNumContraints();
+   dimC = problem->GetNumContraints();
+   block_offsets.SetSize(3);
+   block_offsets[0] = 0;
+   block_offsets[1] = dimU;
+   block_offsets[2] = dimM;
+   block_offsets.PartialSum();
+   ml.SetSize(dimM); ml = 0.0;
+   Vector negone(dimM); negone = -1.0;
+   SparseMatrix diag(negone);
+
+   int gsize = problem->GetGlobalNumConstraints();
+   int * rows = problem->GetConstraintsStarts().GetData();
+
+   NegId = new HypreParMatrix(problem->GetComm(),gsize, rows,&diag);
+   HypreStealOwnership(*NegId, diag);
+}
+
+int QPOptParContactProblem::GetDimU() { return dimU; }
+
+int QPOptParContactProblem::GetDimM() { return dimM; }
+
+int QPOptParContactProblem::GetDimC() { return dimC; }
+
+Vector & QPOptParContactProblem::Getml() { return ml; }
+
+HypreParMatrix * QPOptParContactProblem::Duuf(const BlockVector & x)
+{
+   return problem->DddE(x.GetBlock(0));
+}
+
+HypreParMatrix * QPOptParContactProblem::Dumf(const BlockVector & x)
+{
+   return nullptr;
+}
+
+HypreParMatrix * QPOptParContactProblem::Dmuf(const BlockVector & x)
+{
+   return nullptr;
+}
+
+HypreParMatrix * QPOptParContactProblem::Dmmf(const BlockVector & x)
+{
+   return nullptr;
+}
+
+HypreParMatrix * QPOptParContactProblem::Duc(const BlockVector & x)
+{
+   return new HypreParMatrix(*problem->Ddg(x.GetBlock(0)));
+}
+
+HypreParMatrix * QPOptParContactProblem::Dmc(const BlockVector & x)
+{
+   return NegId;
+}
+
+HypreParMatrix * QPOptParContactProblem::lDuuc(const BlockVector & x, const Vector & l)
+{
+   return nullptr;
+}
+
+void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
+{
+   Vector g0;
+   problem->g(x.GetBlock(0),g0, true); // gap function
+   g0.Add(-1.0, x.GetBlock(1));  
+
+   problem->GetJacobian()->Mult(x.GetBlock(0),y);
+   y.Add(1.0, g0);
+
+}
+
+double QPOptParContactProblem::CalcObjective(const BlockVector & x)
+{
+   return problem->E(x.GetBlock(0));
+}
+
+void QPOptParContactProblem::CalcObjectiveGrad(const BlockVector & x, BlockVector & y)
+{
+   problem->DdE(x.GetBlock(0), y.GetBlock(0));
+   y.GetBlock(1) = 0.0;
+}
+
+QPOptParContactProblem::~QPOptParContactProblem()
+{
+   delete NegId;
+}

@@ -112,16 +112,17 @@ public:
 
    ParElasticityProblem * GetElasticityProblem1() {return prob1;}
    ParElasticityProblem * GetElasticityProblem2() {return prob2;}
-
+   MPI_Comm GetComm() {return comm;}
    int GetNumDofs() {return K->Height();}
    int GetGlobalNumDofs() {return K->GetGlobalNumRows();}
    int GetNumContraints() {return npoints;}
+   int GetGlobalNumConstraints() {return gnpoints;}
    
    std::vector<int> & GetDofOffets() { return dof_offsets; }
    std::vector<int> & GetVertexOffsets() { return vertex_offsets; }
    std::vector<int> & GetConstraintsOffsets() { return constraints_offsets; }
+   Array<int> & GetConstraintsStarts() { return constraints_starts; }
    
-   int GetGlobalNumContraints() {return gnpoints;}
    Vector & GetGapFunction() {return gapv;}
 
    HypreParMatrix * GetJacobian() {return M;}
@@ -148,3 +149,33 @@ public:
 };
 
 
+class QPOptParContactProblem
+{
+private:
+   ParContactProblem * problem = nullptr;
+   int dimU, dimM, dimC;
+   Array<int> block_offsets;
+   Vector ml;
+   HypreParMatrix * NegId = nullptr;
+public:
+   QPOptParContactProblem(ParContactProblem * problem_);
+   int GetDimU();
+   int GetDimM();
+   int GetDimC();
+   Vector & Getml();
+   MPI_Comm GetComm() {return problem->GetComm();}
+   int * GetConstraintsStarts() {return problem->GetConstraintsStarts().GetData();}
+   int GetGlobalNumConstraints() {return problem->GetGlobalNumConstraints();}
+
+   HypreParMatrix * Duuf(const BlockVector &);
+   HypreParMatrix * Dumf(const BlockVector &);
+   HypreParMatrix * Dmuf(const BlockVector &);
+   HypreParMatrix * Dmmf(const BlockVector &);
+   HypreParMatrix * Duc(const BlockVector &);
+   HypreParMatrix * Dmc(const BlockVector &);
+   HypreParMatrix * lDuuc(const BlockVector &, const Vector &);
+   void c(const BlockVector &, Vector &);
+   double CalcObjective(const BlockVector &);
+   void CalcObjectiveGrad(const BlockVector &, BlockVector &);
+   ~QPOptParContactProblem();
+};
