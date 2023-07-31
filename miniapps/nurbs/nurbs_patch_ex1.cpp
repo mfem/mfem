@@ -194,7 +194,6 @@ int main(int argc, char *argv[])
    AssembleAndSolve(b, di, ess_tdof_list, pa, algebraic_ceed, x);
 
    delete patchRule;
-   delete di;
 
    // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -223,10 +222,10 @@ int main(int argc, char *argv[])
       x.GetTrueDofs(x_pw);
 
       cout << "Assembling system element-wise and solving" << endl;
-      DiffusionIntegrator d(one);
+      DiffusionIntegrator *d = new DiffusionIntegrator(one);
       // Element-wise partial assembly is not supported on NURBS meshes, so we
       // pass pa = false here.
-      AssembleAndSolve(b, &d, ess_tdof_list, false, algebraic_ceed, x);
+      AssembleAndSolve(b, d, ess_tdof_list, false, algebraic_ceed, x);
 
       x.GetTrueDofs(x_ew);
 
