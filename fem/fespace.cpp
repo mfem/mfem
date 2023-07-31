@@ -63,7 +63,7 @@ FiniteElementSpace::FiniteElementSpace()
      elem_dof(NULL), elem_fos(NULL), bdr_elem_dof(NULL), bdr_elem_fos(NULL),
      face_dof(NULL),
      NURBSext(NULL), own_ext(false),
-     DoFTrans(0), VDoFTrans(vdim, ordering),
+     VDoFTrans(vdim, ordering),
      cP(NULL), cR(NULL), cR_hp(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
@@ -288,7 +288,8 @@ FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
    }
    else
    {
-      VDoFTrans.SetDofTransformation(*doftrans);
+      VDoFTrans.SetDofTransformation(*doftrans->GetDofTransformation());
+      VDoFTrans.SetFaceOrientations(doftrans->GetFaceOrientations());
       return &VDoFTrans;
    }
 }
@@ -304,7 +305,8 @@ FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
    }
    else
    {
-      VDoFTrans.SetDofTransformation(*doftrans);
+      VDoFTrans.SetDofTransformation(*doftrans->GetDofTransformation());
+      VDoFTrans.SetFaceOrientations(doftrans->GetFaceOrientations());
       return &VDoFTrans;
    }
 }
@@ -1527,7 +1529,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
       fespace->GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
    }
 
-   ConstructDoFTrans();
+   ConstructDoFTransArray();
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator(
@@ -1552,26 +1554,26 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
       old_elem_fos = new Table(*coarse_fes->GetElementToFaceOrientationTable());
    }
 
-   ConstructDoFTrans();
+   ConstructDoFTransArray();
 }
 
 FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
    delete old_elem_dof;
    delete old_elem_fos;
-   for (int i=0; i<old_DoFTrans.Size(); i++)
+   for (int i=0; i<old_DoFTransArray.Size(); i++)
    {
-      delete old_DoFTrans[i];
+      delete old_DoFTransArray[i];
    }
 }
 
 void FiniteElementSpace::RefinementOperator
-::ConstructDoFTrans()
+::ConstructDoFTransArray()
 {
-   old_DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
-   for (int i=0; i<old_DoFTrans.Size(); i++)
+   old_DoFTransArray.SetSize(Geometry::NUM_GEOMETRIES);
+   for (int i=0; i<old_DoFTransArray.Size(); i++)
    {
-      old_DoFTrans[i] = NULL;
+      old_DoFTransArray[i] = NULL;
    }
 
    const FiniteElementCollection *fec_ref = fespace->FEColl();
@@ -1581,7 +1583,7 @@ void FiniteElementSpace::RefinementOperator
          fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
       if (nd_tri)
       {
-         old_DoFTrans[Geometry::TRIANGLE] =
+         old_DoFTransArray[Geometry::TRIANGLE] =
             new ND_TriDofTransformation(nd_tri->GetOrder());
       }
 
@@ -1589,7 +1591,7 @@ void FiniteElementSpace::RefinementOperator
          fec_ref->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
       {
-         old_DoFTrans[Geometry::TETRAHEDRON] =
+         old_DoFTransArray[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
       }
 
@@ -1597,7 +1599,7 @@ void FiniteElementSpace::RefinementOperator
          fec_ref->FiniteElementForGeometry(Geometry::PRISM);
       if (nd_pri)
       {
-         old_DoFTrans[Geometry::PRISM] =
+         old_DoFTransArray[Geometry::PRISM] =
             new ND_WedgeDofTransformation(nd_pri->GetOrder());
       }
    }
@@ -1644,15 +1646,16 @@ void FiniteElementSpace::RefinementOperator
       else
       {
          old_elem_fos->GetRow(emb.parent, old_Fo);
-         old_DoFTrans[geom]->SetFaceOrientations(old_Fo);
+         old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
+         old_DoFTrans.SetFaceOrientations(old_Fo);
 
-         DofTransformation *new_doftrans = NULL;
          VDofTransformation *vdoftrans =
             dynamic_cast<VDofTransformation*>(doftrans);
+         int vdoftrans_vdim = 1;
          if (vdoftrans)
          {
-            new_doftrans = doftrans;
-            doftrans = vdoftrans->GetDofTransformation();
+            vdoftrans_vdim = vdoftrans->GetVDim();
+            vdoftrans->SetVDim(1);
          }
 
          for (int vd = 0; vd < rvdim; vd++)
@@ -1662,7 +1665,7 @@ void FiniteElementSpace::RefinementOperator
             old_dofs.Copy(old_vdofs);
             fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
             x.GetSubVector(old_vdofs, subX);
-            old_DoFTrans[geom]->InvTransformPrimal(subX);
+            old_DoFTrans.InvTransformPrimal(subX);
             lP.Mult(subX, subY);
             doftrans->TransformPrimal(subY);
             y.SetSubVector(vdofs, subY);
@@ -1670,7 +1673,7 @@ void FiniteElementSpace::RefinementOperator
 
          if (vdoftrans)
          {
-            doftrans = new_doftrans;
+            vdoftrans->SetVDim(vdoftrans_vdim);
          }
       }
    }
@@ -1734,15 +1737,16 @@ void FiniteElementSpace::RefinementOperator
          subYt.SetSize(lP.Width());
 
          old_elem_fos->GetRow(emb.parent, old_Fo);
-         old_DoFTrans[geom]->SetFaceOrientations(old_Fo);
+         old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
+         old_DoFTrans.SetFaceOrientations(old_Fo);
 
-         DofTransformation *new_doftrans = NULL;
          VDofTransformation *vdoftrans =
             dynamic_cast<VDofTransformation*>(doftrans);
+         int vdoftrans_vdim = 1;
          if (vdoftrans)
          {
-            new_doftrans = doftrans;
-            doftrans = vdoftrans->GetDofTransformation();
+            vdoftrans_vdim = vdoftrans->GetVDim();
+            vdoftrans->SetVDim(1);
          }
 
          for (int vd = 0; vd < rvdim; vd++)
@@ -1763,13 +1767,13 @@ void FiniteElementSpace::RefinementOperator
             }
 
             lP.MultTranspose(subX, subYt);
-            old_DoFTrans[geom]->TransformDual(subYt);
+            old_DoFTrans.TransformDual(subYt);
             y.AddElementVector(c_vdofs, subYt);
          }
 
          if (vdoftrans)
          {
-            doftrans = new_doftrans;
+            vdoftrans->SetVDim(vdoftrans_vdim);
          }
       }
 
@@ -2198,7 +2202,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
       cP = cR = cR_hp = NULL;
       cP_is_set = false;
 
-      ConstructDoFTrans();
+      ConstructDoFTransArray();
    }
    else
    {
@@ -2210,15 +2214,14 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
    BuildElementToDofTable();
 }
 
-void FiniteElementSpace::ConstructDoFTrans()
+void FiniteElementSpace::ConstructDoFTransArray()
 {
-   DestroyDoFTrans();
+   DestroyDoFTransArray();
 
-   VDoFTrans.SetVDim(vdim);
-   DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
-   for (int i=0; i<DoFTrans.Size(); i++)
+   DoFTransArray.SetSize(Geometry::NUM_GEOMETRIES);
+   for (int i=0; i<DoFTransArray.Size(); i++)
    {
-      DoFTrans[i] = NULL;
+      DoFTransArray[i] = NULL;
    }
    if (mesh->Dimension() < 3) { return; }
    if (dynamic_cast<const ND_FECollection*>(fec))
@@ -2227,7 +2230,7 @@ void FiniteElementSpace::ConstructDoFTrans()
          fec->FiniteElementForGeometry(Geometry::TRIANGLE);
       if (nd_tri)
       {
-         DoFTrans[Geometry::TRIANGLE] =
+         DoFTransArray[Geometry::TRIANGLE] =
             new ND_TriDofTransformation(nd_tri->GetOrder());
       }
 
@@ -2235,7 +2238,7 @@ void FiniteElementSpace::ConstructDoFTrans()
          fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
       {
-         DoFTrans[Geometry::TETRAHEDRON] =
+         DoFTransArray[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
       }
 
@@ -2243,7 +2246,7 @@ void FiniteElementSpace::ConstructDoFTrans()
          fec->FiniteElementForGeometry(Geometry::PRISM);
       if (nd_pri)
       {
-         DoFTrans[Geometry::PRISM] =
+         DoFTransArray[Geometry::PRISM] =
             new ND_WedgeDofTransformation(nd_pri->GetOrder());
       }
    }
@@ -2444,7 +2447,7 @@ void FiniteElementSpace::Construct()
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
 
-   ConstructDoFTrans();
+   ConstructDoFTransArray();
 
    // record the current mesh sequence number to detect refinement etc.
    mesh_sequence = mesh->GetSequence();
@@ -2706,16 +2709,23 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    {
       elem_dof->GetRow(elem, dofs);
 
-      if (DoFTrans[mesh->GetElementBaseGeometry(elem)])
+      if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
       {
          Array<int> Fo;
          elem_fos -> GetRow (elem, Fo);
-         DoFTrans[mesh->GetElementBaseGeometry(elem)]->SetFaceOrientations(Fo);
+         DoFTrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
+         DoFTrans.SetFaceOrientations(Fo);
+         return &DoFTrans;
       }
-      return DoFTrans[mesh->GetElementBaseGeometry(elem)];
+      else
+      {
+         return NULL;
+      }
    }
 
    Array<int> V, E, Eo, F, Fo; // TODO: LocalArray
+   DofTransformation *doftrans = NULL;
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetElementGeometry(elem);
@@ -2736,10 +2746,12 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
       {
          nfd += fec->GetNumDof(mesh->GetFaceGeometry(F[i]), order);
       }
-      if (DoFTrans[mesh->GetElementBaseGeometry(elem)])
+      if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
       {
-         DoFTrans[mesh->GetElementBaseGeometry(elem)]
-         -> SetFaceOrientations(Fo);
+         DoFTrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
+         DoFTrans.SetFaceOrientations(Fo);
+         doftrans = &DoFTrans;
       }
    }
 
@@ -2798,7 +2810,8 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
          dofs.Append(bbase + j);
       }
    }
-   return DoFTrans[mesh->GetElementBaseGeometry(elem)];
+
+   return doftrans;
 }
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
@@ -2840,18 +2853,24 @@ FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
    {
       bdr_elem_dof->GetRow(bel, dofs);
 
-      if (DoFTrans[mesh->GetBdrElementBaseGeometry(bel)])
+      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)])
       {
          Array<int> Fo;
          bdr_elem_fos -> GetRow (bel, Fo);
-         DoFTrans[mesh->GetBdrElementBaseGeometry(bel)]->
-         SetFaceOrientations(Fo);
+         DoFTrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
+         DoFTrans.SetFaceOrientations(Fo);
+         return &DoFTrans;
       }
-      return DoFTrans[mesh->GetBdrElementBaseGeometry(bel)];
+      else
+      {
+         return NULL;
+      }
    }
 
-   Array<int> V, E, Eo, Fo; // TODO: LocalArray
+   Array<int> V, E, Eo; // TODO: LocalArray
    int F, oF;
+   DofTransformation *doftrans = NULL;
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetBdrElementGeometry(bel);
@@ -2874,11 +2893,14 @@ FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
    {
       mesh->GetBdrElementFace(bel, &F, &oF);
 
-      if (DoFTrans[mesh->GetBdrElementBaseGeometry(bel)])
+      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)])
       {
-         Fo.Append(oF);
-         DoFTrans[mesh->GetBdrElementBaseGeometry(bel)]->
-         SetFaceOrientations(Fo);
+         mfem::Array<int> Fo(1);
+         Fo[0] = oF;
+         DoFTrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
+         DoFTrans.SetFaceOrientations(Fo);
+         doftrans = &DoFTrans;
       }
    }
 
@@ -2921,7 +2943,7 @@ FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
       }
    }
 
-   return DoFTrans[mesh->GetBdrElementBaseGeometry(bel)];
+   return doftrans;
 }
 
 int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
@@ -3231,7 +3253,7 @@ void FiniteElementSpace::Destroy()
    }
    E2BFQ_array.SetSize(0);
 
-   DestroyDoFTrans();
+   DestroyDoFTransArray();
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
@@ -3255,13 +3277,13 @@ void FiniteElementSpace::Destroy()
    ceed::RemoveBasisAndRestriction(this);
 }
 
-void FiniteElementSpace::DestroyDoFTrans()
+void FiniteElementSpace::DestroyDoFTransArray()
 {
-   for (int i = 0; i < DoFTrans.Size(); i++)
+   for (int i = 0; i < DoFTransArray.Size(); i++)
    {
-      delete DoFTrans[i];
+      delete DoFTransArray[i];
    }
-   DoFTrans.SetSize(0);
+   DoFTransArray.SetSize(0);
 }
 
 void FiniteElementSpace::GetTransferOperator(

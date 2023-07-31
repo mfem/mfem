@@ -28,7 +28,7 @@ TEST_CASE("DoF Transformation Classes",
 
    SECTION("Nedelec Tetrahedral Transformations")
    {
-      ND_TetDofTransformation T(p);
+      ND_TetDofTransformation Tnd(p);
 
       Array<int> ori(4);
       ori[0] = 1;
@@ -36,6 +36,7 @@ TEST_CASE("DoF Transformation Classes",
       ori[2] = 5;
       ori[3] = 1;
 
+      DofTransformation T(Tnd);
       T.SetFaceOrientations(ori);
 
       Vector u(T.Width());
@@ -146,8 +147,8 @@ TEST_CASE("DoF Transformation Functions",
 
    double tol = 1e-13;
 
-   ND_TetDofTransformation Tp(p);
-   ND_TetDofTransformation Tq(q);
+   ND_TetDofTransformation Tndp(p);
+   ND_TetDofTransformation Tndq(q);
 
    Array<int> ori(4);
    ori[0] = 1;
@@ -155,6 +156,7 @@ TEST_CASE("DoF Transformation Functions",
    ori[2] = 5;
    ori[3] = 1;
 
+   DofTransformation Tp(Tndp), Tq(Tndq);
    Tp.SetFaceOrientations(ori);
    Tq.SetFaceOrientations(ori);
 
@@ -253,11 +255,10 @@ TEST_CASE("VDoF Transformation Class",
    ori[2] = 5;
    ori[3] = 1;
 
-   Tnd.SetFaceOrientations(ori);
-
    SECTION("VDim == 1")
    {
       VDofTransformation T(Tnd);
+      T.SetFaceOrientations(ori);
 
       Vector v(T.Width());
       Vector f(T.Width());
@@ -312,6 +313,7 @@ TEST_CASE("VDoF Transformation Class",
       SECTION("Ordering == byNODES")
       {
          VDofTransformation T(Tnd, vdim, Ordering::byNODES);
+         T.SetFaceOrientations(ori);
 
          SECTION("Inverse DoF transformation")
          {
@@ -348,6 +350,7 @@ TEST_CASE("VDoF Transformation Class",
       SECTION("Ordering == byVDIM")
       {
          VDofTransformation T(Tnd, vdim, Ordering::byVDIM);
+         T.SetFaceOrientations(ori);
 
          SECTION("Inverse DoF transformation")
          {

@@ -179,7 +179,7 @@ class ND_TetrahedronElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
-   mutable ND_TetStatelessDofTransformation doftrans;
+   mutable ND_TetDofTransformation doftrans;
 
 public:
    /// Construct the ND_TetrahedronElement of order @a p
@@ -242,7 +242,7 @@ class ND_TriangleElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
-   mutable ND_TriStatelessDofTransformation doftrans;
+   mutable ND_TriDofTransformation doftrans;
 
 public:
    /// Construct the ND_TriangleElement of order @a p
@@ -346,7 +346,7 @@ private:
 #endif
    Array<int> dof2tk, t_dof, s_dof;
 
-   mutable ND_WedgeStatelessDofTransformation doftrans;
+   mutable ND_WedgeDofTransformation doftrans;
 
    H1_TriangleElement H1TriangleFE;
    ND_TriangleElement NDTriangleFE;
