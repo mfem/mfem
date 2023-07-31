@@ -33,11 +33,6 @@ namespace internal
 occa::device occaDevice;
 #endif
 
-#ifdef MFEM_USE_SYCL
-// Default sycl::queue used by MFEM.
-sycl::queue syclQueue;
-#endif
-
 #ifdef MFEM_USE_CEED
 Ceed ceed = NULL;
 
@@ -48,20 +43,20 @@ ceed::RestrMap ceed_restr_map;
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::CEED_HIP, Backend::RAJA_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
-   Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU,
-   Backend::SYCL, Backend::CPU
+   Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::SYCL_CUDA, Backend::CUDA,
+   Backend::CEED_HIP, Backend::RAJA_HIP, Backend::SYCL_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
+   Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::SYCL_OMP, Backend::OMP,
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::SYCL_CPU,
+   Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
-   "ceed-hip", "raja-hip", "hip", "debug",
-   "occa-omp", "raja-omp", "omp",
-   "ceed-cpu", "occa-cpu", "raja-cpu", "sycl", "cpu"
+   "ceed-cuda", "occa-cuda", "raja-cuda", "sycl-cuda", "cuda",
+   "ceed-hip", "raja-hip", "sycl-hip", "hip", "debug",
+   "occa-omp", "raja-omp", "sycl-omp", "omp",
+   "ceed-cpu", "occa-cpu", "raja-cpu", "sycl-cpu", "cpu"
 };
 
 } // namespace mfem::internal
@@ -492,7 +487,7 @@ static void SyclDeviceSetup(const int dev, int &ngpu)
 {
    dbg();
 #ifdef MFEM_USE_SYCL
-   ngpu = SyGetDeviceCount();
+   ngpu = SyclGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No SYCL device!");
 #else
    MFEM_CONTRACT_VAR(dev);
@@ -594,7 +589,7 @@ void Device::Setup(const int device_id)
          CeedDeviceSetup(device_option);
       }
    }
-   if (Allows(Backend::SYCL)) { SyclDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::SYCL_CUDA | Backend::SYCL_HIP)) { SyclDeviceSetup(dev, ngpu); }
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 

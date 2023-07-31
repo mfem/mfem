@@ -162,16 +162,18 @@ struct K##kernel##_T {\
    using Key_t = int;\
    using Return_t = return_t;\
    using Kernel_t = kernel##_p;\
-   template<Key_t I> static constexpr Key_t GetKey() noexcept { return \
-     I==0 ? 0x22 : I==1 ? 0x23 : I==2 ? 0x24 : I==3 ? 0x25 : I==4 ? 0x26 :\
-     I==5 ? 0x33 : I==6 ? 0x34 : I==7 ? 0x35 : I==8 ? 0x36  :\
-     I==9 ? 0x44 : I==10 ? 0x45 : I==11 ? 0x46 :\
-     I==12 ? 0x55 : I==13 ? 0x56 : 0; }\
+   template<Key_t I> static constexpr Key_t GetKey() noexcept\
+   { return 0x23; }\
    template<Key_t K> static constexpr Kernel_t GetKer() noexcept\
    { return &kernel<(K>>4)&0xF, K&0xF>; }\
 };\
 static kernels::KernelMap<K##kernel##_T> K##kernel;\
 template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
+
+/*: I==0 ? 0x22 : I==1 ? 0x23 : I==2 ? 0x24 : I==3 ? 0x25 : I==4 ? 0x26 :\
+    I==5 ? 0x33 : I==6 ? 0x34 : I==7 ? 0x35 : I==8 ? 0x36  :\
+    I==9 ? 0x44 : I==10 ? 0x45 : I==11 ? 0x46 :\
+    I==12 ? 0x55 : I==13 ? 0x56*/
 
 // MFEM_LAUNCH_TMOP_KERNEL macro
 // This macro will try to find and launch the kernel with the id key and

@@ -32,9 +32,8 @@
 #endif
 
 #ifdef MFEM_USE_SYCL
-#include <CL/sycl.hpp>
-#endif
 #include "sycl.hpp"
+#endif
 
 #ifdef MFEM_USE_RAJA
 // The following two definitions suppress CUB and THRUST deprecation warnings
@@ -48,7 +47,7 @@
 #endif
 #endif
 
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_SYCL))
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE

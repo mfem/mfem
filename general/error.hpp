@@ -180,6 +180,9 @@ __device__ void abort_msg(T & msg)
       printf(__VA_ARGS__);     \
       abort_msg("");           \
    }
+#elif defined(MFEM_USE_SYCL)
+#define MFEM_ABORT_KERNEL(...) \
+   { assert(false && __VA_ARGS__ ); }
 #else
 #define MFEM_ABORT_KERNEL(...) \
    {                           \

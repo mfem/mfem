@@ -454,6 +454,9 @@ public:
 #ifdef MFEM_USE_HIP
       HipMemAllocHostPinned(ptr, bytes);
 #endif
+#ifdef MFEM_USE_SYCL
+      SyclMemAllocHostPinned(ptr, bytes);
+#endif
    }
    void Dealloc(void *ptr) override
    {
@@ -462,6 +465,9 @@ public:
 #endif
 #ifdef MFEM_USE_HIP
       HipMemFreeHostPinned(ptr);
+#endif
+#ifdef MFEM_USE_SYCL
+      SyclMemFreeHostPinned(ptr);
 #endif
    }
 };
@@ -482,6 +488,20 @@ public:
    { return HipMemcpyDtoDAsync(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
    { return HipMemcpyDtoH(dst, src, bytes); }
+};
+
+/// The SYCL device memory space
+struct SyclDeviceMemorySpace: public DeviceMemorySpace
+{
+   SyclDeviceMemorySpace(): DeviceMemorySpace() { mfem::out << "\033[33m[SyclDeviceMemorySpace]\033[m" << std::endl; }
+   void Alloc(Memory &base) { SyclMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) { SyclMemFree(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   { return SyclMemcpyHtoD(dst, src, bytes); }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return SyclMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   { return SyclMemcpyDtoH(dst, src, bytes); }
 };
 
 /// The UVM device memory space.
@@ -737,6 +757,8 @@ private:
             return new CudaDeviceMemorySpace();
 #elif defined(MFEM_USE_HIP)
             return new HipDeviceMemorySpace();
+#elif defined(MFEM_USE_SYCL)
+            return new SyclDeviceMemorySpace();
 #else
             MFEM_ABORT("No device memory controller!");
             break;

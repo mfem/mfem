@@ -517,7 +517,7 @@ MFEM_USE_OCCA = YES/NO
 MFEM_USE_SYCL = YES/NO
    Enables support for SYCL in MFEM. SYCL is a higher-level programming model
    for OpenCL as a single-source domain specific embedded language based on
-   pure C++11 for SYCL to improve programming productivity.
+   pure C++ for SYCL to improve programming productivity.
 
 MFEM_USE_GSLIB = YES/NO
    Enables MFEM functionality based on the GSLIB library, and specifically its

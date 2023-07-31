@@ -391,7 +391,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                double        *dI3b=Jrt,        *ddI3b=Jpr;
 
                // metric->AssembleH
-               if (mid == 302)
+               /*if (mid == 302)
                {
                   EvalH_302(e,qx,qy,qz,weight,Jpt,H,
                             B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b);
@@ -423,7 +423,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                {
                   EvalH_338(e,qx,qy,qz,weight,metric_data,Jpt,H,
                             B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
-               }
+               }*/
             } // qx
          } // qy
       } // qz

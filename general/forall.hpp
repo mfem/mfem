@@ -570,6 +570,14 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
+#ifdef MFEM_USE_SYCL
+   // If one of the Backend::SYCL_MASK is allowed, use it
+   if (Device::Allows(Backend::SYCL_MASK))
+   {
+      return SyclKernel<DIM>::run(N, d_body, X, Y, Z, G);
+   }
+#endif
+
 #ifdef MFEM_USE_CUDA
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))

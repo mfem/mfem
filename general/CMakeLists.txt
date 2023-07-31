@@ -26,6 +26,7 @@ list(APPEND SRCS
   sets.cpp
   socketstream.cpp
   stable3d.cpp
+  sycl.cpp
   table.cpp
   tic_toc.cpp
   tinyxml2.cpp
@@ -56,6 +57,7 @@ list(APPEND HDRS
   socketstream.hpp
   sort_pairs.hpp
   stable3d.hpp
+  sycl.hpp
   table.hpp
   tassign.hpp
   tic_toc.hpp

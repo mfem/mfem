@@ -113,7 +113,10 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
    const double *metric_data = metric_param.Read();
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   //   mfem::forall_3D(NE, Q1D, Q1D, Q1D,
+   ForallWrap<3>(false, NE,
+   [=] MFEM_HOST_DEVICE (int/*, cl::sycl::nd_item<2>*/) { assert(false); },
+   [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -163,13 +166,14 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                   mid == 318 ? EvalW_318(Jpt) :
                   mid == 321 ? EvalW_321(Jpt) :
                   mid == 332 ? EvalW_332(Jpt, metric_data) :
-                  mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
+                  mid == 338 ? EvalW_338(Jpt, metric_data) :
+                  0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
             }
          }
       }
-   });
+   }, Q1D,Q1D,Q1D,0);
    return energy * ones;
 }
 

@@ -146,57 +146,6 @@ typedef DeviceTensor<2,const double> ConstDeviceMatrix;
 typedef DeviceTensor<3,double> DeviceCube;
 typedef DeviceTensor<3,const double> ConstDeviceCube;
 
-
-#ifdef MFEM_USE_SYCL
-/// A SYCL buffer generic Tensor class
-template<int Dim, typename XS> class BufferTensor
-{
-public:
-   using val_t = typename XS::value_type;
-   using ref_t = typename XS::reference;
-   using const_ref_t = typename XS::const_reference;
-protected:
-   int capacity;
-   XS xs;
-   int sizes[Dim];
-
-public:
-   /// Default constructor
-   BufferTensor() = delete;
-
-   /// Constructor to initialize a tensor from the buffer _buf
-   template <typename... Args>
-   BufferTensor(XS _xs, Args... args): xs(_xs)
-   {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      // Initialize sizes, and compute the number of values
-      const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
-      capacity = nb;
-   }
-
-   /// Conversion to `Scalar *`.
-   inline operator val_t *() const { return *(xs.get_pointer()); }
-
-   /// Const accessor for the data
-   template <typename... Args> inline
-   ref_t operator()(Args... args) const
-   {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
-      return xs[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
-   }
-
-   /// Subscript operator where the tensor is viewed as a 1D array.
-   inline ref_t operator[](int i) const { return xs[i]; }
-};
-
-template <typename XS, typename... Dims>
-inline BufferTensor<sizeof...(Dims),XS> Reshape(XS xs, Dims... dims)
-{
-   return BufferTensor<sizeof...(Dims),XS>(xs, dims...);
-}
-
-#endif // MFEM_USE_SYCL
-
 } // mfem namespace
 
 #endif // MFEM_DTENSOR

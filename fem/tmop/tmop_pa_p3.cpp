@@ -204,13 +204,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
 
                // metric->EvalP(Jpt, P);
                double P[9];
-               if (mid == 302) { EvalP_302(Jpt, P); }
-               if (mid == 303) { EvalP_303(Jpt, P); }
-               if (mid == 315) { EvalP_315(Jpt, P); }
-               if (mid == 318) { EvalP_318(Jpt, P); }
-               if (mid == 321) { EvalP_321(Jpt, P); }
-               if (mid == 332) { EvalP_332(Jpt, metric_data, P); }
-               if (mid == 338) { EvalP_338(Jpt, metric_data, P); }
+               //if (mid == 302) { EvalP_302(Jpt, P); }
+               //if (mid == 303) { EvalP_303(Jpt, P); }
+               //if (mid == 315) { EvalP_315(Jpt, P); }
+               //if (mid == 318) { EvalP_318(Jpt, P); }
+               //if (mid == 321) { EvalP_321(Jpt, P); }
+               //if (mid == 332) { EvalP_332(Jpt, metric_data, P); }
+               //if (mid == 338) { EvalP_338(Jpt, metric_data, P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                // Y += DS . P^t += DSh . (Jrt . P^t)

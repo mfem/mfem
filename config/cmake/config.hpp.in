@@ -161,6 +161,9 @@
 // Enable functionality based on the OCCA library.
 #cmakedefine MFEM_USE_OCCA
 
+// Enable functionality based on the SYCL.
+#cmakedefine MFEM_USE_SYCL
+
 // Enable functionality based on the libCEED library.
 #cmakedefine MFEM_USE_CEED
 

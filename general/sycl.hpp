@@ -16,80 +16,165 @@
 
 #ifdef MFEM_USE_SYCL
 
+#include <iostream>
+#include <CL/sycl.hpp>
+
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
-#define MFEM_DEVICE_SYNC
+#define MFEM_DEVICE_SYNC // SyclQueue().queues_wait_and_throw()
 #define MFEM_STREAM_SYNC
-#define MFEM_GPU_CHECK(x)
+#define MFEM_GPU_CHECK(...) __VA_ARGS__
 
+/*#if defined(__SYCL_DEVICE_ONLY__)
 // Define the SYCL inner threading macros
-#define SYCL_SHARED
-#define SYCL_SYNC_THREAD itm.barrier(sycl::access::fence_space::local_space);
-#define SYCL_THREAD_ID(k) itm.get_local_id(k);
-#define SYCL_THREAD_SIZE(k) itm.get_local_range(k);
-#define SYCL_FOREACH_THREAD(i,k,N) \
-    for(int i=itm.get_local_id(k); i<N; i+=itm.get_local_range(k))
+#define MFEM_SHARED // the compiler does the local memory mapping if it can
+#define MFEM_SYNC_THREAD itm.barrier(cl::sycl::access::fence_space::local_space);
+// sycl::group_barrier(it.get_group());
+#define MFEM_THREAD_ID(k) itm.get_local_id(k);
+#define MFEM_THREAD_SIZE(k) itm.get_local_range(k);
+#endif*/
 
-#include "mem_manager.hpp"
+#define SYCL_FOREACH_THREAD(i,k,N) \
+for(int i=itm.get_local_id(k); i<N; i+=itm.get_local_range(k))
+
 #include "device.hpp"
-#include "../linalg/dtensor.hpp"
 
 namespace mfem
 {
 
 /// Return the default sycl::queue used by MFEM.
-sycl::queue &SyclQueue();
+cl::sycl::queue& SyclQueue();
 
-#define SYCL_KERNEL(...) { \
-    sycl::queue &Q = SyclQueue();\
-    Q.submit([&](sycl::handler &h) {__VA_ARGS__}); \
-    Q.wait();\
-}
+template <int Dim> struct SyclKernel;
 
-#define SYCL_FORALL(i,N,...) \
-    ForallWrap1D(N, h, [=] (int i) {__VA_ARGS__})
-
-/// The forall kernel body wrapper
-template <typename BODY>
-inline void ForallWrap1D(const int N, sycl::handler &h, BODY &&body)
+template <> struct SyclKernel<1>
 {
-   h.parallel_for(sycl::range<1>(N), [=](sycl::id<1> k) {body(k);});
-   return;
-}
+   template <typename DBODY>
+   static void run(const int N, DBODY &&body,
+                   const int /*X*/, const int /*Y*/, const int /*Z*/, const int /*G*/) noexcept
+   {
+      if (N == 0) { return; }
+      try
+      {
+         cl::sycl::queue &Q = SyclQueue();
+         Q.submit([&](cl::sycl::handler &h)
+         {
+            h.parallel_for(cl::sycl::range<1>(N), [=](cl::sycl::id<1> itm)
+            {
+               body(itm[0]);
+            });
+         });
+         Q.wait();
+      }
+      catch (cl::sycl::exception const &e)
+      {
+         MFEM_ABORT("An exception is caught while multiplying matrices.");
+      }
+   }
+};
 
-////////////////////////////////////////////////////////////////////////////
-// SYCL_FORALL with a 3D CUDA block, sycl::h_item<3> &itm
-#define SYCL_FORALL_3D(i,N,X,Y,Z,...) \
-   ForallWrap3D<X,Y,Z>(N, h, [=] (const int i, sycl::nd_item<3> itm) {__VA_ARGS__})
-
-/// The forall kernel body wrapper
-template <int X, int Y, int Z, typename BODY>
-inline void ForallWrap3D(const int N, sycl::handler &h, BODY &&body)
+template <> struct SyclKernel<2>
 {
-   if (N == 0) { return; }
-   const int L = static_cast<int>(ceil(cbrt(N)));
-   const sycl::range<3> GRID(L*X,L*Y,L*Z);
-   const sycl::range<3> BLCK(X,Y,Z);
-   h.parallel_for(sycl::nd_range<3>(GRID, BLCK), [=](sycl::nd_item<3> itm)
-   { SyKernel3D(N, body, itm); });
-   return;
-}
+   template <typename T>
+   static void run(const int N, T &&body,
+                   const int X, const int Y, const int /*Z*/, const int /*G*/)
+   {
+      if (N == 0) { return; }
+      try
+      {
+         cl::sycl::queue &Q = SyclQueue();
+         Q.submit([&](cl::sycl::handler &h)
+         {
+            const int L = static_cast<int>(std::ceil(std::sqrt(N)));
+            const cl::sycl::range<2> grid(L*X, L*Y);
+            const cl::sycl::range<2> group(X, Y);
+            h.parallel_for(cl::sycl::nd_range<2>(grid,group), [=](cl::sycl::nd_item<2> itm)
+            {
+               const int k = itm.get_group_linear_id();
+               if (k >= N) { return; }
+               body(k);
+            });
+         });
+         Q.wait();
+      }
+      catch (cl::sycl::exception const &e)
+      {
+         MFEM_ABORT("An exception is caught while multiplying matrices.");
+      }
+   }
+};
 
-template <typename BODY> static
-void SyKernel3D(const int N, BODY body, sycl::nd_item<3> itm)
+template <> struct SyclKernel<3>
 {
-   const int k = itm.get_group_linear_id();
-   if (k >= N) { return; }
-   body(k, itm);
-}
+   template <typename T>
+   static void run(const int N, T &&body,
+                   const int X, const int Y, const int Z, const int /*G*/)
+   {
+      if (N == 0) { return; }
+      try
+      {
+         cl::sycl::queue &Q = SyclQueue();
+         Q.submit([&](cl::sycl::handler &h)
+         {
+            const int L = static_cast<int>(std::ceil(std::cbrt(N)));
+            const cl::sycl::range<3> grid(L*X, L*Y, L*Z);
+            const cl::sycl::range<3> group(X, Y, Z);
+            h.parallel_for(cl::sycl::nd_range<3>(grid, group), [=](cl::sycl::nd_item<3> itm)
+            {
+               const int k = itm.get_group_linear_id();
+               if (k >= N) { return; }
+               body(k);
+            });
+         });
+         Q.wait();
+      }
+
+      catch (cl::sycl::exception const &e)
+      {
+         MFEM_ABORT("An exception is caught while multiplying matrices.");
+      }
+   }
+};
+
+/// Allocates device memory and returns destination ptr.
+void* SyclMemAlloc(void **d_ptr, size_t bytes);
+
+/// Allocates managed device memory
+void* SyclMallocManaged(void **d_ptr, size_t bytes);
+
+/// Allocates page-locked (pinned) host memory
+void* SyclMemAllocHostPinned(void **ptr, size_t bytes);
+
+/// Frees device memory and returns destination ptr.
+void* SyclMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* SyclMemFreeHostPinned(void *ptr);
+
+/// Copies memory from Host to Device and returns destination ptr.
+void* SyclMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
+
+/// Copies memory from Host to Device and returns destination ptr.
+void* SyclMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
+
+/// Copies memory from Device to Device
+void* SyclMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
+
+/// Copies memory from Device to Device
+void* SyclMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
+
+/// Copies memory from Device to Host
+void* SyclMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
+
+/// Copies memory from Device to Host
+void* SyclMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+/// Check the error code returned by the sycl queue with throw_asynchronous().
+void SyclCheckLastError();
 
 /// Get the number of SYCL devices
-int SyGetDeviceCount();
-
-/** @brief Function that determines if an SYCL kernel should be used, based on
-    the current mfem::Device configuration. */
-inline bool DeviceCanUseSycl() { return Device::Allows(Backend::SYCL); }
+int SyclGetDeviceCount();
 
 } // namespace mfem
 
