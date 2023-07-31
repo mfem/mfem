@@ -60,6 +60,13 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
+   /** @brief Returns a DoF transformation object compatible with this basis
+       and geometry type.
+   */
+   virtual StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const
+   { return NULL; }
+
    /** @brief Returns an array, say p, that maps a local permuted index i to a
        local base index: base_i = p[i].
 
@@ -475,6 +482,9 @@ public:
 
    int DofForGeometry(Geometry::Type GeomType) const override
    { return ND_dof[GeomType]; }
+
+   StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const override;
 
    const int *DofOrderForOrientation(Geometry::Type GeomType,
                                      int Or) const override;
