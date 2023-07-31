@@ -635,6 +635,10 @@ protected:
    // Eisenstat-Walker factor alpha
    double alpha;
 
+   double relaxation = 1.0;
+
+
+
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */
    void AdaptiveLinRtolPreSolve(const Vector &x,
@@ -650,6 +654,8 @@ protected:
 
 public:
    NewtonSolver() { }
+
+   void SetRelaxation(const double relaxation_){ relaxation = relaxation_;};
 
 #ifdef MFEM_USE_MPI
    NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
@@ -669,7 +675,7 @@ public:
    /** The base class implementation (NewtonSolver) simply returns 1. A return
        value of 0 indicates a failure, interrupting the Newton iteration. */
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
-   { return 1.0; }
+   { return relaxation; }
 
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */

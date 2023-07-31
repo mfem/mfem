@@ -38,7 +38,7 @@ class DensityCoeff:public mfem::Coefficient
 
     enum PatternType {Ball, Gyroid,
      SchwarzP, SchwarzD,FCC,
-      BCC, Octet, TRUSS,Ellipse, Triangle, Spheres,Gyroids};
+      BCC, Octet, TRUSS,Ellipse, Triangle, Spheres,Gyroids, Triangles,Labyrinth};
 
 private:
 
@@ -55,8 +55,8 @@ public:
 
     DensityCoeff()
     {
-        cx=0.5;
-        cy=0.5;
+        cx=0.01;
+        cy=0.01;
         cz=1.0;
         eta=std::sqrt(2.0)/4;//0.1;
         prtype=zero_one;
@@ -129,12 +129,12 @@ public:
             Vector transip(x, 3);
             T.Transform(ip,transip);
 
-            double unitCellSize = 0.05;
+            double unitCellSize = 0.02;
 
             if(T.GetDimension()==3)
-            { unitCellSize = 0.25;}
+            { unitCellSize = 0.2;}
             
-            if(T.GetDimension()==2 && (x[0] < 0.0 || x[1] < 0.0 || x[1] > 1.0))
+            if(T.GetDimension()==2 && (x[0] < -0.3 || x[1] < 0.0 || x[1] > 1.0))
             {return 0.0;}
             else if(T.GetDimension()==3 && (x[0] < -1.5 || x[0] > 1.5 ))
             {return 0.0;}
@@ -156,8 +156,15 @@ public:
                }
                rr=std::sqrt(rr);
                if(prtype==continuous){return rr;}
+            
+               //eta = std::sin( x[0]/0.5*M_PI)*0.25 + 0.12;
+
+                eta = ((sin(x[0]/2.0*2.0*M_PI)*cos((x[1]+0.48)/0.48*2.0*M_PI)
+                     +sin((x[1]+0.48)/0.48*2.0*M_PI)*cos(0)
+                     +sin(0)*cos(x[0]/2.0*2.0*M_PI))+1.0)*0.5*0.25 + 0.12;
 
                if(rr>eta){return 0.0;}
+
                return 1.0; 
             }
         }else
@@ -166,9 +173,11 @@ public:
             Vector transip(xv, 3);
             T.Transform(ip,transip);
 
-            double unitCellSize = 1.0;
+            double unitCellSize = 0.02;
+
+            double eta_calc = 0.4;
             
-            if( (xv[0] < -1.3 || xv[0] > 1.3 ))
+            if( (xv[0] <= -0.02  ))
             {return 0.0;}
             else
             {
@@ -191,7 +200,7 @@ public:
                           std::sin(z)*std::cos(x);
                 if(prtype==continuous){return vv;}
 
-                if(fabs(vv)>-eta && fabs(vv)<eta){ return 1.0;}
+                if(fabs(vv)>-eta_calc && fabs(vv)<eta_calc){ return 1.0;}
                 else{return 0.0;}
             }
         }else
@@ -229,7 +238,7 @@ public:
             mfem::Vector transip(3);
             mfem::Vector rotatedCoords(2);
             T.Transform(ip,transip);
-            transip -= 0.5;
+            transip -= 0.01;
 
             double Angele = alpha;
 
@@ -256,6 +265,100 @@ public:
             if(prtype==continuous){return rr;}
 
             if(rr <0.0){return 0.0;}
+            return 1.0;  
+        }else
+        if(pttype==Triangles){	
+            mfem::Vector transip(3);
+            mfem::Vector remainderVec(3); remainderVec = 0.0;
+            mfem::Vector rotatedCoords(2);
+            T.Transform(ip,transip);
+            double transformation = 0.5;
+
+            double unitCellSize = 0.02;
+            
+            double remainder_x = std::fmod( transip[0] , unitCellSize);
+            double remainder_y = std::fmod( transip[1] , unitCellSize);
+               
+            remainderVec[0] = remainder_x / unitCellSize - transformation;
+            remainderVec[1] = remainder_y / unitCellSize - transformation;
+
+            double Angele = M_PI/2.0;
+
+            mfem::DenseMatrix tRot(2); tRot = 0.0;
+            tRot(0,0) = std::cos(Angele);
+            tRot(1,0) = -std::sin(Angele);
+            tRot(0,1) = std::sin(Angele);
+            tRot(1,1) = std::cos(Angele);
+
+            tRot.Mult(remainderVec,rotatedCoords);
+
+            //rotatedCoords +=0.5;
+
+            double rr1=       ( std::sqrt(3.0)*rotatedCoords[0]-rotatedCoords[1]+eta);
+            double rr2=  -1.0*( std::sqrt(3.0)*rotatedCoords[0]+rotatedCoords[1]-eta);
+            double rr3=        rotatedCoords[1]+eta/2.0;
+
+                if(T.GetDimension()==3)
+                {
+                    mfem_error("not implemented");
+                }
+                double rr= std::min( rr1, rr2);
+                        rr= std::min( rr , rr3);
+            if(prtype==continuous){return rr;}
+
+            if(rr <0.0){return 0.0;}
+            return 1.0;  
+        }else
+        if(pttype==Labyrinth){	
+            mfem::Vector transip(3);
+            mfem::Vector remainderVec(3); remainderVec = 0.0;
+            mfem::Vector rotatedCoords(2);
+            T.Transform(ip,transip);
+            double transformation = 0.5;
+
+            double unitCellSize = 0.02;
+            
+            double remainder_x = std::fmod( transip[0] , unitCellSize);
+            double remainder_y = std::fmod( transip[1] , unitCellSize);
+               
+            remainderVec[0] = remainder_x / unitCellSize - transformation;
+            remainderVec[1] = remainder_y / unitCellSize - transformation;
+
+            // double Angele = M_PI/2.0;
+
+            // mfem::DenseMatrix tRot(2); tRot = 0.0;
+            // tRot(0,0) = std::cos(Angele);
+            // tRot(1,0) = -std::sin(Angele);
+            // tRot(0,1) = std::sin(Angele);
+            // tRot(1,1) = std::cos(Angele);
+
+            // tRot.Mult(remainderVec,rotatedCoords);
+
+            //rotatedCoords +=0.5;
+
+            double rrA1=        2.0*remainderVec[0] + remainderVec[1]+0.1;   
+            double rrA2= -1.0*( 2.0*remainderVec[0] + remainderVec[1]-0.1); 
+            double rrA3=            remainderVec[1] - 0.05;      
+
+            double rrB1=        1.2*remainderVec[0] - remainderVec[1]-0.14;   
+            double rrB2= -1.0*( 1.2*remainderVec[0] - remainderVec[1]-0.27); 
+            double rrB3= -1.0*(     remainderVec[1] - 0.15);   
+
+                if(T.GetDimension()==3)
+                {
+                    mfem_error("not implemented");
+                }
+                double rr_1= std::min( rrA1, rrA2);
+                       rr_1= std::min( rr_1 , rrA3);
+
+                double rr_2= std::min( rrB1, rrB2);
+                       rr_2= std::min( rr_2 , rrB3);
+            
+                double rr = std::max( rr_1, rr_2);
+
+            if(prtype==continuous){return rr;}
+
+            if(rr < 0.0){return 0.0;}
             return 1.0;  
         }else
         if(pttype==FCC){
@@ -572,6 +675,7 @@ public:
                     {
                         V(2)=-1.0* mnz * ma;
                     }
+                    
                 }else
                 {
                     vel->GetVectorValue(T,ip,V);
@@ -664,6 +768,8 @@ private:
    BrinkPenalAccel * mBp = nullptr;
 
    bool mVisualization = true;
+
+   mfem::Vector mAverageVel;
    
 public:
 
@@ -707,6 +813,16 @@ public:
    void Perform( );
 
    void Postprocess( const int & runID );
+
+   const mfem::Vector & GetAvgGVel()
+   {
+      return mAverageVel;
+   };
+
+   const mfem::ParGridFunction * GetVel()
+   {
+       return mFlowsolver->GetCurrentVelocity();
+   };
 };
 
 } // namespace navier

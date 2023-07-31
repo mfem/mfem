@@ -102,17 +102,10 @@ int main(int argc, char *argv[])
    }
 
 
-   // Allocate the nonlinear diffusion solver
-   mfem::NLDiffusion* solver=new mfem::NLDiffusion(pmesh,2);
-
-   //add boundary conditions
-   //solver->AddDirichletBC(2,0.0);
-   solver->AddDirichletBC(3,0.0);
-   solver->AddDirichletBC(4,0.0);
 
    // build h1 desing space
    int orderDesing = 1;
-   int orderAnalysis = 2;
+   int orderAnalysis = 1;
    ::mfem::H1_FECollection desFECol_H1(orderDesing, dim);
    ::mfem::ParFiniteElementSpace desFESpace_scalar_H1(pmesh, &desFECol_H1 );
 
@@ -123,6 +116,17 @@ int main(int argc, char *argv[])
    // initialize desing field
    mfem::ParGridFunction desingVarVec(&desFESpace_scalar_H1); desingVarVec=tThreshold;
  
+ 
+   // Allocate the nonlinear diffusion solver
+   mfem::NLDiffusion* solver=new mfem::NLDiffusion(pmesh,orderAnalysis);
+   solver->SetNewtonSolver(1e-8, 1e-12,20, 1);
+   solver->SetLinearSolver(1e-10, 1e-12, 1000);
+
+   //add boundary conditions
+   //solver->AddDirichletBC(2,0.0);
+   solver->AddDirichletBC(3,0.0);
+   solver->AddDirichletBC(4,0.0);
+
    //----------------------------------------------------------
    // add material
 
@@ -136,14 +140,22 @@ int main(int argc, char *argv[])
 
    // Vector NNInput(dim+1); NNInput=0.0;
    // Vector rr(dim+1);
-   // NNInput[0] =  1.0;
+   // NNInput[0] =  4.5835;
+   // NNInput[1] = 7.7465;
    // NNInput[2] = 0.3;
 
    //     tMatCoeff->Grad(NNInput,rr);
    //     rr.Print();
 
+   //    //  4.5835, 7.7465, 0.3000],
+   //    //   [1.3385, 3.7950, 0.3000
+
+   //     mfem_error("kill run");
+
    //----------------------------------------------------------
    //solve
+   double tFinalLoad = 5e-1;
+   solver->AddNeumannLoadVal( tFinalLoad );
    solver->FSolve();
 
    mfem::ParGridFunction tPreassureGF;

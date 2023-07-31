@@ -13,13 +13,15 @@ if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_SOURCES
       navier_solver.cpp
       navier_3d_brink_workflow.cpp
-      ascii.cpp
-      MeshOptSolver.cpp)
+      advection_diffusion_solver.cpp
+      NLGLSIntegrator.cpp
+      ascii.cpp)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp
       navier_3d_brink_workflow.hpp
-      ascii.hpp
-      MeshOptSolver.hpp)
+      advection_diffusion_solver.hpp
+      NLGLSIntegrator.hpp
+      ascii.hpp)
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
@@ -83,20 +85,45 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 
+  add_mfem_miniapp(navier_2dbrink_full_channel
+    MAIN navier_2dbrink_full_channel.cpp
+    ${NAVIER_COMMON_FILES} ${DIST_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(navier_2dbrink_full_channel_tri
+    MAIN navier_2dbrink_full_channel_tri.cpp
+    ${NAVIER_COMMON_FILES} ${DIST_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(navier_2dbrink_full_channel_labyrinth
+    MAIN navier_2dbrink_full_channel_labyrinth.cpp
+    ${NAVIER_COMMON_FILES} ${DIST_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(navier_3dbrink_full_channel_gyroid
+    MAIN navier_3dbrink_full_channel_gyroid.cpp
+    ${NAVIER_COMMON_FILES} ${DIST_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(navier_3dbrink_full_channel
+    MAIN navier_3dbrink_full_channel.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem) 
+
   add_mfem_miniapp(navier_3dbrink_full
     MAIN navier_3dbrink_full.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 
-  add_mfem_miniapp(navier_3dbrink_TMOP
-    MAIN navier_3dbrink_TMOP.cpp
-    ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem) 
+  #add_mfem_miniapp(navier_3dbrink_TMOP
+  #  MAIN navier_3dbrink_TMOP.cpp
+  #  ${NAVIER_COMMON_FILES}
+  #  LIBRARIES mfem) 
 
-  add_mfem_miniapp(TMOP_test
-    MAIN TMOP_test.cpp
-    ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem) 
+  #add_mfem_miniapp(TMOP_test
+  #  MAIN TMOP_test.cpp
+  #  ${NAVIER_COMMON_FILES}
+  #  LIBRARIES mfem) 
 
   add_mfem_miniapp(preprocess_data
     MAIN preprocess_data.cpp

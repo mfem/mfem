@@ -1,9 +1,9 @@
 #ifndef ADVECTION_DIFFUSION_SOLVER_HPP
 #define ADVECTION_DIFFUSION_SOLVER_HPP
 
-#include "hpc4solvers.hpp"
-#include "Stokes.hpp"
-#include "hpc4DiffMat.hpp"
+#include "mfem.hpp"
+#include "navier_3d_brink_workflow.hpp"
+
 
 namespace mfem{
 
@@ -38,12 +38,19 @@ public:
 
         double dens=dcoeff->Eval(T,ip); 
 
-        if(dens<1e-8)
+        
+        if(dens == 1.0)
         {
-            return 1.0;
-        }else
+            return 237.0;//;
+        }
+        else if(dens == 0.0)
         {
-            return 50.0; 
+            return 0.598; 
+        }
+        else
+        {
+            mfem_error("BodyLoadCoeff() density field is not zero-one");
+            return 0.0;
         }
     }
 
@@ -53,75 +60,43 @@ private:
 
 };
 
+    //-------------------------------------------------------------------------------------------------------------------------------------
+
 class BodyLoadCoeff : public mfem::Coefficient
 {
     public:
         BodyLoadCoeff(
-            mfem::ParMesh* mesh_,
-            double sign = 1.0 ) :
-            pmesh_(mesh_),
-            sign_(sign)
+            enum navier::DensityCoeff::PatternType aGeometry,
+            double aeta,
+            double val ) :
+            pttype_(aGeometry),
+            eta_(aeta),
+            val_(val)
         {
-            int dim_=pmesh_->Dimension();
+
+
         };
 
         virtual ~BodyLoadCoeff() {  };
 
+        void SetDensity(mfem::Coefficient* coeff)
+        {
+            dcoeff=coeff;
+        }
+
         double Eval(
              mfem::ElementTransformation & T,
              const IntegrationPoint & ip) override;
-
-    private:
-
-    mfem::ParMesh* pmesh_ = nullptr;
-
-    int dim_ = 0;
-
-    double sign_ = 1.0;
-};
-
-/** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
-    can be a scalar or a matrix coefficient. */
-class DiffusionIntegrator_hpc4: public BilinearFormIntegrator
-{
-protected:
-   mfem::Coefficient *Q = nullptr;
-   mfem::BasicAdvDiffCoefficient * MQ = nullptr;
-
-   mfem::ParGridFunction *preassure = nullptr;
-   mfem::ParGridFunction *design = nullptr;
-
 private:
-   Vector vec, vecdxt, pointflux, shape;
 
-   // PA extension
-   const FiniteElementSpace *fespace;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
-   Vector pa_data;
-   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-
-public:
-   /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator_hpc4(const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir) { }
-
-   /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator_hpc4(Coefficient *q, const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(q) { }
-
-    DiffusionIntegrator_hpc4(BasicAdvDiffCoefficient *q, ParGridFunction* PGF, ParGridFunction* DGF,  const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        MQ(q), preassure(PGF), design(DGF) { }
-
-   /** Given a particular Finite Element computes the element stiffness matrix
-       elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat);
+    enum navier::DensityCoeff::PatternType    pttype_;
+    mfem::Coefficient* dcoeff = nullptr;
+    double eta_;
+    double val_;
+    
 };
+
+    //-------------------------------------------------------------------------------------------------------------------------------------
 
 class Advection_Diffusion_Solver
 {
@@ -210,10 +185,8 @@ public:
 
         sol.SetSize(fes->GetTrueVSize()); sol=0.0;
         rhs.SetSize(fes->GetTrueVSize()); rhs=0.0;
-        adj.SetSize(fes->GetTrueVSize()); adj=0.0;
 
         solgf.SetSpace(fes);
-        adjgf.SetSpace(fes);
 
         SetLinearSolver();
     }
@@ -230,9 +203,9 @@ public:
         delete a;
 
 
-        for(size_t i=0;i<materials.size();i++){
-            delete materials[i];
-        }
+        // for(size_t i=0;i<materials.size();i++){
+        //     delete materials[i];
+        // }
     }
 
     /// Set the Linear Solver
@@ -245,8 +218,6 @@ public:
 
     /// Solves the forward problem.
     void FSolve();
-
-    void ASolve(mfem::Vector& rhs);
 
     /// Adds Dirichlet BC
     void AddDirichletBC(int id, double val)
@@ -278,8 +249,9 @@ public:
     mfem::ParGridFunction& GetSolution(){return solgf;}
 
     void SetDensityCoeff(    
-        enum stokes::DensityCoeff::PatternType aGeometry,
-        enum stokes::DensityCoeff::ProjectionType aProjectionType);
+        enum navier::DensityCoeff::PatternType aGeometry,
+        enum navier::DensityCoeff::ProjectionType aProjectionType,
+        double aeta);
 
     /// Add material to the solver. The pointer is owned by the solver.
     void AddMaterial(MatrixCoefficient* nmat)
@@ -297,54 +269,33 @@ public:
         avgGradTemp_ = avgGradTemp;
     }
 
-    void SetPreassureAndDesignGF(     
-        mfem::ParGridFunction *  pressureGF,
-        mfem::ParGridFunction *  designGF,
-        SurrogateAdvDiffCoefficientnCoefficient * AdvDiffCoeff  )
-    {
-        pressureGF_ = pressureGF;
-        designGF_ = designGF;
-        SurrogateDiffCoeff_ = AdvDiffCoeff;
-    }
-
     /// Returns the solution vector.
     mfem::Vector& GetSol(){return sol;}
 
     void GetSol(ParGridFunction& sgf){
         sgf.SetSpace(fes); sgf.SetFromTrueDofs(sol);}
 
-    /// Returns the adjoint solution vector.
-    mfem::Vector& GetAdj(){return adj;}
-
-    void GetAdj(ParGridFunction& agf){
-        agf.SetSpace(fes); agf.SetFromTrueDofs(adj);}
-
-    void Postprocess();
+    mfem::Vector Postprocess();
 
 private:
     mfem::ParMesh* pmesh;
 
-    stokes::DensityCoeff * mDensCoeff = nullptr;
+    enum navier::DensityCoeff::PatternType    pttype_;
+    navier::DensityCoeff * mDensCoeff = nullptr;
+    double meta = 0.0;
 
     std::vector<MatrixCoefficient*> materials;
-
-    mfem::SurrogateAdvDiffCoefficientnCoefficient * SurrogateDiffCoeff_ = nullptr;
 
     ParBilinearForm *a = nullptr;
     ParLinearForm *b = nullptr;
 
     //solution true vector
     mfem::Vector sol;
-    mfem::Vector adj;
     mfem::Vector rhs;
     mfem::ParGridFunction solgf;
-    mfem::ParGridFunction adjgf;
 
     mfem::VectorCoefficient* vel_ = nullptr;
     mfem::VectorCoefficient* avgGradTemp_ = nullptr;
-
-    mfem::ParGridFunction *  pressureGF_ = nullptr;
-    mfem::ParGridFunction *  designGF_ = nullptr;
 
     mfem::FiniteElementCollection *fec;
     mfem::ParFiniteElementSpace	  *fes;
@@ -356,8 +307,6 @@ private:
     int linear_iter;
 
     int print_level = 1;
-
-    const double alpha = 1.0;
 
     //mfem::HypreBoomerAMG *prec = nullptr; //preconditioner
     mfem::HypreILU *prec = nullptr;

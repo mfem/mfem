@@ -7,10 +7,10 @@ namespace mfem {
 
     void SurrogateNLDiffusionCoefficient::MyNeuralNet::readSurrogateModel()
     {
-        std::string tStringWeight1 = "./NeuralNet/vel_weights1_Ellips.txt";
-        std::string tStringWeight2 = "./NeuralNet/vel_weights2_Ellips.txt";
-        std::string tStringBias1   = "./NeuralNet/vel_bias1_Ellips.txt";
-        std::string tStringBias2 = "./NeuralNet/vel_bias2_Ellips.txt";
+        std::string tStringWeight1 = "./NeuralNet/vel_weights1_Circle.txt";
+        std::string tStringWeight2 = "./NeuralNet/vel_weights2_Circle.txt";
+        std::string tStringBias1   = "./NeuralNet/vel_bias1_Circle.txt";
+        std::string tStringBias2 = "./NeuralNet/vel_bias2_Circles.txt";
 
         mfem::Ascii tAsciiReader1( tStringWeight1, FileMode::OPEN_RDONLY );
         mfem::Ascii tAsciiReader2( tStringWeight2, FileMode::OPEN_RDONLY );
@@ -72,10 +72,35 @@ namespace mfem {
 
     void SurrogateNLDiffusionCoefficient::MyNeuralNet_MatTensor::readSurrogateModel()
     {
-        std::string tStringWeight1 = "./NeuralNet/Circle_weights1_realSize.txt";
-        std::string tStringWeight2 = "./NeuralNet/Circle_weights2_realSize.txt";
-        std::string tStringBias1   = "./NeuralNet/Circle_bias1_realSize.txt";
-        std::string tStringBias2   = "./NeuralNet/Circle_bias2_realSize.txt";
+        // std::string tStringWeight1 = "./NeuralNet/Circle_weights1_Darcy.txt";
+        // std::string tStringWeight2 = "./NeuralNet/Circle_weights2_Darcy.txt";
+        // std::string tStringBias1   = "./NeuralNet/Circle_bias1_Darcy.txt";
+        // std::string tStringBias2   = "./NeuralNet/Circle_bias2_Darcy.txt";
+
+        // std::string tStringWeight1 = "./NeuralNet/weights1_Darcy_FD_Circle_FD_triangle.txt";
+        // std::string tStringWeight2 = "./NeuralNet/weights2_Darcy_FD_Circle_FD_triangle.txt";
+        // std::string tStringBias1   = "./NeuralNet/bias1_Darcy_FD_Circle_FD_triangle.txt";
+        // std::string tStringBias2   = "./NeuralNet/bias2_Darcy_FD_Circle_FD_triangle.txt";
+
+        // std::string tStringWeight1 = "./NeuralNet/weights1_FD_Labrynth_FD_100.txt";
+        // std::string tStringWeight2 = "./NeuralNet/weights2_FD_Labrynth_FD_100.txt";
+        // std::string tStringBias1   = "./NeuralNet/bias1_FD_Labrynth_FD_100.txt";
+        // std::string tStringBias2   = "./NeuralNet/bias2_FD_Labrynth_FD_100.txt";
+
+        // std::string tStringWeight1 = "./NeuralNet/weights1_Gyroid_FD_3D.txt";
+        // std::string tStringWeight2 = "./NeuralNet/weights2_Gyroid_FD_3D.txt";
+        // std::string tStringBias1   = "./NeuralNet/bias1_Gyroid_FD_3D.txt";
+        // std::string tStringBias2   = "./NeuralNet/bias2_Gyroid_FD_3D.txt";
+
+        // std::string tStringWeight1 = "./NeuralNet/weights1_Darcy_FD_Labrynth_FD.txt";
+        // std::string tStringWeight2 = "./NeuralNet/weights2_Darcy_FD_Labrynth_FD.txt";
+        // std::string tStringBias1   = "./NeuralNet/bias1_Darcy_FD_Labrynth_FD.txt";
+        // std::string tStringBias2   = "./NeuralNet/bias2_Darcy_FD_Labrynth_FD.txt";
+
+        std::string tStringWeight1 = "./NeuralNet/weights1_Darcy_Circle_FD.txt";
+        std::string tStringWeight2 = "./NeuralNet/weights2_Darcy_Circle_FD.txt";
+        std::string tStringBias1   = "./NeuralNet/bias1_Darcy_Circle_FD.txt";
+        std::string tStringBias2   = "./NeuralNet/bias2_Darcy_Circle_FD.txt";
 
         mfem::Ascii tAsciiReader1( tStringWeight1, FileMode::OPEN_RDONLY );
         mfem::Ascii tAsciiReader2( tStringWeight2, FileMode::OPEN_RDONLY );

@@ -13,19 +13,23 @@ if (MFEM_USE_MPI)
   list(APPEND HPC4_COMMON_SOURCES
       ascii.cpp
       hpc4mat.cpp
+      hpc4DiffMat.cpp
       hpc4solvers.cpp
       NLGLSIntegrator.cpp
       advection_diffusion_solver.cpp
       MMA.cpp
-      Stokes.cpp)
+      Stokes.cpp
+      ThermalComplianceQoI.cpp)
   list(APPEND HPC4_COMMON_HEADERS
     ascii.hpp
       hpc4mat.hpp
+      hpc4DiffMat.hpp
       hpc4solvers.hpp
       NLGLSIntegrator.hpp
       advection_diffusion_solver.hpp
       MMA.hpp
-      Stokes.hpp)
+      Stokes.hpp
+      ThermalComplianceQoI.hpp)
              
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -88,5 +92,41 @@ add_mfem_miniapp(Full2D_Darcy
     MAIN Full2D_Darcy.cpp
     ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
     LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Full2D_channel
+    MAIN Full2D_channel.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Full2D_channel_periodic
+    MAIN Full2D_channel_periodic.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Full2D_channel_periodic_labrynth
+    MAIN Full2D_channel_periodic_labrynth.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Full3D_channel_periodic_gyroid
+    MAIN Full3D_channel_periodic_gyroid.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Full2D_channel_periodic_tri
+    MAIN Full2D_channel_periodic_tri.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(HeatExchangerOpt
+    MAIN HeatExchangerOpt.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(HeatExchangerOpt_2
+    MAIN HeatExchangerOpt_2.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+   
 
 endif ()

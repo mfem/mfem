@@ -27,11 +27,11 @@ static int BoxIterator = 0;
 double BoxFunction(const Vector &x)
 {
    
-   std::vector<double> rightval_x = {0.2, 0.4, 0.6, 1.2, 0.2, 0.4, 0.6, 1.2 , 0.2, 0.4, 0.6, 1.2 };
-   std::vector<double> leftVal_x = {0.1, 0.3, 0.5, 1.1, 0.1, 0.3, 0.5, 1.1 , 0.1, 0.3, 0.5, 1.1 };
+   std::vector<double> rightval_x = {0.06, 0.16, 0.26, 0.36, 0.46 };
+   std::vector<double> leftVal_x = {0.04, 0.14, 0.24, 0.34, 0.44 };
 
-   std::vector<double> lowerVal_y  = {0.1, 0.1, 0.1, 0.1, 0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.8, 0.8 };
-   std::vector<double> upperVal_y = {0.2, 0.2, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4, 0.9, 0.9, 0.9, 0.9 };
+   std::vector<double> lowerVal_y  = {0.02, 0.02, 0.02, 0.02, 0.02  };
+   std::vector<double> upperVal_y = {0.06, 0.06, 0.06, 0.06, 0.06 };
 
    double val = 0.0;
    if( x[0] > leftVal_x[BoxIterator] && x[0] < rightval_x[BoxIterator] &&
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
    args.Parse();
 
   
-   double tLengthScale = 1.0e-2;
+   double tLengthScale = 2.0e-2;
    double tThreshold = 0.3;
    double tDensity = 1.0e3;
    double tRefVelocity = 1.0e-3; 
@@ -80,8 +80,14 @@ int main(int argc, char *argv[])
    double tPermeability = 1.0e-3; 
    double tDa = tPoriosity / tPermeability; 
 
-   Mesh mesh("Flow2D_full.msh");
-   int dim = mesh.Dimension();
+   double MultInX = 0.5;
+   double MultInY = 0.12;
+   double Lx = 1.0 * MultInX;
+   double Ly = 1.0 * MultInY;
+   int NX = 64;
+   int NY = 16;
+
+   Mesh mesh = Mesh::MakeCartesian2D(NX, NY, Element::QUADRILATERAL, true,Lx, Ly);
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -93,15 +99,24 @@ int main(int argc, char *argv[])
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
+   // Create translation vectors defining the periodicity
+   Vector x_translation({10.0, 0.0});
+   Vector y_translation({0.0, 1.0*MultInY});
+   std::vector<Vector> translations = {x_translation, y_translation};
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   // Create the periodic mesh using the vertex mapping defined by the translation vectors
+   Mesh periodic_mesh = Mesh::MakePeriodic(mesh,
+                                           mesh.CreatePeriodicVertexMapping(translations));
+
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, periodic_mesh);
+
    //delete mesh;
    if (mpi.Root())
    {
       std::cout << "Mesh of elements: " << pmesh->GetNE() << std::endl;
    }
 
-
+   int dim = pmesh->Dimension();
 
    // build h1 desing space
    int orderDesing = 1;
@@ -122,8 +137,8 @@ int main(int argc, char *argv[])
 
    //add boundary conditions
    //solver->AddDirichletBC(2,0.0);
-   solver->AddDirichletBC(3,0.0);
-   solver->AddDirichletBC(4,0.0);
+   solver->AddDirichletBC(2,0.0);
+   solver->AddDirichletBC(4,0.317072);
 
  
    //----------------------------------------------------------
@@ -158,20 +173,17 @@ int main(int argc, char *argv[])
    //     mfem_error("kill run");
 
 //----------------------------------------------------------
-   if(true)
+   if(false)
    {
       mfem::Vector locationVector(2);
-      mfem::Vector & tSol = solver->GetSol();
 
-      //std::cout<<"SolSize: "<<tSol.Size()<<std::endl;
-
-      for(int Ij = 0; Ij< tSol.Size(); Ij++)
+      for(int Ij = 0; Ij< desingVarVec.Size(); Ij++)
       {
-         //pmesh->GetNode(Ij, &locationVector[0]);
+         pmesh->GetNode(Ij, &locationVector[0]);
 
          //const double * pCoords(static_cast<const double*>(locationVector));
 
-         tSol[Ij] = rand() / double(RAND_MAX)*0.1;
+         desingVarVec[Ij] = std::sin( locationVector[0]/0.5*M_PI)*0.25 + 0.12;
       }
    }
 
@@ -180,7 +192,7 @@ int main(int argc, char *argv[])
    int NumTimeSteps = 1;
    solver->SetNewtonSolver(1e-6, 1e-8,15, 1, 1.0);
    solver->SetLinearSolver(1e-10, 1e-12, 1000, 0);
-   double tFinalLoad = 5e-2;
+   double tFinalLoad = 0.0;
    for(int Ik = 1; Ik <= NumTimeSteps; Ik++)
    {
       double tLoad = tFinalLoad / NumTimeSteps * Ik;
@@ -215,28 +227,47 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("velocity",&velGF);     
    paraview_dc.Save();
 
-      double BoxVal = 0.0;
+      double BoxPVal = 0.0;
+      double BoxVVal = 0.0;
 
-      int NumBox = 12;
+      int NumBox = 5;
 
       for( int Ik = 0; Ik < NumBox; Ik++)
       {
          mfem::Coefficient * tPreasusreCoeff = new mfem::GridFunctionCoefficient( &tPreassureGF);
+         mfem::Coefficient * tVelInnerProdCoeff = new mfem::InnerProductCoefficient (*VelVoeff, *VelVoeff);
          mfem::Coefficient * tIndicatorCoeff = new mfem::FunctionCoefficient( BoxFunction);
-         mfem::Coefficient * tFinalCoeff = new mfem::ProductCoefficient( *tPreasusreCoeff, *tIndicatorCoeff);
+         mfem::Coefficient * tFinalPCoeff = new mfem::ProductCoefficient( *tPreasusreCoeff, *tIndicatorCoeff);
+         mfem::Coefficient * tFinalVCoeff = new mfem::ProductCoefficient( *tVelInnerProdCoeff, *tIndicatorCoeff);
    
-         mfem::ParLinearForm BoxQILinearForm(&desFESpace_scalar_H1);
-         BoxQILinearForm.AddDomainIntegrator( new mfem::DomainLFIntegrator( *tFinalCoeff ) );
-         BoxQILinearForm.Assemble();
-         BoxQILinearForm.ParallelAssemble();
+         mfem::ParLinearForm BoxPQILinearForm(&desFESpace_scalar_H1);
+         BoxPQILinearForm.AddDomainIntegrator( new mfem::DomainLFIntegrator( *tFinalPCoeff ) );
+         BoxPQILinearForm.Assemble();
+         BoxPQILinearForm.ParallelAssemble();
+
+         mfem::ParLinearForm BoxVQILinearForm(&desFESpace_scalar_H1);
+         BoxVQILinearForm.AddDomainIntegrator( new mfem::DomainLFIntegrator( *tFinalVCoeff ) );
+         BoxVQILinearForm.Assemble();
+         BoxVQILinearForm.ParallelAssemble();
 
          mfem::ParGridFunction OneGridGunction(&desFESpace_scalar_H1); OneGridGunction =1.0;
-         BoxVal = BoxQILinearForm * OneGridGunction;
-         double TotalBoxVal = 0.0;
+         BoxPVal = BoxPQILinearForm * OneGridGunction;
+         BoxVVal = BoxVQILinearForm * OneGridGunction;
+         double TotalPBoxVal = 0.0;
+         double TotalVBoxVal = 0.0;
 
          MPI_Allreduce(
-            &BoxVal,
-            &TotalBoxVal, 
+            &BoxPVal,
+            &TotalPBoxVal, 
+            1, 
+            MPI_DOUBLE, 
+            MPI_SUM,
+            MPI_COMM_WORLD);
+
+            
+         MPI_Allreduce(
+            &BoxVVal,
+            &TotalVBoxVal, 
             1, 
             MPI_DOUBLE, 
             MPI_SUM,
@@ -245,13 +276,15 @@ int main(int argc, char *argv[])
          if (mpi.Root())
          {
             std::cout<<"--------------------------------------------------"<<std::endl;
-            std::cout<<"BoxVal Preassures: "<< Ik<<" | "<<TotalBoxVal<<std::endl;
+            std::cout<<"BoxVal Preassures: "<< Ik<<" |P: "<<TotalPBoxVal<<" |V: "<<TotalVBoxVal <<std::endl;
             std::cout<<"--------------------------------------------------"<<std::endl;
          }
 
          BoxIterator = Ik + 1;
 
-         delete tFinalCoeff;
+         delete tFinalPCoeff;
+         delete tFinalVCoeff;
+         delete tVelInnerProdCoeff;
          delete tIndicatorCoeff;
          delete tPreasusreCoeff;
       }

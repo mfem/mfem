@@ -30,14 +30,104 @@ s_NavierContext ctx;
 // ctx.dt = 1e-4;
 
 static int BoxIterator = 0;
+static double eta = 0.25;
+static double DomainX = 2.0;
+
+void vel_bc(const Vector &x, double t, Vector &u)
+{
+   u(0) = 0.0; //1e-4 / 5.0e-4;
+   u(1) = 0.0;
+   u(2) = 0.0;
+
+   double xx = x[0];
+   double yy = x[1];
+   double zz = x[2];
+
+   double unitCellSize = 1.0;
+
+   if(x[0]< 0.0001 || x[0] > DomainX-0.0001)
+   {
+      double remainder_x = std::fmod( xx , unitCellSize);
+      double remainder_y = std::fmod( yy , unitCellSize);
+      double remainder_z = std::fmod( zz , unitCellSize);
+               
+      remainder_x = remainder_x / unitCellSize;
+      remainder_y = remainder_y / unitCellSize;
+      remainder_z = remainder_z / unitCellSize;
+               
+      const double period = 2.0 * M_PI;
+
+      double x=remainder_x*period;
+      double y=remainder_y*period;
+      double z=remainder_z*period;
+   
+      double vv=std::sin(x)*std::cos(y) +
+             std::sin(y)*std::cos(z) +
+             std::sin(z)*std::cos(x);
+
+      if(vv > eta && xx < 0.0001)
+      { 
+         u(0) = 1.0; 
+         u(1) = 1.0;
+         u(2) = 1.0;
+      }
+      else if( vv < -eta && xx >DomainX-0.0001)
+      { 
+         u(0) = 1.0;
+         u(1) = 1.0;
+         u(2) = 1.0;
+      }
+
+   }
+}
 
 void vel(const Vector &x, double t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-
-   u(0) = 0.05; //1e-4 / 5.0e-4;
+   u(0) = 0.0; //1e-4 / 5.0e-4;
    u(1) = 0.0;
+   u(2) = 0.0;
+
+   double xx = x[0];
+   double yy = x[1];
+   double zz = x[2];
+
+   double unitCellSize = 1.0;
+
+   if(x[0]< 0.0001 || x[0] > DomainX-0.0001)
+   {
+      double remainder_x = std::fmod( xx , unitCellSize);
+      double remainder_y = std::fmod( yy , unitCellSize);
+      double remainder_z = std::fmod( zz , unitCellSize);
+               
+      remainder_x = remainder_x / unitCellSize;
+      remainder_y = remainder_y / unitCellSize;
+      remainder_z = remainder_z / unitCellSize;
+               
+      const double period = 2.0 * M_PI;
+
+      double x=remainder_x*period;
+      double y=remainder_y*period;
+      double z=remainder_z*period;
+   
+      double vv=std::sin(x)*std::cos(y) +
+             std::sin(y)*std::cos(z) +
+             std::sin(z)*std::cos(x);
+
+      if(vv > eta && xx < 0.0001)
+      { 
+         u(0) = 0.01; 
+         u(1) = 0.0;
+         u(2) = 0.0;
+      }
+      else if( vv < -eta && xx >DomainX-0.0001)
+      { 
+         u(0) = -0.01;
+         u(1) = 0.0;
+         u(2) = 0.0;
+      }
+
+
+   }
 }
 
 void vel_0(const Vector &x, double t, Vector &u)
@@ -47,6 +137,7 @@ void vel_0(const Vector &x, double t, Vector &u)
 
    u(0) = 0.0; //1e-4 / 5.0e-4;
    u(1) = 0.0;
+   u(2) = 0.0;
 }
 
 double pres(const Vector &x, double t)
@@ -58,11 +149,11 @@ double pres(const Vector &x, double t)
 double BoxFunction(const Vector &x)
 {
    
-   std::vector<double> rightval_x = {0.2, 0.4, 0.6, 1.2, 0.2, 0.4, 0.6, 1.2 , 0.2, 0.4, 0.6, 1.2 };
-   std::vector<double> leftVal_x = {0.1, 0.3, 0.5, 1.1, 0.1, 0.3, 0.5, 1.1 , 0.1, 0.3, 0.5, 1.1 };
+   std::vector<double> rightval_x = {0.06, 0.16, 0.26, 0.36, 0.46 };
+   std::vector<double> leftVal_x = {0.04, 0.14, 0.24, 0.34, 0.44 };
 
-   std::vector<double> lowerVal_y  = {0.1, 0.1, 0.1, 0.1, 0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.8, 0.8 };
-   std::vector<double> upperVal_y = {0.2, 0.2, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4, 0.9, 0.9, 0.9, 0.9 };
+   std::vector<double> lowerVal_y  = {0.02, 0.02, 0.02, 0.02, 0.02  };
+   std::vector<double> upperVal_y = {0.06, 0.06, 0.06, 0.06, 0.06 };
 
    double val = 0.0;
    if( x[0] > leftVal_x[BoxIterator] && x[0] < rightval_x[BoxIterator] &&
@@ -73,6 +164,43 @@ double BoxFunction(const Vector &x)
    return val;
 }
 
+double P_Dirichlet(const Vector &x, double t)
+{
+   double val = 0.0;
+   double unitCellSize = 1.0;
+
+
+   double xx = x[0];
+   double yy = x[1];
+   double zz = x[2];
+
+   if(xx < 0.0001 || xx >DomainX-0.0001)
+   {
+      double remainder_x = std::fmod( xx , unitCellSize);
+      double remainder_y = std::fmod( yy , unitCellSize);
+      double remainder_z = std::fmod( zz , unitCellSize);
+               
+      remainder_x = remainder_x / unitCellSize;
+      remainder_y = remainder_y / unitCellSize;
+      remainder_z = remainder_z / unitCellSize;
+               
+      const double period = 2.0 * M_PI;
+
+      double x=remainder_x*period;
+      double y=remainder_y*period;
+      double z=remainder_z*period;
+   
+      double vv=std::sin(x)*std::cos(y) +
+             std::sin(y)*std::cos(z) +
+             std::sin(z)*std::cos(x);
+
+      if(vv < -eta && xx< 0.0001){ return 1.0;}
+      else if( vv > eta && xx >DomainX-0.0001){ return 1.0;}
+      else{return 0.0;}
+   }
+   return 0.0;
+}
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
@@ -80,7 +208,7 @@ int main(int argc, char *argv[])
    //const char *mesh_file = "bar3d.msh";
    int run_id = 0;
 
-   int serial_refinements = 1;
+   int serial_refinements = 3;
 
    double tForce_Magnitude = 1.0;
 
@@ -102,13 +230,14 @@ int main(int argc, char *argv[])
    bool tPerturbed = false;
    double PerturbationSize = 0.01;
    bool LoadSolVecFromFile = false;
-   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Spheres;
+   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Gyroids;
    enum DensityCoeff::ProjectionType tProjectionType = DensityCoeff::ProjectionType::zero_one;
+
   
-   double tLengthScale = 2.0e-2;
-   double tThreshold = 0.3;
+   double tLengthScale = 1.0;
+   double tThreshold = 0.2;
    double tDensity = 1.0e3;
-   double tRefVelocity = 1.0; 
+   double tRefVelocity = 0.01; 
    double tKinViscosity = 1.0e-6; 
    double ReynoldsNumber = tLengthScale * tRefVelocity / tKinViscosity;
 
@@ -120,12 +249,22 @@ int main(int argc, char *argv[])
    s_NavierContext ctx;
    ctx.order = 2;
    ctx.kin_vis = 1.0 / ReynoldsNumber;
-   ctx.t_final = 1.1;
+   ctx.t_final = 2.2;
    ctx.dt = 1e-4;
 
    //mesh->EnsureNCMesh(true);
 
-   Mesh mesh("Flow2D_full.msh");
+   double MultInX = DomainX;
+   double MultInY = 2.0;
+   double MultInZ = 1.0;
+   double Lx = 1.0 * MultInX;
+   double Ly = 1.0 * MultInY;
+   double Lz = 1.0 * MultInZ;
+   int NX =16;
+   int NY = 16;
+   int NZ = 8;
+
+   Mesh mesh = Mesh::MakeCartesian3D(NX, NY,NZ, Element::HEXAHEDRON, Lx, Ly,Lz);
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -137,8 +276,18 @@ int main(int argc, char *argv[])
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
+   // Create translation vectors defining the periodicity
+   Vector x_translation({10.0, 0.0, 0.0});
+   Vector y_translation({0.0, 1.0*MultInY, 0.0});
+   Vector z_translation({0.0, 0.0, 1.0*MultInZ});
+   std::vector<Vector> translations = {x_translation, y_translation, z_translation};
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   // Create the periodic mesh using the vertex mapping defined by the translation vectors
+   Mesh periodic_mesh = Mesh::MakePeriodic(mesh,
+                                           mesh.CreatePeriodicVertexMapping(translations));
+
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, periodic_mesh);
+
    //delete mesh;
    if (mpi.Root())
    {
@@ -148,7 +297,7 @@ int main(int argc, char *argv[])
    if( true )
    {
 
-      mfem::ParaViewDataCollection mPvdc("2D_FullMesh", pmesh);
+      mfem::ParaViewDataCollection mPvdc("3D_FullMesh", pmesh);
       mPvdc.SetCycle(0);
       mPvdc.SetTime(0.0);
       mPvdc.Save();
@@ -160,7 +309,7 @@ int main(int argc, char *argv[])
       DensCoeff->SetThreshold(tThreshold);
       DensCoeff->SetPatternType(tGeometry);
       DensCoeff->SetProjectionType(tProjectionType);
-      DensCoeff->SetBallCoord(0.5,0.5,1.0);      
+      DensCoeff->SetBallCoord(0.5,0.5,1.0);
 
       NavierSolver* mFlowsolver = new NavierSolver(pmesh, ctx.order, ctx.kin_vis);
       mFlowsolver->EnablePA(true);
@@ -175,18 +324,44 @@ int main(int argc, char *argv[])
       Bp->SetParams( 0.0, 0.0, 0.0, 0.0);
       mFlowsolver->AddAccelTerm(Bp,domain_attr);
 
+      // if(true)
+      // {
+      //    mfem::FunctionCoefficient desin_function_coeff(P_Dirichlet);
+
+      //    desingVarVec.ProjectCoefficient(desin_function_coeff);
+      // }
+
       Array<int> attrVel(pmesh->bdr_attributes.Max());
-      attrVel[1] = 1;
+      attrVel[0] = 0;
+      attrVel[1] = 0;
+      attrVel[2] = 1;
+      attrVel[3] = 0;
+      attrVel[4] = 1;
+      attrVel[5] = 0;
+
       mFlowsolver->AddVelDirichletBC(vel, attrVel);
+      mFlowsolver->AddPresDirichletBC(pres, attrVel);
 
-      Array<int> attrVel1(pmesh->bdr_attributes.Max());
-      attrVel1[0] = 1;
-      mFlowsolver->AddVelDirichletBC(vel_0, attrVel1);
+      //Array<int> attrVel1(pmesh->bdr_attributes.Max());
+      //attrVel1[0] = 1;
+      //mFlowsolver->AddVelDirichletBC(vel_0, attrVel1);
 
-      Array<int> attrPres(pmesh->bdr_attributes.Max());
-      attrPres[2] = 1;
-      attrPres[3] = 1;
-      mFlowsolver->AddPresDirichletBC(pres, attrPres);
+      // Array<int> attrPres(pmesh->bdr_attributes.Max());
+      // attrPres[1] = 1;
+      // attrPres[2] = 0;
+      // attrPres[3] = 0;
+      // attrPres[0] = 0;
+      // //attrPres[3] = 1;
+      // mFlowsolver->AddPresDirichletBC(pres, attrPres);
+
+      mFlowsolver->AddVelDirichletBC(vel_bc);   
+      mFlowsolver->AddPresDirichletBC(P_Dirichlet);
+      // if(true)
+      // {
+      //    mfem::FunctionCoefficient preassure_BC_coeff(P_Dirichlet);
+
+      //    preassure_BC_gf.ProjectCoefficient(preassure_BC_coeff);
+      // }
 
       mFlowsolver->Setup(ctx.dt);
 
@@ -199,11 +374,11 @@ int main(int argc, char *argv[])
       ParGridFunction *p_gf_dim = new ParGridFunction(*p_gf);
       *u_gf_dim *= 1e-4;
       *p_gf_dim *= 1e-5;
-      //DensCoeff->SetProjectionType(DensityCoeff::ProjectionType::continuous);
+      DensCoeff->SetProjectionType(DensityCoeff::ProjectionType::continuous);
       d_gf->ProjectCoefficient(*DensCoeff);
       DensCoeff->SetProjectionType(DensityCoeff::ProjectionType::zero_one);
 
-      ParaViewDataCollection* mPvdc = new ParaViewDataCollection("2DFull", pmesh);
+      ParaViewDataCollection* mPvdc = new ParaViewDataCollection("3DFull_channel", pmesh);
       mPvdc->SetDataFormat(VTKFormat::BINARY32);
       mPvdc->SetHighOrderOutput(true);
       mPvdc->SetLevelsOfDetail(ctx.order);
@@ -235,7 +410,7 @@ int main(int argc, char *argv[])
          //mFlowsolver->GetCurrentVelocity()->norm2();
          //mBp->SetVel(flowsolver.GetProvisionalVelocity());
 
-         if (step % 200 == 0)
+         if (step % 500 == 0)
          {
             mPvdc->SetCycle(step);
             mPvdc->SetTime(t);
@@ -260,12 +435,12 @@ int main(int argc, char *argv[])
 
       double BoxVal = 0.0;
 
-      int NumBox = 12;
+      int NumBox = 5;
+
+      mfem::Coefficient * tPreasusreCoeff = new mfem::GridFunctionCoefficient( p_gf);
 
       for( int Ik = 0; Ik < NumBox; Ik++)
       {
-
-         mfem::Coefficient * tPreasusreCoeff = new mfem::GridFunctionCoefficient( p_gf);
          mfem::Coefficient * tIndicatorCoeff = new mfem::FunctionCoefficient( BoxFunction );
          mfem::Coefficient * tFinalCoeff = new mfem::ProductCoefficient( *tPreasusreCoeff, *tIndicatorCoeff);
    
@@ -295,6 +470,38 @@ int main(int argc, char *argv[])
 
          BoxIterator = Ik + 1;
       }
+
+
+      int MaxBdrAttr = pmesh->bdr_attributes.Max();
+      Array<int> BdrAttr(pmesh->bdr_attributes.Max());
+      BdrAttr[3] = 1;
+      BdrAttr[0] = 0;
+      BdrAttr[1] = 0;
+      BdrAttr[2] = 0;
+
+      mfem::ParLinearForm BoundaryLF(p_gf->ParFESpace());
+      BoundaryLF.AddBoundaryIntegrator( new BoundaryLFIntegrator(*tPreasusreCoeff), BdrAttr);
+      BoundaryLF.Assemble();
+      BoundaryLF.ParallelAssemble();
+
+      mfem::ParGridFunction OneGridGunction(p_gf->ParFESpace()); OneGridGunction =1.0;
+      double BrdVal = BoundaryLF * OneGridGunction;
+      double TotalBdrVal = 0.0;
+
+      MPI_Allreduce(
+            &BrdVal,
+            &TotalBdrVal, 
+            1, 
+            MPI_DOUBLE, 
+            MPI_SUM,
+            MPI_COMM_WORLD);
+
+      if (mpi.Root())
+      {
+         std::cout<<"--------------------------------------------------"<<std::endl;
+         std::cout<<"Bdr Preassure: "<<  TotalBdrVal << " | Preassure: "<< TotalBdrVal/MultInY<<std::endl;
+         std::cout<<"--------------------------------------------------"<<std::endl;
+       }
 
       // FiniteElementSpace *fes = u_gf->FESpace();
       // int vdim = fes->GetVDim();

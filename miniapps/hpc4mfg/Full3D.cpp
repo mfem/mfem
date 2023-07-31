@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
    bool tPerturbed = false;
    double PerturbationSize = 0.01;
    bool LoadSolVecFromFile = false;
-   enum stokes::DensityCoeff::PatternType tGeometry = stokes::DensityCoeff::PatternType::Gyroids;
+   enum stokes::DensityCoeff::PatternType tGeometry = stokes::DensityCoeff::PatternType::Grains;
    enum stokes::DensityCoeff::ProjectionType tProjectionType = stokes::DensityCoeff::ProjectionType::zero_one;
   
    double tLengthScale = 1.0e-2;
@@ -102,6 +102,8 @@ int main(int argc, char *argv[])
    // ctx.dt = 1e-45;
 
    //mesh->EnsureNCMesh(true);
+   ParMesh *pmesh = nullptr;
+   {
 
    Mesh mesh("native_heat_ex_wide.msh");
 
@@ -116,7 +118,19 @@ int main(int argc, char *argv[])
    }
 
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+
+   for (int lev = 0; lev < 1; lev++)
+   {
+      if (mpi.Root())
+      {
+            std::cout << "Refining the mesh in parallel" << '\n';
+      }
+      pmesh->UniformRefinement();
+   }
+
+   }
+
    //delete mesh;
    if (mpi.Root())
    {
@@ -175,7 +189,7 @@ int main(int argc, char *argv[])
    solver->AddPressDirichletBC(4, 0.0);
    solver->AddPressDirichletBC(5, 0.0);
 
-   mfem::Vector VelBC(3); VelBC=0.0 ; VelBC[0]=0.01;
+   mfem::Vector VelBC(3); VelBC=0.0 ; VelBC[0]=0.001;
    mfem::VectorCoefficient * VelBCCoeff= new VectorConstantCoefficient(VelBC);
 
       mfem::Vector VelBC1(3); VelBC1=0.0 ; 
@@ -184,11 +198,11 @@ int main(int argc, char *argv[])
    solver->AddVelDirichletBC(2, *VelBCCoeff);
    solver->AddVelDirichletBC(3, *VelBCCoeff);
 
-      solver->AddVelDirichletBC(1, *VelBCCoeff1);
+   solver->AddVelDirichletBC(1, *VelBCCoeff1);
 
    mfem::ParGridFunction u_gf = solver->GetVelSolGF();
 
-   if( false )
+   if( true )
    {
       //solve
       solver->FSolve();
@@ -199,6 +213,8 @@ int main(int argc, char *argv[])
       mfem::ParGridFunction u_gf = solver->GetVelSolGF();
       std::string tOutputNameGF = "VelGF";
       u_gf.Save( tOutputNameGF.c_str() );
+
+      u_gf *=1e1;
 
       delete VelBCCoeff;
       delete VelBCCoeff1;
@@ -219,7 +235,7 @@ int main(int argc, char *argv[])
 
       u_gf = tLoadGF;
 
-      u_gf *=1e5;
+      u_gf *=1e1;
    }
 
    //---------------------------------------------------------
@@ -251,119 +267,7 @@ int main(int argc, char *argv[])
    delete solverAdvDiff;
    delete solver;
 
-           //---------------------------------------------------------
-
-      // Array<int> attrVel(pmesh->bdr_attributes.Max());  attrVel = 0;
-      // attrVel[1] = 1;
-      // attrVel[3] = 0;
-      // mFlowsolver->AddVelDirichletBC(vel, attrVel);
-
-      // Array<int> attrPres(pmesh->bdr_attributes.Max()); attrPres = 0;
-      // attrPres[2] = 1;
-      // attrPres[4] = 0;
-      // mFlowsolver->AddPresDirichletBC(pres, attrPres);
-
-
-
-      //---------------------------------------------------------
-
-      // mfem::VectorGridFunctionCoefficient VelCoeff( u_gf);
-
-      // mfem::Advection_Diffusion_Solver * solverAdvDiff = new mfem::Advection_Diffusion_Solver(pmesh,2);
-
-      // solverAdvDiff->SetVelocity(&VelCoeff);
-
-      // mfem::Vector ConstVector(pmesh->Dimension());   ConstVector = 0.0;   //ConstVector(0) = 1.0;
-      // mfem::VectorConstantCoefficient avgTemp(ConstVector);
-
-      // solverAdvDiff->SetGradTempMean( &avgTemp );
-
-      // int dim = 3;
-
-      // //add material
-      // solverAdvDiff->AddMaterial(new mfem::IdentityMatrixCoefficient(dim));
-
-      // solverAdvDiff->AddDirichletBC(1 , 0.0);
-      // solverAdvDiff->AddDirichletBC(3 , 0.0);
-
-      // solverAdvDiff->FSolve();
-
-      // solverAdvDiff->Postprocess();
-
-      // delete solverAdvDiff;
-      // delete solver;
-
-           //---------------------------------------------------------
-
-      // FiniteElementSpace *fes = u_gf->FESpace();
-      // int vdim = fes->GetVDim();
-
-      // initilaize integradl of velozity vector
-      // Vector tVelVal(vdim);
-      // tVelVal = 0.0;
-
-      // double tVolume = 0.0;
-
-      // for (int e = 0; e < fes->GetNE(); ++e)
-      // {
-      //    const FiniteElement *fe = fes->GetFE(e);
-      //    const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
-      //                                          fe->GetOrder());
-      //    ElementTransformation *tr = fes->GetElementTransformation(e);
-
-      //    for (int i = 0; i < ir.GetNPoints(); ++i)
-      //    {
-      //       const IntegrationPoint &ip = ir.IntPoint(i);
-      //       tr->SetIntPoint(&ip);
-
-
-      //       double w = tr->Weight() * ip.weight;
-
-      //       Vector tVal;
-
-      //       u_gf->GetVectorValue( e, ip, tVal);
-
-      //       tVal *= w;
-      //       tVelVal += tVal;
-
-      //       tVolume += w;
-      //    }
-
-      // }
-
-      // double tTotalVol;
-      // MPI_Allreduce(&tVolume, &tTotalVol, 1, MPI_DOUBLE, MPI_SUM,
-      //             pmesh->GetComm());
-
-      // for( int Ik = 0; Ik < vdim; Ik ++)
-      // {
-      //    double tVal = tVelVal(Ik); 
-      //    double tTotalVal;
-
-      //    MPI_Allreduce(
-      //       &tVal,
-      //       &tTotalVal, 
-      //       1, 
-      //       MPI_DOUBLE, 
-      //       MPI_SUM,
-      //       pmesh->GetComm());
-
-      //       tVelVal(Ik) = tTotalVal / tTotalVol;
-      // }
-
-      // if (mpi.Root())
-      // {
-      //    std::string tString = "./OutputFile_";
-
-      //    Ascii tAsciiWriter( tString, FileMode::NEW );
-
-      //    for( int Ik = 0; Ik < vdim; Ik ++)
-      //    {
-      //       tAsciiWriter.print(stringify( tVelVal(Ik) ));
-      //    }
-         
-      //    tAsciiWriter.save();
-      // }
+          
    
 
    delete pmesh;

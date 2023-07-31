@@ -3,6 +3,7 @@
 
 #include "hpc4solvers.hpp"
 #include "mfem.hpp"
+#include "ascii.hpp"
 
 namespace mfem{
     namespace stokes{
@@ -12,7 +13,7 @@ class DensityCoeff:public mfem::Coefficient
 
     enum ProjectionType {zero_one, continuous}; 
 
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS,Ellipse,Gyroids};
+    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS,Ellipse,Gyroids, Grains};
 
 private:
 
@@ -24,6 +25,14 @@ private:
     ProjectionType prtype; 
     PatternType    pttype;
 
+    int tNumGrains ;
+    mfem::Vector GrainCoordX;
+    mfem::Vector GrainCoordY;
+    mfem::Vector GrainCoordZ;
+    mfem::Vector GrainR;
+
+    double Scaling = 1.0;
+
 public:
 
     DensityCoeff()
@@ -34,6 +43,30 @@ public:
         eta=std::sqrt(2.0)/4;//0.1;
         prtype=zero_one;
         pttype=Ball;
+
+                    mfem::Ascii tAsciiReader( "./output_spheres_4.txt",   FileMode::OPEN_RDONLY );
+
+            int tNumLines = tAsciiReader.length();
+
+            std::cout<<"tNumLines: "<<tNumLines<<std::endl;
+            tNumGrains = tNumLines;
+
+            GrainCoordX.SetSize(tNumLines);
+            GrainCoordY.SetSize(tNumLines);
+            GrainCoordZ.SetSize(tNumLines);
+            GrainR.SetSize(tNumLines);
+
+            for( int Ik = 0; Ik < tNumLines; Ik++ )
+            {
+                const std::string & tFileLine = tAsciiReader.line( Ik );
+
+                std::vector<std::string> ListOfStrings = split_string( tFileLine, "," );
+
+                GrainCoordX[ Ik ]  = std::stod( ListOfStrings[1] )*Scaling;
+                GrainCoordY[ Ik ]  = std::stod( ListOfStrings[2] )*Scaling;
+                GrainCoordZ[ Ik ]  = std::stod( ListOfStrings[0] )*Scaling;
+                GrainR[ Ik ]       = std::stod( ListOfStrings[3] )*Scaling/2.0;
+            }
 
     }
 
@@ -63,6 +96,31 @@ public:
     void SetPatternType(PatternType pttype_)
     {
       pttype=pttype_;
+
+        if(pttype==Grains)
+       {
+            mfem::Ascii tAsciiReader( "./output_spheres_4.txt",   FileMode::OPEN_RDONLY );
+
+            int tNumLines = tAsciiReader.length();
+            tNumGrains = tNumLines;
+
+            GrainCoordX.SetSize(tNumLines);
+            GrainCoordY.SetSize(tNumLines);
+            GrainCoordZ.SetSize(tNumLines);
+            GrainR.SetSize(tNumLines);
+
+            for( int Ik = 0; Ik < tNumLines; Ik++ )
+            {
+                const std::string & tFileLine = tAsciiReader.line( Ik );
+
+                std::vector<std::string> ListOfStrings = split_string( tFileLine, "," );
+
+                GrainCoordX[ Ik ]  = std::stod( ListOfStrings[1] )*Scaling;
+                GrainCoordY[ Ik ]  = std::stod( ListOfStrings[2] )*Scaling;
+                GrainCoordZ[ Ik ]  = std::stod( ListOfStrings[0] )*Scaling;
+                GrainR[ Ik ]       = std::stod( ListOfStrings[3] )*Scaling/2.0;
+            }
+       }
     }
 
 
@@ -157,6 +215,54 @@ public:
 
                 if(fabs(vv)>-eta && fabs(vv)<eta){ return 1.0;}
                 else{return 0.0;}
+            }
+        }else
+        if(pttype==Grains){	
+            double xv[3];
+            Vector transip(xv, 3);
+            T.Transform(ip,transip);
+
+            double unitCellSize = 0.5;
+
+            
+            
+            if( (xv[0] < 0.1 || xv[0] > 2.9 ))
+            {
+                if(prtype==continuous){return 1.5;}
+                return 0.0;
+            }
+            else
+            {
+                double minval = 1e10;
+                double discreteMax = 0;
+                for( int Ik = 0; Ik< tNumGrains; Ik++)
+                {
+                    double centerX = GrainCoordX[ Ik ];
+                    double centerY = GrainCoordY[ Ik ];
+                    double centerZ = GrainCoordZ[ Ik ];
+                    double Rad = GrainR[ Ik ];
+
+                    double rr=(xv[0]-centerX)*(xv[0]-centerX);
+                    rr=rr+(xv[1]-centerY)*(xv[1]-centerY);
+                    if(T.GetDimension()==3)
+                    {
+                        rr=rr+(xv[2]-centerZ)*(xv[2]-centerZ);
+                    }
+                    rr=std::sqrt(rr);
+
+                    rr= rr-Rad;
+
+                    minval = std::min(minval, rr);
+
+                    if(rr<0.0)
+                    {
+                        discreteMax = 1.0;
+                        break;
+                    }
+
+                }
+                if(prtype==continuous){return minval;}
+                return discreteMax;
             }
         }else
         if(pttype==FCC){

@@ -67,11 +67,13 @@ private:
 class NLLoadIntegrator:public NonlinearFormIntegrator
 {
 public:
-    NLLoadIntegrator( mfem::ParMesh* pmesh )
+    NLLoadIntegrator( mfem::ParMesh* pmesh, double LoadVal, int Attribute = 3 )
     {
         int MaxBdrAttr = pmesh->bdr_attributes.Max();
 
-        ::mfem::Vector Load(MaxBdrAttr);    Load = 0.0;    Load(1) = -0.3; Load(2) = -0.3;
+        std::cout<<"Load|Attribute "<< LoadVal<< " | "<<Attribute <<std::endl;
+
+        ::mfem::Vector Load(MaxBdrAttr);    Load =0.0;    Load(Attribute) = LoadVal; //Load(2) = -0.3;
         ::mfem::Coefficient * Coeff = new ::mfem::PWConstCoefficient(Load);
         LFIntegrator = new BoundaryLFIntegrator(*Coeff, 3, 3);
     }
@@ -150,26 +152,28 @@ public:
         delete fes;
         delete fec;
 
-        for(size_t i=0;i<materials.size();i++){
-            delete materials[i];
-        }
+        // for(size_t i=0;i<materials.size();i++){
+        //     delete materials[i];
+        // }
     }
 
     /// Set the Newton Solver
-    void SetNewtonSolver(double rtol=1e-8, double atol=1e-12,int miter=10, int prt_level=1)
+    void SetNewtonSolver(double rtol=1e-8, double atol=1e-12,int miter=10, int prt_level=1, double relaxation = 1.0)
     {
         rel_tol=rtol;
         abs_tol=atol;
         max_iter=miter;
         print_level=prt_level;
+        relaxation_ = relaxation;
     }
 
     /// Set the Linear Solver
-    void SetLinearSolver(double rtol=1e-10, double atol=1e-12, int miter=1000)
+    void SetLinearSolver(double rtol=1e-10, double atol=1e-12, int miter=1000, int print_level = 1)
     {
         linear_rtol=rtol;
         linear_atol=atol;
         linear_iter=miter;
+        print_level_lin = print_level;
     }
 
     /// Solves the forward problem.
@@ -202,6 +206,12 @@ public:
     void AddNeumannBC(int id, mfem::Coefficient& val)
     {
         ncc[id]=&val;
+    }
+
+    void AddNeumannLoadVal(double LoadVal, int LoadAttribute = 3)
+    {
+        LoadVal_ = LoadVal;
+        LoadAttribute_ = LoadAttribute;
     }
 
     /// Returns the solution
@@ -282,17 +292,19 @@ private:
     double rel_tol;
     int print_level;
     int max_iter;
+    double relaxation_ = 1.0;
 
 
     //Linear solver parameters
     double linear_rtol;
     double linear_atol;
     int linear_iter;
+    int print_level_lin;
 
     //mfem::HypreBoomerAMG *prec; //preconditioner
     mfem::HypreILU *prec; //preconditioner
     //mfem::CGSolver *ls;  //linear solver
-    mfem::GMRESSolver *ls;  //linear solver
+    mfem::FGMRESSolver *ls;  //linear solver
     mfem::NewtonSolver *ns;
 
     // holds DBC in coefficient form
@@ -306,6 +318,9 @@ private:
 
     // holds internal NBC
     std::map<int, mfem::ConstantCoefficient> nc;
+
+    double LoadVal_ = 1e-2;
+    int LoadAttribute_ = 3;
 
     mfem::Array<int> ess_tdofv;
 
@@ -562,12 +577,13 @@ private:
             BasicNLDiffusionCoefficient * MicroModelCoeff,
             ::mfem::ParGridFunction* preassureGF,
             ::mfem::ParGridFunction* desingVarGF)
-            : VectorCoefficient(2)
-
+            : VectorCoefficient(preassureGF->ParFESpace()->GetParMesh()->Dimension())
             { 
                 MicroModelCoeff_ = MicroModelCoeff;
                 preassureGF_ = preassureGF;
                 desingVarGF_ = desingVarGF;
+
+                dim = preassureGF->ParFESpace()->GetParMesh()->Dimension();
             };
 
         void Eval(
@@ -575,12 +591,9 @@ private:
             ::mfem::ElementTransformation &T,
             const ::mfem::IntegrationPoint &ip)
             {
-                const int dim=T.GetDimension();
-
-                Vector uu; uu.SetSize(dim);
-                Vector gradp; gradp.SetSize(dim);
-
-                Vector NNInput(dim+1); NNInput=0.0;
+                ::mfem::Vector uu(dim);
+                ::mfem::Vector gradp(dim);
+                ::mfem::Vector NNInput(dim+1); NNInput=0.0;
 
                 preassureGF_->GetGradient(T,gradp);
 
@@ -600,6 +613,8 @@ private:
         ::mfem::ParGridFunction * preassureGF_ = nullptr;
         ::mfem::ParGridFunction * desingVarGF_ = nullptr;
         BasicNLDiffusionCoefficient * MicroModelCoeff_ = nullptr;
+
+        int dim = 0;
     }; // end class VelCoefficient
 
 

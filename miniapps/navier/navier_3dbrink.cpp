@@ -27,7 +27,7 @@ void vel(const Vector &x, double t, Vector &u)
    double yi = x(1);
    double zi = x(2);
 
-   u(0) = 1.0;
+   u(0) = 0.0;
    u(1) = 0.0;
    if(zi<=1e-8){
        if(t<1.0){ u(2) = t;}
@@ -64,14 +64,16 @@ int main(int argc, char *argv[])
 
    args.Parse();
 
-   bool LoadSolVecFromFile = true;
-   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::SchwarzP;
+   bool tPerturbed = false;
+   double PerturbationSize = 0.001;
+   bool LoadSolVecFromFile = false;
+   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Gyroids;
    enum DensityCoeff::ProjectionType tProjectionType = DensityCoeff::ProjectionType::zero_one;
 
-   double tLengthScale = 1.0e-1;
-   double tThreshold = 0.25;
+   double tLengthScale = 1.0;
+   double tThreshold = 0.2;
    double tDensity = 1.0e3;
-   double tRefVelocity = 1.0e-3; 
+   double tRefVelocity = 0.01; 
    double tKinViscosity = 1.0e-6; 
    double ReynoldsNumber = tLengthScale * tRefVelocity / tKinViscosity;
 
@@ -86,22 +88,37 @@ int main(int argc, char *argv[])
    ctx.t_final = 1.5;
    ctx.dt = 1e-4;
 
-   Mesh *mesh = new Mesh("bar3d.msh");
+   double MultInX = 0.02;
+   double MultInY = 0.02;
+   double MultInZ = 0.02;
+
+   double Lx = 1.0 * MultInX;
+   double Ly = 1.0 * MultInY;
+   double Lz = 1.0 * MultInX;
+
+   int NX = 64;
+   int NY = 64;
+   int NZ = 64;
+
+
+   Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, Ly, Lz);
+
+   //Mesh *mesh = new Mesh("bar3d.msh");
    //Mesh *mesh = new Mesh("./cube.mesh");
    //mesh->EnsureNCMesh(true);
 
    for (int i = 0; i < serial_refinements; ++i)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
    if (mpi.Root())
    {
-      std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+
    if (mpi.Root())
    {
       std::cout << "Mesh of elements: " << pmesh->GetNE() << std::endl;
@@ -109,25 +126,41 @@ int main(int argc, char *argv[])
    
    //----------------------------------------------------------
 
-   //tForce_Magnitude = tForce_Magnitude * 1.154e-3 *5.0 /(1e3 * std::pow(1.75e-2 ,2));
-   //tForce_Magnitude = tForce_Magnitude * 3.25e-3 /(1e3 * std::pow(8.0e-3 ,2));
-   //tForce_Magnitude = tForce_Magnitude * 2.64e-3 /(1.18 * std::pow(1.0 ,2));
 
    double preasureGrad = 0.01 + 0.001 *(tForce_Magnitude - 1.0);
 
    tForce_Magnitude = preasureGrad * tLengthScale /(tDensity * std::pow(tRefVelocity ,2));
-
+ 
    // get random vals
    std::vector< double > tRand(5,0.0);
    if (mpi.Root())
    {
       srand(run_id+1);  
 
-      tRand[0] = 1.0; //nx
-      tRand[1] = 0.0;// / sqrt( 3.0 ); //ny
-      tRand[2] = 0.0;// / sqrt( 3.0 ); //nz
-      tRand[3] = tForce_Magnitude;//150.7*5/10*1.5;//150.7*1.5;        //a
-      tRand[4] = tThreshold;//0.65;  //0.4365
+      //double rForceMag = rand() / double(RAND_MAX) * 10.0;
+      double rForceMag = 1.0;
+
+      tRand[0] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //nx
+      tRand[1] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //ny
+      tRand[2] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //nz
+      tRand[3] = 1.0;          //a
+      tRand[4] = 0.008; //rand() / double(RAND_MAX)  * 0.007 + 0.002;   //eta  //0.006;
+      //      tRand[4] = 0.5;   //eta 0.004;
+
+      if( tPerturbed )
+      {
+         double tRand4 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
+         double tRand5 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
+         double tRand6 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
+         double norm = std::sqrt( tRand4* tRand4 + tRand5*tRand5+ tRand6*tRand6);
+         tRand4 = tRand4 * PerturbationSize / norm;
+         tRand5 = tRand5 * PerturbationSize / norm;
+         tRand6 = tRand6 * PerturbationSize / norm;
+
+         tRand[0] = tRand[0] + tRand4;
+         tRand[1] = tRand[1] + tRand5;
+         tRand[2] = tRand[2] + tRand6;
+      }
    }
 
    if (mpi.WorldSize() > 1 )
@@ -156,59 +189,13 @@ int main(int argc, char *argv[])
       tWorkflow.Postprocess(  run_id );
 
 
+
    std::cout<<  "perform executed" << std::endl;
    }
 
-   // //Refine the mesh
-   // if(0)
-   // {
-   //     int nclimit=1;
-   //     for (int iter = 0; iter<3; iter++)
-   //     {
-   //         Array<Refinement> refs;
-   //         for (int i = 0; i < pmesh->GetNE(); i++)
-   //         {
-   //            bool refine = false;
-   //            Geometry::Type geom = pmesh->GetElementBaseGeometry(i);
-   //            ElementTransformation *T = pmesh->GetElementTransformation(i);
-   //            RefinedGeometry *RefG = mfem::GlobGeometryRefiner.Refine(geom, 2, 1);
-   //            IntegrationRule &ir = RefG->RefPts;
-
-   //            // Refine any element where different materials are detected. A more
-   //            // sophisticated logic can be implemented here -- e.g. don't refine
-   //            // the interfaces between certain materials.
-   //            Array<int> mat(ir.GetNPoints());
-   //            double matsum = 0.0;
-   //            for (int j = 0; j < ir.GetNPoints(); j++)
-   //            {
-   //               //T->Transform(ir.IntPoint(j), pt);
-   //               //int m = material(pt, xmin, xmax);
-   //               int m = dens.Eval(*T,ir.IntPoint(j));
-   //               mat[j] = m;
-   //               matsum += m;
-   //               if ((int)matsum != m*(j+1))
-   //               {
-   //                  refine = true;
-   //               }
-   //            }
-
-   //            // Mark the element for refinement
-   //            if (refine)
-   //            {
-   //                refs.Append(Refinement(i));
-   //            }
-
-   //         }
-
-   //         //pmesh->GeneralRefinement(refs, -1, nclimit);
-   //         pmesh->GeneralRefinement(refs, 0, nclimit);
-   //         //pmesh->GeneralRefinement(refs);
-   //     }
-
-   //     //pmesh->Rebalance();
-   // }
 
    delete pmesh;
 
    return 0;
 }
+

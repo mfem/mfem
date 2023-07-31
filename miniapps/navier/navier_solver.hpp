@@ -196,10 +196,113 @@ public:
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
 
+   void AddVelDirichletBC(VecFuncT *f)
+   {
+      std::cout<<"set preassure BC"<<std::endl;
+      mfem::VectorFunctionCoefficient vel_BC_coeff(pmesh->Dimension(),f);
+
+      mfem::ParGridFunction vel_BC_gf(vfes);
+
+      vel_BC_gf.ProjectCoefficient(vel_BC_coeff);
+
+      // for (int i = 0; i < vel_BC_gf.Size(); ++i)
+      // {
+      //    if( vel_BC_gf[i] == 1.0)
+      //    {
+      //       vel_BC_gf = i;     
+      //    }
+      //    else
+      //    {
+      //       vel_BC_gf = -1.0;
+      //    }
+      // }
+
+      vel_BC_gf.SetTrueVector();
+      mfem::Vector & gfTVec = vel_BC_gf.GetTrueVector();
+
+      for (int i = 0; i < gfTVec.Size(); ++i)
+      {
+         if( gfTVec[i] == 1.0)
+         {
+            vel_ess_tdof.Append(i);     
+         }
+      }
+
+   //       if( true )
+   // {
+
+   //    mfem::ParaViewDataCollection mPvdc("3D_FullMesh_vel", pmesh);
+   //    mPvdc.RegisterField("velocity", &vel_BC_gf);
+   //    mPvdc.SetCycle(0);
+   //    mPvdc.SetTime(0.0);
+   //    mPvdc.Save();
+   // }
+
+      // for (int i = 0; i < vel_BC_gf.Size(); ++i)
+      // {
+      //    if( vel_BC_gf[i] == 1.0)
+      //    {
+      //       vel_ess_tdof.Append(i);     
+      //    }
+      // }
+
+      vel_ess_tdof.Sort();
+      vel_ess_tdof.Unique();
+
+      userDefinedVelBC = true;
+   };
+
    /// Add a Dirichlet boundary condition to the pressure field.
    void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
 
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
+
+   void AddPresDirichletBC(ScalarFuncT *f)
+   {
+      mfem::FunctionCoefficient preassure_BC_coeff(f);
+
+      mfem::ParGridFunction preassure_BC_gf(pfes);
+
+      preassure_BC_gf.ProjectCoefficient(preassure_BC_coeff);
+
+      // for (int i = 0; i < preassure_BC_gf.Size(); ++i)
+      // {
+      //    if( preassure_BC_gf[i] == 1.0)
+      //    {
+      //       preassure_BC_gf = i;     
+      //    }
+      //    else
+      //    {
+      //       preassure_BC_gf = -1.0;
+      //    }
+      // }
+
+      preassure_BC_gf.SetTrueVector();
+      mfem::Vector & gfTVec = preassure_BC_gf.GetTrueVector();
+
+      for (int i = 0; i < gfTVec.Size(); ++i)
+      {
+         if( gfTVec[i] == 1.0)
+         {
+            pres_ess_tdof.Append(i);     
+         }
+      }
+
+
+
+      // for (int i = 0; i < preassure_BC_gf.Size(); ++i)
+      // {
+      //    if( preassure_BC_gf[i] == 1.0)
+      //    {
+      //       pres_ess_tdof.Append(i);     
+      //    }
+      // }
+
+      pres_ess_tdof.Sort();
+      pres_ess_tdof.Unique();
+
+      userDefinedPresBC = true;
+   };
 
    /// Add an acceleration term to the RHS of the equation.
    /**
@@ -407,6 +510,9 @@ protected:
    Array<int> vel_ess_tdof;
    Array<int> pres_ess_tdof;
 
+   bool userDefinedVelBC = false;
+   bool userDefinedPresBC = false;
+   
    // Bookkeeping for velocity dirichlet bcs.
    std::vector<VelDirichletBC_T> vel_dbcs;
 

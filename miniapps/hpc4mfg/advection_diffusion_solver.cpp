@@ -79,14 +79,12 @@ void Advection_Diffusion_Solver::FSolve()
     double sigma = -1.0;       //"One of the three DG penalty parameters, typically +1/-1."
     double kappa = -1.0;       //"One of the three DG penalty parameters, should be positive. Negative values are replaced with (order+1)^2."
 
-    mfem::Advection_Diffusion_Solver::DiffusionCoeff * DiffCoeff = new Advection_Diffusion_Solver::DiffusionCoeff();
-
+    mfem::DiffusionCoeff * DiffCoeff = new DiffusionCoeff();
     DiffCoeff->SetDensity(mDensCoeff);
 
     ConstantCoefficient one(1.0);
     ConstantCoefficient zero(0.0);
 
-    constexpr double alpha = 1.0;
 
     //ParGridFunction avgGradTemp
 
@@ -101,13 +99,14 @@ void Advection_Diffusion_Solver::FSolve()
         //b->AddBdrFaceIntegrator(
             //new DGDirichletLFIntegrator(zero, one, sigma, kappa));
 
-        mfem::VectorCoefficient * diffVecCoeff = new Advection_Diffusion_Solver::RHSDiffCoeff( pmesh, avgGradTemp_, materials[0],  -1.0 );
-        mfem::Coefficient * advCoeff = new Advection_Diffusion_Solver::RHSAdvCoeff( pmesh, vel_, avgGradTemp_,  -1.0 );
+        //mfem::VectorCoefficient * diffVecCoeff = new Advection_Diffusion_Solver::RHSDiffCoeff( pmesh, avgGradTemp_, materials[0],  -1.0 );
+        //mfem::Coefficient * advCoeff = new Advection_Diffusion_Solver::RHSAdvCoeff( pmesh, vel_, avgGradTemp_,  -1.0 );
 
         //b->AddDomainIntegrator(new DomainLFGradIntegrator(*diffVecCoeff));
         //b->AddDomainIntegrator(new DomainLFIntegrator(*advCoeff));
 
-        mfem::Coefficient * LoadCoeff = new Advection_Diffusion_Solver::BodyLoadCoeff( pmesh, -1.0 );
+        mfem::Coefficient * LoadCoeff = new BodyLoadCoeff( pmesh, -1.0 );
+        //mfem::Coefficient * LoadCoeff = new ConstantCoefficient( 1.0 );
         b->AddDomainIntegrator(new DomainLFIntegrator(*LoadCoeff));
 
         // int MaxBdrAttr = pmesh->bdr_attributes.Max();
@@ -118,16 +117,10 @@ void Advection_Diffusion_Solver::FSolve()
 
         b->Assemble();
 
-//         mfem::ParGridFunction oneGridFunction(fes);
 
-//         oneGridFunction = 1.0;
 
-// double tVal = b(oneGridFunction);
-    
-//         std::cout<<"Norm b: "<<tVal<<std::endl;
-
-        delete diffVecCoeff;
-        delete advCoeff;
+        // delete diffVecCoeff;
+        // delete advCoeff;
     }
 
 
@@ -152,13 +145,17 @@ void Advection_Diffusion_Solver::FSolve()
 
         // add diffusion integrators
         a->AddDomainIntegrator(new DiffusionIntegrator(*DiffCoeff));
-        //a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-        //a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));                   // weak BC
+
+        // if(pressureGF_==nullptr || designGF_==nullptr || SurrogateDiffCoeff_== nullptr )
+        // {
+        //     mfem::mfem_error("Advection_Diffusion_Solver::FSolve preassure or desing GF not set.");
+        // }
+
+        //a->AddDomainIntegrator(new DiffusionIntegrator_hpc4(SurrogateDiffCoeff_, pressureGF_, designGF_));
+
 
         // add advection integrators
         a->AddDomainIntegrator(new ConvectionIntegrator(*vel_, alpha));
-        //a->AddInteriorFaceIntegrator( new NonconservativeDGTraceIntegrator(velocity, alpha));
-        //a->AddBdrFaceIntegrator( new NonconservativeDGTraceIntegrator(velocity, alpha));         // weak BC
 
         // add gls integrator
         //a->AddDomainIntegrator(new NLGLSIntegrator(materials[0], vel_, new NLGLSIntegrator::GLSCoefficient(pmesh, vel_,materials[0])));
@@ -326,8 +323,6 @@ void Advection_Diffusion_Solver::FSolve()
         {
             // Compute dofs belonging to the natural boundary
 
-
-   
             // Auxiliary class for BDDC customization
             PetscBDDCSolverParams opts;
             // Inform the solver about the finite element space
@@ -351,13 +346,112 @@ void Advection_Diffusion_Solver::FSolve()
 #endif
       }
 
-    solgf = X;     // copy solution
+    sol = X;     // copy solution
+    solgf.SetFromTrueDofs(sol);
 
-    std::cout<<" ----- end ----"<<std::endl;
+
+    delete(a);
+    a = nullptr;
+
 
     // We finalize PETSc
     // MFEMFinalizePetsc(); 
 
+}
+
+void Advection_Diffusion_Solver::ASolve(mfem::Vector& rhs)
+{
+    MFEM_ASSERT( ls != nullptr, "Liner solver does not exist"); 
+
+    adj = 0.0;
+    ess_tdofv.DeleteAll();
+    // set the boundary conditions
+    {
+        for(auto it=bcc.begin();it!=bcc.end();it++){
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            mfem::Array<int> ess_tdof_list;
+            fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            ess_tdofv.Append(ess_tdof_list);
+           // mfem::Coefficient * coeff =new mfem::ConstantCoefficient(0.0);
+            adjgf.ProjectBdrCoefficient(*(it->second),ess_bdr);
+            //delete coeff;
+        }
+
+        //copy BC values from the grid function to the solution vector
+        {
+            //adjgf.GetTrueDofs(rhs);
+            for(int ii=0;ii<ess_tdofv.Size();ii++) {
+                adj[ess_tdofv[ii]]=0.0;
+                rhs[ess_tdofv[ii]]=0.0;
+                //adj[ess_tdofv[ii]]=rhs[ess_tdofv[ii]];
+            }
+        }
+    }
+
+    if(a==nullptr)
+    {
+        a = new ParBilinearForm(fes);
+    
+
+        // add diffusion integrators
+        //a->AddDomainIntegrator(new DiffusionIntegrator(*DiffCoeff));
+
+        if(pressureGF_==nullptr || designGF_==nullptr || SurrogateDiffCoeff_== nullptr )
+        {
+            mfem::mfem_error("Advection_Diffusion_Solver::FSolve preassure or desing GF not set.");
+        }
+
+        a->AddDomainIntegrator(new DiffusionIntegrator_hpc4(SurrogateDiffCoeff_, pressureGF_, designGF_));
+
+
+        // add advection integrators
+        a->AddDomainIntegrator(new ConvectionIntegrator(*vel_, alpha));
+
+        // add gls integrator
+        //a->AddDomainIntegrator(new NLGLSIntegrator(materials[0], vel_, new NLGLSIntegrator::GLSCoefficient(pmesh, vel_,materials[0])));
+        //a->AddDomainIntegrator(new AdvectionDiffusionGLSStabInt( &velocity, materials[0], 1.0));
+
+        //a->SetEssentialTrueDofs(ess_tdofv);
+
+        a->Assemble();
+        a->Finalize();
+
+    }
+
+    HypreParMatrix A;
+    HypreParVector B, X;
+
+    a->FormLinearSystem(ess_tdofv, sol, *b, A, X, B);
+
+    mfem::HypreParMatrix* tTransOp = (&A)->Transpose();
+
+//    //std::ofstream inp1("AdjointOperator_nonTrans.txt");     tOp.PrintMatlab(inp1);   inp1.close();
+
+//     mfem::HypreParMatrix* tTransOp = reinterpret_cast<mfem::HypreParMatrix*>(&tOp)->Transpose();
+
+//     //std::ofstream inp("AdjointOperator.txt");     tTransOp->PrintMatlab(inp);   inp.close();
+//std::cout<<" ---- rhs ===="<<std::endl;
+//rhs.Print();
+
+    ls->SetOperator(*tTransOp);
+    ls->Mult(rhs, adj);              
+
+
+    delete tTransOp;
+    adjgf.SetFromTrueDofs(adj);
+
+//std::cout<<" ---- adj ===="<<std::endl;
+    //adj.Print();
+
+    ////std::cout<<" ---- sone ===="<<std::endl;
+
+    delete(a);
+    delete b;
+
+    a = nullptr;
+    b = nullptr;
 }
 
 void Advection_Diffusion_Solver::Postprocess()
@@ -430,7 +524,7 @@ void Advection_Diffusion_Solver::RHSDiffCoeff::Eval(
         matTensor.Mult(avgGradTemp, V );
     }
 
-double Advection_Diffusion_Solver::BodyLoadCoeff::Eval(
+double BodyLoadCoeff::Eval(
     mfem::ElementTransformation & T,
     const IntegrationPoint & ip)
     {
@@ -442,10 +536,70 @@ double Advection_Diffusion_Solver::BodyLoadCoeff::Eval(
 
         if( x[2] < 0.005)
         {
-            val = 100.0;
+            val = 10.0;
         }
 
         return val;
     }
+
+
+void DiffusionIntegrator_hpc4::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Trans,
+  DenseMatrix &elmat )
+{
+   int nd = el.GetDof();
+   dim = el.GetDim();
+   int spaceDim = Trans.GetSpaceDim();
+   bool square = (dim == spaceDim);
+   double w;
+   int order = 2 * el.GetOrder() + Trans.OrderGrad(&el);
+   const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
+
+   DenseMatrix dshape(nd, dim), dshapedxt(nd, spaceDim);
+   DenseMatrix dshapedxt_m(nd, MQ ? spaceDim : 0);
+   Vector NNInput(dim+1); NNInput=0.0;
+
+   elmat.SetSize(nd);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      el.CalcDShape(ip, dshape);
+
+      Trans.SetIntPoint(&ip);
+      w = Trans.Weight();
+      w = ip.weight / (square ? w : w*w*w);
+      // AdjugateJacobian = / adj(J),         if J is square
+      //                    \ adj(J^t.J).J^t, otherwise
+      Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
+      if (MQ)
+      {
+           // calculate uu
+         mfem::Vector preassureGrad(dim);
+         preassure->GetGradient(Trans,preassureGrad);
+
+         double DesingThreshold = design->GetValue(Trans,ip);
+        
+         for( int Ik = 0; Ik<dim; Ik ++){ NNInput[Ik] = preassureGrad[Ik];}
+         NNInput[dim] = DesingThreshold;
+
+         DenseMatrix hh(dim);  hh = 0.0;
+         MQ->Hessian(Trans,ip,NNInput,hh);
+
+         hh *= w;
+         Mult(dshapedxt, hh, dshapedxt_m);
+         AddMultABt(dshapedxt_m, dshapedxt, elmat);
+      }
+      else
+      {
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+         AddMult_a_AAt(w, dshapedxt, elmat);
+      }
+   }
+}
 
 }

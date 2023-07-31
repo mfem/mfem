@@ -1,8 +1,9 @@
 #include "hpc4solvers.hpp"
 #include "hpc4mat.hpp"
 
+#ifdef MFEM_USE_PETSC
 #include <petsc.h>
-
+#endif
 
 namespace mfem {
 
@@ -98,6 +99,7 @@ void NLDiffusionIntegrator::AssembleElementVector(const FiniteElement &el,
        B.SetCol(spaceDim, shapef);
        // calculate uu
        B.MultTranspose(elfun, uu);
+
        // calculate residual
        double DesingThreshold = desfieldCoeff->Eval(trans,ip);
                
@@ -209,7 +211,7 @@ void NLDiffusion::FSolve()
             nf->AddDomainIntegrator(new NLDiffusionIntegrator(materials[i],desfieldCoeff[i]));
         }
 
-        nf->AddBdrFaceIntegrator( new NLLoadIntegrator(pmesh) );
+        nf->AddBdrFaceIntegrator( new NLLoadIntegrator(pmesh, LoadVal_, LoadAttribute_) );
     }
 
     nf->SetEssentialTrueDofs(ess_tdofv);
@@ -224,19 +226,20 @@ void NLDiffusion::FSolve()
     if(prec==nullptr){
         prec = new HypreILU();
         prec->SetPrintLevel(print_level);
-        prec->SetLevelOfFill(25);
+        prec->SetLevelOfFill(5);
     }
 
     
 
     if(ls==nullptr){
         //ls = new CGSolver(pmesh->GetComm());
-        ls =new mfem::GMRESSolver(pmesh->GetComm());
+        ls =new mfem::FGMRESSolver(pmesh->GetComm());
         ls->SetAbsTol(linear_atol);
         ls->SetRelTol(linear_rtol);
         ls->SetMaxIter(linear_iter);
-        ls->SetPrintLevel(print_level);
+        ls->SetPrintLevel(print_level_lin);
         ls->SetPreconditioner(*prec);
+        ls->SetKDim(linear_iter);
     }
 
     if(ns==nullptr){
@@ -248,9 +251,13 @@ void NLDiffusion::FSolve()
         ns->SetPrintLevel(print_level);
         ns->SetSolver(*ls);
         ns->SetOperator(*nf);
+        ns->SetRelaxation(relaxation_);
     }
 
     Vector b;
+
+    std::cout<<"----- setup done --------"<<std::endl;
+
     ns->Mult(b,sol);  
 
     // //nf->SetEssentialBC(ess_tdofv);
@@ -261,6 +268,16 @@ void NLDiffusion::FSolve()
     // inp.close();
 
     solgf.SetFromTrueDofs(sol);
+
+    std::cout<<"deleting nonlinearform. "<<std::endl;
+    // delete(ns);
+    // delete(nf);
+    // delete(ls);
+    // delete(prec);
+    // ns=nullptr;
+    // nf=nullptr;
+    // ls=nullptr;
+    // prec=nullptr;
 }
 
 
@@ -362,8 +379,8 @@ double EnergyDissipationIntegrator::GetElementEnergy(
         // fixme add thre
         MicroModelCoeff->Grad(Tr,ip,NNInput,uu);
 
-        // Mult uu*gradp and add
-        energy=energy+1.0*w*(uu*gradp);
+        // Mult uu*gradp and add     (-1.0 because u( -grad p))
+        energy=energy-1.0*w*(uu*gradp);
     }
 
     return energy;
@@ -418,7 +435,7 @@ void EnergyDissipationIntegrator::AssembleElementVector(
         double cpl = gradp * uu;
 
         el.CalcShape(ip,shapef);
-        elvect.Add(1.0*cpl*w,shapef);
+        elvect.Add(-1.0*cpl*w,shapef);
     }
 }
 
@@ -510,6 +527,9 @@ void EnergyDissipationIntegrator_1::AssembleRHSElementVect(
         // replace this with proper implementation
         DenseMatrix hh_1(dim);
         hh_1(0,0) = hh(0,0);  hh_1(1,0) = hh(1,0);  hh_1(0,1) = hh(0,1);  hh_1(1,1) = hh(1,1);
+
+        if(3 == dim){mfem::mfem_error("check 3D implementation");}
+        
 
         Vector flux(dim);        Vector dQdp_2(dof);
         hh_1.Mult(gradp, flux);

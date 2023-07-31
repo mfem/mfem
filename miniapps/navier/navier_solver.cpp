@@ -114,8 +114,15 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
-   pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
+   if( ! userDefinedVelBC )
+   {
+      vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
+   }
+   if( ! userDefinedPresBC )
+   {
+      pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
+   }
+
 
    Array<int> empty;
 

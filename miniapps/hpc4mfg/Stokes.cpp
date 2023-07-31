@@ -29,7 +29,7 @@ void Stokes::FSolve()
     const char *device_config = "cpu";
     Device device(device_config);
 
-    double BrinmannPen = 10000.0;
+    double BrinmannPen = 1000.0;
     bool   BrinkannBC = false;
 
     Array<int> block_offsets(3); // number of variables + 1
@@ -459,7 +459,7 @@ else{
     std::cout<<"Solve"<<std::endl;
 
     // Solve
-    int maxIter( 700);
+    int maxIter( 5000);
     double rtol(1.e-7);
     double atol(1.e-10);
 

@@ -39,9 +39,9 @@ int main(int argc, char *argv[])
    args.Parse();
 
    {
-      std::string tStringOut = "./B_OutputFile_Ellipse";
+      std::string tStringOut = "./A_OutputFile_Circle_ADVDiff";
 
-      int tNumFiles = 2000;
+      int tNumFiles = 500;
 
       std::vector< std::string > tVec(tNumFiles, "");
 
@@ -49,7 +49,8 @@ int main(int argc, char *argv[])
 
       for( int Ik = 0; Ik < tNumFiles; Ik ++)
       {
-         std::string tString = "./OutputFile_" + std::to_string(Ik);
+         //std::string tString = "./OutputFile_" + std::to_string(Ik);
+         std::string tString = "./OutputFileFlux_" + std::to_string(Ik);
 
          if( !file_exists(tString) )
          {

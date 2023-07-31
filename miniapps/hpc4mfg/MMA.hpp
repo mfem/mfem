@@ -2,6 +2,8 @@
 #define __MMA__HPP
 
 #include "mfem.hpp"
+
+#ifdef MFEM_USE_PETSC
 #include <petsc.h>
 
 /* -----------------------------------------------------------------------------
@@ -236,5 +238,5 @@ private:
 
 }
 
-
+#endif
 #endif

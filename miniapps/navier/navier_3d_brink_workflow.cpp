@@ -161,7 +161,7 @@ void Navier3dBrinkWorkflow::Perform( )
    //    //mBp->SetVel(flowsolver.GetProvisionalVelocity());
       if( mVisualization )
       {
-         if (step % 2000 == 0)
+         if (step % 50000 == 0)
          {
            mPvdc->SetCycle(step);
             mPvdc->SetTime(t);
@@ -194,6 +194,8 @@ void Navier3dBrinkWorkflow::Postprocess(const int & runID)
    Vector tVelVal(vdim);
    tVelVal = 0.0;
 
+   mAverageVel.SetSize(vdim);
+
    double tVolume = 0.0;
 
    for (int e = 0; e < fes->GetNE(); ++e)
@@ -203,41 +205,10 @@ void Navier3dBrinkWorkflow::Postprocess(const int & runID)
                                                fe->GetOrder());
       ElementTransformation *tr = fes->GetElementTransformation(e);
 
-      // u->GetValues(e, ir, ux, 1);
-      // //ur.SetSize(ux.Size());
-      // u.GetValues(e, ir, uy, 2);
-      // //us.SetSize(uy.Size());
-      // if (vdim == 3)
-      // {
-      //    u.GetValues(e, ir, uz, 3);
-      //    //ut.SetSize(uz.Size());
-      // }
-
-         //int dof = FElem->GetDof();
-         //Array<int> vdofs;
-        // DofTransformation * doftrans = fes->GetElementVDofs(i, vdofs);
-          //Vector loc_data;
-          //GetSubVector(vdofs, loc_data);
-
-      //double hmin = pmesh->GetElementSize(e, 1) /
-      //              (double) fes->GetElementOrder(0);
-
-      //const int dim = fe->GetDim();
-      //const int dof = fe->GetDof();
-      // int sdim = tr->GetSpaceDim();
-
-     //tVal *= w; 
-
-      //DenseMatrix shape(dof,dim);
-
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
          tr->SetIntPoint(&ip);
-         //const DenseMatrix &invJ = tr->InverseJacobian();
-         //const double detJinv = 1.0 / tr->Jacobian().Det();
-
-         //fe->CalcVShape(i, shape);
 
          double w = tr->Weight() * ip.weight;
 
@@ -254,8 +225,6 @@ void Navier3dBrinkWorkflow::Postprocess(const int & runID)
    }
 
    std::cout<<" Volume = "<< tVolume<< std::endl;
-
-   // FIXME add communication
 
    double tTotalVol;
    MPI_Allreduce(&tVolume, &tTotalVol, 1, MPI_DOUBLE, MPI_SUM,
@@ -275,8 +244,8 @@ void Navier3dBrinkWorkflow::Postprocess(const int & runID)
          mPMesh->GetComm());
 
          tVelVal(Ik) = tTotalVal / tTotalVol;
+         mAverageVel(Ik) = tVelVal(Ik);
    }
-         //tVelVal.Print( );
 
    if (mMPI.Root())
    {
