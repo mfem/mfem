@@ -12,9 +12,11 @@
 #ifndef MFEM_PLASMA_FLUX_VECTORS
 #define MFEM_PLASMA_FLUX_VECTORS
 
-#include "../common/pfem_extras.hpp"
+#include "mfem.hpp"
 
 #ifdef MFEM_USE_MPI
+
+#include "../common/pfem_extras.hpp"
 
 namespace mfem
 {
