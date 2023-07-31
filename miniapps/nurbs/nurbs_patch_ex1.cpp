@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
    AssembleAndSolve(b, di, ess_tdof_list, pa, algebraic_ceed, x);
 
    delete patchRule;
+   delete di;
 
    // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -222,10 +223,10 @@ int main(int argc, char *argv[])
       x.GetTrueDofs(x_pw);
 
       cout << "Assembling system element-wise and solving" << endl;
-      DiffusionIntegrator *d = new DiffusionIntegrator(one);
+      DiffusionIntegrator d(one);
       // Element-wise partial assembly is not supported on NURBS meshes, so we
       // pass pa = false here.
-      AssembleAndSolve(b, d, ess_tdof_list, false, algebraic_ceed, x);
+      AssembleAndSolve(b, &d, ess_tdof_list, false, algebraic_ceed, x);
 
       x.GetTrueDofs(x_ew);
 
@@ -295,7 +296,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 200, 1e-20, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
@@ -321,7 +322,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
       }
       else
       {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+         CG(*A, B, X, 1, 400, 1e-20, 0.0);
       }
    }
 

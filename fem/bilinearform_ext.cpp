@@ -295,8 +295,10 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      if (a->FESpace()->GetMesh()->NURBSext && integrators[i]->Patchwise())
+      if (integrators[i]->Patchwise())
       {
+         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
+                     "Patchwise integration requires a NURBS FE space");
          integrators[i]->AssembleNURBSPA(*a->FESpace());
       }
       else

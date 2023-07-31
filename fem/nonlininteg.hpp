@@ -58,6 +58,7 @@ public:
 
    void SetIntegrationMode(Mode m) { integrationMode = m; }
 
+   /// For patchwise integration, SetNURBSPatchIntRule must be called.
    void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
    bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
 

@@ -425,8 +425,8 @@ void BilinearForm::Assemble(int skip_zeros)
 
          if (domain_integs[k]->Patchwise())
          {
-            MFEM_VERIFY(mesh->NURBSext, "Patchwise integration requires a "
-                        << "NURBS mesh");
+            MFEM_VERIFY(fes->GetNURBSext(), "Patchwise integration requires a "
+                        << "NURBS FE space");
          }
       }
 
@@ -490,7 +490,7 @@ void BilinearForm::Assemble(int skip_zeros)
       }
 
       // Patch-wise integration
-      if (mesh->NURBSext)
+      if (fes->GetNURBSext())
       {
          for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
          {
