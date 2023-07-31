@@ -271,7 +271,8 @@ protected:
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
-   Array<DofTransformation*> DoFTrans;
+   Array<StatelessDofTransformation*> DoFTransArray;
+   mutable DofTransformation DoFTrans;
    mutable VDofTransformation VDoFTrans;
 
    /** Matrix representing the prolongation from the global conforming dofs to
@@ -326,8 +327,8 @@ protected:
    void Construct();
    void Destroy();
 
-   void ConstructDoFTrans();
-   void DestroyDoFTrans();
+   void ConstructDoFTransArray();
+   void DestroyDoFTransArray();
 
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
@@ -414,10 +415,11 @@ protected:
       Table* old_elem_dof; // Owned.
       Table* old_elem_fos; // Owned.
 
-      Array<DofTransformation*> old_DoFTrans;
+      Array<StatelessDofTransformation*> old_DoFTransArray;
+      mutable DofTransformation old_DoFTrans;
       mutable VDofTransformation old_VDoFTrans;
 
-      void ConstructDoFTrans();
+      void ConstructDoFTransArray();
 
    public:
       /** Construct the operator based on the elem_dof table of the original

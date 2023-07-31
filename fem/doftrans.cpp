@@ -60,16 +60,15 @@ void TransformDual(const DofTransformation *ran_dof_trans,
    }
 }
 
-void StatelessVDofTransformation::TransformPrimal(const Array<int> & face_ori,
-                                                  double *v) const
+void VDofTransformation::TransformPrimal(double *v) const
 {
-   int size = sdoftrans_->Size();
+   int size = dof_trans_->Size();
 
    if ((Ordering::Type)ordering_ == Ordering::byNODES || vdim_ == 1)
    {
       for (int i=0; i<vdim_; i++)
       {
-         sdoftrans_->TransformPrimal(face_ori, &v[i*size]);
+         dof_trans_->TransformPrimal(Fo, &v[i*size]);
       }
    }
    else
@@ -81,7 +80,7 @@ void StatelessVDofTransformation::TransformPrimal(const Array<int> & face_ori,
          {
             vec(j) = v[j*vdim_+i];
          }
-         sdoftrans_->TransformPrimal(face_ori, vec);
+         dof_trans_->TransformPrimal(Fo, vec);
          for (int j=0; j<size; j++)
          {
             v[j*vdim_+i] = vec(j);
@@ -90,17 +89,15 @@ void StatelessVDofTransformation::TransformPrimal(const Array<int> & face_ori,
    }
 }
 
-void StatelessVDofTransformation::InvTransformPrimal(
-   const Array<int> & face_ori,
-   double *v) const
+void VDofTransformation::InvTransformPrimal(double *v) const
 {
-   int size = sdoftrans_->Height();
+   int size = dof_trans_->Height();
 
    if ((Ordering::Type)ordering_ == Ordering::byNODES)
    {
       for (int i=0; i<vdim_; i++)
       {
-         sdoftrans_->InvTransformPrimal(face_ori, &v[i*size]);
+         dof_trans_->InvTransformPrimal(Fo, &v[i*size]);
       }
    }
    else
@@ -112,7 +109,7 @@ void StatelessVDofTransformation::InvTransformPrimal(
          {
             vec(j) = v[j*vdim_+i];
          }
-         sdoftrans_->InvTransformPrimal(face_ori, vec);
+         dof_trans_->InvTransformPrimal(Fo, vec);
          for (int j=0; j<size; j++)
          {
             v[j*vdim_+i] = vec(j);
@@ -121,16 +118,15 @@ void StatelessVDofTransformation::InvTransformPrimal(
    }
 }
 
-void StatelessVDofTransformation::TransformDual(const Array<int> & face_ori,
-                                                double *v) const
+void VDofTransformation::TransformDual(double *v) const
 {
-   int size = sdoftrans_->Size();
+   int size = dof_trans_->Size();
 
    if ((Ordering::Type)ordering_ == Ordering::byNODES)
    {
       for (int i=0; i<vdim_; i++)
       {
-         sdoftrans_->TransformDual(face_ori, &v[i*size]);
+         dof_trans_->TransformDual(Fo, &v[i*size]);
       }
    }
    else
@@ -142,7 +138,7 @@ void StatelessVDofTransformation::TransformDual(const Array<int> & face_ori,
          {
             vec(j) = v[j*vdim_+i];
          }
-         sdoftrans_->TransformDual(face_ori, vec);
+         dof_trans_->TransformDual(Fo, vec);
          for (int j=0; j<size; j++)
          {
             v[j*vdim_+i] = vec(j);
@@ -151,16 +147,15 @@ void StatelessVDofTransformation::TransformDual(const Array<int> & face_ori,
    }
 }
 
-void StatelessVDofTransformation::InvTransformDual(const Array<int> & face_ori,
-                                                   double *v) const
+void VDofTransformation::InvTransformDual(double *v) const
 {
-   int size = sdoftrans_->Size();
+   int size = dof_trans_->Size();
 
    if ((Ordering::Type)ordering_ == Ordering::byNODES)
    {
       for (int i=0; i<vdim_; i++)
       {
-         sdoftrans_->InvTransformDual(face_ori, &v[i*size]);
+         dof_trans_->InvTransformDual(Fo, &v[i*size]);
       }
    }
    else
@@ -172,7 +167,7 @@ void StatelessVDofTransformation::InvTransformDual(const Array<int> & face_ori,
          {
             vec(j) = v[j*vdim_+i];
          }
-         sdoftrans_->InvTransformDual(face_ori, vec);
+         dof_trans_->InvTransformDual(Fo, vec);
          for (int j=0; j<size; j++)
          {
             v[j*vdim_+i] = vec(j);
@@ -182,7 +177,7 @@ void StatelessVDofTransformation::InvTransformDual(const Array<int> & face_ori,
 }
 
 // ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
-const double ND_StatelessDofTransformation::T_data[24] =
+const double ND_DofTransformation::T_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
    -1.0, -1.0,  0.0,  1.0,
@@ -192,11 +187,11 @@ const double ND_StatelessDofTransformation::T_data[24] =
    0.0,  1.0,  1.0,  0.0
 };
 
-const DenseTensor ND_StatelessDofTransformation
-::T(const_cast<double*>(ND_StatelessDofTransformation::T_data), 2, 2, 6);
+const DenseTensor ND_DofTransformation
+::T(const_cast<double *>(ND_DofTransformation::T_data), 2, 2, 6);
 
 // ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
-const double ND_StatelessDofTransformation::TInv_data[24] =
+const double ND_DofTransformation::TInv_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
    -1.0, -1.0,  0.0,  1.0,
@@ -206,12 +201,11 @@ const double ND_StatelessDofTransformation::TInv_data[24] =
    0.0,  1.0,  1.0,  0.0
 };
 
-const DenseTensor ND_StatelessDofTransformation
-::TInv(const_cast<double*>(TInv_data), 2, 2, 6);
+const DenseTensor ND_DofTransformation
+::TInv(const_cast<double *>(TInv_data), 2, 2, 6);
 
-ND_StatelessDofTransformation::ND_StatelessDofTransformation(int size, int p,
-                                                             int num_edges,
-                                                             int num_tri_faces)
+ND_DofTransformation::ND_DofTransformation(int size, int p, int num_edges,
+                                           int num_tri_faces)
    : StatelessDofTransformation(size)
    , order(p)
    , nedofs(p)
@@ -221,18 +215,19 @@ ND_StatelessDofTransformation::ND_StatelessDofTransformation(int size, int p,
 {
 }
 
-void ND_StatelessDofTransformation::TransformPrimal(const Array<int> & Fo,
-                                                    double *v) const
+void ND_DofTransformation::TransformPrimal(const Array<int> & Fo,
+                                           double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsEmpty()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
-               "ND_StatelessDofTransformation");
+               "ND_DofTransformation");
 
    double data[2];
    Vector v2(data, 2);
+   DenseMatrix T2;
 
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
@@ -240,23 +235,25 @@ void ND_StatelessDofTransformation::TransformPrimal(const Array<int> & Fo,
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         T2.UseExternalData(const_cast<double *>(T.GetData(Fo[f])), 2, 2);
+         T2.Mult(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
 
-void ND_StatelessDofTransformation::InvTransformPrimal(const Array<int> & Fo,
-                                                       double *v) const
+void ND_DofTransformation::InvTransformPrimal(const Array<int> & Fo,
+                                              double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsEmpty()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
-               "ND_StatelessDofTransformation");
+               "ND_DofTransformation");
 
    double data[2];
    Vector v2(data, 2);
+   DenseMatrix T2Inv;
 
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
@@ -264,23 +261,24 @@ void ND_StatelessDofTransformation::InvTransformPrimal(const Array<int> & Fo,
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         T2Inv.UseExternalData(const_cast<double *>(TInv.GetData(Fo[f])), 2, 2);
+         T2Inv.Mult(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
 
-void ND_StatelessDofTransformation::TransformDual(const Array<int> & Fo,
-                                                  double *v) const
+void ND_DofTransformation::TransformDual(const Array<int> & Fo, double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsEmpty()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
-               "ND_StatelessDofTransformation");
+               "ND_DofTransformation");
 
    double data[2];
    Vector v2(data, 2);
+   DenseMatrix T2Inv;
 
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
@@ -288,23 +286,25 @@ void ND_StatelessDofTransformation::TransformDual(const Array<int> & Fo,
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         T2Inv.UseExternalData(const_cast<double *>(TInv.GetData(Fo[f])), 2, 2);
+         T2Inv.MultTranspose(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
 
-void ND_StatelessDofTransformation::InvTransformDual(const Array<int> & Fo,
-                                                     double *v) const
+void ND_DofTransformation::InvTransformDual(const Array<int> & Fo,
+                                            double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsEmpty()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
-               "ND_StatelessDofTransformation");
+               "ND_DofTransformation");
 
    double data[2];
    Vector v2(data, 2);
+   DenseMatrix T2;
 
    // Transform face DoFs
    for (int f=0; f<nfaces; f++)
@@ -312,7 +312,8 @@ void ND_StatelessDofTransformation::InvTransformDual(const Array<int> & Fo,
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[nedges*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
+         T2.UseExternalData(const_cast<double *>(T.GetData(Fo[f])), 2, 2);
+         T2.MultTranspose(v2, &v[nedges*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
