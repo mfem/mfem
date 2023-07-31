@@ -235,6 +235,34 @@ public:
    virtual int GetNumIterations() const;
 };
 
+/* Bramble-Pasciak Solver for Darcy equation.
+ */
+class BramblePasciakSolver : public DarcySolver
+{
+   CGSolver solver_;
+   BlockOperator op_;
+   BlockOperator map_;
+   BlockDiagonalPreconditioner pc_;
+   SparseMatrix *local_minus_id;
+   Array<int> ess_zero_dofs_;
+   HypreParMatrix *ConstructMassPreconditioner(const std::shared_ptr<ParBilinearForm> &a) const;
+   void Init(HypreParMatrix *A, HypreParMatrix *B, HypreParMatrix *Q,
+      const IterSolveParameters &param);
+
+public:
+   BramblePasciakSolver(
+      const std::shared_ptr<ParBilinearForm> &a,
+      const std::shared_ptr<ParMixedBilinearForm> &b,
+      const IterSolveParameters &param);
+   BramblePasciakSolver(
+      HypreParMatrix &A, HypreParMatrix &B, HypreParMatrix &Q,
+      const IterSolveParameters &param);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+   void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
+   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+};
+
 } // namespace blocksolvers
 
 } // namespace mfem
