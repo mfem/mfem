@@ -971,8 +971,8 @@ public:
     * @param [in] right_singular_vectors optional parameter to define if first right singular vectors should be computed
     */
    MFEM_DEPRECATED DenseMatrixSVD(DenseMatrix &M,
-                  bool left_singular_vectors=false,
-                  bool right_singlular_vectors=false);
+                                  bool left_singular_vectors=false,
+                                  bool right_singlular_vectors=false);
 
    /**
     * @brief Constructor for the DenseMatrixSVD
@@ -986,8 +986,8 @@ public:
     * @param [in] right_singular_vectors optional parameter to define if first right singular vectors should be computed
     */
    MFEM_DEPRECATED DenseMatrixSVD(int h, int w,
-                  bool left_singular_vectors=false,
-                  bool right_singlular_vectors=false);
+                                  bool left_singular_vectors=false,
+                                  bool right_singlular_vectors=false);
    
    /**
     * @brief Constructor for the DenseMatrixSVD
@@ -1041,7 +1041,7 @@ public:
     * in the call of the constructor
     *
     * @param [in] M DenseMatrix the SVD should be evaluated for
-    */               
+    */              
    void Eval(DenseMatrix &M);
 
    /**
