@@ -1009,7 +1009,7 @@ public:
     */
    DenseMatrixSVD(DenseMatrix &M,
                   char left_singular_vectors='A',
-                  char right_singlular_vectors='A');
+                  char right_singular_vectors='A');
    
    /**
     * @brief Constructor for the DenseMatrixSVD
@@ -1032,7 +1032,7 @@ public:
     */
    DenseMatrixSVD(int h, int w,
                   char left_singular_vectors='A',
-                  char right_singlular_vectors='A');
+                  char right_singular_vectors='A');
 
    /**
     * @brief Evaluate the SVD
