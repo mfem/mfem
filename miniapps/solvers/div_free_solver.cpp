@@ -606,3 +606,156 @@ int DivFreeSolver::GetNumIterations() const
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
+
+BramblePasciakSolver::BramblePasciakSolver(
+   const std::shared_ptr<ParBilinearForm> &a,
+   const std::shared_ptr<ParMixedBilinearForm> &b,
+   const IterSolveParameters &param)
+   : DarcySolver(a->ParFESpace()->GetTrueVSize(),
+                 b->TestFESpace()->GetTrueVSize()),
+     op_(offsets_), map_(offsets_), pc_(offsets_),
+     solver_(a->ParFESpace()->GetComm())
+{
+   // Recover mass matrices
+   /* Original system has structure
+    * D = [ A  B^T ]
+    *     [ B   0  ]
+    */
+   HypreParMatrix *A = a->ParallelAssemble();
+   HypreParMatrix *B = b->ParallelAssemble();
+   // Assemble preconditioner
+   /* Mass preconditioner corresponds to a local re-scaling
+    * based on the smallest eigenvalue of the generalized
+    * eigenvalue problem
+    *         A_T x_T = \lambda_T diag(A_T) x_T
+    * and we set Q_T = diag(min(\lambda_T)).
+    */
+   HypreParMatrix *Q = ConstructMassPreconditioner(a);
+   // Initialize system
+   Init(A, B, Q, param);
+}
+
+BramblePasciakSolver::BramblePasciakSolver(
+   HypreParMatrix &A, HypreParMatrix &B, HypreParMatrix &Q,
+   const IterSolveParameters &param)
+   : DarcySolver(A.NumRows(), B.NumRows()),
+     op_(offsets_), map_(offsets_), pc_(offsets_),
+     solver_(A.GetComm())
+{
+   // System and mass-preconditioner is user-provided
+   /* Original system has structure
+    * D = [ A  B^T ]
+    *     [ B   0  ]
+    */
+   // Initialize system
+   Init(&A, &B, &Q, param);
+}
+
+void BramblePasciakSolver::Init(
+   HypreParMatrix *A, HypreParMatrix *B, HypreParMatrix *Q,
+   const IterSolveParameters &param)
+{
+   HypreParMatrix *Bt = B->Transpose();
+   // invQ
+   HypreParMatrix *invQ = new HypreParMatrix(*Q);
+   Vector diagQ;
+   invQ->GetDiag(diagQ);
+   invQ->InvScaleRows(diagQ);
+   invQ->InvScaleRows(diagQ);
+   // AinvQ
+   auto AinvQ = ParMult(A,invQ);
+   // A*inv(Q) - Id
+   int NumRows = AinvQ->GetNumRows();
+   SparseMatrix diag;
+   AinvQ->GetDiag(diag);
+   int *I = diag.GetI();
+   double *Data = diag.GetData();
+   for (int ii = 0; ii < NumRows; ++ii)
+   {
+      Data[I[ii]] -= 1;
+   }
+
+   // Main blocks
+   auto block00 = ParMult(AinvQ, A);
+   auto block01 = ParMult(AinvQ, Bt);
+   auto BinvQ = ParMult(B, invQ);
+   auto block11 = ParMult(BinvQ,Bt);
+   auto block10 = new TransposeOperator(block01);
+   // -Id
+   auto row_starts = B->GetRowStarts();
+   auto col_starts = Bt->GetColStarts();
+   MFEM_ASSERT((row_starts[0] == col_starts[0]) &&
+               (row_starts[1] == col_starts[1]),
+               "Check the construction of the divergence block matrix.");
+   auto minus_id = new IdentityOperator(row_starts[1] - row_starts[0]);
+
+   {
+      op_.owns_blocks = true;
+      op_.SetBlock(0, 0, block00);
+      op_.SetBlock(0, 1, block01);
+      op_.SetBlock(1, 0, block10);
+      op_.SetBlock(1, 1, block11);
+
+      map_.owns_blocks = true;
+      map_.SetBlock(0, 0, AinvQ);
+      map_.SetBlock(1, 0, BinvQ);
+      map_.SetBlock(1, 1, minus_id, -1.0);
+   }
+
+   Solver *solver_M0, *solver_M1;
+   solver_M0 = new HypreDiagScale(*Q);
+   solver_M1 = new HypreBoomerAMG(*block11);
+   dynamic_cast<HypreBoomerAMG*>(solver_M1)->SetPrintLevel(0);
+   {
+      solver_M0->iterative_mode = false;
+      solver_M1->iterative_mode = false;
+
+      pc_.owns_blocks = true;
+      pc_.SetDiagonalBlock(0, solver_M0);
+      pc_.SetDiagonalBlock(1, solver_M1);
+   }
+
+   // Set solver
+   SetOptions(solver_, param);
+   {
+      solver_.SetOperator(op_);
+      solver_.SetPreconditioner(pc_);
+   }
+}
+
+HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
+   const shared_ptr<ParBilinearForm> &a) const
+{
+   a->ComputeElementMatrices();
+   int const numElement = a->ParFESpace()->GetNE();
+   ParBilinearForm *qVarf(new ParBilinearForm(a->ParFESpace()));
+   for (int i = 0; i<numElement; ++i)
+   {
+      DenseMatrix A_i, Q_i, evec;
+      Vector eval, diag_i;
+      double scaling = 0.0;
+
+      a->ComputeElementMatrix(i, A_i);
+      A_i.GetDiag(diag_i);
+      // A_i <- D^{-1/2} A_i D^{-1/2}, where D = diag(A)
+      A_i.InvSymmetricScaling(diag_i);
+      // A_i x = ev diag(A_i) x
+      A_i.Eigenvalues(eval, evec);
+
+      scaling = 0.5*eval.Min();
+      diag_i.Set(scaling, diag_i);
+      Q_i.Diag(diag_i.GetData(), diag_i.Size());
+      qVarf->AssembleElementMatrix(i, Q_i, 1);
+   }
+   qVarf->Assemble();
+   qVarf->Finalize();
+   return qVarf->ParallelAssemble();
+}
+
+void BramblePasciakSolver::Mult(const Vector & x, Vector & z) const
+{
+   Vector y(x);
+   map_.Mult(x,y);
+   solver_.Mult(y, z);
+   for (int dof : ess_zero_dofs_) { z[dof] = 0.0; }
+}

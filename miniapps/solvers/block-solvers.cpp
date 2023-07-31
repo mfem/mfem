@@ -28,6 +28,7 @@
 // The solvers being compared include:
 //    1. The divergence free solver (couple and decoupled modes)
 //    2. MINRES preconditioned by a block diagonal preconditioner
+//    3. CG with a Bramble-Pasciak transformation
 //
 // We recommend viewing example 5 before viewing this miniapp.
 //
@@ -88,9 +89,12 @@ class DarcyProblem
    ParGridFunction u_;
    ParGridFunction p_;
    ParMesh mesh_;
+   shared_ptr<ParBilinearForm> mVarf_;
+   shared_ptr<ParMixedBilinearForm> bVarf_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    DFSSpaces dfs_spaces_;
+   PWConstCoefficient mass_coeff;
    const IntegrationRule *irs_[Geometry::NumGeom];
 public:
    DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
@@ -103,13 +107,16 @@ public:
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, string tag);
+   shared_ptr<ParBilinearForm> GetMform() const { return mVarf_; }
+   shared_ptr<ParMixedBilinearForm> GetBform() const { return bVarf_; }
 };
 
 DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                            const char *coef_file, Array<int> &ess_bdr,
                            DFSParameters dfs_param)
    : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
-     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param)
+     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
+     mass_coeff()
 {
    for (int l = 0; l < num_refs; l++)
    {
@@ -124,7 +131,8 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
       ifstream coef_str(coef_file);
       coef_vector.Load(coef_str, mesh.GetNE());
    }
-   PWConstCoefficient mass_coeff(coef_vector);
+
+   mass_coeff.UpdateConstants(coef_vector);
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
@@ -144,21 +152,25 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   ParBilinearForm mVarf(dfs_spaces_.GetHdivFES());
-   ParMixedBilinearForm bVarf(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
+   // ParBilinearForm mVarf_(dfs_spaces_.GetHdivFES());
+   // ParMixedBilinearForm bVarf_(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
 
-   mVarf.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   mVarf.Assemble();
-   mVarf.EliminateEssentialBC(ess_bdr, u_, fform);
-   mVarf.Finalize();
-   M_.Reset(mVarf.ParallelAssemble());
+   mVarf_ = make_shared<ParBilinearForm>(dfs_spaces_.GetHdivFES());
+   bVarf_ = make_shared<ParMixedBilinearForm>(dfs_spaces_.GetHdivFES(),
+                                              dfs_spaces_.GetL2FES());
 
-   bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf.Assemble();
-   bVarf.SpMat() *= -1.0;
-   bVarf.EliminateTrialDofs(ess_bdr, u_, gform);
-   bVarf.Finalize();
-   B_.Reset(bVarf.ParallelAssemble());
+   mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   mVarf_->Assemble();
+   mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
+   mVarf_->Finalize();
+   M_.Reset(mVarf_->ParallelAssemble());
+
+   bVarf_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   bVarf_->Assemble();
+   bVarf_->SpMat() *= -1.0;
+   bVarf_->EliminateTrialDofs(ess_bdr, u_, gform);
+   bVarf_->Finalize();
+   B_.Reset(bVarf_->ParallelAssemble());
 
    rhs_.SetSize(M_->NumRows() + B_->NumRows());
    Vector rhs_block0(rhs_.GetData(), M_->NumRows());
@@ -345,10 +357,15 @@ int main(int argc, char *argv[])
    DivFreeSolver dfs_cm(M, B, DFS_data);
    setup_time[&dfs_cm] = chrono.RealTime();
 
+   ResetTimer();
+   BramblePasciakSolver bp(darcy.GetMform(), darcy.GetBform(), param);
+   // bp.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
+   setup_time[&bp] = chrono.RealTime();
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
+   solver_to_name[&bp] = "Bramble Pasciak CG";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
