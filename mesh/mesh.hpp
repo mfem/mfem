@@ -1960,25 +1960,6 @@ public:
    bool DerefineByError(const Vector &elem_error, double threshold,
                         int nc_limit = 0, int op = 1);
 
-   /** Refine a NURBS mesh with the knots specified in the file named @a ref_file.
-       The file has the number of knot vectors on the first line. It is the same
-       number of knot vectors specified in the NURBS mesh in the section edges. Then
-       for each knot vector specified in the section edges (with the same ordering),
-       a line describes (in this order): 1) an integer giving the number of knots
-       inserted, 2) the knots inserted as a double. The advantage of this method
-       is that it is possible to specifically refine a coarse NURBS mesh without
-       changing the mesh file itself. Examples of refinement files are
-       data/two-cubes.ref and data/two-squares.ref. */
-   void RefineNURBSFromFile(std::string ref_file);
-
-   ///@{ @name NURBS mesh refinement methods
-   void KnotInsert(Array<KnotVector *> &kv);
-   void KnotInsert(Array<Vector *> &kv);
-   /* For each knot vector:
-         new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
-   void DegreeElevate(int rel_degree, int degree = 16);
-   ///@}
-
    /** Make sure that a quad/hex mesh is considered to be nonconforming (i.e.,
        has an associated NCMesh object). Simplex meshes can be both conforming
        (default) or nonconforming. */
@@ -2003,6 +1984,16 @@ public:
    /// @}
 
    ///@{ @name NURBS mesh refinement methods
+   /** Refine a NURBS mesh with the knots specified in the file named @a ref_file.
+       The file has the number of knot vectors on the first line. It is the same
+       number of knot vectors specified in the NURBS mesh in the section edges. Then
+       for each knot vector specified in the section edges (with the same ordering),
+       a line describes (in this order): 1) an integer giving the number of knots
+       inserted, 2) the knots inserted as a double. The advantage of this method
+       is that it is possible to specifically refine a coarse NURBS mesh without
+       changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
+   void RefineNURBSFromFile(std::string ref_file);
+
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
