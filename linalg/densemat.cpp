@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -175,12 +175,26 @@ void DenseMatrix::Mult(const double *x, double *y) const
    kernels::Mult(height, width, Data(), x, y);
 }
 
+void DenseMatrix::Mult(const double *x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
+
+   Mult(x, y.GetData());
+}
+
+void DenseMatrix::Mult(const Vector &x, double *y) const
+{
+   MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
+
+   Mult(x.GetData(), y);
+}
+
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   Mult((const double *)x, (double *)y);
+   Mult(x.GetData(), y.GetData());
 }
 
 double DenseMatrix::operator *(const DenseMatrix &m) const
@@ -213,21 +227,40 @@ void DenseMatrix::MultTranspose(const double *x, double *y) const
    }
 }
 
+void DenseMatrix::MultTranspose(const double *x, Vector &y) const
+{
+   MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
+
+   MultTranspose(x, y.GetData());
+}
+
+void DenseMatrix::MultTranspose(const Vector &x, double *y) const
+{
+   MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
+
+   MultTranspose(x.GetData(), y);
+}
+
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   MultTranspose((const double *)x, (double *)y);
+   MultTranspose(x.GetData(), y.GetData());
 }
 
-void DenseMatrix::AddMult(const Vector &x, Vector &y) const
+void DenseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 {
+   if (a != 1.0)
+   {
+      AddMult_a(a, x, y);
+      return;
+   }
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const double *xp = x, *d_col = data;
-   double *yp = y;
+   const double *xp = x.GetData(), *d_col = data;
+   double *yp = y.GetData();
    for (int col = 0; col < width; col++)
    {
       double x_col = xp[col];
@@ -239,8 +272,14 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    }
 }
 
-void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y) const
+void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y,
+                                   const double a) const
 {
+   if (a != 1.0)
+   {
+      AddMultTranspose_a(a, x, y);
+      return;
+   }
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
@@ -262,8 +301,8 @@ void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const double *xp = x, *d_col = data;
-   double *yp = y;
+   const double *xp = x.GetData(), *d_col = data;
+   double *yp = y.GetData();
    for (int col = 0; col < width; col++)
    {
       const double x_col = a*xp[col];
@@ -1181,7 +1220,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    int         n            = Width();
    double      *a           = copy_of_this.data;
    sv.SetSize(min(m, n));
-   double      *s           = sv;
+   double      *s           = sv.GetData();
    double      *u           = NULL;
    double      *vt          = NULL;
    double      *work        = NULL;
@@ -1459,10 +1498,10 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          int j = i+n;
 
          // curl of (Ui,0)
-         curl(i,0) = y;
+         curl(i,0) = -y;
 
          // curl of (0,Ui)
-         curl(j,0) = -x;
+         curl(j,0) = x;
       }
    }
    else
@@ -1492,6 +1531,20 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          curl(k,1) = -x;
          curl(k,2) =  0.;
       }
+   }
+}
+
+void DenseMatrix::GradToVectorCurl2D(DenseMatrix &curl)
+{
+   MFEM_VERIFY(Width() == 2,
+               "DenseMatrix::GradToVectorCurl2D(...): dimension must be 2")
+
+   int n = Height();
+   // rotate gradient
+   for (int i = 0; i < n; i++)
+   {
+      curl(i,0) = (*this)(i,1);
+      curl(i,1) = -(*this)(i,0);
    }
 }
 
@@ -4176,10 +4229,10 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   const double *d_col = tdata;
+   const double *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
    double *yp = y.HostReadWrite();
    double x_col;
-   const double *xp = x;
+   const double *xp = x.HostRead();
    // the '4' here can be tuned for given platform and compiler
    if (n <= 4)
    {
@@ -4255,7 +4308,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int i = 0; i < m; i++)
       {
@@ -4320,7 +4373,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
    auto piv_all = mfem::Reshape(P.Read(), m, NE);
    auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
    });

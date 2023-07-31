@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -59,40 +59,27 @@ const int MAX_Q1D = 14;
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_FORALL(i,N,...)                             \
-   ForallWrap<1>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
+#define MFEM_FORALL(i,N,...) \
+   ForallWrap<1>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__})
 
 // MFEM_FORALL with a 2D CUDA block
-#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
-   ForallWrap<2>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
-                 X,Y,BZ)
+#define MFEM_FORALL_2D(i,N,X,Y,BZ,...) \
+   ForallWrap<2>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__},X,Y,BZ)
 
 // MFEM_FORALL with a 3D CUDA block
-#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                    \
-   ForallWrap<3>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
-                 X,Y,Z)
+#define MFEM_FORALL_3D(i,N,X,Y,Z,...) \
+   ForallWrap<3>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__},X,Y,Z)
 
 // MFEM_FORALL with a 3D CUDA block and grid
 // With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
-#define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...)             \
-   ForallWrap<3>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
-                 X,Y,Z,G)
+#define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...) \
+   ForallWrap<3>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__},X,Y,Z,G)
 
 // MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
 // example the functions in vector.cpp, where we don't want to use the mfem
 // device for operations on small vectors.
-#define MFEM_FORALL_SWITCH(use_dev,i,N,...)              \
-   ForallWrap<1>(use_dev,N,                              \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
+#define MFEM_FORALL_SWITCH(use_dev,i,N,...) \
+   ForallWrap<1>(use_dev,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__})
 
 
 /// OpenMP backend
@@ -116,20 +103,20 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 using cuda_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<true>>;
+   RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
 using cuda_teams_x =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
+   RAJA::LoopPolicy<RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_z_direct>;
+   RAJA::LoopPolicy<RAJA::cuda_thread_z_direct>;
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
 using hip_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<true>>;
+   RAJA::LaunchPolicy<RAJA::hip_launch_t<true>>;
 using hip_teams_x =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
+   RAJA::LoopPolicy<RAJA::hip_block_x_direct>;
 using hip_threads_z =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_z_direct>;
+   RAJA::LoopPolicy<RAJA::hip_thread_z_direct>;
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
@@ -148,11 +135,11 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (DEVICE, Grid(Teams(G), Threads(X, Y, BZ)),
+   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -181,11 +168,11 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
 {
    MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (DEVICE, Grid(Teams(GRID), Threads(X, Y, Z)),
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -250,11 +237,11 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (DEVICE, Grid(Teams(G), Threads(X, Y, BZ)),
+   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -283,11 +270,11 @@ void RajaHipWrap3D(const int N, DBODY &&d_body,
 {
    MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (DEVICE, Grid(Teams(GRID), Threads(X, Y, Z)),
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -554,9 +541,9 @@ struct HipWrap<3>
 
 
 /// The forall kernel body wrapper
-template <const int DIM, typename DBODY, typename HBODY>
+template <const int DIM, typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
-                       DBODY &&d_body, HBODY &&h_body,
+                       d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
@@ -622,6 +609,47 @@ backend_cpu:
    // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
    // OCCA_OMP with configuration 'occa-omp,cpu'.
    for (int k = 0; k < N; k++) { h_body(k); }
+}
+
+template <const int DIM, typename lambda>
+inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
+{
+   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
+}
+
+template<typename lambda>
+inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
+
+template<typename lambda>
+inline void forall_switch(bool use_dev, int N, lambda &&body)
+{
+   ForallWrap<1>(use_dev, N, body);
+}
+
+template<typename lambda>
+inline void forall_2D(int N, int X, int Y, lambda &&body)
+{
+   ForallWrap<2>(true, N, body, X, Y, 1);
+}
+
+template<typename lambda>
+inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
+{
+   ForallWrap<2>(true, N, body, X, Y, BZ);
+}
+
+template<typename lambda>
+inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+{
+   ForallWrap<3>(true, N, body, X, Y, Z, 0);
+}
+
+template<typename lambda>
+inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+{
+   ForallWrap<3>(true, N, body, X, Y, Z, G);
 }
 
 } // namespace mfem

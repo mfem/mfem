@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -252,6 +252,124 @@ public:
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
    }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// A common base class for returning individual components of the domain's
+/// Cartesian coordinates.
+class CartesianCoefficient : public Coefficient
+{
+protected:
+   int comp;
+   mutable Vector transip;
+
+   /// @a comp_ index of the desired component (0 -> x, 1 -> y, 2 -> z)
+   CartesianCoefficient(int comp_) : comp(comp_), transip(3) {}
+
+public:
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the x-component of the evaluation point
+class CartesianXCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianXCoefficient() : CartesianCoefficient(0) {}
+};
+
+/// Scalar coefficient which returns the y-component of the evaluation point
+class CartesianYCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianYCoefficient() : CartesianCoefficient(1) {}
+};
+
+/// Scalar coefficient which returns the z-component of the evaluation point
+class CartesianZCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianZCoefficient() : CartesianCoefficient(2) {}
+};
+
+/// Scalar coefficient which returns the radial distance from the axis of
+/// the evaluation point in the cylindrical coordinate system
+class CylindricalRadialCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   CylindricalRadialCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the angular position or azimuth (often
+/// denoted by theta) of the evaluation point in the cylindrical coordinate
+/// system
+class CylindricalAzimuthalCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   CylindricalAzimuthalCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the height or altitude of
+/// the evaluation point in the cylindrical coordinate system
+typedef CartesianZCoefficient CylindricalZCoefficient;
+
+/// Scalar coefficient which returns the radial distance from the origin of
+/// the evaluation point in the spherical coordinate system
+class SphericalRadialCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalRadialCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the azimuthal angle (often denoted by phi)
+/// of the evaluation point in the spherical coordinate system
+class SphericalAzimuthalCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalAzimuthalCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the polar angle (often denoted by theta)
+/// of the evaluation point in the spherical coordinate system
+class SphericalPolarCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalPolarCoefficient() : transip(3) {}
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
@@ -598,6 +716,22 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
+};
+
+/// A vector coefficient which returns the physical location of the
+/// evaluation point in the Cartesian coordinate system.
+class PositionVectorCoefficient : public VectorCoefficient
+{
+public:
+
+   PositionVectorCoefficient(int dim) : VectorCoefficient(dim) {}
+
+   using VectorCoefficient::Eval;
+   /// Evaluate the vector coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~PositionVectorCoefficient() { }
 };
 
 /// A general vector function coefficient
@@ -1319,7 +1453,6 @@ public:
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   using MatrixCoefficient::Eval;
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a dense matrix @a K. */
    /** This function allows the use of SymmetricMatrixCoefficient in situations
@@ -1348,7 +1481,6 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
@@ -1400,7 +1532,6 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,

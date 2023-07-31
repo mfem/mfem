@@ -337,10 +337,6 @@ MFEM_USE_SUNDIALS = YES/NO
    library. When enabled, this option uses the SUNDIALS_* library options,
    see below.
 
-MFEM_USE_MESQUITE = YES/NO
-   Enable MFEM functionality based on the Mesquite library. When enabled, this
-   option uses the MESQUITE_* library options, see below.
-
 MFEM_USE_SUITESPARSE = YES/NO
    Enable MFEM functionality based on the SuiteSparse library. Currently, this
    option adds the classes UMFPackSolver and KLUSolver (both sparse serial
@@ -637,14 +633,13 @@ The specific libraries and their options are:
   both MPI and hypre.
   If MFEM_USE_CUDA is enabled, we expect that SUNDIALS is built with support
   for CUDA.
-  URL: http://computation.llnl.gov/projects/sundials/sundials-software
+  If MFEM_USE_HIP is enabled, we expect that SUNDIALS is built with support
+  for HIP.
+  URL: http://computing.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support.
-
-- Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
-  URL: http://trilinos.org/oldsite/packages/mesquite
-  Options: MESQUITE_OPT, MESQUITE_LIB.
-  The Mesquite support is deprecated and will be removed in the future.
+  Versions: SUNDIALS >= 5.0.0,
+            SUNDIALS >= 5.4.0 for CUDA support, and
+            SUNDIALS >= 5.7.0 for HIP support.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
@@ -811,10 +806,10 @@ The specific libraries and their options are:
   Versions: libCEED >= 0.10.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
-  Beginning with MFEM v4.3, only RAJA v0.14.0+ is supported.
+  Beginning with MFEM v4.5.1, only RAJA v2022.10.3+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
-  Versions: RAJA >= 0.14.0.
+  Versions: RAJA >= 2022.10.3.
 
 - Moonolith (optional), use when MFEM_USE_MOONOLITH = YES.
   URL: https://bitbucket.org/zulianp/par_moonolith
@@ -978,7 +973,6 @@ MFEM_USE_LEGACY_OPENMP
 MFEM_USE_OPENMP
 MFEM_USE_MEMALLOC
 MFEM_TIMER_TYPE - Set automatically, can be overwritten.
-MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
 MFEM_USE_MUMPS
@@ -1043,7 +1037,6 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - HYPRE
  - METIS - The option MFEM_USE_METIS_5 is auto-detected.
  - ParMETIS
- - MESQUITE
  - SuiteSparse
  - SuperLUDist, STRUMPACK
  - Ginkgo

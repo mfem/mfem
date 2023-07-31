@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,6 +45,69 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    {
       // X points to same data as x
       X.MakeRef(x, 0, x.Size());
+   }
+}
+
+void Operator::AddMult(const Vector &x, Vector &y, const double a) const
+{
+   mfem::Vector z(y.Size());
+   Mult(x, z);
+   y.Add(a, z);
+}
+
+void Operator::AddMultTranspose(const Vector &x, Vector &y,
+                                const double a) const
+{
+   mfem::Vector z(y.Size());
+   MultTranspose(x, z);
+   y.Add(a, z);
+}
+
+void Operator::ArrayMult(const Array<const Vector *> &X,
+                         Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::Mult!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::Mult!");
+      Mult(*X[i], *Y[i]);
+   }
+}
+
+void Operator::ArrayMultTranspose(const Array<const Vector *> &X,
+                                  Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::MultTranspose!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::MultTranspose!");
+      MultTranspose(*X[i], *Y[i]);
+   }
+}
+
+void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
+                            const double a) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::AddMult!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMult!");
+      AddMult(*X[i], *Y[i], a);
+   }
+}
+
+void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
+                                     Array<Vector *> &Y, const double a) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in Operator::AddMultTranspose!");
+   for (int i = 0; i < X.Size(); i++)
+   {
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMultTranspose!");
+      AddMultTranspose(*X[i], *Y[i], a);
    }
 }
 
@@ -413,7 +476,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
      diag_policy(diag_policy_)
 {
-   // 'mem_class' should work with A->Mult() and MFEM_FORALL():
+   // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
@@ -435,14 +498,14 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
    switch (diag_policy)
    {
       case DIAG_ONE:
-         MFEM_FORALL(i, csz,
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
          {
             const int id = idx[i];
             d_diag[id] = 1.0;
          });
          break;
       case DIAG_ZERO:
-         MFEM_FORALL(i, csz,
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
          {
             const int id = idx[i];
             d_diag[id] = 0.0;
@@ -462,7 +525,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of w
    auto d_w = w.ReadWrite();
-   MFEM_FORALL(i, csz,
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
    {
       const int id = idx[i];
       d_w[id] = d_x[id];
@@ -474,7 +537,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
    // Use read+write access - we are modifying sub-vector of b
    auto d_b = b.ReadWrite();
-   MFEM_FORALL(i, csz,
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
    {
       const int id = idx[i];
       d_b[id] = d_x[id];
@@ -495,7 +558,7 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto idx = constraint_list.Read();
    // Use read+write access - we are modifying sub-vector of z
    auto d_z = z.ReadWrite();
-   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
 
    A->Mult(z, y);
 
@@ -505,14 +568,14 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    switch (diag_policy)
    {
       case DIAG_ONE:
-         MFEM_FORALL(i, csz,
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
          {
             const int id = idx[i];
             d_y[id] = d_x[id];
          });
          break;
       case DIAG_ZERO:
-         MFEM_FORALL(i, csz,
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
          {
             const int id = idx[i];
             d_y[id] = 0.0;
@@ -535,7 +598,7 @@ RectangularConstrainedOperator::RectangularConstrainedOperator(
    bool own_A_)
    : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
 {
-   // 'mem_class' should work with A->Mult() and MFEM_FORALL():
+   // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
    trial_list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
@@ -556,7 +619,7 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of w
    auto d_w = w.ReadWrite();
-   MFEM_FORALL(i, trial_csz,
+   mfem::forall(trial_csz, [=] MFEM_HOST_DEVICE (int i)
    {
       const int id = trial_idx[i];
       d_w[id] = d_x[id];
@@ -569,7 +632,10 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
    const int test_csz = test_constraints.Size();
    auto test_idx = test_constraints.Read();
    auto d_b = b.ReadWrite();
-   MFEM_FORALL(i, test_csz, d_b[test_idx[i]] = 0.0;);
+   mfem::forall(test_csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_b[test_idx[i]] = 0.0;
+   });
 }
 
 void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
@@ -587,7 +653,10 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
       auto idx = trial_constraints.Read();
       // Use read+write access - we are modifying sub-vector of w
       auto d_w = w.ReadWrite();
-      MFEM_FORALL(i, trial_csz, d_w[idx[i]] = 0.0;);
+      mfem::forall(trial_csz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_w[idx[i]] = 0.0;
+      });
 
       A->Mult(w, y);
    }
@@ -596,7 +665,10 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
    {
       auto idx = test_constraints.Read();
       auto d_y = y.ReadWrite();
-      MFEM_FORALL(i, test_csz, d_y[idx[i]] = 0.0;);
+      mfem::forall(test_csz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_y[idx[i]] = 0.0;
+      });
    }
 }
 
@@ -616,7 +688,10 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
       auto idx = test_constraints.Read();
       // Use read+write access - we are modifying sub-vector of z
       auto d_z = z.ReadWrite();
-      MFEM_FORALL(i, test_csz, d_z[idx[i]] = 0.0;);
+      mfem::forall(test_csz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_z[idx[i]] = 0.0;
+      });
 
       A->MultTranspose(z, y);
    }
@@ -625,7 +700,10 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    {
       auto idx = trial_constraints.Read();
       auto d_y = y.ReadWrite();
-      MFEM_FORALL(i, trial_csz, d_y[idx[i]] = 0.0;);
+      mfem::forall(trial_csz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_y[idx[i]] = 0.0;
+      });
    }
 }
 

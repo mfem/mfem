@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -280,9 +280,9 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
 GradAllShapeFunctions(int qx, int qy, int qz,
-            const tensor<double, q1d, d1d> &B,
-            const tensor<double, q1d, d1d> &G,
-            const tensor<double, dim, dim> &invJ)
+                      const tensor<double, q1d, d1d> &B,
+                      const tensor<double, q1d, d1d> &G,
+                      const tensor<double, dim, dim> &invJ)
 {
    tensor<double, d1d, d1d, d1d, dim> dphi_dx;
    // G (x) B (x) B

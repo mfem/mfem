@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -110,8 +110,8 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = SERIAL_FORMAT; // use serial mesh format
-   compression = false;
-   error = NO_ERROR;
+   compression = 0;
+   error = No_Error;
 }
 
 void DataCollection::SetMesh(Mesh *new_mesh)
@@ -494,7 +494,7 @@ void VisItDataCollection::Load(int cycle_)
 {
    DeleteAll();
    time_step = 0.0;
-   error = NO_ERROR;
+   error = No_Error;
    cycle = cycle_;
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
@@ -724,7 +724,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
    // Set the DataCollection::name using the mesh path
    std::string path = mesh.get("path").get<std::string>();
-   size_t right_sep = path.find('_');
+   size_t right_sep = path.rfind('_');
    if (right_sep == std::string::npos)
    {
       error = READ_ERROR;
@@ -767,10 +767,13 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
      high_order_output(false),
      restart_mode(false)
 {
+   cycle = 0; // always include a valid cycle index in file names
+
+   compression_level = -1;  // default zlib compression level, equivalent to 6
 #ifdef MFEM_USE_ZLIB
-   compression = -1; // default zlib compression level, equivalent to 6
+   compression = true; // if we have zlib, enable compression
 #else
-   compression = 0;
+   compression = false; // otherwise, disable compression
 #endif
 }
 
@@ -919,7 +922,7 @@ void ParaViewDataCollection::Save()
    {
       const std::string &field_name = qfield.first;
       std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
-      qfield.second->SaveVTU(os, pv_data_format, compression);
+      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel());
    }
 
    // MPI rank 0 also creates a "PVTU" file that points to all of the separately
@@ -1033,13 +1036,13 @@ void ParaViewDataCollection::WritePVTUFooter(std::ostream &os,
 void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
 {
    os << "<VTKFile type=\"UnstructuredGrid\"";
-   if (compression != 0)
+   if (GetCompressionLevel() != 0)
    {
       os << " compressor=\"vtkZLibDataCompressor\"";
    }
    os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,compression);
+   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel());
 
    // dump out the grid functions as point data
    os << "<PointData >\n";
@@ -1103,7 +1106,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
 
    if (IsBinaryFormat())
    {
-      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),compression);
+      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),GetCompressionLevel());
       os << '\n';
    }
    os << "</DataArray>" << std::endl;
@@ -1128,18 +1131,13 @@ void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
 {
    MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
                "Compression level must be between -1 and 9 (inclusive).");
-   compression = compression_level_;
+   compression_level = compression_level_;
+   compression = compression_level_ != 0;
 }
 
 void ParaViewDataCollection::SetCompression(bool compression_)
 {
-   // If we are enabling compression, and it was disabled previously, use the
-   // default compression level. Otherwise, leave the compression level
-   // unchanged.
-   if (compression_ && compression == 0)
-   {
-      SetCompressionLevel(-1);
-   }
+   compression = compression_;
 }
 
 void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
@@ -1169,6 +1167,11 @@ const char *ParaViewDataCollection::GetDataTypeString() const
    {
       return "Float32";
    }
+}
+
+int ParaViewDataCollection::GetCompressionLevel() const
+{
+   return compression ? compression_level : 0;
 }
 
 }  // end namespace MFEM
