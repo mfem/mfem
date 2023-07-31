@@ -2700,8 +2700,8 @@ int FiniteElementSpace::GetNVariants(int entity, int index) const
 static const char* msg_orders_changed =
    "Element orders changed, you need to Update() the space first.";
 
-DofTransformation *
-FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
+void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
+                                        DofTransformation &doftrans) const
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
@@ -2713,19 +2713,14 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
       {
          Array<int> Fo;
          elem_fos -> GetRow (elem, Fo);
-         DoFTrans.SetDofTransformation(
+         doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
-         DoFTrans.SetFaceOrientations(Fo);
-         return &DoFTrans;
+         doftrans.SetFaceOrientations(Fo);
       }
-      else
-      {
-         return NULL;
-      }
+      return;
    }
 
    Array<int> V, E, Eo, F, Fo; // TODO: LocalArray
-   DofTransformation *doftrans = NULL;
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetElementGeometry(elem);
@@ -2748,10 +2743,9 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
       }
       if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
       {
-         DoFTrans.SetDofTransformation(
+         doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
-         DoFTrans.SetFaceOrientations(Fo);
-         doftrans = &DoFTrans;
+         doftrans.SetFaceOrientations(Fo);
       }
    }
 
@@ -2810,42 +2804,18 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
          dofs.Append(bbase + j);
       }
    }
-
-   return doftrans;
 }
 
-const FiniteElement *FiniteElementSpace::GetFE(int i) const
+DofTransformation *FiniteElementSpace::GetElementDofs(int elem,
+                                                      Array<int> &dofs) const
 {
-   if (i < 0 || !mesh->GetNE()) { return NULL; }
-   MFEM_VERIFY(i < mesh->GetNE(),
-               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
-
-   const FiniteElement *FE =
-      fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
-
-   if (NURBSext)
-   {
-      NURBSext->LoadFE(i, FE);
-   }
-   else
-   {
-#ifdef MFEM_DEBUG
-      // consistency check: fec->GetOrder() and FE->GetOrder() should return
-      // the same value (for standard, constant-order spaces)
-      if (!IsVariableOrder() && FE->GetDim() > 0)
-      {
-         MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
-                     "internal error: " <<
-                     FE->GetOrder() << " != " << fec->GetOrder());
-      }
-#endif
-   }
-
-   return FE;
+   DoFTrans.SetDofTransformation(NULL);
+   GetElementDofs(elem, dofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
 
-DofTransformation *
-FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
+void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
+                                           DofTransformation &doftrans) const
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
@@ -2857,20 +2827,15 @@ FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
       {
          Array<int> Fo;
          bdr_elem_fos -> GetRow (bel, Fo);
-         DoFTrans.SetDofTransformation(
+         doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
-         DoFTrans.SetFaceOrientations(Fo);
-         return &DoFTrans;
+         doftrans.SetFaceOrientations(Fo);
       }
-      else
-      {
-         return NULL;
-      }
+      return;
    }
 
    Array<int> V, E, Eo; // TODO: LocalArray
    int F, oF;
-   DofTransformation *doftrans = NULL;
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetBdrElementGeometry(bel);
@@ -2897,10 +2862,9 @@ FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
       {
          mfem::Array<int> Fo(1);
          Fo[0] = oF;
-         DoFTrans.SetDofTransformation(
+         doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
-         DoFTrans.SetFaceOrientations(Fo);
-         doftrans = &DoFTrans;
+         doftrans.SetFaceOrientations(Fo);
       }
    }
 
@@ -2942,8 +2906,14 @@ FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
          dofs.Append(EncodeDof(nvdofs + nedofs + fbase, ind[j]));
       }
    }
+}
 
-   return doftrans;
+DofTransformation *FiniteElementSpace::GetBdrElementDofs(int bel,
+                                                         Array<int> &dofs) const
+{
+   DoFTrans.SetDofTransformation(NULL);
+   GetBdrElementDofs(bel, dofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
 
 int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
@@ -3140,6 +3110,36 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    {
       dofs[j] = nvdofs + nedofs + base + j;
    }
+}
+
+const FiniteElement *FiniteElementSpace::GetFE(int i) const
+{
+   if (i < 0 || !mesh->GetNE()) { return NULL; }
+   MFEM_VERIFY(i < mesh->GetNE(),
+               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+
+   const FiniteElement *FE =
+      fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
+
+   if (NURBSext)
+   {
+      NURBSext->LoadFE(i, FE);
+   }
+   else
+   {
+#ifdef MFEM_DEBUG
+      // consistency check: fec->GetOrder() and FE->GetOrder() should return
+      // the same value (for standard, constant-order spaces)
+      if (!IsVariableOrder() && FE->GetDim() > 0)
+      {
+         MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
+                     "internal error: " <<
+                     FE->GetOrder() << " != " << fec->GetOrder());
+      }
+#endif
+   }
+
+   return FE;
 }
 
 const FiniteElement *FiniteElementSpace::GetBE(int i) const

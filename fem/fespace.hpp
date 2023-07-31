@@ -798,6 +798,15 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
+   /// @brief The same as GetElementDofs(), but with a user-allocated
+   /// DofTransformation object. @a doftrans must be allocated in advance and
+   /// will be owned by the caller. The user can use the
+   /// DofTransformation::GetDofTransformation method on the returned
+   /// @a doftrans object to detect if the DofTransformation should actually be
+   /// used.
+   virtual void GetElementDofs(int elem, Array<int> &dofs,
+                               DofTransformation &doftrans) const;
+
    /// @brief Returns indices of degrees of freedom for boundary element 'bel'.
    /// The returned indices are offsets into an @ref ldof vector. See also
    /// GetBdrElementVDofs().
@@ -812,6 +821,15 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
+
+   /// @brief The same as GetBdrElementDofs(), but with a user-allocated
+   /// DofTransformation object. @a doftrans must be allocated in advance and
+   /// will be owned by the caller. The user can use the
+   /// DofTransformation::GetDofTransformation method on the returned
+   /// @a doftrans object to detect if the DofTransformation should actually be
+   /// used.
+   virtual void GetBdrElementDofs(int bel, Array<int> &dofs,
+                                  DofTransformation &doftrans) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
