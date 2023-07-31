@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,10 +25,10 @@ BlockMatrix::BlockMatrix(const Array<int> & offsets):
    owns_blocks(false),
    nRowBlocks(offsets.Size()-1),
    nColBlocks(offsets.Size()-1),
-   row_offsets(const_cast< Array<int>& >(offsets).GetData(), offsets.Size()),
-   col_offsets(const_cast< Array<int>& >(offsets).GetData(), offsets.Size()),
    Aij(nRowBlocks, nColBlocks)
 {
+   row_offsets.MakeRef(const_cast< Array<int>& >(offsets));
+   col_offsets.MakeRef(const_cast< Array<int>& >(offsets));
    Aij = (SparseMatrix *)NULL;
 }
 
@@ -38,12 +38,10 @@ BlockMatrix::BlockMatrix(const Array<int> & row_offsets_,
    owns_blocks(false),
    nRowBlocks(row_offsets_.Size()-1),
    nColBlocks(col_offsets_.Size()-1),
-   row_offsets(const_cast< Array<int>& >(row_offsets_).GetData(),
-               row_offsets_.Size()),
-   col_offsets(const_cast< Array<int>& >(col_offsets_).GetData(),
-               col_offsets_.Size()),
    Aij(nRowBlocks, nColBlocks)
 {
+   row_offsets.MakeRef(const_cast< Array<int>& >(row_offsets_));
+   col_offsets.MakeRef(const_cast< Array<int>& >(col_offsets_));
    Aij = (SparseMatrix *)NULL;
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4308,7 +4308,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int i = 0; i < m; i++)
       {
@@ -4373,7 +4373,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
    auto piv_all = mfem::Reshape(P.Read(), m, NE);
    auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
    });

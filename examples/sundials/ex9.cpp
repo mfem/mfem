@@ -280,15 +280,16 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   constexpr double alpha = -1.0;
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+      new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    m.Assemble();
    int skip_zeros = 0;

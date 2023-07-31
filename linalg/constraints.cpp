@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -352,6 +352,7 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    reducedsol = 0.0;
    krylov->Mult(reducedrhs, reducedsol);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -485,6 +486,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    krylov->SetPrintLevel(print_options);
    krylov->Mult(penalized_rhs, x);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -616,6 +618,7 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
    gmres->Mult(x, y);
    final_iter = gmres->GetNumIterations();
    converged = gmres->GetConverged();
+   initial_norm = gmres->GetInitialNorm();
    final_norm = gmres->GetFinalNorm();
    delete gmres;
 }
