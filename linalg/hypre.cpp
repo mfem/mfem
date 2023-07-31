@@ -5283,10 +5283,9 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int sdim = pmesh->SpaceDimension();
    int cycle_type = 13;
 
-   bool trace_space =
-      dynamic_cast<const ND_Trace_FECollection*>(edge_fespace->FEColl());
-   bool rt_trace_space =
-      dynamic_cast<const RT_Trace_FECollection*>(edge_fespace->FEColl());
+   const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
+   bool trace_space = dynamic_cast<const ND_Trace_FECollection *>(edge_fec);
+   bool rt_trace_space = dynamic_cast<const RT_Trace_FECollection *>(edge_fec);
    trace_space = trace_space || rt_trace_space;
 
    ND_Trace_FECollection *nd_tr_fec = NULL;
@@ -5294,15 +5293,14 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    {
       MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
                   "HypreAMS does not support variable order spaces");
-      int p = edge_fespace->FEColl()->GetOrder();
-      nd_tr_fec = new ND_Trace_FECollection(p, dim);
+      nd_tr_fec = new ND_Trace_FECollection(edge_fec->GetOrder(), dim);
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
 
    int vdim = edge_fespace->FEColl()->GetVDim(trace_space ? dim - 1 : dim);
 
    MakeSolver(std::max(sdim, vdim), cycle_type);
-   MakeGradientAndInterpolation(edge_fespace, trace_space, cycle_type);
+   MakeGradientAndInterpolation(edge_fespace, cycle_type);
 
    if (rt_trace_space)
    {
@@ -5362,16 +5360,20 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
 }
 
 void HypreAMS::MakeGradientAndInterpolation(
-   ParFiniteElementSpace *edge_fespace, bool trace_space, int cycle_type)
+   ParFiniteElementSpace *edge_fespace, int cycle_type)
 {
+   const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
+   bool trace_space = dynamic_cast<const ND_Trace_FECollection *>(edge_fec);
+
    ParMesh *pmesh = edge_fespace->GetParMesh();
    int dim = pmesh->Dimension();
    int sdim = pmesh->SpaceDimension();
    int vdim = edge_fespace->FEColl()->GetVDim(trace_space ? dim - 1 : dim);
 
+   // For dim = 1, ND_FECollection::GetOrder() returns p - 1
    MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
                "HypreAMS does not support variable order spaces");
-   int p = edge_fespace->FEColl()->GetOrder();
+   int p = std::max(edge_fec->GetOrder(), 1);
 
    // define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
