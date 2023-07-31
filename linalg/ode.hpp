@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include "../general/communication.hpp"
 
 namespace mfem
 {
@@ -204,7 +205,7 @@ public:
 class RK6Solver : public ExplicitRKSolver
 {
 private:
-   static const double a[28], b[8], c[7];
+   static MFEM_EXPORT const double a[28], b[8], c[7];
 
 public:
    RK6Solver() : ExplicitRKSolver(8, a, b, c) { }
@@ -232,6 +233,16 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
 
 public:
    AdamsBashforthSolver(int s_, const double *a_);
@@ -253,12 +264,11 @@ public:
    }
 };
 
-
 /** A 1-stage, 1st order AB method.  */
 class AB1Solver : public AdamsBashforthSolver
 {
 private:
-   static const double a[1];
+   static MFEM_EXPORT const double a[1];
 
 public:
    AB1Solver() : AdamsBashforthSolver(1, a) { }
@@ -268,7 +278,7 @@ public:
 class AB2Solver : public AdamsBashforthSolver
 {
 private:
-   static const double a[2];
+   static MFEM_EXPORT const double a[2];
 
 public:
    AB2Solver() : AdamsBashforthSolver(2, a) { }
@@ -278,7 +288,7 @@ public:
 class AB3Solver : public AdamsBashforthSolver
 {
 private:
-   static const double a[3];
+   static MFEM_EXPORT const double a[3];
 
 public:
    AB3Solver() : AdamsBashforthSolver(3, a) { }
@@ -288,7 +298,7 @@ public:
 class AB4Solver : public AdamsBashforthSolver
 {
 private:
-   static const double a[4];
+   static MFEM_EXPORT const double a[4];
 
 public:
    AB4Solver() : AdamsBashforthSolver(4, a) { }
@@ -298,7 +308,7 @@ public:
 class AB5Solver : public AdamsBashforthSolver
 {
 private:
-   static const double a[5];
+   static MFEM_EXPORT const double a[5];
 
 public:
    AB5Solver() : AdamsBashforthSolver(5, a) { }
@@ -314,6 +324,16 @@ private:
    Vector *k;
    Array<int> idx;
    ODESolver *RKsolver;
+   double dt_;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
 
 public:
    AdamsMoultonSolver(int s_, const double *a_);
@@ -339,7 +359,7 @@ public:
 class AM0Solver : public AdamsMoultonSolver
 {
 private:
-   static const double a[1];
+   static MFEM_EXPORT const double a[1];
 
 public:
    AM0Solver() : AdamsMoultonSolver(0, a) { }
@@ -350,7 +370,7 @@ public:
 class AM1Solver : public AdamsMoultonSolver
 {
 private:
-   static const double a[2];
+   static MFEM_EXPORT const double a[2];
 
 public:
    AM1Solver() : AdamsMoultonSolver(1, a) { }
@@ -360,7 +380,7 @@ public:
 class AM2Solver : public AdamsMoultonSolver
 {
 private:
-   static const double a[3];
+   static MFEM_EXPORT const double a[3];
 
 public:
    AM2Solver() : AdamsMoultonSolver(2, a) { }
@@ -370,7 +390,7 @@ public:
 class AM3Solver : public AdamsMoultonSolver
 {
 private:
-   static const double a[4];
+   static MFEM_EXPORT const double a[4];
 
 public:
    AM3Solver() : AdamsMoultonSolver(3, a) { }
@@ -380,7 +400,7 @@ public:
 class AM4Solver : public AdamsMoultonSolver
 {
 private:
-   static const double a[5];
+   static MFEM_EXPORT const double a[5];
 
 public:
    AM4Solver() : AdamsMoultonSolver(4, a) { }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,13 @@ public:
    FiniteElementForDim(int dim) const;
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
+
+   /** @brief Returns a DoF transformation object compatible with this basis
+       and geometry type.
+   */
+   virtual StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const
+   { return NULL; }
 
    /** @brief Returns an array, say p, that maps a local permuted index i to a
        local base index: base_i = p[i].
@@ -233,6 +240,19 @@ protected:
    void InitVarOrder(int p) const;
 
    mutable Array<FiniteElementCollection*> var_orders;
+
+   /// How to treat errors in FiniteElementForGeometry() calls.
+   enum ErrorMode
+   {
+      RETURN_NULL,      ///< Return NULL on errors
+      RAISE_MFEM_ERROR  /**< Raise an MFEM error (default in base class).
+                             Sub-classes can ignore this and return NULL. */
+   };
+
+   /// How to treat errors in FiniteElementForGeometry() calls.
+   /** The typical error in derived classes is that no FiniteElement is defined
+       for the given Geometry, or the input is not a valid Geometry. */
+   mutable ErrorMode error_mode = RAISE_MFEM_ERROR;
 };
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
@@ -453,8 +473,12 @@ public:
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
 
+   virtual StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const;
+
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
+
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
@@ -625,6 +649,7 @@ public:
 class NURBSFECollection : public FiniteElementCollection
 {
 private:
+   PointFiniteElement   *PointFE;
    NURBS1DFiniteElement *SegmentFE;
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -158,7 +158,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          const int N = ess_tdof_list.Size();
          const auto tdof = ess_tdof_list.Read();
          auto Y = y.ReadWrite();
-         MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
+         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { Y[tdof[i]] = 0.0; });
       }
       // In parallel, the result is in 'py' which is an alias for 'aux2'.
       return;

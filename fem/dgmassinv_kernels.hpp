@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,20 +12,15 @@
 #ifndef MFEM_DGMASSINV_KERNELS_HPP
 #define MFEM_DGMASSINV_KERNELS_HPP
 
-#include "bilininteg_mass_pa.hpp"
 #include "../linalg/kernels.hpp"
 #include "kernels.hpp"
+#include "integ/bilininteg_mass_kernels.hpp"
 
 namespace mfem
 {
 
 namespace internal
 {
-
-void MakeReciprocal(int n, double *x)
-{
-   MFEM_FORALL(i, n, x[i] = 1.0/x[i]; );
-}
 
 template <int DIM, int D1D, int Q1D>
 MFEM_HOST_DEVICE inline
