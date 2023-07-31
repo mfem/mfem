@@ -377,17 +377,6 @@ protected:
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;
 
-   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
-   static inline int EncodeDof(int entity_base, int idx)
-   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
-
-   /// Helpers to remove encoded sign from a DOF
-   static inline int DecodeDof(int dof)
-   { return (dof >= 0) ? dof : (-1 - dof); }
-
-   static inline int DecodeDof(int dof, double& sign)
-   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
-
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
                      Geometry::Type master_geom = Geometry::INVALID,
@@ -984,6 +973,18 @@ public:
    /// applied to sets of @ref vdof "Vector Dofs" but it would work equally
    /// well on sets of @ref ldof "Local Dofs".
    static void AdjustVDofs(Array<int> &vdofs);
+
+   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
+   static inline int EncodeDof(int entity_base, int idx)
+   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
+
+   /// Helper to return the DOF associated with a sign encoded DOF
+   static inline int DecodeDof(int dof)
+   { return (dof >= 0) ? dof : (-1 - dof); }
+
+   /// Helper to determine the DOF and sign of a sign encoded DOF
+   static inline int DecodeDof(int dof, double& sign)
+   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// @anchor getvdof @name Local Vector DoF Access Members
    /// These member functions produce arrays of local vector degree of freedom
