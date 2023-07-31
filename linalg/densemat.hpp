@@ -959,7 +959,7 @@ class DenseMatrixSVD
 
    void Init();
 public:
-   
+
    /**
     * @brief Constructor for the DenseMatrixSVD
     *
@@ -988,7 +988,7 @@ public:
    MFEM_DEPRECATED DenseMatrixSVD(int h, int w,
                                   bool left_singular_vectors=false,
                                   bool right_singular_vectors=false);
-   
+
    /**
     * @brief Constructor for the DenseMatrixSVD
     *
@@ -998,19 +998,19 @@ public:
     * @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
     * @param [in] left_singular_vectors optional parameter to define which left singular vectors should be computed
     * @param [in] right_singular_vectors optional parameter to define which right singular vectors should be computed
-    * 
+    *
     * Options for computation of singular vectors:
-    * 
+    *
     * 'A': All singular vectors are computed (default)
-    * 
+    *
     * 'S': The first min(n,m) singular vectors are computed
-    * 
+    *
     * 'N': No singular vectors are computed
     */
    DenseMatrixSVD(DenseMatrix &M,
                   char left_singular_vectors='A',
                   char right_singular_vectors='A');
-   
+
    /**
     * @brief Constructor for the DenseMatrixSVD
     *
@@ -1021,13 +1021,13 @@ public:
     * @param [in] w width of the matrix
     * @param [in] left_singular_vectors optional parameter to define which left singular vectors should be computed
     * @param [in] right_singular_vectors optional parameter to define which right singular vectors should be computed
-    * 
+    *
     * Options for computation of singular vectors:
-    * 
+    *
     * 'A': All singular vectors are computed (default)
-    * 
+    *
     * 'S': The first min(n,m) singular vectors are computed
-    * 
+    *
     * 'N': No singular vectors are computed
     */
    DenseMatrixSVD(int h, int w,
@@ -1041,7 +1041,7 @@ public:
     * in the call of the constructor
     *
     * @param [in] M DenseMatrix the SVD should be evaluated for
-    */              
+    */
    void Eval(DenseMatrix &M);
 
    /**
