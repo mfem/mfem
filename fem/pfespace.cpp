@@ -467,8 +467,8 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
    ApplyLDofSigns(all_dofs);
 }
 
-DofTransformation *
-ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
+                                           DofTransformation &doftrans) const
 {
    if (elem_dof)
    {
@@ -478,26 +478,29 @@ ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
       {
          Array<int> Fo;
          elem_fos->GetRow(i, Fo);
-         DoFTrans.SetDofTransformation(
+         doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetElementBaseGeometry(i)]);
-         DoFTrans.SetFaceOrientations(Fo);
-         return &DoFTrans;
+         doftrans.SetFaceOrientations(Fo);
       }
-      else
-      {
-         return NULL;
-      }
+      return;
    }
-   DofTransformation * doftrans = FiniteElementSpace::GetElementDofs(i, dofs);
+   FiniteElementSpace::GetElementDofs(i, dofs, doftrans);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
-   return doftrans;
 }
 
 DofTransformation *
-ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+{
+   DoFTrans.SetDofTransformation(NULL);
+   GetElementDofs(i, dofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
+}
+
+void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs,
+                                              DofTransformation &doftrans) const
 {
    if (bdr_elem_dof)
    {
@@ -507,23 +510,25 @@ ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       {
          Array<int> Fo;
          bdr_elem_fos->GetRow(i, Fo);
-         DoFTrans.SetDofTransformation(
+         doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetBdrElementBaseGeometry(i)]);
-         DoFTrans.SetFaceOrientations(Fo);
-         return &DoFTrans;
+         doftrans.SetFaceOrientations(Fo);
       }
-      else
-      {
-         return NULL;
-      }
+      return;
    }
-   DofTransformation * doftrans =
-      FiniteElementSpace::GetBdrElementDofs(i, dofs);
+   FiniteElementSpace::GetBdrElementDofs(i, dofs, doftrans);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
-   return doftrans;
+}
+
+DofTransformation *
+ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+{
+   DoFTrans.SetDofTransformation(NULL);
+   GetBdrElementDofs(i, dofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
 
 int ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs,
