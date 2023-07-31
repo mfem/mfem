@@ -58,13 +58,12 @@ int main(int argc, char *argv[])
    ParInteriorPointSolver optimizer(&qpopt);
 
    optimizer.SetTol(1e-6);
-   optimizer.SetMaxIter(1);
+   optimizer.SetMaxIter(50);
    int linsolver = 0;
    optimizer.SetLinearSolver(linsolver);
 
    ParGridFunction x1 = prob1.GetDisplacementGridFunction();
    ParGridFunction x2 = prob2.GetDisplacementGridFunction();
-
 
    int ndofs1 = prob1.GetNumTDofs();
    int ndofs2 = prob2.GetNumTDofs();
@@ -77,8 +76,8 @@ int main(int argc, char *argv[])
    x0.SetVector(X1,0);
    x0.SetVector(X2,X1.Size());
 
+
    Vector xf(ndofs); xf = 0.0;
-   mfem::out << "x0 = " ;x0.Print();
    optimizer.Mult(x0, xf);
 
 

@@ -66,9 +66,6 @@ ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_
       block_offsetsx[i] = block_offsetsuml[i] ; 
    }
 
-  
-   block_offsetsx.Print();
-
    ml = problem->Getml();
   
    lk.SetSize(dimC);  lk  = 0.0;
@@ -165,6 +162,8 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
    
    maxBarrierSolves = 10;
+
+   mfem::out << "max_iter" << max_iter << endl;
 
    for(jOpt = 0; jOpt < max_iter; jOpt++)
    {
@@ -337,6 +336,10 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       Wmm = D;
    }
 
+   if (MyRank == 1)
+   {
+      mfem::out << "x.size = " << x.Size() << endl;
+   }
    Ju = problem->Duc(x); JuT = Ju->Transpose();
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
   
@@ -377,6 +380,10 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    }
    if(!socSolve) 
    {
+   if (MyRank == 1)
+   {
+      mfem::out << "x.size = " << x.Size() << endl;
+   }
       problem->c(x, b.GetBlock(2));
    }
    else
@@ -407,15 +414,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       }
       
       HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);   
-      Vector tempx(Ah->Width()); tempx = 1.0;
-      Vector tempy(Ah->Height()); 
-      Ah->Mult(tempx,tempy); 
-      double normy =  tempy.Norml1();
-      MPI_Allreduce(MPI_IN_PLACE,&normy,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
-      mfem::out << "tempy norm = " << normy << endl;
-      MFEM_ABORT("");
-      // Ah->DropSmallEntries(1e-15);
-      // Ah->Print("Ah.mat");
 
       /* direct solve of the 3x3 IP-Newton linear system */
       #ifdef MFEM_USE_MUMPS

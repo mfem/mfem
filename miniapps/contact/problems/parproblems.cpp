@@ -193,6 +193,12 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    ParMesh * pmesh1 = prob1->GetMesh();
    ParMesh * pmesh2 = prob2->GetMesh();
 
+   ParGridFunction displ1_gf(prob1->GetFESpace());
+   ParGridFunction displ2_gf(prob2->GetFESpace());
+
+   displ1_gf.SetFromTrueDofs(displ1);
+   displ2_gf.SetFromTrueDofs(displ2);
+
    Array<int> conn2(npoints); 
    // mesh2->MoveNodes(displ2);
    Vector xyz(dim * npoints);
@@ -202,7 +208,7 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    {
       for (int d = 0; d<dim; d++)
       {
-         xyz(cnt*dim + d) = pmesh2->GetVertex(v)[d]+displ2[v*dim+d];
+         xyz(cnt*dim + d) = pmesh2->GetVertex(v)[d]+displ2_gf[v*dim+d];
       }
       conn2[cnt] = globalvertices2[v];
       cnt++;
@@ -217,12 +223,9 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    Array<int> conn1(npoints*4);
    DenseMatrix coordsm(npoints*4, dim);
    
-   add(nodes0, displ1, *nodes1);
+   add(nodes0, displ1_gf, *nodes1);
 
-   xyz.Print();
-
-   FindPointsInMesh(*pmesh1, globalvertices1, conn2, displ1, xyz, conn1, xi1, coordsm);
-
+   FindPointsInMesh(*pmesh1, globalvertices1, conn2, displ1_gf, xyz, conn1, xi1, coordsm);
 
    if (M)
    {
@@ -333,8 +336,8 @@ HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 
 void ParContactProblem::g(const Vector &d, Vector &gd, bool reduced)
 {
-   int ndof1 = prob1->GetNumDofs();
-   int ndof2 = prob2->GetNumDofs();
+   int ndof1 = prob1->GetNumTDofs();
+   int ndof2 = prob2->GetNumTDofs();
    double * data = d.GetData();
    Vector displ1(data,ndof1);
    Vector displ2(&data[ndof1],ndof2);
