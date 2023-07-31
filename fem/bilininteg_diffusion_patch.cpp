@@ -203,7 +203,6 @@ void GetReducedRule(const int nq, const int nd,
 
 #ifdef MFEM_USE_LAPACK
       NNLSSolver nnls;
-      nnls.SetVerbosity(2);
       nnls.SetOperator(Gmat);
 
       nnls.Mult(w, sol);

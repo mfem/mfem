@@ -3776,15 +3776,15 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
       if (verbosity_ > 1)
       {
-         mfem::out << oiter << " " << n_total_inner_iter << " " << m << " "
-                   << n << " " << n_glob << " " << rmax << " "
+         mfem::out << "NNLS " << oiter << " " << n_total_inner_iter << " " << m
+                   << " " << n << " " << n_glob << " " << rmax << " "
                    << l2_res_hist[oiter] << endl;
       }
       if (rmax <= const_tol_ && n_glob >= min_nnz_cap)
       {
          if (verbosity_ > 1)
          {
-            mfem::out << "Target tolerance met" << endl;
+            mfem::out << "NNLS target tolerance met" << endl;
          }
          exit_flag = 0;
          break;
@@ -3794,7 +3794,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       {
          if (verbosity_ > 1)
          {
-            mfem::out << "Target nnz met" << endl;
+            mfem::out << "NNLS target nnz met" << endl;
          }
          exit_flag = 0;
          break;
@@ -3804,7 +3804,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       {
          if (verbosity_ > 1)
          {
-            mfem::out << "System is square... exiting" << endl;
+            mfem::out << "NNLS system is square... exiting" << endl;
          }
          exit_flag = 3;
          break;
@@ -3855,7 +3855,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          {
             if (verbosity_ > 0)
             {
-               mfem::out << "Lagrange multiplier is below the minimum "
+               mfem::out << "NNLS Lagrange multiplier is below the minimum "
                          << "threshold: mumax = " << mumax << ", mutol = "
                          << mu_tol << "\n" << " Resetting stalled indices "
                          << "vector of size " << num_stalled << "\n";

@@ -78,6 +78,16 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
 
+EX1PATCH_ARGS_2 := -incdeg 3 -ref 2 -iro 8 -patcha -pa
+EX1PATCH_ARGS_3 := -incdeg 3 -ref 2 -iro 8 -patcha -fint
+nurbs_patch_ex1-test-seq: nurbs_patch_ex1
+	ifeq ($(MFEM_USE_LAPACK),YES)
+		EX1PATCH_ARGS_1 := -incdeg 3 -ref 2 -iro 8 -patcha
+		@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_1))
+	endif
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0

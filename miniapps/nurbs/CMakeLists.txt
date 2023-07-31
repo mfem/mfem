@@ -71,13 +71,13 @@ if (MFEM_ENABLE_TESTING)
   if (MFEM_USE_LAPACK)
     add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_ser
       COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha)
-
-    add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_pa_ser
-      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -pa)
-
-    add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_fint_ser
-      COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -fint)
   endif()
+
+  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_pa_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -pa)
+
+  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_fint_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -fint)
 
 endif()
 

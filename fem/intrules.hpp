@@ -263,8 +263,8 @@ public:
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
 
-   /// Return an integration rule for KnotVector @a kv, defined by applying this
-   /// rule on each knot interval.
+   /// @brief Return an integration rule for KnotVector @a kv, defined by
+   /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
    /// Destroys an IntegrationRule object
@@ -293,39 +293,41 @@ public:
       return elementRule.size() - 1;
    }
 
-   /// Set the integration rule for the element of the given index. This rule is
-   /// used instead of the rule for the patch containing the element.
+   /// @brief Set the integration rule for the element of the given index. This
+   /// rule is used instead of the rule for the patch containing the element.
    void SetElementRule(const std::size_t element,
                        const std::size_t elementRuleIndex)
    {
       elementToRule[element] = elementRuleIndex;
    }
 
-   /// Set 1D integration rules to be used as a tensor product rule on the patch
-   /// with index @a patch. This class takes ownership of these rules
+   /// @brief Set 1D integration rules to be used as a tensor product rule on
+   /// the patch with index @a patch. This class takes ownership of these rules.
    void SetPatchRules1D(const int patch,
                         std::vector<const IntegrationRule*> & ir1D);
 
-   /// For tensor product rules defined on each patch by SetPatchRules1D(),
-   /// return a pointer to the 1D rule in the specified @a dimension.
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return a pointer to the 1D rule in the specified
+   /// @a dimension.
    const IntegrationRule* GetPatchRule1D(const int patch,
                                          const int dimension) const
    {
       return patchRules1D(patch, dimension);
    }
 
-   /// For tensor product rules defined on each patch by SetPatchRules1D(),
-   /// return the integration point with index (i,j,k).
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return the integration point with index (i,j,k).
    void GetIntegrationPointFrom1D(const int patch, int i, int j, int k,
                                   IntegrationPoint & ip);
 
-   /// Finalize() must be called before this class can be used for assembly.
-   /// In particular, it defines data used by GetPointElement().
+   /// @brief Finalize() must be called before this class can be used for
+   /// assembly. In particular, it defines data used by GetPointElement().
    void Finalize(Mesh const& mesh);
 
-   /// For tensor product rules defined on each patch by SetPatchRules1D(),
-   /// returns the index of the element containing integration point (i,j,k)
-   /// for patch index @a patch. Finalize() must be called first.
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns the index of the element containing
+   /// integration point (i,j,k) for patch index @a patch. Finalize() must be
+   /// called first.
    int GetPointElement(int patch, int i, int j, int k) const
    {
       return pointToElem[patch](i,j,k);
@@ -333,9 +335,9 @@ public:
 
    int GetDim() const { return dim; }
 
-   /// For tensor product rules defined on each patch by SetPatchRules1D(),
-   /// returns an array of knot span indices for each integration point in the
-   /// specified @a dimension.
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns an array of knot span indices for each
+   /// integration point in the specified @a dimension.
    const Array<int>& GetPatchRule1D_KnotSpan(const int patch,
                                              const int dimension) const
    {
