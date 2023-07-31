@@ -13,6 +13,9 @@ Version 4.5.3 (development)
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new example code, Example 36/36p, to demonstrate the solution of
+  the obstacle problem with a new finite element method.
+
 - Added a new miniapp, Mesh Quality, for evaluating mesh quality using size,
   skewness, and aspect-ratio computed from the Jacobian of the transformation.
 
@@ -25,6 +28,9 @@ New and updated examples and miniapps
   (Par)ComplexDPGWeakForm and (Complex)BlockStaticCondensation. Three new
   integrators are added in support of DPG systems: TraceIntegrator,
   NormalTraceIntegrator and TangentTraceIntegrator.
+
+- Added new SubMesh examples demonstrating source terms and boundary conditions
+  transferred from SubMesh objects.
 
 - Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
   demonstrating the use of a matrix-free saddle-point solver methodology,
@@ -41,6 +47,8 @@ Meshing improvements
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
+- Added HIP support to the SUNDIALS interface.
+
 - TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
   338. Added the tmop-metric-magnitude tool for tracking how metrics change
   under geometric perturbations.
@@ -49,6 +57,9 @@ Discretization improvements
 ---------------------------
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
   spaces are now supported through the ConformingFaceRestriction class.
+
+- SubMesh and ParSubMesh have been extended to support the transfer of
+  Nedelec and Raviart-Thomas finite element spaces.
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 

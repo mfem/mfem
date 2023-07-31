@@ -5289,24 +5289,12 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       dynamic_cast<const RT_Trace_FECollection*>(edge_fespace->FEColl());
    trace_space = trace_space || rt_trace_space;
 
-   int p = 1;
-   if (edge_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = edge_fespace->GetFaceOrder(0);
-         if (dim == 2) { p++; }
-      }
-      else
-      {
-         p = edge_fespace->GetElementOrder(0);
-      }
-   }
-
    ND_Trace_FECollection *nd_tr_fec = NULL;
    if (rt_trace_space)
    {
+      MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
+                  "HypreAMS does not support variable order spaces");
+      int p = edge_fespace->FEColl()->GetOrder();
       nd_tr_fec = new ND_Trace_FECollection(p, dim);
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
@@ -5314,7 +5302,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int vdim = edge_fespace->FEColl()->GetVDim(trace_space ? dim - 1 : dim);
 
    MakeSolver(std::max(sdim, vdim), cycle_type);
-   MakeGradientAndInterpolation(edge_fespace, trace_space, p, cycle_type);
+   MakeGradientAndInterpolation(edge_fespace, trace_space, cycle_type);
 
    if (rt_trace_space)
    {
@@ -5374,12 +5362,16 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
 }
 
 void HypreAMS::MakeGradientAndInterpolation(
-   ParFiniteElementSpace *edge_fespace, bool trace_space, int p, int cycle_type)
+   ParFiniteElementSpace *edge_fespace, bool trace_space, int cycle_type)
 {
    ParMesh *pmesh = edge_fespace->GetParMesh();
    int dim = pmesh->Dimension();
    int sdim = pmesh->SpaceDimension();
    int vdim = edge_fespace->FEColl()->GetVDim(trace_space ? dim - 1 : dim);
+
+   MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
+               "HypreAMS does not support variable order spaces");
+   int p = edge_fespace->FEColl()->GetOrder();
 
    // define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
@@ -5741,19 +5733,9 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
-   int p = 1;
-   if (face_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = face_fespace->GetFaceOrder(0) + 1;
-      }
-      else
-      {
-         p = face_fespace->GetElementOrder(0);
-      }
-   }
+
+   MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
+   int p = face_fec->GetOrder();
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
