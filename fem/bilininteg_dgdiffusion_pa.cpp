@@ -804,8 +804,8 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_FOREACH_THREAD(side, z, 2)
       {
          double (*u)[max_D1D] = (side == 0) ? u0 : u1;
-         double (*Bu)[max_D1D] = (side == 0) ? Bu0 : Bu1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
+         double (*Bu)[max_D1D] = (side == 0) ? Bu0 : Bu1;
          double (*Bdu)[max_D1D] = (side == 0) ? Bdu0 : Bdu1;
          double (*Gu)[max_D1D] = (side == 0) ? Gu0 : Gu1;
 
@@ -938,67 +938,30 @@ static void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
          double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
+         double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
          
          MFEM_FOREACH_THREAD(d1, x, D1D)
          {
             MFEM_FOREACH_THREAD(p2, y, Q1D)
             {
                double bj = 0.0;
+               double gj = 0.0;
                for (int p1 = 0; p1 < Q1D; ++p1)
                {
                   const double b = B(p1, d1);
                   const double Je0 = pa(2+3*side + 0, p1, p2, f);
                   bj += b * Je0 * Jump[p1][p2];
-               }
 
-               Bj[p2][d1] = bj;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(side, z, 2)
-      {
-         double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
-
-         MFEM_FOREACH_THREAD(d1, x, D1D)
-         {
-            MFEM_FOREACH_THREAD(d2, y, D1D)
-            {
-               double bbj = 0.0;
-               for (int p2 = 0; p2 < Q1D; ++p2)
-               {
-                  const double b = B(p2, d2);
-                  bbj += b * Bj[p2][d1];
-               }
-
-               du[d1][d2] += sigma * bbj;
-            }
-         }
-      }
-
-      MFEM_FOREACH_THREAD(side, z, 2)
-      {
-         double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
-
-         MFEM_FOREACH_THREAD(d1, x, D1D)
-         {
-            MFEM_FOREACH_THREAD(p2, y, Q1D)
-            {
-               double gj = 0.0;
-               for (int p1 = 0; p1 < Q1D; ++p1)
-               {
                   const double Je1 = pa(2+3*side + 1, p1, p2, f);
                   const double g = G(p1, d1);
                   gj += g * Je1 * Jump[p1][p2];
                }
 
+               Bj[p2][d1] = bj;
                Gj[p2][d1] = gj;
             }
          }
@@ -1008,24 +971,28 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_FOREACH_THREAD(side, z, 2)
       {
          double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
+         double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
          double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
 
          MFEM_FOREACH_THREAD(d1, x, D1D)
          {
             MFEM_FOREACH_THREAD(d2, y, D1D)
             {
+               double bbj = 0.0;
                double bgj = 0.0;
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
                   const double b = B(p2, d2);
+                  bbj += b * Bj[p2][d1];
                   bgj += b * Gj[p2][d1];
                }
 
+               du[d1][d2] += sigma * bbj;
                u[d1][d2] += sigma * bgj;
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
