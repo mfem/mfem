@@ -113,11 +113,15 @@ int main(int argc, char *argv[])
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec =
-      rk ?
-      (FiniteElementCollection*)new LocalKernelFECollection(dim, 4, 6, order,
-                                                            1.01 + order, 0.0) :
-      (FiniteElementCollection*)new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if (rk)
+   {
+      fec = new LocalKernelFECollection(dim, 4, 6, order, 1.01 + order, 0.0);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 

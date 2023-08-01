@@ -144,11 +144,15 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   FiniteElementCollection *fec =
-      rk ?
-      (FiniteElementCollection*)new LocalKernelFECollection(dim, 5, 7, order,
-                                                            5.01, 1.0) :
-      (FiniteElementCollection*)new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if (rk)
+   {
+      fec = new LocalKernelFECollection(dim, 5, 7, order, 2.01 + order, 1.0);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    // Finite element space for a scalar (thermodynamic quantity)
    FiniteElementSpace fes(&mesh, fec);
    // Finite element space for a mesh-dim vector quantity (momentum)

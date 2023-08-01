@@ -172,11 +172,15 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use discontinuous finite elements of the specified order >= 0.
-   FiniteElementCollection *fec =
-      rk ?
-      (FiniteElementCollection*)new LocalKernelFECollection(dim, 4, 6, order,
-                                                            1.01 + order, 0.0) :
-      (FiniteElementCollection*)new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if (rk)
+   {
+      fec = new LocalKernelFECollection(dim, 4, 6, order, 1.01 + order, 0.0);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
