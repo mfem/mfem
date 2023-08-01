@@ -53,7 +53,14 @@ namespace mfem
 class TensorMassIntegrator : public BilinearFormIntegrator
 {
 protected:
-	double Re;
+	double Re; // Reynolds number
+
+
+private:
+    Vector shape;
+    DenseMatrix partelmat;
+    int ndof, dim, tdim;
+    double weight;
 
 public:
 	TensorMassIntegrator(const double &_Re):Re(_Re){}
@@ -93,6 +100,12 @@ public:
 class MixedVectorDivTensorIntegrator : public BilinearFormIntegrator
 {
 protected:
+	int trial_ndof, test_ndof, dim, vdim, tdim;
+	double weight;
+
+private:
+	Vector shape;
+	DenseMatrix gshape, dshape, Jadj, partelmat;
 
 public:
 	MixedVectorDivTensorIntegrator(){}
@@ -133,8 +146,14 @@ public:
 class VectorGradVectorIntegrator: public BilinearFormIntegrator
 {
 protected:
+	int ndof, dim, vdim;
 	VectorCoefficient *Q;
-	double lambda;
+	double lambda, weight;
+
+private:
+	Vector shape, evalQ, gshape_Q;
+	DenseMatrix gshape, dshape, Jadj;
+
 public:
 	VectorGradVectorIntegrator(VectorCoefficient &_Q, const double _lambda):
 		Q(&_Q), lambda(_lambda) { }
@@ -177,7 +196,15 @@ public:
 class DGVectorAvgNormalJumpIntegration:  public BilinearFormIntegrator
 {
 protected:
+	int dim, vdim, tdim;
+	int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2, tr_ndofs, te_ndofs;
 	double lambda;
+	double weight;
+
+private:
+	Vector nor, tr_s1, tr_s2, te_s1, te_s2;
+	DenseMatrix A11, A12, A21, A22;
+
 public:
 	DGVectorAvgNormalJumpIntegration(const double _lambda):lambda(_lambda){}
 	   void AssembleFaceMatrix(const FiniteElement &tr_fe1,
@@ -215,7 +242,14 @@ class DGVectorNormalJumpIntegrator : public BilinearFormIntegrator
 {
 
 private:
+	int dim, vdim, ndof1, ndof2, ndofs;
 	double kappa, lambda;
+	double h, weight, stab_weight;
+
+private:
+	Vector shape1, shape2;
+	DenseMatrix A11, A12, A21, A22;
+
 public:
 	DGVectorNormalJumpIntegrator(const double _kappa, const double _lambda) : kappa(_kappa), lambda(_lambda){}
 
@@ -223,7 +257,7 @@ public:
 	   virtual void AssembleFaceMatrix( const FiniteElement &el1,
 	                                    const FiniteElement &el2,
 	                                    FaceElementTransformations &Trans,
-	                                    DenseMatrix &jmat);
+	                                    DenseMatrix &elmat);
 };
 
 
@@ -261,8 +295,15 @@ class DGVectorUpwindJumpIntegrator : public BilinearFormIntegrator
 {
 
 private:
+	int dim, vdim, ndof1, ndof2, ndofs;
 	VectorCoefficient *Q;
 	double lambda;
+	double weight, inner_prod;
+
+private:
+	Vector shape1, shape2, evalQ, nor;
+	DenseMatrix A11, A12, A21, A22;
+
 public:
 	DGVectorUpwindJumpIntegrator(VectorCoefficient &_Q, const double _lambda) : Q(&_Q), lambda(_lambda) { }
 
@@ -270,7 +311,7 @@ public:
 	virtual void AssembleFaceMatrix( const FiniteElement &el1,
 									const FiniteElement &el2,
 									FaceElementTransformations &Trans,
-									DenseMatrix &jmat);
+									DenseMatrix &elmat);
 };
 
 
@@ -303,10 +344,16 @@ public:
 class DGAvgNormalJumpIntegrator : public BilinearFormIntegrator
 {
 private:
-   const int vdim;
+	int dim, vdim;
+	int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2, tr_ndofs, te_ndofs;
+	double weight;
+
+private:
+	Vector nor, tr_s1, tr_s2, te_s1, te_s2;
+	DenseMatrix A11, A12, A21, A22;
 
 public:
-   DGAvgNormalJumpIntegrator(const int& vdim_) : vdim(vdim_) {};
+   DGAvgNormalJumpIntegrator(){};
 
    void AssembleFaceMatrix(const FiniteElement &tr_fe1,
                            const FiniteElement &tr_fe2,
@@ -338,8 +385,12 @@ public:
 class TensorDGDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
-   VectorCoefficient *Q;
-   double lambda;
+	int dim, vdim, tdim, ndof;
+	VectorCoefficient *Q;
+	double lambda, weight;
+
+private:
+	Vector nor, evalQ, shape;
 
 public:
    TensorDGDirichletLFIntegrator(VectorCoefficient &_Q, const double _lambda)
@@ -358,9 +409,9 @@ public:
 /** Class for integrating the linear form for the Dirichlet boundary condition
  *  where test function is a Vector.
 
-    b(v) := lambda< uD \otimes n, v \otimes n >_F,
-    			or
-    			lambda< (Q \cdot n) uD \otimes n, v \otimes n >_F,
+    b(v) := lambda< (kappa/h) uD \otimes n, v \otimes n >_F,
+    		or
+    		lambda< (Q \cdot n) uD \otimes n, v \otimes n >_F,
     for F \in Dirichlet boundaries.
 
     the test functions are from vector FE space where
@@ -377,9 +428,14 @@ public:
 class VectorDGDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
-   VectorCoefficient *uD;
-   VectorCoefficient *Q;
-   double lambda, kappa;
+	int dim, vdim, ndof;
+	VectorCoefficient *uD;
+	VectorCoefficient *Q;
+	double lambda, kappa;
+	double weight, inner_prod;
+
+private:
+	Vector shape, evaluD, evalQ, nor;
 
 public:
    VectorDGDirichletLFIntegrator(VectorCoefficient &u, const double _lambda,
@@ -394,7 +450,7 @@ public:
                                        Vector &elvect);
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
-                                       Vector &full_elvect);
+                                       Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -425,8 +481,13 @@ public:
 class VectorDGNeumannLFIntegrator : public LinearFormIntegrator
 {
 protected:
-   VectorCoefficient *Q;
-   double lambda;
+	int dim, vdim, tdim, ndof;
+	VectorCoefficient *Q;
+	double lambda;
+	double weight;
+
+private:
+	Vector shape, evalQ, nor;
 
 public:
    VectorDGNeumannLFIntegrator(VectorCoefficient &_Q, const double _lambda)
@@ -437,7 +498,7 @@ public:
                                        Vector &elvect);
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
-                                       Vector &full_elvect);
+                                       Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -446,7 +507,7 @@ public:
 /** Class for integrating the linear form for the Dirichlet boundary condition
  *  where test function is a scalar.
 
-    b(q) := lambda< uD \cdot n, q >_F,
+    b(q) := lambda< Q \cdot n, q >_F,
     for F \in Dirichlet boundaries.
 
     the test functions are scalar FE space q (the standard DG space).
@@ -458,10 +519,16 @@ public:
 */
 class BoundaryNormalLFIntegrator_mod : public LinearFormIntegrator
 {
-   Vector shape;
+protected:
+   int dim, ndof;
    VectorCoefficient &Q;
    int oa, ob;
    double lambda;
+   double weight;
+
+private:
+   Vector shape, nor, evalQ;
+
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
    BoundaryNormalLFIntegrator_mod(VectorCoefficient &QG, const double _lambda, int a = 1, int b = 1)
@@ -478,5 +545,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-}
+/// Testing Section ///
+// TODO: put integrators used to perform the test in this section.
+
+} // end of name space "mfem"
 
