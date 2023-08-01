@@ -1,35 +1,34 @@
 #include "parproblems.hpp"
 
-
 void ParElasticityProblem::Init()
 {
-    int dim = pmesh->Dimension();
-    fec = new H1_FECollection(order,dim);
-    fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
-    ndofs = fes->GetVSize();
-    ntdofs = fes->GetTrueVSize();
-    gndofs = fes->GlobalTrueVSize();
-    pmesh->SetNodalFESpace(fes);
-    if (pmesh->bdr_attributes.Size())
-    {
-        ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-    }
-    ess_bdr = 0; ess_bdr[1] = 1;
-    fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
-    // Solution GridFunction
-    x.SetSpace(fes);  x = 0.0;
-    // RHS
-    b.Update(fes);
+   int dim = pmesh->Dimension();
+   fec = new H1_FECollection(order,dim);
+   fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
+   ndofs = fes->GetVSize();
+   ntdofs = fes->GetTrueVSize();
+   gndofs = fes->GlobalTrueVSize();
+   pmesh->SetNodalFESpace(fes);
+   if (pmesh->bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+   }
+   ess_bdr = 0; ess_bdr[1] = 1;
+   fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+   // Solution GridFunction
+   x.SetSpace(fes);  x = 0.0;
+   // RHS
+   b.Update(fes);
 
-    // Elasticity operator
-    lambda.SetSize(pmesh->attributes.Max()); lambda = 57.6923076923;
-    mu.SetSize(pmesh->attributes.Max()); mu = 38.4615384615;
+   // Elasticity operator
+   lambda.SetSize(pmesh->attributes.Max()); lambda = 57.6923076923;
+   mu.SetSize(pmesh->attributes.Max()); mu = 38.4615384615;
 
-    lambda_cf.UpdateConstants(lambda);
-    mu_cf.UpdateConstants(mu);
+   lambda_cf.UpdateConstants(lambda);
+   mu_cf.UpdateConstants(mu);
 
-    a = new ParBilinearForm(fes);
-    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_cf,mu_cf));
+   a = new ParBilinearForm(fes);
+   a->AddDomainIntegrator(new ElasticityIntegrator(lambda_cf,mu_cf));
 }
 
 void ParElasticityProblem::FormLinearSystem()
@@ -94,7 +93,6 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob1_, ParElasticit
    B->GetBlock(1).Set(1.0, prob2->GetRHS());
 
    ComputeContactVertices();
-
 }
 
 void ParContactProblem::ComputeContactVertices()
@@ -172,18 +170,15 @@ void ParContactProblem::ComputeContactVertices()
 
    npoints = contact_vertices.size();
    MPI_Allreduce(&npoints, &gnpoints,1,MPI_INT,MPI_SUM,pmesh1->GetComm());
-
    int constrains_offset;
    MPI_Scan(&npoints,&constrains_offset,1,MPI_INT,MPI_SUM,pmesh1->GetComm());
 
    constrains_offset-=npoints;
-   
    constraints_starts.SetSize(2);
    constraints_starts[0] = constrains_offset;
    constraints_starts[1] = constrains_offset+npoints;
 
    ComputeTdofOffsets(comm,constrains_offset, constraints_offsets);
-
 }
 
 void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2, bool reduced)
@@ -200,7 +195,6 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    displ2_gf.SetFromTrueDofs(displ2);
 
    Array<int> conn2(npoints); 
-   // mesh2->MoveNodes(displ2);
    Vector xyz(dim * npoints);
 
    int cnt = 0;
@@ -216,7 +210,6 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
 
    MFEM_VERIFY(cnt == npoints, "");
    gapv.SetSize(npoints*dim); gapv = 0.0;
-
 
    // segment reference coordinates of the closest point
    Vector xi1(npoints*(dim-1));
@@ -263,20 +256,15 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    }
 
    int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
-   // xyz.Print();
-   // xi1.Print();
-
    Assemble_Contact(gnv, xyz, xi1, coordsm, conn2, conn1, gapv, S, dS, reduced, offset);
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
    // --------------------------------------------------------------------
-   // int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
    int glv = reduced ? gnpoints : gnv;
    MPICommunicator Mcomm(comm,offset,glv);
    SparseMatrix localS(h,K->GetGlobalNumCols());
    Mcomm.Communicate(S,localS);
-
 
    // --------------------------------------------------------------------
    // Redistribute the dM_i matrices
@@ -315,8 +303,8 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    M = new HypreParMatrix(K->GetComm(),nrows,gnrows,gndofs,
                           localS.GetI(), localS.GetJ(),localS.GetData(),
                           Mrows,Mcols);
+   HypreStealOwnership(*M, localS);
 }
-
 
 double ParContactProblem::E(const Vector & d)
 {
@@ -334,7 +322,7 @@ void ParContactProblem::DdE(const Vector &d, Vector &gradE)
 
 HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 {
-  return K; 
+   return K; 
 }
 
 void ParContactProblem::g(const Vector &d, Vector &gd, bool reduced)
@@ -416,7 +404,8 @@ HypreParMatrix * QPOptParContactProblem::Dmmf(const BlockVector & x)
 
 HypreParMatrix * QPOptParContactProblem::Duc(const BlockVector & x)
 {
-   return new HypreParMatrix(*problem->Ddg(x.GetBlock(0)));
+   // return new HypreParMatrix(*problem->Ddg(x.GetBlock(0)));
+   return problem->Ddg(x.GetBlock(0));
 }
 
 HypreParMatrix * QPOptParContactProblem::Dmc(const BlockVector & x)
