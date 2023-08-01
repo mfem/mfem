@@ -1000,7 +1000,7 @@ public:
 
    /// @brief Returns indices of degrees of freedom for the @a i'th element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
-   /// not necessarily equal to 1. The returned indexes are always ordered
+   /// not necessarily equal to 1. The returned indices are always ordered
    /// byNODES, irrespective of whether the space is byNODES or byVDIM.
    /// See also GetElementDofs().
    ///
@@ -1029,7 +1029,7 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 
-   /// Returns indexes of degrees of freedom in @a vdofs for NURBS patch @a i.
+   /// Returns indices of degrees of freedom in @a vdofs for NURBS patch @a i.
    void GetPatchVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
