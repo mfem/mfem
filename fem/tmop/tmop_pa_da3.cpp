@@ -21,6 +21,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                            const int NE,
                            const int ncomp,
                            const int sizeidx,
+                           const double input_min_size,
                            const DenseMatrix &w_,
                            const Array<double> &b_,
                            const Vector &x_,
@@ -97,7 +98,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
          MFEM_SYNC_THREAD;
       }
       min = min_size[0];
-
+      if (input_min_size > 0.) { min = input_min_size; }
       kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
       kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
       kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);
@@ -162,6 +163,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const Array<double> &B = maps.B;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
+   const double input_min_size = lim_min_size;
 
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
    nc_size_red.HostWrite();
@@ -181,7 +183,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
    const int id = (D1D << 4 ) | Q1D;
-   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,
+   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,input_min_size,W,B,
                            tspec_e, nc_size_red, Jtr);
 }
 
