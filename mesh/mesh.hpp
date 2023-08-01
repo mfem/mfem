@@ -1993,7 +1993,6 @@ public:
        is that it is possible to specifically refine a coarse NURBS mesh without
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
    void RefineNURBSFromFile(std::string ref_file);
-
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
