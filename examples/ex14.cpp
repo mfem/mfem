@@ -18,6 +18,8 @@
 //               ex14 -m ../data/amr-quad.mesh -r 3
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
+//               ex14 -m ../data/inline-quad.mesh -r 2 -rk
+//               ex14 -m ../data/star.mesh -r 0 -o 3 -rk
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -44,10 +46,6 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    int order = 1;
    bool rk = false;
-   int rk_num_points = 4;
-   double rbf_h = 2.01;
-   int rbf_type = 6;
-   double rk_face_factor = 0.0;
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
@@ -62,14 +60,6 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) >= 0 OR reproducing kernel order.");
    args.AddOption(&rk, "-rk", "--rk", "-no-rk", "--no-rk",
                   "Use reproducing kernel functions");
-   args.AddOption(&rk_num_points, "-rkp", "--rk-num-points",
-                  "Number of reproducing kernel points across each dimension of element");
-   args.AddOption(&rbf_h, "-rbfh", "--rbf-h",
-                  "Radial basis function shape parameter (>= RK order)");
-   args.AddOption(&rbf_type, "-rbft", "--rbf-type",
-                  "Radial basis function type: (0-2) global, (3-7) local");
-   args.AddOption(&rk_face_factor, "-rkf", "--rk-face-factor",
-                  "0.0 = points dx/2 from boundary, 1.0 = points on boundary");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -89,10 +79,6 @@ int main(int argc, char *argv[])
    if (kappa < 0)
    {
       kappa = (order+1)*(order+1);
-   }
-   if (rbf_h < order + 1)
-   {
-      rbf_h = std::max(2.01, 1.01 + order);
    }
    if (rk && sigma < 0.0)
    {
@@ -129,9 +115,8 @@ int main(int argc, char *argv[])
    //    finite elements of the specified order >= 0.
    FiniteElementCollection *fec =
       rk ?
-      (FiniteElementCollection*)new LocalKernelFECollection(dim, rk_num_points,
-                                                            rbf_type,
-                                                            order, rbf_h, rk_face_factor) :
+      (FiniteElementCollection*)new LocalKernelFECollection(dim, 4, 6, order,
+                                                            1.01 + order, 0.0) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
