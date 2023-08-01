@@ -260,7 +260,8 @@ protected:
    {
    public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
-                          const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_,
+                          bool build_operators = true);
       virtual ~L2ProjectionH1Space() = default;
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
@@ -303,10 +304,8 @@ protected:
                             const Vector& x, Vector& X) const;
       virtual void SetTDofs(const FiniteElementSpace& fes,
                             Vector&& X, Vector& x) const;
-      virtual void GetTDofsByVDim(const FiniteElementSpace& fes,
-                                  int vdim, const Vector& X, Vector& X_vdim) const;
-      virtual void SetTDofsByVDim(const FiniteElementSpace& fes,
-                                  int vdim, const Vector& X_vdim, Vector& X) const;
+      virtual void TDofsListByVDim(const FiniteElementSpace& fes,
+                                   int vdim, Array<int>& vdofs_list) const;
       /// Returns the inverse of an on-rank lumped mass matrix
       virtual void LumpedMassInverse(Vector& ML_inv) const;
 
@@ -339,10 +338,8 @@ protected:
                              const ParFiniteElementSpace& pfes_lor_);
       virtual ~ParL2ProjectionH1Space() = default;
    private:
-      void GetTDofsByVDim(const FiniteElementSpace& fes,
-                          int vdim, const Vector& x, Vector& x_vdim) const override;
-      void SetTDofsByVDim(const FiniteElementSpace& fes,
-                          int vdim, const Vector& x_vdim, Vector& x) const override;
+      void TDofsListByVDim(const FiniteElementSpace& fes,
+                           int vdim, Array<int>& vdofs_list) const override;
       /// Computes inverse of a lumped mass matrix (stored as a vector)
       void LumpedMassInverse(Vector& ML_inv) const override;
 
