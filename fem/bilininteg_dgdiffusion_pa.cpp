@@ -757,7 +757,6 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_SHARED double Bdu1[max_Q1D][max_D1D];
 
       MFEM_SHARED double r[max_Q1D][max_Q1D];
-      // MFEM_SHARED double Br[max_Q1D][max_D1D];
 
       MFEM_SHARED double Jump[max_Q1D][max_Q1D];
 
@@ -785,7 +784,7 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_SYNC_THREAD;
 
       // copy face values to u0, u1 and copy normals to du0, du1
-      MFEM_FOREACH_THREAD(side, y, 2)
+      MFEM_FOREACH_THREAD(side, z, 2)
       {
          double (*u)[max_D1D] = (side == 0) ? u0 : u1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
@@ -925,7 +924,6 @@ static void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
       // term: sigma * < [u], {Q dv/dn} >
       MFEM_FOREACH_THREAD(side, z, 2)
@@ -984,7 +982,6 @@ static void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
@@ -1089,7 +1086,6 @@ static void PADGDiffusionApply3D(const int NF,
             }
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
