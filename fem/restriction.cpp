@@ -1963,21 +1963,41 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
    auto d_x = Reshape(x.ReadWrite(), t?vd:d, d, d, t?d:ne, t?ne:vd);
    const auto d_y = Reshape(y.Read(), q2d, vd, 2, nf);
 
-   double pp[d][d];
-   double y_s[q2d];
-   int jj;
-   double xx[d][d][d];
-
-   for (int e = 0; e < net; ++e)
+   mfem::forall_3D(net, q, q, q, [=] MFEM_HOST_DEVICE (int e) -> void
    {
-      const int el = e2f(0, e); // global element index
+      MFEM_SHARED double pp[MAX_D1D][MAX_D1D];
+      MFEM_SHARED double y_s[MAX_Q1D * MAX_Q1D];
+      MFEM_SHARED int jj;
+      MFEM_SHARED double xx_s[MAX_D1D*MAX_D1D*MAX_D1D];
+      auto xx = Reshape(xx_s, d, d, d);
 
-      for (int _i=0; _i < d; ++_i)
-         for (int _j = 0; _j < d; ++_j)
-            for (int _k = 0; _k < d; ++_k)
+      MFEM_SHARED double G_s[MAX_D1D*MAX_Q1D];
+      DeviceMatrix G(G_s, q, d);
+
+      if (MFEM_THREAD_ID(z) == 0)
+      {
+         MFEM_FOREACH_THREAD(i, x, q)
+         {
+            MFEM_FOREACH_THREAD(j, y, d)
             {
-               xx[_i][_j][_k] = 0.0;
+               G(i, j) = a * G_(i, j);
             }
+         }
+      }
+
+      MFEM_FOREACH_THREAD(_i, x, d)
+      {
+         MFEM_FOREACH_THREAD(_j, x, d)
+         {
+            MFEM_FOREACH_THREAD(_k, z, d)
+            {
+               xx(_i, _j, _k) = 0.0;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      const int el = e2f(0, e); // global element index
 
       for (int face_id = 0; face_id < 6; ++face_id)
       {
@@ -1997,58 +2017,67 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
          const bool xy_plane = (face_id == 0 || face_id == 5);
          const bool xz_plane = (face_id == 1 || face_id == 3);
 
-         for (int p = 0; p < q2d; ++p)
+         if (MFEM_THREAD_ID(z) == 0)
          {
-            y_s[p] = d_y(p, 0, side, f);
-
-            int i, j, k;
-            internal::FaceIdxToVolIdx3D(p, q, fid0, fid1, side, orientation, i, j, k);
-
-            if (xy_plane)
+            MFEM_FOREACH_THREAD(p1, x, q)
             {
-               pp[i][j] = p;
-               jj = k;
-            }
-            else if (xz_plane)
-            {
-               pp[i][k] = p;
-               jj = j;
-            }
-            else // yz_plane
-            {
-               pp[j][k] = p;
-               jj = i;
-            }
-         } // for p
+               MFEM_FOREACH_THREAD(p2, y, q)
+               {
+                  const int p = p1 + q * p2;
+                  y_s[p] = d_y(p, 0, side, f);
 
-         for (int l = 0; l < d; ++l)
+                  int i, j, k;
+                  internal::FaceIdxToVolIdx3D(p, q, fid0, fid1, side, orientation, i, j, k);
+
+                  if (xy_plane)
+                  {
+                     pp[i][j] = p;
+                     jj = k;
+                  }
+                  else if (xz_plane)
+                  {
+                     pp[i][k] = p;
+                     jj = j;
+                  }
+                  else // yz_plane
+                  {
+                     pp[j][k] = p;
+                     jj = i;
+                  }
+               }
+            } // for p
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(l, x, d)
          {
-            for (int m = 0; m < d; ++m)
+            MFEM_FOREACH_THREAD(m, y, d)
             {
-               for (int n = 0; n < d; ++n)
+               MFEM_FOREACH_THREAD(n, z, d)
                {
                   const int p = (xy_plane) ? pp[l][m] : (xz_plane) ? pp[l][n] : pp[m][n];
                   const int kk = (xy_plane) ? n : (xz_plane) ? m : l;
-                  const double g = G_(jj, kk);
-                  xx[l][m][n] += a * g * y_s[p];
+                  const double g = G(jj, kk);
+                  xx(l, m, n) += g * y_s[p];
                } // for n
             } // for m
          } // for l
       } // for face_id
+      MFEM_SYNC_THREAD;
 
       // map back to global array
-      for (int l = 0; l < d; ++l)
+      MFEM_FOREACH_THREAD(l, x, d)
       {
-         for (int m = 0; m < d; ++m)
+         MFEM_FOREACH_THREAD(m, y, d)
          {
-            for (int n = 0; n < d; ++n)
+            MFEM_FOREACH_THREAD(n, z, d)
             {
                const int c = 0;
-               d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c) += xx[l][m][n];
+               d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c) += xx(l, m, n);
             } // for n
          } // for m
       } // for l
-   } // for e
+   });
 }
 
 InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
