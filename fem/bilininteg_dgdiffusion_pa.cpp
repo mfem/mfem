@@ -744,10 +744,11 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_SHARED double Bdu1[max_Q1D][max_D1D];
 
       MFEM_SHARED double r[max_Q1D][max_Q1D];
-      MFEM_SHARED double Br[max_Q1D][max_D1D];
+      // MFEM_SHARED double Br[max_Q1D][max_D1D];
 
       MFEM_SHARED double Jump[max_Q1D][max_Q1D];
 
+      double (*Br)[max_D1D] = Bu0;
       double (*Bj0)[max_D1D] = Bdu0;
       double (*Bj1)[max_D1D] = Bdu1;
       double (*Gj0)[max_D1D] = Gu0;
@@ -887,7 +888,7 @@ static void PADGDiffusionApply3D(const int NF,
                   const double b = B(p1, d1);
                   br += b * r[p1][p2];
                }
-               Br[d1][p2] = br;
+               Br[p2][d1] = br;
             }
          }
       }
@@ -903,7 +904,7 @@ static void PADGDiffusionApply3D(const int NF,
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
                   const double b = B(p2, d2);
-                  bbr += b * Br[d1][p2];
+                  bbr += b * Br[p2][d1];
                }
 
                u0[d1][d2] =  bbr; // reuse u0, u1
@@ -944,7 +945,7 @@ static void PADGDiffusionApply3D(const int NF,
                   bj += b * Je0 * Jump[p1][p2];
                }
 
-               Bj[d1][p2] = bj;
+               Bj[p2][d1] = bj;
             }
          }
       }
@@ -963,7 +964,7 @@ static void PADGDiffusionApply3D(const int NF,
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
                   const double b = B(p2, d2);
-                  bbj += b * Bj[d1][p2];
+                  bbj += b * Bj[p2][d1];
                }
 
                du[d1][d2] += sigma * bbj;
@@ -988,7 +989,7 @@ static void PADGDiffusionApply3D(const int NF,
                   gj += g * Je1 * Jump[p1][p2];
                }
 
-               Gj[d1][p2] = gj;
+               Gj[p2][d1] = gj;
             }
          }
       }
@@ -1007,7 +1008,7 @@ static void PADGDiffusionApply3D(const int NF,
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
                   const double b = B(p2, d2);
-                  bgj += b * Gj[d1][p2];
+                  bgj += b * Gj[p2][d1];
                }
 
                u[d1][d2] += sigma * bgj;
@@ -1032,7 +1033,7 @@ static void PADGDiffusionApply3D(const int NF,
                   bj += b * Je2 * Jump[p1][p2];
                }
 
-               Bj[d1][p2] = bj;
+               Bj[p2][d1] = bj;
             }
          }
       }
@@ -1051,7 +1052,7 @@ static void PADGDiffusionApply3D(const int NF,
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
                   const double g = G(p2, d2);
-                  gbj += g * Bj[d1][p2];
+                  gbj += g * Bj[p2][d1];
                }
 
                u[d1][d2] += sigma * gbj;
@@ -1123,14 +1124,14 @@ static void PADGDiffusionApply(const int dim,
    {
       switch ((D1D << 4) | Q1D)
       {
-      case 0x23: return PADGDiffusionApply3D<2,3>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x34: return PADGDiffusionApply3D<3,4>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x45: return PADGDiffusionApply3D<4,5>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x56: return PADGDiffusionApply3D<5,6>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x67: return PADGDiffusionApply3D<6,7>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x78: return PADGDiffusionApply3D<7,8>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x89: return PADGDiffusionApply3D<8,9>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x9A: return PADGDiffusionApply3D<9,10>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x24: return PADGDiffusionApply3D<2,4>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x35: return PADGDiffusionApply3D<3,5>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x46: return PADGDiffusionApply3D<4,6>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x57: return PADGDiffusionApply3D<5,7>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x68: return PADGDiffusionApply3D<6,8>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x79: return PADGDiffusionApply3D<7,9>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x8A: return PADGDiffusionApply3D<8,10>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
+      case 0x9B: return PADGDiffusionApply3D<9,11>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
       default:   return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
       }
    }
