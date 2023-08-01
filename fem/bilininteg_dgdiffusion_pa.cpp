@@ -160,24 +160,36 @@ static void PADGDiffusionSetup3D(const int Q1D,
    // (q, 1/h, J00, J01, J02, J10, J11, J12)
    const auto pa = Reshape(pa_data.Write(), 8, Q1D, Q1D, NF);
 
-   for (int f = 0; f < NF; ++f)
+   mfem::forall_2D(NF, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      const int perm[2][3] =
+      MFEM_SHARED int perm[2][3];
+      MFEM_SHARED int el[2];
+      MFEM_SHARED int fid[2];
+      MFEM_SHARED int ortn[2];
+      
+      MFEM_FOREACH_THREAD(side, x, 2)
       {
-         {iwork(0, 0, f), iwork(1, 0, f), iwork(2, 0, f)},
-         {iwork(0, 1, f), iwork(1, 1, f), iwork(2, 1, f)}
-      };
-      const int el[] = {iwork(_el_, 0, f), iwork(_el_, 1, f)};
-      const int fid[] = {iwork(_fid_, 0, f), iwork(_fid_, 1, f)};
-      const int ortn[] = {iwork(_or_, 0, f), iwork(_or_, 1, f)};
+         MFEM_FOREACH_THREAD(i, y, 3)
+         {
+            perm[side][i] = iwork(i, side, f);
+         }
+
+         if (MFEM_THREAD_ID(y) == 0)
+         {
+            el[side] = iwork(_el_, side, f);
+            fid[side] = iwork(_fid_, side, f);
+            ortn[side] = iwork(_or_, side, f);
+         }
+      }
+      MFEM_SYNC_THREAD;
 
       const bool interior = el[1] >= 0;
       const int nsides = interior ? 2 : 1;
       const double factor = interior ? 0.5 : 1.0;
 
-      for (int p1 = 0; p1 < Q1D; ++p1)
+      MFEM_FOREACH_THREAD(p1, x, Q1D)
       {
-         for (int p2 = 0; p2 < Q1D; ++p2)
+         MFEM_FOREACH_THREAD(p2, y, Q1D)
          {
             const double Qp = const_q ? Q(0,0,0) : Q(p1, p2, f);
             const double dJf = detJf(p1,p2,f);
@@ -231,7 +243,8 @@ static void PADGDiffusionSetup3D(const int Q1D,
             pa(1, p1, p2, f) = hi;
          }
       }
-   }
+      MFEM_SYNC_THREAD;
+   });
 }
 
 static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh,
