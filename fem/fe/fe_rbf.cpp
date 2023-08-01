@@ -618,18 +618,19 @@ void RBFFiniteElement::DistanceVec(const int i,
 void RBFFiniteElement::InitializeGeometry()
 {
    MFEM_ASSERT(numPointsD >= 2, "must have at least 2 points for rbf to work");
-   double deltaD = 1.0 / static_cast<double>
-                   (numPointsD); // discontinuous: points dx/2 from face
+   // Discontinuous factors: points dx/2 from face
+   double deltaD = 1.0 / static_cast<double>(numPointsD);
    double factorD = deltaD * faceFactor;
-   double deltaC = 1.0 / (static_cast<double>(numPointsD) -
-                          1); // continuous: points on face
+   // Continuous factors: points on face
+   double deltaC = 1.0 / (static_cast<double>(numPointsD) - 1);
    double factorC = deltaC * (1 - faceFactor);
    delta = deltaD * faceFactor + deltaC * (1 - faceFactor);
    hPhys = delta * h * rbf->HNorm();
    hPhysInv = 1.0 / hPhys;
    radPhys = hPhys * rbf->Radius();
    isCompact = (rbf->CompactSupport() && radPhys < 1.0);
-   MFEM_ASSERT(radPhys > delta, "nPerh too small for to provide connectivity");
+   MFEM_ASSERT(radPhys > delta,
+               "smoothing length too small for to provide connectivity");
    dimPoints[0] = numPointsD;
    dimPoints[1] = dim > 1 ? numPointsD : 1;
    dimPoints[2] = dim > 2 ? numPointsD : 1;
