@@ -33,11 +33,21 @@ protected:
     double Dxphi0_xhat;
 
     int dimU, dimM, dimC;
+    int gdimU, gdimM, gdimC;
     Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
     Vector ml;
 
     Vector ckSoc;
-    HypreParMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, *D, * Ju, * Jm, * JuT, * JmT;
+    HypreParMatrix * Huu = nullptr;
+    HypreParMatrix * Hum = nullptr;
+    HypreParMatrix * Hmu = nullptr;
+    HypreParMatrix * Hmm = nullptr;
+    HypreParMatrix * Wmm = nullptr;
+    HypreParMatrix *D = nullptr;
+    HypreParMatrix * Ju = nullptr;
+    HypreParMatrix * Jm = nullptr;
+    HypreParMatrix * JuT = nullptr;
+    HypreParMatrix * JmT = nullptr;
     
     int jOpt;
     bool converged;
@@ -45,7 +55,7 @@ protected:
     int MyRank;
     bool iAmRoot;
 
-    bool saveLogBarrierIterates;
+    bool saveLogBarrierIterates = false;
 
     int linSolver;
     double linSolveTol;

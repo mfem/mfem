@@ -169,6 +169,7 @@ void ParContactProblem::ComputeContactVertices()
    }
 
    npoints = contact_vertices.size();
+
    MPI_Allreduce(&npoints, &gnpoints,1,MPI_INT,MPI_SUM,pmesh1->GetComm());
    int constrains_offset;
    MPI_Scan(&npoints,&constrains_offset,1,MPI_INT,MPI_SUM,pmesh1->GetComm());

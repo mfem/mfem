@@ -54,10 +54,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   ParElasticityProblem prob1(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
-   ParElasticityProblem prob2(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
+   ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
+   ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
 
-   ParContactProblem contact(&prob1,&prob2);
+   ParContactProblem contact(prob1,prob2);
    QPOptParContactProblem qpopt(&contact);
 
    ParInteriorPointSolver optimizer(&qpopt);
@@ -67,11 +67,11 @@ int main(int argc, char *argv[])
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
 
-   ParGridFunction x1 = prob1.GetDisplacementGridFunction();
-   ParGridFunction x2 = prob2.GetDisplacementGridFunction();
+   ParGridFunction x1 = prob1->GetDisplacementGridFunction();
+   ParGridFunction x2 = prob2->GetDisplacementGridFunction();
 
-   int ndofs1 = prob1.GetNumTDofs();
-   int ndofs2 = prob2.GetNumTDofs();
+   int ndofs1 = prob1->GetNumTDofs();
+   int ndofs2 = prob2->GetNumTDofs();
    int ndofs = ndofs1 + ndofs2;
 
    Vector X1 = x1.GetTrueVector();
@@ -94,8 +94,8 @@ int main(int argc, char *argv[])
       cout << "Energy objective at QP optimizer = " << Efinal << endl;
    }
 
-   ParFiniteElementSpace * fes1 = prob1.GetFESpace();
-   ParFiniteElementSpace * fes2 = prob2.GetFESpace();
+   ParFiniteElementSpace * fes1 = prob1->GetFESpace();
+   ParFiniteElementSpace * fes2 = prob2->GetFESpace();
    
    ParMesh * mesh1 = fes1->GetParMesh();
    ParMesh * mesh2 = fes2->GetParMesh();
@@ -131,6 +131,9 @@ int main(int argc, char *argv[])
    paraview_dc2.SetTime(0.0);
    paraview_dc2.RegisterField("Body2", &x2_gf);
    paraview_dc2.Save();
+
+   delete prob1;
+   delete prob2;
 
    return 0;
 }

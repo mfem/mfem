@@ -9,12 +9,7 @@ using namespace mfem;
 
 
 ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_) 
-                     : problem(problem_), 
-                       block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-                       Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
-                       Hmm(nullptr), Wmm(nullptr), D(nullptr), 
-                       Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), 
-                       saveLogBarrierIterates(false)
+                     : problem(problem_)
 {
    OptTol  = 1.e-2;
    max_iter = 20;
@@ -48,7 +43,16 @@ ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_
    dimU = problem->GetDimU();
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
+
+   MPI_Allreduce(&dimU,&gdimU,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
+   MPI_Allreduce(&dimM,&gdimM,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
+   MPI_Allreduce(&dimC,&gdimC,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
+
    ckSoc.SetSize(dimC);
+
+   block_offsetsumlz.SetSize(5);
+   block_offsetsuml.SetSize(4);
+   block_offsetsx.SetSize(3);
   
    block_offsetsumlz[0] = 0;
    block_offsetsumlz[1] = dimU; // u
@@ -706,10 +710,10 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
 
    double ll1, zl1;
 
-   zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD)/ double(dimC + dimM);; 
+   zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD)/ double(gdimC + gdimM);; 
    ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
-   sc = max(sMax, zl1 / (double(dimM)) ) / sMax;
-   sd = max(sMax, (ll1 + zl1) / (double(dimC + dimM))) / sMax;
+   sc = max(sMax, zl1 / (double(gdimM)) ) / sMax;
+   sd = max(sMax, (ll1 + zl1) / (double(gdimC + gdimM))) / sMax;
    if(iAmRoot && printEeval)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
@@ -827,10 +831,4 @@ void ParInteriorPointSolver::SetLinearSolveTol(double Tol)
 
 ParInteriorPointSolver::~ParInteriorPointSolver() 
 {
-   F1.DeleteAll();
-   F2.DeleteAll();
-   block_offsetsx.DeleteAll();
-   block_offsetsumlz.DeleteAll();
-   block_offsetsuml.DeleteAll();
-   ml.SetSize(0);
 }
