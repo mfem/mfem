@@ -723,7 +723,7 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
 // m_conn: (npoints*4)
 void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
-                      Array<SparseMatrix *> & dM, bool reduced)
+                      Array<SparseMatrix *> & dM, bool reduced, int offset)
 {
    int ndim = 3;
 
@@ -757,7 +757,24 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
 
       dg = 0.0;
       dg2 = 0.;
+      
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
+      // if (Mpi::Root())
+      // {
+         // x1.Print();
+         // xi2.Print();
+         // coords2.Print();
+         if (Mpi::WorldRank() == 1)
+         {
+            if (g_tmp > 0)
+            {
+               mfem::out << "g_tmp = " << g_tmp << endl;
+               x1.Print();
+               xi2.Print();
+               coords2.PrintMatlab();
+            }
+         }
+      // }
       int row = (reduced) ? i : s_conn[i];
       g[row] = g_tmp; // should be unique
       Array<int> m_conn_i(4);
@@ -778,7 +795,7 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
             j_idx[j*ndim+d] = node_conn[j]*ndim+d;
          }
       }
-      M.AddRow(row,j_idx,dg);
+      M.AddRow(row+offset,j_idx,dg);
 
       Array<int> dM_i(ndim*(4+1));
       Array<int> dM_j(ndim*(4+1));

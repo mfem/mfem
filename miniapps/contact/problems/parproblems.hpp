@@ -23,12 +23,16 @@ private:
    Vector B,X;
    void Init();
 public:
-   ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int ref, int order_ = 1) : comm(comm_), order(order_) 
+   ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, int order_ = 1) : comm(comm_), order(order_) 
    {
       Mesh * mesh = new Mesh(mesh_file,1,1);
+      for (int i = 0; i<sref; i++)
+      {
+         mesh->UniformRefinement();
+      }
       pmesh = new ParMesh(comm,*mesh);
       delete mesh;
-      for (int i = 0; i<ref; i++)
+      for (int i = 0; i<pref; i++)
       {
          pmesh->UniformRefinement();
       }

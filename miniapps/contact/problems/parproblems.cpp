@@ -215,14 +215,13 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    }
 
    MFEM_VERIFY(cnt == npoints, "");
-   gapv.SetSize(npoints*dim);
+   gapv.SetSize(npoints*dim); gapv = 0.0;
 
 
    // segment reference coordinates of the closest point
    Vector xi1(npoints*(dim-1));
    Array<int> conn1(npoints*4);
    DenseMatrix coordsm(npoints*4, dim);
-   
    add(nodes0, displ1_gf, *nodes1);
 
    FindPointsInMesh(*pmesh1, globalvertices1, conn2, displ1_gf, xyz, conn1, xi1, coordsm);
@@ -263,12 +262,16 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
       }
    }
 
-   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2, conn1, gapv, S, dS, reduced);
+   int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
+   // xyz.Print();
+   // xi1.Print();
+
+   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2, conn1, gapv, S, dS, reduced, offset);
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
    // --------------------------------------------------------------------
-   int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
+   // int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
    int glv = reduced ? gnpoints : gnv;
    MPICommunicator Mcomm(comm,offset,glv);
    SparseMatrix localS(h,K->GetGlobalNumCols());
@@ -431,10 +434,8 @@ void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
    Vector g0;
    problem->g(x.GetBlock(0),g0, true); // gap function
    g0.Add(-1.0, x.GetBlock(1));  
-
    problem->GetJacobian()->Mult(x.GetBlock(0),y);
    y.Add(1.0, g0);
-
 }
 
 double QPOptParContactProblem::CalcObjective(const BlockVector & x)

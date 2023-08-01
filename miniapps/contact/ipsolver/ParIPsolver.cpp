@@ -163,8 +163,6 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    
    maxBarrierSolves = 10;
 
-   mfem::out << "max_iter" << max_iter << endl;
-
    for(jOpt = 0; jOpt < max_iter; jOpt++)
    {
       if(iAmRoot)
@@ -336,10 +334,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       Wmm = D;
    }
 
-   if (MyRank == 1)
-   {
-      mfem::out << "x.size = " << x.Size() << endl;
-   }
    Ju = problem->Duc(x); JuT = Ju->Transpose();
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
   
@@ -380,10 +374,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    }
    if(!socSolve) 
    {
-   if (MyRank == 1)
-   {
-      mfem::out << "x.size = " << x.Size() << endl;
-   }
       problem->c(x, b.GetBlock(2));
    }
    else
@@ -392,7 +382,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    }
    b *= -1.0; 
    Xhat = 0.0;
-
 
    // Direct solver (default)
    if(linSolver == 0)
@@ -416,21 +405,21 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);   
 
       /* direct solve of the 3x3 IP-Newton linear system */
-      #ifdef MFEM_USE_MUMPS
-        MUMPSSolver ASolver;
-        ASolver.SetPrintLevel(0);
-        ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
-        ASolver.SetOperator(*Ah);
-        ASolver.Mult(b, Xhat);
-      #else 
-        #ifdef MFEM_USE_MKL_CPARDISO
-          CPardisoSolver ASolver(MPI_COMM_WORLD);
-          ASolver.SetOperator(*Ah);
-          ASolver.Mult(b, Xhat);
-	#else
-	  MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
-        #endif
-      #endif
+#ifdef MFEM_USE_MUMPS
+      MUMPSSolver ASolver;
+      ASolver.SetPrintLevel(0);
+      ASolver.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      ASolver.SetOperator(*Ah);
+      ASolver.Mult(b, Xhat);
+#else 
+#ifdef MFEM_USE_MKL_CPARDISO
+      CPardisoSolver ASolver(MPI_COMM_WORLD);
+      ASolver.SetOperator(*Ah);
+      ASolver.Mult(b, Xhat);
+#else
+  	   MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
+#endif
+#endif
 
       delete Ah;
    }
@@ -457,32 +446,33 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       if(linSolver == 1)
       {
          // setup the solver for the reduced linear system
-         #ifdef MFEM_USE_MUMPS
-	   MUMPSSolver AreducedSolver;   
-           AreducedSolver.SetPrintLevel(0);
-           AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
-	   AreducedSolver.SetOperator(*Areduced);
-	   AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         #else 
-           #ifdef MFEM_USE_MKL_CPARDISO
-	     CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
-	     AreducedSolver.SetOperator(*Areduced);
-	     AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-           #else
-	     MFEM_VERIFY(false, "linSolver 1 will not work unless compiled with MUMPS or MKL");
-           #endif
-         #endif
+#ifdef MFEM_USE_MUMPS
+	      MUMPSSolver AreducedSolver;   
+         AreducedSolver.SetPrintLevel(0);
+         AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
+	      AreducedSolver.SetOperator(*Areduced);
+	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+#else 
+#ifdef MFEM_USE_MKL_CPARDISO
+         CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
+	      AreducedSolver.SetOperator(*Areduced);
+	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+#else
+         MFEM_VERIFY(false, "linSolver 1 will not work unless compiled with MUMPS or MKL");
+#endif
+#endif
       }
       else
       {
          HyprePCG AreducedSolver(MPI_COMM_WORLD);
-	 AreducedSolver.SetOperator(*Areduced);
-	 HypreBoomerAMG AreducedPrec;
+	      AreducedSolver.SetOperator(*Areduced);
+	      HypreBoomerAMG AreducedPrec;
+         AreducedPrec.SetPrintLevel(0);
          AreducedSolver.SetTol(linSolveTol);
          AreducedSolver.SetMaxIter(500);
          AreducedSolver.SetPreconditioner(AreducedPrec);
          AreducedSolver.SetResidualConvergenceOptions(); // convergence criteria based on residual norm
-	 AreducedSolver.SetPrintLevel(2);
+	      AreducedSolver.SetPrintLevel(0);
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
       }
 
@@ -556,17 +546,20 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
 
    Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
    descentDirection = Dxphi0_xhat < 0. ? true : false;
-   if(descentDirection)
+   
+   
+   if (iAmRoot)
    {
-      if (iAmRoot)
+      if(descentDirection)
       {
          cout << "is a descent direction for the log-barrier objective\n";
       }
+      else
+      {
+         cout << "is not a descent direction for the log-barrier objective\n";
+      }
    }
-   else
-   {
-      cout << "is not a descent direction for the log-barrier objective\n";
-   }
+
    thx0 = theta(x0);
    phx0 = phi(x0, mu);
 
@@ -734,9 +727,9 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
 
 double ParInteriorPointSolver::theta(const BlockVector &x)
 {
-  Vector cx(dimC); cx = 0.0;
-  problem->c(x, cx);
-  return sqrt(InnerProduct(MPI_COMM_WORLD,cx, cx));
+   Vector cx(dimC); cx = 0.0;
+   problem->c(x, cx);
+   return sqrt(InnerProduct(MPI_COMM_WORLD,cx, cx));
 }
 
 // log-barrier objective

@@ -274,7 +274,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       s_conn_sorted[i] = s_conn[j];
       for (int d = 0; d<dim; d++)
       {
-         xyz_sorted(i+d*np) = xyz(j+d*np);
+         xyz_sorted(i*dim+d) = xyz(j*dim+d);
          refcrd_sorted(i*dim+d) = refcrd(j*dim+d);
       }
    }
@@ -286,7 +286,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
    Vector xyz_recv;
 
    MPICommunicator mycomm(MPI_COMM_WORLD, procs_sorted);
-   mycomm.Communicate(xyz_sorted,xyz_recv,3,mfem::Ordering::byNODES);
+   mycomm.Communicate(xyz_sorted,xyz_recv,3,mfem::Ordering::byVDIM);
    mycomm.Communicate(elems_sorted,elems_recv,1,mfem::Ordering::byVDIM);
    mycomm.Communicate(refcrd_sorted,ref_recv,3,mfem::Ordering::byVDIM);
 
@@ -316,9 +316,9 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
          Array<int> cbdrVert;
          mesh.GetFaceVertices(phyFace, cbdrVert);
          Vector xs(dim);
-         xs[0] = xyz_recv[i + 0*np_loc];
-         xs[1] = xyz_recv[i + 1*np_loc];
-         xs[2] = xyz_recv[i + 2*np_loc];
+         xs[0] = xyz_recv[i*dim + 0];
+         xs[1] = xyz_recv[i*dim + 1];
+         xs[2] = xyz_recv[i*dim + 2];
 
          Vector xi_tmp(dim-1);
          // get nodes!

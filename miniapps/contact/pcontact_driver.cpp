@@ -1,9 +1,8 @@
-//                                Contact example
+//                               Parallel contact example
 //
-// Compile with: make contact
-//
-// Sample runs:  ./contact -m1 block1.mesh -m2 block2.mesh -at "5 6 7 8"
-// Sample runs:  ./contact -m1 block1_d.mesh -m2 block2_d.mesh -at "5 6 7 8"
+// Compile with: make pcontact_driver
+// sample run
+// mpirun -np 6 ./pcontact_driver -sr 2 -pr 2
 
 #include "mfem.hpp"
 #include <fstream>
@@ -25,7 +24,8 @@ int main(int argc, char *argv[])
    const char *mesh_file2 = "meshes/rotatedblock2.mesh";
    // const char *mesh_file2 = "meshes/block2.mesh";
    int order = 1;
-   int ref = 0;
+   int sref = 0;
+   int pref = 0;
    Array<int> attr;
    Array<int> m_attr;
 
@@ -36,10 +36,17 @@ int main(int argc, char *argv[])
                   "Second mesh file to use.");
    args.AddOption(&attr, "-at", "--attributes-surf",
                   "Attributes of boundary faces on contact surface for mesh 2.");
+   args.AddOption(&sref, "-sr", "--serial-refinements",
+                  "Number of uniform refinements.");           
+   args.AddOption(&pref, "-pr", "--parallel-refinements",
+                  "Number of uniform refinements.");                                 
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
       return 1;
    }
    if (myid == 0)
@@ -47,10 +54,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-
-   ParElasticityProblem prob1(MPI_COMM_WORLD,mesh_file1,ref,order); 
-   ParElasticityProblem prob2(MPI_COMM_WORLD,mesh_file2,ref,order); 
-
+   ParElasticityProblem prob1(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
+   ParElasticityProblem prob2(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
 
    ParContactProblem contact(&prob1,&prob2);
    QPOptParContactProblem qpopt(&contact);
@@ -59,7 +64,7 @@ int main(int argc, char *argv[])
 
    optimizer.SetTol(1e-6);
    optimizer.SetMaxIter(50);
-   int linsolver = 0;
+   int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
 
    ParGridFunction x1 = prob1.GetDisplacementGridFunction();
@@ -76,17 +81,18 @@ int main(int argc, char *argv[])
    x0.SetVector(X1,0);
    x0.SetVector(X2,X1.Size());
 
-
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
-
 
    MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
-   cout << "Energy objective at initial point = " << Einitial << endl;
-   cout << "Energy objective at QP optimizer = " << Efinal << endl;
 
+   if (Mpi::Root())
+   {
+      cout << "Energy objective at initial point = " << Einitial << endl;
+      cout << "Energy objective at QP optimizer = " << Efinal << endl;
+   }
 
    ParFiniteElementSpace * fes1 = prob1.GetFESpace();
    ParFiniteElementSpace * fes2 = prob2.GetFESpace();
@@ -94,8 +100,14 @@ int main(int argc, char *argv[])
    ParMesh * mesh1 = fes1->GetParMesh();
    ParMesh * mesh2 = fes2->GetParMesh();
 
-   ParGridFunction x1_gf(fes1,xf.GetData());
-   ParGridFunction x2_gf(fes2,&xf.GetData()[fes1->GetTrueVSize()]);
+   Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
+   Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
+
+   ParGridFunction x1_gf(fes1);
+   ParGridFunction x2_gf(fes2);
+
+   x1_gf.SetFromTrueDofs(X1_new);
+   x2_gf.SetFromTrueDofs(X2_new);
 
    mesh1->MoveNodes(x1_gf);
    mesh2->MoveNodes(x2_gf);
@@ -119,7 +131,6 @@ int main(int argc, char *argv[])
    paraview_dc2.SetTime(0.0);
    paraview_dc2.RegisterField("Body2", &x2_gf);
    paraview_dc2.Save();
-
 
    return 0;
 }
