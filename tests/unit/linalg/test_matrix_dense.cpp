@@ -709,7 +709,7 @@ TEST_CASE("NNLS", "[DenseMatrix]")
 
    Vector sol(n);
 
-   NNLS nnls;
+   NNLSSolver nnls;
    nnls.SetVerbosity(2);
    nnls.SetOperator(G);
 
