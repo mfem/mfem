@@ -15,13 +15,6 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_SUNDIALS)
-#include "sundials.hpp"
-#if defined(MFEM_USE_MPI)
-#include <nvector/nvector_parallel.h>
-#endif
-#endif
-
 #ifdef MFEM_USE_OPENMP
 #include <omp.h>
 #endif
@@ -311,6 +304,14 @@ void Vector::Neg()
    const int N = size;
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
+}
+
+void Vector::Reciprocal()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; });
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)

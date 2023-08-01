@@ -21,6 +21,7 @@ namespace ParSubMeshTests
 enum FECType
 {
    H1,
+   ND,
    L2
 };
 
@@ -30,6 +31,9 @@ FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
    {
       case H1:
          return new H1_FECollection(p, dim);
+         break;
+      case ND:
+         return new ND_FECollection(p, dim);
          break;
       case L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
@@ -41,6 +45,7 @@ FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
 
 void multidomain_test_2d(FECType fec_type)
 {
+   constexpr int dim = 2;
    const int p = 2;
    double Hy = 1.0;
    Mesh serial_parent_mesh = Mesh::MakeCartesian2D(5, 5,
@@ -124,14 +129,17 @@ void multidomain_test_2d(FECType fec_type)
 
    ParFiniteElementSpace parent_fes(&parent_mesh, fec);
    ParGridFunction parent_gf(&parent_fes);
+   ParGridFunction parent_gf_ex(&parent_fes);
 
    ParFiniteElementSpace domain1_fes(&domain_submesh, fec);
    ParGridFunction domain1_gf(&domain1_fes);
+   ParGridFunction domain1_gf_ex(&domain1_fes);
 
    FiniteElementCollection *surface_fec = create_fec(fec_type, p,
                                                      domain_submesh.Dimension());
    ParFiniteElementSpace boundary1_fes(&boundary_submesh, surface_fec);
    ParGridFunction boundary1_gf(&boundary1_fes);
+   ParGridFunction boundary1_gf_ex(&boundary1_fes);
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
@@ -140,18 +148,33 @@ void multidomain_test_2d(FECType fec_type)
       return y + 0.05 * sin(x * 2.0 * M_PI);
    });
 
-   parent_gf.ProjectCoefficient(coeff);
+   auto vcoeff = VectorFunctionCoefficient(dim, [](const Vector &coords,
+                                                   Vector &V)
+   {
+      V.SetSize(2);
+      double x = coords(0);
+      double y = coords(1);
+
+      V(0) = y + 0.05 * sin(x * 2.0 * M_PI);
+      V(1) = x + 0.05 * sin(y * 2.0 * M_PI);
+   });
+
+   if (fec_type == H1 || fec_type == L2)
+   {
+      parent_gf.ProjectCoefficient(coeff);
+      parent_gf_ex.ProjectCoefficient(coeff);
+      domain1_gf_ex.ProjectCoefficient(coeff);
+      boundary1_gf_ex.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      parent_gf.ProjectCoefficient(vcoeff);
+      parent_gf_ex.ProjectCoefficient(vcoeff);
+      domain1_gf_ex.ProjectCoefficient(vcoeff);
+      boundary1_gf_ex.ProjectCoefficient(vcoeff);
+   }
 
    Vector tmp;
-
-   ParGridFunction parent_gf_ex(&parent_fes);
-   parent_gf_ex.ProjectCoefficient(coeff);
-
-   ParGridFunction domain1_gf_ex(&domain1_fes);
-   domain1_gf_ex.ProjectCoefficient(coeff);
-
-   ParGridFunction boundary1_gf_ex(&boundary1_fes);
-   boundary1_gf_ex.ProjectCoefficient(coeff);
 
    auto CHECK_GLOBAL_NORM = [](Vector &v)
    {
@@ -182,8 +205,16 @@ void multidomain_test_2d(FECType fec_type)
    {
       SECTION("Volume to matching volume")
       {
-         parent_gf.ProjectCoefficient(coeff);
-         domain1_gf.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            parent_gf.ProjectCoefficient(coeff);
+            domain1_gf.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            parent_gf.ProjectCoefficient(vcoeff);
+            domain1_gf.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(domain1_gf, parent_gf);
          tmp = parent_gf_ex;
          tmp -= parent_gf;
@@ -191,7 +222,14 @@ void multidomain_test_2d(FECType fec_type)
       }
       SECTION("Surface to matching surface in volume")
       {
-         boundary1_gf.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            boundary1_gf.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            boundary1_gf.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(boundary1_gf, parent_gf);
          tmp = parent_gf_ex;
          tmp -= parent_gf;
@@ -204,6 +242,7 @@ void multidomain_test_2d(FECType fec_type)
 
 void multidomain_test_3d(FECType fec_type)
 {
+   constexpr int dim = 3;
    const int p = 2;
    // Circle: sideset 1
    // Domain boundary: sideset 2
@@ -241,18 +280,22 @@ void multidomain_test_3d(FECType fec_type)
 
    ParFiniteElementSpace parent_fes(&parent_mesh, fec);
    ParGridFunction parent_gf(&parent_fes);
+   ParGridFunction parent_gf_ex(&parent_fes);
 
    ParFiniteElementSpace cylinder_fes(&cylinder_submesh, fec);
    ParGridFunction cylinder_gf(&cylinder_fes);
+   ParGridFunction cylinder_gf_ex(&cylinder_fes);
 
    ParFiniteElementSpace outer_fes(&outer_submesh, fec);
    ParGridFunction outer_gf(&outer_fes);
+   ParGridFunction outer_gf_ex(&outer_fes);
 
    FiniteElementCollection *surface_fec = create_fec(fec_type, p,
                                                      cylinder_surface_submesh.Dimension());
    ParFiniteElementSpace cylinder_surface_fes(&cylinder_surface_submesh,
                                               surface_fec);
    ParGridFunction cylinder_surface_gf(&cylinder_surface_fes);
+   ParGridFunction cylinder_surface_gf_ex(&cylinder_surface_fes);
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
@@ -262,21 +305,37 @@ void multidomain_test_3d(FECType fec_type)
       return y + 0.05 * sin(x * 2.0 * M_PI) + z;
    });
 
-   parent_gf.ProjectCoefficient(coeff);
+   auto vcoeff = VectorFunctionCoefficient(dim, [](const Vector &coords,
+                                                   Vector &V)
+   {
+      V.SetSize(3);
+      double x = coords(0);
+      double y = coords(1);
+      double z = coords(2);
+
+      V(0) = y + 0.05 * sin(x * 2.0 * M_PI) + z;
+      V(1) = z + 0.05 * sin(y * 2.0 * M_PI) + x;
+      V(2) = x + 0.05 * sin(z * 2.0 * M_PI) + y;
+   });
+
+   if (fec_type == H1 || fec_type == L2)
+   {
+      parent_gf.ProjectCoefficient(coeff);
+      parent_gf_ex.ProjectCoefficient(coeff);
+      cylinder_gf_ex.ProjectCoefficient(coeff);
+      cylinder_surface_gf_ex.ProjectCoefficient(coeff);
+      outer_gf_ex.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      parent_gf.ProjectCoefficient(vcoeff);
+      parent_gf_ex.ProjectCoefficient(vcoeff);
+      cylinder_gf_ex.ProjectCoefficient(vcoeff);
+      cylinder_surface_gf_ex.ProjectCoefficient(vcoeff);
+      outer_gf_ex.ProjectCoefficient(vcoeff);
+   }
 
    Vector tmp;
-
-   ParGridFunction parent_gf_ex(&parent_fes);
-   parent_gf_ex.ProjectCoefficient(coeff);
-
-   ParGridFunction cylinder_gf_ex(&cylinder_fes);
-   cylinder_gf_ex.ProjectCoefficient(coeff);
-
-   ParGridFunction cylinder_surface_gf_ex(&cylinder_surface_fes);
-   cylinder_surface_gf_ex.ProjectCoefficient(coeff);
-
-   ParGridFunction outer_gf_ex(&outer_fes);
-   outer_gf_ex.ProjectCoefficient(coeff);
 
    auto CHECK_GLOBAL_NORM = [](Vector &v)
    {
@@ -307,8 +366,16 @@ void multidomain_test_3d(FECType fec_type)
    {
       SECTION("Volume to matching volume")
       {
-         parent_gf.ProjectCoefficient(coeff);
-         cylinder_gf.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            parent_gf.ProjectCoefficient(coeff);
+            cylinder_gf.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            parent_gf.ProjectCoefficient(vcoeff);
+            cylinder_gf.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(cylinder_gf, parent_gf);
          tmp = parent_gf_ex;
          tmp -= parent_gf;
@@ -316,7 +383,14 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Volume to matching volume")
       {
-         outer_gf.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            outer_gf.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            outer_gf.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(outer_gf, parent_gf);
          tmp = parent_gf_ex;
          tmp -= parent_gf;
@@ -324,7 +398,14 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Surface to matching surface in volume")
       {
-         cylinder_surface_gf.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            cylinder_surface_gf.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            cylinder_surface_gf.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(cylinder_surface_gf, parent_gf);
          tmp = parent_gf_ex;
          tmp -= parent_gf;
@@ -335,9 +416,18 @@ void multidomain_test_3d(FECType fec_type)
    {
       SECTION("Volume to matching volume")
       {
-         cylinder_gf.ProjectCoefficient(coeff);
-         outer_gf.ProjectCoefficient(coeff);
-         outer_gf_ex.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            cylinder_gf.ProjectCoefficient(coeff);
+            outer_gf.ProjectCoefficient(coeff);
+            outer_gf_ex.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            cylinder_gf.ProjectCoefficient(vcoeff);
+            outer_gf.ProjectCoefficient(vcoeff);
+            outer_gf_ex.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(cylinder_gf, outer_gf);
          tmp = outer_gf_ex;
          tmp -= outer_gf;
@@ -345,9 +435,18 @@ void multidomain_test_3d(FECType fec_type)
       }
       SECTION("Volume to matching surface on volume")
       {
-         cylinder_gf.ProjectCoefficient(coeff);
-         outer_gf.ProjectCoefficient(coeff);
-         cylinder_gf_ex.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            cylinder_gf.ProjectCoefficient(coeff);
+            outer_gf.ProjectCoefficient(coeff);
+            cylinder_gf_ex.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            cylinder_gf.ProjectCoefficient(vcoeff);
+            outer_gf.ProjectCoefficient(vcoeff);
+            cylinder_gf_ex.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(outer_gf, cylinder_gf);
          tmp = cylinder_gf_ex;
          tmp -= cylinder_gf;
@@ -356,8 +455,16 @@ void multidomain_test_3d(FECType fec_type)
 
       SECTION("Volume to matching surface")
       {
-         cylinder_gf.ProjectCoefficient(coeff);
-         cylinder_surface_gf_ex.ProjectCoefficient(coeff);
+         if (fec_type == H1 || fec_type == L2)
+         {
+            cylinder_gf.ProjectCoefficient(coeff);
+            cylinder_surface_gf_ex.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            cylinder_gf.ProjectCoefficient(vcoeff);
+            cylinder_surface_gf_ex.ProjectCoefficient(vcoeff);
+         }
          ParSubMesh::Transfer(cylinder_gf, cylinder_surface_gf);
          tmp = cylinder_surface_gf_ex;
          tmp -= cylinder_surface_gf;
@@ -370,7 +477,7 @@ void multidomain_test_3d(FECType fec_type)
 
 TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
 {
-   auto fec_type = GENERATE(FECType::H1, FECType::L2);
+   auto fec_type = GENERATE(FECType::H1, FECType::ND, FECType::L2);
    multidomain_test_2d(fec_type);
    multidomain_test_3d(fec_type);
 }
