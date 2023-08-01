@@ -2029,20 +2029,11 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
                   int i, j, k;
                   internal::FaceIdxToVolIdx3D(p, q, fid0, fid1, side, orientation, i, j, k);
 
-                  if (xy_plane)
+
+                  pp[(xy_plane || xz_plane) ? i : j][(xy_plane) ? j : k] = p;
+                  if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0)
                   {
-                     pp[i][j] = p;
-                     jj = k;
-                  }
-                  else if (xz_plane)
-                  {
-                     pp[i][k] = p;
-                     jj = j;
-                  }
-                  else // yz_plane
-                  {
-                     pp[j][k] = p;
-                     jj = i;
+                     jj = (xy_plane) ? k : (xz_plane) ? j : i;
                   }
                }
             } // for p
