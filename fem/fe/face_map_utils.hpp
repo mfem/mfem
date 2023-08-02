@@ -175,7 +175,7 @@ inline int PermuteFace3D(const int face_id1, const int face_id2,
 /// according to the value of side (side == 0 corresponds element 1).
 MFEM_HOST_DEVICE
 inline void FaceIdxToVolIdx2D(const int qi, const int nq, const int face_id0,
-                           const int face_id1, const int side, int &i, int &j)
+                              const int face_id1, const int side, int &i, int &j)
 {
    // Note: in 2D, a consistently ordered mesh will always have the element 2
    // face reversed relative to element 1, so orientation is determined entirely
@@ -195,9 +195,9 @@ inline void FaceIdxToVolIdx2D(const int qi, const int nq, const int face_id0,
 
 MFEM_HOST_DEVICE
 inline void FaceIdxToVolIdx3D(const int index, const int size1d,
-                           const int face_id0, const int face_id1,
-                           const int side, const int orientation,
-                           int& i, int& j, int& k)
+                              const int face_id0, const int face_id1,
+                              const int side, const int orientation,
+                              int& i, int& j, int& k)
 {
    MFEM_VERIFY_KERNEL(face_id1 >= 0 || side == 0,
                       "Accessing second side but face_id1 is not valid.");
@@ -209,7 +209,8 @@ inline void FaceIdxToVolIdx3D(const int index, const int size1d,
    const bool xy_plane = (face_id == 0 || face_id == 5);
    const bool yz_plane = (face_id == 2 || face_id == 4);
 
-   const int level = (face_id == 0 || face_id == 1 || face_id == 4) ? 0 : (size1d-1);
+   const int level = (face_id == 0 || face_id == 1 || face_id == 4)
+                     ? 0 : (size1d-1);
 
    const int _i = fidx % size1d;
    const int _j = fidx / size1d;
