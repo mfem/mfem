@@ -130,8 +130,8 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
                          const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
                          QuadratureFunction &QVec, Vector &y)
 {
-   //make sure either IBlock and JBlock are either both non-negative or both strictly negative.
-   static_assert(IBlock < 0 == JBlock < 0);
+   static_assert(IBlock < 0 == JBlock < 0,
+                 "IBlock and JBlock must both be non-negative or strictly negative.");
    static constexpr int d = dim;
    static constexpr int qLower = IBlock < 0 ? 0 : IBlock;
    static constexpr int qUpper = IBlock < 0 ? d : IBlock+1;
@@ -145,7 +145,6 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
    const auto &ir = lambda.GetIntRule(0);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
-   const FiniteElement *fe = fespace.GetFE(0);
    E_To_Q_Map->DisableTensorProducts();
    E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
    //interpolate physical derivatives to quadrature points.
