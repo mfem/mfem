@@ -3082,19 +3082,19 @@ BilinearFormIntegrator* ElasticityIntegrator::ComponentIntegrator(const int I,
 #else
       constexpr bool isParallelFES = false;
 #endif
-      const int vdim = 1;
+      const int dim = 1;
       if (isParallelFES)
       {
 #ifdef MFEM_USE_MPI
          componentFESpace = std::make_shared<const ParFiniteElementSpace>
-                            (parfespace->GetParMesh(), parfespace->FEColl(), vdim,
+                            (parfespace->GetParMesh(), parfespace->FEColl(), dim,
                              parfespace->GetOrdering());
 #endif
       }
       else
       {
          componentFESpace = std::make_shared<const FiniteElementSpace>
-                            (fespace->GetMesh(), fespace->FEColl(), vdim, fespace->GetOrdering());
+                            (fespace->GetMesh(), fespace->FEColl(), dim, fespace->GetOrdering());
       }
    }
    compIntegrator->fespace = componentFESpace.get();

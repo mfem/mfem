@@ -37,7 +37,7 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto el = fes.GetFE(0);
       ndofs = el->GetDof();
       const auto mesh = fes.GetMesh();
-      dim = fes.GetVDim();
+      vdim = fes.GetVDim();
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
       {
@@ -50,7 +50,7 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
       quad_space = std::make_shared<QuadratureSpace>(*mesh, *IntRule);
       lambda_quad = std::make_shared<QuadratureFunction>(*quad_space);
       mu_quad = std::make_shared<QuadratureFunction>(*quad_space);
-      q_vec = std::make_shared<QuadratureFunction>(*quad_space, dim*dim);
+      q_vec = std::make_shared<QuadratureFunction>(*quad_space, vdim*vdim);
       lambda->Project(*lambda_quad);
       mu->Project(*mu_quad);
       maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, DofToQuad::FULL);
@@ -60,8 +60,8 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   q_vec->SetVDim(dim*dim*dim*dim);
-   internal::ElasticityAssembleDiagonalPA(dim, ndofs, *fespace, *lambda_quad,
+   q_vec->SetVDim(vdim*vdim*vdim*vdim);
+   internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *fespace, *lambda_quad,
                                           *mu_quad, *geom, *maps, *q_vec, diag);
 }
 
@@ -69,15 +69,15 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (!parent)
    {
-      q_vec->SetVDim(dim*dim);
+      q_vec->SetVDim(vdim*vdim);
    }
    else
    {
       //If it has a parent, it is a component integrator.
-      q_vec->SetVDim(dim);
+      q_vec->SetVDim(vdim);
    }
 
-   internal::ElasticityAddMultPA(dim, ndofs, *fespace, *lambda_quad, *mu_quad,
+   internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
                                  *geom, *maps, x, *q_vec, y, IBlock, JBlock);
 }
 
@@ -90,7 +90,7 @@ void ElasticityIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
    else
    {
       //This block operator is symmetric, so simply switch IBlock and JBlock.
-      internal::ElasticityAddMultPA(dim, ndofs, *fespace, *lambda_quad, *mu_quad,
+      internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
                                     *geom, *maps, x, *q_vec, y, JBlock, IBlock);
    }
 }

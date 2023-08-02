@@ -2935,7 +2935,7 @@ private:
 
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ndofs;
+   int vdim, ndofs;
    const FiniteElementSpace
    *fespace;   ///< Not owned. Not const because it is used in a getter to construct bilinearforms which require non-const fespaces for some reason. Can it be const?
    bool PACalled = false;
