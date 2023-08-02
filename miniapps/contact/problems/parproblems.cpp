@@ -407,8 +407,7 @@ HypreParMatrix * QPOptParContactProblem::Dmmf(const BlockVector & x)
 
 HypreParMatrix * QPOptParContactProblem::Duc(const BlockVector & x)
 {
-   return new HypreParMatrix(*problem->Ddg(x.GetBlock(0)));
-   // return problem->Ddg(x.GetBlock(0));
+   return problem->Ddg(x.GetBlock(0));
 }
 
 HypreParMatrix * QPOptParContactProblem::Dmc(const BlockVector & x)
