@@ -199,8 +199,8 @@ inline void FaceIdxToVolIdx3D(const int index, const int size1d,
                            const int side, const int orientation,
                            int& i, int& j, int& k)
 {
-   MFEM_VERIFY(face_id1 >= 0 || side == 0,
-               "Accessing second side but face_id1 is not valid.");
+   MFEM_VERIFY_KERNEL(face_id1 >= 0 || side == 0,
+                      "Accessing second side but face_id1 is not valid.");
 
    const int face_id = (side == 0) ? face_id0 : face_id1;
    const int fidx = (side == 0) ? index
