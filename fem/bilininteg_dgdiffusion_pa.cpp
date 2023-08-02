@@ -166,7 +166,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
       MFEM_SHARED int el[2];
       MFEM_SHARED int fid[2];
       MFEM_SHARED int ortn[2];
-      
+
       MFEM_FOREACH_THREAD(side, x, 2)
       {
          MFEM_FOREACH_THREAD(i, y, 3)
@@ -841,7 +841,7 @@ static void PADGDiffusionApply3D(const int NF,
          double (*Gu)[max_D1D] = (side == 0) ? Gu0 : Gu1;
          double (*Bdu)[max_D1D] = (side == 0) ? Bdu0 : Bdu1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         
+
          MFEM_FOREACH_THREAD(p1, x, Q1D)
          {
             MFEM_FOREACH_THREAD(p2, y, Q1D)
@@ -863,7 +863,8 @@ static void PADGDiffusionApply3D(const int NF,
                }
 
                BBu[p1][p2] = bbu;
-               du[p1][p2] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu; // du <- Q du/dn * w * det(J)
+               // du <- Q du/dn * w * det(J)
+               du[p1][p2] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu;
             }
          }
       }
@@ -943,7 +944,7 @@ static void PADGDiffusionApply3D(const int NF,
       {
          double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
          double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
-         
+
          MFEM_FOREACH_THREAD(d1, x, D1D)
          {
             MFEM_FOREACH_THREAD(p2, y, Q1D)
