@@ -181,7 +181,8 @@ int main(int argc, char *argv[])
    R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
-   auto global_max = [](const Vector& v){
+   auto global_max = [](const Vector& v)
+   {
       double max = v.Normlinf();
       MPI_Allreduce(MPI_IN_PLACE, &max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
       return max;
@@ -213,7 +214,8 @@ int main(int argc, char *argv[])
    ones = 1.0;
    ones_lor = 1.0;
    ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
-   auto global_sum = [](const Vector& v){
+   auto global_sum = [](const Vector& v)
+   {
       double sum = v.Sum();
       MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       return sum;
@@ -234,7 +236,8 @@ int main(int argc, char *argv[])
       double lor_dual_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
       {
-         cout << "HO -> LOR dual field: " << fabs(ho_dual_mass - lor_dual_mass) << endl << endl;
+         cout << "HO -> LOR dual field: " << fabs(ho_dual_mass - lor_dual_mass) << endl
+              << endl;
       }
    }
 
