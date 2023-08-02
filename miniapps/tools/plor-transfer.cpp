@@ -230,11 +230,11 @@ int main(int argc, char *argv[])
       Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
       M_rho_lor.ParFESpace()->GetRestrictionOperator()->Mult(M_rho_lor,
                                                              M_rho_lor_true);
-      double ho_mass = global_sum(M_rho_true);
-      double lor_mass = global_sum(M_rho_lor_true);
+      double ho_dual_mass = global_sum(M_rho_true);
+      double lor_dual_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
       {
-         cout << "HO -> LOR dual field: " << fabs(ho_mass - lor_mass) << endl << endl;
+         cout << "HO -> LOR dual field: " << fabs(ho_dual_mass - lor_dual_mass) << endl << endl;
       }
    }
 
@@ -284,11 +284,11 @@ int main(int argc, char *argv[])
       R.MultTranspose(M_rho_lor, M_rho);
       Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
       M_rho.ParFESpace()->GetRestrictionOperator()->Mult(M_rho, M_rho_true);
-      double ho_mass = global_sum(M_rho_true);
-      double lor_mass = global_sum(M_rho_lor_true);
+      double ho_dual_mass = global_sum(M_rho_true);
+      double lor_dual_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
       {
-         cout << "LOR -> HO dual field: " << fabs(ho_mass - lor_mass) << '\n';
+         cout << "LOR -> HO dual field: " << fabs(ho_dual_mass - lor_dual_mass) << '\n';
       }
    }
 
