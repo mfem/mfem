@@ -39,6 +39,10 @@ New and updated examples and miniapps
 
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
+- Added a new parallel LOR transfer miniapp, miniapps/tools/plor-transfer, which
+  mirrors the functionality of the serial LOR transfer miniapp,
+  miniapps/tools/lor-transfer
+
 Meshing improvements
 --------------------
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
@@ -58,6 +62,9 @@ Discretization improvements
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
 - Added support for p-refined meshes in FindPointsGSLIB.
+
+- Support for parallel transfer of H1 fields using the low-order refined (LOR)
+  transfer operators in L2ProjectionGridTransfer
 
 Linear and nonlinear solvers
 ----------------------------
