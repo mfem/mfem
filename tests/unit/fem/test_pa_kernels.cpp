@@ -580,8 +580,6 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 
 TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 {
-   const int order = GENERATE(1, 2);
-
    std::vector<std::string> mesh_filenames =
    {
       "../../data/star.mesh",
@@ -595,7 +593,11 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
       mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
       mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
    }
+
+   const int order = GENERATE(1, 2);
    const auto mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
+
+   CAPTURE(order, mesh_fname);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
    const int dim = mesh.Dimension();
