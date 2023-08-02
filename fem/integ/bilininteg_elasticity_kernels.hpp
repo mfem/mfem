@@ -130,16 +130,16 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
                          const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
                          QuadratureFunction &QVec, Vector &y)
 {
-   static_assert(IBlock < 0 == JBlock < 0,
+   static_assert((IBlock < 0) == (JBlock < 0),
                  "IBlock and JBlock must both be non-negative or strictly negative.");
    static constexpr int d = dim;
-   static constexpr int qLower = IBlock < 0 ? 0 : IBlock;
-   static constexpr int qUpper = IBlock < 0 ? d : IBlock+1;
+   static constexpr int qLower = (IBlock < 0) ? 0 : IBlock;
+   static constexpr int qUpper = (IBlock < 0) ? d : IBlock+1;
    static constexpr int qSize = qUpper-qLower;
-   static constexpr int aLower = JBlock < 0 ? 0 : JBlock;
-   static constexpr int aUpper = JBlock < 0 ? d : JBlock+1;
+   static constexpr int aLower = (JBlock < 0) ? 0 : JBlock;
+   static constexpr int aUpper = (JBlock < 0) ? d : JBlock+1;
    static constexpr int aSize = aUpper-aLower;
-   static constexpr bool isComponent = IBlock >= 0;
+   static constexpr bool isComponent = (IBlock >= 0);
 
    //Assuming all elements are the same
    const auto &ir = lambda.GetIntRule(0);
