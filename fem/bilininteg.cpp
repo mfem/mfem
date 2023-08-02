@@ -3076,14 +3076,20 @@ BilinearFormIntegrator* ElasticityIntegrator::ComponentIntegrator(const int I,
    //if it exists yet.
    if (!componentFESpace)
    {
+#ifdef MFEM_USE_MPI
       const auto *parfespace = dynamic_cast<const ParFiniteElementSpace*>(fespace);
       auto isParallelFES = static_cast<bool>(parfespace);
+#else
+      constexpr bool isParallelFES = false;
+#endif
       const int vdim = 1;
       if (isParallelFES)
       {
+#ifdef MFEM_USE_MPI
          componentFESpace = std::make_shared<const ParFiniteElementSpace>
                             (parfespace->GetParMesh(), parfespace->FEColl(), vdim,
                              parfespace->GetOrdering());
+#endif
       }
       else
       {
