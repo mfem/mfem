@@ -81,6 +81,8 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob1_, ParElasticit
    Array2D<HypreParMatrix*> A(2,2);
    A(0,0) = &prob1->GetOperator();
    A(1,1) = &prob2->GetOperator();
+   A(1,0) = nullptr;
+   A(0,1) = nullptr;
    K = HypreParMatrixFromBlocks(A);
 
    Array<int> offsets(3);

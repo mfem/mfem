@@ -1000,18 +1000,17 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
 }
 
 // WARNING: global variable, just for this little example.
-std::array<std::array<int, 3>, 8> HEX_VERT =
-{
-   {  {0,0,0},
-      {1,0,0},
-      {1,1,0},
-      {0,1,0},
-      {0,0,1},
-      {1,0,1},
-      {1,1,1},
+DenseMatrix HEX_VERT(
+   {
+      {0,0,0}, 
+      {1,0,0}, 
+      {1,1,0}, 
+      {0,1,0}, 
+      {0,0,1}, 
+      {1,0,1}, 
+      {1,1,1}, 
       {0,1,1}
-   }
-};
+   });
 
 int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
 {
@@ -1029,7 +1028,7 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
       bool match = true;
       for (int j=0; j<3; ++j)
       {
-         if (ref[j] != HEX_VERT[i][j]) { match = false; }
+         if (ref[j] != HEX_VERT(i,j)) { match = false; }
       }
 
       if (match) { refv = i; }
