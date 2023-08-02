@@ -547,8 +547,9 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    bool build_operators)
    : L2Projection(fes_ho_, fes_lor_),
 #ifdef MFEM_USE_MPI
-     pcg { dynamic_cast<const ParFiniteElementSpace*>(&fes_ho) ? 
-           CGSolver(MPI_COMM_WORLD) : CGSolver() }
+     pcg { dynamic_cast<const ParFiniteElementSpace*>(&fes_ho) ?
+           CGSolver(MPI_COMM_WORLD) : CGSolver()
+         }
 #else
      pcg()
 #endif
@@ -556,10 +557,11 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    if (build_operators)
    {
       std::tie(R, M_LH) = ComputeSparseRAndM_LH();
-      RTxM_LH = std::unique_ptr<Operator>(TransposeMult(static_cast<SparseMatrix&>(*R), 
-                                                      static_cast<SparseMatrix&>(*M_LH)));
+      RTxM_LH = std::unique_ptr<Operator>(TransposeMult(static_cast<SparseMatrix&>
+                                                        (*R),
+                                                        static_cast<SparseMatrix&>(*M_LH)));
    }
-                                                     
+
    // Basic PCG solver setup
    pcg.SetPrintLevel(0);
    pcg.SetMaxIter(1000);
@@ -568,7 +570,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    SetAbsTol(1e-13);
    if (build_operators)
    {
-      precon = std::unique_ptr<DSmoother>(new DSmoother(static_cast<SparseMatrix&>(*RTxM_LH)));
+      precon = std::unique_ptr<DSmoother>(new DSmoother(static_cast<SparseMatrix&>
+                                                        (*RTxM_LH)));
       pcg.SetPreconditioner(*precon);
       pcg.SetOperator(*RTxM_LH);
    }
@@ -579,12 +582,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 {
    Vector X(fes_ho.GetTrueVSize());
    Vector X_dim(R->Width());
-   
+
    Vector Y_dim(R->Height());
    Vector Y(fes_lor.GetTrueVSize());
 
    Array<int> vdofs_list;
-   
+
    GetTDofs(fes_ho, x, X);
 
    for (int d = 0; d < fes_ho.GetVDim(); ++d)
@@ -664,7 +667,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    Vector Y(fes_lor.GetTrueVSize());
 
    Array<int> vdofs_list;
-   
+
    GetTDofs(fes_ho, x, X);
 
    for (int d = 0; d < fes_ho.GetVDim(); ++d)
@@ -693,10 +696,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(double p_atol_)
 }
 
 std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
-L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
+                                                                     L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
 {
    std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
-      r_and_mlh;
+                                                                        r_and_mlh;
 
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
@@ -781,8 +784,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
       J[jcol] = r_and_mlh.first->GetJ()[jcol];
    }
    r_and_mlh.second = std::unique_ptr<SparseMatrix>(new SparseMatrix(
-      I, J, NULL,
-      r_and_mlh.first->Height(), r_and_mlh.first->Width(), true, true, true));
+                                                       I, J, NULL,
+                                                       r_and_mlh.first->Height(), r_and_mlh.first->Width(), true, true, true));
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
@@ -879,7 +882,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    }
 }
 
-std::unique_ptr<SparseMatrix> L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
+std::unique_ptr<SparseMatrix>
+L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
 {
    const Table& elem_dof_ho = fes_ho.GetElementToDofTable();
    const Table& elem_dof_lor = fes_lor.GetElementToDofTable();
@@ -960,7 +964,7 @@ std::unique_ptr<SparseMatrix> L2ProjectionGridTransfer::L2ProjectionH1Space::All
    double* data = Memory<double>(dof_dofI[ndof_lor]);
 
    std::unique_ptr<SparseMatrix> R_local(new SparseMatrix(
-      dof_dofI, dof_dofJ, data, ndof_lor, ndof_ho, true, true, true));
+                                            dof_dofI, dof_dofJ, data, ndof_lor, ndof_ho, true, true, true));
    (*R_local) = 0.0;
 
    dof_lor_dof_ho.LoseData();
@@ -993,20 +997,20 @@ L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
                                               pfes_lor_scalar.GlobalVSize(),
                                               pfes_ho_scalar.GlobalVSize(),
                                               pfes_lor_scalar.GetDofOffsets(),
-                                              pfes_ho_scalar.GetDofOffsets(), 
+                                              pfes_ho_scalar.GetDofOffsets(),
                                               static_cast<SparseMatrix*>(M_LH.get()));
 
    R = std::unique_ptr<HypreParMatrix>(RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
-                                       &R_local, pfes_ho_scalar.Dof_TrueDof_Matrix()));
+                                           &R_local, pfes_ho_scalar.Dof_TrueDof_Matrix()));
    M_LH = std::unique_ptr<HypreParMatrix>(RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
-                                          &M_LH_local, pfes_ho_scalar.Dof_TrueDof_Matrix()));
-   std::unique_ptr<HypreParMatrix> R_T = 
+                                              &M_LH_local, pfes_ho_scalar.Dof_TrueDof_Matrix()));
+   std::unique_ptr<HypreParMatrix> R_T =
       std::unique_ptr<HypreParMatrix>(static_cast<HypreParMatrix&>(*R).Transpose());
    RTxM_LH = std::unique_ptr<HypreParMatrix>(ParMult(
-      R_T.get(), static_cast<HypreParMatrix*>(M_LH.get()), true));
+                                                R_T.get(), static_cast<HypreParMatrix*>(M_LH.get()), true));
 
    precon = std::unique_ptr<HypreBoomerAMG>(
-      new HypreBoomerAMG(static_cast<HypreParMatrix&>(*RTxM_LH)));
+               new HypreBoomerAMG(static_cast<HypreParMatrix&>(*RTxM_LH)));
    static_cast<HypreBoomerAMG&>(*precon).SetPrintLevel(0);
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);

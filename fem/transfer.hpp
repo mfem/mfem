@@ -299,7 +299,7 @@ protected:
    protected:
       /// Computes on-rank R and M_LH matrices
       std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
-         ComputeSparseRAndM_LH();
+                                                                           ComputeSparseRAndM_LH();
       virtual void GetTDofs(const FiniteElementSpace& fes,
                             const Vector& x, Vector& X) const;
       virtual void SetTDofs(const FiniteElementSpace& fes,
