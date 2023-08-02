@@ -5631,10 +5631,18 @@ bool NCMesh::ZeroRootStates() const
    return true;
 }
 
-void NCMesh::Print(std::ostream &os) const
+void NCMesh::Print(std::ostream &os, bool nurbs) const
 {
-   os << "MFEM NC mesh v1.0\n\n"
-      "# NCMesh supported geometry types:\n"
+   if (nurbs)
+   {
+      os << "MFEM NURBS NC-patch mesh v1.0\n\n";
+   }
+   else
+   {
+      os << "MFEM NC mesh v1.0\n\n";
+   }
+
+   os << "# NCMesh supported geometry types:\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
       "# SQUARE      = 3\n"

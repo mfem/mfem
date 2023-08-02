@@ -556,8 +556,12 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
-   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
+   bool Conforming() const
+   {
+      return NURBSext != NULL ||
+             (mesh->Conforming() && cP == NULL);
+   }
+   bool Nonconforming() const { return !Conforming(); }
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once

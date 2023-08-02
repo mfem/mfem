@@ -65,7 +65,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
       Vector::Load(input, fes->GetVSize());
 
       // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
-      if (fes->Nonconforming() &&
+      if (fes->Nonconforming() && fes->GetMesh()->ncmesh &&
           fes->GetMesh()->ncmesh->IsLegacyLoaded())
       {
          LegacyNCReorder();

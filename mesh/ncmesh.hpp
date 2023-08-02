@@ -378,7 +378,7 @@ public:
 
 
    /// I/O: Print the mesh in "MFEM NC mesh v1.0" format.
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &out, bool nurbs=false) const;
 
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
