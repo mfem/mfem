@@ -1985,13 +1985,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
          }
       }
 
-      MFEM_FOREACH_THREAD(_i, x, d)
+      MFEM_FOREACH_THREAD(i, x, d)
       {
-         MFEM_FOREACH_THREAD(_j, y, d)
+         MFEM_FOREACH_THREAD(j, y, d)
          {
-            MFEM_FOREACH_THREAD(_k, z, d)
+            MFEM_FOREACH_THREAD(k, z, d)
             {
-               xx(_i, _j, _k) = 0.0;
+               xx(i, j, k) = 0.0;
             }
          }
       }
