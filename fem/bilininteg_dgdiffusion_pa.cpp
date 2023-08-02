@@ -1075,44 +1075,40 @@ static void PADGDiffusionApply(const int dim,
 {
    if (dim == 2)
    {
+      auto kernel = PADGDiffusionApply2D<0,0>;
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x23: return PADGDiffusionApply2D<2,3>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x34: return PADGDiffusionApply2D<3,4>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x45: return PADGDiffusionApply2D<4,5>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x56: return PADGDiffusionApply2D<5,6>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x67: return PADGDiffusionApply2D<6,7>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x78: return PADGDiffusionApply2D<7,8>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x89: return PADGDiffusionApply2D<8,9>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                        dxdn,y,dydn);
-         case 0x9A: return PADGDiffusionApply2D<9,10>(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,
-                                                         dxdn,y,dydn);
-         default:   return PADGDiffusionApply2D(NF,B,Bt,G,Gt,sigma,kappa,pa_data,x,dxdn,
-                                                   y,dydn,D1D,Q1D);
+         case 0x23: kernel = PADGDiffusionApply2D<2,3>; break;
+         case 0x34: kernel = PADGDiffusionApply2D<3,4>; break;
+         case 0x45: kernel = PADGDiffusionApply2D<4,5>; break;
+         case 0x56: kernel = PADGDiffusionApply2D<5,6>; break;
+         case 0x67: kernel = PADGDiffusionApply2D<6,7>; break;
+         case 0x78: kernel = PADGDiffusionApply2D<7,8>; break;
+         case 0x89: kernel = PADGDiffusionApply2D<8,9>; break;
+         case 0x9A: kernel = PADGDiffusionApply2D<9,10>; break;
       }
+      kernel(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
    }
    else if (dim == 3)
    {
+      auto kernel = PADGDiffusionApply3D<0,0>;
       switch ((D1D << 4) | Q1D)
       {
-      case 0x24: return PADGDiffusionApply3D<2,4>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x35: return PADGDiffusionApply3D<3,5>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x46: return PADGDiffusionApply3D<4,6>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x57: return PADGDiffusionApply3D<5,7>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x68: return PADGDiffusionApply3D<6,8>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x79: return PADGDiffusionApply3D<7,9>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x8A: return PADGDiffusionApply3D<8,10>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      case 0x9B: return PADGDiffusionApply3D<9,11>(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn);
-      default:   return PADGDiffusionApply3D(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
+         case 0x24: kernel = PADGDiffusionApply3D<2,4>; break;
+         case 0x35: kernel = PADGDiffusionApply3D<3,5>; break;
+         case 0x46: kernel = PADGDiffusionApply3D<4,6>; break;
+         case 0x57: kernel = PADGDiffusionApply3D<5,7>; break;
+         case 0x68: kernel = PADGDiffusionApply3D<6,8>; break;
+         case 0x79: kernel = PADGDiffusionApply3D<7,9>; break;
+         case 0x8A: kernel = PADGDiffusionApply3D<8,10>; break;
+         case 0x9B: kernel = PADGDiffusionApply3D<9,11>; break;
       }
+      kernel(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
    }
-   MFEM_ABORT("Unknown kernel.");
+   else
+   {
+      MFEM_ABORT("Unsupported dimension");
+   }
 }
 
 void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
