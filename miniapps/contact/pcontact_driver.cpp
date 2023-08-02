@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
    ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
    ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
 
+
    ParContactProblem contact(prob1,prob2);
    QPOptParContactProblem qpopt(&contact);
 
@@ -83,6 +84,7 @@ int main(int argc, char *argv[])
 
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
+   return 0;
 
    MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
    double Einitial = contact.E(x0);

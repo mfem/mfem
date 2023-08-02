@@ -96,6 +96,7 @@ private:
    std::vector<int> dof_offsets;
    std::vector<int> vertex_offsets; 
    std::vector<int> constraints_offsets; 
+   Array<int> tdof_offsets;
    Array<int> constraints_starts;
    Array<int> globalvertices1;
    Array<int> globalvertices2;
@@ -105,6 +106,7 @@ protected:
    int gnpoints=0;
    int nv, gnv;
    HypreParMatrix * K = nullptr;
+   BlockDiagonalPreconditioner * prec = nullptr;
    BlockVector *B = nullptr;
    Vector gapv;
    HypreParMatrix * M=nullptr;
@@ -130,6 +132,7 @@ public:
    Vector & GetGapFunction() {return gapv;}
 
    HypreParMatrix * GetJacobian() {return M;}
+   BlockDiagonalPreconditioner * GetPreconditioner() {return prec;}
    Array<HypreParMatrix*> & GetHessian() {return dM;}
    void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2, bool reduced=false);
 
@@ -149,6 +152,7 @@ public:
       {
          delete dM[i];
       }
+      delete prec;
    }
 };
 
@@ -178,6 +182,7 @@ public:
    HypreParMatrix * Duc(const BlockVector &);
    HypreParMatrix * Dmc(const BlockVector &);
    HypreParMatrix * lDuuc(const BlockVector &, const Vector &);
+   BlockDiagonalPreconditioner * GetPreconditioner() {return problem->GetPreconditioner();}
    void c(const BlockVector &, Vector &);
    double CalcObjective(const BlockVector &);
    void CalcObjectiveGrad(const BlockVector &, BlockVector &);

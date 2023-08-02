@@ -78,12 +78,30 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob1_, ParElasticit
    int ndof1 = prob1->GetNumTDofs();
    int ndof2 = prob2->GetNumTDofs();
 
+   tdof_offsets.SetSize(3);
+   tdof_offsets[0] = 0;
+   tdof_offsets[1] = ndof1;
+   tdof_offsets[2] = ndof2;
+   tdof_offsets.PartialSum();
+
    Array2D<HypreParMatrix*> A(2,2);
    A(0,0) = &prob1->GetOperator();
    A(1,1) = &prob2->GetOperator();
    A(1,0) = nullptr;
    A(0,1) = nullptr;
    K = HypreParMatrixFromBlocks(A);
+
+   HypreBoomerAMG * amg1 = new HypreBoomerAMG(prob1->GetOperator());
+   amg1->SetElasticityOptions(prob1->GetFESpace());
+   amg1->SetPrintLevel(0);
+   HypreBoomerAMG * amg2 = new HypreBoomerAMG(prob2->GetOperator());
+   amg2->SetElasticityOptions(prob2->GetFESpace());
+   amg2->SetPrintLevel(0);
+
+   prec = new BlockDiagonalPreconditioner(tdof_offsets);
+   prec->owns_blocks = 1;
+   prec->SetDiagonalBlock(0,amg1);
+   prec->SetDiagonalBlock(1,amg2);
 
    Array<int> offsets(3);
    offsets[0] = 0;
@@ -335,6 +353,7 @@ void ParContactProblem::g(const Vector &d, Vector &gd, bool reduced)
    double * data = d.GetData();
    Vector displ1(data,ndof1);
    Vector displ2(&data[ndof1],ndof2);
+
    if (recompute)
    {
       ComputeGapFunctionAndDerivatives(displ1, displ2, reduced);

@@ -116,6 +116,7 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
    x0block.GetBlock(1) = 100.;
    x0block.GetBlock(1).Add(1.0, ml);
    BlockVector xfblock(block_offsetsx); xfblock = 0.0;
+
    Mult(x0block, xfblock);
    xf.Set(1.0, xfblock.GetBlock(0));
 }
@@ -158,6 +159,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    * that is the filter does not allow for iterates where the constraint violation
    * is larger than that of thetaMax
    */
+
    double theta0 = theta(xk);
    thetaMin = 1.e-4 * max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
@@ -435,7 +437,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
       HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
       
-      
       HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
       HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
       /* prepare the reduced rhs */
@@ -468,14 +469,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       }
       else
       {
-         HyprePCG AreducedSolver(MPI_COMM_WORLD);
+         CGSolver AreducedSolver(MPI_COMM_WORLD);
 	      AreducedSolver.SetOperator(*Areduced);
-	      HypreBoomerAMG AreducedPrec;
-         AreducedPrec.SetPrintLevel(0);
-         AreducedSolver.SetTol(linSolveTol);
+         AreducedSolver.SetRelTol(linSolveTol);
          AreducedSolver.SetMaxIter(500);
-         AreducedSolver.SetPreconditioner(AreducedPrec);
-         AreducedSolver.SetResidualConvergenceOptions(); // convergence criteria based on residual norm
+         AreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
 	      AreducedSolver.SetPrintLevel(0);
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
       }
@@ -731,7 +729,7 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
 
 double ParInteriorPointSolver::theta(const BlockVector &x)
 {
-   Vector cx(dimC); cx = 0.0;
+   Vector cx(dimC);
    problem->c(x, cx);
    return sqrt(InnerProduct(MPI_COMM_WORLD,cx, cx));
 }

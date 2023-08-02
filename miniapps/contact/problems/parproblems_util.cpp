@@ -213,7 +213,6 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
 {
    const int dim = mesh.Dimension();
    const int np = xyz.Size() / dim;
-
    MFEM_VERIFY(np * dim == xyz.Size(), "");
 
    mesh.EnsureNodes();
