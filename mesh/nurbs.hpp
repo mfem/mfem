@@ -21,6 +21,7 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
+#include <set>
 
 namespace mfem
 {
@@ -252,6 +253,12 @@ protected:
 
    Array<NURBSPatch *> patches;
 
+   std::set<int> masterEdges;
+   std::vector<int> slaveEdges;
+   std::map<int,int> masterEdgeToId;
+   std::vector<std::vector<int>> masterEdgeSlaves;
+   std::vector<std::vector<int>> masterEdgeVerts;
+
    inline int         KnotInd(int edge) const;
    /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
@@ -345,11 +352,15 @@ protected:
    // to be used by ParNURBSExtension constructor(s)
    NURBSExtension() { }
 
+private:
+   void GetVertexDofs(int index, Array<int> &dofs) const;
+   int GetEdgeDofs(int index, Array<int> &dofs) const;
+
 public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension
-   NURBSExtension(std::istream &input);
+   NURBSExtension(std::istream &input, bool nc);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the knot vectors and using uniform weights of 1. */
    /** If a knot vector in @a parent already has order greater than or equal to
@@ -468,6 +479,13 @@ public:
 
    const Array<int>& GetPatchElements(int patch);
    const Array<int>& GetPatchBdrElements(int patch);
+
+   bool Conforming() const { return patchTopo->Conforming(); }
+
+   NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
+
+   // TODO: this function is not used. Should it be kept?
+   int GetEntityDofs(int entity, int index, Array<int> &dofs) const;
 };
 
 
@@ -513,6 +531,9 @@ private:
 
    int I, J, K, pOffset, opatch;
    Array<int> verts, edges, faces, oedge, oface;
+   Array<bool> edgeMaster;
+   Array<int> edgeMasterOffset;
+   Array<int> masterDofs;
 
    inline static int F(const int n, const int N)
    { return (n < 0) ? 0 : ((n >= N) ? 2 : 1); }
@@ -526,6 +547,9 @@ private:
    // also set verts, edges, faces, orientations etc
    void GetPatchKnotVectors   (int p, const KnotVector *kv[]);
    void GetBdrPatchKnotVectors(int p, const KnotVector *kv[], int *okv);
+
+   void SetMasterEdges2D(bool dof);
+   int GetMasterEdgeDof(const int e, const int i) const;
 
 public:
    NURBSPatchMap(const NURBSExtension *ext) { Ext = ext; }
@@ -729,13 +753,17 @@ inline int NURBSPatchMap::operator()(const int i, const int j) const
    switch (3*F(j1, J) + F(i1, I))
    {
       case 0: return verts[0];
-      case 1: return edges[0] + Or1D(i1, I, oedge[0]);
+      case 1: return !edgeMaster[0] ? edges[0] + Or1D(i1, I, oedge[0]) :
+                        GetMasterEdgeDof(0, Or1D(i1, I, oedge[0]));
       case 2: return verts[1];
-      case 3: return edges[3] + Or1D(j1, J, -oedge[3]);
+      case 3: return !edgeMaster[3] ? edges[3] + Or1D(j1, J, -oedge[3]):
+                        GetMasterEdgeDof(3, Or1D(j1, J, -oedge[3]));
       case 4: return pOffset + Or2D(i1, j1, I, J, opatch);
-      case 5: return edges[1] + Or1D(j1, J, oedge[1]);
+      case 5: return !edgeMaster[1] ? edges[1] + Or1D(j1, J, oedge[1]) :
+                        GetMasterEdgeDof(1, Or1D(j1, J, oedge[1]));
       case 6: return verts[3];
-      case 7: return edges[2] + Or1D(i1, I, -oedge[2]);
+      case 7: return !edgeMaster[2] ? edges[2] + Or1D(i1, I, -oedge[2]) :
+                        GetMasterEdgeDof(2, Or1D(i1, I, -oedge[2]));
       case 8: return verts[2];
    }
 #ifdef MFEM_DEBUG

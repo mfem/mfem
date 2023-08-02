@@ -149,7 +149,8 @@ public:
    /// Shortcut for calling SetFromTrueDofs() with GetTrueVector() as argument.
    void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
-   /// Returns the values in the vertices of i'th element for dimension vdim.
+   /** @brief Returns the values in the vertices of i'th element for the 1-based
+       dimension vdim. */
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
 
    /** @name Element index Get Value Methods
@@ -304,7 +305,8 @@ public:
    /// For a vector grid function, makes sure that the ordering is byNODES.
    void ReorderByNodes();
 
-   /// Return the values as a vector on mesh vertices for dimension vdim.
+   /** @brief Returns the values as a vector on mesh vertices for the 1-based
+       dimension vdim. */
    void GetNodalValues(Vector &nval, int vdim = 1) const;
 
    void GetVectorFieldNodalValues(Vector &val, int comp) const;
