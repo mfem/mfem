@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
 
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
-   return 0;
 
    MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
    double Einitial = contact.E(x0);
