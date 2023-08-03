@@ -235,7 +235,8 @@ public:
    virtual int GetNumIterations() const;
 };
 
-/* Bramble-Pasciak Solver for Darcy equation.
+/** Bramble-Pasciak Solver for Darcy equation.
+ *  TBD: more documentation
  */
 class BramblePasciakSolver : public DarcySolver
 {
@@ -243,21 +244,33 @@ class BramblePasciakSolver : public DarcySolver
    BlockOperator op_;
    BlockOperator map_;
    BlockDiagonalPreconditioner pc_;
-   SparseMatrix *local_minus_id;
+   std::unique_ptr<HypreParMatrix> Q_;
    Array<int> ess_zero_dofs_;
-   HypreParMatrix *ConstructMassPreconditioner(const
-                                               std::shared_ptr<ParBilinearForm> &a) const;
-   void Init(HypreParMatrix *A, HypreParMatrix *B, HypreParMatrix *Q,
-             const IterSolveParameters &param);
 
+   void Init(const HypreParMatrix &M, const HypreParMatrix &B,
+             const HypreParMatrix &Q, const IterSolveParameters &param);
 public:
+   /// The system and the mass preconditioner are constructed from the
+   /// bilinear forms
    BramblePasciakSolver(
-      const std::shared_ptr<ParBilinearForm> &a,
-      const std::shared_ptr<ParMixedBilinearForm> &b,
+      const std::shared_ptr<ParBilinearForm> &mVarf,
+      const std::shared_ptr<ParMixedBilinearForm> &bVarf,
       const IterSolveParameters &param);
+
+   /// The ystem and mass preconditioner are user-provided
    BramblePasciakSolver(
-      HypreParMatrix &A, HypreParMatrix &B, HypreParMatrix &Q,
-      const IterSolveParameters &param);
+      const HypreParMatrix &M, const HypreParMatrix &B,
+      const HypreParMatrix &Q, const IterSolveParameters &param);
+
+   /// Assemble a preconditioner for the mass matrix
+   /** Mass preconditioner corresponds to a local re-scaling
+    * based on the smallest eigenvalue of the generalized
+    * eigenvalue problem locally on each element T:
+    *         M_T x_T = \lambda_T diag(M_T) x_T
+    * and we set Q_T = 0.5 * min(\lambda_T) * diag(M_T).
+   */
+   static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf);
+
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
