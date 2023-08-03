@@ -738,8 +738,8 @@ static void PADGDiffusionApply3D(const int NF,
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      MFEM_SHARED double u0[max_D1D][max_D1D];
-      MFEM_SHARED double u1[max_D1D][max_D1D];
+      MFEM_SHARED double u0[max_Q1D][max_Q1D];
+      MFEM_SHARED double u1[max_Q1D][max_Q1D];
 
       MFEM_SHARED double du0[max_Q1D][max_Q1D];
       MFEM_SHARED double du1[max_Q1D][max_Q1D];
@@ -747,20 +747,18 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_SHARED double Gu0[max_Q1D][max_D1D];
       MFEM_SHARED double Gu1[max_Q1D][max_D1D];
 
-      MFEM_SHARED double Bu0[max_Q1D][max_D1D];
-      MFEM_SHARED double Bu1[max_Q1D][max_D1D];
-
-      MFEM_SHARED double BBu0[max_Q1D][max_Q1D];
-      MFEM_SHARED double BBu1[max_Q1D][max_Q1D];
+      MFEM_SHARED double Bu0[max_Q1D][max_Q1D];
+      MFEM_SHARED double Bu1[max_Q1D][max_Q1D];
 
       MFEM_SHARED double Bdu0[max_Q1D][max_D1D];
       MFEM_SHARED double Bdu1[max_Q1D][max_D1D];
 
-      MFEM_SHARED double r[max_Q1D][max_Q1D];
-
       MFEM_SHARED double Jump[max_Q1D][max_Q1D];
 
-      double (*Br)[max_D1D] = Bu0;
+      double (*BBu0)[max_Q1D] = u0;
+      double (*BBu1)[max_Q1D] = u1;
+      double (*r)[max_Q1D] = Bu0;
+      double (*Br)[max_Q1D] = Bu1;
       double (*Bj0)[max_D1D] = Bdu0;
       double (*Bj1)[max_D1D] = Bdu1;
       double (*Gj0)[max_D1D] = Gu0;
@@ -786,7 +784,7 @@ static void PADGDiffusionApply3D(const int NF,
       // copy face values to u0, u1 and copy normals to du0, du1
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
 
          MFEM_FOREACH_THREAD(d1, x, D1D)
@@ -803,9 +801,9 @@ static void PADGDiffusionApply3D(const int NF,
       // eval u and normal derivative @ quad points
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         double (*Bu)[max_D1D] = (side == 0) ? Bu0 : Bu1;
+         double (*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
          double (*Bdu)[max_D1D] = (side == 0) ? Bdu0 : Bdu1;
          double (*Gu)[max_D1D] = (side == 0) ? Gu0 : Gu1;
 
@@ -836,7 +834,7 @@ static void PADGDiffusionApply3D(const int NF,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         double (*Bu)[max_D1D] = (side == 0) ? Bu0 : Bu1;
+         double (*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
          double (*BBu)[max_Q1D] = (side == 0) ? BBu0 : BBu1;
          double (*Gu)[max_D1D] = (side == 0) ? Gu0 : Gu1;
          double (*Bdu)[max_D1D] = (side == 0) ? Bdu0 : Bdu1;
@@ -971,7 +969,7 @@ static void PADGDiffusionApply3D(const int NF,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
          double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
          double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
@@ -1019,7 +1017,7 @@ static void PADGDiffusionApply3D(const int NF,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
 
          MFEM_FOREACH_THREAD(d1, x, D1D)
@@ -1042,7 +1040,7 @@ static void PADGDiffusionApply3D(const int NF,
       // map back to y and dydn
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         const double (*u)[max_D1D] = (side == 0) ? u0 : u1;
+         const double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          const double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
 
          MFEM_FOREACH_THREAD(d1, x, D1D)
