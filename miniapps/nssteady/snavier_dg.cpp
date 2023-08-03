@@ -3,14 +3,14 @@
 namespace mfem{
 
 /// Constructor
-SNavierPicardDGSolver::SNavierPicardDGSolver(ParMesh* mesh,
-											 int sigorder,
-                                             int uorder,
-                                             int porder,
+SNavierPicardDGSolver::SNavierPicardDGSolver(ParMesh* mesh_,
+											 int sigorder_,
+                                             int uorder_,
+                                             int porder_,
                                              double kin_vis_,
 											 double kappa_0_,
-                                             bool verbose):
-pmesh(mesh), sigorder(sigorder), uorder(uorder), porder(porder), verbose(verbose)
+                                             bool verbose_):
+pmesh(mesh_), sigorder(sigorder_), uorder(uorder_), porder(porder_), verbose(verbose_)
 {
    // mesh
    dim  = pmesh->Dimension();
@@ -41,12 +41,12 @@ pmesh(mesh), sigorder(sigorder), uorder(uorder), porder(porder), verbose(verbose
    uk_coeff = new VectorGridFunctionCoefficient(&uk_gf);
 
    // initialize vectors & arrays
-   block_offsets     = new Array<int>(3);
-   trueblock_offsets = new Array<int>(3);
+   block_offsets.SetSize(3);
    block_offsets[0] = 0;
    block_offsets[1] = ufes->GetVSize();
    block_offsets[2] = pfes->GetVSize();
    block_offsets.PartialSum();
+   trueblock_offsets.SetSize(3);
    trueblock_offsets[0] = 0;
    trueblock_offsets[1] = ufes->GetTrueVSize();
    trueblock_offsets[2] = pfes->GetTrueVSize();
@@ -56,10 +56,10 @@ pmesh(mesh), sigorder(sigorder), uorder(uorder), porder(porder), verbose(verbose
    rhs_bvec = new BlockVector(block_offsets);
    truex_bvec = new BlockVector(trueblock_offsets);
    truerhs_bvec = new BlockVector(trueblock_offsets);
-   x_bvec = 0.0;
-   rhs_bvec = 0.0;
-   truex_bvec = 0.0;
-   truerhs_bvec = 0.0;
+   x_bvec->operator=(0.0);
+   rhs_bvec->operator=(0.0);
+   truex_bvec->operator=(0.0);
+   truerhs_bvec->operator=(0.0);
 
    // set kinematic viscosity
    kin_vis.constant = kin_vis_;
@@ -78,7 +78,6 @@ pmesh(mesh), sigorder(sigorder), uorder(uorder), porder(porder), verbose(verbose
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
-
 }
 
 /// Public Interface
@@ -388,7 +387,7 @@ void SNavierPicardDGSolver::Step()
 	/// Solve
 	// TODO: Currently, we call MUMPS from PETSc. May need to change to iterative solver later
 #ifndef MFEM_USE_PETSC
-	if (petsc && pmesh->GetMyRank() == 0)
+	if (sParams_Lin.petsc && pmesh->GetMyRank() == 0)
 		mfem_error("MFEM does not use PETSc. Need other parallel solver! (WIP)");
 #endif
 
@@ -399,11 +398,11 @@ void SNavierPicardDGSolver::Step()
 	PetscParMatrix *M_pmat;
 #endif
 
-	if(petsc)
+	if(sParams_Lin.petsc)
 	{
 #ifdef MFEM_USE_PETSC
 		M_pmat = new PetscParMatrix(OseenMono);
-		petsc_solver = new PetscLinearSolver(pmesh->MyComm(), "solver_");
+		petsc_solver = new PetscLinearSolver(MPI_COMM_WORLD, "solver_");
 		petsc_solver->SetOperator(*M_pmat);
 
 
@@ -412,6 +411,12 @@ void SNavierPicardDGSolver::Step()
 		petsc_solver->SetAbsTol(0.0);
 		petsc_solver->SetMaxIter(sParams_Lin.maxIter);
 		petsc_solver->SetPrintLevel(sParams_Lin.pl);
+		if (verbose && pmesh->GetMyRank() == 0){
+			std::cout << std::endl;
+			std::cout << "=========================================================="<< std::endl;
+			std::cout << " Solve the linear system by PETSc" << std::endl;
+			std::cout << "=========================================================="<< std::endl;
+		}
 		petsc_solver->Mult(*truerhs_bvec, *truex_bvec);
 		if (verbose && pmesh->GetMyRank() == 0)
 		{
@@ -421,6 +426,8 @@ void SNavierPicardDGSolver::Step()
 		  else
 			  std::cout << "Solver did not converge in " << petsc_solver->GetNumIterations()
 			  << " iterations. Residual norm is " << petsc_solver->GetFinalNorm() << ".\n";
+		  std::cout << "=========================================================="<< std::endl;
+		  std::cout << std::endl;
 		}
 
 		delete petsc_solver;

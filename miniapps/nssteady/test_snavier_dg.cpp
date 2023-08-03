@@ -11,8 +11,8 @@ struct s_NavierContext
 {
    // Mesh
    int dim = 2;
-   int elem= 0;
-   int n   = 10;
+   int elem= 1;
+   int n   = 1;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int total_ref_levels= 0; // for convergence study
@@ -286,15 +286,17 @@ int main(int argc, char *argv[])
    int sigorder=ctx.order;
    if(ctx.reduce_order_sig)
 	   sigorder -= 1;
-   SNavierPicardDGSolver* NSSolver = new SNavierPicardDGSolver(pmesh, sigorder,ctx.order,porder, ctx.kappa_0, ctx.kinvis, ctx.verbose);
+   SNavierPicardDGSolver* NSSolver = new SNavierPicardDGSolver(pmesh, sigorder, ctx.order, porder, ctx.kappa_0, ctx.kinvis, ctx.verbose);
+
 
    // Set parameters of the Fixed Point Solver
    SolverParams sFP = {ctx.picard_it_rtol, ctx.picard_it_atol, ctx.max_picard_it, ctx.setPrintLevel_Picard};   // rtol, atol, maxIter, print level
    NSSolver->SetFixedPointSolver(sFP);
 
    // Set parameters of the Linear Solvers
-   SolverParams sL = {ctx.lin_it_rtol, ctx.lin_it_atol, ctx.max_lin_it, ctx.setPrintLevel_Lin, ctx.petscrc_file};
+   SolverParams sL = {ctx.lin_it_rtol, ctx.lin_it_atol, ctx.max_lin_it, ctx.setPrintLevel_Lin, ctx.petsc, ctx.petscrc_file};
    NSSolver->SetLinearSolvers(sL);
+
 
    //
    /// Add boundary conditions (Velocity-Dirichlet, Traction) and forcing term/s
@@ -324,7 +326,6 @@ int main(int argc, char *argv[])
 	   // Oseen solve
 	   NSSolver->SetInitialConditionVel(u_ex, w_field);
    }
-
    //
    /// Finalize Setup of solver
    //

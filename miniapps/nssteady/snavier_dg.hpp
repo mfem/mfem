@@ -32,9 +32,15 @@ struct SolverParams {
     int maxIter = 1000;
     int      pl = 0;
     const char *petscrc_file = "rc_direct"; // this will only be used in PETSc.
+    bool petsc=true;
 
-    SolverParams(double rtol_ = 1e-6, double atol_ = 1e-10, int maxIter_ = 1000, int pl_ = 0, const char *petscrc_file_ = "rc_direct")
-        : rtol(rtol_), atol(atol_), maxIter(maxIter_), pl(pl_), petscrc_file(petscrc_file_){}
+    SolverParams(double rtol_ = 1e-6,
+    		     double atol_ = 1e-10,
+				 int maxIter_ = 1000,
+				 int pl_ = 0,
+				 bool petsc=true,
+				 const char *petscrc_file_ = "rc_direct")
+        : rtol(rtol_), atol(atol_), maxIter(maxIter_), pl(pl_), petsc(petsc), petscrc_file(petscrc_file_){}
 };
 
 /// Container for vector coefficient holding coeff and mesh attribute (useful for BCs and forcing terms).
@@ -117,7 +123,13 @@ public:
 class SNavierPicardDGSolver{
 public:
 
-	SNavierPicardDGSolver(ParMesh* mesh, int sorder=1, int vorder=2, int porder=1, double kin_vis_=0, double kappa_0_=1, bool verbose=false);
+	SNavierPicardDGSolver(ParMesh* mesh_,
+			             int sorder_=1,
+						 int vorder_=2,
+						 int porder_=1,
+						 double kin_vis_=1,
+						 double kappa_0_=1,
+						 bool verbose_=false);
 	~SNavierPicardDGSolver();
 
     //TODO: add comments later
