@@ -207,12 +207,12 @@ private:
 
 public:
 	DGVectorAvgNormalJumpIntegration(const double _lambda):lambda(_lambda){}
-	   void AssembleFaceMatrix(const FiniteElement &tr_fe1,
-	                           const FiniteElement &tr_fe2,
-	                           const FiniteElement &te_fe1,
-	                           const FiniteElement &te_fe2,
-	                           FaceElementTransformations &T,
-	                           DenseMatrix &elmat);
+	void AssembleFaceMatrix(const FiniteElement &tr_fe1,
+	                        const FiniteElement &tr_fe2,
+	                        const FiniteElement &te_fe1,
+	                        const FiniteElement &te_fe2,
+	                        FaceElementTransformations &T,
+	                        DenseMatrix &elmat);
 };
 
 

@@ -31,22 +31,23 @@ struct SolverParams {
     double atol = 1e-10;
     int maxIter = 1000;
     int      pl = 0;
+    const char *petscrc_file = "rc_direct"; // this will only be used in PETSc.
 
-    SolverParams(double rtol_ = 1e-6, double atol_ = 1e-10, int maxIter_ = 1000, int pl_ = 0)
-        : rtol(rtol_), atol(atol_), maxIter(maxIter_), pl(pl_) {}
+    SolverParams(double rtol_ = 1e-6, double atol_ = 1e-10, int maxIter_ = 1000, int pl_ = 0, const char *petscrc_file_ = "rc_direct")
+        : rtol(rtol_), atol(atol_), maxIter(maxIter_), pl(pl_), petscrc_file(petscrc_file_){}
 };
 
 /// Container for vector coefficient holding coeff and mesh attribute (useful for BCs and forcing terms).
-class VecCoeffContainer
+class VecFcnCoeffContainer
 {
 public:
-   VecCoeffContainer(Array<int> attr, VectorCoefficient *coeff_)
+   VecFcnCoeffContainer(Array<int> attr, VectorFunctionCoefficient *coeff_)
       : attr(attr)
    {
       this->coeff = coeff_;
    }
 
-   VecCoeffContainer(VecCoeffContainer &&obj)
+   VecFcnCoeffContainer(VecFcnCoeffContainer &&obj)
    {
       // Deep copy the attribute array
       this->attr = obj.attr;
@@ -56,44 +57,14 @@ public:
       obj.coeff = nullptr;
    }
 
-   ~VecCoeffContainer()
+   ~VecFcnCoeffContainer()
    {
         delete coeff;
         coeff=nullptr;
     }
 
    Array<int> attr;
-   VectorCoefficient *coeff = nullptr;
-};
-
-/// Container for coefficient holding coeff, mesh attribute id (i.e. not the full array) and direction (x,y,z) (useful for componentwise BCs).
-class CompCoeffContainer
-{
-public:
-   CompCoeffContainer(Array<int> attr, Coefficient *coeff, int dir)
-      : attr(attr), coeff(coeff), dir(dir)
-   {}
-
-   CompCoeffContainer(CompCoeffContainer &&obj)
-   {
-      // Deep copy the attribute and direction
-      this->attr = obj.attr;
-      this->dir = obj.dir;
-
-      // Move the coefficient pointer
-      this->coeff = obj.coeff;
-      obj.coeff = nullptr;
-   }
-
-   ~CompCoeffContainer()
-   {
-        delete coeff;
-        coeff=nullptr;
-    }
-
-   Array<int> attr;
-   int dir;
-   Coefficient *coeff;
+   VectorFunctionCoefficient *coeff = nullptr;
 };
 
 /**
@@ -146,17 +117,14 @@ public:
 class SNavierPicardDGSolver{
 public:
 
-    SNavierPicardDGSolver(ParMesh* mesh, int sorder=1, int vorder=2, int porder=1, double kin_vis_=0, bool verbose=false);
-
-    ~SNavierPicardDGSolver();
+	SNavierPicardDGSolver(ParMesh* mesh, int sorder=1, int vorder=2, int porder=1, double kin_vis_=0, double kappa_0_=1, bool verbose=false);
+	~SNavierPicardDGSolver();
 
     //TODO: add comments later
-    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
-    void AddVelDirichletBC(VectorCoefficient *coeff, int &attr);
-    void AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int &dir);
-    void AddVelDirichletBC(Coefficient *coeff, int &attr, int &dir);
-    void AddTractionBC(VectorCoefficient *coeff, Array<int> &attr);
-    void AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr);
+    void AddVelDirichletBC(VectorFunctionCoefficient *coeff, Array<int> &attr);
+    void AddVelDirichletBC(VectorFunctionCoefficient *coeff, int &attr);
+    void AddTractionBC(VectorFunctionCoefficient *coeff, Array<int> &attr);
+    void AddAccelTerm(VectorFunctionCoefficient *coeff, Array<int> &attr);
 
     /// Solver setup and Solution
 
@@ -175,7 +143,7 @@ public:
     * the LDG formulation of the Oseen equations.
     *
     */
-    void SetLinearSolvers(SolverParams params1, SolverParams params2, SolverParams params3);
+    void SetLinearSolvers(SolverParams params);
 
     /**
     * \brief Finalizes setup.
@@ -204,7 +172,7 @@ public:
     * \brief Set the initial condition for Velocity.
     *
     */
-    void SetInitialConditionVel(VectorCoefficient &v_in);
+    void SetInitialConditionVel(VectorCoefficient &u_in, VectorCoefficient &w_in);
 
     /**
     * \brief Solve forward problem.
@@ -235,21 +203,12 @@ public:
     /**
     * \brief Returns the velocity solution vector.
     */
-    Vector& GetVSol(){return *u;}
+    ParGridFunction* GetVSol(){return &u_gf;}
 
     /**
     * \brief Returns the pressure solution vector.
     */
-    Vector& GetPSol(){return *p;}
-
-    /**
-    * \brief Returns the pressure solution (GridFunction).
-    */
-    ParGridFunction& GetPressure()
-    {
-        p_gf.SetFromTrueDofs(*p);
-        return p_gf;
-    }
+    ParGridFunction* GetPSol(){return &p_gf;}
 
 private:
     /// mesh
@@ -257,12 +216,12 @@ private:
     int dim;
 
     /// Velocity and Pressure FE spaces
-    ParFiniteElementSpace* sigfes=nullptr;
-    ParFiniteElementSpace* ufes=nullptr;
-    ParFiniteElementSpace* pfes=nullptr;
     FiniteElementCollection* sigfec=nullptr;
     FiniteElementCollection* ufec=nullptr;
     FiniteElementCollection* pfec=nullptr;
+    ParFiniteElementSpace* sigfes=nullptr;
+    ParFiniteElementSpace* ufes=nullptr;
+    ParFiniteElementSpace* pfes=nullptr;
     int sigorder;
     int uorder;
     int porder;
@@ -275,71 +234,72 @@ private:
     ParGridFunction uk_gf;          // velocity from previous iteration
 
     /// (Vector) GridFunction coefficients wrapping uk_gf
-    VectorGridFunctionCoefficient *uk_vc = nullptr;
+    VectorGridFunctionCoefficient *uk_coeff; // velocity at previous iteration
 
     /// Dirichlet conditions
-    Array<int> vel_ess_attr;          // Essential attributes (full velocity applied).
-    Array<int> vel_ess_attr_x;        // Essential attributes (x component applied).
-    Array<int> vel_ess_attr_y;        // Essential attributes (y component applied).
-    Array<int> vel_ess_attr_z;        // Essential attributes (z component applied).
-    Array<int> ess_attr_tmp;          // Temporary variable for essential attributes.
-
-    Array<int> vel_ess_tdof;          // All essential true dofs.
-    Array<int> vel_ess_tdof_full;     // All essential true dofs from VectorCoefficient.
-    Array<int> vel_ess_tdof_x;        // All essential true dofs x component.
-    Array<int> vel_ess_tdof_y;        // All essential true dofs y component.
-    Array<int> vel_ess_tdof_z;        // All essential true dofs z component.
+    Array<int> nbc_bdr;          	// Neumann attributes (pseudo-traction applied)
+    Array<int> dbc_bdr;				// Dirichlet attributes (full velocity applied).
+    Array<int> tmp_bdr;
 
     // Bookkeeping for velocity dirichlet bcs (full Vector coefficient).
-    std::vector<VecCoeffContainer> vel_dbcs;
-
-    // Bookkeeping for velocity dirichlet bcs (componentwise).
-    std::string dir_string;    // string for direction name for printing output
-    std::vector<CompCoeffContainer> vel_dbcs_xyz;
+    std::vector<VecFcnCoeffContainer> vel_dbcs;
 
     // Bookkeeping for traction (neumann) bcs.
-    std::vector<VecCoeffContainer> traction_bcs;
+    std::vector<VecFcnCoeffContainer> traction_bcs;
 
     // Bookkeeping for acceleration (forcing) terms.
-    std::vector<VecCoeffContainer> accel_terms;
+    std::vector<VecFcnCoeffContainer> accel_terms;
 
     /// Bilinear/linear forms
-    ParBilinearForm      *ainv=nullptr;
-    ParMixedBilinearForm *b=nullptr;
-    ParBilinearForm      *c=nullptr;
-    ParMixedBilinearForm *d=nullptr;
+    ParBilinearForm      *ainv_form=nullptr;
+    ParMixedBilinearForm *b_form=nullptr;
+    ParBilinearForm      *c_form=nullptr;
+    ParMixedBilinearForm *d_form=nullptr;
 
-    ParLinearForm *f=nullptr;
-    ParLinearForm *g=nullptr;
-    ParLinearForm *h=nullptr
+    ParLinearForm *f_form=nullptr;
+    ParLinearForm *g_form=nullptr;
+    ParLinearForm *h_form=nullptr;
+
+    /// Arrays
+    Array<int> block_offsets;     // number of variables + 1
+    Array<int> trueblock_offsets; // number of variables + 1
 
 	/// Vectors
-    ParGridFunction *u    = nullptr;    // velocity solution
-    ParGridFunction *p    = nullptr;    // pressure solution vector
-    ParGridFunction *uk   = nullptr;    // velocity at previous iteration
-    BlockVector *x      = nullptr;
-    BlockVector *truex  = nullptr;
-	BlockVector *rhs    = nullptr;
-	BlockVector *truerhs= nullptr;
+//    ParGridFunction *u    = nullptr;    // velocity solution
+//    ParGridFunction *p    = nullptr;    // pressure solution vector
+//    ParGridFunction *uk   = nullptr;    // velocity at previous iteration
+
+    BlockVector *x_bvec      = nullptr;
+    BlockVector *truex_bvec  = nullptr;
+	BlockVector *rhs_bvec    = nullptr;
+	BlockVector *truerhs_bvec= nullptr;
 
 	/// Matrices/operators
-	HypreParMatrix *stokeMono = nullptr;
-	HypreParMatrix *Ainv = nullptr;
-	HypreParMatrix *B = nullptr;
-	HypreParMatrix *Bt = nullptr;
-	HypreParMatrix *C = nullptr;
-	HypreParMatrix *D = nullptr;
-	HypreParMatrix *nD = nullptr;
-	HypreParMatrix *BtAinv = nullptr;
-	HypreParMatrix *BtAinvB_C = nullptr;
-	HypreParMatrix *zero= nullptr;
+	Array2D< HypreParMatrix* > OseenOp;
+	HypreParMatrix *OseenMono = nullptr;
+	HypreParMatrix *Ainv_mat = nullptr;
+	HypreParMatrix *B_mat = nullptr;
+	HypreParMatrix *Bt_mat = nullptr;
+	HypreParMatrix *C_mat = nullptr;
+	HypreParMatrix *D_mat = nullptr;
+	HypreParMatrix *nD_mat = nullptr;
+	HypreParMatrix *BtAinv_mat = nullptr;
+	HypreParMatrix *BtAinvB_mat = nullptr;
+	HypreParMatrix *BtAinvB_C_mat = nullptr;
+	HypreParMatrix *zero_mat= nullptr;
 
-	HypreParVector *F=nullptr;
-	HypreParVector *BtAinvF=nullptr;
-	HypreParVector *G=nullptr;
+	HypreParVector *F_vec=nullptr;
+	HypreParVector *BtAinvF_vec=nullptr;
+	HypreParVector *G_vec=nullptr;
 
     /// Kinematic viscosity.
     ConstantCoefficient kin_vis;
+
+    /// Reynolds number
+    double Re;
+
+    /// Stabilization parameter
+    double kappa_0;
 
     /// Load vector coefficient
     VectorFunctionCoefficient *fcoeff = nullptr;
@@ -348,13 +308,11 @@ private:
     VectorFunctionCoefficient *traction = nullptr;
 
     /// Fixed point solver parameters
-    SolverParams sParams;
+    SolverParams sParams_Picard;
     int iter;
 
     /// Linear solvers parameters
-    SolverParams s1Params;
-    SolverParams s2Params;
-    SolverParams s3Params;
+    SolverParams sParams_Lin;
 
     /// Solvers and Preconditioners
 
@@ -387,22 +345,11 @@ private:
     /// Compute error for pressure and velocity
     void ComputeError();
 
+    /// Compute the residual of the momentum equation
+    void ComputeRes();
+
     /// Update solution for next iteration
     void UpdateSolution();
-
-    /**
-    * \brief Matrix vector multiplication.
-    *
-    * Multiply matrix and vector.
-    *
-    * \param ess_tdof_list List of essential degrees of freedom
-    * \param mat   modified matrix (obtained by EliminateRowsCols)
-    * \param mat_e eliminated matrix (obtained by EliminateRowsCols)
-    * \param x     vector being multiplied
-    * \param y     vector for storing the result
-    *
-    */
-    void FullMult(HypreParMatrix* mat, HypreParMatrix* mat_e, Vector &x, Vector &y);
 
     // Save results in Paraview or GLVis format
     void SaveResults( int iter );
