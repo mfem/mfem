@@ -44,9 +44,9 @@ ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
 
-   MPI_Allreduce(&dimU,&gdimU,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
-   MPI_Allreduce(&dimM,&gdimM,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
-   MPI_Allreduce(&dimC,&gdimC,1,MPI_DOUBLE,MPI_SUM,problem->GetComm());
+   MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,problem->GetComm());
+   MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,problem->GetComm());
+   MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,problem->GetComm());
 
    ckSoc.SetSize(dimC);
 
