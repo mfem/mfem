@@ -160,6 +160,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                                               dfs_spaces_.GetL2FES());
 
    mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   mVarf_->ComputeElementMatrices();
    mVarf_->Assemble();
    mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
    mVarf_->Finalize();
@@ -359,8 +360,8 @@ int main(int argc, char *argv[])
 
    ResetTimer();
    BramblePasciakSolver bp(darcy.GetMform(), darcy.GetBform(), param);
-   // bp.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bp] = chrono.RealTime();
+
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
