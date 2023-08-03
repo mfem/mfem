@@ -1,0 +1,15 @@
+# Options for the Krylov solver
+#-ksp_view
+#-ksp_converged_reason
+
+# -solver_ksp_type gmres
+
+ -solver_ksp_type preonly
+ -solver_pc_type lu
+ -solver_pc_factor_mat_solver_type mumps
+# -solver_pc_factor_mat_solver_type superlu_dist
+  
+# Options for the preconditioner
+#-solver_pc_type jacobi      # DiagScal
+#-solver_pc_jacobi_type rowsum
+#-solver_pc_jacobi_abs  
