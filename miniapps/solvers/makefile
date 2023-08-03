@@ -79,6 +79,13 @@ lor_solvers-test-seq: lor_solvers
 plor_solvers-test-par: plor_solvers
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
 	  -m ../../data/fichera.mesh)
+lor_elast-test-par: lor_elast-tri lor_elast-hex
+lor_elast-tri: lor_elast
+	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 2 -ca -pa -ss\
+	  -m ../../data/beam-tri.mesh -o 2)
+lor_elast-hex: lor_elast
+	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 1 -pa -o 2\
+	  -m ../../data/beam-hex.mesh)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

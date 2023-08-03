@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
@@ -123,9 +122,9 @@ int main(int argc, char *argv[])
    args.AddOption(&componentwise_action, "-ca", "--component-action", "-no-ca",
                   "--no-component-action",
                   "Uses partial assembly with a block operator of components instead of the monolithic vector integrator.");
-   args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
-                  "--no-paraview",
-                  "Enable or disable ParaView DataCollection output.");
+   args.AddOption(&paraview, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable Paraview output.");
    args.Parse();
    if (!args.Good())
    {
@@ -354,20 +353,21 @@ int main(int argc, char *argv[])
          {
             for (int i = 0; i < dim; i++)
             {
-               auto *block = static_cast<decltype(integrator)*>(integrator.ComponentIntegrator(
-                                                                   i,j));
-               auto *fes_block = dynamic_cast<ParFiniteElementSpace*>
-                                 (const_cast<FiniteElementSpace*>(block->GetFESpace()));
+               auto *action_block = static_cast<decltype(integrator)*>
+                                    (integrator.ComponentIntegrator(
+                                        i,j));
+               auto *action_fes_block = dynamic_cast<ParFiniteElementSpace*>
+                                        (const_cast<FiniteElementSpace*>(action_block->GetFESpace()));
                if (i == j)
                {
-                  fespaces.emplace_back(fes_block);
+                  fespaces.emplace_back(action_fes_block);
                }
-               pa_components.emplace_back(new ParBilinearForm(fes_block));
+               pa_components.emplace_back(new ParBilinearForm(action_fes_block));
                pa_components[i + dim*j]->SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL :
                                                           AssemblyLevel::FULL);
                pa_components[i + dim*j]->ExtUseTensorBasis(false);
                pa_components[i + dim*j]->EnableSparseMatrixSorting(Device::IsEnabled());
-               pa_components[i + dim*j]->AddDomainIntegrator(block);
+               pa_components[i + dim*j]->AddDomainIntegrator(action_block);
                pa_components[i + dim*j]->Assemble();
             }
          }
