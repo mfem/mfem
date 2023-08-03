@@ -250,14 +250,13 @@ class BramblePasciakSolver : public DarcySolver
    void Init(const HypreParMatrix &M, const HypreParMatrix &B,
              const HypreParMatrix &Q, const IterSolveParameters &param);
 public:
-   /// The system and the mass preconditioner are constructed from the
-   /// bilinear forms
+   /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
       const std::shared_ptr<ParBilinearForm> &mVarf,
       const std::shared_ptr<ParMixedBilinearForm> &bVarf,
       const IterSolveParameters &param);
 
-   /// The ystem and mass preconditioner are user-provided
+   /// System and mass preconditioner are user-provided
    BramblePasciakSolver(
       const HypreParMatrix &M, const HypreParMatrix &B,
       const HypreParMatrix &Q, const IterSolveParameters &param);
@@ -266,8 +265,8 @@ public:
    /** Mass preconditioner corresponds to a local re-scaling
     * based on the smallest eigenvalue of the generalized
     * eigenvalue problem locally on each element T:
-    *         M_T x_T = \lambda_T diag(M_T) x_T
-    * and we set Q_T = 0.5 * min(\lambda_T) * diag(M_T).
+    *         M_T x_T = lambda_T diag(M_T) x_T
+    * and we set Q_T = 0.5 * min(lambda_T) * diag(M_T).
    */
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf);
 
