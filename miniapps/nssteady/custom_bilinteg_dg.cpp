@@ -193,7 +193,7 @@ const FiniteElement &tr_fe1,
 const FiniteElement &tr_fe2,
 const FiniteElement &te_fe1,
 const FiniteElement &te_fe2,
-FaceElementTransformations &T,
+FaceElementTransformations &Trans,
 DenseMatrix &elmat)
 {
 	// dim & dof
@@ -204,7 +204,7 @@ DenseMatrix &elmat)
 	tr_ndof1 = tr_fe1.GetDof();
 	te_ndof1 = te_fe1.GetDof();
 
-   if (T.Elem2No >= 0)
+   if (Trans.Elem2No >= 0)
    {
 	  // interior faces
 	  tr_ndof2 = tr_fe2.GetDof();
@@ -264,7 +264,7 @@ DenseMatrix &elmat)
       {
          order = 2*(tr_fe1.GetOrder() + te_fe1.GetOrder()) + 2;
       }
-      ir = &IntRules.Get(T.GetGeometryType(), order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
 
@@ -272,9 +272,9 @@ DenseMatrix &elmat)
    for (int p=0; p<ir->GetNPoints(); p++)
    {
 		const IntegrationPoint &ip = ir->IntPoint(p);
-		T.SetAllIntPoints(&ip);
-		const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-		const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+		Trans.SetAllIntPoints(&ip);
+		const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+		const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
 		// normal
 		if (dim == 1)
@@ -283,13 +283,13 @@ DenseMatrix &elmat)
 		}
 		else
 		{
-			CalcOrtho(T.Jacobian(), nor);
+			CalcOrtho(Trans.Jacobian(), nor);
 		}
 
 		// normalize nor
 		nor /= nor.Norml2();
 
-		if (T.Elem2No >= 0)
+		if (Trans.Elem2No >= 0)
 		{
 			weight = ip.weight;
 		}
@@ -297,7 +297,7 @@ DenseMatrix &elmat)
 		{
 			weight = ip.weight*2;
 		}
-		weight *= T.Weight();
+		weight *= Trans.Weight();
 
 		// calculate shape functions in element 1 at current integration point
 		tr_fe1.CalcShape(eip1, tr_s1);
@@ -572,7 +572,7 @@ DenseMatrix &elmat)
 
 		el1.CalcShape(eip1, shape1);
 		weight = ip.weight * Trans.Weight();
-		Q->Eval(evalQ, Trans, ip);
+		Q->Eval(evalQ, *Trans.Elem1, ip);
 		inner_prod = evalQ * nor;
 
 		// TODO: The upwind flux can also be expressed in the format of
@@ -638,7 +638,7 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
                                                    const FiniteElement &tr_fe2,
                                                    const FiniteElement &te_fe1,
                                                    const FiniteElement &te_fe2,
-                                                   FaceElementTransformations &T,
+                                                   FaceElementTransformations &Trans,
                                                    DenseMatrix &elmat)
 {
 	// dim & dof
@@ -647,7 +647,7 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
     tr_ndof1 = tr_fe1.GetDof();
     te_ndof1 = te_fe1.GetDof();
 
-    if (T.Elem2No >= 0)
+    if (Trans.Elem2No >= 0)
     {
     	tr_ndof2 = tr_fe2.GetDof();
     	te_ndof2 = te_fe2.GetDof();
@@ -705,7 +705,7 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 	  {
 		 order = 2*(tr_fe1.GetOrder() + te_fe1.GetOrder()) + 2;
 	  }
-	  ir = &IntRules.Get(T.GetGeometryType(), order);
+	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
 
@@ -713,9 +713,9 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 	for (int p=0; p<ir->GetNPoints(); p++)
 	{
 		const IntegrationPoint &ip = ir->IntPoint(p);
-		T.SetAllIntPoints(&ip);
-		const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-		const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+		Trans.SetAllIntPoints(&ip);
+		const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+		const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
 		if (dim == 1)
 		{
@@ -723,13 +723,13 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 		}
 		else
 		{
-			CalcOrtho(T.Jacobian(), nor);
+			CalcOrtho(Trans.Jacobian(), nor);
 		}
 		// normalize nor.
 		nor /= nor.Norml2();
 
 		// below if statement needed so on the boundary {p} = p (definition of {} operator)
-		if (T.Elem2No >= 0)
+		if (Trans.Elem2No >= 0)
 		{
 			weight = ip.weight;
 		}
@@ -737,7 +737,7 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 		{
 			weight = ip.weight*2;
 		}
-		weight *= T.Weight();
+		weight *= Trans.Weight();
 
 		// calc shape functions in element 1 at current integration point
 		tr_fe1.CalcShape(eip1, tr_s1);
@@ -787,14 +787,14 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 }
 
 void TensorDGDirichletLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Trans, Vector &elvect)
 {
    mfem_error("TensorDGDirichletLFIntegrator::AssembleRHSElementVect is not implemented.");
 }
 
 void TensorDGDirichletLFIntegrator::AssembleRHSElementVect(
 const FiniteElement &el,
-FaceElementTransformations &Tr,
+FaceElementTransformations &Trans,
 Vector &elvect
 )
 {
@@ -820,7 +820,7 @@ Vector &elvect
 	if (ir == NULL)
 	{
 	  int order = 2*el.GetOrder() + 2;
-	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
+	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
 	// sum up all quadrature nodes along with weights
@@ -829,10 +829,10 @@ Vector &elvect
 		const IntegrationPoint &ip = ir->IntPoint(p);
 
 		// Set the integration point in the face and the neighboring element
-		Tr.SetAllIntPoints(&ip);
+		Trans.SetAllIntPoints(&ip);
 
 		// Access the neighboring element's integration point
-		const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+		const IntegrationPoint &eip = Trans.GetElement1IntPoint();
 
 		if (dim == 1)
 		{
@@ -840,16 +840,16 @@ Vector &elvect
 		}
 		else
 		{
-		 CalcOrtho(Tr.Jacobian(), nor); // normal in reference space
+		 CalcOrtho(Trans.Jacobian(), nor); // normal in reference space
 		}
 
 		// normalize nor.
 		nor /= nor.Norml2();
 
 		// eval coefficient Q and shape functions at current integration point
-		Q->Eval(evalQ, Tr, ip);
+		Q->Eval(evalQ, Trans, ip);
 		el.CalcShape(eip, shape);
-		weight = Tr.Weight()*ip.weight;
+		weight = Trans.Weight()*ip.weight;
 
 		for (int d1=0; d1<vdim; d1++) // u_{1} ... u_{dim} (Dirichlet data)
 			for (int d2=0; d2<vdim; d2++)
@@ -860,13 +860,13 @@ Vector &elvect
 }
 
 void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Trans, Vector &elvect)
 {
    mfem_error("VectorDGDirichletLFIntegrator::AssembleRHSElementVect is not implemented.");
 }
 
 void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+   const FiniteElement &el, FaceElementTransformations &Trans, Vector &elvect)
 {
 	// dim & dof
 	dim  = el.GetDim();
@@ -891,7 +891,7 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 	if (ir == NULL)
 	{
 	  int order = 2*el.GetOrder() + 2;
-	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
+	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
 	// Computing edge length (or surface area)
@@ -902,8 +902,8 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 			const IntegrationPoint &ip = ir->IntPoint(p);
 
 			// Set the integration point in the face and the neighboring elements
-			Tr.SetAllIntPoints(&ip);
-			h = h + ip.weight*Tr.Face->Weight();
+			Trans.SetAllIntPoints(&ip);
+			h = h + ip.weight*Trans.Face->Weight();
 		}
 	}
 
@@ -913,10 +913,10 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 		const IntegrationPoint &ip = ir->IntPoint(p);
 
 		// Set the integration point in the face and the neighboring element
-		Tr.SetAllIntPoints(&ip);
+		Trans.SetAllIntPoints(&ip);
 
 		// Access the neighboring element's integration point
-		const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+		const IntegrationPoint &eip = Trans.GetElement1IntPoint();
 
 		if (dim == 1)
 		{
@@ -924,7 +924,7 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 		}
 		else
 		{
-			CalcOrtho(Tr.Jacobian(), nor); // normal in reference space
+			CalcOrtho(Trans.Jacobian(), nor); // normal in reference space
 		}
 		// normalize nor.
 		nor /= nor.Norml2();
@@ -932,12 +932,12 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 		el.CalcShape(eip, shape);
 
 		// compute uD through the face transformation
-		uD->Eval(evaluD,Tr,ip);
+		uD->Eval(evaluD, Trans, ip);
 
 		if (Q == NULL){
 			// do nothing
 		}else{
-			Q->Eval(evalQ,Tr,ip);
+			Q->Eval(evalQ,*Trans.Elem1,ip);
 			inner_prod = evalQ*nor;
 
 					// sanity check for the condition of inflow boundaries
@@ -947,7 +947,7 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 		//			}
 		}
 
-		weight = ip.weight * Tr.Weight();	// weight * face Jacobian
+		weight = ip.weight * Trans.Weight();	// weight * face Jacobian
 		for (int d=0; d<vdim; d++)
 			for(int i=0; i<ndof; i++){
 				if (Q == NULL){
@@ -961,13 +961,13 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 }
 
 void VectorDGNeumannLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Trans, Vector &elvect)
 {
    mfem_error("VectorDGNeumannLFIntegrator::AssembleRHSElementVect is not implemented.");
 }
 
 void VectorDGNeumannLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+   const FiniteElement &el, FaceElementTransformations &Trans, Vector &elvect)
 {
 	// dim & dof
 	dim = el.GetDim();
@@ -992,7 +992,7 @@ void VectorDGNeumannLFIntegrator::AssembleRHSElementVect(
 	{
 	  // a simple choice for the integration order; is this OK?
 	  int order = 2*el.GetOrder() + 2;
-	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
+	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
 
@@ -1001,26 +1001,26 @@ void VectorDGNeumannLFIntegrator::AssembleRHSElementVect(
 		const IntegrationPoint &ip = ir->IntPoint(p);
 
 		// Set the integration point in the face and the neighboring element
-		Tr.SetAllIntPoints(&ip);
+		Trans.SetAllIntPoints(&ip);
 
 		// Access the neighboring element's integration point
-		const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+		const IntegrationPoint &eip = Trans.GetElement1IntPoint();
 		if (dim == 1)
 		{
 		 nor(0) = 2*eip.x - 1.0;
 		}
 		else
 		{
-		 CalcOrtho(Tr.Jacobian(), nor); // normal in reference space
+		 CalcOrtho(Trans.Jacobian(), nor); // normal in reference space
 		}
 		// normalize nor.
 		nor /= nor.Norml2();
 
 		el.CalcShape(eip, shape);
 		// compute uD through the face transformation
-		Q->Eval(evalQ,Tr,ip);
+		Q->Eval(evalQ, Trans,ip);
 
-		weight = ip.weight * Tr.Weight();	// weight * face Jacobian
+		weight = ip.weight * Trans.Weight();	// weight * face Jacobian
 		for (int te_d=0; te_d<vdim; te_d++)
 			for (int tr_d=0; tr_d<vdim; tr_d++)
 				for(int i=0; i<ndof; i++)
@@ -1030,13 +1030,13 @@ void VectorDGNeumannLFIntegrator::AssembleRHSElementVect(
 }
 
 void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
-   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Trans, Vector &elvect)
 {
 	mfem_error("BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect is not implemented.");
 }
 
 void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
-   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+   const FiniteElement &el, FaceElementTransformations &Trans, Vector &elvect)
 {
 	// dim & dof
 	dim = el.GetDim();
@@ -1059,7 +1059,7 @@ void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
 	{
 	  // a simple choice for the integration order;
 	  int order = 2*el.GetOrder() + 2;
-	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
+	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
 	// sum up all quadrature nodes along with weights
@@ -1068,24 +1068,24 @@ void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
 		const IntegrationPoint &ip = ir->IntPoint(p);
 
 		// Set the integration point in the face and the neighboring element
-		Tr.SetAllIntPoints(&ip);
+		Trans.SetAllIntPoints(&ip);
 
 		// Access the neighboring element's integration point
-		const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+		const IntegrationPoint &eip = Trans.GetElement1IntPoint();
 		if (dim == 1)
 		{
 		 nor(0) = 2*eip.x - 1.0;
 		}
 		else
 		{
-		 CalcOrtho(Tr.Jacobian(), nor); // normal in reference space
+		 CalcOrtho(Trans.Jacobian(), nor); // normal in reference space
 		}
 		// normalize nor.
 		nor /= nor.Norml2();
 
-		Q.Eval(evalQ, Tr, ip);
+		Q.Eval(evalQ, Trans, ip);
 		el.CalcShape(eip, shape);
-		weight = Tr.Weight()*ip.weight;
+		weight = Trans.Weight()*ip.weight;
 
 		elvect.Add(weight*(evalQ*nor), shape);
 	}

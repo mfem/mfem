@@ -211,7 +211,7 @@ public:
 	                        const FiniteElement &tr_fe2,
 	                        const FiniteElement &te_fe1,
 	                        const FiniteElement &te_fe2,
-	                        FaceElementTransformations &T,
+	                        FaceElementTransformations &Trans,
 	                        DenseMatrix &elmat);
 };
 
@@ -359,7 +359,7 @@ public:
                            const FiniteElement &tr_fe2,
                            const FiniteElement &te_fe1,
                            const FiniteElement &te_fe2,
-                           FaceElementTransformations &T,
+                           FaceElementTransformations &Trans,
                            DenseMatrix &elmat);
 };
 
@@ -398,10 +398,10 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
+                                       FaceElementTransformations &Trans,
                                        Vector &elvect);
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
+                                       ElementTransformation &Trans,
                                        Vector &elvect);
 };
 
@@ -446,10 +446,10 @@ public:
       : uD(&u), lambda(_lambda), kappa(0.0), Q(&_Q) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
+                                       ElementTransformation &Trans,
                                        Vector &elvect);
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
+                                       FaceElementTransformations &Trans,
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
@@ -494,10 +494,10 @@ public:
       : Q(&_Q), lambda(_lambda) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
+                                       ElementTransformation &Trans,
                                        Vector &elvect);
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
+                                       FaceElementTransformations &Trans,
                                        Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
@@ -535,11 +535,11 @@ public:
       : Q(QG), lambda(_lambda), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
+                                       ElementTransformation &Trans,
                                        Vector &elvect);
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
+                                       FaceElementTransformations &Trans,
                                        Vector &elvect); // added this
 
    using LinearFormIntegrator::AssembleRHSElementVect;
