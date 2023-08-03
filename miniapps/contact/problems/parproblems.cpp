@@ -297,6 +297,10 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
       localdSs[k] = new SparseMatrix(ndofs,gndofs); 
    }
    dmcomm.Communicate(dS,localdSs);
+   for (int i = 0; i<gnpts; i++)
+   {
+      delete dS[i];
+   }
    // --------------------------------------------------------------------
 
    MFEM_VERIFY(HYPRE_AssumedPartitionCheck(), "Hypre_AssumedPartitionCheck is False");
@@ -325,6 +329,14 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
                           localS.GetI(), localS.GetJ(),localS.GetData(),
                           Mrows,Mcols);
    HypreStealOwnership(*M, localS);
+
+   // TODO Construct Mi HypreParMatrix
+   // ...
+
+   for (int k = 0; k<gnpts; k++)
+   {
+      delete localdSs[k]; 
+   }
 }
 
 double ParContactProblem::E(const Vector & d)

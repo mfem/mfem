@@ -153,6 +153,8 @@ public:
          delete dM[i];
       }
       delete prec;
+      delete vfes1;
+      delete vfes2;
    }
 };
 

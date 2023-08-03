@@ -35,6 +35,8 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
    /// for each point found by FindPoints.
    Vector dist = finder.GetDist();
 
+   finder.FreeData();
+
    MFEM_VERIFY(dist.Size() == np, "");
    MFEM_VERIFY(refcrd.Size() == np * dim, "");
    MFEM_VERIFY(elems.Size() == np, "");
@@ -241,6 +243,8 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
    /// Return distance between the sought and the found point in physical space,
    /// for each point found by FindPoints.
    Vector dist = finder.GetDist();
+
+   finder.FreeData();
 
    MFEM_VERIFY(dist.Size() == np, "");
    MFEM_VERIFY(refcrd.Size() == np * dim, "");
