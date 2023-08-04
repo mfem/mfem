@@ -4952,7 +4952,7 @@ void ParMesh::Print(std::ostream &os) const
    }
 }
 
-void ParMesh::Save(const char *fname, int precision) const
+void ParMesh::Save(const std::string &fname, int precision) const
 {
    ostringstream fname_with_suffix;
    fname_with_suffix << fname << "." << setfill('0') << setw(6) << MyRank;
@@ -5615,7 +5615,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
    return serialmesh;
 }
 
-void ParMesh::SaveAsOne(const char *fname, int precision) const
+void ParMesh::SaveAsOne(const std::string &fname, int precision) const
 {
    ofstream ofs;
    if (MyRank == 0)
@@ -6505,7 +6505,7 @@ static void PrintVertex(const Vertex &v, int space_dim, ostream &os)
    }
 }
 
-void ParMesh::PrintSharedEntities(const char *fname_prefix) const
+void ParMesh::PrintSharedEntities(const std::string &fname_prefix) const
 {
    stringstream out_name;
    out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank
