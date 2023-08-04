@@ -321,11 +321,11 @@ SparseMatrix* InitialCoefficient::compute_K() {
   SparseMatrix * K;
   K = new SparseMatrix(ndof, ndof);
   int dof = (*alpha)[0].Size();
+  int i, j;
+  
   for (int k = 1; k < N_control; ++k) {
     for (int m = 0; m < dof; ++m) {
-      int i = (*J)[k][m];
       for (int n = 0; n < dof; ++n) {
-        int j = (*J)[k][n];
         // K->Add(i, j, weight * (*alpha)[k][m] * (*alpha)[k][n]);
         // K->Add(i, j,
         //        + (*alpha)[k][m] * (*alpha)[k][n]
@@ -333,12 +333,29 @@ SparseMatrix* InitialCoefficient::compute_K() {
         //        - (*alpha)[k-1][m] * (*alpha)[k][n]
         //        + (*alpha)[k-1][m] * (*alpha)[k-1][n]
         //        );
-        K->Add(i, j,
-               + (*alpha)[k][m] * (*alpha)[k][n]
-               - (*alpha)[k][m] * (*alpha)[0][n]
-               - (*alpha)[0][m] * (*alpha)[k][n]
-               + (*alpha)[0][m] * (*alpha)[0][n]
-               );
+        // K->Add(i, j,
+        //        + (*alpha)[k][m] * (*alpha)[k][n]
+        //        - (*alpha)[k][m] * (*alpha)[0][n]
+        //        - (*alpha)[0][m] * (*alpha)[k][n]
+        //        + (*alpha)[0][m] * (*alpha)[0][n]
+        //        );
+
+        i = (*J)[k][m];
+        j = (*J)[k][n];
+        K->Add(i, j, (*alpha)[k][m] * (*alpha)[k][n]);
+        
+        i = (*J)[k][m];
+        j = (*J)[0][n];
+        K->Add(i, j, - (*alpha)[k][m] * (*alpha)[0][n]);
+
+        i = (*J)[0][m];
+        j = (*J)[k][n];
+        K->Add(i, j, - (*alpha)[0][m] * (*alpha)[k][n]);
+        
+        i = (*J)[0][m];
+        j = (*J)[0][n];
+        K->Add(i, j, + (*alpha)[0][m] * (*alpha)[0][n]);
+
       }
     }
   }

@@ -273,7 +273,201 @@ SparseMatrix* SysOperator::compute_hess_obj(const Vector &psi) {
 }
 
 
+double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
 
+  model->set_alpha_bar(alpha);
+
+  double val_ma, val_x;
+  int iprint = 0;
+  set<int> plasma_inds_;
+  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+  psi_x = val_x;
+  psi_ma = val_ma;
+  plasma_inds = plasma_inds_;
+
+  double* x_ma_ = mesh->GetVertex(ind_ma);
+  double* x_x_ = mesh->GetVertex(ind_x);
+  x_ma = x_ma_;
+  x_x = x_x_;
+
+  NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
+
+  LinearForm plasma_term(fespace);
+  plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
+  plasma_term.Assemble();
+
+  Plasma_Current = plasma_term(ones);
+  Plasma_Current *= -1.0;
+
+  return Plasma_Current;
+  
+}
+
+
+
+
+
+
+
+
+
+
+void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, double &alpha) {
+
+  GridFunction x(fespace);
+  x = psi;
+
+  // set alpha in the plasma model
+  model->set_alpha_bar(alpha);
+
+  // compute the x point and magnetic axis
+  double val_ma, val_x;
+  int iprint = 0;
+  set<int> plasma_inds_;
+  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+  psi_x = val_x;
+  psi_ma = val_ma;
+  plasma_inds = plasma_inds_;
+  double* x_ma_ = mesh->GetVertex(ind_ma);
+  double* x_x_ = mesh->GetVertex(ind_x);
+  x_ma = x_ma_;
+  x_x = x_x_;
+
+  // ------------------------------------------------
+  // *** compute res ***
+  // contribution from plasma terms
+  NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
+  LinearForm plasma_term(fespace);
+  plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
+  plasma_term.Assemble();
+
+  // contribution from LHS
+  diff_operator->Mult(psi, res);
+  add(res, -1.0, *coil_term, res);
+  if (include_plasma) {
+    add(res, -1.0, plasma_term, res);
+  }
+
+  // contribution from currents
+  F->AddMult(*currents, res, -model->get_mu());
+
+  // boundary conditions
+  Vector u_b_exact, u_tmp, u_b;
+  psi.GetSubVector(boundary_dofs, u_b);
+  u_tmp = u_b;
+  u_boundary->GetSubVector(boundary_dofs, u_b_exact);
+  u_tmp -= u_b_exact;
+  res.SetSubVector(boundary_dofs, u_tmp);
+
+  // zero-out residual where we are interpolating from a guess
+  res *= hat;
+
+  // ------------------------------------------------
+  // *** compute jacobian ***
+
+  // first nonlinear contribution: bilinear operator
+  NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, psi_ma, psi_x, plasma_inds, attr_lim);
+  BilinearForm diff_plasma_term_2(fespace);
+  diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
+  diff_plasma_term_2.Assemble();
+
+  // second nonlinear contribution: corresponds to the magnetic axis point column in jacobian
+  NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, psi_ma, psi_x, plasma_inds, attr_lim);
+  LinearForm diff_plasma_term_3(fespace);
+  diff_plasma_term_3.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_3));
+  diff_plasma_term_3.Assemble();
+
+  // third nonlinear contribution: corresponds to the x-point column in jacobian
+  NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, psi_ma, psi_x, plasma_inds, attr_lim);
+  LinearForm diff_plasma_term_4(fespace);
+  diff_plasma_term_4.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_4));
+  diff_plasma_term_4.Assemble();
+
+  // turn diff_operator and diff_plasma_term_2 into sparse matrices
+  SparseMatrix diff_operator_sp_mat = diff_operator->SpMat();
+  SparseMatrix psi_coeff_sp_mat = diff_plasma_term_2.SpMat();
+
+  diff_operator_sp_mat.Finalize();
+  psi_coeff_sp_mat.Finalize();
+
+  // create a new sparse matrix, Mat, that will combine all terms
+  int m = fespace->GetTrueVSize();
+  SparseMatrix *psi_x_psi_ma_coeff_sp_mat;
+  psi_x_psi_ma_coeff_sp_mat = new SparseMatrix(m, m);
+  for (int k = 0; k < m; ++k) {
+    psi_x_psi_ma_coeff_sp_mat->Add(k, ind_ma, -diff_plasma_term_3[k]);
+    psi_x_psi_ma_coeff_sp_mat->Add(k, ind_x, -diff_plasma_term_4[k]);
+  }
+  psi_x_psi_ma_coeff_sp_mat->Finalize();
+
+  // psi_x_psi_ma_coeff_sp_mat->PrintMatlab();
+
+  SparseMatrix *Mat_Prelim;
+  if (!include_plasma) {
+    Mat_Prelim = Add(1.0, diff_operator_sp_mat, 0.0, diff_operator_sp_mat);
+  } else {
+    Mat_Prelim = Add(1.0, diff_operator_sp_mat, -1.0, psi_coeff_sp_mat);
+  }
+  for (int k = 0; k < boundary_dofs.Size(); ++k) {
+    Mat_Prelim->EliminateRow((boundary_dofs)[k], DIAG_ONE);
+  }
+
+  if (!include_plasma) {
+    By = Add(1.0, *Mat_Prelim, 0.0, *Mat_Prelim);
+  } else {
+    By = Add(*Mat_Prelim, *psi_x_psi_ma_coeff_sp_mat);
+  }
+  // By->Finalize();
+
+  // printf("----------*****----\n");
+  // By->PrintMatlab();
+  // ------------------------------------------------
+  // *** compute B_alpha ***
+  
+  // derivative with respect to alpha
+  NonlinearGridCoefficient nlgcoeff_5(model, 5, &x, psi_ma, psi_x, plasma_inds, attr_lim);
+
+  // int_{Omega} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} v dr dz
+  LinearForm diff_plasma_term_5(fespace);
+  diff_plasma_term_5.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_5));
+  diff_plasma_term_5.Assemble();
+
+  Ba = diff_plasma_term_5;
+  Ba *= -1.0;
+
+  // ------------------------------------------------
+  // *** compute plasma current ***
+  // Ip = int ...
+  // d_\psi ...
+  SparseMatrix *Mat_Plasma;
+  Mat_Plasma = Add(-1.0, *psi_x_psi_ma_coeff_sp_mat, 1.0, psi_coeff_sp_mat);
+
+  // GridFunction ones(fespace);
+  // ones = 1.0;
+  plasma_current = plasma_term(ones);
+  plasma_current *= -1.0;
+  
+  // ------------------------------------------------
+  // *** compute Cy ***
+  Vector Plasma_Vec_(m);
+  Mat_Plasma->MultTranspose(ones, Plasma_Vec_);
+  Plasma_Vec_ *= -1.0;
+  Cy = Plasma_Vec_;
+
+  // ------------------------------------------------
+  // *** compute Ca ***
+  // - int_{Omega_p} 1 / (mu r) \frac{d \bar{S}_{ff'}}{da} dr dz
+  Ca = diff_plasma_term_5(ones);
+  Ca *= -1.0;
+
+  // printf("%e\n", Ca);
+
+
+
+}
+
+
+////////////////////////////////////////////////////////////////
 void SysOperator::Mult(const Vector &psi, Vector &y) const {
   // diff_operator * psi - plasma_term(psi) * psi - coil_term
   
@@ -285,7 +479,7 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   double val_ma, val_x;
   int iprint = 0;
   set<int> plasma_inds_;
-  compute_plasma_points(x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
+  compute_plasma_points(&x, *mesh, vertex_map, plasma_inds_, ind_ma, ind_x, val_ma, val_x, iprint);
   psi_x = val_x;
   psi_ma = val_ma;
   plasma_inds = plasma_inds_;

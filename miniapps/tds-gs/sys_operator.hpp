@@ -30,36 +30,49 @@ private:
   int attr_lim;
   Array<int> boundary_dofs;
   GridFunction *u_boundary;
-  SparseMatrix *F;
-  SparseMatrix *H;
-  SparseMatrix *K;
-  vector<Vector> *alpha_coeffs;
-  vector<Array<int>> *J_inds;
-
   bool include_plasma = true;
 
   GridFunction hat;
   GridFunction ones;
 
-  Vector *g;
   Vector *uv_currents;
   mutable Vector Plasma_Vec;
   mutable double Alpha_Term;
   mutable double Plasma_Current;
   mutable Vector B_alpha;
 
+  double *alpha_bar;
+  int N_control;
+
+  // related to x-point and magnetic axis
   mutable double psi_x;
   mutable double psi_ma;
-
-  mutable double * x_x;
   mutable double * x_ma;
-
+  mutable double * x_x;
   mutable int ind_ma;
   mutable int ind_x;
   mutable set<int> plasma_inds;
+
+  // related to optimization
+  SparseMatrix *F;
+  SparseMatrix *H;
+  SparseMatrix *K;
+  Vector *g;
+  vector<Vector> *alpha_coeffs;
+  vector<Array<int>> *J_inds;
+
+  //
+  GridFunction res;
+  GridFunction Ba;
+  GridFunction Cy;
+  // Vector res;
+  // Vector Ba;
+  // Vector Cy;
+  SparseMatrix *By;
+  double plasma_current;
+  double Ca;
   
-  double *alpha_bar;
-  int N_control;
+  
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
               PlasmaModelBase *model_, FiniteElementSpace *fespace_,
@@ -109,6 +122,32 @@ public:
     GridFunction ones_(fespace);
     ones_ = 1.0;
     ones = ones_;
+
+    int vsize = fespace->GetTrueVSize();
+
+    // Vector res_(vsize);
+    GridFunction res_(fespace);
+    res_ = 0.0;
+    res = res_;
+
+    // Vector Ba_(vsize);
+    GridFunction Ba_(fespace);
+    Ba_ = 0.0;
+    Ba = Ba_;
+
+    // Vector Cy_(vsize);
+    GridFunction Cy_(fespace);
+    Cy_ = 0.0;
+    Cy = Cy_;
+    // GridFunction Cy_(fespace);
+    // Cy_ = 0.0;
+    // Cy = Cy_;
+
+    // int m = fespace->GetTrueVSize();
+    // SparseMatrix By_(m, m);
+    // By = By_;
+    
+    
   }
   virtual void Mult(const Vector &psi, Vector &y) const;
   virtual Operator &GetGradient(const Vector &psi) const;
@@ -124,8 +163,6 @@ public:
   double get_mu() {
     return model->get_mu();
   }
-
-  
   SparseMatrix * GetF() {
     return F;
   }
@@ -165,12 +202,30 @@ public:
   double get_psi_ma() {
     return psi_ma;
   }
+  int get_ind_x() {
+    return ind_x;
+  }
+  int get_ind_ma() {
+    return ind_ma;
+  }
   double* get_x_x() {
     return x_x;
   }
   double* get_x_ma() {
     return x_ma;
   }
+
+  Vector get_res() {return res;}
+  // GridFunction* get_res() {return res;}
+  SparseMatrix get_By() {return *By;}
+  Vector get_Ba() {return Ba;}
+  double get_plasma_current() {return plasma_current;}
+  Vector get_Cy() {return Cy;}
+  double get_Ca() {return Ca;}
+
+  double get_plasma_current(GridFunction &x, double &alpha);
+
+  void NonlinearEquationRes(GridFunction &x, Vector *currents, double &alpha);
     
 };
 

@@ -35,7 +35,7 @@ void test_plasma_point_calculator() {
   double val_ma, val_x;
   int iprint = 1;
   set<int> plasma_inds;
-  compute_plasma_points(psi_init, mesh, vertex_map, plasma_inds, ind_ma, ind_x, val_ma, val_x, iprint);
+  compute_plasma_points(&psi_init, mesh, vertex_map, plasma_inds, ind_ma, ind_x, val_ma, val_x, iprint);
 
   init_coeff.SetPlasmaInds(plasma_inds);
   psi_init.ProjectCoefficient(init_coeff);

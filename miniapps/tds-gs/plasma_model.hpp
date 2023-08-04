@@ -220,7 +220,7 @@ public:
   virtual ~NonlinearGridCoefficient() { }
 };
 
-void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
+void compute_plasma_points(GridFunction * z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
                            set<int> & plasma_inds,
                            int &ind_min, int &ind_max, double &min_val, double & max_val,

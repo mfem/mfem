@@ -1,3 +1,101 @@
+   --mesh meshes/iter_gen.msh
+   --order 1
+   --data_file separated_file.data
+   --refinement_factor 0
+   --test 0
+   --initial 1
+   --model 1
+   --alpha 1
+   --beta 2
+   --gamma 0.9
+   --plasma_current 1.5e+07
+   --N_control 10
+   --mu 1
+   --r_zero 1
+   --rho_gamma 2.5
+   --do_manufactured_solution 0
+   --max_krylov_iter 1000
+   --max_newton_iter 5
+   --krylov_tol 1e-12
+   --newton_tol 1e-12
+   --c1 0
+   --c2 3
+   --c3 1
+   --c4 1
+   --c5 1
+   --c6 1
+   --c7 1
+   --c8 1
+   --c9 1
+   --c10 1
+   --c11 1
+   --ur_coeff 1
+   --do_control 1
+   --weight_solenoids 1e-05
+   --weight_coils 1e-05
+solving for initial guess
+Elements with wrong orientation: 2721 / 2745 (fixed)
+Boundary elements with wrong orientation: 123 / 187 (fixed)
+f_x = -32.86
+f_ma = -34.3793
+Number of unknowns: 1466
+
+
+
+./../gslib/field-interp -m1 initial.mesh -s1 initial_guess.gf -m2 mesh.mesh
+
+
+
+
+Options used:
+   --mesh meshes/iter_gen.msh
+   --order 1
+   --data_file separated_file.data
+   --refinement_factor 2
+   --test 0
+   --initial 1
+   --model 1
+   --alpha 1
+   --beta 1
+   --gamma 0
+   --plasma_current 1.5e+07
+   --N_control 40
+   --mu 1.25664e-06
+   --r_zero 2.4
+   --rho_gamma 16
+   --do_manufactured_solution 0
+   --max_krylov_iter 10000
+   --max_newton_iter 30
+   --krylov_tol 1e-09
+   --newton_tol 1e-12
+   --c1 1143.28
+   --c2 -24786.9
+   --c3 -30220.4
+   --c4 -22056.6
+   --c5 -2848.11
+   --c6 4.55258e+06
+   --c7 -3.1806e+06
+   --c8 -5.6781e+06
+   --c9 -3.82554e+06
+   --c10 -1.0665e+07
+   --c11 2.09477e+07
+   --ur_coeff 1
+   --do_control 1
+   --weight_solenoids 1e-16
+   --weight_coils 1e-16
+solving for initial guess
+Elements with wrong orientation: 2721 / 2745 (fixed)
+Boundary elements with wrong orientation: 123 / 187 (fixed)
+f_x = -32.86
+f_ma = -34.3793
+Number of unknowns: 22334
+11
+11
+size: 0
+size: 0
+
+
+
 7/3:
 
 sys_operator.hpp

@@ -219,11 +219,9 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double f_ma = model->get_f_ma();
   double f_x = model->get_f_x();
   double alpha_bar = model->get_alpha_bar();
-  // double alpha = alpha_bar * (f_ma - f_x);
   double alpha = alpha_bar;
   double beta = model->get_beta();
   double gamma = model->get_gamma();
-  // cout << alpha << beta << gamma << endl;
 
   double psi_val;
   Mesh *gf_mesh = psi->FESpace()->GetMesh();
@@ -235,7 +233,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double mu = model->get_mu();
   double coeff_u2 = model->get_coeff_u2();
 
-  // TODO, need to make these inputs!!!
   int model_choice = model->get_model_choice();
   double switch_beta = 0.0;
   double switch_taylor = 1.0;
@@ -351,7 +348,7 @@ map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
 
 
 
-void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
+void compute_plasma_points(GridFunction * z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
                            set<int> & plasma_inds,
                            int &ind_min, int &ind_max, double &min_val, double & max_val,
@@ -363,7 +360,7 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
   // keep track of elements inside of plasma region
   
    Vector nval;
-   z.GetNodalValues(nval);
+   z->GetNodalValues(nval);
 
    min_val = + numeric_limits<double>::infinity();
    max_val = - numeric_limits<double>::infinity();
