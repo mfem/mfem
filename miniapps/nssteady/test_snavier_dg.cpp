@@ -893,6 +893,10 @@ void f_source(const Vector &xvec, Vector &f)
 
 void u_init(const Vector &xvec, Vector &u)
 {
-	// start with the uniform flow with value of 1.
-	u = 1.0;
+	// start with the uniform flow specified by velocity profile at the inflow boundary (i.e. x=0).
+	int dim = xvec.Size();
+	Vector xvec_inflow(dim);
+	xvec_inflow=xvec;
+	xvec_inflow(0) = 0.0;
+	u_exact(xvec_inflow, u);;
 }

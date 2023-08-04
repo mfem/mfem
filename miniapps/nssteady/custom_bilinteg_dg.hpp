@@ -11,10 +11,6 @@
 
 #include "mfem.hpp"
 
-//TODO: Currently, I claim and initialize all variables/DenseMatrix/Vector
-//      within the member function. By following the convention, it seems
-//      that we should put them as protected/private members in the
-//      integrator classes.
 namespace mfem
 {
 /** Class for integrating the bilinear form for the mass matrix.
@@ -544,9 +540,6 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
-
-/// Testing Section ///
-// TODO: put integrators used to perform the test in this section.
 
 } // end of name space "mfem"
 

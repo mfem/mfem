@@ -131,10 +131,39 @@ public:
 						 bool verbose_=false);
 	~SNavierPicardDGSolver();
 
-    //TODO: add comments later
+	/// Boundary conditions/Forcing terms
+
+    /**
+    * \brief Add Dirichlet velocity BC.
+    *
+    * Add a Dirichlet velocity boundary condition to internal list of essential bcs (they will be applied at setup time).
+    *
+    * \param coeff Pointer to VectorCoefficient
+    * \param attr Array of boundary attributes (0 or 1=marked bdry, size of pmesh->attributes.Max())
+    *
+    */
     void AddVelDirichletBC(VectorFunctionCoefficient *coeff, Array<int> &attr);
-    void AddVelDirichletBC(VectorFunctionCoefficient *coeff, int &attr);
+
+    /**
+    * \brief Add (pseudo) Traction (Neumann) BC.
+    *
+    * Add a pseudo traction (Neumann) boundary condition to internal list of traction bcs (they will be applied at setup time by adding BoundaryIntegrators to the rhs).
+    *
+    * \param coeff Pointer to VectorCoefficient
+    * \param attr Boundary attributes
+    *
+    */
     void AddTractionBC(VectorFunctionCoefficient *coeff, Array<int> &attr);
+
+    /**
+    * \brief Add forcing term to the rhs.
+    *
+    * Add a forcing term (acceleration) to internal list of acceleration terms (they will be applied at setup time by adding DomainIntegrators to the rhs).
+    *
+    * \param coeff Pointer to VectorCoefficient
+    * \param attr Domain attributes
+    *
+    */
     void AddAccelTerm(VectorFunctionCoefficient *coeff, Array<int> &attr);
 
     /// Solver setup and Solution
@@ -150,7 +179,7 @@ public:
     /**
     * \brief Set the Linear Solvers parameters
     *
-    * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level) for the linear solver in solving
+    * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level, @a petsc, @a petsc_rc_file ) for the linear solver in solving
     * the LDG formulation of the Oseen equations.
     *
     */

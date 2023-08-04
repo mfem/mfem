@@ -95,7 +95,6 @@ pmesh(mesh_), sigorder(sigorder_), uorder(uorder_), porder(porder_), verbose(ver
 }
 
 /// Public Interface
-//TODO: copied from snavier_cg.cpp. Need to be checked later
 void SNavierPicardDGSolver::AddVelDirichletBC(VectorFunctionCoefficient *coeff, Array<int> &attr)
 {
    vel_dbcs.emplace_back(attr, coeff);
@@ -121,18 +120,6 @@ void SNavierPicardDGSolver::AddVelDirichletBC(VectorFunctionCoefficient *coeff, 
    }
 }
 
-//TODO: copied from snavier_cg.cpp. Need to be checked later
-void SNavierPicardDGSolver::AddVelDirichletBC(VectorFunctionCoefficient *coeff, int &attr)
-{
-   // Create array for attributes and mark given mark given mesh boundary
-   tmp_bdr = 0;
-   tmp_bdr[ attr - 1] = 1;
-
-   // Call AddVelDirichletBC accepting array of essential attributes
-   AddVelDirichletBC(coeff, tmp_bdr);
-}
-
-//TODO: copied from snavier_cg.cpp. Need to be checked later
 void SNavierPicardDGSolver::AddTractionBC(VectorFunctionCoefficient *coeff, Array<int> &attr)
 {
    traction_bcs.emplace_back(attr, coeff);
@@ -159,7 +146,6 @@ void SNavierPicardDGSolver::AddTractionBC(VectorFunctionCoefficient *coeff, Arra
    }
 }
 
-//TODO: copied from snavier_cg.cpp. Need to be checked later
 void SNavierPicardDGSolver::AddAccelTerm(VectorFunctionCoefficient *coeff, Array<int> &attr)
 {
    accel_terms.emplace_back(attr, coeff);
@@ -501,7 +487,7 @@ void SNavierPicardDGSolver::ComputeRes()
 
 	if ( pmesh->GetMyRank()==0 ){
 	  std::cout << "l2 norm of residual for the momentum equation :" << norm_res << std::endl;
-	  std::cout << "Picard (absolute) toreence                    :" << sParams_Picard.atol << std::endl;
+	  std::cout << "Picard (absolute) tolerence                   :" << sParams_Picard.atol << std::endl;
 	  std::cout << "Picard max iteration                          :" << sParams_Picard.maxIter << std::endl;
 	}
 }
