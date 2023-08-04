@@ -304,9 +304,6 @@ private:
 	HypreParVector *BtAinvF_vec=nullptr;
 	HypreParVector *G_vec=nullptr;
 
-    /// Kinematic viscosity.
-    ConstantCoefficient kin_vis;
-
     /// Reynolds number
     double Re;
 

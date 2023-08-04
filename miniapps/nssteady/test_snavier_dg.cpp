@@ -19,16 +19,18 @@ struct s_NavierContext
 
    // Finite Element Spaces
    int  order = 1;
+   int  sigorder = order;
+   int  porder = order;
    bool reduce_order_pressure = true;
    bool reduce_order_sig = true;
    double kappa_0=1.0;  // stabilization parameter
 
    // Problems
    int example=1;
-   double kinvis = 1.0 / 1.0;
    double reference_pressure = 0.0;
-   double Re	 = 1.0 / kinvis;
+   double Re	 = 1.0;
    bool dirichlet=false; // assume using neumann boundary.
+   bool converge_test = false;
 
    // Linear solver
    bool iterative=false;
@@ -101,6 +103,8 @@ int main(int argc, char *argv[])
                      "-rp",
                      "--refine-parallel",
                      "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&ctx.total_ref_levels, "-tr", "--total-refine",
+                  	  "Number of times to refine the mesh uniformly for a convergence test.");
    args.AddOption(&ctx.order, "-o", "--order",
                      "Finite element order (polynomial degree)");
    args.AddOption(&ctx.reduce_order_pressure, "-reduce-p", "--reduce-order-p", "-full-p",
@@ -111,10 +115,16 @@ int main(int argc, char *argv[])
 					 "Using k-1 order in approximation of gradient of velocity.");
    args.AddOption(&ctx.kappa_0, "-k_0", "--kappa_0",
                   	 "Setting up the stabilization parameter.");
-   args.AddOption(&ctx.kinvis,
-                     "-kv",
-                     "--kin-viscosity",
+   args.AddOption(&ctx.Re,
+                     "-Re",
+                     "--Reynolds-number",
                      "Kinematic viscosity");
+   args.AddOption(&ctx.dirichlet, "-dirichlet", "--dirichlet-bc", "-neumann",
+				     "--neumann-bc",
+					 "Pure Dirichlet or mixed type (Dirichlet & Neumann) of boundary conditions.");
+   args.AddOption(&ctx.converge_test, "-conv", "--conv-test", "-no-conv",
+				  	 "--no-conv-test",
+					 "Perform a convergence test.");
    args.AddOption(&ctx.petsc, "-petsc", "--use-petsc",
                   	 "-no-petsc", "--no-use-petsc",
 					 "Enable or disable SC solver.");
@@ -173,7 +183,10 @@ int main(int argc, char *argv[])
    if(ctx.kappa_0 < 1e-14)
 	   mfem_error("The stabilization parameter has to be greater than zero!");
    if(!(ctx.Picard))
-	   ctx.max_picard_it = 1;
+	   ctx.max_picard_it = 1; // If enable the Oseen solve, perform Picard iteration only once.
+   if (!(ctx.converge_test))
+	   ctx.total_ref_levels = 0; // If no convergence test is performed, restrict total_ref_levels to be zero.
+
    //
    /// Read the (serial) mesh from the given mesh file on all processors.
    //
@@ -224,15 +237,12 @@ int main(int argc, char *argv[])
 			   coord = mesh.GetVertex(bdr_v[d]);
 			   right_bdr += coord[0]; // sum up x-coordinate
 		   }
-		   if (ctx.example == 2){
-			   // do nothing now
+
+		   // only works for square doamin (0,1)x(0,1) (or (0,1)x(0,1)x(0,1))
+		   if (std::fabs(right_bdr-ctx.dim) < 1e-14){
+			   mesh.SetBdrAttribute(i, 2); // Neumann bouundary
 		   }else{
-			   // only works for square doamin (0,1)x(0,1) (or (0,1)x(0,1)x(0,1))
-			   if (std::fabs(right_bdr-ctx.dim) < 1e-14){
-				   mesh.SetBdrAttribute(i, 2); // Neumann bouundary
-			   }else{
-				   mesh.SetBdrAttribute(i, 1); // Dirichlet bouundary
-			   }
+			   mesh.SetBdrAttribute(i, 1); // Dirichlet bouundary
 		   }
 	   }
    }else{
@@ -278,91 +288,107 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient pseudo_traction_coeff((ctx.dim)*(ctx.dim),pseudo_traction_exact);
    VectorFunctionCoefficient u_ini(ctx.dim, u_init);
 
-   // Create solver
-   int porder=ctx.order;
+   // Set up the orders of approximations
+   ctx.porder=ctx.order;
    if(ctx.reduce_order_pressure)
-	   porder -= 1;
+	   ctx.porder -= 1;
 
-   int sigorder=ctx.order;
+   ctx.sigorder=ctx.order;
    if(ctx.reduce_order_sig)
-	   sigorder -= 1;
-   SNavierPicardDGSolver* NSSolver = new SNavierPicardDGSolver(pmesh, sigorder, ctx.order, porder, ctx.kappa_0, ctx.kinvis, ctx.verbose);
-
+	   ctx.sigorder -= 1;
 
    // Set parameters of the Fixed Point Solver
    SolverParams sFP = {ctx.picard_it_rtol, ctx.picard_it_atol, ctx.max_picard_it, ctx.setPrintLevel_Picard};   // rtol, atol, maxIter, print level
-   NSSolver->SetFixedPointSolver(sFP);
 
    // Set parameters of the Linear Solvers
    SolverParams sL = {ctx.lin_it_rtol, ctx.lin_it_atol, ctx.max_lin_it, ctx.setPrintLevel_Lin, ctx.petsc, ctx.petscrc_file};
-   NSSolver->SetLinearSolvers(sL);
 
-
-   //
-   /// Add boundary conditions (Velocity-Dirichlet, Traction) and forcing term/s
-   //
-   // Acceleration term
-   Array<int> domain_attr(pmesh->attributes.Max());
-   domain_attr = 1;
-   NSSolver->AddAccelTerm(&f_coeff,domain_attr);
-
-   // Essential velocity bcs
-   Array<int> ess_attr(pmesh->bdr_attributes.Max());
-   ess_attr = 0; ess_attr[0] = 1; // Dirichlet boundary (attribute: 0+1=1)
-   NSSolver->AddVelDirichletBC(&u_ex, ess_attr);
-
-   // Traction (neumann) bcs
-   Array<int> trac_attr(pmesh->bdr_attributes.Max());
-   trac_attr = 0; trac_attr[1] = 1; // Neumann boundary (attribute: 1+1=2)
-   NSSolver->AddTractionBC(&pseudo_traction_coeff,trac_attr);
-
-   //
-   /// Set initial guess
-   //
-   if(ctx.Picard){
-	   // Picard (N-S) solve
-	   NSSolver->SetInitialConditionVel(u_ini, u_ini);
-   }else{
-	   // Oseen solve
-	   NSSolver->SetInitialConditionVel(u_ex, w_field);
-   }
-   //
-   /// Finalize Setup of solver
-   //
-   NSSolver->Setup();
-
-   //
-   /// Solve the forward problem
-   //
-   NSSolver->FSolve();
-
-   //
-   /// Extract the numerical solution
-   //
-   ParGridFunction* velocityPtr = NSSolver->GetVSol();
-   ParGridFunction* pressurePtr = NSSolver->GetPSol();
-
-   //
-   /// Evaluate errors
-   //
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
+   // Convergence test
+   for (int ref_levels = 0; ref_levels <= ctx.total_ref_levels; ref_levels++)
    {
-       irs[i] = &(IntRules.Get(i, std::max(2, 2*ctx.order+3)));
-   }
-   double err_u = velocityPtr->ComputeL2Error(u_ex, irs);
-   double err_p = pressurePtr->ComputeL2Error(p_ex, irs);
+	    // Create a solver
+		SNavierPicardDGSolver* NSSolver = new SNavierPicardDGSolver(pmesh,
+																   ctx.sigorder,
+																   ctx.order,
+																   ctx.porder,
+																   ctx.kappa_0,
+																   ctx.Re,
+																   ctx.verbose);
 
-   int ref_levels=0; //TODO
-   u_l2errors(ref_levels) = fabs(err_u);
-   p_l2errors(ref_levels) = fabs(err_p);
+		NSSolver->SetFixedPointSolver(sFP);
+		NSSolver->SetLinearSolvers(sL);
+
+		//
+		/// Add boundary conditions (Velocity-Dirichlet, Traction) and forcing term/s
+		//
+		// Acceleration term
+		Array<int> domain_attr(pmesh->attributes.Max());
+		domain_attr = 1;
+		NSSolver->AddAccelTerm(&f_coeff,domain_attr);
+
+		// Essential velocity bcs
+		Array<int> ess_attr(pmesh->bdr_attributes.Max());
+		ess_attr = 0; ess_attr[0] = 1; // Dirichlet boundary (attribute: 0+1=1)
+		NSSolver->AddVelDirichletBC(&u_ex, ess_attr);
+
+		// Traction (neumann) bcs
+		Array<int> trac_attr(pmesh->bdr_attributes.Max());
+		trac_attr = 0; trac_attr[1] = 1; // Neumann boundary (attribute: 1+1=2)
+		NSSolver->AddTractionBC(&pseudo_traction_coeff,trac_attr);
+
+		//
+		/// Set initial guess
+		//
+		if(ctx.Picard){
+		   // Picard (N-S) solve
+		   NSSolver->SetInitialConditionVel(u_ini, u_ini);
+		}else{
+		   // Oseen solve
+		   NSSolver->SetInitialConditionVel(u_ex, w_field);
+		}
+		//
+		/// Finalize Setup of solver
+		//
+		NSSolver->Setup();
+
+		//
+		/// Solve the forward problem
+		//
+		NSSolver->FSolve();
+
+		//
+		/// Extract the numerical solution
+		//
+		ParGridFunction* velocityPtr = NSSolver->GetVSol();
+		ParGridFunction* pressurePtr = NSSolver->GetPSol();
+
+		//
+		/// Evaluate errors
+		//
+		const IntegrationRule *irs[Geometry::NumGeom];
+		for (int i=0; i < Geometry::NumGeom; ++i)
+		{
+		   irs[i] = &(IntRules.Get(i, std::max(2, 2*ctx.order+3)));
+		}
+		double err_u = velocityPtr->ComputeL2Error(u_ex, irs);
+		double err_p = pressurePtr->ComputeL2Error(p_ex, irs);
+
+		u_l2errors(ref_levels) = fabs(err_u);
+		p_l2errors(ref_levels) = fabs(err_p);
+
+		if (ctx.converge_test)
+			pmesh->UniformRefinement();
+   }
 
    if (ctx.verbose && (myrank==0)){
-		cout <<"\n\n"<<endl;
-		cout << "Re: "<< ctx.Re << endl;
+		std::cout <<"\n\n"<<endl;
+		string solver_type= (ctx.Picard)?"Picard":"Oseen";
+		std::cout << " This is " << solver_type << " solve." << std::endl;
+		std::cout << "-----------------------\n";
+		std::cout << "Re: "<< ctx.Re << endl;
 		std::cout << "-----------------------\n";
 		printf("        sigma (psuedo stress)  u (velocity)   p (pressure)\n");
-		printf("order        %d                    %d             %d      \n",sigorder,ctx.order,porder);
+		printf("order        %d                    %d             %d      \n",ctx.sigorder,ctx.order,ctx.porder);
 		std::cout << "-----------------------\n";
 		std::cout <<
 				 "level  u_l2errors  order   p_l2errors  order\n";
@@ -382,11 +408,11 @@ int main(int argc, char *argv[])
 		  {
 			 double u_order   = log(u_l2errors(ref_levels)/u_l2errors(ref_levels-1))/log(0.5);
 			 double p_order   = log(p_l2errors(ref_levels)/p_l2errors(ref_levels-1))/log(0.5);
-			 std::cout << "  " << ref_levels << "    "
-					   << "    " << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
-					   << "   " << std::setprecision(4) << std::fixed << u_order
-					   << "    " << std::setprecision(2) << std::scientific << p_l2errors(ref_levels)
-					   << "   " << std::setprecision(4) << std::fixed << p_order << std::endl;
+			 std::cout << "  " << ref_levels << "  "
+					   << "  " << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
+					   << "  " << std::setprecision(4) << std::fixed << u_order
+					   << "     " << std::setprecision(2) << std::scientific << p_l2errors(ref_levels)
+					   << "  " << std::setprecision(4) << std::fixed << p_order << std::endl;
 		  }
 		}
    }
@@ -415,6 +441,7 @@ double p_exact(const Vector &xvec)
 		   }
 		   case 2:
 		   {
+			   p = sin(2.0*M_PI*x)*sin(2.0*M_PI*y);
 			   break;
 		   }
 		   case 0:
@@ -469,6 +496,8 @@ void u_exact(const Vector &xvec, Vector &u)
 		   }
 		   case 2:
 		   {
+               u(0) = pow(x,3.0)*pow(y,2.0);
+               u(1) = -pow(x,2.0)*pow(y,3.0);
 			   break;
 		   }
 		   default:
@@ -487,9 +516,9 @@ void u_exact(const Vector &xvec, Vector &u)
 		   }
 		   case 1:
 		   {
-			   u(0) = 2*x+pow(y,2)+pow(z,2);
-			   u(1) = -y+pow(x,2)-2*z;
-			   u(2) = -z+pow(x,2)+pow(y,2);
+			   u(0) = 2.0*x+pow(y,2.0)+pow(z,2.0);
+			   u(1) = -y+pow(x,2.0) - 2.0*z;
+			   u(2) = -z+pow(x,2.0) + pow(y,2.0);
 			   break;
 		   }
 		   case 2:
@@ -567,15 +596,19 @@ void sig_exact(const Vector &xvec, Vector &sig)
 	   switch (ctx.example){
 		   case 1:
 		   {
-			   sig(0) = 1.0;
-			   sig(1) = 2*y;
-			   sig(2) = 2*x;
-			   sig(3) = -1.0;
-			   break;
+				sig(0) = 1.0;
+				sig(1) = 2*y;
+				sig(2) = 2*x;
+				sig(3) = -1.0;
+				break;
 		   }
 		   case 2:
 		   {
-			   break;
+				sig(0) = 3*pow(x,2)*pow(y,2);
+				sig(1) = 2*pow(x,3)*y;
+				sig(2) = -(2*x*pow(y,3));
+				sig(3) = -(3*pow(x,2)*pow(y,2));
+				break;
 		   }
 		   case 0:
 		   default:
@@ -587,15 +620,15 @@ void sig_exact(const Vector &xvec, Vector &sig)
 	   switch (ctx.example){
 		   case 1:
 		   {
-			  sig(0)= 2.0;
-			  sig(1)= 2*y;
-			  sig(2)= 2*z;
-			  sig(3)= 2*x;
-			  sig(4)= -1.0;
-			  sig(5)= -2.0;
-			  sig(6)= 2*x;
-			  sig(7)= 2*y;
-			  sig(8)= -1.0;
+				sig(0)= 2.0;
+				sig(1)= 2*y;
+				sig(2)= 2*z;
+				sig(3)= 2*x;
+				sig(4)= -1.0;
+				sig(5)= -2.0;
+				sig(6)= 2*x;
+				sig(7)= 2*y;
+				sig(8)= -1.0;
 			   break;
 		   }
 		   case 2:
@@ -664,10 +697,10 @@ void f_source(const Vector &xvec, Vector &f)
 
 	f = 0.0;
 	if(dim == 2){
-		dx_u1 = ctx.Re*sig(0);
-		dy_u1 = ctx.Re*sig(1);
-		dx_u2 = ctx.Re*sig(2);
-		dy_u2 = ctx.Re*sig(3);
+		dx_u1 = (ctx.Re)*sig(0);
+		dy_u1 = (ctx.Re)*sig(1);
+		dx_u2 = (ctx.Re)*sig(2);
+		dy_u2 = (ctx.Re)*sig(3);
 
 		switch (ctx.example){
 		   case 1:
@@ -677,11 +710,16 @@ void f_source(const Vector &xvec, Vector &f)
 
 				dx_p = -2.0;
 				dy_p = 0.0;
-			   break;
+				break;
 		   }
 		   case 2:
 		   {
-			   break;
+				Lap_u1 = 2.0*pow(x,3.0) + 6.0*x*pow(y,2.0);
+				Lap_u2 = -6.0*pow(x,2.0)*y - 2.0*pow(y,3.0);
+
+				dx_p = 2.0*M_PI*cos(2.0*M_PI*x)*sin(2.0*M_PI*y);
+				dy_p = 2.0*M_PI*cos(2.0*M_PI*y)*sin(2.0*M_PI*x);
+				break;
 		   }
 		   case 0:
 		   default:

@@ -7,7 +7,7 @@ SNavierPicardDGSolver::SNavierPicardDGSolver(ParMesh* mesh_,
 											 int sigorder_,
                                              int uorder_,
                                              int porder_,
-                                             double kin_vis_,
+                                             double Re_,
 											 double kappa_0_,
                                              bool verbose_):
 pmesh(mesh_), sigorder(sigorder_), uorder(uorder_), porder(porder_), verbose(verbose_)
@@ -61,11 +61,8 @@ pmesh(mesh_), sigorder(sigorder_), uorder(uorder_), porder(porder_), verbose(ver
    truex_bvec->operator=(0.0);
    truerhs_bvec->operator=(0.0);
 
-   // set kinematic viscosity
-   kin_vis.constant = kin_vis_;
-
    // set Reynold's number
-   Re = 1./kin_vis_;
+   Re = Re_;
 
    // set stabilization parameter
    kappa_0 = kappa_0_;
@@ -223,8 +220,8 @@ void SNavierPicardDGSolver::Setup()
 	f_form    = new ParLinearForm(sigfes);
 	h_form    = new ParLinearForm;
 
-	f_form->AddBdrFaceIntegrator(new TensorDGDirichletLFIntegrator(*(vel_dbcs[0].coeff),1.0),dbc_bdr);
-	h_form->AddBdrFaceIntegrator(new BoundaryNormalLFIntegrator_mod(*(vel_dbcs[0].coeff),-1.0),dbc_bdr);
+	f_form->AddBdrFaceIntegrator(new TensorDGDirichletLFIntegrator(*(vel_dbcs[0].coeff),1.0), dbc_bdr);
+	h_form->AddBdrFaceIntegrator(new BoundaryNormalLFIntegrator_mod(*(vel_dbcs[0].coeff),-1.0), dbc_bdr);
 
 	f_form->Update();
 	f_form->Assemble();
@@ -259,9 +256,9 @@ void SNavierPicardDGSolver::FSolve()
    timer.Start();
 
    // Print header
-   mfem::out << std::endl;
-   mfem::out << std::setw(7) << "" << std::setw(3) << "It" << std::setw(8)
-             << "Res" << std::setw(12) << "AbsTol" << "\n";
+//   mfem::out << std::endl;
+//   mfem::out << std::setw(7) << "" << std::setw(3) << "It" << std::setw(8)
+//             << "Res" << std::setw(12) << "AbsTol" << "\n";
 
 
    // Export initial solution
@@ -292,7 +289,7 @@ void SNavierPicardDGSolver::FSolve()
 				<< std::setprecision(2) << std::scientific << err_u
 				<< "   " << sParams_Picard.atol << "\n";
 
-		// Check convergence.
+		// Check Picard convergence.
 		// TODO: criteria for convergence of Picard iteration
 		if (err_u < sParams_Picard.atol)
 		{
