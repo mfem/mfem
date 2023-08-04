@@ -25,7 +25,6 @@ namespace mfem
 /// Typedefs
 
 // Struct to pass slver parameters
-// TODO: copy. I use Picard iteration along with Oseen equations. I may only need i) tol ii) maxIter
 struct SolverParams {
     double rtol = 1e-6;
     double atol = 1e-10;
@@ -127,7 +126,7 @@ public:
 			             int sorder_=1,
 						 int vorder_=2,
 						 int porder_=1,
-						 double kin_vis_=1,
+						 double Re_=1,
 						 double kappa_0_=1,
 						 bool verbose_=false);
 	~SNavierPicardDGSolver();
@@ -276,11 +275,6 @@ private:
     Array<int> block_offsets;     // number of variables + 1
     Array<int> trueblock_offsets; // number of variables + 1
 
-	/// Vectors
-//    ParGridFunction *u    = nullptr;    // velocity solution
-//    ParGridFunction *p    = nullptr;    // pressure solution vector
-//    ParGridFunction *uk   = nullptr;    // velocity at previous iteration
-
     BlockVector *x_bvec      = nullptr;
     BlockVector *truex_bvec  = nullptr;
 	BlockVector *rhs_bvec    = nullptr;
@@ -332,6 +326,7 @@ private:
     double norm_u;
     double err_p;
     double norm_p;
+    double norm_res;
 
     /// Timers
     StopWatch timer;
@@ -348,8 +343,13 @@ private:
     VisItDataCollection*       visit_dc = nullptr;
     const char* outfolder = nullptr;
 
+    /// Assembly matrices (the matrices associated
+    //  with the convection term need to be rebuilt
+    //  in each Picard iteration.)
+    void Assembly();
+
     /// Solve the a single iteration of the problem
-    void Step();
+    void Solve();
 
     /// Compute error for pressure and velocity
     void ComputeError();
@@ -360,7 +360,7 @@ private:
     /// Update solution for next iteration
     void UpdateSolution();
 
-    // Save results in Paraview or GLVis format
+    /// Save results in Paraview or GLVis format
     void SaveResults( int iter );
 
     /// Print information about the Navier version.

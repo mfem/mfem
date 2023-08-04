@@ -1,4 +1,14 @@
-/*
+/*  compile : make make test_snavier_dg
+ *
+ * 	run     : mpirun -np 1 ./test_snavier_dg
+ * 			  mpirun -np 1 ./test_snavier_dg -conv -tr 3
+ * 			  mpirun -np 1 ./test_snavier_dg -Picard
+ * 			  mpirun -np 1 ./test_snavier_dg -conv -tr 3 -Picard
+ *
+ *  examples: all examples are defined in (0,1)^d domain, where d is dimension of the space.
+ *            In addition, mixed type of boundary conditions are assumed. Neumann boundary is
+ *            defined on the edge (face) of x=1 while Dirichlet bounday is defined on the other
+ *            edges (faces).
  *  2-d
  *  ex 0: constant function
  *  ex 1: polynomial of order 1
@@ -41,7 +51,7 @@ struct s_NavierContext
    double kappa_0=1.0;  // stabilization parameter
 
    // Problems
-   int example=1;
+   int example=2;
    double reference_pressure = 0.0;
    double Re	 = 1.0;
    bool dirichlet=false; // assume using neumann boundary.
@@ -308,8 +318,11 @@ int main(int argc, char *argv[])
    /// Initialize errors (used for convergence study)
    //
    Vector u_l2errors(ctx.total_ref_levels+1), p_l2errors(ctx.total_ref_levels+1);
+   Vector divu_l2errors(ctx.total_ref_levels+1);
    u_l2errors = 0.0;
    p_l2errors = 0.0;
+   divu_l2errors = 0.0;
+   ConstantCoefficient zero(0.0); // zero constant, will be used in error computation
 
    //
    /// Define a parallel mesh by a partitioning of the serial mesh.
@@ -358,8 +371,8 @@ int main(int argc, char *argv[])
 																   ctx.sigorder,
 																   ctx.order,
 																   ctx.porder,
-																   ctx.kappa_0,
 																   ctx.Re,
+																   ctx.kappa_0,
 																   ctx.verbose);
 
 		NSSolver->SetFixedPointSolver(sFP);
@@ -419,9 +432,11 @@ int main(int argc, char *argv[])
 		}
 		double err_u = velocityPtr->ComputeL2Error(u_ex, irs);
 		double err_p = pressurePtr->ComputeL2Error(p_ex, irs);
+	    double err_div_u = velocityPtr->ComputeDivError(&zero);
 
 		u_l2errors(ref_levels) = fabs(err_u);
 		p_l2errors(ref_levels) = fabs(err_p);
+		divu_l2errors(ref_levels) = fabs(err_div_u);
 
 		if (ctx.converge_test)
 			pmesh->UniformRefinement();
@@ -438,7 +453,7 @@ int main(int argc, char *argv[])
 		printf("order        %d                    %d             %d      \n",ctx.sigorder,ctx.order,ctx.porder);
 		std::cout << "-----------------------\n";
 		std::cout <<
-				 "level  u_l2errors  order   p_l2errors  order\n";
+				 "level  u_l2errors  order   p_l2errors  order  div_u_l2errors\n";
 		std::cout << "-----------------------\n";
 		for (int ref_levels = 0;
 				ref_levels <= ctx.total_ref_levels; ref_levels++)
@@ -449,7 +464,9 @@ int main(int argc, char *argv[])
 					   << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
 					   << "    " << " -       "
 					   << std::setprecision(2) << std::scientific << p_l2errors(ref_levels)
-					   << "    " << " -       "<< std::endl;
+					   << "    " << " -       "
+			 	 	   << std::setprecision(2) << std::scientific << divu_l2errors(ref_levels)
+			 	 	   << std::endl;
 		  }
 		  else
 		  {
@@ -459,7 +476,9 @@ int main(int argc, char *argv[])
 					   << "  " << std::setprecision(2) << std::scientific << u_l2errors(ref_levels)
 					   << "  " << std::setprecision(4) << std::fixed << u_order
 					   << "     " << std::setprecision(2) << std::scientific << p_l2errors(ref_levels)
-					   << "  " << std::setprecision(4) << std::fixed << p_order << std::endl;
+					   << "  " << std::setprecision(4) << std::fixed << p_order
+			 	 	   << "     " << std::setprecision(2) << std::scientific << divu_l2errors(ref_levels)
+					   << std::endl;
 		  }
 		}
    }

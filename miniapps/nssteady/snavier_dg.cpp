@@ -68,12 +68,29 @@ pmesh(mesh_), sigorder(sigorder_), uorder(uorder_), porder(porder_), verbose(ver
    kappa_0 = kappa_0_;
 
    // Error computation setup
-   err_u = err_p = 0;
-   norm_u = norm_p = 0;
+   err_u = err_p = 1;
+   norm_u = norm_p = 1;
+   norm_res = 1;
+
    int order_quad = std::max(2, 2*uorder+1);
    for (int i=0; i < Geometry::NumGeom; ++i)
    {
       irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   // Print out initialization information
+   if (verbose && pmesh->GetMyRank() == 0){
+		std::cout << std::endl;
+		std::cout << "=========================================================="<< std::endl;
+		std::cout << "           Initialize SNavierPicardDGSolver               "<< std::endl;
+		std::cout << "----------------------------------------------------------"<< std::endl;
+		std::cout << "dimension of the space                               :"<< dim      <<std::endl;
+		std::cout << "order of the approximation for the gradient velocity :"<< sigorder <<std::endl;
+		std::cout << "order of the approximation for the velocity          :"<< uorder   <<std::endl;
+		std::cout << "order of the approximation for the pressure          :"<< porder   <<std::endl;
+		std::cout << "Reynold's number                                     :"<< Re       <<std::endl;
+		std::cout << "stabilization parameter                              :"<< kappa_0  <<std::endl;
+		std::cout << "=========================================================="<< std::endl;
    }
 }
 
@@ -243,65 +260,62 @@ void SNavierPicardDGSolver::FSolve()
    PrintMatricesVectors( "setup", 0); // Export matrices/vectors before step
 #endif
 
-   PrintInfo();
+	PrintInfo();
 
-   if (pmesh->GetMyRank() == 0)
-   {
-      mfem::out << std::endl;
-      mfem::out << "=========================================================="<< std::endl;
-      mfem::out << "======      Picard Steady Navier-Stokes Solver      ======"<< std::endl;
-      mfem::out << "=========================================================="<< std::endl;
-   }
+	if (pmesh->GetMyRank() == 0)
+	{
+	  mfem::out << std::endl;
+	  mfem::out << "=========================================================="<< std::endl;
+	  mfem::out << "======      Picard Steady Navier-Stokes Solver      ======"<< std::endl;
+	  mfem::out << "=========================================================="<< std::endl;
+	}
 
-   timer.Clear();
-   timer.Start();
+	timer.Clear();
+	timer.Start();
 
-   // Print header
-//   mfem::out << std::endl;
-//   mfem::out << std::setw(7) << "" << std::setw(3) << "It" << std::setw(8)
-//             << "Res" << std::setw(12) << "AbsTol" << "\n";
-
-
-   // Export initial solution
-   //SaveResults( 0 );
-
-   for (iter = 0; iter < sParams_Picard.maxIter; iter++)
-   {
+	// Export initial solution
+	//SaveResults( 0 );
+	flag = 0;
+	for (iter = 0; iter < sParams_Picard.maxIter; iter++)
+	{
+		if (pmesh->GetMyRank() == 0)
+		{
+			mfem::out << "//////////////////////////////////////////////////////////"<< std::endl;
+			mfem::out << "                  iteration "<< iter <<"                  "<< std::endl;
+		}
 		// Assemble matrices
-		//TODO
+		Assembly();
 
 		// Evaluate the residual
-		//TODO
+		ComputeRes();
+
+		// Check Picard convergence.
+		if (norm_res < sParams_Picard.atol)
+		{
+			flag = 1;
+			break;
+		}
 
 		// Solve current iteration.
-		Step();
+		Solve();
 
 		// Output results
 		//SaveResults( iter+1 );
 
 		// Compute errors.
-		//ComputeError();
+		ComputeError();
 
 		// Update solution at previous iterate and gridfunction coefficients.
-		//UpdateSolution();
+		UpdateSolution();
+	}
+	timer.Stop();
+	if (pmesh->GetMyRank() == 0)
+		mfem::out << "//////////////////////////////////////////////////////////"<< std::endl;
+	if (flag == 1 && pmesh->GetMyRank()==0)
+		std::cout << "Picard solver converged to steady state solution at " << iter << " iteration.\n";
+	if (flag == 0 && pmesh->GetMyRank()==0)
+		std::cout << "Picard solver falied.\n";
 
-		// Print results
-		mfem::out << iter << "   " << std::setw(3)
-				<< std::setprecision(2) << std::scientific << err_u
-				<< "   " << sParams_Picard.atol << "\n";
-
-		// Check Picard convergence.
-		// TODO: criteria for convergence of Picard iteration
-		if (err_u < sParams_Picard.atol)
-		{
-		 out << "Solver converged to steady state solution \n";
-		 flag = 1;
-		 break;
-		}
-
-   }
-
-   timer.Stop();
 }
 
 void SNavierPicardDGSolver::SetupOutput( const char* folderPath, bool visit_, bool paraview_,
@@ -340,8 +354,7 @@ void SNavierPicardDGSolver::SetupOutput( const char* folderPath, bool visit_, bo
 }
 
 /// Private Interface
-
-void SNavierPicardDGSolver::Step()
+void SNavierPicardDGSolver::Assembly()
 {
 	/// Assemble terms associated with new velocity uk and modify rhs for essential bcs.
 	delete c_form; c_form = nullptr;
@@ -353,10 +366,6 @@ void SNavierPicardDGSolver::Step()
 	c_form->AddInteriorFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff, 1.0));
 	c_form->AddBdrFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff, 1.0),nbc_bdr);
 
-//	c_form->AddDomainIntegrator(new VectorGradVectorIntegrator(*uk_coeff_test, -1.0));
-//	c_form->AddInteriorFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff_test, 1.0));
-//	c_form->AddBdrFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff_test, 1.0),nbc_bdr);
-
 	c_form->Assemble();     c_form->Finalize();
 	C_mat 	 = c_form->ParallelAssemble();
 	BtAinvB_C_mat = ParAdd(BtAinvB_mat,C_mat);
@@ -367,7 +376,6 @@ void SNavierPicardDGSolver::Step()
 	g_form->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(*(vel_dbcs[0].coeff),1.0,kappa_0/Re), dbc_bdr);
 	g_form->AddBdrFaceIntegrator(new VectorDGNeumannLFIntegrator(*(traction_bcs[0].coeff), 1.0), nbc_bdr);
 	g_form->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(*uk_coeff, *(vel_dbcs[0].coeff), -1.0), dbc_bdr);
-	//g_form->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(*uk_coeff_test, *(vel_dbcs[0].coeff), -1.0), dbc_bdr);
 	g_form->AddDomainIntegrator(new VectorDomainLFIntegrator(*(accel_terms[0].coeff)));
 
 	g_form->Update();
@@ -384,9 +392,12 @@ void SNavierPicardDGSolver::Step()
 	OseenOp(1,0) = nD_mat->Transpose(); OseenOp(1,1) = zero_mat;
 
 	OseenMono = HypreParMatrixFromBlocks(OseenOp);
+}
 
+void SNavierPicardDGSolver::Solve()
+{
 #ifdef MFEM_DEBUG
-   PrintMatricesVectors( "step", iter);  // Export matrices/vectors after assembly
+   PrintMatricesVectors( "solve", iter);  // Export matrices/vectors after assembly
 #endif
 
 	/// Solve
@@ -426,7 +437,7 @@ void SNavierPicardDGSolver::Step()
 		if (verbose && pmesh->GetMyRank() == 0)
 		{
 		  if (petsc_solver->GetConverged())
-			  std::cout << "Solver converged in " << petsc_solver->GetNumIterations()
+			  std::cout << "Linear solver converged in " << petsc_solver->GetNumIterations()
 			  << " iterations with a residual norm of " << petsc_solver->GetFinalNorm() << ".\n";
 		  else
 			  std::cout << "Solver did not converge in " << petsc_solver->GetNumIterations()
@@ -455,6 +466,7 @@ void SNavierPicardDGSolver::Step()
 	u_gf.Distribute(&(truex_bvec->GetBlock(0)));
 	p_gf.Distribute(&(truex_bvec->GetBlock(1)));
 
+	/// Re-initializate matrices asscociated with convection terms
 	delete C_mat; C_mat=nullptr;
 	delete BtAinvB_C_mat; BtAinvB_C_mat=nullptr;
 	delete G_vec; G_vec=nullptr;
@@ -463,24 +475,35 @@ void SNavierPicardDGSolver::Step()
 
 void SNavierPicardDGSolver::ComputeError()
 {
-	//TODO: modify the function such that I can compute error
-	// for Picard & single Oseen solve
-//   err_u  = u_gf.ComputeL2Error(*uk_coeff);
-//   norm_u = ComputeGlobalLpNorm(2., *uk_coeff, *pmesh, irs);
-//   err_p  = p_gf.ComputeL2Error(*pk_c);
-//   norm_p = ComputeGlobalLpNorm(2., *pk_c, *pmesh, irs);
-//
-//   if (verbose)
-//   {
-//      out << "|| v - v_k || / || v_k || = " << err_u / norm_u << "\n";
-//      out << "|| p - p_k || / || p_k || = " << err_p / norm_p << "\n";
-//   }
+   err_u  = u_gf.ComputeL2Error(*uk_coeff);
+   norm_u = ComputeGlobalLpNorm(2., *uk_coeff, *pmesh, irs);
+   ConstantCoefficient zero(0.0);
+   double err_div_u = u_gf.ComputeDivError(&zero);
+   if ( pmesh->GetMyRank()==0 )
+   {
+      std::cout << "|| u - u_k ||_2 / || u_k ||_2 :" << err_u / norm_u << std::endl;
+      std::cout << "|| u - u_k ||_2               :" << err_u << std::endl;
+      std::cout << "|| div u   ||_2               :" << fabs(err_div_u) << std::endl;
+   }
 }
 
 void SNavierPicardDGSolver::ComputeRes()
 {
-	/// TODO: we may want to use the residual of the momentum equation as
-	//  the stopping criteria of ther Picard iteration.
+	HypreParVector u_hvec(ufes), p_hvec(pfes);
+	HypreParVector res(ufes);
+	u_gf.GetTrueDofs(u_hvec); // ParGridFunction to HypreParVector
+	p_gf.GetTrueDofs(p_hvec); // ParGridFunction to HypreParVector
+	BtAinvB_C_mat->Mult(u_hvec, res);
+	D_mat->Mult(p_hvec, res, 1.0, 1.0);
+	res.Add(-1.0, *G_vec);
+
+	norm_res = sqrt(InnerProduct(res, res));
+
+	if ( pmesh->GetMyRank()==0 ){
+	  std::cout << "l2 norm of residual for the momentum equation :" << norm_res << std::endl;
+	  std::cout << "Picard (absolute) toreence                    :" << sParams_Picard.atol << std::endl;
+	  std::cout << "Picard max iteration                          :" << sParams_Picard.maxIter << std::endl;
+	}
 }
 
 void SNavierPicardDGSolver::UpdateSolution()
