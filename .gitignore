@@ -113,6 +113,12 @@ examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
 examples/flux.*
+examples/dsol.*
+examples/cond.*
+examples/cond_j.*
+examples/cond_mesh.*
+examples/port_mesh.*
+examples/port_mode.*
 
 examples/amgx/ex1
 examples/amgx/ex1p
