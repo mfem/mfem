@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command line options.
-   const char *mesh_file = "../data/star.mesh";
+   string mesh_file = "../data/star.mesh";
    int order = 1;
 
    OptionsParser args(argc, argv);
