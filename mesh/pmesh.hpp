@@ -596,7 +596,7 @@ public:
    /// given suffixes according to the MPI rank. The mesh will be written to the
    /// files using ParMesh::Print. The given @a precision will be used for ASCII
    /// output.
-   void Save(const char *fname, int precision=16) const override;
+   void Save(const std::string &fname, int precision=16) const override;
 
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
@@ -625,7 +625,7 @@ public:
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
-   void SaveAsOne(const char *fname, int precision=16) const;
+   void SaveAsOne(const std::string &fname, int precision=16) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
@@ -662,7 +662,7 @@ public:
                   InverseElementTransformation *inv_trans = NULL) override;
 
    /// Debugging method
-   void PrintSharedEntities(const char *fname_prefix) const;
+   void PrintSharedEntities(const std::string &fname_prefix) const;
 
    virtual ~ParMesh();
 
