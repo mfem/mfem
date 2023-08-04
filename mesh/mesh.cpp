@@ -1906,12 +1906,7 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
-   int i, j;
-   Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
-
-   // GenerateFaces();
-
-   for (i = 0; i < boundary.Size(); i++)
+   for (int i = 0; i < boundary.Size(); i++)
    {
       FreeElement(boundary[i]);
    }
@@ -1924,22 +1919,39 @@ void Mesh::GenerateBoundaryElements()
 
    // count the 'NumOfBdrElements'
    NumOfBdrElements = 0;
-   for (i = 0; i < faces_info.Size(); i++)
+   for (int i = 0; i < faces_info.Size(); i++)
    {
       if (faces_info[i].Elem2No < 0) { NumOfBdrElements++; }
    }
 
+   // Add the boundary elements
    boundary.SetSize(NumOfBdrElements);
-   be2face.SetSize(NumOfBdrElements);
-   for (j = i = 0; i < faces_info.Size(); i++)
+   if (Dim == 1)
    {
-      if (faces_info[i].Elem2No < 0)
+      // In 1D, the "faces" are just the mesh vertices
+      for (int i = 0, j = 0; i < faces_info.Size(); i++)
       {
-         boundary[j] = faces[i]->Duplicate(this);
-         be2face[j++] = i;
+         if (faces_info[i].Elem2No < 0)
+         {
+            boundary[j++] = new Point(&i, 1);
+         }
       }
    }
-   // In 3D, 'bel_to_edge' is destroyed but it's not updated.
+   else
+   {
+      Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
+      be2face.SetSize(NumOfBdrElements);
+      for (int i = 0, j = 0; i < faces_info.Size(); i++)
+      {
+         if (faces_info[i].Elem2No < 0)
+         {
+            boundary[j] = faces[i]->Duplicate(this);
+            be2face[j++] = i;
+         }
+      }
+   }
+
+   // Note: in 3D, 'bel_to_edge' is destroyed but it's not updated.
 }
 
 void Mesh::FinalizeCheck()
