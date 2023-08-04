@@ -60,6 +60,7 @@ private:
   Vector *g;
   vector<Vector> *alpha_coeffs;
   vector<Array<int>> *J_inds;
+  int i_option = 0;
 
   //
   GridFunction res;
@@ -153,12 +154,12 @@ public:
   virtual Operator &GetGradient(const Vector &psi) const;
   virtual ~SysOperator() { };
 
-  void compute_psi_N_derivs(const Vector &psi, int k, double * psi_N,
-                            Vector * grad_psi_N, SparseMatrix * hess_psi_N);
+  void compute_psi_N_derivs(const GridFunction &psi, int k, double * psi_N,
+                            GridFunction * grad_psi_N, SparseMatrix * hess_psi_N);
 
-  double compute_obj(const Vector &psi);
-  Vector* compute_grad_obj(const Vector &psi);
-  SparseMatrix* compute_hess_obj(const Vector &psi);
+  double compute_obj(const GridFunction &psi);
+  GridFunction compute_grad_obj(const GridFunction &psi);
+  SparseMatrix* compute_hess_obj(const GridFunction &psi);
 
   double get_mu() {
     return model->get_mu();
@@ -222,6 +223,8 @@ public:
   double get_plasma_current() {return plasma_current;}
   Vector get_Cy() {return Cy;}
   double get_Ca() {return Ca;}
+
+  void set_i_option(int option) {i_option = option;}
 
   double get_plasma_current(GridFunction &x, double &alpha);
 

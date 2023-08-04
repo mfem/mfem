@@ -58,12 +58,14 @@ void Print(const LinearForm &y) {
 
 
 
-void SysOperator::compute_psi_N_derivs(const Vector &psi, int k, double * psi_N,
-                                       Vector * grad_psi_N,
+void SysOperator::compute_psi_N_derivs(const GridFunction &psi, int k, double * psi_N,
+                                       GridFunction * grad_psi_N,
                                        SparseMatrix * hess_psi_N) {
 
   int dof = (*alpha_coeffs)[0].Size();
   double psi_interp;
+  double psi_x = psi[ind_x];
+  double psi_ma = psi[ind_ma];
   
   psi_interp = 0;
   for (int m = 0; m < dof; ++m) {
@@ -119,157 +121,182 @@ void SysOperator::compute_psi_N_derivs(const Vector &psi, int k, double * psi_N,
 }
 
 
-double SysOperator::compute_obj(const Vector &psi) {
+double SysOperator::compute_obj(const GridFunction &psi) {
 
   int dof = (*alpha_coeffs)[0].Size();
-  double psi_interp, psi_N;
-  
+  double psi_interp, psi_interp_0, psi_N;
   double obj = 0;
+  double psi_x = psi[ind_x];
+  double psi_ma = psi[ind_ma];
 
-  VisItDataCollection visit_dc("debug", fespace->GetMesh());
-  
-  GridFunction x(fespace);
-  x = 0.0;
+  if (i_option == 0) {
+    // obj = sum_{n=1}^{N} (psi - psi_0) ^ 2
 
-  visit_dc.RegisterField("psi", &x);
-  
-  double psi_interp_0 = 0;
-  for (int m = 0; m < dof; ++m) {
-    int i = (*J_inds)[0][m];
-    psi_interp_0 += (*alpha_coeffs)[0][m] * psi[i];
-
-    x[i] = 1.0;
-  }
-  
-  for (int k = 1; k < N_control; ++k) {
-    psi_interp = 0;
+    int k = 0;
+    psi_interp_0 = 0;
     for (int m = 0; m < dof; ++m) {
       int i = (*J_inds)[k][m];
-      psi_interp += (*alpha_coeffs)[k][m] * psi[i];
+      psi_interp_0 += (*alpha_coeffs)[k][m] * psi[i];
+    }
+      
+    for (int k = 1; k < N_control; ++k) {
+      psi_interp = 0;
+      for (int m = 0; m < dof; ++m) {
+        int i = (*J_inds)[k][m];
+        psi_interp += (*alpha_coeffs)[k][m] * psi[i];
+      }
 
-      x[i] = 1.0;
+      obj += 0.5 * (psi_interp - psi_interp_0) * (psi_interp - psi_interp_0);
+
     }
 
-    obj += (psi_interp - psi_interp_0) * (psi_interp - psi_interp_0);
+  } else if (i_option == 1) {
+    // obj = sum_{n=1}^{N} (psi_N - 1) ^ 2
 
-    // psi_interp_0 = psi_interp;
+    for (int k = 0; k < N_control; ++k) {
+      psi_interp = 0;
+      for (int m = 0; m < dof; ++m) {
+        int i = (*J_inds)[k][m];
+        psi_interp += (*alpha_coeffs)[k][m] * psi[i];
+      }
+
+      psi_N = (psi_interp - psi_ma) / (psi_x - psi_ma);
+      obj += 0.5 * (psi_N - 1.0) * (psi_N - 1.0);
+    }
+  } else {
+    // obj = sum_{n=1}^{N} (psi - psi_x) ^ 2
+
+    for (int k = 0; k < N_control; ++k) {
+      psi_interp = 0;
+      for (int m = 0; m < dof; ++m) {
+        int i = (*J_inds)[k][m];
+        psi_interp += (*alpha_coeffs)[k][m] * psi[i];
+      }
+
+      obj += 0.5 * (psi_interp - psi_x) * (psi_interp - psi_x);
+    }
+
   }
-
-  x.Save("debug.gf");
-  // for (int k = 0; k < N_control; ++k) {
-  //   psi_interp = 0;
-  //   for (int m = 0; m < dof; ++m) {
-  //     int i = (*J_inds)[k][m];
-  //     psi_interp += (*alpha_coeffs)[k][m] * psi[i];
-  //   }
-
-  //   psi_N = (psi_interp - psi_ma) / (psi_x - psi_ma);
-  //   obj += 0.5 * (psi_N - 1.0) * (psi_N - 1.0);
-  // }
-  visit_dc.Save();
   
   return obj;
 }
 
 
-Vector* SysOperator::compute_grad_obj(const Vector &psi) {
-
-  if (true) {
-    return g;
-  }
-  
+GridFunction SysOperator::compute_grad_obj(const GridFunction &psi) {
   int ndof = psi.Size();
-  Vector * g_;
-  g_ = new Vector(ndof);
-  *g_ = 0.0;
+  
+  FiniteElementSpace fespace = *(psi.FESpace());
+  if (i_option == 0) {
+    GridFunction g_(&fespace);
+    g_ = 0.0;
+    K->Mult(psi, g_);
+    return g_;
 
-  int dof = (*alpha_coeffs)[0].Size();
-  double psi_N;
+  } else if (i_option == 1) {
+    GridFunction  g_(&fespace);
+    g_ = 0.0;
 
-  for (int k = 0; k < N_control; ++k) {
+    int dof = (*alpha_coeffs)[0].Size();
+    double psi_N;
 
-    Vector * grad_psi_N;
-    grad_psi_N = new Vector(ndof);
-    *grad_psi_N = 0.0;
+    GridFunction * grad_psi_N;
+    grad_psi_N = new GridFunction(&fespace);
     SparseMatrix * hess_psi_N;
-    hess_psi_N = new SparseMatrix(ndof, ndof);
+    for (int k = 0; k < N_control; ++k) {
 
-    compute_psi_N_derivs(psi, k, &psi_N, grad_psi_N, hess_psi_N);
+      hess_psi_N = new SparseMatrix(ndof, ndof);
 
-    for (int m = 0; m < dof; ++m) {
-      int i = (*J_inds)[k][m];
-      if ((i == ind_ma) || (i == ind_x)) {
-        continue;
+      *grad_psi_N = 0.0;
+      compute_psi_N_derivs(psi, k, &psi_N, grad_psi_N, hess_psi_N);
+
+      for (int m = 0; m < dof; ++m) {
+        int i = (*J_inds)[k][m];
+        if ((i == ind_ma) || (i == ind_x)) {
+          continue;
+        }
+        g_[i] += (psi_N - 1.0) * (*grad_psi_N)[i];
       }
-      (*g_)[i] += (psi_N - 1.0) * (*grad_psi_N)[i];
+
+      g_[ind_ma] += (psi_N - 1.0) * (*grad_psi_N)[ind_ma];
+      g_[ind_x] += (psi_N - 1.0) * (*grad_psi_N)[ind_x];
     }
+    delete hess_psi_N;
 
-    (*g_)[ind_ma] += (psi_N - 1.0) * (*grad_psi_N)[ind_ma];
-    (*g_)[ind_x] += (psi_N - 1.0) * (*grad_psi_N)[ind_x];
+
+    return g_;
+  } else {
+    GridFunction g_(&fespace);
+    g_ = 0.0;
+    K->Mult(psi, g_);
+    return g_;
   }
-
-  return g;
 }
 
 
 
-SparseMatrix* SysOperator::compute_hess_obj(const Vector &psi) {
+SparseMatrix* SysOperator::compute_hess_obj(const GridFunction &psi) {
 
   int ndof = psi.Size();
+  FiniteElementSpace fespace = *(psi.FESpace());
 
-  if (true) {
+  if (i_option == 0) {
+    return K;
+  } else if (i_option == 1) {
+  
+    SparseMatrix * K_;
+    K_ = new SparseMatrix(ndof, ndof);
+
+    int dof = (*alpha_coeffs)[0].Size();
+    double psi_N;
+
+    GridFunction * grad_psi_N;
+    grad_psi_N = new GridFunction(&fespace);
+      
+    SparseMatrix * hess_psi_N;
+
+    int i, j;
+    for (int k = 0; k < N_control; ++k) {
+
+      hess_psi_N = new SparseMatrix(ndof, ndof);
+      
+      *grad_psi_N = 0.0;
+      compute_psi_N_derivs(psi, k, &psi_N, grad_psi_N, hess_psi_N);
+
+      for (int m = 0; m < dof+2; ++m) {
+        if (m < dof) {
+          i = (*J_inds)[k][m];
+          if ((i == ind_ma) || (i == ind_x)) {
+            continue;
+          }
+        } else if (m == dof) {
+          i = ind_ma;
+        } else {
+          i = ind_x;
+        }
+
+        for (int n = 0; n < dof+2; ++n) {
+          if (n < dof) {
+            j = (*J_inds)[k][n];
+            if ((j == ind_ma) || (j == ind_x)) {
+              continue;
+            }
+          } else if (n == dof) {
+            j = ind_ma;
+          } else {
+            j = ind_x;
+          }
+          K_->Add(i, j, (*grad_psi_N)[i] * (*grad_psi_N)[j] + (*hess_psi_N)(i, j) * (psi_N - 1));
+        }
+      }
+      delete hess_psi_N;
+
+    }
+    K_->Finalize();
+    return K_;
+  } else {
     return K;
   }
   
-  SparseMatrix * K_;
-  K_ = new SparseMatrix(ndof, ndof);
-
-  int dof = (*alpha_coeffs)[0].Size();
-  double psi_N;
-
-  int i, j;
-  for (int k = 0; k < N_control; ++k) {
-
-    Vector * grad_psi_N;
-    grad_psi_N = new Vector(ndof);
-    *grad_psi_N = 0.0;
-    SparseMatrix * hess_psi_N;
-    hess_psi_N = new SparseMatrix(ndof, ndof);
-
-    compute_psi_N_derivs(psi, k, &psi_N, grad_psi_N, hess_psi_N);
-
-    for (int m = 0; m < dof+2; ++m) {
-      if (m < dof) {
-        i = (*J_inds)[k][m];
-        if ((i == ind_ma) || (i == ind_x)) {
-          continue;
-        }
-      } else if (m == dof) {
-        i = ind_ma;
-      } else {
-        i = ind_x;
-      }
-
-      for (int n = 0; n < dof+2; ++n) {
-        if (n < dof) {
-          j = (*J_inds)[k][n];
-          if ((j == ind_ma) || (j == ind_x)) {
-            continue;
-          }
-        } else if (n == dof) {
-          j = ind_ma;
-        } else {
-          j = ind_x;
-        }
-
-        K_->Add(i, j, (*grad_psi_N)[i] * (*grad_psi_N)[j] - (*hess_psi_N)(i, j) * (psi_N - 1));
-
-      }
-      
-    }
-  }
-  K_->Finalize();
-  return K_;
 }
 
 
@@ -300,7 +327,6 @@ double SysOperator::get_plasma_current(GridFunction &x, double &alpha) {
   Plasma_Current *= -1.0;
 
   return Plasma_Current;
-  
 }
 
 

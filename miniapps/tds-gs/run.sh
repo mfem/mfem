@@ -5,7 +5,7 @@
 # coefficient of ff' term
 alpha=1.0
 # coefficient of p' term
-beta=.5
+beta=1.0
 # unused?
 gamma=0.0
 
@@ -13,7 +13,7 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=2
+model=3
 
 # plasma current
 Ip=1.5e+7
@@ -67,8 +67,8 @@ do_control=1
 weight_coils=1e-10
 weight_solenoids=1e-10
 
-# ./main.o \
-lldb -- main.o \
+# lldb -- main.o \
+./main.o \
     -m $mesh_file \
     -o 1 \
     -d $data_file \
