@@ -234,6 +234,7 @@ void SNavierPicardDGSolver::Setup()
 
 	BtAinvF_vec = new HypreParVector(ufes);
 	BtAinv_mat->Mult(*F_vec,*BtAinvF_vec);
+
 }
 
 void SNavierPicardDGSolver::FSolve()
@@ -347,9 +348,15 @@ void SNavierPicardDGSolver::Step()
 	c_form    = new ParBilinearForm(ufes);
 	c_form->AddInteriorFaceIntegrator(new DGVectorNormalJumpIntegrator(1.0,kappa_0/Re));
 	c_form->AddBdrFaceIntegrator(new DGVectorNormalJumpIntegrator(1.0,kappa_0/Re),dbc_bdr);
+
 	c_form->AddDomainIntegrator(new VectorGradVectorIntegrator(*uk_coeff, -1.0));
 	c_form->AddInteriorFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff, 1.0));
 	c_form->AddBdrFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff, 1.0),nbc_bdr);
+
+//	c_form->AddDomainIntegrator(new VectorGradVectorIntegrator(*uk_coeff_test, -1.0));
+//	c_form->AddInteriorFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff_test, 1.0));
+//	c_form->AddBdrFaceIntegrator(new DGVectorUpwindJumpIntegrator(*uk_coeff_test, 1.0),nbc_bdr);
+
 	c_form->Assemble();     c_form->Finalize();
 	C_mat 	 = c_form->ParallelAssemble();
 	BtAinvB_C_mat = ParAdd(BtAinvB_mat,C_mat);
@@ -360,6 +367,7 @@ void SNavierPicardDGSolver::Step()
 	g_form->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(*(vel_dbcs[0].coeff),1.0,kappa_0/Re), dbc_bdr);
 	g_form->AddBdrFaceIntegrator(new VectorDGNeumannLFIntegrator(*(traction_bcs[0].coeff), 1.0), nbc_bdr);
 	g_form->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(*uk_coeff, *(vel_dbcs[0].coeff), -1.0), dbc_bdr);
+	//g_form->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(*uk_coeff_test, *(vel_dbcs[0].coeff), -1.0), dbc_bdr);
 	g_form->AddDomainIntegrator(new VectorDomainLFIntegrator(*(accel_terms[0].coeff)));
 
 	g_form->Update();

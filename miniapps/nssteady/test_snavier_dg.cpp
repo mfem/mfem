@@ -1,3 +1,18 @@
+/*
+ *  2-d
+ *  ex 0: constant function
+ *  ex 1: polynomial of order 1
+ *  ex 2: polynomials
+ *  `- ex 21: Similar to ex 2 but the background velocity field is set to be zero (i.e solve the Stoke's equations).
+ *   - ex 22: Similar to ex 2 but the background velocity field is set to be the constant.
+ *   - ex 23: Similar to ex 2 but the background velocity field is set to be the polynomial of order 1.
+ *
+ *  3-d
+ *  ex 0: constant function
+ *  ex 1: polynomial of order 1
+ *  ex 2: polynomials
+ */
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -88,7 +103,7 @@ int main(int argc, char *argv[])
                      "--dimension",
                      "Dimension of the problem (2 = 2d, 3 = 3d)");
    args.AddOption(&ctx.elem,
-                     "-e",
+                     "-elem",
                      "--element-type",
                      "Type of elements used (0: Quad/Hex, 1: Tri/Tet)");
    args.AddOption(&ctx.n,
@@ -103,40 +118,72 @@ int main(int argc, char *argv[])
                      "-rp",
                      "--refine-parallel",
                      "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&ctx.total_ref_levels, "-tr", "--total-refine",
+   args.AddOption(&ctx.total_ref_levels,
+		   	   	   	 "-tr",
+					 "--total-refine",
                   	  "Number of times to refine the mesh uniformly for a convergence test.");
-   args.AddOption(&ctx.order, "-o", "--order",
+   args.AddOption(&ctx.order,
+		   	   	   	 "-o",
+					 "--order",
                      "Finite element order (polynomial degree)");
-   args.AddOption(&ctx.reduce_order_pressure, "-reduce-p", "--reduce-order-p", "-full-p",
+   args.AddOption(&ctx.reduce_order_pressure,
+		      	  	 "-reduce-p",
+					 "--reduce-order-p",\
+					 "-full-p",
 				  	 "--full-order-p",
 					 "Using k-1 order in approximation of pressure.");
-   args.AddOption(&ctx.reduce_order_sig, "-reduce-s", "--reduce-order-s", "-full-s",
+   args.AddOption(&ctx.reduce_order_sig,
+		   	   	   	 "-reduce-s",
+					 "--reduce-order-s",
+					 "-full-s",
 				  	 "--full-order-s",
 					 "Using k-1 order in approximation of gradient of velocity.");
-   args.AddOption(&ctx.kappa_0, "-k_0", "--kappa_0",
+   args.AddOption(&ctx.kappa_0,
+		   	   	   	 "-k_0",
+					 "--kappa_0",
                   	 "Setting up the stabilization parameter.");
    args.AddOption(&ctx.Re,
                      "-Re",
                      "--Reynolds-number",
                      "Kinematic viscosity");
-   args.AddOption(&ctx.dirichlet, "-dirichlet", "--dirichlet-bc", "-neumann",
+   args.AddOption(&ctx.dirichlet,
+		   	   	   	 "-dirichlet",
+					 "--dirichlet-bc",
+					 "-neumann",
 				     "--neumann-bc",
 					 "Pure Dirichlet or mixed type (Dirichlet & Neumann) of boundary conditions.");
-   args.AddOption(&ctx.converge_test, "-conv", "--conv-test", "-no-conv",
+   args.AddOption(&ctx.converge_test,
+		   	   	   	 "-conv",
+					 "--conv-test",
+					 "-no-conv",
 				  	 "--no-conv-test",
 					 "Perform a convergence test.");
-   args.AddOption(&ctx.petsc, "-petsc", "--use-petsc",
-                  	 "-no-petsc", "--no-use-petsc",
+   args.AddOption(&ctx.petsc,
+		   	   	   	 "-petsc",
+					 "--use-petsc",
+                  	 "-no-petsc",
+					 "--no-use-petsc",
 					 "Enable or disable SC solver.");
-   args.AddOption(&ctx.petscrc_file, "-petscopts", "--petscopts",
+   args.AddOption(&ctx.petscrc_file,
+		   	   	   	 "-petscopts",
+					 "--petscopts",
                   	 "PetscOptions file to use.");
-   args.AddOption(&ctx.use_ksp_solver, "-ksp", "--ksp_solver", "-lu",
+   args.AddOption(&ctx.use_ksp_solver,
+		   	   	   	 "-ksp",
+					 "--ksp_solver",
+					 "-lu",
                   	 "--lu_solver", "Iterative solver or direct solver setup.");
-   args.AddOption(&ctx.lin_it_atol, "-lin_atol", "--lin_abs_tolerance",
+   args.AddOption(&ctx.lin_it_atol,
+		   	   	   	 "-lin_atol",
+					 "--lin_abs_tolerance",
                   	 "Absolute tolerance in the iteration of the linear solver.");
-   args.AddOption(&ctx.max_lin_it, "-lin_maxit", "--lin_max_nonlin_it",
+   args.AddOption(&ctx.max_lin_it,
+		   	   	   	 "-lin_maxit",
+					 "--lin_max_nonlin_it",
                   	 "Maximum number of iterations of the linear solver.");
-   args.AddOption(&ctx.setPrintLevel_Lin, "-printl", "--print_level",
+   args.AddOption(&ctx.setPrintLevel_Lin,
+		   	   	   	 "-printl",
+					 "--print_level",
                   	 "Setting the printlevel.");
    args.AddOption(&ctx.Picard,
                      "-Picard",
@@ -440,6 +487,9 @@ double p_exact(const Vector &xvec)
 			   break;
 		   }
 		   case 2:
+		   case 21:
+		   case 22:
+		   case 23:
 		   {
 			   p = sin(2.0*M_PI*x)*sin(2.0*M_PI*y);
 			   break;
@@ -459,6 +509,7 @@ double p_exact(const Vector &xvec)
 		   }
 		   case 2:
 		   {
+               p = sin(2*M_PI*x)*sin(2*M_PI*y)*sin(2*M_PI*z);
 			   break;
 		   }
 		   case 0:
@@ -495,6 +546,9 @@ void u_exact(const Vector &xvec, Vector &u)
 			   break;
 		   }
 		   case 2:
+		   case 21:
+		   case 22:
+		   case 23:
 		   {
                u(0) = pow(x,3.0)*pow(y,2.0);
                u(1) = -pow(x,2.0)*pow(y,3.0);
@@ -523,6 +577,9 @@ void u_exact(const Vector &xvec, Vector &u)
 		   }
 		   case 2:
 		   {
+               u(0) = pow(x,4)*pow(y,2)*pow(z,2);
+               u(1) = x*pow(y,3)*pow(z,3);
+               u(2) = (-4./3.)*pow(x,3)*pow(y,2)*pow(z,3) + (-3./4.)*x*pow(y,2)*pow(z,4);
 			   break;
 		   }
 		   default:
@@ -556,6 +613,24 @@ void w_exact(const Vector &xvec, Vector &w)
 			   u_exact(xvec, w);
 			   break;
 		   }
+		   case 21:
+		   {
+			   // w = 0. That is, we solve Stoke's equation
+			   break;
+		   }
+		   case 22:
+		   {
+			   w(0) = 1.0;
+			   w(1) = 2.0;
+			   break;
+		   }
+		   case 23:
+		   {
+			   w(0) = y;
+			   w(1) = x;
+			   break;
+		   }
+		   case 3:
 		   default:
 		   {
 			   break;
@@ -573,6 +648,7 @@ void w_exact(const Vector &xvec, Vector &w)
 		   }
 		   case 2:
 		   {
+			   u_exact(xvec, w);
 			   break;
 		   }
 		   default:
@@ -603,6 +679,9 @@ void sig_exact(const Vector &xvec, Vector &sig)
 				break;
 		   }
 		   case 2:
+		   case 21:
+		   case 22:
+		   case 23:
 		   {
 				sig(0) = 3*pow(x,2)*pow(y,2);
 				sig(1) = 2*pow(x,3)*y;
@@ -633,6 +712,15 @@ void sig_exact(const Vector &xvec, Vector &sig)
 		   }
 		   case 2:
 		   {
+			   sig(0)=4*pow(x,3)*pow(y,2)*pow(z,2);
+			   sig(1)=2*pow(x,4)*y*pow(z,2);
+			   sig(2)=2*pow(x,4)*pow(y,2)*z;
+			   sig(3)=pow(y,3)*pow(z,3);
+			   sig(4)=3*x*pow(y,2)*pow(z,3);
+			   sig(5)=3*x*pow(y,3)*pow(z,2);
+			   sig(6)=-4*pow(x,2)*pow(y,2)*pow(z,3) - (3*pow(y,2)*pow(z,4))/4.;
+			   sig(7)=-(3*x*y*pow(z,4))/.2 - (8*pow(x,3)*y*pow(z,3))/3.;
+			   sig(8)=-4*pow(x,3)*pow(y,2)*pow(z,2) - 3*x*pow(y,2)*pow(z,3);
 			   break;
 		   }
 		   case 0:
@@ -713,6 +801,9 @@ void f_source(const Vector &xvec, Vector &f)
 				break;
 		   }
 		   case 2:
+		   case 21:
+		   case 22:
+		   case 23:
 		   {
 				Lap_u1 = 2.0*pow(x,3.0) + 6.0*x*pow(y,2.0);
 				Lap_u2 = -6.0*pow(x,2.0)*y - 2.0*pow(y,3.0);
@@ -754,6 +845,13 @@ void f_source(const Vector &xvec, Vector &f)
 		   }
 		   case 2:
 		   {
+			   Lap_u1 =2*pow(x,4)*pow(y,2) + 2*pow(x,4)*pow(z,2) + 12*pow(x,2)*pow(y,2)*pow(z,2);
+			   Lap_u2 =6*x*pow(y,3)*z + 6*x*y*pow(z,3);
+			   Lap_u3 =-8*pow(x,3)*pow(y,2)*z - (8*pow(x,3)*pow(z,3))/3. - 8*x*pow(y,2)*pow(z,3) - 9*x*pow(y,2)*pow(z,2) - (3*x*pow(z,4))/2.;
+
+			   dx_p =2*M_PI*cos(2*M_PI*x)*sin(2*M_PI*y)*sin(2*M_PI*z);
+			   dy_p =2*M_PI*cos(2*M_PI*y)*sin(2*M_PI*x)*sin(2*M_PI*z);
+			   dz_p =2*M_PI*cos(2*M_PI*z)*sin(2*M_PI*x)*sin(2*M_PI*y);
 			   break;
 		   }
 		   case 0:

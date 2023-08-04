@@ -157,7 +157,7 @@ DenseMatrix &elmat)
 	const IntegrationRule *ir = IntRule;
 	if (ir == NULL)
 	{
-	  int order = 2 * el.GetOrder() + Trans.OrderW();
+	  int order = 3 * el.GetOrder() + Trans.OrderW();
 	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
@@ -537,11 +537,11 @@ DenseMatrix &elmat)
 	  int order;
 	  if (ndof2)
 	  {
-		 order = 2 * std::max(el1.GetOrder(), el2.GetOrder());
+		 order = 3 * std::max(el1.GetOrder(), el2.GetOrder());
 	  }
 	  else
 	  {
-		 order = 2 * el1.GetOrder();
+		 order = 3 * el1.GetOrder();
 	  }
 	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
@@ -572,7 +572,7 @@ DenseMatrix &elmat)
 
 		el1.CalcShape(eip1, shape1);
 		weight = ip.weight * Trans.Weight();
-		Q->Eval(evalQ, *Trans.Elem1, ip);
+		Q->Eval(evalQ, *Trans.Elem1, eip1);
 		inner_prod = evalQ * nor;
 
 		// TODO: The upwind flux can also be expressed in the format of
@@ -819,7 +819,7 @@ Vector &elvect
 	const IntegrationRule *ir = IntRule;
 	if (ir == NULL)
 	{
-	  int order = 2*el.GetOrder() + 2;
+	  int order = 3*el.GetOrder() + 2;
 	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
@@ -890,7 +890,7 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 	const IntegrationRule *ir = IntRule;
 	if (ir == NULL)
 	{
-	  int order = 2*el.GetOrder() + 2;
+	  int order = 3*el.GetOrder() + 2;
 	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
@@ -937,7 +937,7 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
 		if (Q == NULL){
 			// do nothing
 		}else{
-			Q->Eval(evalQ,*Trans.Elem1,ip);
+			Q->Eval(evalQ, *Trans.Elem1, eip);
 			inner_prod = evalQ*nor;
 
 					// sanity check for the condition of inflow boundaries
@@ -991,7 +991,7 @@ void VectorDGNeumannLFIntegrator::AssembleRHSElementVect(
 	if (ir == NULL)
 	{
 	  // a simple choice for the integration order; is this OK?
-	  int order = 2*el.GetOrder() + 2;
+	  int order = 3*el.GetOrder() + 2;
 	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
@@ -1058,7 +1058,7 @@ void BoundaryNormalLFIntegrator_mod::AssembleRHSElementVect(
 	if (ir == NULL)
 	{
 	  // a simple choice for the integration order;
-	  int order = 2*el.GetOrder() + 2;
+	  int order = 3*el.GetOrder() + 2;
 	  ir = &IntRules.Get(Trans.GetGeometryType(), order);
 	}
 
