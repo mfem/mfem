@@ -218,7 +218,11 @@ protected:
    Mesh *patchTopo;
    int own_topo;
    Array<int> edge_to_knot;
+   /** Set of knotvectors containing unique KnotVectors only */
    Array<KnotVector *> knotVectors;
+   /** Comprehensive set of knotvectors. This set contains a KnotVector for
+       every edge.*/
+   Array<KnotVector *> knotVectorsCompr;
    Vector weights;
 
    // periodic BC info:
@@ -260,6 +264,20 @@ protected:
 
    void CheckPatches();
    void CheckBdrPatches();
+
+   /** Checks the direction of the knotvectors in the patch based on
+       the patch orientation for patch @a p returns the direction of
+       the Knotvectors in @a kvdir.*/
+   void CheckKVDirection(int p, Array <int> &kvdir);
+   /**  Creates the comprehensive set of KnotVectors. They are the same for 1D. */
+   void CreateComprehensiveKV();
+   /**  Updates the unique set of KnotVectors */
+   void UpdateUniqueKV();
+
+   /** Checks if the comprehensive array of KnotVectors agrees with
+       the reduced set of KnotVectors. Returns false if it finds
+       a difference. */
+   bool ConsistentKVSets();
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;

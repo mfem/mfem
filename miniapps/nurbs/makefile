@@ -58,12 +58,18 @@ EX1_ARGS_2 := -r 0 -o 4
 EX1_ARGS_3 := -r 2
 EX1_ARGS_4 := -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 EX1_ARGS_5 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 0
-EX1_ARGS_6 := -m ../..//data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
+EX1_ARGS_6 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
 EX1_ARGS_7 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_8 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2
 EX1_ARGS_9 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_10 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_11 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+EX1_ARGS_12 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_13 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_14 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_15 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_16 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_17 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
@@ -77,6 +83,12 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_9))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_12))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_13))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_14))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_15))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
 
 CI_ARGS_1 := -uw -n 9 -no-visit
 CI_ARGS_2 := -nw -n 9 -no-visit
