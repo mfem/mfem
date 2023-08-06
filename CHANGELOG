@@ -10,6 +10,7 @@
 
 Version 4.5.3 (development)
 ===========================
+- Added curve interpolation method for NURBS.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -31,6 +32,8 @@ New and updated examples and miniapps
 
 - Added new SubMesh examples demonstrating source terms and boundary conditions
   transferred from SubMesh objects.
+
+- Added a miniapp for interpolation of NURBS.
 
 - Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
   demonstrating the use of a matrix-free saddle-point solver methodology,
