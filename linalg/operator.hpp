@@ -769,6 +769,28 @@ public:
    { A.Mult(x, y); }
 };
 
+/// General linear combination operator: x -> a A(x) + b B(x).
+class AddOperator : public Operator
+{
+   const Operator *A, *B;
+   const double alpha, beta;
+   bool ownA, ownB;
+   mutable Vector a, b;
+
+public:
+   AddOperator(
+           const Operator *A, const double alpha,
+           const Operator *B, const double beta,
+           bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { A->Mult(x, a); B->Mult(x, b); add(alpha, a, beta, b, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A->MultTranspose(x, a); B->MultTranspose(x, b); add(alpha, a, beta, b, y); }
+
+   virtual ~AddOperator();
+};
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
