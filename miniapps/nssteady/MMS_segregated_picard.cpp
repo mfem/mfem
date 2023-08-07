@@ -7,16 +7,37 @@
 #include <math.h>
 
 // Include steady ns miniapp
-#include "snavier_cg.hpp"
+#include "snavier_picard_segregated.hpp"
+
+
+#ifdef M_PI
+#define PI M_PI
+#else
+#define PI 3.14159265358979
+#endif
 
 using namespace mfem;
 
-// Forward declarations of functions
-void   V_exact(const Vector &X, Vector &v);
-double P_exact(const Vector &X);
+// Forward declarations of functions and global variables
+
+double ns_coeff = 1.0;
+
+double ComputeLift(ParGridFunction &p);
+
+void   V_exact1(const Vector &X, Vector &v);
+double P_exact1(const Vector &X);
+std::function<void(const Vector &, Vector &)> RHS1(const double &kin_vis);
+
+void   V_exact2(const Vector &X, Vector &v);
+double P_exact2(const Vector &X);
+std::function<void(const Vector &, Vector &)> RHS2(const double &kin_vis);
+
+void   V_exact3(const Vector &X, Vector &v);
+double P_exact3(const Vector &X);
+std::function<void(const Vector &, Vector &)> RHS3(const double &kin_vis);
+
 double pZero(const Vector &X);
 void   vZero(const Vector &X, Vector &v);
-std::function<void(const Vector &, Vector &)> RHS(const double &kin_vis);
 
 // Test
 int main(int argc, char *argv[])
@@ -34,6 +55,8 @@ int main(int argc, char *argv[])
    //
    /// 2. Parse command-line options. 
    //
+   int fun = 1;               // exact solution
+
    int porder = 1;            // fe
    int vorder = 2;
 
@@ -46,13 +69,18 @@ int main(int argc, char *argv[])
    double kin_vis = 0.01;     // kinematic viscosity
 
    double rel_tol = 1e-7;     // solvers
-   double abs_tol = 1e-15;
-   int tot_iter = 100;
-   int print_level = 1;
+   double abs_tol = 1e-10;
+   int tot_iter = 1000;
+   int print_level = 0;
 
-   bool visualization = false; // postprocessing
+   bool stokes = false;       // if true solves stokes problem
+   double alpha = 1.;         // steady-state scheme
+   double gamma = 1.;         // relaxation
+
+   bool paraview = false;     // postprocessing (paraview)
+   bool visit    = true;      // postprocessing (VISit)
+   
    bool verbose = false;
-   bool par_format = false;
    const char *outFolder = "./";
 
    // TODO: check parsing and assign variables
@@ -87,15 +115,6 @@ int main(int argc, char *argv[])
                      "-kv",
                      "--kin-viscosity",
                      "Kinematic viscosity");
-   args.AddOption(&visualization,
-                     "-vis",
-                     "--visualization",
-                     "-no-vis",
-                     "--no-visualization",
-                     "Enable or disable GLVis visualization.");
-   args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
-                  "--serial-format",
-                  "Format to use when saving the results for VisIt.");
    args.AddOption(&rel_tol,
                   "-rel",
                   "--relative-tolerance",
@@ -103,7 +122,7 @@ int main(int argc, char *argv[])
    args.AddOption(&abs_tol,
                   "-abs",
                   "--absolute-tolerance",
-                  "Absolute tolerance for the Newton solve.");
+                  "Absolute tolerance for the Outer solve.");
    args.AddOption(&tot_iter,
                   "-it",
                   "--linear-iterations",
@@ -112,6 +131,30 @@ int main(int argc, char *argv[])
                   "-o",
                   "--output-folder",
                   "Output folder.");
+   args.AddOption(&paraview, "-p", "--paraview", "-no-p",
+                  "--no-paraview",
+                  "Enable Paraview output.");
+   args.AddOption(&fun, "-f", "--test-function",
+                     "Analytic function to test");    
+   args.AddOption(&print_level,
+                  "-pl",
+                  "--print-level",
+                  "Print level.");     
+   args.AddOption(&stokes,
+                     "-s",
+                     "--stokes",
+                     "-ns",
+                     "--navier-stokes",
+                     "Stokes solution.");
+   args.AddOption(&gamma,
+                     "-g",
+                     "--gamma",
+                     "Relaxation parameter");
+   args.AddOption(&alpha,
+                     "-a",
+                     "--alpha",
+                     "Parameter controlling linearization");
+
 
    args.Parse();
    if (!args.Good())
@@ -177,28 +220,58 @@ int main(int argc, char *argv[])
 
 
    //
-   /// 5. Define the coefficients (e.g. parameters, analytical solution/s).
-   //
-   FunctionCoefficient *P_ex = new FunctionCoefficient(P_exact);
-   VectorFunctionCoefficient *V_ex = new VectorFunctionCoefficient(dim, V_exact);
-   VectorFunctionCoefficient *f_coeff = new VectorFunctionCoefficient(dim, RHS(kin_vis));
-
-
-   //
-   /// 6. Create solver
+   /// 5. Create solver
    // 
    SNavierPicardCGSolver* NSSolver = new SNavierPicardCGSolver(pmesh,vorder,porder,kin_vis,verbose);
 
+   if ( stokes )
+   {
+      NSSolver->EnableStokes();
+      ns_coeff = 0.0;
+   }
+
+   //
+   /// 6. Define the coefficients (e.g. parameters, analytical solution/s) and compute pressure lift.
+   //
+   VectorFunctionCoefficient*    V_ex = nullptr;
+   VectorFunctionCoefficient* f_coeff = nullptr;
+   FunctionCoefficient*          P_ex = nullptr;
+   switch (fun)
+   {
+   case 1:
+      {
+         V_ex = new VectorFunctionCoefficient(dim, V_exact1);
+         P_ex = new FunctionCoefficient(P_exact1);
+         f_coeff = new VectorFunctionCoefficient(dim, RHS1(kin_vis));
+         break;
+      }
+   case 2:
+      {
+         V_ex = new VectorFunctionCoefficient(dim, V_exact2);
+         P_ex = new FunctionCoefficient(P_exact2);
+         f_coeff = new VectorFunctionCoefficient(dim, RHS2(kin_vis));
+         break;
+      }
+   case 3:
+      {
+         V_ex = new VectorFunctionCoefficient(dim, V_exact3);
+         P_ex = new FunctionCoefficient(P_exact3);
+         f_coeff = new VectorFunctionCoefficient(dim, RHS3(kin_vis));
+         break;
+      }
+   default:
+      break;
+   }
 
    //
    /// 7. Set parameters of the Fixed Point Solver
    // 
    //SolverParams sFP = {1e-6, 1e-10, 1000, 1};   // rtol, atol, maxIter, print level
    SolverParams sFP = {1e-6, 1e-10, 1000, 1}; 
-   NSSolver->SetFixedPointSolver(sFP);
+   NSSolver->SetOuterSolver(sFP);
 
-   double alpha = 0.1;
    NSSolver->SetAlpha(alpha, AlphaType::CONSTANT);
+   NSSolver->SetGamma(gamma);
 
    //
    /// 8. Set parameters of the Linear Solvers
@@ -206,7 +279,7 @@ int main(int argc, char *argv[])
    SolverParams s1 = {1e-6, 1e-10, 1000, 0}; 
    SolverParams s2 = {1e-6, 1e-10, 1000, 0}; 
    SolverParams s3 = {1e-6, 1e-10, 1000, 0}; 
-   NSSolver->SetLinearSolvers(s1,s2,s3);
+   NSSolver->SetInnerSolvers(s1,s2,s3);
 
 
    //
@@ -230,19 +303,17 @@ int main(int argc, char *argv[])
    //
    /// 10. Set initial condition
    //
-   VectorFunctionCoefficient v_in(dim, vZero);
-   FunctionCoefficient p_in(pZero);
-   NSSolver->SetInitialConditionVel(v_in);
-   NSSolver->SetInitialConditionPres(p_in);
-
+   //VectorFunctionCoefficient v_in(dim, vZero);
+   //FunctionCoefficient p_in(pZero);
+   //NSSolver->SetInitialConditionVel(v_in);
+   //NSSolver->SetInitialConditionPres(p_in);
+   //NSSolver->SetInitialConditionVel(*V_ex);
+   //NSSolver->SetInitialConditionPres(*P_ex);
 
    //
    /// 11. Finalize Setup of solver
    //
    NSSolver->Setup();
-
-   bool    visit = false;
-   bool paraview = true;
    //DataCollection::Format forma = DataCollection::PARALLEL_FORMAT
    NSSolver->SetupOutput( outFolder, visit, paraview );
 
@@ -267,6 +338,10 @@ int main(int argc, char *argv[])
    paraview_dc.Save();
 
 
+   // Compute lift for pressure solution
+   double lift = ComputeLift(*pressureExactPtr);
+   NSSolver->SetLift(lift);
+
    //
    /// 12. Solve the forward problem
    //
@@ -278,63 +353,6 @@ int main(int argc, char *argv[])
    //
    ParGridFunction* velocityPtr = &(NSSolver->GetVelocity());
    ParGridFunction* pressurePtr = &(NSSolver->GetPressure());
-
-   //
-   /// 13.1 Save the refined mesh and the solution in parallel. This output can be
-   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
-
-   /*std::ostringstream mesh_name, v_name, p_name;
-   mesh_name << outFolder << "/mesh." << std::setfill('0') << std::setw(6) << myrank; 
-
-   v_name << outFolder << "/sol_v." << std::setfill('0') << std::setw(6) << myrank;
-   p_name << outFolder << "/sol_p." << std::setfill('0') << std::setw(6) << myrank;
-
-   std::ofstream mesh_ofs(mesh_name.str().c_str());
-   mesh_ofs.precision(8);
-   pmesh->Print(mesh_ofs);
-
-   std::ostringstream omesh_file, omesh_file_bdr;
-   omesh_file << outFolder << "/mesh.vtk";
-   omesh_file_bdr << outFolder << "/mesh_bdr.vtu";
-   std::ofstream omesh(omesh_file.str().c_str());
-   omesh.precision(14);
-   pmesh->PrintVTK(omesh);
-   pmesh->PrintBdrVTU(omesh_file_bdr.str());
-
-   std::ofstream v_ofs(v_name.str().c_str());
-   v_ofs.precision(8);
-   velocityPtr->Save(v_ofs);
-
-   std::ofstream p_ofs(p_name.str().c_str());
-   p_ofs.precision(8);
-   pressurePtr->Save(p_ofs);*/
-
-
-   //
-   /// 13.2 Setup output in the solver
-
-
-   //
-   // 13.4 Send the solution by socket to a GLVis server.
-   //
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream v_sock(vishost, visport);
-      v_sock << "parallel " << nprocs << " " << myrank << "\n";
-      v_sock.precision(8);
-      v_sock << "solution\n" << *pmesh << *velocityPtr << "window_title 'Velocity'"
-             << std::endl;
-      // Make sure all ranks have sent their 'u' solution before initiating
-      // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-      socketstream p_sock(vishost, visport);
-      p_sock << "parallel " << nprocs << " " << myrank << "\n";
-      p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << *pressurePtr << "window_title 'Pressure'"
-             << std::endl;
-   }
 
 
    // Free memory
@@ -352,8 +370,26 @@ int main(int argc, char *argv[])
 }
 
 
+double ComputeLift(ParGridFunction &p)
+{
+   ConstantCoefficient onecoeff(1.0);
+   ParLinearForm* mass_lf = new ParLinearForm(p.ParFESpace());
+   auto *dlfi = new DomainLFIntegrator(onecoeff);
+   mass_lf->AddDomainIntegrator(dlfi);
+   mass_lf->Assemble();
+   ParGridFunction one_gf(p.ParFESpace());
+   one_gf.ProjectCoefficient(onecoeff);
 
-void V_exact(const Vector &X, Vector &v)
+   double volume = mass_lf->operator()(one_gf);
+
+   double integ = mass_lf->operator()(p);
+
+   return integ/volume;   // CHECK should we scale by volume
+}
+
+
+// Exact solutions
+void V_exact1(const Vector &X, Vector &v)
 {
    const int dim = X.Size();
 
@@ -365,12 +401,13 @@ void V_exact(const Vector &X, Vector &v)
 
    v = 0.0;
 
-   v(0) = -cos(y)*sin(x);
-   v(1) = cos(x)*sin(y);
+   v(0) = -cos(M_PI * x) * sin(M_PI * y);
+   v(1) = sin(M_PI * x) * cos(M_PI * y);
+
    if( dim == 3) { v(2) = 0; }
 }
 
-std::function<void(const Vector &, Vector &)> RHS(const double &kin_vis)
+std::function<void(const Vector &, Vector &)> RHS1(const double &kin_vis)
 {
    return [kin_vis](const Vector &X, Vector &v)
    {
@@ -385,15 +422,132 @@ std::function<void(const Vector &, Vector &)> RHS(const double &kin_vis)
       
       v = 0.0;
 
-      v(0) = cos(x) + cos(x)*sin(x) - 2*kin_vis*cos(y)*sin(x);
-      v(1) = cos(y) + cos(y)*sin(y) + 2*kin_vis*cos(x)*sin(y);
+      v(0) = 1.0
+             - 2.0 * kin_vis * M_PI * M_PI * cos(M_PI * x) * sin(M_PI * y)
+             - ns_coeff * ( M_PI * sin( M_PI * x) * cos( M_PI * x) );
+      v(1) = 1.0
+             + 2.0 * kin_vis * M_PI * M_PI * cos(M_PI * y) * sin(M_PI * x)
+             - ns_coeff * ( M_PI * sin( M_PI * y) * cos( M_PI * y) );
       if( dim == 3) {
          v(2) = 0;
       }
    };
 }
 
-double P_exact(const Vector &X)
+double P_exact1(const Vector &X)
+{
+   double x = X[0];
+   double y = X[1];
+
+   double p = x + y - 1.0;;
+
+   return p;
+}
+
+
+
+void V_exact2(const Vector &X, Vector &v)
+{
+   const int dim = X.Size();
+
+   double x = X[0];
+   double y = X[1];
+   if( dim == 3) {
+      double z = X[2];
+   }
+
+   v = 0.0;
+
+   v(0) = pow(sin(M_PI*x),2) * sin(M_PI*y) * cos(M_PI*y);
+   v(1) = - pow(sin(M_PI*y),2) * sin(M_PI*x) * cos(M_PI*x);
+   if( dim == 3) { v(2) = 0; }
+}
+
+std::function<void(const Vector &, Vector &)> RHS2(const double &kin_vis)
+{
+   return [kin_vis](const Vector &X, Vector &v)
+   {
+      const int dim = X.Size();
+
+      double x = X[0];
+      double y = X[1];
+      
+      if( dim == 3) {
+         double z = X[2];
+      }
+      
+      v = 0.0;
+
+      v(0) =  y * (2*x - 1) * (y - 1)
+              - kin_vis * M_PI * M_PI * 2 * sin(M_PI*y) * cos(M_PI*y) *(pow(cos(M_PI*x),2) - 3*pow(sin(M_PI*x),2))
+              + ns_coeff * ( M_PI * cos(M_PI * x) * pow(sin(M_PI * x),3) * pow(sin(M_PI*y),2) );
+      v(1) =  x * (2*y - 1) * (x - 1)
+              + kin_vis * M_PI * M_PI * 2 * sin(M_PI*x) * cos(M_PI*x) *(pow(cos(M_PI*y),2) - 3*pow(sin(M_PI*y),2))
+              + ns_coeff * ( M_PI * cos(M_PI * y) * pow(sin(M_PI * y),3) * pow(sin(M_PI*x),2) );
+
+      if( dim == 3) {
+         v(2) = 0;
+      }
+   };
+}
+
+double P_exact2(const Vector &X)
+{
+   double x = X[0];
+   double y = X[1];
+
+   double p = x*y*(1-x)*(1-y);
+
+   return p;
+}
+
+
+void V_exact3(const Vector &X, Vector &v)
+{
+   const int dim = X.Size();
+
+   double x = X[0];
+   double y = X[1];
+   if( dim == 3) {
+      double z = X[2];
+   }
+
+   v = 0.0;
+
+   v(0) = -sin(x) * cos(y);
+   v(1) =  cos(x) * sin(y);
+
+   if( dim == 3) { v(2) = 0; }
+}
+
+std::function<void(const Vector &, Vector &)> RHS3(const double &kin_vis)
+{
+   return [kin_vis](const Vector &X, Vector &v)
+   {
+      const int dim = X.Size();
+
+      double x = X[0];
+      double y = X[1];
+      
+      if( dim == 3) {
+         double z = X[2];
+      }
+      
+      v = 0.0;
+
+      v(0) = cos(x)
+             - 2*kin_vis*cos(y)*sin(x)
+             + ns_coeff * ( cos(x)*sin(x) );
+      v(1) = cos(y)
+             + 2*kin_vis*cos(x)*sin(y)
+             + ns_coeff * ( cos(y)*sin(y) );
+      if( dim == 3) {
+         v(2) = 0;
+      }
+   };
+}
+
+double P_exact3(const Vector &X)
 {
    double x = X[0];
    double y = X[1];
@@ -404,12 +558,11 @@ double P_exact(const Vector &X)
 }
 
 
+
 void vZero(const Vector &X, Vector &v)
 {
    v = 0.0;
 }
-
-
 
 double pZero(const Vector &X)
 {

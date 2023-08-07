@@ -11,11 +11,15 @@
 
 if (MFEM_USE_MPI)
   list(APPEND SNAVIER_COMMON_SOURCES
-      snavier_cg.cpp
+      snavier_picard_monolithic.cpp
+      snavier_newton_monolithic.cpp
+      snavier_picard_segregated.cpp
       snavier_dg.cpp
       custom_bilinteg.cpp)
   list(APPEND SNAVIER_COMMON_HEADERS
-      snavier_cg.hpp
+      snavier_picard_monolithic.hpp
+      snavier_newton_monolithic.hpp
+      snavier_picard_segregated.hpp
       snavier_dg.hpp
       custom_bilinteg.hpp)
 
@@ -26,10 +30,6 @@ if (MFEM_USE_MPI)
       EXTRA_SOURCES ${SNAVIER_COMMON_SOURCES}
       EXTRA_HEADERS ${SNAVIER_COMMON_HEADERS})
 
-  add_mfem_miniapp(test_snavier_cg
-    MAIN test_snavier_cg.cpp
-    ${SNAVIER_COMMON_FILES}
-    LIBRARIES mfem)
 
   add_mfem_miniapp(test_snavier_dg
     MAIN test_snavier_dg.cpp
@@ -41,8 +41,36 @@ if (MFEM_USE_MPI)
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
-  add_mfem_miniapp(test_manufactured_sol
-    MAIN test_manufactured_sol.cpp
+  add_mfem_miniapp(check_mesh
+    MAIN check_mesh.cpp)
+
+  add_mfem_miniapp(test_monolithic_stokes
+    MAIN MMS_monolithic_stokes.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(MMS_monolithic_picard_nssteady
+    MAIN MMS_monolithic_picard_nssteady.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(MMS_solver_monolithic_picard_nssteady
+    MAIN MMS_solver_monolithic_picard_nssteady.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(MMS_solver_monolithic_newton_nssteady
+    MAIN MMS_solver_monolithic_newton_nssteady.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(LidCavity_solver_monolithic_picard_nssteady
+    MAIN LidCavity_solver_monolithic_picard_nssteady.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(MMS_segregated_picard
+    MAIN MMS_segregated_picard.cpp
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
 

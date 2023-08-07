@@ -2,7 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
-#include "snavier_cg.hpp"
+#include "custom_bilinteg.hpp"
 
 using namespace mfem;
 
@@ -28,8 +28,6 @@ int main(int argc, char *argv[])
    int elem = 0;
    int ser_ref_levels = 0;
 
-   double tol = 1e-10;           // tol to check difference of matrices
-
    // TODO: check parsing and assign variables
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&dim,
@@ -53,10 +51,6 @@ int main(int argc, char *argv[])
                      " isoparametric space.");
    args.AddOption(&fun, "-f", "--test-function",
                      "Analytic function to test");
-   args.AddOption(&tol,
-                     "-t",
-                     "--tolerance",
-                     "Tolerance for checking difference in Frobenious norm of assembled matrices.");
 
    args.Parse();
    if (!args.Good())
@@ -144,39 +138,60 @@ int main(int argc, char *argv[])
    /// 5. Define Bilinear and NonlinearForms for Convective term
    //
    Array<int> empty;
-   SparseMatrix Cbl;
+   SparseMatrix Cbl1; // w . grad u
+   SparseMatrix Cbl2; // u . grad w
    bool SkewSym = false;
 
-   BilinearForm C_blForm(&vfes);
-   C_blForm.AddDomainIntegrator(new VectorConvectionIntegrator(v_vc, 1.0, SkewSym)); 
-   C_blForm.Assemble();
-   C_blForm.FormSystemMatrix(empty,Cbl);
+   BilinearForm C_blForm1(&vfes);
+   C_blForm1.AddDomainIntegrator(new VectorConvectionIntegrator(v_vc, 1.0, SkewSym)); 
+   C_blForm1.Assemble();
+   C_blForm1.FormSystemMatrix(empty,Cbl1);
 
-   NonlinearForm C_nlForm(&vfes);
+   BilinearForm C_blForm2(&vfes);
+   C_blForm2.AddDomainIntegrator(new VectorGradCoefficientIntegrator(v_vc, 1.0)); 
+   C_blForm2.Assemble();
+   C_blForm2.FormSystemMatrix(empty,Cbl2);
+
+   NonlinearForm C_nlForm1(&vfes);  // du . grad u
    ConstantCoefficient one(1.0);
-   C_nlForm.AddDomainIntegrator(new ConvectiveVectorConvectionNLFIntegrator(one));
-   SparseMatrix& Cnl = dynamic_cast<SparseMatrix&>(C_nlForm.GetGradient(v));
+   C_nlForm1.AddDomainIntegrator(new ConvectiveVectorConvectionNLFIntegrator(one));
+   SparseMatrix& Cnl1 = dynamic_cast<SparseMatrix&>(C_nlForm1.GetGradient(v));
+
+   NonlinearForm C_nlForm_full(&vfes); // du . grad u + u . grad du
+   C_nlForm_full.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one));
+   SparseMatrix& Cnl2 = dynamic_cast<SparseMatrix&>(C_nlForm_full.GetGradient(v));
+   Cnl2.Add(-1.0,Cnl1);               // u . grad du
+   
+
+   GridFunction x(&vfes), y_nl(&vfes), y_bl(&vfes);
+   x.Randomize(3);
+
+   Cnl1.Mult(x, y_nl);
+   Cbl1.Mult(x, y_bl);
+
+   y_nl -= y_bl;
 
    //
    /// 6. Check if the assembled matrices are the same
    //
-   DenseMatrix Cbl_d, Cnl_d;
-   Cbl.ToDenseMatrix(Cbl_d);
-   Cnl.ToDenseMatrix(Cnl_d);
-   Cbl_d.Add(-1,Cnl_d);
-   double norm = Cbl_d.FNorm();
+   DenseMatrix Cbl1_d, Cnl1_d, Cbl2_d, Cnl2_d;
+   Cbl1.ToDenseMatrix(Cbl1_d);
+   Cnl1.ToDenseMatrix(Cnl1_d);
+   Cbl2.ToDenseMatrix(Cbl2_d);
+   Cnl2.ToDenseMatrix(Cnl2_d);
 
-   bool matricesAreSame = norm < tol;
+   Cbl1_d.Add(-1,Cnl1_d);
+   Cbl2_d.Add(-1,Cnl2_d);
+
+   double norm1 = Cbl1_d.FNorm();
+   double norm2 = Cbl2_d.FNorm();
+
+   double difference = y_nl.Norml2();
 
    // Print the result
-   if (matricesAreSame)
-   {
-      std::cout << "The assembled matrices are the same." << std::endl;
-   }
-   else
-   {
-      std::cout << "The assembled matrices are different. Tol: " << norm << std::endl;
-   }
+   mfem::out << " || y_nl - y_bl ||_L2 = " << difference << std::endl;
+   mfem::out << " || C_nl1 - C_bl1 ||_F = " << norm1 << std::endl;
+   mfem::out << " || C_nl2 - C_bl2 ||_F = " << norm2 << std::endl;
 
    return 0;
 }

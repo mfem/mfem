@@ -69,34 +69,54 @@ public:
    VectorCoefficient *coeff = nullptr;
 };
 
-/// Container for coefficient holding coeff, mesh attribute id (i.e. not the full array) and direction (x,y,z) (useful for componentwise BCs).
-class CompCoeffContainer
+/// Container for coefficient holding coeff, mesh attribute id (i.e. not the full array)
+class CoeffContainer
 {
 public:
-   CompCoeffContainer(Array<int> attr, Coefficient *coeff, int dir)
-      : attr(attr), coeff(coeff), dir(dir)
+   CoeffContainer(Array<int> attr, Coefficient *coeff)
+      : attr(attr), coeff(coeff)
    {}
 
-   CompCoeffContainer(CompCoeffContainer &&obj)
+   CoeffContainer(CoeffContainer &&obj)
    {
       // Deep copy the attribute and direction
       this->attr = obj.attr;
-      this->dir = obj.dir;
 
       // Move the coefficient pointer
       this->coeff = obj.coeff;
       obj.coeff = nullptr;
    }
 
-   ~CompCoeffContainer()
+   ~CoeffContainer()
    {
         delete coeff;
         coeff=nullptr;
     }
 
    Array<int> attr;
-   int dir;
    Coefficient *coeff;
+};
+
+/// Container for coefficient holding coeff, mesh attribute id (i.e. not the full array) and direction (x,y,z) (useful for componentwise BCs).
+class CompCoeffContainer : public CoeffContainer
+{
+public:
+    // Constructor for CompCoeffContainer
+    CompCoeffContainer(Array<int> attr, Coefficient *coeff, int dir)
+        : CoeffContainer(attr, coeff), dir(dir)
+    {}
+
+    // Move Constructor
+    CompCoeffContainer(CompCoeffContainer &&obj)
+        : CoeffContainer(std::move(obj))
+    {
+        dir = obj.dir;
+    }
+
+    // Destructor
+    ~CompCoeffContainer() {}
+
+    int dir;
 };
 
 
@@ -105,11 +125,24 @@ public:
  * \class SNavierPicardCGSolver
  * \brief Steady-state Incompressible Navier Stokes solver with (Picard) Chorin-Temam algebraic splitting formulation.
  *
+ * Navier-Stokes problem corresponding,
+ *               to the saddle point system:
+ *
+ *              -nu \nabla^2 u + u \cdot \nabla u + \nabla p = f
+ *                                                  \div u   = 0
+ *
  * This implementation of a steady-state incompressible Navier Stokes solver uses
  * Picard iteration to linearize the nonlinear convective term.
  * The formulation introduces a user-defined parameter to adapt the scheme to use
  * Algebraic Chorin-Temam splitting scheme as in [1]
  *
+ * 
+ * The algebraic form of the linearize system is:
+ *
+ *                [  K + alpha*C   G ] [v] = [ fv + (alpha-1)*C*vk]                 
+ *                [      -B        0 ] [p]   [  0 ] 
+ * 
+ * 
  * The segregated schemes follows three steps:
  *
  * 1. Velocity prediction: Compute tentative velocity from decoupled momentum eqn without pressure term.
@@ -118,16 +151,19 @@ public:
  *
  * 3. Velocity correction: Project velocity onto divergence free space using the previously computed pressure field
  *
+ * 4. Relaxation step  v = gamma*v + (1-gamma)*vk 
+ * 
  * The numerical solver setup for each step are as follows.
  *
- * 1. is solved using CG with HypreBoomerAMG as preconditioner.
+ * 1. is solved using GMRES with HypreBoomerAMG as preconditioner.
  *
- * 2. is solved using CG with HypreBoomerAMG as preconditioner (Note: pressure mass matrix can be used for preconditioning).
+ * 2. is solved using CG with HypreBoomerAMG approximation of pressure matrix as preconditioner
+ *    (Note: preconditioner is wrapped by OrthoSolver to remove pressure nullspace).
  *
  * 3. is solved using CG with HypreBoomerAMG as preconditioner.
  *
  *
- * A detailed description is available in [1] 
+ * A detailed description is available in [1-3] 
  *
  * [1] Viguerie, Alex, and Mengying Xiao. "Effective Chorin–Temam algebraic splitting schemes
        for the steady Navier–stokes equations." Numerical Methods for Partial Differential
@@ -234,14 +270,14 @@ public:
     * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level), for the outer loop of the segregated scheme.
     * 
     */
-    void SetFixedPointSolver(SolverParams params);
+    void SetOuterSolver(SolverParams params);
 
     /**
     * \brief Set parameter alpha. 
     *
     * Set segregation parameter @a alpha
     * 
-    * \param alpha_ value for the parameter alpha (initial value if type_=ADAPTIVE)
+    * \param alpha_ value for the parameter alpha (initial value if type_=ADAPTIVE) [0,1]
     * \param type_ type of parameter (AlphaType::CONSTANT, AlphaType::ADAPTIVE)
     *
     * * \note If AlphaType::ADAPTIVE, alpha will be computed to enforce Peclet Number Pe < 2
@@ -256,13 +292,40 @@ public:
     void SetAlpha(double &alpha_, const AlphaType &type_);
 
     /**
+    * \brief Set gamma parameter for relaxation step. 
+    *
+    * \param gamma_ parameter for relaxation parameter [0,1]
+    * 
+    * 
+    * \note gamma must satisfy the bound $\gamma < 2 \alpha$
+    */
+    void SetGamma(double &gamma_);
+
+    /**
+    * \brief Set lift for pressure solution, in case of analytic functions. 
+    *
+    * \param lift_ lift for pressure solution
+    */
+    void SetLift(double &lift_);
+
+    /**
+    * \brief Enable solution of stokes problem. 
+    *
+    * Enable solution of stokes problem by setting the convective term to zero.
+    * 
+    * \note Must be set before call to @a FSolve() since convective term is not assembled in @a Setup
+    * 
+    */
+    void EnableStokes();
+
+    /**
     * \brief Set the Linear Solvers parameters
     *
     * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level) for the three internal linear solvers involved in the 
     * segregated scheme. 
     *
     */
-    void SetLinearSolvers(SolverParams params1, SolverParams params2, SolverParams params3);
+    void SetInnerSolvers(SolverParams params1, SolverParams params2, SolverParams params3);
 
     /**
     * \brief Finalizes setup.
@@ -385,6 +448,7 @@ private:
     ParGridFunction z_gf;           // intermediate velocity    
     ParGridFunction vk_gf;          // velocity from previous iteration
     ParGridFunction pk_gf;          // pressure from previous iteration
+    ParGridFunction p_gf_out;       // pressure output (including lift)
 
     /// (Vector) GridFunction coefficients wrapping vk_gf and pk_gf (for error computation)
     VectorGridFunctionCoefficient *vk_vc = nullptr;
@@ -397,7 +461,7 @@ private:
     Array<int> vel_ess_attr_z;        // Essential attributes (z component applied).
     Array<int> ess_attr_tmp;          // Temporary variable for essential attributes.
 
-    Array<int> vel_ess_tdof;          // All essential true dofs.
+    Array<int> vel_ess_tdof;          // All essential velocity true dofs.
     Array<int> vel_ess_tdof_full;     // All essential true dofs from VectorCoefficient.
     Array<int> vel_ess_tdof_x;        // All essential true dofs x component.
     Array<int> vel_ess_tdof_y;        // All essential true dofs y component.
@@ -419,7 +483,8 @@ private:
     /// Bilinear/linear forms 
     ParBilinearForm      *K_form=nullptr;
     ParMixedBilinearForm *B_form=nullptr;
-    ParBilinearForm      *C_form=nullptr; // NOTE: or BilinearForm if VectorConvectionIntegrator works
+    ParBilinearForm      *C_form=nullptr; 
+    ParBilinearForm      *Mp_form=nullptr;
     ParLinearForm        *f_form=nullptr;
 
     /// Vectors
@@ -440,12 +505,17 @@ private:
     HypreParMatrix     *B = nullptr;         // divergence
     HypreParMatrix     *A = nullptr;         // A = K + alpha C
     HypreParMatrix     *C = nullptr;         // convective term
-    HypreParMatrix     *S = nullptr;         // S = B Kdiag-1 Bt
-    HypreParMatrix    *Bt = nullptr;
+    HypreParMatrix     *S = nullptr;         // S = B Kdiag-1 G
+    HypreParMatrix    *Mp = nullptr;         // pressure mass matrix
+    HypreParMatrix    *G = nullptr;
     HypreParMatrix    *Ke = nullptr;         // Matrices after bc elimination
     HypreParMatrix    *Be = nullptr;
-    HypreParMatrix   *Bte = nullptr;
     HypreParMatrix    *Ae = nullptr;
+
+    /// Linear form to compute the mass matrix to set pressure mean to zero.
+    ParLinearForm *mass_lf = nullptr;
+    ConstantCoefficient *onecoeff = nullptr;
+    double volume = 0.0;
 
     /// Kinematic viscosity.
     ConstantCoefficient kin_vis;
@@ -455,6 +525,9 @@ private:
 
     /// Traction coefficient for Neumann
     VectorFunctionCoefficient *traction = nullptr;
+
+    /// Coefficient for relaxation step
+    double gamma;
 
     /// Coefficient for steady NS segregation
     double alpha;
@@ -471,13 +544,15 @@ private:
     SolverParams s3Params;
 
     /// Solvers and Preconditioners
-    CGSolver *invA= nullptr;     // solver for velocity prediction
-    CGSolver *invS= nullptr;     // solver for pressure correction
-    CGSolver *invK= nullptr;     // solver for velocity correction
+    GMRESSolver *invA = nullptr;        // solver for velocity prediction (nonsymmetric due to convective term)
+    CGSolver    *invS = nullptr;        // solver for pressure correction
+    CGSolver    *invK = nullptr;        // solver for velocity correction
 
-    HypreBoomerAMG *invA_pc= nullptr;  //preconditioner for velocity prediction
-    HypreBoomerAMG *invS_pc= nullptr;  //preconditioner for pressure correction
-    HypreBoomerAMG *invK_pc= nullptr;  //preconditioner for velocity correction
+    HypreBoomerAMG *invA_pc = nullptr;    // preconditioner for velocity prediction
+    HypreBoomerAMG *invK_pc = nullptr;    // preconditioner for velocity correction
+    HypreBoomerAMG *invMp   = nullptr;    // approximation for pressure mass matrix   
+    HypreBoomerAMG *invS_pc = nullptr;    // approximation for assembled schur complement 
+    OrthoSolver *invS_pc_ortho = nullptr; // preconditioner for pressure correction (remove nullspace)
 
     /// Error variables
     const IntegrationRule *irs[Geometry::NumGeom];
@@ -487,6 +562,12 @@ private:
     double err_p;
     double norm_p;
     
+    // Variable to enable Stokes problem
+    double ns_coeff;
+
+    // Lift
+    double lift;
+
     /// Timers
     StopWatch timer;
 
@@ -541,6 +622,20 @@ private:
     * 
     */
     void FullMult(HypreParMatrix* mat, HypreParMatrix* mat_e, Vector &x, Vector &y);
+
+   /// Remove mean from a Vector.
+   /**
+    * Modify the Vector @a v by subtracting its mean using
+    * \f$v = v - \frac{\sum_i^N v_i}{N} \f$
+    */
+   void Orthogonalize(Vector &v);
+
+   /// Remove the mean from a ParGridFunction.
+   /**
+    * Modify the ParGridFunction @a v by subtracting its mean using
+    * \f$ v = v - \int_\Omega \frac{v}{vol(\Omega)} dx \f$.
+    */
+   void MeanZero(ParGridFunction &v);
 
     // Update alpha parameter
     void UpdateAlpha();
