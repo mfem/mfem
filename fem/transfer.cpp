@@ -670,7 +670,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_lor, std::move(Y), y);
+   SetTDofs(fes_lor, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
@@ -695,7 +695,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_ho, std::move(Y), y);
+   SetTDofs(fes_ho, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
@@ -724,7 +724,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_ho, std::move(Y), y);
+   SetTDofs(fes_ho, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
@@ -753,7 +753,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_lor, std::move(Y), y);
+   SetTDofs(fes_lor, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(double p_rtol_)
@@ -921,12 +921,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofs(
    }
    else
    {
-      X.NewDataAndSize(x.GetData(), x.Size());
+      X = x;
    }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTDofs(
-   const FiniteElementSpace& fes, Vector&& X, Vector& x) const
+   const FiniteElementSpace& fes, const Vector &X, Vector& x) const
 {
    const Operator* P = fes.GetProlongationMatrix();
    if (P)
@@ -935,7 +935,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTDofs(
    }
    else
    {
-      x = std::move(X);
+      x = X;
    }
 }
 

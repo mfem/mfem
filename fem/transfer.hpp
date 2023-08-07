@@ -306,7 +306,7 @@ protected:
       std::pair<std::unique_ptr<SparseMatrix>,
           std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
-      void SetTDofs(const FiniteElementSpace& fes, Vector&& X, Vector& x) const;
+      void SetTDofs(const FiniteElementSpace& fes, const Vector& X, Vector& x) const;
       void TDofsListByVDim(const FiniteElementSpace& fes,
                            int vdim, Array<int>& vdofs_list) const;
       /// Returns the inverse of an on-rank lumped mass matrix
