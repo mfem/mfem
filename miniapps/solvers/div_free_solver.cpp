@@ -610,17 +610,18 @@ int DivFreeSolver::GetNumIterations() const
 BramblePasciakSolver::BramblePasciakSolver(
    const std::shared_ptr<ParBilinearForm> &mVarf,
    const std::shared_ptr<ParMixedBilinearForm> &bVarf,
-   const IterSolveParameters &param)
+   const IterSolveParameters &param, double alpha)
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
                  bVarf->TestFESpace()->GetTrueVSize()),
      op_(offsets_), map_(offsets_), pc_(offsets_),
      solver_(mVarf->ParFESpace()->GetComm())
 {
-   std::unique_ptr<HypreParMatrix> M(mVarf->ParallelAssemble());
+   //std::unique_ptr<HypreParMatrix> M(mVarf->ParallelAssemble());
+   M_.reset(mVarf->ParallelAssemble());
    std::unique_ptr<HypreParMatrix> B(bVarf->ParallelAssemble());
-   Q_.reset(ConstructMassPreconditioner(*mVarf));
+   Q_.reset(ConstructMassPreconditioner(*mVarf, alpha));
 
-   Init(*M, *B, *Q_, param);
+   Init(*M_, *B, *Q_, param);
 }
 
 BramblePasciakSolver::BramblePasciakSolver(
@@ -639,6 +640,7 @@ void BramblePasciakSolver::Init(
 {
    HypreParMatrix *Bt = B.Transpose();
    // invQ
+   // TODO This is not general enough. We are assuming Q is diag!
    HypreParMatrix *invQ = new HypreParMatrix(Q);
    Vector diagQ;
    Q.GetDiag(diagQ);
@@ -675,14 +677,21 @@ void BramblePasciakSolver::Init(
       map_.SetBlock(1, 1, I, -1.0);
    }
 
+   Vector diagM;
+   M.GetDiag(diagM);
+   auto invDBt = new HypreParMatrix(*Bt);
+   invDBt->InvScaleRows(diagM);
+   auto S = ParMult(&B, invDBt);
+   // auto solver_M0 = new HypreDiagScale(M);
+   auto solver_M1 = new HypreBoomerAMG(*S);
    auto solver_M0 = new HypreDiagScale(Q);
-   auto solver_M1 = new HypreBoomerAMG(*block11);
+   // auto solver_M1 = new HypreBoomerAMG(*block11);
    solver_M1->SetPrintLevel(0);
    {
       solver_M0->iterative_mode = false;
       solver_M1->iterative_mode = false;
 
-      pc_.owns_blocks = true;
+      //pc_.owns_blocks = true;
       pc_.SetDiagonalBlock(0, solver_M0);
       pc_.SetDiagonalBlock(1, solver_M1);
    }
@@ -696,7 +705,7 @@ void BramblePasciakSolver::Init(
 }
 
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
-   ParBilinearForm &mVarf)
+   ParBilinearForm &mVarf, double alpha)
 {
    ParBilinearForm qVarf(mVarf.ParFESpace());
    for (int i = 0; i < mVarf.ParFESpace()->GetNE(); ++i)
@@ -712,7 +721,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
       // M_i x = ev diag(M_i) x
       M_i.Eigenvalues(eval, evec);
 
-      scaling = 0.5*eval.Min();
+      scaling = alpha*eval.Min();
       diag_i.Set(scaling, diag_i);
       Q_i.Diag(diag_i.GetData(), diag_i.Size());
       qVarf.AssembleElementMatrix(i, Q_i, 1);

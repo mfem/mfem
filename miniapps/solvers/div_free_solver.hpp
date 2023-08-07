@@ -198,6 +198,7 @@ public:
    virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
 
+/// Divergence free solver.
 /** Divergence free solver.
     The basic idea of the solver is to exploit a multilevel decomposition of
     Raviart-Thomas space to find a particular solution satisfying the divergence
@@ -235,8 +236,27 @@ public:
    virtual int GetNumIterations() const;
 };
 
+/// Bramble-Pasciak Solver for Darcy equation.
 /** Bramble-Pasciak Solver for Darcy equation.
- *  TBD: more documentation
+ *  The basic idea is to precondition the mass matrix M with a s.p.d. matrix Q
+ *  such that M - Q remains s.p.d. Then we can transform the block operator into a
+ *  s.p.d. operator under a modified inner product.
+ *  In particular, this enable us to implement modified versions of CG iterations,
+ *  that rely on efficient applications of the required transformations.
+ *
+ *  We offer a mass preconditioner based on a rescalling of the diagonal of the
+ *  element mass matrices M_T.
+ *  We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
+ *  lambda_min is the smallest eigenvalue of the following problem
+ *                M_T x = lambda * D_T x.
+ *  alpha is a parameter that is stricly between 0 and 1.
+ *
+ *  For more details, see:
+ *  1. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix F.3),
+ *     Springer, 2008.
+ *  2. James H. Bramble and Joseph E. Pasciak.
+ *     A Preconditioning Technique for Indefinite Systems Resulting From Mixed
+ *     Approximations of Elliptic Problems. Mathematics of Computation, 50:1–17, 1988.
  */
 class BramblePasciakSolver : public DarcySolver
 {
@@ -244,22 +264,25 @@ class BramblePasciakSolver : public DarcySolver
    BlockOperator op_;
    BlockOperator map_;
    BlockDiagonalPreconditioner pc_;
+   std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> Q_;
    Array<int> ess_zero_dofs_;
 
    void Init(const HypreParMatrix &M, const HypreParMatrix &B,
-             const HypreParMatrix &Q, const IterSolveParameters &param);
+             const HypreParMatrix &Q, 
+             const IterSolveParameters &param);
 public:
    /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
       const std::shared_ptr<ParBilinearForm> &mVarf,
       const std::shared_ptr<ParMixedBilinearForm> &bVarf,
-      const IterSolveParameters &param);
+      const IterSolveParameters &param, double alpha = 0.5);
 
    /// System and mass preconditioner are user-provided
    BramblePasciakSolver(
       const HypreParMatrix &M, const HypreParMatrix &B,
-      const HypreParMatrix &Q, const IterSolveParameters &param);
+      const HypreParMatrix &Q, 
+      const IterSolveParameters &param);
 
    /// Assemble a preconditioner for the mass matrix
    /** Mass preconditioner corresponds to a local re-scaling
@@ -268,7 +291,7 @@ public:
     *         M_T x_T = lambda_T diag(M_T) x_T
     * and we set Q_T = 0.5 * min(lambda_T) * diag(M_T).
    */
-   static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf);
+   static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf, double alpha = 0.5);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }

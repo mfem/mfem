@@ -358,6 +358,7 @@ int main(int argc, char *argv[])
    DivFreeSolver dfs_cm(M, B, DFS_data);
    setup_time[&dfs_cm] = chrono.RealTime();
 
+   // TODO Add alpha parameter to the param struct
    ResetTimer();
    BramblePasciakSolver bp(darcy.GetMform(), darcy.GetBform(), param);
    setup_time[&bp] = chrono.RealTime();
