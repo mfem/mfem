@@ -69,18 +69,27 @@ int main(int argc, char *argv[])
   //        that is one where the Dirichlet conditions hold... need to pull
   //        this data from contactBlockTL...
   Vector d0(ndofs); d0 = 0.0;
-  Array<int> DirichletDofs;
-  DirichletDofs.Append(contact->GetMesh1DirichletDofs());
-  DirichletDofs.Append(contact->GetMesh2DirichletDofs());
+  Array<int> ess_tdofs1 = contact->GetMesh1DirichletDofs();
+  Array<int> ess_tdofs2 = contact->GetMesh2DirichletDofs();
+  int sz1 = ess_tdofs1.Size();
+  int sz2 = ess_tdofs2.Size();
+  Array<int> DirichletDofs(sz1+sz2);
+  for (int i = 0; i<sz1; i++)
+  {
+    DirichletDofs[i] = ess_tdofs1[i];
+  }
+  for (int i = 0; i<sz2; i++)
+  {
+    DirichletDofs[i+sz1] = ess_tdofs2[i]+contact->GetVh1().GetTrueVSize();
+  }
   GridFunction x1 = contact->GetMesh1GridFunction();
   GridFunction x2 = contact->GetMesh2GridFunction();
 
-  
-  d0.SetVector(x1,0);
-  d0.SetVector(x2,x1.Size());
   SparseMatrix *K;
   Vector f(ndofs); f = 0.0;
   contact->DdE(d0, f); K = contact->DddE(d0);
+  d0.SetVector(x1,0);
+  d0.SetVector(x2,x1.Size());
   SparseMatrix *J;
   Vector g0(nconstraints); g0 = 0.0;
   contact->g(d0, g0); J = contact->Ddg(d0);
@@ -151,7 +160,6 @@ int main(int argc, char *argv[])
     g0reduced(i) = g0(nonZeroRows[i]);
   }
 
-
   QPOptProblem *QPContact = new QPOptProblem(*K, *Jreduced, f, g0reduced);
   
   InteriorPointSolver * QPContactOptimizer = new InteriorPointSolver(QPContact);
@@ -160,6 +168,7 @@ int main(int argc, char *argv[])
   Vector x0(ndofs); x0 = 0.0;
   x0.SetVector(x1,0);
   x0.SetVector(x2,x1.Size());
+
   Vector xf(ndofs); xf = 0.0;
   QPContactOptimizer->Mult(x0, xf);
   
