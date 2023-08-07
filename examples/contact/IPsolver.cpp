@@ -11,7 +11,7 @@ using namespace mfem;
 
 
 InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * Problem) : optProblem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), Huucl(nullptr), HLuucl(nullptr), saveLogBarrierIterates(false)
+Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), Huucl(nullptr), HLuu(nullptr), saveLogBarrierIterates(false)
 {
   rel_tol  = 1.e-2;
   max_iter = 20;
@@ -302,8 +302,8 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
   Huucl = optProblem->lDuuc(x, l);
   if(Huucl != nullptr)
   {
-    HLuucl = Add(*Huucl, *Huu);
-    Ak.SetBlock(0, 0, HLuucl);
+    HLuu = Add(*Huucl, *Huu);
+    Ak.SetBlock(0, 0, HLuu);
   } 
   else
   {
@@ -315,8 +315,8 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
   //          [H_(m,u)  W_(m,m)   J_m^T]
   //          [ J_u      J_m       0  ]]
 
-  Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
-                          Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
+  Ak.SetBlock(0, 2, JuT);
+  Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
   Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
@@ -509,7 +509,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   }
   if( Huucl != nullptr)
   {
-    delete HLuucl;
+    delete HLuu; HLuu = nullptr;
   }
   delete D;
   delete JuT;

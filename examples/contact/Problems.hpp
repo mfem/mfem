@@ -12,7 +12,7 @@ using namespace mfem;
 
 
 // abstract GeneralOptProblem class
-// to describe elements of the problem
+// for the problem
 // min_(u,m) f(u,m) 
 // such that c(u,m)=0 and m >= ml
 class GeneralOptProblem
@@ -38,7 +38,6 @@ public:
     virtual SparseMatrix* lDumc(const BlockVector &, const Vector &) = 0;
     virtual SparseMatrix* lDmuc(const BlockVector &, const Vector &) = 0;
     virtual SparseMatrix* lDmmc(const BlockVector &, const Vector &) = 0;
-    // TO DO: include Hessian terms of constraint c
     // TO DO: include log-barrier lumped-mass and pass that
     // to the optimizer
     //virtual SparseMatrix* GetLogBarrierLumpedMass() = 0;
@@ -53,7 +52,6 @@ public:
 // abstract OptProblem class
 // of the form
 // min_d e(d) s.t. g(d) >= 0
-// TO DO: add functionality for gap function Hessian apply 
 class OptProblem : public GeneralOptProblem
 {
 protected:
@@ -101,17 +99,20 @@ protected:
    // stiffness matrix used to define objective
    BilinearForm *Kform;
    LinearForm   *fform;
-   Array<int> ess_tdof_list; // needed for calls to FormSystemMatrix
+   Array<int> ess_tdof_list;
    SparseMatrix  *K;
    SparseMatrix  *J;
-   SparseMatrix  *zeroMatdd;
+   SparseMatrix  *Hcl;
    FiniteElementSpace *Vh;
    Vector f;
-   Vector psi;
+   Vector psil;
+   Vector psiu;
+   bool twoBounds;
    Vector xDC;
 public : 
-   ObstacleProblem(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);
    ObstacleProblem(FiniteElementSpace*, double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &));
+   ObstacleProblem(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);
+   ObstacleProblem(FiniteElementSpace*, Vector &, double (*fSource)(const Vector &), double (*obstacleSourcel)(const Vector &), double (*obstacleSourceu)(const Vector &), Array<int> tdof_list);
    double E(const Vector &) const;
    void DdE(const Vector &, Vector &) const;
    SparseMatrix* DddE(const Vector &);
