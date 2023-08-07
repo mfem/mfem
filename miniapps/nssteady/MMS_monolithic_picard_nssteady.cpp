@@ -163,14 +163,14 @@ int main(int argc, char *argv[])
    {
       if (myrank == 0)
       {
-         args.PrintUsage(std::cout);
+         args.PrintUsage(mfem::out);
       }
       MPI_Finalize();
       return 1;
    }
    if (myrank == 0)
    {
-       args.PrintOptions(std::cout);
+       args.PrintOptions(mfem::out);
    }
 
 
@@ -252,8 +252,8 @@ int main(int argc, char *argv[])
 
    if (myrank == 0)
    {
-      std::cout << "Velocity dofs: " << vfes->GlobalVSize() << std::endl;
-      std::cout << "Pressure dofs: " << pfes->GlobalVSize() << std::endl;
+      mfem::out << "Velocity dofs: " << vfes->GlobalVSize() << std::endl;
+      mfem::out << "Pressure dofs: " << pfes->GlobalVSize() << std::endl;
    }
 
    BlockVector x(block_offsets), rhs(block_offsets), x_k(block_offsets);
@@ -441,7 +441,7 @@ int main(int argc, char *argv[])
    if( paraview )
    {
       // Creating output directory if not existent
-      if (mkdir(folderPath, 0777) == -1) {std::cerr << "Error :  " << strerror(errno) << std::endl;}
+      if (mkdir(folderPath, 0777) == -1) {mfem::err << "Error :  " << strerror(errno) << std::endl;}
 
       // exact solution
       ParGridFunction* velocityExactPtr = new ParGridFunction(vfes);

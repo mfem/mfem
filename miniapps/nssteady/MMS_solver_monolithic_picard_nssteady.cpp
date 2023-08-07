@@ -155,14 +155,14 @@ int main(int argc, char *argv[])
    {
       if (myrank == 0)
       {
-         args.PrintUsage(std::cout);
+         args.PrintUsage(mfem::out);
       }
       MPI_Finalize();
       return 1;
    }
    if (myrank == 0)
    {
-       args.PrintOptions(std::cout);
+       args.PrintOptions(mfem::out);
    }
 
 

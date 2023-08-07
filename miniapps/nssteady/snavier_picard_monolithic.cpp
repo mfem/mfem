@@ -509,7 +509,7 @@ void SNavierPicardMonolithicSolver::SetupOutput( const char* folderPath, bool vi
    p_gf_out = new ParGridFunction(pfes); *p_gf_out=0.0;
 
    // Creating output directory if not existent
-   if (mkdir(folderPath, 0777) == -1) {std::cerr << "Error :  " << strerror(errno) << std::endl;}
+   if (mkdir(folderPath, 0777) == -1) {mfem::err << "Error :  " << strerror(errno) << std::endl;}
 
    // Create output data collections   
    if( visit )
@@ -696,7 +696,7 @@ void SNavierPicardMonolithicSolver::PrintMatricesVectors( const char* id, int nu
    folderName += "/MatVecs_iter";
    folderName += std::to_string(num);
 
-   if (mkdir(folderName.c_str(), 0777) == -1) {} //{std::cerr << "Error :  " << strerror(errno) << std::endl;}
+   if (mkdir(folderName.c_str(), 0777) == -1) {} //{mfem::err << "Error :  " << strerror(errno) << std::endl;}
 
    //Create files
    std::ofstream K_file(std::string(folderName) + '/' + "K_" + std::string(id) + ".dat");

@@ -55,10 +55,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(std::cout);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(std::cout);
+   args.PrintOptions(mfem::out);
 
    //
    /// 2. Read the (serial) mesh from the given mesh file on all processors.
