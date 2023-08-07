@@ -298,16 +298,14 @@ protected:
       virtual void SetAbsTol(double p_atol_);
    protected:
       /// Computes on-rank R and M_LH matrices
-      std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
-                                                                           ComputeSparseRAndM_LH();
-      virtual void GetTDofs(const FiniteElementSpace& fes,
-                            const Vector& x, Vector& X) const;
-      virtual void SetTDofs(const FiniteElementSpace& fes,
-                            Vector&& X, Vector& x) const;
-      virtual void TDofsListByVDim(const FiniteElementSpace& fes,
-                                   int vdim, Array<int>& vdofs_list) const;
+      std::pair<std::unique_ptr<SparseMatrix>,
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+      void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
+      void SetTDofs(const FiniteElementSpace& fes, Vector&& X, Vector& x) const;
+      void TDofsListByVDim(const FiniteElementSpace& fes,
+                           int vdim, Array<int>& vdofs_list) const;
       /// Returns the inverse of an on-rank lumped mass matrix
-      virtual void LumpedMassInverse(Vector& ML_inv) const;
+      void LumpedMassInverse(Vector& ML_inv) const;
 
       CGSolver pcg;
       std::unique_ptr<Solver> precon;
@@ -334,17 +332,8 @@ protected:
    class ParL2ProjectionH1Space : public L2ProjectionH1Space
    {
    public:
-      ParL2ProjectionH1Space(const ParFiniteElementSpace& pfes_ho_,
-                             const ParFiniteElementSpace& pfes_lor_);
-      virtual ~ParL2ProjectionH1Space() = default;
-   private:
-      void TDofsListByVDim(const FiniteElementSpace& fes,
-                           int vdim, Array<int>& vdofs_list) const override;
-      /// Computes inverse of a lumped mass matrix (stored as a vector)
-      void LumpedMassInverse(Vector& ML_inv) const override;
-
-      const ParFiniteElementSpace& pfes_ho;
-      const ParFiniteElementSpace& pfes_lor;
+      ParL2ProjectionH1Space(const ParFiniteElementSpace& pfes_ho,
+                             const ParFiniteElementSpace& pfes_lor);
    };
 
 #endif
