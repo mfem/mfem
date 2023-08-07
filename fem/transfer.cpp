@@ -543,38 +543,109 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
-   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
-   bool build_operators)
-   : L2Projection(fes_ho_, fes_lor_),
-#ifdef MFEM_USE_MPI
-     pcg { dynamic_cast<const ParFiniteElementSpace*>(&fes_ho) ?
-           CGSolver(MPI_COMM_WORLD) : CGSolver()
-         }
-#else
-     pcg()
-#endif
+   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_)
+   : L2Projection(fes_ho_, fes_lor_)
 {
-   if (build_operators)
+   std::unique_ptr<SparseMatrix> R_mat, M_LH_mat;
+   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH();
+
+   FiniteElementSpace fes_ho_scalar(fes_ho.GetMesh(), fes_ho.FEColl(), 1);
+   FiniteElementSpace fes_lor_scalar(fes_lor.GetMesh(), fes_lor.FEColl(), 1);
+
+   const SparseMatrix *P_ho = fes_ho_scalar.GetConformingProlongation();
+   const SparseMatrix *P_lor = fes_lor_scalar.GetConformingProlongation();
+
+   if (P_ho || P_lor)
    {
-      std::tie(R, M_LH) = ComputeSparseRAndM_LH();
-      RTxM_LH = std::unique_ptr<Operator>(TransposeMult(static_cast<SparseMatrix&>
-                                                        (*R),
-                                                        static_cast<SparseMatrix&>(*M_LH)));
+      if (P_ho && P_lor)
+      {
+         R_mat.reset(RAP(*P_lor, *R_mat, *P_ho));
+         M_LH_mat.reset(RAP(*P_lor, *M_LH_mat, *P_ho));
+      }
+      else if (P_ho)
+      {
+         R_mat.reset(mfem::Mult(*R_mat, *P_ho));
+         M_LH_mat.reset(mfem::Mult(*M_LH_mat, *P_ho));
+      }
+      else // P_lor != nullptr
+      {
+         R_mat.reset(mfem::Mult(*P_lor, *R_mat));
+         M_LH_mat.reset(mfem::Mult(*P_lor, *M_LH_mat));
+      }
    }
 
+   SparseMatrix *RTxM_LH_mat = TransposeMult(*R_mat, *M_LH_mat);
+   precon.reset(new DSmoother(*RTxM_LH_mat));
+
+   // Set ownership
+   RTxM_LH.reset(RTxM_LH_mat);
+   R = std::move(R_mat);
+   M_LH = std::move(M_LH_mat);
+
+   SetupPCG();
+}
+
+#ifdef MFEM_USE_MPI
+
+L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
+   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor)
+   : L2Projection(pfes_ho, pfes_lor),
+     pcg(pfes_ho.GetComm())
+{
+   std::tie(R, M_LH) = ComputeSparseRAndM_LH();
+
+   ParFiniteElementSpace pfes_ho_scalar(pfes_ho.GetParMesh(),
+                                        pfes_ho.FEColl(), 1);
+   ParFiniteElementSpace pfes_lor_scalar(pfes_lor.GetParMesh(),
+                                         pfes_lor.FEColl(), 1);
+
+   HypreParMatrix R_local = HypreParMatrix(pfes_ho.GetComm(),
+                                           pfes_lor_scalar.GlobalVSize(),
+                                           pfes_ho_scalar.GlobalVSize(),
+                                           pfes_lor_scalar.GetDofOffsets(),
+                                           pfes_ho_scalar.GetDofOffsets(),
+                                           static_cast<SparseMatrix*>(R.get()));
+   HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
+                                              pfes_lor_scalar.GlobalVSize(),
+                                              pfes_ho_scalar.GlobalVSize(),
+                                              pfes_lor_scalar.GetDofOffsets(),
+                                              pfes_ho_scalar.GetDofOffsets(),
+                                              static_cast<SparseMatrix*>(M_LH.get()));
+
+   HypreParMatrix *R_mat = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
+                               &R_local, pfes_ho_scalar.Dof_TrueDof_Matrix());
+   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
+                                  &M_LH_local, pfes_ho_scalar.Dof_TrueDof_Matrix());
+
+   std::unique_ptr<HypreParMatrix> R_T(R_mat->Transpose());
+   HypreParMatrix *RTxM_LH_mat = ParMult(R_T.get(), M_LH_mat, true);
+
+   HypreBoomerAMG *amg = new HypreBoomerAMG(*RTxM_LH_mat);
+   amg->SetPrintLevel(0);
+
+   R.reset(R_mat);
+   M_LH.reset(M_LH_mat);
+   RTxM_LH.reset(RTxM_LH_mat);
+   precon.reset(amg);
+
+   SetupPCG();
+   pcg.SetPreconditioner(*precon);
+   pcg.SetOperator(*RTxM_LH);
+}
+
+#endif
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
+{
    // Basic PCG solver setup
    pcg.SetPrintLevel(0);
+   // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   SetRelTol(1e-13);
-   SetAbsTol(1e-13);
-   if (build_operators)
-   {
-      precon = std::unique_ptr<DSmoother>(new DSmoother(static_cast<SparseMatrix&>
-                                                        (*RTxM_LH)));
-      pcg.SetPreconditioner(*precon);
-      pcg.SetOperator(*RTxM_LH);
-   }
+   pcg.SetRelTol(1e-13);
+   pcg.SetAbsTol(1e-13);
+   pcg.SetPreconditioner(*precon);
+   pcg.SetOperator(*RTxM_LH);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
@@ -695,11 +766,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(double p_atol_)
    pcg.SetAbsTol(p_atol_);
 }
 
-std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
-                                                                     L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
+std::pair<
+std::unique_ptr<SparseMatrix>,
+std::unique_ptr<SparseMatrix>>
+                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
 {
-   std::pair<std::unique_ptr<SparseMatrix>, std::unique_ptr<SparseMatrix>>
-                                                                        r_and_mlh;
+   std::pair<std::unique_ptr<SparseMatrix>,
+       std::unique_ptr<SparseMatrix>> r_and_mlh;
 
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
@@ -882,6 +955,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::TDofsListByVDim(
    }
    else
    {
+      vdofs_list.SetSize(fes.GetNDofs());
       fes.GetVDofs(vdim, vdofs_list);
    }
 }
@@ -1001,54 +1075,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    return R_local;
 }
 
-#ifdef MFEM_USE_MPI
-
-L2ProjectionGridTransfer::ParL2ProjectionH1Space::ParL2ProjectionH1Space(
-   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor)
-   : L2ProjectionH1Space(pfes_ho, pfes_lor, false)
-{
-   std::tie(R, M_LH) = ComputeSparseRAndM_LH();
-
-   ParFiniteElementSpace pfes_ho_scalar(pfes_ho.GetParMesh(),
-                                        pfes_ho.FEColl(), 1);
-   ParFiniteElementSpace pfes_lor_scalar(pfes_lor.GetParMesh(),
-                                         pfes_lor.FEColl(), 1);
-
-   HypreParMatrix R_local = HypreParMatrix(pfes_ho.GetComm(),
-                                           pfes_lor_scalar.GlobalVSize(),
-                                           pfes_ho_scalar.GlobalVSize(),
-                                           pfes_lor_scalar.GetDofOffsets(),
-                                           pfes_ho_scalar.GetDofOffsets(),
-                                           static_cast<SparseMatrix*>(R.get()));
-   HypreParMatrix M_LH_local = HypreParMatrix(pfes_ho.GetComm(),
-                                              pfes_lor_scalar.GlobalVSize(),
-                                              pfes_ho_scalar.GlobalVSize(),
-                                              pfes_lor_scalar.GetDofOffsets(),
-                                              pfes_ho_scalar.GetDofOffsets(),
-                                              static_cast<SparseMatrix*>(M_LH.get()));
-
-   HypreParMatrix *R_mat = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
-                               &R_local, pfes_ho_scalar.Dof_TrueDof_Matrix());
-   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar.Dof_TrueDof_Matrix(),
-                                  &M_LH_local, pfes_ho_scalar.Dof_TrueDof_Matrix());
-
-   std::unique_ptr<HypreParMatrix> R_T(R_mat->Transpose());
-   HypreParMatrix *RTxM_LH_mat = ParMult(R_T.get(), M_LH_mat, true);
-
-   HypreBoomerAMG *amg = new HypreBoomerAMG(*RTxM_LH_mat);
-   amg->SetPrintLevel(0);
-
-   R.reset(R_mat);
-   M_LH.reset(M_LH_mat);
-   RTxM_LH.reset(RTxM_LH_mat);
-   precon.reset(amg);
-
-   pcg.SetPreconditioner(*precon);
-   pcg.SetOperator(*RTxM_LH);
-}
-
-#endif
-
 L2ProjectionGridTransfer::~L2ProjectionGridTransfer()
 {
    delete F;
@@ -1087,7 +1113,7 @@ void L2ProjectionGridTransfer::BuildF()
             static_cast<mfem::ParFiniteElementSpace&>(dom_fes);
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
-         F = new ParL2ProjectionH1Space(dom_pfes, ran_pfes);
+         F = new L2ProjectionH1Space(dom_pfes, ran_pfes);
 #endif
       }
    }
