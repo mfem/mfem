@@ -210,9 +210,6 @@ int main(int argc, char *argv[])
    }
 
    // HO* to LOR* dual fields
-   ParGridFunction ones(&fespace), ones_lor(&fespace_lor);
-   ones = 1.0;
-   ones_lor = 1.0;
    ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    auto global_sum = [](const Vector& v)
    {
