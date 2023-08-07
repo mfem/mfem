@@ -259,9 +259,12 @@ protected:
    class L2ProjectionH1Space : public L2Projection
    {
    public:
-      L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
-                          const FiniteElementSpace& fes_lor_,
-                          bool build_operators = true);
+      L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
+                          const FiniteElementSpace &fes_lor_);
+#ifdef MFEM_USE_MPI
+      L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
+                          const ParFiniteElementSpace &pfes_lor_);
+#endif
       virtual ~L2ProjectionH1Space() = default;
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
@@ -297,6 +300,8 @@ protected:
       virtual void SetRelTol(double p_rtol_);
       virtual void SetAbsTol(double p_atol_);
    protected:
+      /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
+      void SetupPCG();
       /// Computes on-rank R and M_LH matrices
       std::pair<std::unique_ptr<SparseMatrix>,
           std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
@@ -322,21 +327,6 @@ protected:
       /// refined LOR elements.
       std::unique_ptr<SparseMatrix> AllocR();
    };
-
-
-#ifdef MFEM_USE_MPI
-
-   /** Implements class for projection operator between a H1 high-order finite
-       element space on a coarse mesh, and a H1 low-order finite element space
-       on a refined mesh (LOR) in parallel. */
-   class ParL2ProjectionH1Space : public L2ProjectionH1Space
-   {
-   public:
-      ParL2ProjectionH1Space(const ParFiniteElementSpace& pfes_ho,
-                             const ParFiniteElementSpace& pfes_lor);
-   };
-
-#endif
 
    /** Mass-conservative prolongation operator going in the opposite direction
        as L2Projection. This operator is a left inverse to the L2Projection. */
