@@ -11983,10 +11983,10 @@ void Mesh::RemoveInternalBoundaries()
       if (!FaceIsInterior(GetBdrElementEdgeIndex(i)))
       {
          new_boundary.Append(boundary[i]);
+         int row = new_be_to_face.Size();
          new_be_to_face.Append(be_to_face[i]);
          if (Dim == 3)
          {
-            int row = new_be_to_face.Size();
             int *e = bel_to_edge->GetRow(i);
             int ne = bel_to_edge->RowSize(i);
             int *new_e = new_bel_to_edge->GetRow(row);
