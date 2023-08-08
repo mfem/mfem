@@ -18,7 +18,6 @@
 #include <algorithm>
 #include "psubmesh.hpp"
 #include "submesh_utils.hpp"
-#include "../point.hpp"
 #include "../segment.hpp"
 
 namespace mfem
@@ -260,8 +259,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       boundary.SetSize(NumOfBdrElements);
-      Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
-      if (Dim > 1) { be2face.SetSize(NumOfBdrElements); }
+      be_to_face.SetSize(NumOfBdrElements);
 
       Array<int> parent_face_to_be;
       int max_bdr_attr = -1;
@@ -275,15 +273,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       {
          if (GetFaceInformation(i).IsBoundary())
          {
-            if (Dim == 1)
-            {
-               boundary[j] = new Point(&i, 1);
-            }
-            else
-            {
-               boundary[j] = faces[i]->Duplicate(this);
-               be2face[j] = i;
-            }
+            boundary[j] = faces[i]->Duplicate(this);
+            be_to_face[j] = i;
 
             if (Dim == 3)
             {
@@ -342,7 +333,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    if (Dim > 1)
    {
       if (!el_to_edge) { el_to_edge = new Table; }
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    }
 
    SetAttributes();
