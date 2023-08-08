@@ -2999,7 +2999,16 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       GenerateFaces();
       if (NumOfBdrElements == 0 && generate_bdr)
       {
+         // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
+      }
+      else
+      {
+         be_to_face.SetSize(NumOfBdrElements);
+         for (int i = 0; i < NumOfBdrElements; ++i)
+         {
+            be_to_face[i] = boundary[i]->GetVertices()[0];
+         }
       }
    }
 
