@@ -220,10 +220,9 @@ protected:
    Table *el_to_edge;
    Table *el_to_face;
    Table *el_to_el;
-   Table *bel_to_edge;     // for 3D
-   Array<int> be_to_face;
-   // Deprecated: use be_to_face instead
-   MFEM_DEPRECATED Array<int> &be_to_edge = be_to_face;
+   Array<int> be_to_face; // faces = vertices (1D), edges (2D), faces (3D)
+
+   Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
    // deleted by the caller. Of these three tables, only face_edge and
