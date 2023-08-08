@@ -220,9 +220,10 @@ protected:
    Table *el_to_edge;
    Table *el_to_face;
    Table *el_to_el;
-   Array<int> be_to_edge;  // for 2D
    Table *bel_to_edge;     // for 3D
    Array<int> be_to_face;
+   // Deprecated: use be_to_face instead
+   MFEM_DEPRECATED Array<int> &be_to_edge = be_to_face;
 
    // Note that the following tables are owned by this class and should not be
    // deleted by the caller. Of these three tables, only face_edge and
@@ -504,7 +505,7 @@ protected:
        nodes in the elements. For example, if T is the element to edge table
        T(i, 0) gives the index of edge in element i that connects vertex 0
        to vertex 1, etc. Returns the number of the edges. */
-   int GetElementToEdgeTable(Table &, Array<int> &);
+   int GetElementToEdgeTable(Table &);
 
    /// Used in GenerateFaces()
    void AddPointFaceElement(int lf, int gf, int el);
