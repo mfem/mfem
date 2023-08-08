@@ -1336,7 +1336,9 @@ public:
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
-       Return the face index of boundary element i. (3D) */
+       Return the face index of boundary element i. (3D)
+
+       This is the same as GetBdrFace(). */
    int GetBdrElementEdgeIndex(int i) const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
@@ -1359,8 +1361,10 @@ public:
        @sa GetBdrElementAdjacentElement() */
    void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
-   /// Return the local face index for the given boundary face.
-   int GetBdrFace(int BdrElemNo) const;
+   /// @brief Return the local face index for the given boundary face.
+   ///
+   /// This is the same as GetBdrElementEdgeIndex().
+   int GetBdrFace(int BdrElemNo) const { return GetBdrElementEdgeIndex(BdrElemNo); }
 
    /// @}
 
