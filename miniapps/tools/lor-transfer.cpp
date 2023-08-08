@@ -282,14 +282,11 @@ double compute_mass(FiniteElementSpace *L2, double massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   BilinearForm ML2(L2);
-   ML2.AddDomainIntegrator(new MassIntegrator(one));
-   ML2.Assemble();
+   LinearForm lf(L2);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.Assemble();
 
-   GridFunction rhoone(L2);
-   rhoone = 1.0;
-
-   double newmass = ML2.InnerProduct(*dc.GetField("density"),rhoone);
+   double newmass = lf(*dc.GetField("density"));
    cout.precision(18);
    cout << space << " " << prefix << " mass   = " << newmass;
    if (massL2 >= 0)
