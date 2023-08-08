@@ -5563,12 +5563,26 @@ int Mesh::CheckElementOrientation(bool fix_it)
             case Element::WEDGE:
                // only check the Jacobian at the center of the element
                GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
+               if (J.Det() < 0.0) // NOTE we should check if there is a better criterior to test if the faces are twisted/tangled.
                {
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     // Element might be inside out, so we turn the interior to the outisde by 
+                     // flipping the triangular faces.
+                     mfem::Swap(vi[0], vi[1]);
+                     mfem::Swap(vi[3], vi[4]);
+                     if (J.Det() < 0.0) // Not inside-out
+                     {
+                        // Roll back operation
+                        mfem::Swap(vi[0], vi[1]);
+                        mfem::Swap(vi[3], vi[4]);
+                        // Element might be twisted/tangled. This is harder to fix.
+                     }
+                     else // Element was inside-out. Might still be twisted/tangled.
+                     {
+                        fo++;
+                     }
                   }
                }
                break;
@@ -5576,12 +5590,24 @@ int Mesh::CheckElementOrientation(bool fix_it)
             case Element::PYRAMID:
                // only check the Jacobian at the center of the element
                GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
+               if (J.Det() < 0.0) // NOTE we should check if there is a better criterior to test if the faces are twisted/tangled.
                {
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     // Element might be inside out, so we turn the interior to the outisde 
+                     // by swapping the vertex at the tip with one of the base vertices
+                     mfem::Swap(vi[0], vi[4]);
+                     if (J.Det() < 0.0) // Not inside-out
+                     {
+                        // Roll back operation
+                        mfem::Swap(vi[0], vi[4]);
+                        // Element might be twisted/tangled. This is harder to fix.
+                     }
+                     else // Element was inside-out. Might still be twisted/tangled.
+                     {
+                        fo++;
+                     }
                   }
                }
                break;
@@ -5594,7 +5620,25 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     // Element might be inside out, so we turn the interior to the outisde 
+                     // by mirroring along one of the axis-aligned mid-planes
+                     mfem::Swap(vi[0], vi[1]);
+                     mfem::Swap(vi[2], vi[3]);
+                     mfem::Swap(vi[4], vi[5]);
+                     mfem::Swap(vi[6], vi[7]);
+                     if (J.Det() < 0.0) // Not inside-out
+                     {
+                        // Roll back operation
+                        mfem::Swap(vi[0], vi[1]);
+                        mfem::Swap(vi[2], vi[3]);
+                        mfem::Swap(vi[4], vi[5]);
+                        mfem::Swap(vi[6], vi[7]);
+                        // Element might be twisted/tangled. This is harder to fix.
+                     }
+                     else // Element was inside-out. Might still be twisted/tangled.
+                     {
+                        fo++;
+                     }
                   }
                }
                break;
