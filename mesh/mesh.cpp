@@ -3590,6 +3590,11 @@ void Mesh::Make1D(int n, double sx)
    SetMeshGen();
    GenerateFaces();
 
+   // Set be_to_face
+   be_to_face.SetSize(2);
+   be_to_face[0] = 0;
+   be_to_face[1] = n;
+
    attributes.Append(1);
    bdr_attributes.Append(1); bdr_attributes.Append(2);
 }
