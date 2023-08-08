@@ -928,8 +928,8 @@ double cube_dist_smooth(const Vector &x, Vector &x_center, Vector &lengths)
    double yc = x_center(1);
    double zc = x_center(2);
    double xv = x(0),
-           yv = x(1),
-           zv = x(2);
+          yv = x(1),
+          zv = x(2);
    double lx = lengths(0);
    double ly = lengths(1);
    double lz = lengths(2);
@@ -954,13 +954,13 @@ double csg_cubecylsph_smooth(const Vector &x)
    double rsph = 0.375;
    double rcube = 0.3; // 0.325
    double dsph = x2.Norml2() - rsph;
-//   double dcube = std::pow(xc*xc + yc*yc + zc*zc, 0.5) - rcube;
+   //   double dcube = std::pow(xc*xc + yc*yc + zc*zc, 0.5) - rcube;
    Vector rcubel(3);
    rcubel = 2*rcube;
    double dcube = cube_dist_smooth(x, xcc, rcubel);
    //    return std::max(dsph, dcube); // return here for sphere + cube
    double dist1 = r_union(dsph, -dcube);
-//   return dist1;
+   //   return dist1;
 
    int pipedir = 1;
    Vector x_pipe_center(3);
@@ -970,17 +970,17 @@ double csg_cubecylsph_smooth(const Vector &x)
    double pipe_radius = 0.25;
    double in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin,
                                 xmax);
-//   double dist2 = std::max(dist1, -in_pipe_x);
+   //   double dist2 = std::max(dist1, -in_pipe_x);
    double dist2 = r_union(dist1, -in_pipe_x);
 
    pipedir = 2;
    in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-//   double dist3 = std::max(dist2, -in_pipe_x);
+   //   double dist3 = std::max(dist2, -in_pipe_x);
    double dist3 = r_union(dist2, -in_pipe_x);
 
    pipedir = 3;
    in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-//   double dist4 = std::max(dist3, -in_pipe_x);
+   //   double dist4 = std::max(dist3, -in_pipe_x);
    double dist4 = r_union(dist3, -in_pipe_x);
 
    return dist4;

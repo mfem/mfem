@@ -959,8 +959,11 @@ int main(int argc, char *argv[])
    {
       max_iter_pref = (pref_max_order-mesh_poly_deg)/pref_order_increase +1 ;
    }
-   std::cout << "Max Order || Init order || Pref order increase || Nbr of iterations" << std::endl;
-   std::cout << pref_max_order << " || " << mesh_poly_deg << " || " << pref_order_increase << " || " << max_iter_pref << std::endl;
+   std::cout <<
+             "Max Order || Init order || Pref order increase || Nbr of iterations" <<
+             std::endl;
+   std::cout << pref_max_order << " || " << mesh_poly_deg << " || " <<
+             pref_order_increase << " || " << max_iter_pref << std::endl;
    int iter_pref(0);
    bool faces_to_update(true);
    while (iter_pref<max_iter_pref && faces_to_update)
