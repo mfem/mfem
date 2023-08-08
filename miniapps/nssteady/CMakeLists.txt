@@ -41,9 +41,6 @@ if (MFEM_USE_MPI)
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
-  add_mfem_miniapp(check_mesh
-    MAIN check_mesh.cpp)
-
   add_mfem_miniapp(test_monolithic_stokes
     MAIN MMS_monolithic_stokes.cpp
     ${SNAVIER_COMMON_FILES}
@@ -69,9 +66,19 @@ if (MFEM_USE_MPI)
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(FlowCyl_solver_monolithic_picard_nssteady
+    MAIN FlowCyl_solver_monolithic_picard_nssteady.cpp
+    ${SNAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   add_mfem_miniapp(MMS_segregated_picard
     MAIN MMS_segregated_picard.cpp
     ${SNAVIER_COMMON_FILES}
     LIBRARIES mfem)
+
+# Create a symbolic link for meshes
+execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink
+               ${CMAKE_CURRENT_SOURCE_DIR}/Mesh ${CMAKE_CURRENT_BINARY_DIR}/Mesh
+               WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
 endif ()
