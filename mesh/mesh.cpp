@@ -1926,28 +1926,14 @@ void Mesh::GenerateBoundaryElements()
 
    // Add the boundary elements
    boundary.SetSize(NumOfBdrElements);
-   if (Dim == 1)
+   Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
+   be2face.SetSize(NumOfBdrElements);
+   for (int i = 0, j = 0; i < faces_info.Size(); i++)
    {
-      // In 1D, the "faces" are just the mesh vertices
-      for (int i = 0, j = 0; i < faces_info.Size(); i++)
+      if (faces_info[i].Elem2No < 0)
       {
-         if (faces_info[i].Elem2No < 0)
-         {
-            boundary[j++] = new Point(&i, 1);
-         }
-      }
-   }
-   else
-   {
-      Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
-      be2face.SetSize(NumOfBdrElements);
-      for (int i = 0, j = 0; i < faces_info.Size(); i++)
-      {
-         if (faces_info[i].Elem2No < 0)
-         {
-            boundary[j] = faces[i]->Duplicate(this);
-            be2face[j++] = i;
-         }
+         boundary[j] = faces[i]->Duplicate(this);
+         be2face[j++] = i;
       }
    }
 
