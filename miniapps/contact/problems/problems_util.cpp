@@ -794,12 +794,12 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
 // m_conn: (npoints*4)
 void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
-                      Array<SparseMatrix *> & dM, bool reduced, int offset)
+                      Array<SparseMatrix *> & dM, int offset)
 {
    int ndim = 3;
 
    int npoints = s_conn.Size();
-   g.SetSize((reduced)? npoints : m);
+   g.SetSize(npoints);
    g = 0.0;
 
    double g_tmp = 0.;
@@ -829,7 +829,7 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       dg2 = 0.;
       
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
-      int row = (reduced) ? i : s_conn[i];
+      int row = i;
       g[row] = g_tmp; // should be unique
       Array<int> m_conn_i(4);
       m_conn.GetSubArray(4*i, 4, m_conn_i);
@@ -864,7 +864,12 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
 };
 
 void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
-                      const Array<int> m_conn, Vector& g, SparseMatrix & M1, SparseMatrix & M2, int offset)
+                      const Array<int> m_conn, Vector& g, SparseMatrix & M1, SparseMatrix & M2, 
+                      Array<SparseMatrix *> & M11,
+                      Array<SparseMatrix *> & M12,
+                      Array<SparseMatrix *> & M21,
+                      Array<SparseMatrix *> & M22,
+                      int offset)
 {
    int ndim = 3;
 

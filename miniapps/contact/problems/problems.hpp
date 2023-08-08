@@ -103,12 +103,12 @@ public:
    Vector & GetGapFunction() {return gapv;}
    SparseMatrix * GetJacobian() {return M;}
    Array<SparseMatrix*> & GetHessian() {return dM;}
-   void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2, bool reduced=false);
+   void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2);
 
    virtual double E(const Vector & d);
    virtual void DdE(const Vector &d, Vector &gradE);
    virtual SparseMatrix* DddE(const Vector &d);
-   void g(const Vector &d, Vector &gd, bool reduced);
+   void g(const Vector &d, Vector &gd);
    virtual SparseMatrix* Ddg(const Vector &d);
    virtual SparseMatrix* lDddg(const Vector &d, const Vector &l);
 

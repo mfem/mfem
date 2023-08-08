@@ -113,7 +113,7 @@ void ContactProblem::ComputeContactVertrices()
 }
 
 void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1, 
-                                                      const Vector & displ2, bool reduced)
+                                                      const Vector & displ2)
 {
    ComputeContactVertrices();
 
@@ -180,7 +180,7 @@ void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1,
       dM.SetSize(0);
    }
 
-   int h = (reduced) ? npoints : nv;
+   int h = npoints;
    M = new SparseMatrix(h,ndofs);
    dM.SetSize(npoints);
    for (int i = 0; i<npoints; i++)
@@ -188,7 +188,7 @@ void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1,
       dM[i] = new SparseMatrix(ndofs,ndofs);
    }
 
-   Assemble_Contact(nv, xyz, xi1, coordsm, conn2, conn1, gapv, *M, dM, reduced);
+   Assemble_Contact(nv, xyz, xi1, coordsm, conn2, conn1, gapv, *M, dM,0);
    
    M->Finalize();
    for (int i = 0; i<npoints; i++)
@@ -215,7 +215,7 @@ SparseMatrix* ContactProblem::DddE(const Vector &d)
   return K; 
 }
 
-void ContactProblem::g(const Vector &d, Vector &gd, bool reduced)
+void ContactProblem::g(const Vector &d, Vector &gd)
 {
    int ndof1 = prob1->GetNumDofs();
    int ndof2 = prob2->GetNumDofs();
@@ -224,7 +224,7 @@ void ContactProblem::g(const Vector &d, Vector &gd, bool reduced)
    Vector displ2(&data[ndof1],ndof2);
    if (recompute)
    {
-      ComputeGapFunctionAndDerivatives(displ1, displ2, reduced);
+      ComputeGapFunctionAndDerivatives(displ1, displ2);
       recompute = false;
    }
 
@@ -271,7 +271,7 @@ SparseMatrix* QPContactProblem::DddE(const Vector &d)
 void QPContactProblem::g(const Vector &d, Vector &gd)
 {
   Vector g0;
-  ContactProblem::g(d,g0,true);
+  ContactProblem::g(d,g0);
   M->Mult(d, gd);
   gd.Add(1.0, g0);
 }
@@ -350,7 +350,7 @@ SparseMatrix * QPOptContactProblem::lDuuc(const BlockVector & x, const Vector & 
 void QPOptContactProblem::c(const BlockVector &x, Vector & y)
 {
    Vector g0;
-   problem->g(x.GetBlock(0),g0, true); // gap function
+   problem->g(x.GetBlock(0),g0); // gap function
    g0.Add(-1.0, x.GetBlock(1));  
 
    problem->GetJacobian()->Mult(x.GetBlock(0),y);

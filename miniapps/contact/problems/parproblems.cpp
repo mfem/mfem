@@ -202,7 +202,7 @@ void ParContactProblem::ComputeContactVertices()
    ComputeTdofOffsets(comm,constrains_offset, constraints_offsets);
 }
 
-void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2, bool reduced)
+void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2)
 {
    ComputeContactVertices();
 
@@ -251,8 +251,8 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
       dM.SetSize(0);
    }
 
-   int h = (reduced) ? npoints : nv;
-   int gh = (reduced) ? gnpoints : gnv;
+   int h = npoints;
+   int gh = gnpoints;
 
    int ndofs1 = prob1->GetFESpace()->GetTrueVSize();
    int ndofs2 = prob2->GetFESpace()->GetTrueVSize();
@@ -269,35 +269,47 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
 
    int gnpts = npts[numprocs];
    Array<SparseMatrix *> dS(gnpts);
+   Array<SparseMatrix *> dS11(gnpts);
+   Array<SparseMatrix *> dS12(gnpts);
+   Array<SparseMatrix *> dS21(gnpts);
+   Array<SparseMatrix *> dS22(gnpts);
    for (int i = 0; i<gnpts; i++)
    {
       if (i >= npts[myid] && i< npts[myid+1])
       {
          dS[i] = new SparseMatrix(gndofs,gndofs);
+         dS11[i] = new SparseMatrix(gndofs1,gndofs1);
+         dS12[i] = new SparseMatrix(gndofs1,gndofs2);
+         dS21[i] = new SparseMatrix(gndofs2,gndofs1);
+         dS22[i] = new SparseMatrix(gndofs2,gndofs2);
       }
       else
       {
          dS[i] = nullptr;
+         dS11[i] = nullptr;
+         dS12[i] = nullptr;
+         dS21[i] = nullptr;
+         dS22[i] = nullptr;
       }
    }
 
-   int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
-   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2, conn1, gapv, S, dS, reduced, offset);
+   int offset = constraints_offsets[myid];
+   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2, conn1, gapv, S, dS, offset);
    SparseMatrix S1(gh,gndofs1);
    SparseMatrix S2(gh,gndofs2);
 
-   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2a, conn1a, gapv, S1,S2, offset);
+   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2a, conn1a, gapv, S1,S2,
+                   dS11,dS12,dS21,dS22, offset);
    S1.Finalize();
    S2.Finalize();
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
    // --------------------------------------------------------------------
-   int glv = reduced ? gnpoints : gnv;
+   int glv = gnpoints;
    MPICommunicator Mcomm(comm,offset,glv);
    int gnumcols = K->GetGlobalNumCols();
    SparseMatrix localS(h,gnumcols);
-
    Mcomm.Communicate(S,localS);
 
 
@@ -330,23 +342,13 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    // Construct M row and col starts to construct HypreParMatrix
    int Mrows[2]; 
    int Mcols[2]; 
-   int nrows, gnrows;
-   if (reduced)
-   {
-      Mrows[0] = constraints_starts[0];
-      Mrows[1] = constraints_starts[1];
-      nrows = npoints;
-      gnrows = gnpoints;
-   }
-   else
-   {
-      Mrows[0] = vertex_offsets[myid];
-      Mrows[1] = vertex_offsets[myid]+nv;
-      nrows = nv;
-      gnrows = gnv;
-   }
+   Mrows[0] = constraints_starts[0];
+   Mrows[1] = constraints_starts[1];
    Mcols[0] = K->ColPart()[0]; 
    Mcols[1] = K->ColPart()[1]; 
+   int nrows = npoints;
+   int gnrows = gnpoints;
+
 
    int M1rows[2], M2rows[2]; 
    int M1cols[2], M2cols[2];
@@ -411,7 +413,7 @@ HypreParMatrix* ParContactProblem::DddE(const Vector &d)
    return K; 
 }
 
-void ParContactProblem::g(const Vector &d, Vector &gd, bool reduced)
+void ParContactProblem::g(const Vector &d, Vector &gd)
 {
    int ndof1 = prob1->GetNumTDofs();
    int ndof2 = prob2->GetNumTDofs();
@@ -421,7 +423,7 @@ void ParContactProblem::g(const Vector &d, Vector &gd, bool reduced)
 
    if (recompute)
    {
-      ComputeGapFunctionAndDerivatives(displ1, displ2, reduced);
+      ComputeGapFunctionAndDerivatives(displ1, displ2);
       recompute = false;
    }
 
@@ -507,7 +509,7 @@ HypreParMatrix * QPOptParContactProblem::lDuuc(const BlockVector & x, const Vect
 void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
 {
    Vector g0;
-   problem->g(x.GetBlock(0),g0, true); // gap function
+   problem->g(x.GetBlock(0),g0); // gap function
    g0.Add(-1.0, x.GetBlock(1));  
    problem->GetJacobian()->Mult(x.GetBlock(0),y);
    y.Add(1.0, g0);

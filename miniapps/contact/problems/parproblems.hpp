@@ -147,12 +147,12 @@ public:
    HypreParMatrix * GetJacobian() {return M;}
    BlockDiagonalPreconditioner * GetPreconditioner() {return prec;}
    Array<HypreParMatrix*> & GetHessian() {return dM;}
-   void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2, bool reduced=false);
+   void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2);
 
    virtual double E(const Vector & d);
    virtual void DdE(const Vector &d, Vector &gradE);
    virtual HypreParMatrix* DddE(const Vector &d);
-   void g(const Vector &d, Vector &gd, bool reduced);
+   void g(const Vector &d, Vector &gd);
    virtual HypreParMatrix* Ddg(const Vector &d);
    virtual HypreParMatrix* lDddg(const Vector &d, const Vector &l);
 

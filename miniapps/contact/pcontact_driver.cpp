@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 
    ParInteriorPointSolver optimizer(&qpopt);
 
-   optimizer.SetTol(1e-5);
+   optimizer.SetTol(1e-6);
    optimizer.SetMaxIter(50);
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
