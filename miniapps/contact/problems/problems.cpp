@@ -112,6 +112,23 @@ void ContactProblem::ComputeContactVertrices()
    npoints = contact_vertices.size();
 }
 
+void rhs_func1(const Vector & x, Vector & y)
+{
+   for (int i = 0; i<x.Size(); i++)
+   {
+      y(i) = sin(x(i));
+   }
+}
+
+// function f(x) = x.^2
+void rhs_func2(const Vector & x, Vector & y)
+{
+   for (int i = 0; i<x.Size(); i++)
+   {
+      y(i) = cos(x(i));
+   }
+}
+
 void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1, 
                                                       const Vector & displ2)
 {
@@ -126,8 +143,6 @@ void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1,
    int ndofs = ndof1 + ndof2;
 
    int nv1 = mesh1->GetNV();
-   int nv2 = mesh2->GetNV();
-   int nv = nv1 + nv2;
    // connectivity of the second mesh
 
    Array<int> conn2(npoints); 
@@ -188,13 +203,8 @@ void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1,
       dM[i] = new SparseMatrix(ndofs,ndofs);
    }
 
-   Assemble_Contact(nv, xyz, xi1, coordsm, conn2, conn1, gapv, *M, dM,0);
-   
-   M->Finalize();
-   for (int i = 0; i<npoints; i++)
-   {
-      dM[i]->Finalize();
-   }
+   Assemble_Contact(xyz, xi1, coordsm, conn2, conn1, gapv, *M, dM);
+
 }
 
 

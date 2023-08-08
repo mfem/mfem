@@ -5,17 +5,17 @@
 MPICommunicator::MPICommunicator(MPI_Comm comm_, int offset_, int gsize)
 : comm(comm_), offset(offset_)
 {
-    MPI_Comm_size(comm,&num_procs);
-    MPI_Comm_rank(comm,&myid);
-    offsets.resize(num_procs);
-    MPI_Allgather(&offset,1,MPI_INT,&offsets[0],1,MPI_INT,comm);
-    lsize = (myid == num_procs-1) ? gsize - offsets[myid]
+   MPI_Comm_size(comm,&num_procs);
+   MPI_Comm_rank(comm,&myid);
+   offsets.resize(num_procs);
+   MPI_Allgather(&offset,1,MPI_INT,&offsets[0],1,MPI_INT,comm);
+   lsize = (myid == num_procs-1) ? gsize - offsets[myid]
                                 : offsets[myid+1]-offsets[myid];
 
-    send_count.SetSize(num_procs); send_count = 0;
-    send_displ.SetSize(num_procs); send_displ = 0;
-    recv_count.SetSize(num_procs); recv_count = 0;
-    recv_displ.SetSize(num_procs); recv_displ = 0;
+   send_count.SetSize(num_procs); send_count = 0;
+   send_displ.SetSize(num_procs); send_displ = 0;
+   recv_count.SetSize(num_procs); recv_count = 0;
+   recv_displ.SetSize(num_procs); recv_displ = 0;
 } 
 
 MPICommunicator::MPICommunicator(MPI_Comm comm_, Array<unsigned int> & destination_procs_)

@@ -71,7 +71,6 @@ int main(int argc, char *argv[])
    cout << "Energy objective at initial point = " << Einitial << endl;
    cout << "Energy objective at QP optimizer = " << Efinal << endl;
 
-
    FiniteElementSpace * fes1 = prob1.GetFESpace();
    FiniteElementSpace * fes2 = prob2.GetFESpace();
    

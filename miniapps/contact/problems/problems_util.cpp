@@ -792,9 +792,9 @@ void NodeSegConPairs(const Vector x1, const Vector xi2,
 
 // coordsm : (npoints*4, 3) use what class?
 // m_conn: (npoints*4)
-void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
-                      Array<SparseMatrix *> & dM, int offset)
+                      Array<SparseMatrix *> & dM)
 {
    int ndim = 3;
 
@@ -849,7 +849,7 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
             j_idx[j*ndim+d] = node_conn[j]*ndim+d;
          }
       }
-      M.AddRow(row+offset,j_idx,dg);
+      M.AddRow(k,j_idx,dg);
 
       Array<int> dM_i(ndim*(4+1));
       Array<int> dM_j(ndim*(4+1));
@@ -860,16 +860,17 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
          dM_j[j] = j_idx[j];
       }
       dM[k]->AddSubMatrix(dM_i,dM_j, dg2);
+      dM[k]->Finalize();
    }
+   M.Finalize();
 };
 
-void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector& g, SparseMatrix & M1, SparseMatrix & M2, 
-                      Array<SparseMatrix *> & M11,
-                      Array<SparseMatrix *> & M12,
-                      Array<SparseMatrix *> & M21,
-                      Array<SparseMatrix *> & M22,
-                      int offset)
+                      Array<SparseMatrix *> & dM11,
+                      Array<SparseMatrix *> & dM12,
+                      Array<SparseMatrix *> & dM21,
+                      Array<SparseMatrix *> & dM22)
 {
    int ndim = 3;
 
@@ -879,12 +880,21 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
 
    double g_tmp = 0.;
    Vector dg(4*ndim+ndim);
+   Vector dg1;
+   Vector dg2;
    dg = 0.;
-   DenseMatrix dg2(4*ndim+ndim,4*ndim+ndim);
-   dg2 = 0.;
+   DenseMatrix d2g(4*ndim+ndim,4*ndim+ndim);
+   DenseMatrix d2g11(4*ndim,4*ndim);
+   DenseMatrix d2g12(4*ndim,ndim);
+   DenseMatrix d2g21(ndim,4*ndim);
+   DenseMatrix d2g22(ndim,ndim);
+   d2g = 0.;
 
-   for (int i=0; i<npoints; i++)
+   int i = -1;
+   for (int k=0; k<dM11.Size(); k++)
    {
+      if (!dM11[k]) continue;
+      i++;
       Vector x1(ndim);
       x1[0] = x_s[i*ndim];
       x1[1] = x_s[i*ndim+1];
@@ -897,9 +907,18 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       DenseMatrix coords2(4,3);
       coords2.CopyRows(coordsm, i*4,(i+1)*4-1);
 
-      dg = 0.0; dg2 = 0.0;
+      dg = 0.0; d2g = 0.0;
       
-      NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
+      NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, d2g);
+      double * dgdata = dg.GetData();
+      dg1.SetDataAndSize(&dgdata[ndim],4*ndim);
+      dg2.SetDataAndSize(dgdata,ndim);
+
+      d2g.GetSubMatrix(0,ndim,d2g22);
+      d2g.GetSubMatrix(0,ndim,ndim,5*ndim,d2g21);
+      d2g.GetSubMatrix(ndim,5*ndim,0,ndim,d2g12);
+      d2g.GetSubMatrix(ndim,5*ndim,d2g11);
+
       g[i] = g_tmp; 
       Array<int> m_conn_i(4);
       m_conn.GetSubArray(4*i, 4, m_conn_i);
@@ -909,23 +928,30 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       for (int d=0; d<ndim; d++)
       {
          M2_idx[d] = s_conn[i]*ndim+d;
-         for (int j=0; j< 4; j++)
+         for (int j=0; j<4; j++)
          {
             M1_idx[j*ndim+d] = m_conn_i[j]*ndim+d;
          }
       }
-      Vector dg_1(&dg.GetData()[ndim],4*ndim);
-      M1.AddRow(i+offset,M1_idx,dg_1);
-      Vector dg_2(dg.GetData(),ndim);
-      M2.AddRow(i+offset,M2_idx,dg_2);
+      M1.AddRow(k,M1_idx,dg1);
+      M2.AddRow(k,M2_idx,dg2);
+
+      dM11[k]->SetSubMatrix(M1_idx,M1_idx,d2g11);
+      dM12[k]->SetSubMatrix(M1_idx,M2_idx,d2g12);
+      dM21[k]->SetSubMatrix(M2_idx,M1_idx,d2g21);
+      dM22[k]->SetSubMatrix(M2_idx,M2_idx,d2g22);
+      dM11[k]->Finalize();
+      dM12[k]->Finalize();
+      dM21[k]->Finalize();
+      dM22[k]->Finalize();
    }
+   M1.Finalize();
+   M2.Finalize();
 };
 
 
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {
-   Array<int> attr;
-   attr.Append(3);
    Array<int> faces;
    Array<int> ori;
    std::vector<Array<int> > facesVertices;
@@ -951,7 +977,7 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
    std::vector<Array<int> > bdryVerts;
    for (int b=0; b<mesh.GetNBE(); ++b)
    {
-      if (attr.FindSorted(mesh.GetBdrAttribute(b)) >= 0)  // found the contact surface
+      if (mesh.GetBdrAttribute(b) == 3)  // found the contact surface
       {
          bdryFaces.Append(b);
          Array<int> vert;

@@ -16,7 +16,6 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
    // 1. Parse command-line options.
