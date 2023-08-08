@@ -210,9 +210,6 @@ int main(int argc, char *argv[])
    }
 
    // HO* to LOR* dual fields
-   ParGridFunction ones(&fespace), ones_lor(&fespace_lor);
-   ones = 1.0;
-   ones_lor = 1.0;
    ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    auto global_sum = [](const Vector& v)
    {
@@ -345,21 +342,11 @@ double compute_mass(ParFiniteElementSpace *L2, double massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   ParBilinearForm ML2(L2);
-   ML2.AddDomainIntegrator(new MassIntegrator(one));
-   ML2.Assemble();
-   ML2.Finalize();
-   HypreParMatrix* pML2 = ML2.ParallelAssemble();
+   ParLinearForm lf(L2);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.Assemble();
 
-   Vector rhoone(L2->GetTrueVSize());
-   rhoone = 1.0;
-
-   Vector Mdiag(L2->GetTrueVSize());
-   pML2->Mult(rhoone, Mdiag);
-   delete pML2;
-   HypreParVector* rho = dc.GetParField("density")->GetTrueDofs();
-   double newmass = InnerProduct(MPI_COMM_WORLD, *rho, Mdiag);
-   delete rho;
+   double newmass = lf(*dc.GetParField("density"));
    if (Mpi::Root())
    {
       cout.precision(18);
