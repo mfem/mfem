@@ -670,7 +670,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_lor, Y, y);
+   SetFromTDofs(fes_lor, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
@@ -684,7 +684,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
 
    Array<int> vdofs_list;
 
-   GetTDofs(fes_lor, x, X);
+   GetTDofsTranspose(fes_lor, x, X);
 
    for (int d = 0; d < fes_ho.GetVDim(); ++d)
    {
@@ -695,7 +695,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_ho, Y, y);
+   SetFromTDofsTranspose(fes_ho, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
@@ -724,7 +724,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_ho, Y, y);
+   SetFromTDofs(fes_ho, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
@@ -739,7 +739,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
 
    Array<int> vdofs_list;
 
-   GetTDofs(fes_ho, x, X);
+   GetTDofsTranspose(fes_ho, x, X);
 
    for (int d = 0; d < fes_ho.GetVDim(); ++d)
    {
@@ -753,7 +753,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
       Y.SetSubVector(vdofs_list, Y_dim);
    }
 
-   SetTDofs(fes_lor, Y, y);
+   SetFromTDofsTranspose(fes_lor, Y, y);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(double p_rtol_)
@@ -925,13 +925,41 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofs(
    }
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::SetTDofs(
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromTDofs(
    const FiniteElementSpace& fes, const Vector &X, Vector& x) const
 {
    const Operator* P = fes.GetProlongationMatrix();
    if (P)
    {
       P->Mult(X, x);
+   }
+   else
+   {
+      x = X;
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofsTranspose(
+   const FiniteElementSpace& fes, const Vector& x, Vector& X) const
+{
+   const Operator* P = fes.GetProlongationMatrix();
+   if (P)
+   {
+      P->MultTranspose(x, X);
+   }
+   else
+   {
+      X = x;
+   }
+}
+
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromTDofsTranspose(
+   const FiniteElementSpace& fes, const Vector &X, Vector& x) const
+{
+   const Operator* Rtranspose = fes.GetRestrictionTransposeOperator();
+   if (Rtranspose)
+   {
+      Rtranspose->Mult(X, x);
    }
    else
    {

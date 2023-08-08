@@ -224,11 +224,11 @@ int main(int argc, char *argv[])
       rho.GetTrueDofs(rho_true);
       Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
       M_ho_tdof->Mult(rho_true, M_rho_true);
-      M_rho.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_true, M_rho);
+      M_rho.ParFESpace()->GetRestrictionTransposeOperator()->Mult(M_rho_true, M_rho);
       P.MultTranspose(M_rho, M_rho_lor);
       Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
-      M_rho_lor.ParFESpace()->GetRestrictionOperator()->Mult(M_rho_lor,
-                                                             M_rho_lor_true);
+      M_rho_lor.ParFESpace()->GetProlongationMatrix()->MultTranspose(M_rho_lor,
+                                                                     M_rho_lor_true);
       double ho_dual_mass = global_sum(M_rho_true);
       double lor_dual_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
@@ -279,11 +279,11 @@ int main(int argc, char *argv[])
       rho_lor.GetTrueDofs(rho_lor_true);
       Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
       M_lor_tdof->Mult(rho_lor_true, M_rho_lor_true);
-      M_rho_lor.ParFESpace()->GetProlongationMatrix()->Mult(M_rho_lor_true,
-                                                            M_rho_lor);
+      M_rho_lor.ParFESpace()->GetRestrictionTransposeOperator()->Mult(M_rho_lor_true,
+                                                                      M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
       Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
-      M_rho.ParFESpace()->GetRestrictionOperator()->Mult(M_rho, M_rho_true);
+      M_rho.ParFESpace()->GetProlongationMatrix()->MultTranspose(M_rho, M_rho_true);
       double ho_dual_mass = global_sum(M_rho_true);
       double lor_dual_mass = global_sum(M_rho_lor_true);
       if (Mpi::Root())
