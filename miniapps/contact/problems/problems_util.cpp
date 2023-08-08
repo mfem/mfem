@@ -1,26 +1,44 @@
 
 #include "problems_util.hpp"
 
-void BasisEval(const Vector xi, Vector &N, DenseMatrix &dNdxi) // dNdxi is 2*4
-{
-   N[0] = 0.25*(1-xi[0])*(1-xi[1]);
-   N[1] = 0.25*(1+xi[0])*(1-xi[1]);
-   N[2] = 0.25*(1+xi[0])*(1+xi[1]);
-   N[3] = 0.25*(1-xi[0])*(1+xi[1]);
+// void BasisEval(const Vector xi, Vector &N, DenseMatrix &dNdxi) // dNdxi is 2*4
+// {
+//    N[0] = 0.25*(1-xi[0])*(1-xi[1]);
+//    N[1] = 0.25*(1+xi[0])*(1-xi[1]);
+//    N[2] = 0.25*(1+xi[0])*(1+xi[1]);
+//    N[3] = 0.25*(1-xi[0])*(1+xi[1]);
 
-   dNdxi(0,0) = 0.25*(-1+xi[1]);
-   dNdxi(0,1) = 0.25*(1-xi[1]);
-   dNdxi(0,2) = 0.25*(1+xi[1]);
-   dNdxi(0,3) = 0.25*(-1-xi[1]);
-   dNdxi(1,0) = 0.25*(-1+xi[0]);
-   dNdxi(1,1) = 0.25*(-1-xi[0]);
-   dNdxi(1,2) = 0.25*(1+xi[0]);
-   dNdxi(1,3) = 0.25*(1-xi[0]);
-}
+//    dNdxi(0,0) = 0.25*(-1+xi[1]);
+//    dNdxi(0,1) = 0.25*(1-xi[1]);
+//    dNdxi(0,2) = 0.25*(1+xi[1]);
+//    dNdxi(0,3) = 0.25*(-1-xi[1]);
+//    dNdxi(1,0) = 0.25*(-1+xi[0]);
+//    dNdxi(1,1) = 0.25*(-1-xi[0]);
+//    dNdxi(1,2) = 0.25*(1+xi[0]);
+//    dNdxi(1,3) = 0.25*(1-xi[0]);
+// }
+
+// void BasisEvalDerivs(const Vector xi, Vector& shape, DenseMatrix& dshape,
+//                      DenseMatrix& Hessian)                     
+// {
+//    H1_QuadrilateralElement fe(1,1);
+//    int ndof = fe.GetDof();
+//    int dim = fe.GetDim();
+//    IntegrationPoint ip;
+//    ip.x = 0.5*(xi[0]+1);
+//    ip.y = 0.5*(xi[1]+1);
+//    shape.SetSize(ndof);
+//    dshape.SetSize(ndof,dim);
+//    Hessian.SetSize(ndof,3);
+//    fe.CalcShape(ip,shape);
+//    fe.CalcDShape(ip,dshape); dshape.Transpose(); dshape*=0.5;
+//    fe.CalcHessian(ip,Hessian); Hessian.Transpose(); Hessian*=0.25;
+// }
 
 void BasisEvalDerivs(const Vector xi, Vector& N, DenseMatrix& dNdxi,
                      DenseMatrix& dN2dxi)
 {
+   N.SetSize(4);
    N[0] = 0.25*(1-xi[0])*(1-xi[1]);
    N[1] = 0.25*(1+xi[0])*(1-xi[1]);
    N[2] = 0.25*(1+xi[0])*(1+xi[1]);
@@ -38,6 +56,60 @@ void BasisEvalDerivs(const Vector xi, Vector& N, DenseMatrix& dNdxi,
    dN2dxi(1,0) = 0.25; dN2dxi(1,1) = -0.25; dN2dxi(1,2) = 0.25;
    dN2dxi(1,3) = -0.25;
 }
+
+
+// void BasisVectorDerivs(const Vector xi, DenseMatrix& N, DenseMatrix& dNdxi,
+//                        DenseMatrix& ddNdxi)
+// {
+//    Vector shape;
+//    DenseMatrix dshape, hessian;
+//    BasisEvalDerivs(xi,shape,dshape,hessian);
+//    N.SetSize(3,12); 
+   // N.Set
+
+
+   // N.SetSize(3,12); 
+   // N(0,0) = 0.25*(1-xi[0])*(1-xi[1]); N(0,3) = 0.25*(1+xi[0])*(1-xi[1]);
+   // N(0,6) = 0.25*(1+xi[0])*(1+xi[1]); N(0,9) = 0.25*(1-xi[0])*(1+xi[1]);
+
+   // N(1,1) = 0.25*(1-xi[0])*(1-xi[1]); N(1,4) = 0.25*(1+xi[0])*(1-xi[1]);
+   // N(1,7) = 0.25*(1+xi[0])*(1+xi[1]); N(1,10) = 0.25*(1-xi[0])*(1+xi[1]);
+
+   // N(2,2) = 0.25*(1-xi[0])*(1-xi[1]); N(2,5) = 0.25*(1+xi[0])*(1-xi[1]);
+   // N(2,8) = 0.25*(1+xi[0])*(1+xi[1]); N(2,11) = 0.25*(1-xi[0])*(1+xi[1]);
+
+   // dNdxi.SetSize(3*2, 3*4);  dNdxi = 0.0;
+   // dNdxi(0,0) = 0.25*(-1+xi[1]);  dNdxi(0,3) = 0.25*(1-xi[1]);
+   // dNdxi(0,6) = 0.25*(1+xi[1]);  dNdxi(0,9) = 0.25*(-1-xi[1]);
+   // dNdxi(1,1) = 0.25*(-1+xi[1]);  dNdxi(1,4) = 0.25*(1-xi[1]);
+   // dNdxi(1,7) = 0.25*(1+xi[1]);  dNdxi(1,10) = 0.25*(-1-xi[1]);
+   // dNdxi(2,2) = 0.25*(-1+xi[1]);  dNdxi(2,5) = 0.25*(1-xi[1]);
+   // dNdxi(2,8) = 0.25*(1+xi[1]);  dNdxi(2,11) = 0.25*(-1-xi[1]);
+
+   // dNdxi(3,0) = 0.25*(-1+xi[0]);  dNdxi(3,3) = 0.25*(-1-xi[0]);
+   // dNdxi(3,6) = 0.25*(1+xi[0]);  dNdxi(3,9) = 0.25*(1-xi[0]);
+   // dNdxi(4,1) = 0.25*(-1+xi[0]);  dNdxi(4,4) = 0.25*(-1-xi[0]);
+   // dNdxi(4,7) = 0.25*(1+xi[0]);  dNdxi(4,10) = 0.25*(1-xi[0]);
+   // dNdxi(5,2) = 0.25*(-1+xi[0]);  dNdxi(5,5) = 0.25*(-1-xi[0]);
+   // dNdxi(5,8) = 0.25*(1+xi[0]);  dNdxi(5,11) = 0.25*(1-xi[0]);
+
+   // ddNdxi.SetSize(3*4, 3*4); ddNdxi = 0.0;
+   // ddNdxi(3,0) = 0.25; ddNdxi(3,3) = -0.25;
+   // ddNdxi(3,6) = 0.25; ddNdxi(3,9) = -0.25;
+   // ddNdxi(4,1) = 0.25; ddNdxi(4,4) = -0.25;
+   // ddNdxi(4,7) = 0.25; ddNdxi(4,10) = -0.25;
+   // ddNdxi(5,2) = 0.25; ddNdxi(5,5) = -0.25;
+   // ddNdxi(5,8) = 0.25; ddNdxi(5,11) = -0.25;
+
+   // ddNdxi(6,0) = 0.25; ddNdxi(6,3) = -0.25;
+   // ddNdxi(6,6) = 0.25; ddNdxi(6,9) = -0.25;
+   // ddNdxi(7,1) = 0.25; ddNdxi(7,4) = -0.25;
+   // ddNdxi(7,7) = 0.25; ddNdxi(7,10) = -0.25;
+   // ddNdxi(8,2) = 0.25; ddNdxi(8,5) = -0.25;
+   // ddNdxi(8,8) = 0.25; ddNdxi(8,11) = -0.25;
+// }
+
+
 
 // returns the vector and matrix form of the shape functions and its derivative
 void BasisVectorDerivs(const Vector xi, DenseMatrix& N, DenseMatrix& dNdxi,
@@ -93,23 +165,6 @@ void cross(const Vector a, const Vector b, Vector& c)
    c[2] = a[0]*b[1] - a[1]*b[0];
 }
 
-// a outer b
-void outer(const Vector a, const Vector b, DenseMatrix& c)
-{
-   int m = a.Size();
-   int n = b.Size();
-   assert(c.Height()==m);
-   assert(c.Width() ==n);
-   for (int i=0; i<m; i++)
-   {
-      for (int j=0; j<n; j++)
-      {
-         c(i,j) = a[i]*b[j];
-      }
-   }
-}
-// dphidxi 2*4
-// coords 4*3
 void ComputeNormal(const DenseMatrix& dphidxi, const DenseMatrix& coords,
                    Vector& normal, double& nnorm)
 {
@@ -122,8 +177,7 @@ void ComputeNormal(const DenseMatrix& dphidxi, const DenseMatrix& coords,
    dxdxi.GetRow(0,dxdxi1);
    dxdxi.GetRow(1,dxdxi2);
 
-   cross(dxdxi1, dxdxi2, normal);  // is there a cross product?  no
-   // VectorCrossProductCoefficient::Eval has hard-coded cross product
+   cross(dxdxi1, dxdxi2, normal); 
    nnorm = normal.Norml2( );
    normal /=  nnorm;
 }
@@ -244,12 +298,12 @@ void  ComputeGapJacobian(const Vector x_s, const Vector xi,
 
    Vector m_dxrow1(3);
    m_dx.GetRow(0, m_dxrow1);
-   outer(m_N, m_dxrow1, dr_dx_res1);// 4*1 times 1*3
+   MultVWt(m_N, m_dxrow1, dr_dx_res1);// 4*1 times 1*3
    dr_dx_res1 *= -1.0;
 
    Vector m_dxrow2(3);
    m_dx.GetRow(1, m_dxrow2);
-   outer(m_N, m_dxrow2, dr_dx_res2);// 4*1 times 1*3
+   MultVWt(m_N, m_dxrow2, dr_dx_res2);// 4*1 times 1*3
    dr_dx_res2 *= -1.0;
 
    Vector m_dNrow1(4); m_dN.GetRow(0, m_dNrow1);
@@ -257,8 +311,8 @@ void  ComputeGapJacobian(const Vector x_s, const Vector xi,
 
    DenseMatrix dr_dx_res1_tmp(4,3); dr_dx_res1_tmp = 0.;
    DenseMatrix dr_dx_res2_tmp(4,3); dr_dx_res2_tmp = 0.;
-   outer(m_dNrow1, gap_v, dr_dx_res1_tmp);// 4*1 times 1*3
-   outer(m_dNrow2, gap_v, dr_dx_res2_tmp);// 4*1 times 1*3
+   MultVWt(m_dNrow1, gap_v, dr_dx_res1_tmp);// 4*1 times 1*3
+   MultVWt(m_dNrow2, gap_v, dr_dx_res2_tmp);// 4*1 times 1*3
 
    dr_dx_res1 += dr_dx_res1_tmp; // outer product in vector?
    dr_dx_res2 += dr_dx_res2_tmp;
@@ -331,7 +385,7 @@ void  ComputeGapJacobian(const Vector x_s, const Vector xi,
 
    dgdxm.SetSize(12); dgdxm = 0.;
    DenseMatrix dgdxm_tmp(4,3);
-   outer(m_N, normal,dgdxm_tmp);
+   MultVWt(m_N, normal,dgdxm_tmp);
    for (int i=0; i<4; i++)
    {
       for (int j=0; j<3; j++)
@@ -392,7 +446,7 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
 
       Vector m_dxcol(2); m_dx.GetColumn(d, m_dxcol);
       DenseMatrix ftmp(2,4);
-      outer(m_dxcol, m_N, ftmp);
+      MultVWt(m_dxcol, m_N, ftmp);
       ftmp *= -1;
       ftmp.Add( gap_v[d], m_dN);   // 2*4
 
@@ -511,14 +565,14 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
    m_dx2.GetRow(2,mdx2_row3);
 
    DenseMatrix dtaotmp(3,3); dtaotmp = 0.0;
-   outer(mdx2_row1, dxidxs_row1,dtaotmp);
+   MultVWt(mdx2_row1, dxidxs_row1,dtaotmp);
    dtao1dxs += dtaotmp; dtaotmp = 0.0;
-   outer(mdx2_row2, dxidxs_row1,dtaotmp);
+   MultVWt(mdx2_row2, dxidxs_row1,dtaotmp);
    dtao1dxs += dtaotmp; dtaotmp = 0.0;
 
-   outer(mdx2_row2, dxidxs_row2, dtaotmp);
+   MultVWt(mdx2_row2, dxidxs_row2, dtaotmp);
    dtao2dxs += dtaotmp; dtaotmp = 0.0;
-   outer(mdx2_row3, dxidxs_row2, dtaotmp);
+   MultVWt(mdx2_row3, dxidxs_row2, dtaotmp);
    dtao2dxs += dtaotmp; dtaotmp = 0.0;
 
    DenseMatrix dtaodxs(3,3); dtaodxs = 0.0; //tao = tao1 cross tao2
@@ -544,7 +598,7 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
 
    DenseMatrix dndxs(3,3); dndxs = 0.0; dndxs += dtaodxs; dndxs *= 1.0/nnorm;
    DenseMatrix dndxs_tmp(3,3); dndxs_tmp = 0.0;
-   outer(normal, normal, dndxs_tmp);
+   MultVWt(normal, normal, dndxs_tmp);
    AddMult_a(-1/nnorm, dndxs_tmp, dtaodxs, dndxs);
 
    DenseMatrix dgvdxs(3,3); dgvdxs = 0.0;
@@ -573,6 +627,24 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
    DenseMatrix dtao1dxm(3,12); dtao1dxm.CopyRows(Be, 0, 2);
    DenseMatrix dtao2dxm(3,12); dtao2dxm.CopyRows(Be, 3, 5);
 
+   Vector shape;
+   DenseMatrix dshape, hessian;
+   BasisEvalDerivs(xi,shape,dshape,hessian);
+   // mfem::out << "shape = " << endl;
+   // shape.Print();
+   // mfem::out << "Ne = " << endl;
+   // Ne.PrintMatlab();
+
+   // mfem::out << "dshape = " << endl;
+   // dshape.PrintMatlab();
+   // mfem::out << "dtao1dxm = " << endl;
+   // dtao1dxm.PrintMatlab();
+   // mfem::out << "dtao2dxm = " << endl;
+   // dtao2dxm.PrintMatlab();
+
+   // cin.get();
+
+
    Vector m_coords_v(12);
    for (int i=0; i<4; i++)
    {
@@ -586,12 +658,11 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
    {
       Vector dxidxm_tmp(num_dofs2); dxidxm_tmp = 0.0;
       dxidxm.GetRow(i,dxidxm_tmp);
-
       DenseMatrix dBe_tmp(3,12);
       dBe_tmp.CopyRows(dBe,i*3,(i+1)*3-1);
 
       DenseMatrix dtaodxm_tmp(12,12); dtaodxm_tmp = 0.0;
-      outer(m_coords_v, dxidxm_tmp, dtaodxm_tmp);
+      MultVWt(m_coords_v, dxidxm_tmp, dtaodxm_tmp);
       AddMult(dBe_tmp, dtaodxm_tmp, dtao1dxm);
 
       //dtao1dxm += dBe(:,:,i)*reshape(m_coords(1:4,:)',12,1)*reshape(dxidxm(i,:),1,12); % 3*12
@@ -634,7 +705,7 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
       Be_tmp.CopyRows(Be,i*3,(i+1)*3-1);
 
       DenseMatrix dgvdxm_tmp(12,12); dgvdxm_tmp = 0.0;
-      outer(m_coords_v, dxidxm_tmp, dgvdxm_tmp);
+      MultVWt(m_coords_v, dxidxm_tmp, dgvdxm_tmp);
       AddMult_a(-1.0, Be_tmp, dgvdxm_tmp, dgvdxm);
    }
 
@@ -657,7 +728,7 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
       Be_tmp.CopyRows(Be,i*3,(i+1)*3-1);
       Vector dxidxs_row(3); dxidxs_row = 0.0; dxidxs_m.GetRow(i,dxidxs_row);
       DenseMatrix dgvdxsxmn_tmp2(3,3); dgvdxsxmn_tmp2 = 0.0;
-      outer(dxidxs_row, normal, dgvdxsxmn_tmp2);
+      MultVWt(dxidxs_row, normal, dgvdxsxmn_tmp2);
       AddMult_a(-1.0, dgvdxsxmn_tmp2, Be_tmp, dgvdxsxmn);
    }
 
@@ -684,7 +755,7 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
 
       Vector dxidxs_row(3); dxidxs_row = 0.0; dxidxs_m.GetRow(i,dxidxs_row);
       DenseMatrix dgvdxmxsn_tmp2(3,3); dgvdxmxsn_tmp2 = 0.0;
-      outer(normal, dxidxs_row, dgvdxmxsn_tmp2);
+      MultVWt(normal, dxidxs_row, dgvdxmxsn_tmp2);
       AddMult_a(-1.0, Be_tmp, dgvdxmxsn_tmp2, dgvdxmxsn);
    }
 
@@ -731,7 +802,6 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
    g.SetSize((reduced)? npoints : m);
    g = 0.0;
 
-
    double g_tmp = 0.;
    Vector dg(4*ndim+ndim);
    dg = 0.;
@@ -759,22 +829,6 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       dg2 = 0.;
       
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
-      // if (Mpi::Root())
-      // {
-         // x1.Print();
-         // xi2.Print();
-         // coords2.Print();
-         if (Mpi::WorldRank() == 1)
-         {
-            if (g_tmp > 0)
-            {
-               mfem::out << "g_tmp = " << g_tmp << endl;
-               x1.Print();
-               xi2.Print();
-               coords2.PrintMatlab();
-            }
-         }
-      // }
       int row = (reduced) ? i : s_conn[i];
       g[row] = g_tmp; // should be unique
       Array<int> m_conn_i(4);
@@ -808,6 +862,60 @@ void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const Dens
       dM[k]->AddSubMatrix(dM_i,dM_j, dg2);
    }
 };
+
+void Assemble_Contact(const int m, const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+                      const Array<int> m_conn, Vector& g, SparseMatrix & M1, SparseMatrix & M2, int offset)
+{
+   int ndim = 3;
+
+   int npoints = s_conn.Size();
+   g.SetSize(npoints);
+   g = 0.0;
+
+   double g_tmp = 0.;
+   Vector dg(4*ndim+ndim);
+   dg = 0.;
+   DenseMatrix dg2(4*ndim+ndim,4*ndim+ndim);
+   dg2 = 0.;
+
+   for (int i=0; i<npoints; i++)
+   {
+      Vector x1(ndim);
+      x1[0] = x_s[i*ndim];
+      x1[1] = x_s[i*ndim+1];
+      x1[2] = x_s[i*ndim+2];
+
+      Vector xi2(ndim-1);
+      xi2[0] = xi[i*(ndim-1)];
+      xi2[1] = xi[i*(ndim-1)+1];
+
+      DenseMatrix coords2(4,3);
+      coords2.CopyRows(coordsm, i*4,(i+1)*4-1);
+
+      dg = 0.0; dg2 = 0.0;
+      
+      NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
+      g[i] = g_tmp; 
+      Array<int> m_conn_i(4);
+      m_conn.GetSubArray(4*i, 4, m_conn_i);
+
+      Array<int> M2_idx(ndim); 
+      Array<int> M1_idx(4*ndim); 
+      for (int d=0; d<ndim; d++)
+      {
+         M2_idx[d] = s_conn[i]*ndim+d;
+         for (int j=0; j< 4; j++)
+         {
+            M1_idx[j*ndim+d] = m_conn_i[j]*ndim+d;
+         }
+      }
+      Vector dg_1(&dg.GetData()[ndim],4*ndim);
+      M1.AddRow(i+offset,M1_idx,dg_1);
+      Vector dg_2(dg.GetData(),ndim);
+      M2.AddRow(i+offset,M2_idx,dg_2);
+   }
+};
+
 
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {

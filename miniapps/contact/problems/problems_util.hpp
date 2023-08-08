@@ -38,6 +38,11 @@ void Assemble_Contact(const int m,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
                       Array<SparseMatrix *> & dM, bool reduced = false, int offset = 0);
 
+void Assemble_Contact(const int m, 
+                      const Vector x_s,
+                      const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+                      const Array<int> m_conn, Vector & g, SparseMatrix & M1, SparseMatrix & M2, int offset);
+
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface);
 
 Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,

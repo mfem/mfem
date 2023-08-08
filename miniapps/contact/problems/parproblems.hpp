@@ -39,14 +39,14 @@ public:
       Init();
    }
 
-    ParMesh * GetMesh() { return pmesh; }
-    ParFiniteElementSpace * GetFESpace() { return fes; }
-    FiniteElementCollection * GetFECol() { return fec; }
-    int GetNumDofs() { return ndofs; }
-    int GetNumTDofs() { return ntdofs; }
-    int GetGlobalNumDofs() { return gndofs; }
-    HypreParMatrix & GetOperator() 
-    { 
+   ParMesh * GetMesh() { return pmesh; }
+   ParFiniteElementSpace * GetFESpace() { return fes; }
+   FiniteElementCollection * GetFECol() { return fec; }
+   int GetNumDofs() { return ndofs; }
+   int GetNumTDofs() { return ntdofs; }
+   int GetGlobalNumDofs() { return gndofs; }
+   HypreParMatrix & GetOperator() 
+   { 
       MFEM_VERIFY(formsystem, "System not formed yet. Call FormLinearSystem()"); 
       return A; 
    }
@@ -54,6 +54,17 @@ public:
    { 
       MFEM_VERIFY(formsystem, "System not formed yet. Call FormLinearSystem()"); 
       return B; 
+   }
+
+   void SetLambda(const Vector & lambda_) 
+   { 
+      lambda = lambda_; 
+      lambda_cf.UpdateConstants(lambda);
+   }
+   void SetMu(const Vector & mu_) 
+   { 
+      mu = mu_; 
+      mu_cf.UpdateConstants(mu);
    }
 
    void FormLinearSystem();
@@ -100,6 +111,8 @@ private:
    Array<int> constraints_starts;
    Array<int> globalvertices1;
    Array<int> globalvertices2;
+   Array<int> vertices2;
+   Array<int> vertices1;
 
 protected:
    int npoints=0;

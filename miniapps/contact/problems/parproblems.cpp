@@ -133,8 +133,8 @@ void ParContactProblem::ComputeContactVertices()
    int nv2 = vfes2->GetTrueVSize();
    nv = nv1+nv2;
 
-   Array<int> vertices1(pmesh1->GetNV());
-   Array<int> vertices2(pmesh2->GetNV());
+   vertices1.SetSize(pmesh1->GetNV());
+   vertices2.SetSize(pmesh2->GetNV());
 
    for (int i = 0; i<pmesh1->GetNV(); i++)
    {
@@ -216,6 +216,7 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    displ2_gf.SetFromTrueDofs(displ2);
 
    Array<int> conn2(npoints); 
+   Array<int> conn2a(npoints); 
    Vector xyz(dim * npoints);
 
    int cnt = 0;
@@ -226,20 +227,20 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
          xyz(cnt*dim + d) = pmesh2->GetVertex(v)[d]+displ2_gf[v*dim+d];
       }
       conn2[cnt] = globalvertices2[v];
+      conn2a[cnt] = vertices2[v];
       cnt++;
    }
 
    MFEM_VERIFY(cnt == npoints, "");
    gapv.SetSize(npoints*dim); gapv = 0.0;
-
    // segment reference coordinates of the closest point
    Vector xi1(npoints*(dim-1));
    Array<int> conn1(npoints*4);
+   Array<int> conn1a(npoints*4);
    DenseMatrix coordsm(npoints*4, dim);
    add(nodes0, displ1_gf, *nodes1);
-
+   FindPointsInMesh(*pmesh1, vertices1, conn2a, displ1_gf, xyz, conn1a, xi1, coordsm);
    FindPointsInMesh(*pmesh1, globalvertices1, conn2, displ1_gf, xyz, conn1, xi1, coordsm);
-
    if (M)
    {
       delete M;
@@ -253,8 +254,12 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    int h = (reduced) ? npoints : nv;
    int gh = (reduced) ? gnpoints : gnv;
 
-   int ndofs = prob1->GetFESpace()->GetTrueVSize() + prob2->GetFESpace()->GetTrueVSize();
-   int gndofs = prob1->GetFESpace()->GlobalTrueVSize() + prob2->GetFESpace()->GlobalTrueVSize();
+   int ndofs1 = prob1->GetFESpace()->GetTrueVSize();
+   int ndofs2 = prob2->GetFESpace()->GetTrueVSize();
+   int ndofs = ndofs1 + ndofs2;
+   int gndofs1 = prob1->GetFESpace()->GlobalTrueVSize();
+   int gndofs2 = prob2->GetFESpace()->GlobalTrueVSize();
+   int gndofs = gndofs1 + gndofs2;
    
    SparseMatrix S(gh,gndofs);
 
@@ -278,14 +283,31 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
 
    int offset = reduced ? constraints_offsets[myid] : vertex_offsets[myid];
    Assemble_Contact(gnv, xyz, xi1, coordsm, conn2, conn1, gapv, S, dS, reduced, offset);
+   SparseMatrix S1(gh,gndofs1);
+   SparseMatrix S2(gh,gndofs2);
+
+   Assemble_Contact(gnv, xyz, xi1, coordsm, conn2a, conn1a, gapv, S1,S2, offset);
+   S1.Finalize();
+   S2.Finalize();
 
    // --------------------------------------------------------------------
    // Redistribute the M matrix
    // --------------------------------------------------------------------
    int glv = reduced ? gnpoints : gnv;
    MPICommunicator Mcomm(comm,offset,glv);
-   SparseMatrix localS(h,K->GetGlobalNumCols());
+   int gnumcols = K->GetGlobalNumCols();
+   SparseMatrix localS(h,gnumcols);
+
    Mcomm.Communicate(S,localS);
+
+
+   MPICommunicator Mcomm1(comm,offset,glv);
+   SparseMatrix localS1(h,gndofs1);
+   Mcomm1.Communicate(S1,localS1);
+
+   MPICommunicator Mcomm2(comm,offset,glv);
+   SparseMatrix localS2(h,gndofs2);
+   Mcomm2.Communicate(S2,localS2);
 
    // --------------------------------------------------------------------
    // Redistribute the dM_i matrices
@@ -325,10 +347,41 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    }
    Mcols[0] = K->ColPart()[0]; 
    Mcols[1] = K->ColPart()[1]; 
-   M = new HypreParMatrix(K->GetComm(),nrows,gnrows,gndofs,
-                          localS.GetI(), localS.GetJ(),localS.GetData(),
-                          Mrows,Mcols);
-   HypreStealOwnership(*M, localS);
+
+   int M1rows[2], M2rows[2]; 
+   int M1cols[2], M2cols[2];
+   M1rows[0] = constraints_starts[0];
+   M1rows[1] = constraints_starts[1];
+
+   int nrows1 = npoints;
+   int gnrows1 = gnpoints;
+   int nrows2 = npoints;
+   int gnrows2 = gnpoints;
+
+
+   M2rows[0] = constraints_starts[0];
+   M2rows[1] = constraints_starts[1];
+
+   M1cols[0] = prob1->GetFESpace()->GetTrueDofOffsets()[0];
+   M1cols[1] = prob1->GetFESpace()->GetTrueDofOffsets()[1];
+
+   M2cols[0] = prob2->GetFESpace()->GetTrueDofOffsets()[0];
+   M2cols[1] = prob2->GetFESpace()->GetTrueDofOffsets()[1];
+
+   HypreParMatrix * M1 = new HypreParMatrix(K->GetComm(),nrows1,gnrows1,gndofs1,
+                          localS1.GetI(), localS1.GetJ(),localS1.GetData(),
+                          M1rows,M1cols);
+
+   HypreParMatrix * M2 = new HypreParMatrix(K->GetComm(),nrows2,gnrows2,gndofs2,
+                          localS2.GetI(), localS2.GetJ(),localS2.GetData(),
+                          M2rows,M2cols);
+
+
+   Array2D<HypreParMatrix*> Marray(1,2);
+   Marray(0,0) = M1;
+   Marray(0,1) = M2;
+   M = HypreParMatrixFromBlocks(Marray);
+
 
    // TODO Construct Mi HypreParMatrix
    // ...

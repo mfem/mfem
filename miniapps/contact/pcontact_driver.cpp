@@ -55,18 +55,26 @@ int main(int argc, char *argv[])
    }
 
    ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
-   ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
+   Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
+   Vector mu1(prob1->GetMesh()->attributes.Max()); mu1 = 38.4615384615;
 
+   ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
+   Vector lambda2(prob2->GetMesh()->attributes.Max()); lambda2 = 57.6923076923;
+   Vector mu2(prob2->GetMesh()->attributes.Max()); mu2 = 38.4615384615;
+
+   prob1->SetLambda(lambda1); prob1->SetMu(mu1);
+   prob2->SetLambda(lambda2); prob2->SetMu(mu2);
 
    ParContactProblem contact(prob1,prob2);
    QPOptParContactProblem qpopt(&contact);
 
    ParInteriorPointSolver optimizer(&qpopt);
 
-   optimizer.SetTol(1e-6);
+   optimizer.SetTol(1e-5);
    optimizer.SetMaxIter(50);
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
+   optimizer.SetLinearSolveTol(1e-8);
 
    ParGridFunction x1 = prob1->GetDisplacementGridFunction();
    ParGridFunction x2 = prob2->GetDisplacementGridFunction();
