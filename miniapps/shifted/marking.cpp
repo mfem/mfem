@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "marking.hpp"
+#include "integ_algoim.hpp"
 
 namespace mfem
 {
@@ -374,7 +375,6 @@ void ElementMarker::SetLevelSetFunction(Coefficient &ls_fun)
                 }
             }
 
-
             int countp = 0;
             int countn = 0;
             for (int j = 0; j < ir.GetNPoints(); j++){
@@ -445,6 +445,7 @@ void ElementMarker::SetLevelSetFunction(Coefficient &ls_fun)
             }
         }
     }
+
     elgf.ExchangeFaceNbrData();
 
     delete pfes_sltn;
@@ -670,7 +671,35 @@ void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
     lfes.MarkerToList(tdof_mark, ess_tdof_list);
 }
 
+#ifdef MFEM_USE_ALGOIM
 
+CutIntegrationRules::CutIntegrationRules(int int_order,
+                                         GridFunction& lsf,
+                                         Array<int>& elm_markers):markers(elm_markers)
+{
+
+     FiniteElementSpace* fespace=lsf.FESpace();
+     ElementTransformation *Tr;
+
+     air.SetSize(fespace->GetNE()); air=nullptr;
+
+     for (int i=0; i<fespace->GetNE(); i++){
+     if(elm_markers[i]==ElementMarker::SBElementType::CUT){
+         Tr=fespace->GetElementTransformation(i);
+         air[i]=new AlgoimIntegrationRule(int_order,*Tr,lsf);
+     }}
+
+}
+
+CutIntegrationRules::~CutIntegrationRules()
+{
+    for(int i=0;i<air.Size();i++)
+    {
+        delete air[i];
+    }
+}
+
+#endif
 
 
 }

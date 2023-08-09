@@ -13,6 +13,7 @@
 #define MFEM_MARKING_HPP
 
 #include "mfem.hpp"
+#include "integ_algoim.hpp"
 
 namespace mfem
 {
@@ -79,7 +80,7 @@ public:
 
 
 
-// Marking operations for elements, faces, dofs, etc, related to shifted
+// Marking operations for elements, faces, dofs, etc, related to cut, shifted
 // boundary and interface methods.
 class ElementMarker{
 public:
@@ -152,6 +153,58 @@ private:
     int h1_order; //order of the H1 FE space for level set functions defined by coefficient
 };
 
+#ifdef MFEM_USE_ALGOIM
+
+/// The class generates volumetric and surface
+/// body fitted integration rules for all zero level-set cut elements.
+class CutIntegrationRules
+{
+public:
+
+    /// Contructs the set of integration rules for a given grid function and a set
+    ///  of markers.
+    CutIntegrationRules(int int_order, GridFunction& lsf, Array<int>& elm_markers);
+
+    /// Frees the integration rules
+    ~CutIntegrationRules();
+
+
+    /// Returns the volumetric integration rule for element el.
+    const IntegrationRule* GetVolIntegrationRule(int el){
+        if(air[el]==nullptr){return nullptr;}
+        else{
+            return air[el]->GetVolumeIntegrationRule();
+        }
+    }
+
+    /// Returns the marker associated with element el.
+    ElementMarker::SBElementType GetElementMarker(int el){
+        return ElementMarker::SBElementType(markers[el]);
+    }
+
+    /// Returns surface integration rule for element el.
+    const IntegrationRule* GetSurfIntegrationRule(int el)
+    {
+        if(air[el]==nullptr){return nullptr;}
+        else{
+            return air[el]->GetSurfaceIntegrationRule();
+        }
+    }
+
+    /// Returns surface integration weights for element el
+    const Array<double>* GetSurfaceWeights(ElementTransformation& trans)
+    {
+        if(air[trans.ElementNo]==nullptr){return nullptr;}
+        else{
+            return air[trans.ElementNo]->GetSurfaceWeights(trans);
+        }
+    }
+
+private:
+    Array<AlgoimIntegrationRule*> air; //holds all Algoim integration rules
+    Array<int>& markers; //holds a reference to the markers
+};
+#endif
 
 
 } // namespace mfem
