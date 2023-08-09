@@ -320,13 +320,13 @@ protected:
       /// @brief Recovers a vector of dual field coefficients on the tdofs given
       /// a vector of dual coefficients and a finite element space
       void GetTDofsTranspose(const FiniteElementSpace& fes,
-                             const Vector& b,
-                             Vector& B) const;
+                             const Vector& x,
+                             Vector& X) const;
       /// @brief Sets dual field coefficients given a vector of dual field
       /// coefficients on the tdofs and a finite element space
       void SetFromTDofsTranspose(const FiniteElementSpace& fes,
-                                 const Vector& B,
-                                 Vector& b) const;
+                                 const Vector& X,
+                                 Vector& x) const;
       /// @brief Fills the vdofs_list array with a list of vdofs for a given
       /// vdim and a given finite element space
       void TDofsListByVDim(const FiniteElementSpace& fes,
