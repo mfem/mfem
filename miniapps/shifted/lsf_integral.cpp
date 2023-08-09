@@ -182,26 +182,14 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_ALGOIM
    double area=0.0;
-   DenseMatrix bmat; //gradients of the shape functions in isoparametric space
-   DenseMatrix pmat; //gradients of the shape functions in physical space
-   Vector inormal; //normal to the level set in isoparametric space
-   Vector tnormal; //normal to the level set in physical space
-   Vector lsfun; //level set function restricted to an element
-   DofTransformation *doftrans;
-   Array<int> vdofs;
    for (int i=0; i<fespace.GetNE(); i++)
    {
-      const FiniteElement* el=fespace.GetFE(i);
-
       //get the element transformation
       trans = fespace.GetElementTransformation(i);
 
-      //extract the element vector from the level-set
-      doftrans = fespace.GetElementVDofs(i,vdofs);
-      x.GetSubVector(vdofs, lsfun);
-
       //construct Algoim integration object
-      AlgoimIntegrationRule air(aorder, *el, *trans, lsfun);
+      AlgoimIntegrationRule air(aorder, *trans, *ls_coeff, 3);
+
 
       //compute the volume contribution from the element
       ir = air.GetVolumeIntegrationRule();
@@ -212,25 +200,12 @@ int main(int argc, char *argv[])
          vol += ip.weight * trans->Weight();
       }
 
-      //compute the perimeter/area contribution from the element
-      bmat.SetSize(el->GetDof(),el->GetDim());
-      pmat.SetSize(el->GetDof(),el->GetDim());
-      inormal.SetSize(el->GetDim());
-      tnormal.SetSize(el->GetDim());
-
       ir = air.GetSurfaceIntegrationRule();
+      const Array<double>& sweights= *air.GetSurfaceWeights(*trans);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         trans->SetIntPoint(&ip);
-
-         el->CalcDShape(ip,bmat);
-         Mult(bmat, trans->AdjugateJacobian(), pmat);
-         //compute the normal to the LS in isoparametric space
-         bmat.MultTranspose(lsfun,inormal);
-         //compute the normal to the LS in physical space
-         pmat.MultTranspose(lsfun,tnormal);
-         area += ip.weight * tnormal.Norml2() / inormal.Norml2();
+         area += ip.weight * sweights[j];
       }
    }
 
@@ -245,7 +220,6 @@ int main(int argc, char *argv[])
       std::cout<<"Algoim Area="<<area<<std::endl;
    }
 #endif
-
    //Perform standard MFEM integration
    vol=0.0;
    for (int i=0; i<fespace.GetNE(); i++)

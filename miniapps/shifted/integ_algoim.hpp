@@ -117,6 +117,21 @@ public:
                          ElementTransformation &trans, const Vector &lsfun);
 
 
+   /// Construct Algoim object using  a specified integration order o,
+   /// an element transformation, level set function supplied in the form
+   /// of a coefficient and approximation order of the level-set. If the
+   /// approximation order is set to -1, the order will be set to be equal
+   /// to the element order from the element transformation.
+   AlgoimIntegrationRule(int o, ElementTransformation &trans,
+                         Coefficient& lsfun, int lso=-1);
+
+   /// Construct Algoim object using  a specified integration order o,
+   /// an element transformation, level set function supplied in the form
+   /// of a grid function.
+   AlgoimIntegrationRule(int o, ElementTransformation &trans,
+                         GridFunction& lsfun);
+
+
    /// Destructor of the Algoim object
    ~AlgoimIntegrationRule()
    {
@@ -132,6 +147,18 @@ public:
    /// Returns surface integration rule based on the provided
    /// level-set function.
    const IntegrationRule* GetSurfaceIntegrationRule();
+
+   /// Returns the surface weight for surface integration at
+   /// integration point ip. The total weight should be computed
+   /// as the product of the integration point weight ip.weight
+   /// and the result returned by SurfaceWeight.
+   double SurfaceWeight(ElementTransformation &trans,
+                        const IntegrationPoint& ip);
+
+
+   /// Returns the surface weights for the current surface integration
+   /// rule. The weights are recomputed for every call to the method.
+   const Array<double>* GetSurfaceWeights(ElementTransformation &trans);
 
 
 private:
@@ -269,11 +296,16 @@ private:
    };
 
 
+   Array<double> sweight; // Surface weight evaluated for
+                          // every surface integration point.
+
    IntegrationRule* sir; // Surface integration rule. Owned.
    IntegrationRule* vir; // Volumetric integration rule. Owned.
    PositiveTensorFiniteElement *pe;
    Vector lsvec; //level-set in Bernstein bases
    int int_order; //integration order
+
+
 };
 
 }
