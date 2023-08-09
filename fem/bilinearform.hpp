@@ -452,7 +452,7 @@ public:
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
    virtual const Operator *GetOutputRestrictionTranspose() const
-   { return GetOutputProlongation(); }
+   { return fes->GetRestrictionTransposeOperator(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }

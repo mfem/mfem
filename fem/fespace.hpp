@@ -280,6 +280,8 @@ protected:
    mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
    mutable SparseMatrix *cR; // owned
+   /// Operator computing the action of the transpose of cR.
+   mutable TransposeOperator *cR_T; // owned
    /// A version of the conforming restriction matrix for variable-order spaces.
    mutable SparseMatrix *cR_hp; // owned
    mutable bool cP_is_set;
@@ -592,10 +594,8 @@ public:
    { return GetConformingProlongation(); }
 
    /// Return an operator that performs the transpose of GetRestrictionOperator
-   /** The returned operator is owned by the FiniteElementSpace. In serial this
-       is the same as GetProlongationMatrix() */
-   virtual const Operator *GetRestrictionTransposeOperator() const
-   { return GetConformingProlongation(); }
+   /** The returned operator is owned by the FiniteElementSpace. */
+   virtual const Operator *GetRestrictionTransposeOperator() const;
 
    /// An abstract operator that performs the same action as GetRestrictionMatrix
    /** In some cases this is an optimized matrix-free implementation. The
