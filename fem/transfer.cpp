@@ -956,10 +956,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofsTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromTDofsTranspose(
    const FiniteElementSpace& fes, const Vector &X, Vector& x) const
 {
-   const Operator *R = fes.GetRestrictionOperator();
-   if (R)
+   const Operator *R_op = fes.GetRestrictionOperator();
+   if (R_op)
    {
-      R->MultTranspose(X, x);
+      R_op->MultTranspose(X, x);
    }
    else
    {
