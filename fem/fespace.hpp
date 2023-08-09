@@ -277,14 +277,14 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   mutable SparseMatrix *cP; // owned
+   mutable std::unique_ptr<SparseMatrix> cP;
    /// Conforming restriction matrix such that cR.cP=I.
-   mutable SparseMatrix *cR; // owned
+   mutable std::unique_ptr<SparseMatrix> cR;
    /// A version of the conforming restriction matrix for variable-order spaces.
-   mutable SparseMatrix *cR_hp; // owned
+   mutable std::unique_ptr<SparseMatrix> cR_hp;
    mutable bool cP_is_set;
    /// Operator computing the action of the transpose of the restriction.
-   mutable Operator *R_transpose; // owned
+   mutable std::unique_ptr<Operator> R_transpose;
 
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;

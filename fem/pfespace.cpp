@@ -1188,27 +1188,27 @@ const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
 
       if (NRanks == 1)
       {
-         R_transpose = new IdentityOperator(GetTrueVSize());
+         R_transpose.reset(new IdentityOperator(GetTrueVSize()));
       }
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
-            R_transpose = new ConformingProlongationOperator(*this, true);
+            R_transpose.reset(new ConformingProlongationOperator(*this, true));
          }
          else
          {
-            R_transpose =
-               new DeviceConformingProlongationOperator(*this, true);
+            R_transpose.reset(
+               new DeviceConformingProlongationOperator(*this, true));
          }
       }
-      Rconf = new TransposeOperator(R_transpose);
+      Rconf = new TransposeOperator(*R_transpose);
       return Rconf;
    }
    else
    {
       Dof_TrueDof_Matrix();
-      if (!R_transpose) { R_transpose = new TransposeOperator(R); }
+      if (!R_transpose) { R_transpose.reset(new TransposeOperator(R)); }
       return R;
    }
 }
