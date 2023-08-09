@@ -3079,7 +3079,7 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
             pos_s(d) = pos(d*node_cnt + i);
             pos_s_target(d) = (*surf_fit_pos)(d*node_cnt + i);
          }
-         sigma_s = surf_fit_limiter->Eval(pos_s, pos_s_target, 1.0);
+         sigma_s = pos_s.DistanceTo(pos_s_target);
       }
 
       err_max  = fmax(err_max, sigma_s);
@@ -3254,22 +3254,26 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       {
          if ((*surf_fit_marker)[vdofs[s]] == false) { continue; }
 
-         // Compute sigma when fitting to exact positions.
+         const IntegrationPoint &ip_s = ir_s->IntPoint(s);
+         Tpr->SetIntPoint(&ip_s);
+
+         if (surf_fit_gf)
+         {
+            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                      sigma_e(s) * sigma_e(s);
+         }
          if (surf_fit_pos)
          {
+            // Fitting to exact positions.
             Vector pos(dim), pos_target(dim);
             for (int d = 0; d < dim; d++)
             {
                pos(d) = PMatI(s, d);
                pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
             }
-            sigma_e(s) = surf_fit_limiter->Eval(pos, pos_target, 1.0);
+            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                      surf_fit_limiter->Eval(pos, pos_target, 1.0);
          }
-
-         const IntegrationPoint &ip_s = ir_s->IntPoint(s);
-         Tpr->SetIntPoint(&ip_s);
-         energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                   sigma_e(s) * sigma_e(s);
       }
    }
 
@@ -3841,6 +3845,12 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    {
       if ((*surf_fit_marker)[vdofs[s]] == false) { continue; }
 
+      const IntegrationPoint &ip = ir.IntPoint(s);
+      Tpr.SetIntPoint(&ip);
+      double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
+                 1.0 / surf_fit_dof_count[vdofs[s]];
+
+      if (surf_fit_gf) { w *= 2.0 * sigma_e(s); }
       if (surf_fit_pos)
       {
          Vector pos(dim), pos_target(dim);
@@ -3849,17 +3859,11 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
             pos(d) = PMatI(s, d);
             pos_target(d) = (*surf_fit_pos)(vdofs[d*dof_s + s]);
          }
-         sigma_e(s) = surf_fit_limiter->Eval(pos, pos_target, 1.0);
          Vector grad_s(dim);
          surf_fit_limiter->Eval_d1(pos, pos_target, 1.0, grad_s);
          for (int d = 0; d < dim; d++) { surf_fit_grad_e(s, d) = grad_s(d); }
       }
 
-      const IntegrationPoint &ip = ir.IntPoint(s);
-      Tpr.SetIntPoint(&ip);
-      const double w = 2.0 * surf_fit_normal *
-                       surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s) *
-                       1.0 / surf_fit_dof_count[vdofs[s]];
       for (int d = 0; d < dim; d++)
       {
          mat(s, d) += w * surf_fit_grad_e(s, d);
@@ -3937,13 +3941,15 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
+      double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
 
       if (surf_fit_gf || surf_fit_gf_bg)
       {
          Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
          surf_fit_hess_e.GetRow(s, gg_ptr);
+         w *= 2.0;
       }
-      else
+      if (surf_fit_pos)
       {
          Vector pos(dim), pos_target(dim);
          for (int d = 0; d < dim; d++)
@@ -3951,23 +3957,22 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
             pos(d) = PMatI(s, d);
             pos_target(d) = (*surf_fit_pos)(vdofs[d*dof_s + s]);
          }
-         sigma_e(s) = surf_fit_limiter->Eval(pos, pos_target, 1.0);
-         Vector grad_s(dim);
-         surf_fit_limiter->Eval_d1(pos, pos_target, 1.0, grad_s);
-         for (int d = 0; d < dim; d++) { surf_fit_grad_e(s, d) = grad_s(d); }
+         // Eval_d2 returns the full Hessian, but we still use the general
+         // computation that's in the dim x dim loop below.
+         sigma_e(s) = 1.0;
+         for (int d = 0; d < dim; d++) { surf_fit_grad_e(s, d) = 0.0; }
          surf_fit_limiter->Eval_d2(pos, pos_target, 1.0, surf_fit_hess_s);
       }
 
       // Loops over the local matrix.
-      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
       for (int idim = 0; idim < dim; idim++)
       {
          for (int jdim = 0; jdim <= idim; jdim++)
          {
-            double entry = w * ( 2.0 * surf_fit_grad_e(s, idim) *
-                                 /* */ surf_fit_grad_e(s, jdim) +
-                                 2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim));
-            entry *= 1.0/surf_fit_dof_count[vdofs[s]];
+            double entry = w * ( surf_fit_grad_e(s, idim) *
+                                 surf_fit_grad_e(s, jdim) +
+                                 sigma_e(s) * surf_fit_hess_s(idim, jdim));
+            entry *= 1.0 / surf_fit_dof_count[vdofs[s]];
             int idx = s + idim*dof_s;
             int jdx = s + jdim*dof_s;
             mat(idx, jdx) += entry;

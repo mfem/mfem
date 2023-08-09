@@ -161,7 +161,7 @@ int main (int argc, char *argv[])
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
    solver.EnableAdaptiveSurfaceFitting();
-   solver.SetTerminationWithMaxSurfaceFittingError(1e-5);
+   solver.SetTerminationWithMaxSurfaceFittingError(1e-2);
 
    // Solve.
    Vector b(0);
