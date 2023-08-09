@@ -180,9 +180,15 @@ protected:
    public:
       virtual void Prolongate(const Vector& x, Vector& y) const = 0;
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const = 0;
-      /// Sets relative tolerance and absolute tolerance in preconditioned
-      /// conjugate gradient solver. Only used for H1 spaces.
+      /// @brief Sets relative tolerance in preconditioned conjugate gradient
+      /// solver.
+      ///
+      /// Only used for H1 spaces.
       virtual void SetRelTol(double p_rtol_) = 0;
+      /// @brief Sets absolute tolerance in preconditioned conjugate gradient
+      /// solver.
+      ///
+      /// Only used for H1 spaces.
       virtual void SetAbsTol(double p_atol_) = 0;
    protected:
       const FiniteElementSpace& fes_ho;
@@ -249,8 +255,8 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
-      virtual void SetRelTol(double p_rtol_) {}
-      virtual void SetAbsTol(double p_atol_) {}
+      virtual void SetRelTol(double p_rtol_) { } ///< No-op.
+      virtual void SetAbsTol(double p_atol_) { } ///< No-op.
    };
 
    /** Projection operator between a H1 high-order finite element space on a
@@ -299,18 +305,15 @@ protected:
       virtual void SetRelTol(double p_rtol_);
       virtual void SetAbsTol(double p_atol_);
    protected:
-      /// @brief Sets up the PCG solver (sets parameters, operator, and
-      /// preconditioner)
+      /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
-      /// @brief Computes on-rank R and M_LH matrices
-      ///
+      /// Computes on-rank R and M_LH matrices.
       std::pair<std::unique_ptr<SparseMatrix>,
           std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
-      /// @brief Sets dof values given a vector of tdofs and a finite element
-      /// space
+      /// Sets dof values given a vector of tdofs and a finite element space
       void SetFromTDofs(const FiniteElementSpace& fes,
                         const Vector& X,
                         Vector& x) const;
@@ -329,12 +332,12 @@ protected:
       void TDofsListByVDim(const FiniteElementSpace& fes,
                            int vdim,
                            Array<int>& vdofs_list) const;
-      /// @brief Returns the inverse of an on-rank lumped mass matrix
-      ///
+      /// Returns the inverse of an on-rank lumped mass matrix
       void LumpedMassInverse(Vector& ML_inv) const;
-      /// Computes sparsity pattern and initializes R matrix. Based on
-      /// BilinearForm::AllocMat() except maps between coarse HO elements and
-      /// refined LOR elements.
+      /// @brief Computes sparsity pattern and initializes R matrix.
+      ///
+      /// Based on BilinearForm::AllocMat(), except maps between coarse HO
+      /// elements and refined LOR elements.
       std::unique_ptr<SparseMatrix> AllocR();
 
       CGSolver pcg;
