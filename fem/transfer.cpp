@@ -940,30 +940,30 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromTDofs(
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::GetTDofsTranspose(
-   const FiniteElementSpace& fes, const Vector& x, Vector& X) const
+   const FiniteElementSpace& fes, const Vector& b, Vector& B) const
 {
    const Operator* P = fes.GetProlongationMatrix();
    if (P)
    {
-      P->MultTranspose(x, X);
+      P->MultTranspose(b, B);
    }
    else
    {
-      X = x;
+      B = b;
    }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetFromTDofsTranspose(
-   const FiniteElementSpace& fes, const Vector &X, Vector& x) const
+   const FiniteElementSpace& fes, const Vector &B, Vector& b) const
 {
    const Operator *R_op = fes.GetRestrictionOperator();
    if (R_op)
    {
-      R_op->MultTranspose(X, x);
+      R_op->MultTranspose(B, b);
    }
    else
    {
-      x = X;
+      b = B;
    }
 }
 
