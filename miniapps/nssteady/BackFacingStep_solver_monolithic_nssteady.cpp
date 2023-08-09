@@ -13,23 +13,19 @@
 //
 // The problem domain is set up like this
 //                
-//                            no slip
-//             |\     + ----------------------------------+
-//             | \    |       ___                         |
-// Parabolic -->  \   |      /   \                        |   Traction free (outflow)
-//  inflow   -->  /   |      \___/                        |
-//             | /    |                                   |
-//             |/     + ----------------------------------+
-//                            no slip
+//                                  no slip
+//              |\    + ---------------------------------- +
+// Parabolic -->  |   |                                    |   
+//  inflow      |/    + ------ +                           |  Traction free (outflow)
+//                             |                           |
+//                             + ------------------------- +                           
+//                                      no slip
 //
-// Mesh attributes for 2D are:
-// inflow = 1, outflow = 2, cylinder = 3, wall = 4
-//
-// Mesh attributes for 3D are:
-// inflow = 1, outflow = 2, sphere = 3, wall = 4
+// Mesh attributes for 2D/3D are:
+// inflow = 1, outflow = 2, wall = 3
 //
 // Run with:
-// mpirun -np 4 ./FlowCyl_solver_monolithic_nssteady -d 2 -u 1.0 -kv 0.01 -pic -1 -rs 0 -rp 0  -abs 1e-6 -g 1.0 -a 1.0 -p --verbose -o Output-Folder
+// mpirun -np 4 ./BackFacingStep_solver_monolithic_nssteady -d 2 -u 1.0 -kv 0.01 -pic -1 -rs 0 -rp 0  -abs 1e-6 -g 1.0 -a 1.0 -p --verbose -o Output-Folder
 //
  
 // Include mfem and I/O
@@ -185,9 +181,9 @@ int main(int argc, char *argv[])
    switch (dim)
    {
    case 2:
-      {mesh = Mesh::LoadFromFile("./Mesh/flow_around_cyl_2D.msh"); break;}
+      {mesh = Mesh::LoadFromFile("./Mesh/back_facing_step_2D.msh"); break;}
    case 3:
-      {mesh = Mesh::LoadFromFile("./Mesh/flow_around_sphere_3D.msh"); break;}   
+      {mesh = Mesh::LoadFromFile("./Mesh/back_facing_step_3D.msh"); break;}   
    default:
       break;
    }
@@ -293,12 +289,12 @@ void V_inflow(const Vector &X, Vector &v)
 
    if( dim == 3) {
       double z = X[2];
-      v(0) = ( 16 * Umax * y * z / std::pow(L,2) ) * ( 1 - y/L) * ( 1 - z/L); 
+      v(0) = Umax * 32 / L *( 1 - y/L) * ( 1 - 2 * y / L) * ( z/L - 1) * z; 
       v(2) = 0.0;  
    }
    else
    {
-      v(0) = ( 4 * Umax * y / L) * ( 1 - y/L);   
+      v(0) = Umax / ( ( (2*L - 3)*(4*L - 3) ) / ( 8 * std::pow(L,2) ) ) * ( 1 - y/L) * ( 1 - 2 * y / L);;   
    }
 
    
