@@ -23,6 +23,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_EXAMPLES = ex9 ex10 ex16
 PAR_EXAMPLES = ex9p ex10p ex16p
+SEQ_DEVICE_EXAMPLES = ex9
+PAR_DEVICE_EXAMPLES = ex9p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -54,10 +56,22 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 SERIAL_NAME := Serial SUNDIALS example
 PARALLEL_NAME := Parallel SUNDIALS example
+SERIAL_CUDA_NAME := Serial SUNDIALS CUDA example
+PARALLEL_CUDA_NAME := Parallel SUNDIALS CUDA example
+SERIAL_HIP_NAME := Serial SUNDIALS HIP example
+PARALLEL_HIP_NAME := Parallel SUNDIALS HIP example
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 %-test-seq: %
 	@$(call mfem-test,$<,, $(SERIAL_NAME))
+%-test-par-cuda: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_CUDA_NAME),-d cuda)
+%-test-seq-cuda: %
+	@$(call mfem-test,$<,, $(SERIAL_CUDA_NAME),-d cuda)
+%-test-par-hip: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_HIP_NAME),-d hip)
+%-test-seq-hip: %
+	@$(call mfem-test,$<,, $(SERIAL_HIP_NAME),-d hip)
 
 # Testing: Specific execution options:
 # Example 9: test CVODE with CV_ADAMS (non-stiff implicit) time stepping
@@ -68,6 +82,16 @@ ex9-test-seq: ex9
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX9_ARGS))
 ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX9P_ARGS))
+ex9-test-seq-cuda: ex9
+	@$(call mfem-test,$<,, $(SERIAL_CUDA_NAME),-d cuda $(EX9_ARGS))
+ex9p-test-par-cuda: ex9p
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_CUDA_NAME),-d cuda \
+	   $(EX9P_ARGS))
+ex9-test-seq-hip: ex9
+	@$(call mfem-test,$<,, $(SERIAL_HIP_NAME),-d hip $(EX9_ARGS))
+ex9p-test-par-hip: ex9p
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_HIP_NAME),-d hip \
+	   $(EX9P_ARGS))
 # Example 10: test CVODE with CV_BDF (stiff implicit) time stepping
 EX10_COMMON_ARGS := -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -tf 6 -vs 10
 EX10_ARGS  := $(EX10_COMMON_ARGS) -r  2

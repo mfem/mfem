@@ -186,6 +186,9 @@
 // Enable interface to the MKL CPardiso library.
 #cmakedefine MFEM_USE_MKL_CPARDISO
 
+// Enable interface to the MKL Pardiso library.
+#cmakedefine MFEM_USE_MKL_PARDISO
+
 // Use forward mode for automatic differentiation.
 #cmakedefine MFEM_USE_ADFORWARD
 
