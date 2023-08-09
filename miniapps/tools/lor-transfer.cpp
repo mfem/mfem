@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
-   int amr_iterations = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -96,8 +95,6 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.AddOption(&amr_iterations, "-a", "--amr-iterations",
-                  "Number of times to apply adaptive mesh refinement (AMR).");
    args.ParseCheck();
 
    // Read the mesh from the given mesh file.
@@ -140,127 +137,104 @@ int main(int argc, char *argv[])
    VisItDataCollection LOR_dc("LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
+   BilinearForm M_ho(&fespace);
+   M_ho.AddDomainIntegrator(new MassIntegrator);
+   M_ho.Assemble();
+   M_ho.Finalize();
+
+   BilinearForm M_lor(&fespace_lor);
+   M_lor.AddDomainIntegrator(new MassIntegrator);
+   M_lor.Assemble();
+   M_lor.Finalize();
+
    // HO projections
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
+   rho.ProjectCoefficient(RHO);
+   double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
-   CoefficientRefiner refiner(RHO, order);
-   refiner.SetThreshold(1.0e-4);
-
-   for (int it = 0; it <= amr_iterations; ++it)
+   GridTransfer *gt;
+   if (use_pointwise_transfer)
    {
-      rho.ProjectCoefficient(RHO);
-      
-      double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
-      if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
+      gt = new InterpolationGridTransfer(fespace, fespace_lor);
+   }
+   else
+   {
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
+   }
+   const Operator &R = gt->ForwardOperator();
 
-      GridTransfer *gt;
-      if (use_pointwise_transfer)
-      {
-         gt = new InterpolationGridTransfer(fespace, fespace_lor);
-      }
-      else
-      {
-         gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
-      }
-      const Operator &R = gt->ForwardOperator();
+   // HO->LOR restriction
+   direction = "HO -> LOR @ LOR";
+   R.Mult(rho, rho_lor);
+   compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
+   if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
-      // HO->LOR restriction
-      direction = "HO -> LOR @ LOR";
-      R.Mult(rho, rho_lor);
-      compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
-      if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
+   if (gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      // LOR->HO prolongation
+      direction = "HO -> LOR @ HO";
+      GridFunction rho_prev = rho;
+      P.Mult(rho_lor, rho);
+      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
+      if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
-      if (gt->SupportsBackwardsOperator())
-      {
-         const Operator &P = gt->BackwardOperator();
-         // LOR->HO prolongation
-         direction = "HO -> LOR @ HO";
-         GridFunction rho_prev = rho;
-         P.Mult(rho_lor, rho);
-         compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
-         if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
+      rho_prev -= rho;
+      cout.precision(12);
+      cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+   }
 
-         rho_prev -= rho;
-         cout.precision(12);
-         cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
-      }
+   // HO* to LOR* dual fields
+   GridFunction ones(&fespace), ones_lor(&fespace_lor);
+   ones = 1.0;
+   ones_lor = 1.0;
+   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      M_ho.Mult(rho, M_rho);
+      P.MultTranspose(M_rho, M_rho_lor);
+      cout << "HO -> LOR dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
+           << endl << endl;
+   }
 
-      // HO* to LOR* dual fields
-      GridFunction ones(&fespace), ones_lor(&fespace_lor);
-      ones = 1.0;
-      ones_lor = 1.0;
-      LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
-      if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
-      {
-         const Operator &P = gt->BackwardOperator();
-         BilinearForm M_ho(&fespace);
-         M_ho.AddDomainIntegrator(new MassIntegrator);
-         M_ho.Assemble();
-         M_ho.Finalize();
-         M_ho.Mult(rho, M_rho);
-         P.MultTranspose(M_rho, M_rho_lor);
-         cout << "HO -> LOR dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
-            << endl << endl;
-      }
+   // LOR projections
+   direction = "LOR -> HO @ LOR";
+   rho_lor.ProjectCoefficient(RHO);
+   GridFunction rho_lor_prev = rho_lor;
+   double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
-      // LOR projections
+   if (gt->SupportsBackwardsOperator())
+   {
+      const Operator &P = gt->BackwardOperator();
+      // Prolongate to HO space
+      direction = "LOR -> HO @ HO";
+      P.Mult(rho_lor, rho);
+      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
+      if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
+
+      // Restrict back to LOR space. This won't give the original function because
+      // the rho_lor doesn't necessarily live in the range of R.
       direction = "LOR -> HO @ LOR";
-      rho_lor.ProjectCoefficient(RHO);
-      GridFunction rho_lor_prev = rho_lor;
-      double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
-      if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
+      R.Mult(rho, rho_lor);
+      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
+      if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
-      if (gt->SupportsBackwardsOperator())
-      {
-         const Operator &P = gt->BackwardOperator();
-         // Prolongate to HO space
-         direction = "LOR -> HO @ HO";
-         P.Mult(rho_lor, rho);
-         compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
-         if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
+      rho_lor_prev -= rho_lor;
+      cout.precision(12);
+      cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+   }
 
-         // Restrict back to LOR space. This won't give the original function because
-         // the rho_lor doesn't necessarily live in the range of R.
-         direction = "LOR -> HO @ LOR";
-         R.Mult(rho, rho_lor);
-         compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
-         if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
-
-         rho_lor_prev -= rho_lor;
-         cout.precision(12);
-         cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
-      }
-
-      // LOR* to HO* dual fields
-      if (!use_pointwise_transfer)
-      {
-         BilinearForm M_lor(&fespace_lor);
-         M_lor.AddDomainIntegrator(new MassIntegrator);
-         M_lor.Assemble();
-         M_lor.Finalize();
-         M_lor.Mult(rho_lor, M_rho_lor);
-         R.MultTranspose(M_rho_lor, M_rho);
-         cout << "LOR -> HO dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
-            << '\n';
-      }
-
-      if (it < amr_iterations)
-      {
-         // call the refiner to modify the mesh
-         cout << "\nAMR refinement: Original element count = " << mesh.GetNE();
-         refiner.Apply(mesh);
-         cout << "  Post-AMR element count = " << mesh.GetNE() << endl;
-
-         fespace.Update();
-         rho.Update();
-
-         // build refined AMR modified mesh
-         mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
-
-         fespace_lor.Update();
-         rho_lor.Update();
-      }
+   // LOR* to HO* dual fields
+   if (!use_pointwise_transfer)
+   {
+      M_lor.Mult(rho_lor, M_rho_lor);
+      R.MultTranspose(M_rho_lor, M_rho);
+      cout << "LOR -> HO dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
+           << '\n';
    }
 
    delete fec;
