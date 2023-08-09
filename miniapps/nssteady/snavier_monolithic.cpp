@@ -1,9 +1,9 @@
-#include "snavier_picard_monolithic.hpp"
+#include "snavier_monolithic.hpp"
 
 namespace mfem{
 
 /// Constructor
-SNavierPicardMonolithicSolver::SNavierPicardMonolithicSolver(ParMesh* mesh,
+SNavierMonolithicSolver::SNavierMonolithicSolver(ParMesh* mesh,
                                              int vorder,
                                              int porder,
                                              double kin_vis_,
@@ -78,7 +78,7 @@ pmesh(mesh), vorder(vorder), porder(porder), verbose(verbose)
 /// Public Interface
 
 // Boundary conditions
-void SNavierPicardMonolithicSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
+void SNavierMonolithicSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 {
    vel_dbcs.emplace_back(attr, coeff);
 
@@ -108,12 +108,12 @@ void SNavierPicardMonolithicSolver::AddVelDirichletBC(VectorCoefficient *coeff, 
    }
 }
 
-void SNavierPicardMonolithicSolver::AddVelDirichletBC(VecFunc func, Array<int> &attr)
+void SNavierMonolithicSolver::AddVelDirichletBC(VecFunc func, Array<int> &attr)
 {
    AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), func), attr);
 }
 
-void SNavierPicardMonolithicSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int &dir)
+void SNavierMonolithicSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int &dir)
 {
    // Add bc container to list of componentwise velocity bcs
    vel_dbcs_xyz.emplace_back(attr, coeff, dir);
@@ -160,7 +160,7 @@ void SNavierPicardMonolithicSolver::AddVelDirichletBC(Coefficient *coeff, Array<
 }
 
 
-void SNavierPicardMonolithicSolver::AddVelDirichletBC(VectorCoefficient *coeff, int &attr)
+void SNavierMonolithicSolver::AddVelDirichletBC(VectorCoefficient *coeff, int &attr)
 {
    // Create array for attributes and mark given mark given mesh boundary
    ess_attr_tmp = 0;
@@ -170,12 +170,12 @@ void SNavierPicardMonolithicSolver::AddVelDirichletBC(VectorCoefficient *coeff, 
    AddVelDirichletBC(coeff, ess_attr_tmp);
 }
 
-void SNavierPicardMonolithicSolver::AddVelDirichletBC(VecFunc func, int &attr)
+void SNavierMonolithicSolver::AddVelDirichletBC(VecFunc func, int &attr)
 {
    AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), func), attr);
 }
 
-void SNavierPicardMonolithicSolver::AddVelDirichletBC(Coefficient *coeff, int &attr, int &dir)
+void SNavierMonolithicSolver::AddVelDirichletBC(Coefficient *coeff, int &attr, int &dir)
 {
    // Create array for attributes and mark given mark given mesh boundary
    ess_attr_tmp = 0;
@@ -187,7 +187,7 @@ void SNavierPicardMonolithicSolver::AddVelDirichletBC(Coefficient *coeff, int &a
 
 
 
-void SNavierPicardMonolithicSolver::AddTractionBC(VectorCoefficient *coeff, Array<int> &attr)
+void SNavierMonolithicSolver::AddTractionBC(VectorCoefficient *coeff, Array<int> &attr)
 {
    traction_bcs.emplace_back(attr, coeff);
 
@@ -211,12 +211,12 @@ void SNavierPicardMonolithicSolver::AddTractionBC(VectorCoefficient *coeff, Arra
    }
 }
 
-void SNavierPicardMonolithicSolver::AddTractionBC(VecFunc func, Array<int> &attr)
+void SNavierMonolithicSolver::AddTractionBC(VecFunc func, Array<int> &attr)
 {
    AddTractionBC(new VectorFunctionCoefficient(pmesh->Dimension(), func), attr);
 }
 
-void SNavierPicardMonolithicSolver::AddTractionBC(VectorCoefficient *coeff, int &attr)
+void SNavierMonolithicSolver::AddTractionBC(VectorCoefficient *coeff, int &attr)
 {
    // Create array for attributes and mark given mark given mesh boundary
    trac_attr_tmp = 0;
@@ -226,13 +226,13 @@ void SNavierPicardMonolithicSolver::AddTractionBC(VectorCoefficient *coeff, int 
    AddTractionBC(coeff, trac_attr_tmp);
 }
 
-void SNavierPicardMonolithicSolver::AddTractionBC(VecFunc func, int &attr)
+void SNavierMonolithicSolver::AddTractionBC(VecFunc func, int &attr)
 {
    AddTractionBC(new VectorFunctionCoefficient(pmesh->Dimension(), func), attr);
 }
 
 
-void SNavierPicardMonolithicSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr)
+void SNavierMonolithicSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr)
 {
    accel_terms.emplace_back(attr, coeff);
 
@@ -250,35 +250,36 @@ void SNavierPicardMonolithicSolver::AddAccelTerm(VectorCoefficient *coeff, Array
    }
 }
 
-void SNavierPicardMonolithicSolver::AddAccelTerm(VecFunc func, Array<int> &attr)
+void SNavierMonolithicSolver::AddAccelTerm(VecFunc func, Array<int> &attr)
 {
    AddAccelTerm(new VectorFunctionCoefficient(pmesh->Dimension(), func), attr);
 }
 
 
 // Solver setup
-void SNavierPicardMonolithicSolver::SetOuterSolver(SolverParams params)
+void SNavierMonolithicSolver::SetOuterSolver(SolverParams params, int maxPicardIterations_)
 {
-   sParams = params;    
+   sParams = params;
+   maxPicardIterations = maxPicardIterations_;    
 }
 
-void SNavierPicardMonolithicSolver::SetGamma(double &gamma_)
+void SNavierMonolithicSolver::SetGamma(double &gamma_)
 {
    gamma = gamma_;
 }
 
-void SNavierPicardMonolithicSolver::SetAlpha(double &alpha_, const AlphaType &type_)
+void SNavierMonolithicSolver::SetAlpha(double &alpha_, const AlphaType &type_)
 {
    alpha0    = alpha_;
    alphaType = type_;
 }
 
-void SNavierPicardMonolithicSolver::SetLift(double &lift_)
+void SNavierMonolithicSolver::SetLift(double &lift_)
 {
    lift    = lift_;
 }
 
-void SNavierPicardMonolithicSolver::SetInitialConditionVel(VectorCoefficient &v_in)
+void SNavierMonolithicSolver::SetInitialConditionVel(VectorCoefficient &v_in)
 {
    // Project coefficient onto velocity ParGridFunction
    v_gf->ProjectCoefficient(v_in);
@@ -287,14 +288,14 @@ void SNavierPicardMonolithicSolver::SetInitialConditionVel(VectorCoefficient &v_
    //vk_gf->SetFromTrueDofs(x_k->GetBlock(0));
 }
 
-void SNavierPicardMonolithicSolver::SetInitialConditionPres(Coefficient &p_in)
+void SNavierMonolithicSolver::SetInitialConditionPres(Coefficient &p_in)
 {
    // Project coefficient onto pressure ParGridFunction
    p_gf->ProjectCoefficient(p_in);
    p_gf->GetTrueDofs(x->GetBlock(1));
 }
 
-void SNavierPicardMonolithicSolver::Setup()
+void SNavierMonolithicSolver::Setup()
 {
    /// 1. Setup and assemble bilinear forms 
    K_form = new ParBilinearForm(vfes);
@@ -424,7 +425,7 @@ void SNavierPicardMonolithicSolver::Setup()
    solver->SetPrintLevel(sParams.pl);
 }
 
-void SNavierPicardMonolithicSolver::FSolve()
+void SNavierMonolithicSolver::FSolve()
 {
 #ifdef MFEM_DEBUG
    PrintMatricesVectors( "setup", 0); // Export matrices/vectors before step
@@ -436,7 +437,7 @@ void SNavierPicardMonolithicSolver::FSolve()
    {
       mfem::out << std::endl;
       mfem::out << "================================================================"<< std::endl;
-      mfem::out << "======    Picard Monolithic Steady Navier-Stokes Solver    ======"<< std::endl;
+      mfem::out << "======       Monolithic Steady Navier-Stokes Solver       ======"<< std::endl;
       mfem::out << "================================================================"<< std::endl;
    }
 
@@ -459,6 +460,15 @@ void SNavierPicardMonolithicSolver::FSolve()
    {
       // Update parameter alpha
       UpdateAlpha();
+
+      // Update linearization type
+      newton = (maxPicardIterations >= 0) && (iter >= maxPicardIterations);
+
+      if (newton && !switched && pmesh->GetMyRank() == 0 ) {
+         out << std::endl;
+         out << "Switching to Newton linearization at iteration " << iter << std::endl;
+         switched = true;
+      }   
 
       // Solve current iteration.
       Step();
@@ -499,7 +509,7 @@ void SNavierPicardMonolithicSolver::FSolve()
 }
 
 
-void SNavierPicardMonolithicSolver::SetupOutput( const char* folderPath, bool visit_, bool paraview_,
+void SNavierMonolithicSolver::SetupOutput( const char* folderPath, bool visit_, bool paraview_,
                                          DataCollection::Format par_format )
 {
    visit    = visit_;
@@ -538,7 +548,7 @@ void SNavierPicardMonolithicSolver::SetupOutput( const char* folderPath, bool vi
 
 /// Private Interface
 
-void SNavierPicardMonolithicSolver::Step()
+void SNavierMonolithicSolver::Step()
 {
    // Assemble convective term 
    delete C_form; C_form = nullptr;
@@ -547,11 +557,31 @@ void SNavierPicardMonolithicSolver::Step()
    C_form->Assemble(); C_form->Finalize();
    C = C_form->ParallelAssemble();  
 
-   A = Add(1.0, *K, alpha, *C);                      // A = K + alpha C                     
+   delete C2_form; C2_form = nullptr;
+   C2_form = new ParBilinearForm(vfes);
+   C2_form->AddDomainIntegrator(new VectorGradCoefficientIntegrator(*vk_vc, 1.0));
+   C2_form->Assemble(); C2_form->Finalize();
+   C2 = C2_form->ParallelAssemble();
+
+   if ( newton )
+   {
+      delete C2_form; C2_form = nullptr;
+      C2_form = new ParBilinearForm(vfes);
+      C2_form->AddDomainIntegrator(new VectorGradCoefficientIntegrator(*vk_vc, 1.0));
+      C2_form->Assemble(); C2_form->Finalize();
+      C2 = C2_form->ParallelAssemble();
+      A = Add(1.0, *K, alpha, *C2);                     // A = K + alpha C                     
+      A->Add(alpha,*C);                                 // A += alpha C2   
+   }
+   else
+   {
+      A = Add(1.0, *K, alpha, *C);                      // A = K + alpha C                     
+   }
 
    // Assemble RHS velocity block
    (rhs->GetBlock(0)).Set(1.0,*fv);                                   // rhs_v = fv
-   C->AddMult(x_k->GetBlock(0),rhs->GetBlock(0), alpha-1.);  // rhs_v += (alpha - 1) * C * vk
+   rhs_coeff = newton ? 2*alpha-1. : alpha-1.;
+   C->AddMult(x_k->GetBlock(0),rhs->GetBlock(0), rhs_coeff);   // rhs_v += rhs_coeff * C * vk
 
 #ifdef MFEM_DEBUG
    PrintMatricesVectors( "prestep", iter);  // Export matrices/vectors after assembly of A, before modifications
@@ -588,9 +618,10 @@ void SNavierPicardMonolithicSolver::Step()
    delete A; A = nullptr;
    delete Ae; Ae = nullptr;
    delete C; C = nullptr;
+   delete C2; C2 = nullptr;
 }
 
-void SNavierPicardMonolithicSolver::ComputeError()
+void SNavierMonolithicSolver::ComputeError()
 {
    err_v  = v_gf->ComputeL2Error(*vk_vc);
    norm_v = ComputeGlobalLpNorm(2., *vk_vc, *pmesh, irs);
@@ -598,7 +629,7 @@ void SNavierPicardMonolithicSolver::ComputeError()
    norm_p = ComputeGlobalLpNorm(2., *pk_c, *pmesh, irs);
 }
 
-void SNavierPicardMonolithicSolver::UpdateSolution()
+void SNavierMonolithicSolver::UpdateSolution()
 {
    *x_k = *x;
    vk_gf->SetFromTrueDofs(x_k->GetBlock(0));
@@ -606,15 +637,15 @@ void SNavierPicardMonolithicSolver::UpdateSolution()
 }
 
 
-void SNavierPicardMonolithicSolver::UpdateAlpha()
+void SNavierMonolithicSolver::UpdateAlpha()
 {
    if ( alphaType == AlphaType::CONSTANT) { alpha = alpha0;}
-   else {  MFEM_ABORT("Error: SNavierPicardMonolithicSolver::UpdateAlpha does not implement"
+   else {  MFEM_ABORT("Error: SNavierMonolithicSolver::UpdateAlpha does not implement"
                        "adaptive update of the segregation parameter yet!");} // NYI!
 }
 
 
-void SNavierPicardMonolithicSolver::MeanZero(ParGridFunction &p)
+void SNavierMonolithicSolver::MeanZero(ParGridFunction &p)
 {
    // Make sure not to recompute the inner product linear form every
    // application.
@@ -637,7 +668,7 @@ void SNavierPicardMonolithicSolver::MeanZero(ParGridFunction &p)
    p -= integ / volume;
 }
 
-void SNavierPicardMonolithicSolver::Orthogonalize(Vector &v)
+void SNavierMonolithicSolver::Orthogonalize(Vector &v)
 {
    double loc_sum = v.Sum();
    double global_sum = 0.0;
@@ -650,7 +681,7 @@ void SNavierPicardMonolithicSolver::Orthogonalize(Vector &v)
    v -= global_sum / static_cast<double>(global_size);
 }
 
-void SNavierPicardMonolithicSolver::SaveResults( int iter )
+void SNavierMonolithicSolver::SaveResults( int iter )
 {
 
    // Add lift to pressure solution
@@ -671,7 +702,7 @@ void SNavierPicardMonolithicSolver::SaveResults( int iter )
    }
 }
 
-void SNavierPicardMonolithicSolver::PrintInfo()
+void SNavierMonolithicSolver::PrintInfo()
 {
    int fes_sizeVel = vfes->GlobalVSize();
    int fes_sizePres = pfes->GlobalVSize();
@@ -689,7 +720,7 @@ void SNavierPicardMonolithicSolver::PrintInfo()
 
 #ifdef MFEM_DEBUG
 
-void SNavierPicardMonolithicSolver::PrintMatricesVectors( const char* id, int num )
+void SNavierMonolithicSolver::PrintMatricesVectors( const char* id, int num )
 {
    // Create folder
    std::string folderName(outfolder);
@@ -700,7 +731,8 @@ void SNavierPicardMonolithicSolver::PrintMatricesVectors( const char* id, int nu
 
    //Create files
    std::ofstream K_file(std::string(folderName) + '/' + "K_" + std::string(id) + ".dat");
-   std::ofstream C_file(std::string(folderName) + '/' + "C_" + std::string(id) + ".dat");
+   std::ofstream C1_file(std::string(folderName) + '/' + "C1_" + std::string(id) + ".dat");
+   std::ofstream C2_file(std::string(folderName) + '/' + "C2_" + std::string(id) + ".dat");
    std::ofstream A_file(std::string(folderName) + '/' + "A_" + std::string(id) + ".dat");
    std::ofstream S_file(std::string(folderName) + '/' + "S_" + std::string(id) + ".dat");
    std::ofstream B_file(std::string(folderName) + '/' + "B_" + std::string(id) + ".dat");
@@ -726,18 +758,29 @@ void SNavierPicardMonolithicSolver::PrintMatricesVectors( const char* id, int nu
    if(C==nullptr)
    {
       C = new HypreParMatrix();
-      C->PrintMatlab(C_file);
+      C->PrintMatlab(C1_file);
       delete C; C = nullptr;
    }
    else
    {
-      C->PrintMatlab(C_file);
+      C->PrintMatlab(C1_file);
+   }
+
+   if(C2==nullptr)
+   {
+      C2 = new HypreParMatrix();
+      C2->PrintMatlab(C2_file);
+      delete C2; C2 = nullptr;
+   }
+   else
+   {
+      C2->PrintMatlab(C2_file);
    }
 
    if(A==nullptr)
    {
       A = new HypreParMatrix();
-      A->PrintMatlab(C_file);
+      A->PrintMatlab(A_file);
       delete A; A = nullptr;
    }
    else
@@ -783,7 +826,7 @@ void SNavierPicardMonolithicSolver::PrintMatricesVectors( const char* id, int nu
 #endif
 
 /// Destructor
-SNavierPicardMonolithicSolver::~SNavierPicardMonolithicSolver()
+SNavierMonolithicSolver::~SNavierMonolithicSolver()
 {
    delete vfes; vfes = nullptr;
    delete vfec; vfec = nullptr;
@@ -799,6 +842,7 @@ SNavierPicardMonolithicSolver::~SNavierPicardMonolithicSolver()
    delete K_form; 
    delete B_form;
    delete C_form; 
+   delete C2_form; 
    delete f_form;
    delete Mp_form; 
 

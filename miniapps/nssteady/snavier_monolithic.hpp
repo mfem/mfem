@@ -126,7 +126,7 @@ public:
 
 
 /**
- * \class SNavierPicardMonolithicSolver
+ * \class SNavierMonolithicSolver
  * \brief Steady-state Incompressible Navier Stokes solver with (Picard) Chorin-Temam algebraic splitting formulation.
  *
  * Navier-Stokes problem corresponding,
@@ -169,12 +169,12 @@ public:
        of Computation 88.318 (2019): 1533-1557.
  */
 
-class SNavierPicardMonolithicSolver{
+class SNavierMonolithicSolver{
 public:
 
-    SNavierPicardMonolithicSolver(ParMesh* mesh,int vorder=2, int porder=1, double kin_vis_=0, bool verbose=false);
+    SNavierMonolithicSolver(ParMesh* mesh,int vorder=2, int porder=1, double kin_vis_=0, bool verbose=false);
 
-    ~SNavierPicardMonolithicSolver();
+    ~SNavierMonolithicSolver();
 
 
     /// Boundary conditions/Forcing terms
@@ -333,8 +333,15 @@ public:
     *
     * Set parameters ( @a rtol, @a atol, @a maxiter, @a print level), for the outer loop of the segregated scheme.
     * 
+    * \param params struct containing parameters for outer loop and GMRES solver
+    * \param maxPicardIterations_ control after how many iterations solver switches to Newton linearization
+    *                           Possible values: 
+    *                           -  -1: Picard solver.
+    *                           -   0: Newton solver.
+    *                           - n>0: Picard-Newton solver (switch to newton after n iterations) 
+    * 
     */
-    void SetOuterSolver(SolverParams params);
+    void SetOuterSolver(SolverParams params, int maxPicardIterations_ = -1 );
 
     /**
     * \brief Set parameter alpha. 
@@ -516,6 +523,7 @@ private:
     ParBilinearForm      *K_form  = nullptr;
     ParMixedBilinearForm *B_form  = nullptr;
     ParBilinearForm      *C_form  = nullptr; 
+    ParBilinearForm      *C2_form = nullptr; 
     ParBilinearForm      *Mp_form = nullptr;
     ParLinearForm         *f_form = nullptr;
 
@@ -529,8 +537,9 @@ private:
     HypreParMatrix      *K = nullptr;         // diffusion term
     HypreParMatrix      *B = nullptr;         // divergence
     HypreParMatrix      *A = nullptr;         // A = K + alpha C
-    HypreParMatrix      *C = nullptr;         // convective term
-    HypreParMatrix     *Mp = nullptr;        // pressure mass matrix
+    HypreParMatrix      *C = nullptr;         // convective term   w . grad u
+    HypreParMatrix     *C2 = nullptr;         // convective term   u . grad w
+    HypreParMatrix     *Mp = nullptr;         // pressure mass matrix
     HypreParMatrix      *G = nullptr;
     HypreParMatrix     *Be = nullptr;
     HypreParMatrix     *Ge = nullptr;
@@ -557,6 +566,14 @@ private:
     double alpha;
     double alpha0;
     AlphaType alphaType;
+
+    /// Coefficient controlling linearization type (Picard/Newton)
+    bool newton = false;
+    bool switched = false;
+    int maxPicardIterations;
+
+    /// Coefficient for convective term at rhs
+    double rhs_coeff = 0.0;
 
     /// Newton/Fixed point solver parameters
     SolverParams sParams;

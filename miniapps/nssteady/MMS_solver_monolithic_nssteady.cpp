@@ -1,3 +1,20 @@
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+// Manufactured solution on unit square
+//
+// Run with:
+// mpirun -np 4 ./MMS_solver_monolithic_nssteady -d 2 -e 1 -n 10 -rs 0 -rp 0 -ov 2 -op 1 -kv 0.01  -rel 1e-7 -abs 1e-6 -it 1000 -o Output-Folder -p -pl 0 -f 3 -g 1.0 -a 1.0 
+//
+
 // Include mfem and I/O
 #include "mfem.hpp"
 #include <fstream>
@@ -6,8 +23,11 @@
 // Include for defining exact solution
 #include <math.h>
 
+// Include for std::bind and std::function
+#include <functional>
+
 // Include steady ns miniapp
-#include "snavier_picard_segregated.hpp"
+#include "snavier_monolithic.hpp"
 
 
 #ifdef M_PI
@@ -18,10 +38,7 @@
 
 using namespace mfem;
 
-// Forward declarations of functions and global variables
-
-double ns_coeff = 1.0;
-
+// Forward declarations of functions
 double ComputeLift(ParGridFunction &p);
 
 void   V_exact1(const Vector &X, Vector &v);
@@ -73,9 +90,9 @@ int main(int argc, char *argv[])
    int tot_iter = 1000;
    int print_level = 0;
 
-   bool stokes = false;       // if true solves stokes problem
    double alpha = 1.;         // steady-state scheme
    double gamma = 1.;         // relaxation
+   int nPicardIterations = -1; // number of picard iterations (before switching to newton)
 
    bool paraview = false;     // postprocessing (paraview)
    bool visit    = true;      // postprocessing (VISit)
@@ -115,6 +132,10 @@ int main(int argc, char *argv[])
                      "-kv",
                      "--kin-viscosity",
                      "Kinematic viscosity");
+   args.AddOption(&nPicardIterations,
+                  "-pic",
+                  "--picard-iterations",
+                  "Number of Picard iterations before switching to newton (-1) Picard solver, (0) Newton solver, (>=0) Mixed.");
    args.AddOption(&rel_tol,
                   "-rel",
                   "--relative-tolerance",
@@ -140,12 +161,6 @@ int main(int argc, char *argv[])
                   "-pl",
                   "--print-level",
                   "Print level.");     
-   args.AddOption(&stokes,
-                     "-s",
-                     "--stokes",
-                     "-ns",
-                     "--navier-stokes",
-                     "Stokes solution.");
    args.AddOption(&gamma,
                      "-g",
                      "--gamma",
@@ -154,7 +169,9 @@ int main(int argc, char *argv[])
                      "-a",
                      "--alpha",
                      "Parameter controlling linearization");
-
+   args.AddOption(&verbose, "-vb", "--verbose", "-no-verb",
+                  "--no-verbose",
+                  "Verbosity level of code"); 
 
    args.Parse();
    if (!args.Good())
@@ -220,18 +237,7 @@ int main(int argc, char *argv[])
 
 
    //
-   /// 5. Create solver
-   // 
-   SNavierPicardCGSolver* NSSolver = new SNavierPicardCGSolver(pmesh,vorder,porder,kin_vis,verbose);
-
-   if ( stokes )
-   {
-      NSSolver->EnableStokes();
-      ns_coeff = 0.0;
-   }
-
-   //
-   /// 6. Define the coefficients (e.g. parameters, analytical solution/s) and compute pressure lift.
+   /// 5. Define the coefficients (e.g. parameters, analytical solution/s) and compute pressure lift.
    //
    VectorFunctionCoefficient*    V_ex = nullptr;
    VectorFunctionCoefficient* f_coeff = nullptr;
@@ -264,44 +270,64 @@ int main(int argc, char *argv[])
    }
 
    //
+   /// 6. Create solver
+   // 
+   SNavierMonolithicSolver* NSSolver = new SNavierMonolithicSolver(pmesh,vorder,porder,kin_vis,verbose);
+
+
+
+   //
    /// 7. Set parameters of the Fixed Point Solver
    // 
    //SolverParams sFP = {1e-6, 1e-10, 1000, 1};   // rtol, atol, maxIter, print level
-   SolverParams sFP = {1e-6, 1e-10, 1000, 1}; 
-   NSSolver->SetOuterSolver(sFP);
+   SolverParams sFP = {rel_tol, abs_tol, tot_iter, print_level}; 
+   NSSolver->SetOuterSolver(sFP,nPicardIterations);
 
    NSSolver->SetAlpha(alpha, AlphaType::CONSTANT);
    NSSolver->SetGamma(gamma);
 
-   //
-   /// 8. Set parameters of the Linear Solvers
-   //
-   SolverParams s1 = {1e-6, 1e-10, 1000, 0}; 
-   SolverParams s2 = {1e-6, 1e-10, 1000, 0}; 
-   SolverParams s3 = {1e-6, 1e-10, 1000, 0}; 
-   NSSolver->SetInnerSolvers(s1,s2,s3);
-
 
    //
-   /// 9. Add boundary conditions (Velocity-Dirichlet, Traction) and forcing term/s
+   /// 8. Add boundary conditions (Velocity-Dirichlet, Traction) and forcing term/s
    //
    // Acceleration term
    Array<int> domain_attr(pmesh->attributes.Max());
    domain_attr = 1;
-   NSSolver->AddAccelTerm(f_coeff,domain_attr);
+
+   NSSolver->AddAccelTerm(f_coeff, domain_attr);
+
 
    // Essential velocity bcs
    Array<int> ess_attr(pmesh->bdr_attributes.Max());
    ess_attr = 1;
-   NSSolver->AddVelDirichletBC(V_ex, ess_attr);
-
+   switch (fun)
+   {
+   case 1:
+      {
+         NSSolver->AddVelDirichletBC(V_exact1,ess_attr);
+         break;
+      }
+   case 2:
+      {
+         NSSolver->AddVelDirichletBC(V_exact2,ess_attr);
+         break;
+      }
+   case 3:
+      {
+         NSSolver->AddVelDirichletBC(V_exact3,ess_attr);
+         break;
+      }
+   default:
+      break;
+   }
+   
    // Traction (neumann) bcs
    //Array<int> trac_attr(pmesh->bdr_attributes.Max());
    //NSSolver->AddTractionBC(coeff,attr);
 
 
    //
-   /// 10. Set initial condition
+   /// 9. Set initial condition
    //
    //VectorFunctionCoefficient v_in(dim, vZero);
    //FunctionCoefficient p_in(pZero);
@@ -311,7 +337,7 @@ int main(int argc, char *argv[])
    //NSSolver->SetInitialConditionPres(*P_ex);
 
    //
-   /// 11. Finalize Setup of solver
+   /// 10. Finalize Setup of solver
    //
    NSSolver->Setup();
    //DataCollection::Format forma = DataCollection::PARALLEL_FORMAT
@@ -343,16 +369,51 @@ int main(int argc, char *argv[])
    NSSolver->SetLift(lift);
 
    //
-   /// 12. Solve the forward problem
+   /// 11. Solve the forward problem
    //
    NSSolver->FSolve(); 
 
 
    //
-   /// 13. Return forward problem solution and output results
+   /// 12. Return forward problem solution and output results
    //
    ParGridFunction* velocityPtr = &(NSSolver->GetVelocity());
    ParGridFunction* pressurePtr = &(NSSolver->GetPressure());
+
+   //
+   /// 13.1 Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
+
+   /*std::ostringstream mesh_name, v_name, p_name;
+   mesh_name << outFolder << "/mesh." << std::setfill('0') << std::setw(6) << myrank; 
+
+   v_name << outFolder << "/sol_v." << std::setfill('0') << std::setw(6) << myrank;
+   p_name << outFolder << "/sol_p." << std::setfill('0') << std::setw(6) << myrank;
+
+   std::ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   pmesh->Print(mesh_ofs);
+
+   std::ostringstream omesh_file, omesh_file_bdr;
+   omesh_file << outFolder << "/mesh.vtk";
+   omesh_file_bdr << outFolder << "/mesh_bdr.vtu";
+   std::ofstream omesh(omesh_file.str().c_str());
+   omesh.precision(14);
+   pmesh->PrintVTK(omesh);
+   pmesh->PrintBdrVTU(omesh_file_bdr.str());
+
+   std::ofstream v_ofs(v_name.str().c_str());
+   v_ofs.precision(8);
+   velocityPtr->Save(v_ofs);
+
+   std::ofstream p_ofs(p_name.str().c_str());
+   p_ofs.precision(8);
+   pressurePtr->Save(p_ofs);*/
+
+
+   //
+   /// 12.2 Setup output in the solver
+
 
 
    // Free memory
@@ -424,13 +485,11 @@ std::function<void(const Vector &, Vector &)> RHS1(const double &kin_vis)
 
       v(0) = 1.0
              - 2.0 * kin_vis * M_PI * M_PI * cos(M_PI * x) * sin(M_PI * y)
-             - ns_coeff * ( M_PI * sin( M_PI * x) * cos( M_PI * x) );
+             - M_PI * sin( M_PI * x) * cos( M_PI * x);
       v(1) = 1.0
              + 2.0 * kin_vis * M_PI * M_PI * cos(M_PI * y) * sin(M_PI * x)
-             - ns_coeff * ( M_PI * sin( M_PI * y) * cos( M_PI * y) );
-      if( dim == 3) {
-         v(2) = 0;
-      }
+             - M_PI * sin( M_PI * y) * cos( M_PI * y);
+      if( dim == 3) {v(2) = 0;}
    };
 }
 
@@ -480,10 +539,10 @@ std::function<void(const Vector &, Vector &)> RHS2(const double &kin_vis)
 
       v(0) =  y * (2*x - 1) * (y - 1)
               - kin_vis * M_PI * M_PI * 2 * sin(M_PI*y) * cos(M_PI*y) *(pow(cos(M_PI*x),2) - 3*pow(sin(M_PI*x),2))
-              + ns_coeff * ( M_PI * cos(M_PI * x) * pow(sin(M_PI * x),3) * pow(sin(M_PI*y),2) );
+              + M_PI * cos(M_PI * x) * pow(sin(M_PI * x),3) * pow(sin(M_PI*y),2);
       v(1) =  x * (2*y - 1) * (x - 1)
               + kin_vis * M_PI * M_PI * 2 * sin(M_PI*x) * cos(M_PI*x) *(pow(cos(M_PI*y),2) - 3*pow(sin(M_PI*y),2))
-              + ns_coeff * ( M_PI * cos(M_PI * y) * pow(sin(M_PI * y),3) * pow(sin(M_PI*x),2) );
+              + M_PI * cos(M_PI * y) * pow(sin(M_PI * y),3) * pow(sin(M_PI*x),2);
 
       if( dim == 3) {
          v(2) = 0;
@@ -537,10 +596,10 @@ std::function<void(const Vector &, Vector &)> RHS3(const double &kin_vis)
 
       v(0) = cos(x)
              - 2*kin_vis*cos(y)*sin(x)
-             + ns_coeff * ( cos(x)*sin(x) );
+             + cos(x)*sin(x);
       v(1) = cos(y)
              + 2*kin_vis*cos(x)*sin(y)
-             + ns_coeff * ( cos(y)*sin(y) );
+             + cos(y)*sin(y);
       if( dim == 3) {
          v(2) = 0;
       }
@@ -568,4 +627,6 @@ double pZero(const Vector &X)
 {
    return 0;
 }
+
+
 

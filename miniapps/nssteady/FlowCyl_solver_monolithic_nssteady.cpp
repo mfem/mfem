@@ -9,48 +9,46 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Lid driven cavity in 2D
+// Flow around cylinder in 2D/3D
 //
 // The problem domain is set up like this
 //                
-//                 u = (1,0)
-//            + --> --> --> --> +
-//            |                 |
-//            |                 |
-// u=(0,0)    |                 |     u=(0,0)
-//            |                 |
-//            |                 |
-//            |                 |
-//            +-----------------+
-//                  u=(0,0)
+//                            no slip
+//             |\     + ----------------------------------+
+//             | \    |       ___                         |
+// Parabolic -->  \   |      /   \                        |   Traction free (outflow)
+//  inflow   -->  /   |      \___/                        |
+//             | /    |                                   |
+//             |/     + ----------------------------------+
+//                            no slip
 //
-// and Dirichlet boundary conditions are applied for the velocity on every
-// boundary. 
-
+// Mesh attributes for 2D are:
+// inflow = 1, outflow = 2, cylinder = 3, wall = 4
+//
+// Mesh attributes for 3D are:
+// inflow = 1, outflow = 2, sphere = 3, wall = 4
+//
+// Run with:
+// mpirun -np 4 ./FlowCyl_monolithic_nssteady -d 2 -u 1.0 -kv 0.01 -pic -1 -rs 0 -rp 0  -abs 1e-6 -g 1.0 -a 1.0 -p --verbose -o Output-Folder
+//
+ 
 // Include mfem and I/O
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
-// Include for defining exact solution
+// Include for defining function definition
 #include <math.h>
 
-// Include for std::bind and std::function
-#include <functional>
-
 // Include steady ns miniapp
-#include "snavier_picard_monolithic.hpp"
+#include "snavier_monolithic.hpp"
 
-
-#ifdef M_PI
-#define PI M_PI
-#else
-#define PI 3.14159265358979
-#endif
 
 using namespace mfem;
 
 // Forward declarations of functions
+double Umax = 1.0;    // maximum inflow velocity (parabolic profile)
+double L    = 1.0;    // length of inflow section
 void   V_inflow(const Vector &X, Vector &v);
 void   noSlip(const Vector &X, Vector &v);
 
@@ -70,24 +68,24 @@ int main(int argc, char *argv[])
    //
    /// 2. Parse command-line options. 
    //
-   int porder = 1;            // fe
+   int dim = 2;              // dimension of problem
+
+   int porder = 1;           // fe
    int vorder = 2;
 
-   int n = 10;                // mesh
-   int dim = 2;
-   int elem = 0;
-   int ser_ref_levels = 0;
+   int ser_ref_levels = 0;   // mesh
    int par_ref_levels = 0;
 
-   double re = 100;          // Reynolds number
+   double kin_vis = 0.01;    // physical params
 
    double  rel_tol = 1e-7;   // solvers
    double  abs_tol = 1e-6;
    int    tot_iter = 1000;
    int print_level = 0;
 
-   double alpha = 1.;         // steady-state scheme
-   double gamma = 1.;         // relaxation
+   double alpha = 1.;          // steady-state scheme
+   double gamma = 1.;          // relaxation
+   int nPicardIterations = -1; // number of picard iterations (before switching to newton)
 
    bool paraview = false;     // postprocessing (paraview)
    bool visit    = false;     // postprocessing (VISit)
@@ -99,15 +97,7 @@ int main(int argc, char *argv[])
    args.AddOption(&dim,
                      "-d",
                      "--dimension",
-                     "Dimension of the problem (2 = 2d, 3 = 3d)");
-   args.AddOption(&elem,
-                     "-e",
-                     "--element-type",
-                     "Type of elements used (0: Quad/Hex, 1: Tri/Tet)");
-   args.AddOption(&n,
-                     "-n",
-                     "--num-elements",
-                     "Number of elements in uniform mesh.");
+                     "Dimension of problem (run 2D flow around cylinder, or 3D flow around sphere).");
    args.AddOption(&ser_ref_levels,
                      "-rs",
                      "--refine-serial",
@@ -116,8 +106,14 @@ int main(int argc, char *argv[])
                      "-rp",
                      "--refine-parallel",
                      "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&re, "-re", "--reynolds",
-                  "Reynolds number");   
+   args.AddOption(&Umax, "-u", "--max-velocity",
+                  "Max velocity");   
+   args.AddOption(&kin_vis, "-kv", "--kinematic-viscosity",
+                  "Kinematic viscosity");
+   args.AddOption(&nPicardIterations,
+                  "-pic",
+                  "--picard-iterations",
+                  "Number of Picard iterations before switching to newton (-1) Picard solver, (0) Newton solver, (>=0) Mixed.");
    args.AddOption(&vorder, "-ov", "--order_vel",
                      "Finite element order for velocity (polynomial degree) or -1 for"
                      " isoparametric space.");
@@ -183,26 +179,17 @@ int main(int argc, char *argv[])
    //
    /// 3. Read the (serial) mesh from the given mesh file on all processors.
    //
-   Element::Type type;
-   switch (elem)
-   {
-      case 0: // quad
-         type = (dim == 2) ? Element::QUADRILATERAL: Element::HEXAHEDRON;
-         break;
-      case 1: // tri
-         type = (dim == 2) ? Element::TRIANGLE: Element::TETRAHEDRON;
-         break;
-   }
 
    Mesh mesh;
+
    switch (dim)
    {
-      case 2: // 2d
-         mesh = Mesh::MakeCartesian2D(n,n,type,true);	
-         break;
-      case 3: // 3d
-         mesh = Mesh::MakeCartesian3D(n,n,n,type,true);	
-         break;
+   case 2:
+      {mesh = Mesh::LoadFromFile("./Mesh/flow_around_cyl_2D.msh"); break;}
+   case 3:
+      {mesh = Mesh::LoadFromFile("./Mesh/flow_around_sphere_3D.msh"); break;}   
+   default:
+      break;
    }
 
 
@@ -228,11 +215,11 @@ int main(int argc, char *argv[])
    }
 
 
+
    //
    /// 5. Create solver
    // 
-   double kin_vis = 1/re;
-   SNavierPicardMonolithicSolver* NSSolver = new SNavierPicardMonolithicSolver(pmesh,vorder,porder,kin_vis,verbose);
+   SNavierMonolithicSolver* NSSolver = new SNavierMonolithicSolver(pmesh,vorder,porder,kin_vis,verbose);
 
 
 
@@ -240,7 +227,7 @@ int main(int argc, char *argv[])
    /// 6. Set parameters of the Fixed Point Solver
    // 
    SolverParams sFP = {rel_tol, abs_tol, tot_iter, print_level}; // rtol, atol, maxIter, print level
-   NSSolver->SetOuterSolver(sFP);
+   NSSolver->SetOuterSolver(sFP, nPicardIterations);
 
    NSSolver->SetAlpha(alpha, AlphaType::CONSTANT);
    NSSolver->SetGamma(gamma);
@@ -250,10 +237,12 @@ int main(int argc, char *argv[])
    /// 7. Add boundary conditions (Velocity-Dirichlet, Traction) and forcing term/s
    //
    // Essential velocity bcs
-   int inflow_attr = 3;
+   int inflow_attr = 1;
+   int outflow_attr = 2;
    Array<int> ess_attr(pmesh->bdr_attributes.Max());
-   ess_attr = 1;
-   ess_attr[inflow_attr - 1] = 0;
+   ess_attr = 1;                    // Mark walls/cylinder for no-slip condition 
+   ess_attr[inflow_attr - 1]  = 0;
+   ess_attr[outflow_attr - 1] = 0;
 
    // Inflow
    NSSolver->AddVelDirichletBC(V_inflow,inflow_attr);
@@ -295,11 +284,25 @@ void V_inflow(const Vector &X, Vector &v)
 {
    const int dim = X.Size();
 
+   double x = X[0];
+   double y = X[1];
+
    v = 0.0;
-   v(0) = 1.0;
+
    v(1) = 0.0;
 
-   if( dim == 3) { v(2) = 0; }
+   if( dim == 3) {
+      double z = X[2];
+      v(0) = ( 16 * Umax * y * z / std::pow(L,2) ) * ( 1 - y/L) * ( 1 - z/L); 
+      v(2) = 0.0;  
+   }
+   else
+   {
+      v(0) = ( 4 * Umax * y / L) * ( 1 - y/L);   
+   }
+
+   
+   
 }
 
 void noSlip(const Vector &X, Vector &v)
