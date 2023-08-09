@@ -319,6 +319,10 @@ protected:
                            Array<int>& vdofs_list) const;
       /// Returns the inverse of an on-rank lumped mass matrix
       void LumpedMassInverse(Vector& ML_inv) const;
+      /// Computes sparsity pattern and initializes R matrix. Based on
+      /// BilinearForm::AllocMat() except maps between coarse HO elements and
+      /// refined LOR elements.
+      std::unique_ptr<SparseMatrix> AllocR();
 
       CGSolver pcg;
       std::unique_ptr<Solver> precon;
@@ -329,11 +333,6 @@ protected:
       // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
       std::unique_ptr<Operator> RTxM_LH;
-   private:
-      /// Computes sparsity pattern and initializes R matrix. Based on
-      /// BilinearForm::AllocMat() except maps between coarse HO elements and
-      /// refined LOR elements.
-      std::unique_ptr<SparseMatrix> AllocR();
    };
 
    /** Mass-conservative prolongation operator going in the opposite direction
