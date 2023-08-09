@@ -162,6 +162,10 @@ int main(int argc, char *argv[])
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
    rho.ProjectCoefficient(RHO);
+   // Make sure AMR constraints are satisfied
+   rho.SetTrueVector();
+   rho.SetFromTrueVector();
+
    double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
@@ -219,22 +223,16 @@ int main(int argc, char *argv[])
    };
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
+      Vector M_rho_true(fespace.GetTrueVSize());
+      M_ho_tdof->Mult(rho.GetTrueVector(), M_rho_true);
+      fespace.GetRestrictionOperator()->MultTranspose(M_rho_true, M_rho);
       const Operator &P = gt->BackwardOperator();
-      Vector rho_true(rho.ParFESpace()->GetTrueVSize());
-      rho.GetTrueDofs(rho_true);
-      Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
-      M_ho_tdof->Mult(rho_true, M_rho_true);
-      M_rho.ParFESpace()->GetRestrictionTransposeOperator()->Mult(M_rho_true, M_rho);
       P.MultTranspose(M_rho, M_rho_lor);
-      Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
-      M_rho_lor.ParFESpace()->GetProlongationMatrix()->MultTranspose(M_rho_lor,
-                                                                     M_rho_lor_true);
-      double ho_dual_mass = global_sum(M_rho_true);
-      double lor_dual_mass = global_sum(M_rho_lor_true);
+      double ho_dual_mass = global_sum(M_rho);
+      double lor_dual_mass = global_sum(M_rho_lor);
       if (Mpi::Root())
       {
-         cout << "HO -> LOR dual field: " << fabs(ho_dual_mass - lor_dual_mass) << endl
-              << endl;
+         cout << "HO -> LOR dual field: " << abs(ho_dual_mass - lor_dual_mass) << "\n\n";
       }
    }
 
@@ -275,20 +273,20 @@ int main(int argc, char *argv[])
    // LOR* to HO* dual fields
    if (!use_pointwise_transfer)
    {
-      Vector rho_lor_true(rho_lor.ParFESpace()->GetTrueVSize());
-      rho_lor.GetTrueDofs(rho_lor_true);
-      Vector M_rho_lor_true(M_rho_lor.ParFESpace()->GetTrueVSize());
-      M_lor_tdof->Mult(rho_lor_true, M_rho_lor_true);
-      M_rho_lor.ParFESpace()->GetRestrictionTransposeOperator()->Mult(M_rho_lor_true,
-                                                                      M_rho_lor);
+      Vector M_rho_lor_true(fespace_lor.GetTrueVSize());
+      M_lor_tdof->Mult(rho_lor.GetTrueVector(), M_rho_lor_true);
+      fespace_lor.GetRestrictionOperator()->MultTranspose(M_rho_lor_true,
+                                                          M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
-      Vector M_rho_true(M_rho.ParFESpace()->GetTrueVSize());
-      M_rho.ParFESpace()->GetProlongationMatrix()->MultTranspose(M_rho, M_rho_true);
-      double ho_dual_mass = global_sum(M_rho_true);
-      double lor_dual_mass = global_sum(M_rho_lor_true);
+      double ho_dual_mass = global_sum(M_rho);
+      double lor_dual_mass = global_sum(M_rho_lor);
+
+      cout << lor_dual_mass << '\n';
+      cout << ho_dual_mass << '\n';
+
       if (Mpi::Root())
       {
-         cout << "LOR -> HO dual field: " << fabs(ho_dual_mass - lor_dual_mass) << '\n';
+         cout << "LOR -> HO dual field: " << abs(ho_dual_mass - lor_dual_mass) << '\n';
       }
    }
 
