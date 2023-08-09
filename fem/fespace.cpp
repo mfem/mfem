@@ -64,7 +64,8 @@ FiniteElementSpace::FiniteElementSpace()
      face_dof(NULL),
      NURBSext(NULL), own_ext(false),
      DoFTrans(0), VDoFTrans(vdim, ordering),
-     cP(NULL), cR(NULL), cR_T(NULL), cR_hp(NULL), cP_is_set(false),
+     cP(NULL), cR(NULL), cR_hp(NULL), cP_is_set(false),
+     R_transpose(NULL),
      Th(Operator::ANY_TYPE),
      sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
 { }
@@ -955,7 +956,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
    {
       cP = cR = cR_hp = NULL; // will be treated as identities
-      cR_T = NULL;
+      R_transpose = NULL;
       return;
    }
 
@@ -1258,6 +1259,7 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
+   if (!R_transpose) { R_transpose = new TransposeOperator(cR); }
    return cR;
 }
 
@@ -1270,12 +1272,8 @@ const SparseMatrix* FiniteElementSpace::GetHpConformingRestriction() const
 
 const Operator *FiniteElementSpace::GetRestrictionTransposeOperator() const
 {
-   if (!cR_T)
-   {
-      const Operator *R = GetRestrictionOperator();
-      cR_T = new TransposeOperator(R);
-   }
-   return cR_T;
+   GetRestrictionOperator(); // Ensure that R_transpose is built
+   return R_transpose;
 }
 
 int FiniteElementSpace::GetNConformingDofs() const
@@ -2207,7 +2205,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
       }
       UpdateNURBS();
       cP = cR = cR_hp = NULL;
-      cR_T = NULL;
+      R_transpose = NULL;
       cP_is_set = false;
 
       ConstructDoFTrans();
@@ -2367,9 +2365,9 @@ void FiniteElementSpace::Construct()
 
    cP = NULL;
    cR = NULL;
-   cR_T = NULL;
    cR_hp = NULL;
    cP_is_set = false;
+   R_transpose = NULL;
    // 'Th' is initialized/destroyed before this method is called.
 
    int dim = mesh->Dimension();
@@ -3218,7 +3216,8 @@ FiniteElementSpace::~FiniteElementSpace()
 
 void FiniteElementSpace::Destroy()
 {
-   delete cR_T;
+   delete R_transpose;
+   R_transpose = NULL;
    delete cR;
    delete cR_hp;
    delete cP;
