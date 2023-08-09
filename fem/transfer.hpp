@@ -299,25 +299,38 @@ protected:
       virtual void SetRelTol(double p_rtol_);
       virtual void SetAbsTol(double p_atol_);
    protected:
-      /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
+      /// @brief Sets up the PCG solver (sets parameters, operator, and
+      /// preconditioner)
       void SetupPCG();
-      /// Computes on-rank R and M_LH matrices
+      /// @brief Computes on-rank R and M_LH matrices
+      ///
       std::pair<std::unique_ptr<SparseMatrix>,
           std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+      /// @brief Recovers vector of tdofs given a vector of dofs and a finite
+      /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
+      /// @brief Sets dof values given a vector of tdofs and a finite element
+      /// space
       void SetFromTDofs(const FiniteElementSpace& fes,
                         const Vector& X,
                         Vector& x) const;
+      /// @brief Recovers a vector of dual field coefficients on the tdofs given
+      /// a vector of dual coefficients and a finite element space
       void GetTDofsTranspose(const FiniteElementSpace& fes,
-                             const Vector& x,
-                             Vector& X) const;
+                             const Vector& b,
+                             Vector& B) const;
+      /// @brief Sets dual field coefficients given a vector of dual field
+      /// coefficients on the tdofs and a finite element space
       void SetFromTDofsTranspose(const FiniteElementSpace& fes,
-                                 const Vector& X,
-                                 Vector& x) const;
+                                 const Vector& B,
+                                 Vector& b) const;
+      /// @brief Fills the vdofs_list array with a list of vdofs for a given
+      /// vdim and a given finite element space
       void TDofsListByVDim(const FiniteElementSpace& fes,
                            int vdim,
                            Array<int>& vdofs_list) const;
-      /// Returns the inverse of an on-rank lumped mass matrix
+      /// @brief Returns the inverse of an on-rank lumped mass matrix
+      ///
       void LumpedMassInverse(Vector& ML_inv) const;
       /// Computes sparsity pattern and initializes R matrix. Based on
       /// BilinearForm::AllocMat() except maps between coarse HO elements and
