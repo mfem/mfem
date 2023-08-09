@@ -1259,7 +1259,7 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
-   if (!R_transpose) { R_transpose = new TransposeOperator(cR); }
+   if (cR && !R_transpose) { R_transpose = new TransposeOperator(cR); }
    return cR;
 }
 
