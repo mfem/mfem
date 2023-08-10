@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,13 @@ public:
    FiniteElementForDim(int dim) const;
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
+
+   /** @brief Returns a DoF transformation object compatible with this basis
+       and geometry type.
+   */
+   virtual StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const
+   { return NULL; }
 
    /** @brief Returns an array, say p, that maps a local permuted index i to a
        local base index: base_i = p[i].
@@ -466,8 +473,12 @@ public:
    virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
 
+   virtual StatelessDofTransformation *
+   DofTransformationForGeometry(Geometry::Type GeomType) const;
+
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
+
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
@@ -638,6 +649,7 @@ public:
 class NURBSFECollection : public FiniteElementCollection
 {
 private:
+   PointFiniteElement   *PointFE;
    NURBS1DFiniteElement *SegmentFE;
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;

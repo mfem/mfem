@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -144,7 +144,7 @@ static void test_umpire_device_memory()
    // allocate in temporary device memory
    printf("ReadWrite %u bytes in temporary memory: ", num_bytes);
    double * d_host_temp = host_temp.ReadWrite();
-   MFEM_FORALL(i, num_elems, { d_host_temp[i] = dev_val; });
+   mfem::forall(num_elems, [=] MFEM_HOST_DEVICE (int i) { d_host_temp[i] = dev_val; });
    CHECK_PERM(num_bytes);
    CHECK_TEMP(num_bytes);
    PRINT_SIZES();
@@ -180,7 +180,7 @@ static void test_umpire_device_memory()
 
    printf("Write %u more bytes in temporary memory: ", num_bytes);
    double * d_dev_temp = dev_temp.Write();
-   MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
+   mfem::forall(num_elems, [=] MFEM_HOST_DEVICE (int i) { d_dev_temp[i] = dev_val; });
    CHECK_PERM(num_bytes*2);
    CHECK_TEMP(num_bytes*2);
    PRINT_SIZES();

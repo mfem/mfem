@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -160,4 +160,4 @@ clean-build:
 clean-exec:
 	@rm -rf mesh.* sol.* sol_p.* sol_u.* Example5*
 	@rm -f ex9-mesh.* ex9-init.* ex9-final.* Example9*
-	@rm -f deformed.* velocity.* elastic_energy.*
+	@rm -f deformed.* velocity.* elastic_energy.* mode_*

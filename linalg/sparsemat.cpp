@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -494,6 +494,10 @@ void SparseMatrix::SortColumnIndices()
       cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
 
+      // The above call is (at least in some cases) asynchronous, so we need to
+      // wait for it to finish before we can free device temporaries.
+      MFEM_STREAM_SYNC;
+
       cusparseDestroyCsru2csrInfo( sortInfoA );
       cusparseDestroyMatDescr( matA_descr );
 
@@ -675,7 +679,7 @@ void SparseMatrix::GetDiag(Vector & d) const
    const auto AA = this->ReadData();
    auto dd = d.Write();
 
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       const int begin = II[i];
       const int end = II[i+1];
@@ -869,7 +873,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    else
    {
       // Native version
-      MFEM_FORALL(i, height,
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
          double d = 0.0;
          const int end = d_I[i+1];
@@ -988,7 +992,7 @@ void SparseMatrix::PartMult(
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.Write();
-   MFEM_FORALL(i, n,
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
@@ -1033,7 +1037,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    auto d_J = Read(J, nnz);
    auto d_x = Read(x.GetMemory(), x.Size());
    auto d_y = Write(y.GetMemory(), y.Size());
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       bool d_yi = false;
       const int end = d_I[i+1];
@@ -1109,7 +1113,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       double d = 0.0;
       const int end = d_I[i+1];
@@ -2317,7 +2321,7 @@ void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
    const auto dJ = ReadJ();
    auto dA = ReadWriteData();
 
-   MFEM_FORALL(i, n_ess_dofs,
+   mfem::forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int idof = ess_dofs_d[i];
       for (int j=dI[idof]; j<dI[idof+1]; ++j)
@@ -2629,7 +2633,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
    const auto bp = b.Read(use_dev);
    auto xp = x.Write(use_dev);
 
-   MFEM_FORALL_SWITCH(use_dev, i, H,
+   mfem::forall_switch(use_dev, H, [=] MFEM_HOST_DEVICE (int i)
    {
       const int end = Ip[i+1];
       for (int j = Ip[i]; true; j++)
@@ -2668,7 +2672,7 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
    const auto Jp = Read(J, J.Capacity(), useDevice);
    const auto Ap = Read(A, J.Capacity(), useDevice);
 
-   MFEM_FORALL_SWITCH(useDevice, i, height,
+   mfem::forall_switch(useDevice, height, [=] MFEM_HOST_DEVICE (int i)
    {
       double resi = bp[i], norm = 0.0;
       for (int j = Ip[i]; j < Ip[i+1]; j++)

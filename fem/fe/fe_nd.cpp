@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 // Nedelec Finite Element classes
 
 #include "fe_nd.hpp"
+#include "face_map_utils.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -481,6 +482,51 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
          }
 }
 
+void ND_HexahedronElement::GetFaceMap(const int face_id,
+                                      Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = p + 1;
+   const int n_face_dofs_per_component = p*pp1;
+   const int n_dof_per_dim = p*pp1*pp1;
+
+   std::vector<int> n_dofs = {p, pp1, pp1, p};
+   std::vector<int> offsets, strides;
+
+   const auto f = internal::GetFaceNormal3D(face_id);
+   const int face_normal = f.first, level = f.second;
+   if (face_normal == 0) // x-normal
+   {
+      offsets =
+      {
+         n_dof_per_dim + (level ? pp1 - 1 : 0),
+         2*n_dof_per_dim + (level ? pp1 - 1 : 0)
+      };
+      strides = {pp1, p*pp1, pp1, pp1*pp1};
+   }
+   else if (face_normal == 1) // y-normal
+   {
+      offsets =
+      {
+         level ? p*(pp1 - 1) : 0,
+         2*n_dof_per_dim + (level ? pp1*(pp1 - 1) : 0)
+      };
+      strides = {1, p*pp1, 1, pp1*pp1};
+   }
+   else if (face_normal == 2) // z-normal
+   {
+      offsets =
+      {
+         level ? p*pp1*(pp1 - 1) : 0,
+         n_dof_per_dim + (level ? p*pp1*(pp1 - 1) : 0)
+      };
+      strides = {1, p, 1, pp1};
+   }
+
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
+}
+
 const double ND_QuadrilateralElement::tk[8] =
 { 1.,0.,  0.,1., -1.,0., 0.,-1. };
 
@@ -771,6 +817,26 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
       }
 }
 
+void ND_QuadrilateralElement::GetFaceMap(const int face_id,
+                                         Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = order + 1;
+   const int n_face_dofs_per_component = p;
+   std::vector<int> strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
+   std::vector<int> n_dofs = {p};
+   std::vector<int> offsets;
+   switch (face_id)
+   {
+      case 0: offsets = {0}; break; // y = 0
+      case 1: offsets = {p*pp1 + pp1 - 1}; break; // x = 1
+      case 2: offsets = {p*(pp1 - 1)}; break; // y = 1
+      case 3: offsets = {p*pp1}; break; // x = 0
+   }
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
+}
+
 
 const double ND_TetrahedronElement::tk[18] =
 { 1.,0.,0.,  0.,1.,0.,  0.,0.,1.,  -1.,1.,0.,  -1.,0.,1.,  0.,-1.,1. };
@@ -779,7 +845,7 @@ const double ND_TetrahedronElement::c = 1./4.;
 
 ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
-                         H_CURL, FunctionSpace::Pk), dof2tk(dof)
+                         H_CURL, FunctionSpace::Pk), dof2tk(dof), doftrans(p)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -1042,7 +1108,7 @@ const double ND_TriangleElement::c = 1./3.;
 ND_TriangleElement::ND_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
                          H_CURL, FunctionSpace::Pk),
-     dof2tk(dof)
+     dof2tk(dof), doftrans(p)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -1236,6 +1302,7 @@ ND_WedgeElement::ND_WedgeElement(const int p,
      dof2tk(dof),
      t_dof(dof),
      s_dof(dof),
+     doftrans(p),
      H1TriangleFE(p, cb_type),
      NDTriangleFE(p),
      H1SegmentFE(p, cb_type),

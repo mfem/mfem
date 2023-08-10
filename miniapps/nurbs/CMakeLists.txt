@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,8 +12,20 @@
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
+  
+add_mfem_miniapp(nurbs_curveint
+  MAIN nurbs_curveint.cpp
+  LIBRARIES mfem)
 
 if (MFEM_ENABLE_TESTING)
+  add_test(NAME nurbs_ex1_1d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/segment-nurbs.mesh -r 1 -o 2 -lod 3)
+
+  add_test(NAME nurbs_ex1_1d_r1_o2_wbc_ser
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/segment-nurbs.mesh -r 1 -o 2 -wbc -lod 3)
+
   add_test(NAME nurbs_ex1_r0_o4_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis -r 0 -o 4)
 

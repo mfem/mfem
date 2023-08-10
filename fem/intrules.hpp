@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -376,10 +376,10 @@ public:
 };
 
 /// A global object with all integration rules (defined in intrules.cpp)
-extern IntegrationRules IntRules;
+extern MFEM_EXPORT IntegrationRules IntRules;
 
 /// A global object with all refined integration rules
-extern IntegrationRules RefinedIntRules;
+extern MFEM_EXPORT IntegrationRules RefinedIntRules;
 
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -281,7 +281,7 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    auto D = diag.Read();
    auto DI = dinv.Write();
    const bool use_abs_diag_ = use_abs_diag;
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       if (D[i] == 0.0)
       {
@@ -293,7 +293,10 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    if (ess_tdof_list && ess_tdof_list->Size() > 0)
    {
       auto I = ess_tdof_list->Read();
-      MFEM_FORALL(i, ess_tdof_list->Size(), DI[I[i]] = delta; );
+      mfem::forall(ess_tdof_list->Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         DI[I[i]] = delta;
+      });
    }
 }
 
@@ -319,7 +322,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       Y[i] += DI[i] * R[i];
    });
@@ -405,9 +408,12 @@ void OperatorChebyshevSmoother::Setup()
    residual.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
-   MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
    auto I = ess_tdof_list.Read();
-   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
+   mfem::forall(ess_tdof_list.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      X[I[i]] = 1.0;
+   });
 
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
@@ -507,12 +513,12 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       const int n = N;
       auto Dinv = dinv.Read();
       auto R = residual.ReadWrite();
-      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { R[i] *= Dinv[i]; });
 
       // Add weighted contribution to y
       auto Y = y.ReadWrite();
       auto C = coeffs.Read();
-      MFEM_FORALL(i, n, Y[i] += C[k] * R[i]; );
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
    }
 }
 
@@ -1028,6 +1034,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       final_norm = beta;
       final_iter = 0;
       converged = true;
+      j = 0;
+      resid = beta;
       goto finish;
    }
 

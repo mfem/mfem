@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1181,7 +1181,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int dy = 0; dy < D1D; ++dy)
       {
@@ -1228,7 +1228,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
 
    localH = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int dz = 0; dz < D1D; ++dz)
       {
@@ -1300,7 +1300,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -1339,7 +1339,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
 
    localL = 0.0;
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int qz = 0; qz < Q1D; ++qz)
       {

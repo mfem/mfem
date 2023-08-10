@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -793,6 +793,9 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, double cf,
            double &tol, double &atol, int printit);
 
+#ifdef MFEM_USE_HIOP
+class HiopOptimizationProblem;
+#endif
 
 /** Defines operators and constraints for the following optimization problem:
  *
@@ -812,10 +815,24 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *  the operators are expected to be defined for tdof vectors. */
 class OptimizationProblem
 {
+#ifdef MFEM_USE_HIOP
+   friend class HiopOptimizationProblem;
+#endif
+
+private:
+   /// See NewX().
+   mutable bool new_x = true;
+
 protected:
    /// Not owned, some can remain unused (NULL).
    const Operator *C, *D;
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
+
+   /// Implementations of CalcObjective() and CalcObjectiveGrad() can use this
+   /// method to check if the argument Vector x has been changed after the last
+   /// call to CalcObjective() or CalcObjectiveGrad().
+   /// The result is on by default, and gets set by the OptimizationSolver.
+   bool NewX() const { return new_x; }
 
 public:
    const int input_size;
