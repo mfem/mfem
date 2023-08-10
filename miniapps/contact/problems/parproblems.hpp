@@ -176,6 +176,8 @@ public:
       delete B;
       delete K;
       delete blockK;
+      delete M1;
+      delete M2;
       delete M;
       delete blockM;
       for (int i = 0; i<dM.Size(); i++)

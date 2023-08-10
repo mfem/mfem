@@ -300,6 +300,13 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    dmcomm21.Communicate(dS21,localdS21);
    dmcomm22.Communicate(dS22,localdS22);
 
+   for (int k = 0; k<gnpoints; k++)
+   {
+      delete dS11[k]; 
+      delete dS12[k]; 
+      delete dS21[k]; 
+      delete dS22[k]; 
+   }
 
    // --------------------------------------------------------------------
 
@@ -356,15 +363,19 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
       dM11[i] = new HypreParMatrix(comm, ndofs1, gndofs1, gndofs1, 
                                  localdS11[i]->GetI(), localdS11[i]->GetJ(), localdS11[i]->GetData(),
                                  offs1,offs1);
+      delete localdS11[i];                                 
       dM12[i] = new HypreParMatrix(comm, ndofs1, gndofs1, gndofs2, 
                                  localdS12[i]->GetI(), localdS12[i]->GetJ(), localdS12[i]->GetData(),
-                                 offs1,offs2);        
+                                 offs1,offs2);   
+      delete localdS12[i];                                 
       dM21[i] = new HypreParMatrix(comm, ndofs2, gndofs2, gndofs1, 
                                  localdS21[i]->GetI(), localdS21[i]->GetJ(), localdS21[i]->GetData(),
                                  offs2,offs1);
+      delete localdS21[i];                                 
       dM22[i] = new HypreParMatrix(comm, ndofs2, gndofs2, gndofs2, 
                                  localdS22[i]->GetI(), localdS22[i]->GetJ(), localdS22[i]->GetData(),
                                  offs2,offs2);    
+      delete localdS22[i];                                 
       blockdM[i] = new BlockOperator(tdof_offsets);
       blockdM[i]->SetBlock(0,0,dM11[i]);                                                                                                                                  
       blockdM[i]->SetBlock(0,1,dM12[i]);                                                                                                                                  

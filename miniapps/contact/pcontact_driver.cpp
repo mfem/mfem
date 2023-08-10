@@ -110,43 +110,43 @@ int main(int argc, char *argv[])
       mfem::out << "Block CG iteration numbers   = " ; BlockCGiterations.Print(mfem::out, BlockCGiterations.Size());
    }
 
-   ParFiniteElementSpace * fes1 = prob1->GetFESpace();
-   ParFiniteElementSpace * fes2 = prob2->GetFESpace();
+   // ParFiniteElementSpace * fes1 = prob1->GetFESpace();
+   // ParFiniteElementSpace * fes2 = prob2->GetFESpace();
    
-   ParMesh * mesh1 = fes1->GetParMesh();
-   ParMesh * mesh2 = fes2->GetParMesh();
+   // ParMesh * mesh1 = fes1->GetParMesh();
+   // ParMesh * mesh2 = fes2->GetParMesh();
 
-   Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
-   Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
+   // Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
+   // Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
 
-   ParGridFunction x1_gf(fes1);
-   ParGridFunction x2_gf(fes2);
+   // ParGridFunction x1_gf(fes1);
+   // ParGridFunction x2_gf(fes2);
 
-   x1_gf.SetFromTrueDofs(X1_new);
-   x2_gf.SetFromTrueDofs(X2_new);
+   // x1_gf.SetFromTrueDofs(X1_new);
+   // x2_gf.SetFromTrueDofs(X2_new);
 
-   mesh1->MoveNodes(x1_gf);
-   mesh2->MoveNodes(x2_gf);
+   // mesh1->MoveNodes(x1_gf);
+   // mesh2->MoveNodes(x2_gf);
 
-   ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
-   paraview_dc1.SetPrefixPath("ParaView");
-   paraview_dc1.SetLevelsOfDetail(1);
-   paraview_dc1.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc1.SetHighOrderOutput(true);
-   paraview_dc1.SetCycle(0);
-   paraview_dc1.SetTime(0.0);
-   paraview_dc1.RegisterField("Body1", &x1_gf);
-   paraview_dc1.Save();
+   // ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
+   // paraview_dc1.SetPrefixPath("ParaView");
+   // paraview_dc1.SetLevelsOfDetail(1);
+   // paraview_dc1.SetDataFormat(VTKFormat::BINARY);
+   // paraview_dc1.SetHighOrderOutput(true);
+   // paraview_dc1.SetCycle(0);
+   // paraview_dc1.SetTime(0.0);
+   // paraview_dc1.RegisterField("Body1", &x1_gf);
+   // paraview_dc1.Save();
    
-   ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
-   paraview_dc2.SetPrefixPath("ParaView");
-   paraview_dc2.SetLevelsOfDetail(1);
-   paraview_dc2.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc2.SetHighOrderOutput(true);
-   paraview_dc2.SetCycle(0);
-   paraview_dc2.SetTime(0.0);
-   paraview_dc2.RegisterField("Body2", &x2_gf);
-   paraview_dc2.Save();
+   // ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
+   // paraview_dc2.SetPrefixPath("ParaView");
+   // paraview_dc2.SetLevelsOfDetail(1);
+   // paraview_dc2.SetDataFormat(VTKFormat::BINARY);
+   // paraview_dc2.SetHighOrderOutput(true);
+   // paraview_dc2.SetCycle(0);
+   // paraview_dc2.SetTime(0.0);
+   // paraview_dc2.RegisterField("Body2", &x2_gf);
+   // paraview_dc2.Save();
 
    delete prob1;
    delete prob2;

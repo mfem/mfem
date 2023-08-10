@@ -342,10 +342,19 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       Wmm = D;
    }
 
+   if (JuT) delete JuT;
    Ju = problem->Duc(x); JuT = Ju->Transpose();
    blockJu = problem->blockDuc(x); 
-   JuTrowoffsets = blockJu->ColOffsets();
-   JuTcoloffsets = blockJu->RowOffsets();
+   // JuTrowoffsets = blockJu->ColOffsets();
+   // JuTcoloffsets = blockJu->RowOffsets();
+   JuTrowoffsets.SetSize(3);
+   JuTrowoffsets[0] = blockJu->ColOffsets()[0];
+   JuTrowoffsets[1] = blockJu->ColOffsets()[1];
+   JuTrowoffsets[2] = blockJu->ColOffsets()[2];
+   JuTcoloffsets.SetSize(2);
+   JuTcoloffsets[0] = blockJu->RowOffsets()[0];
+   JuTcoloffsets[1] = blockJu->RowOffsets()[1];
+   if (blockJuT) delete blockJuT;
    blockJuT = new BlockOperator(JuTrowoffsets,JuTcoloffsets);
    for (int i = 0; i<blockJu->NumRowBlocks(); i++)
    {
@@ -357,6 +366,7 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       }
    }
    blockJuT->owns_blocks=1;
+   if (JmT) delete JmT;
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
   
    //         IP-Newton system matrix
@@ -576,8 +586,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
    // free memory
    delete D;
-   delete JuT;
-   delete JmT;
    if(Hmm != nullptr)
    {
       delete Wmm;
@@ -906,4 +914,7 @@ void ParInteriorPointSolver::SetLinearSolveTol(double Tol)
 
 ParInteriorPointSolver::~ParInteriorPointSolver() 
 {
+   delete blockJuT;
+   delete JuT;
+   delete JmT;
 }
