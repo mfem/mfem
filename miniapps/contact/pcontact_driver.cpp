@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
 {
    Mpi::Init();
    int myid = Mpi::WorldRank();
+   int num_procs = Mpi::WorldSize();
    Hypre::Init();
    // 1. Parse command-line options.
    const char *mesh_file1 = "meshes/block1.mesh";
@@ -27,6 +28,8 @@ int main(int argc, char *argv[])
    int pref = 0;
    Array<int> attr;
    Array<int> m_attr;
+   bool visualization = true;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file1, "-m1", "--mesh1",
@@ -38,7 +41,13 @@ int main(int argc, char *argv[])
    args.AddOption(&sref, "-sr", "--serial-refinements",
                   "Number of uniform refinements.");           
    args.AddOption(&pref, "-pr", "--parallel-refinements",
-                  "Number of uniform refinements.");                                 
+                  "Number of uniform refinements.");     
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");                   
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView visualization.");                                          
    args.Parse();
    if (!args.Good())
    {
@@ -110,43 +119,67 @@ int main(int argc, char *argv[])
       mfem::out << "Block CG iteration numbers   = " ; BlockCGiterations.Print(mfem::out, BlockCGiterations.Size());
    }
 
-   // ParFiniteElementSpace * fes1 = prob1->GetFESpace();
-   // ParFiniteElementSpace * fes2 = prob2->GetFESpace();
+
+   if (visualization || paraview)
+   {
+      ParFiniteElementSpace * fes1 = prob1->GetFESpace();
+      ParFiniteElementSpace * fes2 = prob2->GetFESpace();
    
-   // ParMesh * mesh1 = fes1->GetParMesh();
-   // ParMesh * mesh2 = fes2->GetParMesh();
+      ParMesh * mesh1 = fes1->GetParMesh();
+      ParMesh * mesh2 = fes2->GetParMesh();
 
-   // Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
-   // Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
+      Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
+      Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
 
-   // ParGridFunction x1_gf(fes1);
-   // ParGridFunction x2_gf(fes2);
+      ParGridFunction x1_gf(fes1);
+      ParGridFunction x2_gf(fes2);
 
-   // x1_gf.SetFromTrueDofs(X1_new);
-   // x2_gf.SetFromTrueDofs(X2_new);
+      x1_gf.SetFromTrueDofs(X1_new);
+      x2_gf.SetFromTrueDofs(X2_new);
 
-   // mesh1->MoveNodes(x1_gf);
-   // mesh2->MoveNodes(x2_gf);
+      mesh1->MoveNodes(x1_gf);
+      mesh2->MoveNodes(x2_gf);
 
-   // ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
-   // paraview_dc1.SetPrefixPath("ParaView");
-   // paraview_dc1.SetLevelsOfDetail(1);
-   // paraview_dc1.SetDataFormat(VTKFormat::BINARY);
-   // paraview_dc1.SetHighOrderOutput(true);
-   // paraview_dc1.SetCycle(0);
-   // paraview_dc1.SetTime(0.0);
-   // paraview_dc1.RegisterField("Body1", &x1_gf);
-   // paraview_dc1.Save();
+      if (paraview)
+      {
+         ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
+         paraview_dc1.SetPrefixPath("ParaView");
+         paraview_dc1.SetLevelsOfDetail(1);
+         paraview_dc1.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc1.SetHighOrderOutput(true);
+         paraview_dc1.SetCycle(0);
+         paraview_dc1.SetTime(0.0);
+         paraview_dc1.RegisterField("Body1", &x1_gf);
+         paraview_dc1.Save();
    
-   // ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
-   // paraview_dc2.SetPrefixPath("ParaView");
-   // paraview_dc2.SetLevelsOfDetail(1);
-   // paraview_dc2.SetDataFormat(VTKFormat::BINARY);
-   // paraview_dc2.SetHighOrderOutput(true);
-   // paraview_dc2.SetCycle(0);
-   // paraview_dc2.SetTime(0.0);
-   // paraview_dc2.RegisterField("Body2", &x2_gf);
-   // paraview_dc2.Save();
+         ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
+         paraview_dc2.SetPrefixPath("ParaView");
+         paraview_dc2.SetLevelsOfDetail(1);
+         paraview_dc2.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc2.SetHighOrderOutput(true);
+         paraview_dc2.SetCycle(0);
+         paraview_dc2.SetTime(0.0);
+         paraview_dc2.RegisterField("Body2", &x2_gf);
+         paraview_dc2.Save();
+      }
+
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int visport = 19916;
+         socketstream sol_sock1(vishost, visport);
+         sol_sock1.precision(8);
+         sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
+                   << "solution\n" << *mesh1 << x1_gf
+                   << "window_title 'Solution - Body 1'" << flush;
+
+         socketstream sol_sock2(vishost, visport);
+         sol_sock2.precision(8);
+         sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
+                   << "solution\n" << *mesh2 << x2_gf
+                   << "window_title 'Solution - Body 2'" << flush;                   
+      }
+   }
 
    delete prob1;
    delete prob2;
