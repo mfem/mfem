@@ -66,6 +66,9 @@ int main(int argc, char *argv[])
 
    ParContactProblem contact(prob1,prob2);
    QPOptParContactProblem qpopt(&contact);
+   int dofs1 = qpopt.GetElasticityProblem1()->GetGlobalNumDofs();
+   int dofs2 = qpopt.GetElasticityProblem2()->GetGlobalNumDofs();
+   int numconstr = contact.GetGlobalNumConstraints();
 
    ParInteriorPointSolver optimizer(&qpopt);
 
@@ -73,7 +76,7 @@ int main(int argc, char *argv[])
    optimizer.SetMaxIter(50);
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
-   optimizer.SetLinearSolveTol(1e-8);
+   optimizer.SetLinearSolveTol(1e-10);
 
    ParGridFunction x1 = prob1->GetDisplacementGridFunction();
    ParGridFunction x2 = prob2->GetDisplacementGridFunction();
@@ -95,11 +98,16 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
-
+   Array<int> & CGiterations = optimizer.GetCGIterNumbers(); 
+   Array<int> & BlockCGiterations = optimizer.GetBlockCGIterNumbers(); 
    if (Mpi::Root())
    {
-      cout << "Energy objective at initial point = " << Einitial << endl;
-      cout << "Energy objective at QP optimizer = " << Efinal << endl;
+      mfem::out << "\nEnergy objective at initial point = " << Einitial << endl;
+      mfem::out << "Energy objective at QP optimizer = " << Efinal << endl;
+      mfem::out << "Global number of dofs        = " << dofs1 + dofs2 << endl;
+      mfem::out << "Global number of constraints = " << numconstr << endl;
+      mfem::out << "CG iteration numbers         = " ; CGiterations.Print(mfem::out, CGiterations.Size());
+      mfem::out << "Block CG iteration numbers   = " ; BlockCGiterations.Print(mfem::out, BlockCGiterations.Size());
    }
 
    ParFiniteElementSpace * fes1 = prob1->GetFESpace();

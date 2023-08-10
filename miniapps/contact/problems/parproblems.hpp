@@ -108,6 +108,7 @@ private:
    std::vector<int> vertex_offsets; 
    std::vector<int> constraints_offsets; 
    Array<int> tdof_offsets;
+   Array<int> Mrow_offsets; // offsets for the rows of the BlockOperator blockM
    Array<int> constraints_starts;
    Array<int> globalvertices1;
    Array<int> globalvertices2;
@@ -119,11 +120,20 @@ protected:
    int gnpoints=0;
    int nv, gnv;
    HypreParMatrix * K = nullptr;
+   BlockOperator * blockK = nullptr;
+   BlockOperator * blockM = nullptr;
    BlockDiagonalPreconditioner * prec = nullptr;
    BlockVector *B = nullptr;
    Vector gapv;
    HypreParMatrix * M=nullptr;
+   HypreParMatrix * M1=nullptr;
+   HypreParMatrix * M2=nullptr;
    Array<HypreParMatrix*> dM;
+   Array<HypreParMatrix*> dM11;
+   Array<HypreParMatrix*> dM12;
+   Array<HypreParMatrix*> dM21;
+   Array<HypreParMatrix*> dM22;
+   Array<BlockOperator*> blockdM;
    void ComputeContactVertices();
 
 public:
@@ -145,25 +155,37 @@ public:
    Vector & GetGapFunction() {return gapv;}
 
    HypreParMatrix * GetJacobian() {return M;}
+   BlockOperator * GetBlockJacobian() {return blockM;}
    BlockDiagonalPreconditioner * GetPreconditioner() {return prec;}
    Array<HypreParMatrix*> & GetHessian() {return dM;}
+   Array<BlockOperator*> & GetBlockHessian() {return blockdM;}
    void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2);
 
-   virtual double E(const Vector & d);
-   virtual void DdE(const Vector &d, Vector &gradE);
-   virtual HypreParMatrix* DddE(const Vector &d);
+   double E(const Vector & d);
+   void DdE(const Vector &d, Vector &gradE);
+   HypreParMatrix* DddE(const Vector &d);
+   BlockOperator* blockDddE(const Vector &d);
+   BlockOperator* GetOperator(){return blockK;}
    void g(const Vector &d, Vector &gd);
-   virtual HypreParMatrix* Ddg(const Vector &d);
-   virtual HypreParMatrix* lDddg(const Vector &d, const Vector &l);
+   HypreParMatrix* Ddg(const Vector &d);
+   BlockOperator* blockDdg(const Vector &d);
+   HypreParMatrix* lDddg(const Vector &d, const Vector &l);
 
    ~ParContactProblem()
    {
       delete B;
       delete K;
+      delete blockK;
       delete M;
+      delete blockM;
       for (int i = 0; i<dM.Size(); i++)
       {
          delete dM[i];
+         delete dM11[i];
+         delete dM12[i];
+         delete dM21[i];
+         delete dM22[i];
+         delete blockdM[i];
       }
       delete prec;
       delete vfes1;
@@ -190,11 +212,16 @@ public:
    int * GetConstraintsStarts() {return problem->GetConstraintsStarts().GetData();}
    int GetGlobalNumConstraints() {return problem->GetGlobalNumConstraints();}
 
+   ParElasticityProblem * GetElasticityProblem1() {return problem->GetElasticityProblem1();}
+   ParElasticityProblem * GetElasticityProblem2() {return problem->GetElasticityProblem2();}
+
    HypreParMatrix * Duuf(const BlockVector &);
+   BlockOperator * blockDuuf(const BlockVector &);
    HypreParMatrix * Dumf(const BlockVector &);
    HypreParMatrix * Dmuf(const BlockVector &);
    HypreParMatrix * Dmmf(const BlockVector &);
    HypreParMatrix * Duc(const BlockVector &);
+   BlockOperator * blockDuc(const BlockVector &);
    HypreParMatrix * Dmc(const BlockVector &);
    HypreParMatrix * lDuuc(const BlockVector &, const Vector &);
    BlockDiagonalPreconditioner * GetPreconditioner() {return problem->GetPreconditioner();}
