@@ -129,11 +129,9 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
-   Mesh &mesh = *qspace->GetMesh();
-
-   int np = qspace->GetSize();
-   int ne = mesh.GetNE();
-   int sdim = mesh.SpaceDimension();
+   const int np = qspace->GetSize();
+   const int ne = qspace->GetNE();
+   const int sdim = qspace->GetMesh()->SpaceDimension();
 
    // For quadrature functions, each point is a vertex cell, so number of cells
    // is equal to number of points
@@ -148,7 +146,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    Vector pt(sdim);
    for (int i = 0; i < ne; i++)
    {
-      ElementTransformation &T = *mesh.GetElementTransformation(i);
+      ElementTransformation &T = *qspace->GetTransformation(i);
       const IntegrationRule &ir = GetIntRule(i);
       for (int j = 0; j < ir.Size(); j++)
       {
