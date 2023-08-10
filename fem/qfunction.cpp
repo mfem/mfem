@@ -115,7 +115,8 @@ std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
 }
 
 void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
-                                 int compression_level) const
+                                 int compression_level,
+                                 const std::string &field_name) const
 {
    os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
    if (compression_level != 0)
@@ -203,8 +204,9 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    os << "</Cells>\n";
 
    os << "<PointData>\n";
-   os << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-      << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
+   os << "<DataArray type=\"" << type_str << "\" Name=\"" << field_name
+      << "\" format=\"" << fmt_str << "\" NumberOfComponents=\"" << vdim
+      << "\">\n";
    for (int i = 0; i < ne; i++)
    {
       DenseMatrix vals;
@@ -231,10 +233,11 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
 }
 
 void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
-                                 int compression_level) const
+                                 int compression_level,
+                                 const std::string &field_name) const
 {
    std::ofstream f(filename + ".vtu");
-   SaveVTU(f, format, compression_level);
+   SaveVTU(f, format, compression_level, field_name);
 }
 
 }
