@@ -18,6 +18,38 @@
 
 namespace mfem
 {
+/// Bramble-Pasciak Conjugate Gradient
+class BPCGSolver : public CGSolver
+{
+protected:
+   mutable Vector p, g, t, r_hat, r_bar, r_red, g_red;
+   /// Remaining required operators
+   /*  Operator list
+    *  *oper  -> A  = [M, Bt; B, 0]
+    *  *prec  -> P  = diag(M0, M1)
+    *  *iprec -> N  = diag(M0, 0)
+    *  *pprec -> P' = P * [Id, 0; B*M0, -Id]
+    */
+   const Operator *iprec, *pprec;
+   void UpdateVectors();
+
+public:
+   BPCGSolver() { }
+
+#ifdef MFEM_USE_MPI
+   BPCGSolver(MPI_Comm comm_) : CGSolver(comm_) { }
+#endif
+
+   virtual void SetOperator(const Operator &op)
+   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+
+   /// Set remaining operators
+   void SetPCs(const Operator &ipc, const Operator &ppc)
+   { iprec = &ipc; pprec = &ppc; }
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+};
+
 namespace blocksolvers
 {
 
@@ -260,16 +292,29 @@ public:
  */
 class BramblePasciakSolver : public DarcySolver
 {
+   mutable bool use_bpcg;
    CGSolver solver_;
-   BlockOperator op_;
-   BlockOperator map_;
-   BlockDiagonalPreconditioner pc_;
+   BPCGSolver bpsolver_;
+   BlockOperator *oop_;
+   ProductOperator *mop_;
+   AddOperator *map_;
+   ProductOperator *ppc_;
+   BlockDiagonalPreconditioner *cpc_;
+   BlockOperator *ipc_;
    std::unique_ptr<HypreParMatrix> M_;
+   std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;
    Array<int> ess_zero_dofs_;
 
-   void Init(const HypreParMatrix &M, const HypreParMatrix &B,
-             const HypreParMatrix &Q, 
+   /// User provides system. No BPCG available here.
+   void Init(HypreParMatrix &M, HypreParMatrix &B,
+             HypreParMatrix &Q,
+             Solver &M0, Solver &M1,
+             const IterSolveParameters &param);
+
+   /// Construct specific preconditioners, and enables usage of BPCG.
+   void Init(HypreParMatrix &M, HypreParMatrix &B,
+             HypreParMatrix &Q,
              const IterSolveParameters &param);
 public:
    /// System and mass preconditioner are constructed from bilinear forms
@@ -280,8 +325,8 @@ public:
 
    /// System and mass preconditioner are user-provided
    BramblePasciakSolver(
-      const HypreParMatrix &M, const HypreParMatrix &B,
-      const HypreParMatrix &Q, 
+      HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
+      Solver &M0, Solver &M1,
       const IterSolveParameters &param);
 
    /// Assemble a preconditioner for the mass matrix
@@ -291,16 +336,19 @@ public:
     *         M_T x_T = lambda_T diag(M_T) x_T
     * and we set Q_T = 0.5 * min(lambda_T) * diag(M_T).
    */
-   static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf, double alpha = 0.5);
+   static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
+                                                      double alpha = 0.5);
+
+   // TODO
+   /// Define if BPCG will be employed in Mult
+   void SetBPCG(bool use) { use_bpcg = use; }
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
    virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
-
 } // namespace blocksolvers
-
 } // namespace mfem
 
 #endif // MFEM_DIVFREE_SOLVER_HPP

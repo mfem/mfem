@@ -779,9 +779,9 @@ class AddOperator : public Operator
 
 public:
    AddOperator(
-           const Operator *A, const double alpha,
-           const Operator *B, const double beta,
-           bool ownA, bool ownB);
+      const Operator *A, const double alpha,
+      const Operator *B, const double beta,
+      bool ownA, bool ownB);
 
    virtual void Mult(const Vector &x, Vector &y) const
    { A->Mult(x, a); B->Mult(x, b); add(alpha, a, beta, b, y); }
