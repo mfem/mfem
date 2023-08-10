@@ -607,100 +607,161 @@ int DivFreeSolver::GetNumIterations() const
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
 
+/// Bramble-Pasciak Solver
 BramblePasciakSolver::BramblePasciakSolver(
    const std::shared_ptr<ParBilinearForm> &mVarf,
    const std::shared_ptr<ParMixedBilinearForm> &bVarf,
    const IterSolveParameters &param, double alpha)
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
                  bVarf->TestFESpace()->GetTrueVSize()),
-     op_(offsets_), map_(offsets_), pc_(offsets_),
-     solver_(mVarf->ParFESpace()->GetComm())
+     solver_(mVarf->ParFESpace()->GetComm()),
+     bpsolver_(mVarf->ParFESpace()->GetComm())
 {
-   //std::unique_ptr<HypreParMatrix> M(mVarf->ParallelAssemble());
    M_.reset(mVarf->ParallelAssemble());
-   std::unique_ptr<HypreParMatrix> B(bVarf->ParallelAssemble());
+   B_.reset(bVarf->ParallelAssemble());
    Q_.reset(ConstructMassPreconditioner(*mVarf, alpha));
 
-   Init(*M_, *B, *Q_, param);
+   Init(*M_, *B_, *Q_, param);
+   SetBPCG(true);
 }
 
 BramblePasciakSolver::BramblePasciakSolver(
-   const HypreParMatrix &M, const HypreParMatrix &B, const HypreParMatrix &Q,
+   HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
+   Solver &M0, Solver &M1,
    const IterSolveParameters &param)
    : DarcySolver(M.NumRows(), B.NumRows()),
-     op_(offsets_), map_(offsets_), pc_(offsets_),
-     solver_(M.GetComm())
+     solver_(M.GetComm()), bpsolver_(M.GetComm())
 {
-   Init(M, B, Q, param);
+   Init(M, B, Q, M0, M1, param);
+   SetBPCG(false);
 }
 
 void BramblePasciakSolver::Init(
-   const HypreParMatrix &M, const HypreParMatrix &B, const HypreParMatrix &Q,
+   HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
+   Solver &M0, Solver &M1,
    const IterSolveParameters &param)
 {
-   HypreParMatrix *Bt = B.Transpose();
+   oop_ = new BlockOperator(offsets_);
+   ipc_ = new BlockOperator(offsets_);
+   cpc_ = new BlockDiagonalPreconditioner(offsets_);
+
+   /// User provides the complete system
+   /// We assume the preconditioners Q and M0 do not match
+   auto Bt = new TransposeOperator(&B);
+   auto id_m = new IdentityOperator(M.NumRows());
+   auto id_b = new IdentityOperator(B.NumRows());
+   auto id = new IdentityOperator(M.NumRows()+B.NumRows());
    // invQ
-   // TODO This is not general enough. We are assuming Q is diag!
+   // TODO
+   //This is not general enough. We are assuming Q is diag
    HypreParMatrix *invQ = new HypreParMatrix(Q);
    Vector diagQ;
    Q.GetDiag(diagQ);
    *invQ = 1.0;
    invQ->InvScaleRows(diagQ);
-   // MinvQ
-   auto MinvQ = ParMult(&M, invQ);
-   // M*inv(Q) - Id
-   SparseMatrix MinvQ_diag;
-   MinvQ->GetDiag(MinvQ_diag);
-   for (int i = 0; i < MinvQ->NumRows(); ++i)
-   {
-      MinvQ_diag(i, i) -= 1.0;
-   }
-
-   // Main blocks
-   auto block00 = ParMult(MinvQ, &M);
-   auto block01 = ParMult(MinvQ, Bt);
-   auto BinvQ = ParMult(&B, invQ);
-   auto block11 = ParMult(BinvQ, Bt);
-   auto block10 = new TransposeOperator(block01);
-   auto I = new IdentityOperator(B.NumRows());
 
    {
-      op_.owns_blocks = true;
-      op_.SetBlock(0, 0, block00);
-      op_.SetBlock(0, 1, block01);
-      op_.SetBlock(1, 0, block10);
-      op_.SetBlock(1, 1, block11);
+      oop_->owns_blocks = false;
+      oop_->SetBlock(0, 0, &M);
+      oop_->SetBlock(0, 1, Bt);
+      oop_->SetBlock(1, 0, &B);
 
-      map_.owns_blocks = true;
-      map_.SetBlock(0, 0, MinvQ);
-      map_.SetBlock(1, 0, BinvQ);
-      map_.SetBlock(1, 1, I, -1.0);
-   }
+      cpc_->owns_blocks = true;
+      cpc_->SetDiagonalBlock(0, &M0);
+      cpc_->SetDiagonalBlock(0, &M1);
 
-   Vector diagM;
-   M.GetDiag(diagM);
-   auto invDBt = new HypreParMatrix(*Bt);
-   invDBt->InvScaleRows(diagM);
-   auto S = ParMult(&B, invDBt);
-   // auto solver_M0 = new HypreDiagScale(M);
-   auto solver_M1 = new HypreBoomerAMG(*S);
-   auto solver_M0 = new HypreDiagScale(Q);
-   // auto solver_M1 = new HypreBoomerAMG(*block11);
-   solver_M1->SetPrintLevel(0);
-   {
-      solver_M0->iterative_mode = false;
-      solver_M1->iterative_mode = false;
+      ipc_->owns_blocks = false;
+      ipc_->SetDiagonalBlock(0, &M0);
 
-      //pc_.owns_blocks = true;
-      pc_.SetDiagonalBlock(0, solver_M0);
-      pc_.SetDiagonalBlock(1, solver_M1);
+      auto temp = new ProductOperator(oop_, ipc_, false, false);
+      map_ = new AddOperator(temp, 1.0, id, -1.0, true, false);
+
+      mop_ = new ProductOperator(map_, oop_, false, false);
    }
 
    // Set solver
    SetOptions(solver_, param);
+   SetOptions(bpsolver_, param);
    {
-      solver_.SetOperator(op_);
-      solver_.SetPreconditioner(pc_);
+      solver_.SetOperator(*oop_);
+      solver_.SetPreconditioner(*cpc_);
+      bpsolver_.SetOperator(*oop_);
+      bpsolver_.SetPreconditioner(*cpc_);
+      bpsolver_.SetPCs(*ipc_, *map_);
+   }
+}
+
+void BramblePasciakSolver::Init(
+   HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
+   const IterSolveParameters &param)
+{
+   oop_ = new BlockOperator(offsets_);
+   ipc_ = new BlockOperator(offsets_);
+   cpc_ = new BlockDiagonalPreconditioner(offsets_);
+
+   auto Bt = new TransposeOperator(&B);
+   auto id_m = new IdentityOperator(M.NumRows());
+   auto id_b = new IdentityOperator(B.NumRows());
+   auto id = new IdentityOperator(M.NumRows()+B.NumRows());
+   // invQ
+   // TODO
+   //This is not general enough. We are assuming Q is diag
+   HypreParMatrix *invQ = new HypreParMatrix(Q);
+   Vector diagQ;
+   Q.GetDiag(diagQ);
+   *invQ = 1.0;
+   invQ->InvScaleRows(diagQ);
+
+   Vector diagM;
+   M.GetDiag(diagM);
+   auto BT = B.Transpose();
+   auto invDBt = new HypreParMatrix(*BT);
+   invDBt->InvScaleRows(diagM);
+   auto S = ParMult(&B, invDBt);
+   auto M0 = new HypreDiagScale(Q);
+   auto M1 = new HypreBoomerAMG(*S);
+   // auto solver_M1 = new HypreBoomerAMG(*block11);
+   M1->SetPrintLevel(0);
+
+   {
+      oop_->owns_blocks = false;
+      oop_->SetBlock(0, 0, &M);
+      oop_->SetBlock(0, 1, Bt);
+      oop_->SetBlock(1, 0, &B);
+
+      cpc_->owns_blocks = true;
+      cpc_->SetDiagonalBlock(0, M0);
+      cpc_->SetDiagonalBlock(1, M1);
+
+      ipc_->owns_blocks = false;
+      ipc_->SetDiagonalBlock(0, M0);
+
+      auto temp = new ProductOperator(oop_, ipc_, false, false);
+      map_ = new AddOperator(temp, 1.0, id, -1.0, true, true);
+
+      mop_ = new ProductOperator(map_, oop_, false, false);
+   }
+
+   {
+      auto temp = new BlockOperator(offsets_);
+      auto BinvM = new ProductOperator(&B, invQ, false, false);
+
+      temp->owns_blocks = true;
+      temp->SetBlock(0, 0, id_m);
+      temp->SetBlock(1, 1, id_b, -1.0);
+      temp->SetBlock(1, 0, BinvM); // , -1.0);
+      ppc_ = new ProductOperator(cpc_, temp, false, true);
+   }
+
+   // Set solver
+   SetOptions(solver_, param);
+   SetOptions(bpsolver_, param);
+   {
+      solver_.SetOperator(*mop_);
+      solver_.SetPreconditioner(*cpc_);
+      bpsolver_.SetOperator(*oop_);
+      bpsolver_.SetPreconditioner(*cpc_);
+      bpsolver_.SetPCs(*ipc_, *ppc_);
    }
 }
 
@@ -732,8 +793,210 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
 
 void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
 {
-   Vector transformed_rhs(x.Size());
-   map_.Mult(x, transformed_rhs);
-   solver_.Mult(transformed_rhs, y);
+   if (!use_bpcg)
+   {
+      Vector transformed_rhs(x.Size());
+      map_->Mult(x, transformed_rhs);
+      solver_.Mult(transformed_rhs, y);
+   }
+   else
+   {
+      // MFEM_ABORT("Not implemented yet!");
+      bpsolver_.Mult(x, y);
+   }
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
+}
+
+/// Bramble-Pasciak CG
+void BPCGSolver::UpdateVectors()
+{
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+
+   r.SetSize(width, mt); r.UseDevice(true);
+   p.SetSize(width, mt); p.UseDevice(true);
+   g.SetSize(width, mt); g.UseDevice(true);
+   t.SetSize(width, mt); t.UseDevice(true);
+   r_hat.SetSize(width, mt); r_hat.UseDevice(true);
+   // r_tem.SetSize(width, mt); r_tem.UseDevice(true);
+   r_bar.SetSize(width, mt); r_bar.UseDevice(true);
+   r_red.SetSize(width, mt); r_red.UseDevice(true);
+   g_red.SetSize(width, mt); g_red.UseDevice(true);
+}
+
+void BPCGSolver::Mult(const Vector &b, Vector &x) const
+{
+   int i;
+   double delta, delta0, del0;
+   double alpha, beta, gamma;
+
+   // Initialization
+   x.UseDevice(true);
+   if (iterative_mode)
+   {
+      oper->Mult(x, r);
+      subtract(b, r, r); // r = b - A x
+      // tra_->Mult(r,r_hat); // r_hat = X r
+      // map_->Mult(r,r_tem); // r_tem = S r
+      pprec->Mult(r,r_bar); // r_bar = P r
+      p = r_bar;
+      oper->Mult(p, g); // g = A p
+      oper->Mult(r_bar, t); // t = A r_bar
+      iprec->Mult(r, r_red); // r_red = N r
+   }
+   else
+   {
+      // TODO
+      MFEM_ABORT("To implement non-iterative mode: iterative_mode: " <<
+                 iterative_mode);
+   }
+
+   // Initial norms
+   delta = delta0 = Dot(t, r_red) - Dot(r_bar, r); // Dot(r_bar, r_hat)
+   if (delta0 >= 0.0) { initial_norm = sqrt(delta0); }
+   MFEM_ASSERT(IsFinite(delta), "nom = " << delta);
+   if (print_options.iterations || print_options.first_and_last)
+   {
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                << delta << (print_options.first_and_last ? " ...\n" : "\n");
+   }
+   Monitor(0, delta, r, x);
+
+   if (delta < 0.0)
+   {
+      if (print_options.warnings)
+      {
+         mfem::out << "BPCG: The preconditioner is not positive definite. (Br, r) = "
+                   << delta << '\n';
+      }
+      converged = false;
+      final_iter = 0;
+      initial_norm = delta;
+      final_norm = delta;
+      return;
+   }
+   del0 = std::max(delta*rel_tol*rel_tol, abs_tol*abs_tol);
+   if (delta <= del0)
+   {
+      converged = true;
+      final_iter = 0;
+      final_norm = sqrt(delta);
+      return;
+   }
+
+   // MFEM checks some system properties before running the loop
+   // Step 0.1: Compute (p,XAp), p = r_bar
+   iprec->Mult(g, g_red);
+   gamma = Dot(g, g_red) - Dot(g,p);
+   MFEM_ASSERT(IsFinite(gamma), "den = " << gamma);
+   if (gamma <= 0.0)
+   {
+      if (Dot(r_bar, r_bar) > 0.0 && print_options.warnings)
+      {
+         mfem::out << "BPCG: The operator is not positive definite. (Ar, r) = "
+                   << gamma << '\n';
+      }
+      if (gamma == 0.0)
+      {
+         converged = false;
+         final_iter = 0;
+         final_norm = sqrt(delta);
+         return;
+      }
+   }
+
+   // Start iteration
+   converged = false;
+   final_iter = max_iter;
+   for (i = 1; true; )
+   {
+      // Step 2: Get new step in the search direction p
+      alpha = delta0/gamma;
+      // Step 3: Update solution (and residual) in the search direction
+      add(x,  alpha, p, x);     // x = x + alpha p
+      add(r, -alpha, g, r);     // r = r - alpha g
+      // map_->Mult(r, r_tem);     // r_tem = S r
+      pprec->Mult(r, r_bar); // r_bar = P r
+      // Step 4: Compute (HXr,Xr) = (r_bar, r_hat)
+      iprec->Mult(r, r_red);     // r_red = N r
+      oper->Mult(r_bar, t);     // t = A r_bar
+      delta = Dot(t, r_red) - Dot(r_bar,r);
+      // Check
+      MFEM_ASSERT(IsFinite(delta), "betanom = " << delta);
+      if (delta < 0.0)
+      {
+         if (print_options.warnings)
+         {
+            mfem::out << "BPCG: The preconditioner is not positive definite. (Br, r) = "
+                      << delta << '\n';
+         }
+         converged = false;
+         final_iter = i;
+         break;
+      }
+      if (print_options.iterations)
+      {
+         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                   << delta << std::endl;
+      }
+      Monitor(i, delta, r, x);
+      if (delta <= del0)
+      {
+         converged = true;
+         final_iter = i;
+         break;
+      }
+      if (++i > max_iter)
+      {
+         break;
+      }
+      // End checks
+      // Step 5: Update search direction
+      beta = delta/delta0;
+      add(r_bar, beta, p, p);
+      // Step 6: Update remaining directions
+      // oper->Mult(r_bar, t);     // t = A r_bar
+      add(t, beta, g, g);
+      delta0 = delta;
+      // Step 1: Compute (p,XAp)
+      iprec->Mult(g, g_red);
+      gamma = Dot(g, g_red) - Dot(g,p);
+      MFEM_ASSERT(IsFinite(gamma), "den = " << gamma);
+      if (gamma <= 0.0)
+      {
+         if (Dot(r_bar, r_bar) > 0.0 && print_options.warnings)
+         {
+            mfem::out << "BPCG: The operator is not positive definite. (Ar, r) = "
+                      << gamma << '\n';
+         }
+         if (gamma == 0.0)
+         {
+            final_iter = i;
+            break;
+         }
+      }
+   }
+
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+                << delta << '\n';
+   }
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      mfem::out << "BPCG: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
+   {
+      const auto arf = pow (gamma/delta0, 0.5/final_iter);
+      mfem::out << "Average reduction factor = " << arf << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "BPCG: No convergence!" << '\n';
+   }
+
+   final_norm = sqrt(delta);
+   MFEM_WARNING("final_iter: " << final_iter);
+   Monitor(final_iter, final_norm, r, x, true);
 }
