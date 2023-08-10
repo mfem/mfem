@@ -6,6 +6,8 @@
 //make p-adaptivity -j && ./p-adaptivity -slstype 4 -rs 0 -hiter 3 -o 5 -n 0 -dist
 // make p-adaptivity -j && ./p-adaptivity -slstype 5 -rs 2 -hiter 0 -o 5 -n 4
 // make p-adaptivity -j && ./p-adaptivity -slstype 6 -rs 3 -hiter 0 -o 5 -n 0 -ndiff 1
+// make p-adaptivity -j && ././p-adaptivity -m apollo_initial_tri.mesh -slstype 7 -rs 4 -hiter 2 -o 2 -ndiff 1
+
 using namespace mfem;
 using namespace std;
 
@@ -377,15 +379,10 @@ int main(int argc, char *argv[])
                                 "Pre-distance Level-set function",
                                 00, 0, 700, 600, "Rjmc");
       }
-      ComputeScalarDistanceFromLevelSet(mesh, *ls_coeff, x, 0, 5, 500, false);
+      ComputeScalarDistanceFromLevelSet(mesh, *ls_coeff, x, 0, 5, 500, false, 1);
    }
 
-   {
-      ofstream mesh_ofs("apollo_amr.mesh");
-      mesh.Print(mesh_ofs);
-   }
-   ofstream gf_ofs("apollo_dist.gf");
-   x.Save(gf_ofs);
+
 
    if (visualization)
    {
@@ -393,6 +390,14 @@ int main(int argc, char *argv[])
       common::VisualizeField(vis1, "localhost", 19916, x, "Level-set function",
                              00, 0, 700, 600, "Rjmc");
    }
+   MFEM_ABORT(" ");
+
+   {
+      ofstream mesh_ofs("apollo_amr.mesh");
+      mesh.Print(mesh_ofs);
+   }
+   ofstream gf_ofs("apollo_dist.gf");
+   x.Save(gf_ofs);
 
    MFEM_ABORT(" ");
 

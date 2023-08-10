@@ -880,7 +880,8 @@ void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
                                        const int nDiffuse = 2,
                                        const int pLapOrder = 5,
                                        const int pLapNewton = 50,
-                                       bool nfilter = true)
+                                       bool nfilter = true,
+                                       int solvertype = 0)
 {
    mfem::H1_FECollection h1fec(distance_s.FESpace()->FEColl()->GetOrder(),
                                mesh.Dimension());
@@ -891,8 +892,15 @@ void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
 
    //Now determine distance
    const double dx = AvgElementSize(mesh);
-   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
-   //   NormalizationDistanceSolver dist_solver;
+   DistanceSolver *dist_solver;
+   if (solvertype == 0) {
+       dist_solver = new PLapDistanceSolver(pLapOrder, pLapNewton);
+   }
+   else {
+       dist_solver = new NormalizationDistanceSolver();
+   }
+//   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
+//      NormalizationDistanceSolver dist_solver;
 
    FiniteElementSpace pfes_s(*distance_s.FESpace());
 
@@ -903,7 +911,7 @@ void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
    filter.Filter(ls_coeff, filt_gf);
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
-   dist_solver.ComputeScalarDistance(ls_filt_coeff, &distance_s);
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, &distance_s);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
