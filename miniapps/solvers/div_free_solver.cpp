@@ -809,8 +809,8 @@ void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
 
 int BramblePasciakSolver::GetNumIterations() const
 {
-    if(!use_bpcg){ return solver_.GetNumIterations(); }
-    else { return bpsolver_.GetNumIterations(); }
+   if (!use_bpcg) { return solver_.GetNumIterations(); }
+   else { return bpsolver_.GetNumIterations(); }
 }
 
 /// Bramble-Pasciak CG
