@@ -437,10 +437,9 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       /* direct solve of the 3x3 IP-Newton linear system */
 #ifdef MFEM_USE_MUMPS
-      MUMPSSolver ASolver;
+      MUMPSSolver ASolver(*Ah);;
       ASolver.SetPrintLevel(0);
       ASolver.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-      ASolver.SetOperator(*Ah);
       ASolver.Mult(b, Xhat);
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
@@ -501,10 +500,9 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       {
          // setup the solver for the reduced linear system
 #ifdef MFEM_USE_MUMPS
-	      MUMPSSolver AreducedSolver;   
+	      MUMPSSolver AreducedSolver(*Areduced);   
          AreducedSolver.SetPrintLevel(0);
          AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
-	      AreducedSolver.SetOperator(*Areduced);
 	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
