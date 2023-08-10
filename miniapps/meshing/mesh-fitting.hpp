@@ -893,14 +893,16 @@ void ComputeScalarDistanceFromLevelSet(Mesh &mesh,
    //Now determine distance
    const double dx = AvgElementSize(mesh);
    DistanceSolver *dist_solver;
-   if (solvertype == 0) {
-       dist_solver = new PLapDistanceSolver(pLapOrder, pLapNewton);
+   if (solvertype == 0)
+   {
+      dist_solver = new PLapDistanceSolver(pLapOrder, pLapNewton);
    }
-   else {
-       dist_solver = new NormalizationDistanceSolver();
+   else
+   {
+      dist_solver = new NormalizationDistanceSolver();
    }
-//   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
-//      NormalizationDistanceSolver dist_solver;
+   //   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
+   //      NormalizationDistanceSolver dist_solver;
 
    FiniteElementSpace pfes_s(*distance_s.FESpace());
 
