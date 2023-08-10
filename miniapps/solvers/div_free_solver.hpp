@@ -346,7 +346,7 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+   virtual int GetNumIterations() const;
 };
 } // namespace blocksolvers
 } // namespace mfem

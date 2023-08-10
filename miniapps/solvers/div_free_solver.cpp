@@ -807,6 +807,12 @@ void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
 
+int BramblePasciakSolver::GetNumIterations() const
+{
+    if(!use_bpcg){ return solver_.GetNumIterations(); }
+    else { return bpsolver_.GetNumIterations(); }
+}
+
 /// Bramble-Pasciak CG
 void BPCGSolver::UpdateVectors()
 {
@@ -997,6 +1003,5 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
    }
 
    final_norm = sqrt(delta);
-   MFEM_WARNING("final_iter: " << final_iter);
    Monitor(final_iter, final_norm, r, x, true);
 }
