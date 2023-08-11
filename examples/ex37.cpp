@@ -375,19 +375,15 @@ int main(int argc, char *argv[])
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_u,sout_r,sout_rho;
+   socketstream sout_r;
    if (visualization)
    {
-      sout_u.open(vishost, visport);
-      sout_rho.open(vishost, visport);
       sout_r.open(vishost, visport);
-      sout_u.precision(8);
-      sout_rho.precision(8);
       sout_r.precision(8);
    }
 
    rho_gf.ProjectCoefficient(rho);
-   mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &mesh);
+   mfem::ParaViewDataCollection paraview_dc("ex37", &mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -399,7 +395,7 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("filtered_density",&rho_filter);
 
    // 11. Iterate
-   for (int k = 1; k < max_it; k++)
+   for (int k = 1; k <= max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
 
@@ -453,13 +449,6 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         sout_u << "solution\n" << mesh << u
-                << "window_title 'Displacement u'" << flush;
-
-         rho_gf.ProjectCoefficient(rho);
-         sout_rho << "solution\n" << mesh << rho_gf
-                  << "window_title 'Control variable ρ'" << flush;
-
          GridFunction r_gf(&filter_fes);
          r_gf.ProjectCoefficient(SIMP_cf);
          sout_r << "solution\n" << mesh << r_gf

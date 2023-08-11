@@ -402,14 +402,10 @@ int main(int argc, char *argv[])
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_u,sout_r,sout_rho;
+   socketstream sout_r;
    if (visualization)
    {
-      sout_u.open(vishost, visport);
-      sout_rho.open(vishost, visport);
       sout_r.open(vishost, visport);
-      sout_u.precision(8);
-      sout_rho.precision(8);
       sout_r.precision(8);
    }
 
@@ -426,7 +422,7 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("filtered_density",&rho_filter);
 
    // 11. Iterate
-   for (int k = 1; k < max_it; k++)
+   for (int k = 1; k <= max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
 
@@ -486,15 +482,6 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         sout_u << "parallel " << num_procs << " " << myid << "\n";
-         sout_u << "solution\n" << pmesh << u
-                << "window_title 'Displacement u'" << flush;
-
-         rho_gf.ProjectCoefficient(rho);
-         sout_rho << "parallel " << num_procs << " " << myid << "\n";
-         sout_rho << "solution\n" << pmesh << rho_gf
-                  << "window_title 'Control variable ρ'" << flush;
-
          ParGridFunction r_gf(&filter_fes);
          r_gf.ProjectCoefficient(SIMP_cf);
          sout_r << "parallel " << num_procs << " " << myid << "\n";
