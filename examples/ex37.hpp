@@ -76,9 +76,9 @@ public:
 class DiffMappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
 protected:
-   std::function<double(const double)> fun; // f:R → R
    const GridFunction *OtherGridF;
    GridFunctionCoefficient OtherGridF_cf;
+   std::function<double(const double)> fun; // f:R → R
 public:
    DiffMappedGridFunctionCoefficient()
       :GridFunctionCoefficient(),
@@ -90,9 +90,9 @@ public:
                                      std::function<double(const double)> fun_,
                                      int comp=1)
       :GridFunctionCoefficient(gf, comp),
-       fun(fun_),
        OtherGridF(other_gf),
-       OtherGridF_cf(OtherGridF) {}
+       OtherGridF_cf(OtherGridF),
+       fun(fun_) {}
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
