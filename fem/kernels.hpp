@@ -21,7 +21,7 @@ namespace mfem
 namespace kernels
 {
 
-// Experimental helper functions for MFEM_FORALL FEM kernels
+// Experimental helper functions for mfem::forall FEM kernels
 // For the 2D functions, NBZ should be tied to '1' for now
 namespace internal
 {

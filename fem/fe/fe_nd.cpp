@@ -845,7 +845,7 @@ const double ND_TetrahedronElement::c = 1./4.;
 
 ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
-                         H_CURL, FunctionSpace::Pk), dof2tk(dof)
+                         H_CURL, FunctionSpace::Pk), dof2tk(dof), doftrans(p)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -1108,7 +1108,7 @@ const double ND_TriangleElement::c = 1./3.;
 ND_TriangleElement::ND_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
                          H_CURL, FunctionSpace::Pk),
-     dof2tk(dof)
+     dof2tk(dof), doftrans(p)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
@@ -1302,6 +1302,7 @@ ND_WedgeElement::ND_WedgeElement(const int p,
      dof2tk(dof),
      t_dof(dof),
      s_dof(dof),
+     doftrans(p),
      H1TriangleFE(p, cb_type),
      NDTriangleFE(p),
      H1SegmentFE(p, cb_type),

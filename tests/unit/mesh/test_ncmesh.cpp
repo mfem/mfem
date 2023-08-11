@@ -297,6 +297,229 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 
 } // test case
 
+TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
+{
+   constexpr int refining_rank = 0;
+   auto smesh = Mesh("../../data/ref-tetrahedron.mesh");
+
+   REQUIRE(smesh.GetNE() == 1);
+   {
+      // Start the test with two tetrahedra attached by triangle.
+      auto single_edge_refine = Array<Refinement>(1);
+      single_edge_refine[0].index = 0;
+      single_edge_refine[0].ref_type = Refinement::X;
+
+      smesh.GeneralRefinement(single_edge_refine, 0); // conformal
+   }
+
+   auto exact_soln = [](const Vector& x)
+   {
+      // sin(|| x - d ||^2) -> non polynomial but very smooth.
+      Vector d(3);
+      d[0] = -0.5; d[1] = -1; d[2] = -2; // arbitrary
+      d -= x;
+      return std::sin(d * d);
+   };
+
+   // Given a parallel and a serial mesh, perform an L2 projection and check the
+   // solutions match exactly.
+   auto check_l2_projection = [&exact_soln](ParMesh& pmesh, Mesh& smesh, int order)
+   {
+
+      REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
+      REQUIRE(pmesh.Dimension() == smesh.Dimension());
+      REQUIRE(pmesh.SpaceDimension() == smesh.SpaceDimension());
+
+      // Make an H1 space, then a mass matrix operator and invert it.
+      // If all non-conformal constraints have been conveyed correctly, the
+      // resulting DOF should match exactly on the serial and the parallel
+      // solution.
+
+      H1_FECollection fec(order, smesh.Dimension());
+      ConstantCoefficient one(1.0);
+      FunctionCoefficient rhs_coef(exact_soln);
+
+      constexpr double linear_tol = 1e-16;
+
+      // serial solve
+      auto serror = [&]
+      {
+         FiniteElementSpace fes(&smesh, &fec);
+         // solution vectors
+         GridFunction x(&fes);
+         x = 0.0;
+
+         LinearForm b(&fes);
+         b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
+         b.Assemble();
+
+         BilinearForm a(&fes);
+         a.AddDomainIntegrator(new MassIntegrator(one));
+         a.Assemble();
+
+         SparseMatrix A;
+         Vector B, X;
+
+         Array<int> empty_tdof_list;
+         a.FormLinearSystem(empty_tdof_list, x, b, A, X, B);
+
+#ifndef MFEM_USE_SUITESPARSE
+         // 9. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+         //    solve the system AX=B with PCG.
+         GSSmoother M(A);
+         PCG(A, M, B, X, -1, 500, linear_tol, 0.0);
+#else
+         // 9. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(A);
+         umf_solver.Mult(B, X);
+#endif
+
+         a.RecoverFEMSolution(X, b, x);
+         return x.ComputeL2Error(rhs_coef);
+      }();
+
+      auto perror = [&]
+      {
+         // parallel solve
+         ParFiniteElementSpace fes(&pmesh, &fec);
+         ParLinearForm b(&fes);
+
+         ParGridFunction x(&fes);
+         x = 0.0;
+
+         b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
+         b.Assemble();
+
+         ParBilinearForm a(&fes);
+         a.AddDomainIntegrator(new MassIntegrator(one));
+         a.Assemble();
+
+         HypreParMatrix A;
+         Vector B, X;
+         Array<int> empty_tdof_list;
+         a.FormLinearSystem(empty_tdof_list, x, b, A, X, B);
+
+         HypreBoomerAMG amg(A);
+         HyprePCG pcg(A);
+         amg.SetPrintLevel(-1);
+         pcg.SetTol(linear_tol);
+         pcg.SetMaxIter(500);
+         pcg.SetPrintLevel(-1);
+         pcg.SetPreconditioner(amg);
+         pcg.Mult(B, X);
+         a.RecoverFEMSolution(X, b, x);
+         return x.ComputeL2Error(rhs_coef);
+      }();
+
+      constexpr double test_tol = 1e-9;
+      CHECK(std::abs(serror - perror) < test_tol);
+
+   };
+
+   REQUIRE(smesh.GetNE() == 2);
+   smesh.EnsureNCMesh(true);
+   smesh.Finalize();
+
+   auto partition = std::unique_ptr<int[]>(new int[smesh.GetNE()]);
+   partition[0] = 0;
+   partition[1] = Mpi::WorldSize() > 1 ? 1 : 0;
+
+   auto pmesh = ParMesh(MPI_COMM_WORLD, smesh, partition.get());
+
+   // Construct the NC refined mesh in parallel and serial. Once constructed a
+   // global L2 projected solution should match exactly on each.
+   Array<int> refines, serial_refines(1);
+   if (Mpi::WorldRank() == refining_rank)
+   {
+      refines.Append(0);
+   }
+
+   // Must be called on all ranks as it uses MPI calls internally.
+   // All ranks will use the global element number dictated by rank 0 though.
+   serial_refines[0] = pmesh.GetGlobalElementNum(0);
+   MPI_Bcast(&serial_refines[0], 1, MPI_INT, refining_rank, MPI_COMM_WORLD);
+
+   // Rank 0 refines the parallel mesh, all ranks refine the serial mesh
+   smesh.GeneralRefinement(serial_refines, 1); // nonconformal
+   pmesh.GeneralRefinement(refines, 1); // nonconformal
+
+   REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
+   REQUIRE(smesh.GetNE() == 8 + 1);
+
+   // Each pair of indices here represents sequential element indices to refine.
+   // First the i element is refined, then in the resulting mesh the j element is
+   // refined. These pairs were arrived at by looping over all possible i,j pairs and
+   // checking for the addition of a face-edge constraint.
+   std::vector<std::pair<int,int>> indices{{2,13}, {3,13}, {6,2}, {6,3}};
+
+   // Rank 0 has all but one element in the parallel mesh. The remaining element
+   // is owned by another processor if the number of ranks is greater than one.
+   for (const auto &ij : indices)
+   {
+      int i = ij.first;
+      int j = ij.second;
+      if (Mpi::WorldRank() == refining_rank)
+      {
+         refines[0] = i;
+      }
+      // Inform all ranks of the serial mesh
+      serial_refines[0] = pmesh.GetGlobalElementNum(i);
+      MPI_Bcast(&serial_refines[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+      ParMesh tmp(pmesh);
+      tmp.GeneralRefinement(refines);
+
+      REQUIRE(tmp.GetGlobalNE() == 1 + 8 - 1 + 8); // 16 elements
+
+      Mesh stmp(smesh);
+      stmp.GeneralRefinement(serial_refines);
+      REQUIRE(stmp.GetNE() == 1 + 8 - 1 + 8); // 16 elements
+
+      if (Mpi::WorldRank() == refining_rank)
+      {
+         refines[0] = j;
+      }
+      // Inform all ranks of the serial mesh
+      serial_refines[0] = tmp.GetGlobalElementNum(j);
+      MPI_Bcast(&serial_refines[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+      ParMesh ttmp(tmp);
+      ttmp.GeneralRefinement(refines);
+
+      REQUIRE(ttmp.GetGlobalNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
+
+      Mesh sttmp(stmp);
+      sttmp.GeneralRefinement(serial_refines);
+      REQUIRE(sttmp.GetNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
+
+      // Loop over interior faces, fill and check face transform on the serial.
+      for (int iface = 0; iface < sttmp.GetNumFaces(); ++iface)
+      {
+         const auto face_transform = sttmp.GetFaceElementTransformations(iface);
+
+         CHECK(face_transform->CheckConsistency(0) < 1e-12);
+      }
+
+      for (int iface = 0; iface < ttmp.GetNumFacesWithGhost(); ++iface)
+      {
+         const auto face_transform = ttmp.GetFaceElementTransformations(iface);
+
+         CHECK(face_transform->CheckConsistency(0) < 1e-12);
+      }
+
+      // Use P4 to ensure there's a few fully interior DOF.
+      check_l2_projection(ttmp, sttmp, 4);
+
+      ttmp.ExchangeFaceNbrData();
+      ttmp.Rebalance();
+
+      check_l2_projection(ttmp, sttmp, 4);
+   }
+} // test case
+
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
