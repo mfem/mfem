@@ -1,4 +1,4 @@
-//                  MFEM Example 35 - Serial/Parallel Shared Code
+//                  MFEM Example 37 - Serial/Parallel Shared Code
 //
 //
 
@@ -6,9 +6,6 @@
 #include <fstream>
 #include <iostream>
 #include <functional>
-
-// using namespace std;
-// using namespace mfem;
 
 namespace mfem
 {
