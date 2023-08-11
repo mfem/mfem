@@ -367,7 +367,8 @@ public:
 
    /** Wrap an externally pair of allocated pointers, @a h_ptr and @a d_ptr,
        of the given host MemoryType @a h_mt. */
-   /** The new memory object will have the device MemoryType set as valid.
+   /** The new memory object will have the device MemoryType set as valid unless
+       specified otherwise by the parameters @a valid_host and @a valid_device.
 
        The given @a h_ptr and @a d_ptr must be allocated appropriately for the
        given host MemoryType and its dual device MemoryType as defined by
@@ -376,13 +377,18 @@ public:
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
 
+       The parameters @a valid_host and @a valid_device determine which
+       pointers, host and/or device, will be marked as valid; at least one of
+       the two parameters must be set to true.
+
        @note Ownership can also be controlled by using the following methods:
          - ClearOwnerFlags,
          - SetHostPtrOwner,
          - SetDevicePtrOwner.
 
        @note The current memory is NOT deleted by this method. */
-   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
+   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own,
+                    bool valid_host = false, bool valid_device = true);
 
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
@@ -645,7 +651,8 @@ private: // Static methods used by the Memory<T> class
    /// Register a pair of external host and device pointers
    static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
                           MemoryType h_mt, MemoryType d_mt,
-                          bool own, bool alias, unsigned &flags);
+                          bool own, bool alias, unsigned &flags,
+                          unsigned valid_flags);
 
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -958,17 +965,20 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
+inline void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, int size, MemoryType h_mt_,
+                            bool own, bool valid_host, bool valid_device)
 {
-   h_mt = mt;
+   h_mt = h_mt_;
    flags = 0;
-   h_ptr = ptr;
+   h_ptr = h_ptr_;
    capacity = size;
    MFEM_ASSERT(IsHostMemory(h_mt),"");
+   MFEM_ASSERT(valid_host || valid_device,"");
    const size_t bytes = size*sizeof(T);
    const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
    MemoryManager::Register2_(h_ptr, d_ptr, bytes, h_mt, d_mt,
-                             own, false, flags);
+                             own, false, flags,
+                             valid_host*VALID_HOST|valid_device*VALID_DEVICE);
 }
 
 template <typename T>

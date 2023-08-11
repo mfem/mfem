@@ -51,6 +51,8 @@ cleanup:
   script:
     - echo "BUILD_ROOT=${BUILD_ROOT}"
     - rm -rf "${BUILD_ROOT}" || true
+    - echo "CI_PROJECT_DIR=${CI_PROJECT_DIR}"
+    - make -C "${CI_PROJECT_DIR}" distclean
 
 report_baseline:
   extends: [.on_quartz]
@@ -66,12 +68,10 @@ report_baseline:
         date
         echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
         # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
-        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
-        # command to hang indefinitely sometimes, so we use the timeout & retry
-        # as a workaround; we may want to add a counter for the number of
+        # every 5 seconds; we may want to add a counter for the number of
         # retries to interrupt a potential infinite loop
-        while ! flock -w 5 9; do
-          true
+        while ! flock -n 9; do
+          sleep 5
         done
         echo "Acquired lock on '$PWD/autotest.lock'"
         date
@@ -82,12 +82,14 @@ report_baseline:
         rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-${BASELINE_TEST}-${CI_COMMIT_REF_SLUG}"
         rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir ${rundir})
         cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
-        # We create an autotest-email.html file, because that's how we signal that there was a diff (temporary).
-        if [[ -f ${rundir}/${BASELINE_TEST}.err ]]; then
-          cp ${rundir}/${BASELINE_TEST}.err ${rundir}/autotest-email.html
-        fi
         printf "%s\n" "" "Pipeline URL:" "$CI_PIPELINE_URL" \
           >> ${rundir}/pipeline.txt
+        # We create an autotest-email.html file, because that's how we signal
+        # that there was an error / diff (temporary).
+        if [[ -f ${rundir}/${BASELINE_TEST}.err ]] || \
+           [[ -f ${rundir}/${BASELINE_TEST}-${SYS_TYPE}.diff ]]; then
+          cp ${rundir}/pipeline.txt ${rundir}/autotest-email.html
+        fi
         msg="GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
         if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
           git pull && \

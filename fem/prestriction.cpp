@@ -65,7 +65,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
                            nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
+   mfem::forall_2D(num_nc_faces, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int nc_face)
    {
       MFEM_SHARED double dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];
@@ -141,7 +141,8 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
                               nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
       MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
+      mfem::forall_2D(num_nc_faces, nface_dofs, 1,
+                      [=] MFEM_HOST_DEVICE (int nc_face)
       {
          MFEM_SHARED double dof_values[max_nd];
          const NCInterpConfig conf = interp_config_ptr[nc_face];
@@ -310,7 +311,13 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
-   x_gf.ExchangeFaceNbrData();
+   // Face-neighbor information is only needed for interior faces. For boundary
+   // faces, no communication is required.
+   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
+
+   // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
+   // otherwise MPI communication can hang.
+   if (nf == 0) { return; }
 
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -324,7 +331,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
                              t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-   MFEM_FORALL(i, nfdofs,
+   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int dof = i % nface_dofs;
       const int face = i / nface_dofs;
@@ -355,7 +362,6 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if (m==L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingMult(x, y);
@@ -384,7 +390,7 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
-   MFEM_FORALL(fdof, nf*nface_dofs,
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
    {
       const int f  = fdof/nface_dofs;
       const int iF = fdof%nface_dofs;
@@ -410,11 +416,11 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
    auto d_indices2 = scatter_indices2.Read();
    auto I = mat.ReadWriteI();
    auto I_face = face_mat.ReadWriteI();
-   MFEM_FORALL(i, ne*elem_dofs*vdim+1,
+   mfem::forall(ne*elem_dofs*vdim+1, [=] MFEM_HOST_DEVICE (int i)
    {
       I_face[i] = 0;
    });
-   MFEM_FORALL(fdof, nf*nface_dofs,
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
    {
       const int f  = fdof/nface_dofs;
       const int iF = fdof%nface_dofs;
@@ -469,7 +475,7 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   MFEM_FORALL(fdof, nf*nface_dofs,
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
    {
       const int f  = fdof/nface_dofs;
       const int iF = fdof%nface_dofs;
@@ -513,7 +519,7 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
    auto J_face = face_mat.WriteJ();
    auto Data = mat.WriteData();
    auto Data_face = face_mat.WriteData();
-   MFEM_FORALL(fdof, nf*nface_dofs,
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
    {
       const int f  = fdof/nface_dofs;
       const int iF = fdof%nface_dofs;
@@ -669,6 +675,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
 void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
+   if (nf == 0) { return; }
    MFEM_ASSERT(
       m == L2FaceValues::SingleValued,
       "This method should be called when m == L2FaceValues::SingleValued.");
@@ -686,7 +693,7 @@ void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   mfem::forall_2D(nf, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int face)
    {
       MFEM_SHARED double dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
@@ -757,7 +764,6 @@ void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);

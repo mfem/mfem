@@ -58,9 +58,18 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       {
          if (partitioning[i] == MyRank)
          {
-            pfes->GetElementVDofs(element_counter, lvdofs);
-            glob_fes->GetElementVDofs(i, gvdofs);
+            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter,
+                                                                          lvdofs);
+            const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
+            if (gtrans)
+            {
+               gtrans->InvTransformPrimal(lnodes);
+            }
+            if (ltrans)
+            {
+               ltrans->TransformPrimal(lnodes);
+            }
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
@@ -230,7 +239,7 @@ void ParGridFunction::ExchangeFaceNbrData()
 
    auto d_data = this->Read();
    auto d_send_data = send_data.Write();
-   MFEM_FORALL(i, send_data.Size(),
+   mfem::forall(send_data.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int ldof = d_send_ldof[i];
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
@@ -270,13 +279,15 @@ const
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                   nbr_el_no, dofs);
       const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
          Array<int> dofs_(&dofs[(vdim-1)*s], s);
          face_nbr_data.GetSubVector(dofs_, LocVec);
+
          DofVal.SetSize(s);
       }
       else
@@ -284,6 +295,11 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(LocVec);
+      }
+
       if (fe->GetMapType() == FiniteElement::VALUE)
       {
          fe->CalcShape(ip, DofVal);
@@ -298,7 +314,7 @@ const
    }
    else
    {
-      fes->GetElementDofs(i, dofs);
+      const DofTransformation* const doftrans = fes->GetElementDofs(i, dofs);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -313,6 +329,10 @@ const
          fe->CalcPhysShape(*Tr, DofVal);
       }
       GetSubVector(dofs, LocVec);
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(LocVec);
+      }
    }
 
    return (DofVal * LocVec);
@@ -325,8 +345,9 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
-                                                                  dofs);
+      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                   nbr_el_no,
+                                                   dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
       if (doftrans)
@@ -400,7 +421,8 @@ double ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
+                                                nbr_el_no, dofs);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -413,6 +435,11 @@ double ParGridFunction::GetValue(ElementTransformation &T,
       fe->CalcPhysShape(T, DofVal);
    }
    face_nbr_data.GetSubVector(dofs, LocVec);
+   if (doftrans)
+   {
+      doftrans->InvTransformPrimal(LocVec);
+   }
+
 
    return (DofVal * LocVec);
 }
@@ -480,6 +507,15 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
+}
+
+void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
+{
+   GridFunction::CountElementsPerVDof(elem_per_vdof);
+   // Count the zones globally.
+   GroupCommunicator &gcomm = this->ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(elem_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(elem_per_vdof);
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
@@ -908,6 +944,103 @@ void ParGridFunction::SaveAsOne(const char *fname, int precision) const
    SaveAsOne(ofs);
 }
 
+void ParGridFunction::SaveAsSerial(const char *fname, int precision,
+                                   int save_rank) const
+{
+   ParMesh *pmesh = ParFESpace()->GetParMesh();
+   Mesh serial_mesh = pmesh->GetSerialMesh(save_rank);
+   GridFunction serialgf = GetSerialGridFunction(save_rank, serial_mesh);
+
+   if (pmesh->GetMyRank() == save_rank)
+   {
+      serialgf.Save(fname, precision);
+   }
+   MPI_Barrier(pmesh->GetComm());
+}
+
+GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
+                                                    Mesh &serial_mesh) const
+{
+   ParFiniteElementSpace *pfespace = ParFESpace();
+   ParMesh *pmesh = pfespace->GetParMesh();
+
+   int vdim = pfespace->GetVDim();
+   auto *fec_serial = FiniteElementCollection::New(pfespace->FEColl()->Name());
+   auto *fespace_serial = new FiniteElementSpace(&serial_mesh,
+                                                 fec_serial,
+                                                 vdim,
+                                                 pfespace->GetOrdering());
+
+   GridFunction gf_serial(fespace_serial);
+   gf_serial.MakeOwner(fec_serial);
+   Array<double> vals;
+   Array<int> dofs;
+   MPI_Status status;
+   int n_send_recv;
+
+   int my_rank = pmesh->GetMyRank(),
+       nranks = pmesh->GetNRanks();
+   MPI_Comm my_comm = pmesh->GetComm();
+
+   int elem_count = 0; // To keep track of element count in serial mesh
+
+   if (my_rank == save_rank)
+   {
+      Vector nodeval;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         GetElementDofValues(e, nodeval);
+         fespace_serial->GetElementVDofs(elem_count++, dofs);
+         gf_serial.SetSubVector(dofs, nodeval);
+      }
+
+      for (int p = 0; p < nranks; p++)
+      {
+         if (p == save_rank) { continue; }
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, my_comm, &status);
+         vals.SetSize(n_send_recv);
+         if (n_send_recv)
+         {
+            MPI_Recv(&vals[0], n_send_recv, MPI_DOUBLE, p, 449, my_comm, &status);
+         }
+         for (int i = 0; i < n_send_recv; )
+         {
+            fespace_serial->GetElementVDofs(elem_count++, dofs);
+            gf_serial.SetSubVector(dofs, &vals[i]);
+            i += dofs.Size();
+         }
+      }
+   } // my_rank == save_rank
+   else
+   {
+      n_send_recv = 0;
+      Vector nodeval;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         const FiniteElement *fe = pfespace->GetFE(e);
+         n_send_recv += vdim*fe->GetDof();
+      }
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, my_comm);
+      vals.Reserve(n_send_recv);
+      vals.SetSize(0);
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         GetElementDofValues(e, nodeval);
+         for (int j = 0; j < nodeval.Size(); j++)
+         {
+            vals.Append(nodeval(j));
+         }
+      }
+      if (n_send_recv)
+      {
+         MPI_Send(&vals[0], n_send_recv, MPI_DOUBLE, save_rank, 449, my_comm);
+      }
+   }
+
+   MPI_Barrier(my_comm);
+   return gf_serial;
+}
+
 #ifdef MFEM_USE_ADIOS2
 void ParGridFunction::Save(adios2stream &os,
                            const std::string& variable_name,
@@ -1151,15 +1284,23 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      xfes->GetElementVDofs(i, xdofs);
+      const DofTransformation* const xtrans = xfes->GetElementVDofs(i, xdofs);
       x.GetSubVector(xdofs, el_x);
+      if (xtrans)
+      {
+         xtrans->InvTransformPrimal(el_x);
+      }
 
       ElementTransformation *Transf = xfes->GetElementTransformation(i);
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      flux_fes.GetElementVDofs(i, fdofs);
-      flux.AddElementVector(fdofs, el_f);
+      const DofTransformation* const ftrans = flux_fes.GetElementVDofs(i, fdofs);
+      if (ftrans)
+      {
+         ftrans->TransformPrimal(el_f);
+      }
+      flux.SetSubVector(fdofs, el_f);
    }
 
    // Assemble the linear system for L2 projection into the "smooth" space

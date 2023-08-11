@@ -288,7 +288,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
       auto in = Reshape(qFun.Read(), nq, ne);
       auto d_indices = Read(m_indices, nelem);
       auto out = Reshape(ceedCoeff->coeff.Write(), nq, nelem);
-      MFEM_FORALL(i, nelem * nq,
+      mfem::forall(nelem * nq, [=] MFEM_HOST_DEVICE (int i)
       {
          const int q = i%nq;
          const int sub_e = i/nq;
@@ -378,7 +378,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       auto in = Reshape(qFun.Read(), dim, nq, ne);
       auto d_indices = Read(m_indices, nelem);
       auto out = Reshape(ceedCoeff->coeff.Write(), dim, nq, nelem);
-      MFEM_FORALL(i, nelem * nq,
+      mfem::forall(nelem * nq, [=] MFEM_HOST_DEVICE (int i)
       {
          const int q = i%nq;
          const int sub_e = i/nq;
