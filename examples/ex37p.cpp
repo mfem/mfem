@@ -1,13 +1,13 @@
-//                            MFEM Example 35 - Parallel Version
+//                            MFEM Example 37 - Parallel Version
 //
 //
-// Compile with: make ex35p
+// Compile with: make ex37p
 //
 // Sample runs:
-// mpirun -np 4 ex35p -lambda 0.1 -mu 0.1
-// mpirun -np 4 ex35p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
-// mpirun -np 4 ex35p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
-// mpirun -np 4 ex35p -r 7 -o 1 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex37p -lambda 0.1 -mu 0.1
+// mpirun -np 4 ex37p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex37p -r 7 -o 1 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve a
@@ -42,8 +42,9 @@
 // [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
 //    (2011). Efficient topology optimization in MATLAB using 88 lines of
 //    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
-// [2] Keith, B. and Surowiec, T. (2023) The entropic finite element method
-//     (in preparation).
+// [2] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
+//     preserving finite element method for pointwise bound constraints.
+//     arXiv:2307.12444 [math.NA]
 // [3] Lazarov, B. S., & Sigmund, O. (2011). Filters in topology optimization
 //     based on Helmholtz‐type differential equations. International Journal
 //     for Numerical Methods in Engineering, 86(6), 765-781.
@@ -51,7 +52,7 @@
 #include "mfem.hpp"
 #include <iostream>
 #include <fstream>
-#include "ex35.hpp"
+#include "ex37.hpp"
 
 using namespace std;
 using namespace mfem;
