@@ -1,11 +1,42 @@
 #include <mfem.hpp>
 #include <fstream>
 #include <iostream>
+#include <block_schur_pc.hpp>
+#include <schur_pcd.hpp>
+#include <util.hpp>
 
 using namespace std;
 using namespace mfem;
 
 ParMesh LoadParMesh(const char *mesh_file, int ser_ref, int par_ref);
+
+double nu = 1.0;
+
+void forcing(const Vector &c, Vector &f)
+{
+   double x = c(0);
+   double y = c(1);
+
+   f(0) = nu*cos(y)+1;
+   f(1) = nu*sin(x)+1;
+}
+
+void velocity_mms(const Vector &c, Vector &u)
+{
+   double x = c(0);
+   double y = c(1);
+
+   u(0) = cos(y);
+   u(1) = sin(x);
+}
+
+double pressure_mms(const Vector &c)
+{
+   double x = c(0);
+   double y = c(1);
+
+   return y+x;
+}
 
 int main(int argc, char *argv[])
 {
@@ -18,7 +49,6 @@ int main(int argc, char *argv[])
    int ser_ref = 0;
    int par_ref = 0;
    double dt = 1.0;
-   double nu = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -62,7 +92,7 @@ int main(int argc, char *argv[])
    vel_fes.GetEssentialTrueDofs(vel_ess_bdr, vel_ess_dofs);
    pres_fes.GetEssentialTrueDofs(pres_ess_bdr, pres_ess_dofs);
 
-   ConstantCoefficient dt_inv_coeff(1.0/dt);
+   ConstantCoefficient dt_inv_coeff(dt > 0 ? 1.0/dt : 0.0);
    ConstantCoefficient nu_coeff(nu);
    ConstantCoefficient zero_coeff(0.0);
 
@@ -70,6 +100,7 @@ int main(int argc, char *argv[])
    F_form.AddDomainIntegrator(new VectorMassIntegrator(dt_inv_coeff));
    F_form.AddDomainIntegrator(new VectorDiffusionIntegrator(nu_coeff));
    // F_form.AddDomainIntegrator(new ElasticityIntegrator(zero_coeff, nu_coeff));
+   F_form.SetDiagonalPolicy(Operator::DIAG_ONE);
    F_form.Assemble();
    F_form.Finalize();
 
@@ -78,13 +109,13 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient minus_one(-1.0);
 
-   ParMixedBilinearForm d(&vel_fes, &pres_fes);
-   d.AddDomainIntegrator(new VectorDivergenceIntegrator(&minus_one));
-   d.Assemble();
-   d.Finalize();
+   ParMixedBilinearForm d_form(&vel_fes, &pres_fes);
+   d_form.AddDomainIntegrator(new VectorDivergenceIntegrator(&minus_one));
+   d_form.Assemble();
+   d_form.Finalize();
 
    OperatorHandle D;
-   d.FormRectangularSystemMatrix(vel_ess_dofs, pres_ess_dofs, D);
+   d_form.FormRectangularSystemMatrix(vel_ess_dofs, pres_ess_dofs, D);
 
    TransposeOperator Dt(*D);
 
@@ -99,62 +130,6 @@ int main(int argc, char *argv[])
    // [  A   -D^t ] [ u ] = [ f ]
    // [ -D     0  ] [ p ]   [ 0 ]
 
-   ParBilinearForm mp_form(&pres_fes);
-   mp_form.AddDomainIntegrator(new MassIntegrator);
-   mp_form.Assemble();
-   mp_form.Finalize();
-   OperatorHandle Mp;
-   mp_form.FormSystemMatrix(pres_ess_dofs, Mp);
-
-   ParBilinearForm Lp_form(&pres_fes);
-   Lp_form.AddDomainIntegrator(new DiffusionIntegrator);
-   Lp_form.Assemble();
-   Lp_form.Finalize();
-   OperatorHandle Lp;
-   Lp_form.FormSystemMatrix(pres_ess_dofs, Lp);
-
-   ParBilinearForm Fp_form(&pres_fes);
-   Fp_form.AddDomainIntegrator(new MassIntegrator(dt_inv_coeff));
-   Fp_form.AddDomainIntegrator(new DiffusionIntegrator(nu_coeff));
-   Fp_form.Assemble();
-   Fp_form.Finalize();
-   OperatorHandle Fp;
-   Fp_form.FormSystemMatrix(pres_ess_dofs, Fp);
-
-   // OperatorJacobiSmoother M_inv(m, pres_ess_dofs);
-   SparseMatrix M_local;
-   Mp.As<HypreParMatrix>()->GetDiag(M_local);
-   UMFPackSolver Mp_inv(M_local);
-
-   SparseMatrix Lp_local;
-   Lp.As<HypreParMatrix>()->GetDiag(Lp_local);
-   UMFPackSolver Lp_inv(Lp_local);
-
-   struct PCD : Solver
-   {
-      Solver &Mp_inv;
-      Solver &Lp_inv;
-      OperatorHandle Fp;
-      mutable Vector z, w;
-      PCD(Solver &Mp_inv_, Solver &Lp_inv_, OperatorHandle &Fp_) :
-         Solver(Mp_inv_.Width()),
-         Mp_inv(Mp_inv_),
-         Lp_inv(Lp_inv_),
-         Fp(Fp_) { }
-      void Mult(const Vector &x, Vector &y) const
-      {
-         z.SetSize(y.Size());
-         w.SetSize(y.Size());
-
-         Lp_inv.Mult(x, z);
-         Fp->Mult(z, w);
-         Mp_inv.Mult(w, y);
-      }
-      void SetOperator(const Operator &op) { }
-   };
-
-   PCD S_inv(Mp_inv, Lp_inv, Fp);
-
    // HypreBoomerAMG F_pc(*F.As<HypreParMatrix>());
    // F_pc.SetSystemsOptions(dim);
    // CGSolver F_inv(MPI_COMM_WORLD);
@@ -166,12 +141,11 @@ int main(int argc, char *argv[])
    F.As<HypreParMatrix>()->GetDiag(F_local);
    UMFPackSolver F_inv(F_local);
 
-   BlockLowerTriangularPreconditioner P(offsets);
-   P.SetBlock(0, 0, &F_inv);
-   P.SetBlock(1, 0, D.Ptr());
-   P.SetBlock(1, 1, &S_inv);
+   PCDBuilder pcd_builder(pres_fes, pres_ess_dofs, &dt_inv_coeff, &nu_coeff);
+   BlockSchurPC P(offsets, F_inv, *D.Ptr(), pcd_builder.GetSolver(), vel_ess_dofs);
 
    FGMRESSolver krylov(MPI_COMM_WORLD);
+   krylov.iterative_mode = true;
    krylov.SetRelTol(1e-8);
    krylov.SetMaxIter(2000);
    krylov.SetKDim(2000);
@@ -179,14 +153,81 @@ int main(int argc, char *argv[])
    krylov.SetOperator(A);
    krylov.SetPreconditioner(P);
 
-   Vector X(A.Height()), B(A.Height());
+   VectorFunctionCoefficient velocity_mms_coeff(dim, velocity_mms);
+   FunctionCoefficient pressure_mms_coeff(pressure_mms);
+   VectorFunctionCoefficient forcing_coeff(dim, forcing);
 
-   B.Randomize(1);
-   B.SetSubVector(vel_ess_dofs, 0.0);
-   for (int i = offsets[1]; i < offsets[2]; ++i) { B[i] = 0.0; }
+   ParGridFunction u_gf(&vel_fes), uex_gf(&vel_fes), p_gf(&pres_fes),
+                   pex_gf(&pres_fes), uerr_gf(&vel_fes), perr_gf(&pres_fes);
+   u_gf = 0.0;
+   u_gf.ProjectBdrCoefficient(velocity_mms_coeff, vel_ess_bdr);
+   uex_gf.ProjectCoefficient(velocity_mms_coeff);
+   pex_gf.ProjectCoefficient(pressure_mms_coeff);
 
-   X = 0.0;
+   auto forcing_form = new ParLinearForm(&vel_fes);
+   forcing_form->AddDomainIntegrator(new VectorDomainLFIntegrator(forcing_coeff));
+   forcing_form->Assemble();
+   Vector rhs_u;
+   forcing_form->ParallelAssemble(rhs_u);
+
+   BlockVector X(offsets), B(offsets);
+
+   // prepare initial condition
+   u_gf.ParallelProject(X.GetBlock(0));
+   X.GetBlock(1) = 0.0;
+
+   // prepare RHS
+   B.GetBlock(0) = rhs_u;
+   B.GetBlock(1) = 0.0;
+
+   // b -= Ae*x
+   F_form.GetAe()->AddMult(X.GetBlock(0), B.GetBlock(0), -1.0);
+   d_form.GetAe()->AddMult(X.GetBlock(0), B.GetBlock(1), -1.0);
+
+   PrintJulia(*F_form.GetAe(), "Fe_A.dat");
+
+   // set ess dofs
+   for (int i : vel_ess_dofs)
+   {
+      B.GetBlock(0)[i] = u_gf[i];
+   }
+
+   // exit(0);
+
    krylov.Mult(B, X);
+
+   u_gf.Distribute(X.GetBlock(0));
+   p_gf.Distribute(X.GetBlock(1));
+
+   double u_l2err = u_gf.ComputeL2Error(velocity_mms_coeff);
+   double p_l2err = p_gf.ComputeL2Error(pressure_mms_coeff);
+
+   printf("ul2err = %.5E\n", u_l2err);
+   printf("pl2err = %.5E\n", p_l2err);
+
+   for (int i = 0; i < uerr_gf.Size(); i++)
+   {
+      uerr_gf(i) = abs(u_gf(i) - uex_gf(i));
+   }
+
+   for (int i = 0; i < perr_gf.Size(); i++)
+   {
+      perr_gf(i) = abs(p_gf(i) - pex_gf(i));
+   }
+
+   ParaViewDataCollection paraview_dc("fluid_output", &mesh);
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("velocity",&u_gf);
+   paraview_dc.RegisterField("pressure",&p_gf);
+   paraview_dc.RegisterField("velocity_exact",&uex_gf);
+   paraview_dc.RegisterField("pressure_exact",&pex_gf);
+   paraview_dc.RegisterField("velocity_error",&uerr_gf);
+   paraview_dc.RegisterField("pressure_error",&perr_gf);
+   paraview_dc.Save();
 
    return 0;
 }
