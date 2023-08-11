@@ -83,6 +83,7 @@ int main (int argc, char *argv[])
    ParGridFunction x0(coord);
 
    // Pick which nodes to fit and select the target positions.
+   // (attribute 2 would have a prescribed deformation in y-direction, same x).
    Array<bool> fit_marker(pfes_mesh.GetNDofs());
    ParGridFunction fit_marker_vis_gf(&pfes_mesh);
    ParGridFunction coord_target(&pfes_mesh);
@@ -94,43 +95,79 @@ int main (int argc, char *argv[])
    {
       const int nd = pfes_mesh.GetBE(e)->GetDof();
       const int attr = pmesh.GetBdrElement(e)->GetAttribute();
+      if (attr != 2) { continue; }
+
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
       for (int j = 0; j < nd; j++)
       {
          int j_x = vdofs[j], j_y = vdofs[nd+j];
-         const double x = coord(j_x), y = coord(j_y),
+         const double x = coord(j_x),
                       z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
          fit_marker[j_x] = true;
          fit_marker_vis_gf(j_x) = 1.0;
-         if (attr == 2)
+         if (coord(j_y) < 0.5)
          {
-            if (coord(j_y) < 0.5)
+            coord_target(j_y) = 0.1 * sin(4 * M_PI * x) * cos(M_PI * z);
+         }
+         else
+         {
+            if (coord(j_x) < 0.5)
             {
-               coord_target(j_y) = 0.1 * sin(4 * M_PI * x) * cos(M_PI * z);
+               coord_target(j_y) = 1.0 + 0.1 * sin(2 * M_PI * x);
             }
             else
             {
-               if (coord(j_x) < 0.5)
-               {
-                  coord_target(j_y) = 1.0 + 0.1 * sin(2 * M_PI * x);
-               }
-               else
-               {
-                  coord_target(j_y) = 1.0 + 0.1 * sin(2 * M_PI * (x + 0.5));
-               }
-
+               coord_target(j_y) = 1.0 + 0.1 * sin(2 * M_PI * (x + 0.5));
             }
+
          }
-         else { coord_target(j_y) = y; }
       }
    }
-   // Visualize the target positions.
+   // Visualize the selected nodes and their target positions.
    socketstream vis1;
    coord = coord_target;
    common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
                           "Target positions (DOFS with value 1)",
                           0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
    coord = x0;
+
+   // Allow slipping along the remaining boundaries.
+   // (attributes 1 and 3 would slip, while 4 is completely fixed).
+   int n = 0;
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      const int nd = pfes_mesh.GetBE(i)->GetDof();
+      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
+      MFEM_VERIFY(!(dim == 2 && attr == 3),
+                  "Boundary attribute 3 must be used only for 3D meshes. "
+                  "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
+                  "components, rest for free nodes), or use -fix-bnd.");
+      if (attr == 1 || attr == 3) { n += nd; }
+      if (attr == 4) { n += nd * dim; }
+   }
+   Array<int> ess_vdofs(n);
+   n = 0;
+   for (int i = 0; i < pmesh.GetNBE(); i++)
+   {
+      const int nd = pfes_mesh.GetBE(i)->GetDof();
+      const int attr = pmesh.GetBdrElement(i)->GetAttribute();
+      pfes_mesh.GetBdrElementVDofs(i, vdofs);
+      if (attr == 1) // Fix x components.
+      {
+         for (int j = 0; j < nd; j++)
+         { ess_vdofs[n++] = vdofs[j]; }
+      }
+      else if (attr == 3) // Fix z components.
+      {
+         for (int j = 0; j < nd; j++)
+         { ess_vdofs[n++] = vdofs[j+2*nd]; }
+      }
+      else if (attr == 4) // Fix all components.
+      {
+         for (int j = 0; j < vdofs.Size(); j++)
+         { ess_vdofs[n++] = vdofs[j]; }
+      }
+   }
 
    // TMOP setup.
    TMOP_QualityMetric *metric;
@@ -150,6 +187,7 @@ int main (int argc, char *argv[])
 
    // Nonlinear solver.
    ParNonlinearForm a(&pfes_mesh);
+   a.SetEssentialVDofs(ess_vdofs);
    a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
       IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
@@ -161,7 +199,7 @@ int main (int argc, char *argv[])
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
    solver.EnableAdaptiveSurfaceFitting();
-   solver.SetTerminationWithMaxSurfaceFittingError(1e-2);
+   solver.SetTerminationWithMaxSurfaceFittingError(1e-3);
 
    // Solve.
    Vector b(0);
