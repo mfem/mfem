@@ -362,8 +362,9 @@ void SNavierMonolithicSolver::Setup()
    }
    // Initialize solution gf with vector containing projected coefficients
    // and update grid function and vector for provisional velocity
+   x_k->GetBlock(0) = x->GetBlock(0);
    v_gf->SetFromTrueDofs(x->GetBlock(0));
-
+   vk_gf->SetFromTrueDofs(x_k->GetBlock(0));
 
    /// 4. Create Navier-Stokes block operator
    // Modify matrices for essential velocity bcs
@@ -557,12 +558,6 @@ void SNavierMonolithicSolver::Step()
    C_form->Assemble(); C_form->Finalize();
    C = C_form->ParallelAssemble();  
 
-   delete C2_form; C2_form = nullptr;
-   C2_form = new ParBilinearForm(vfes);
-   C2_form->AddDomainIntegrator(new VectorGradCoefficientIntegrator(*vk_vc, 1.0));
-   C2_form->Assemble(); C2_form->Finalize();
-   C2 = C2_form->ParallelAssemble();
-
    if ( newton )
    {
       delete C2_form; C2_form = nullptr;
@@ -570,8 +565,9 @@ void SNavierMonolithicSolver::Step()
       C2_form->AddDomainIntegrator(new VectorGradCoefficientIntegrator(*vk_vc, 1.0));
       C2_form->Assemble(); C2_form->Finalize();
       C2 = C2_form->ParallelAssemble();
-      A = Add(1.0, *K, alpha, *C2);                     // A = K + alpha C                     
-      A->Add(alpha,*C);                                 // A += alpha C2   
+      HypreParMatrix *tmp = ParAdd(C,C2);      // tmp = C + C2
+      A = Add(1.0, *K, alpha, *tmp);           // A = K + alpha C  
+      delete tmp; tmp = nullptr;                   
    }
    else
    {
@@ -604,8 +600,8 @@ void SNavierMonolithicSolver::Step()
    MeanZero(*p_gf);
    p_gf->GetTrueDofs(x->GetBlock(1));
 
-   // Relaxation                 
-   add(gamma,*x,(1-gamma),*x_k,*x);
+   // Relaxation (velocity)                 
+   add(gamma,x->GetBlock(0),(1-gamma),x_k->GetBlock(0),x->GetBlock(0));
 
    // Retrieve solution
    v_gf->SetFromTrueDofs(x->GetBlock(0));

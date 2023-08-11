@@ -11,7 +11,7 @@ namespace mfem
  * @return const IntegrationRule& The integration rule.
  */
 const IntegrationRule& VectorConvectionIntegrator::GetRule(const FiniteElement &fe,
-                                                           ElementTransformation &T)
+        ElementTransformation &T)
 {
     const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
     return IntRules.Get(fe.GetGeomType(), order);
@@ -25,8 +25,8 @@ const IntegrationRule& VectorConvectionIntegrator::GetRule(const FiniteElement &
  * @param elmat The element matrix to be assembled.
  */
 void VectorConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
-                                                       ElementTransformation &Trans,
-                                                       DenseMatrix &elmat)
+        ElementTransformation &Trans,
+        DenseMatrix &elmat)
 {
     const int dof = el.GetDof();
     dim = el.GetDim();
@@ -69,10 +69,10 @@ void VectorConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
         W_ir.GetColumnReference(i, vec1);     // tmp = W
 
         const double q = alpha * ip.weight; // q = alpha*weight   || q = weight
-        adjJ.Mult(vec1, vec2);               // element Transformation J^{-1} |J|      
+        adjJ.Mult(vec1, vec2);               // element Transformation J^{-1} |J|
         vec2 *= q;
 
-        dshape.Mult(vec2, vec3);           // (w . grad u)           q ( alpha J^{-1} |J| w dPhi )  
+        dshape.Mult(vec2, vec3);           // (w . grad u)           q ( alpha J^{-1} |J| w dPhi )
         MultVWt(shape, vec3, pelmat);      // (w . grad u,v)         q ( alpha J^{-1} |J| w dPhi Phi^T)
 
         if (SkewSym)
@@ -103,7 +103,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
  * @return const IntegrationRule& The integration rule.
  */
 const IntegrationRule& VectorGradCoefficientIntegrator::GetRule(const FiniteElement &fe,
-                                                                ElementTransformation &T)
+        ElementTransformation &T)
 {
     return VectorConvectionIntegrator::GetRule(fe, T);
 }
@@ -116,8 +116,8 @@ const IntegrationRule& VectorGradCoefficientIntegrator::GetRule(const FiniteElem
  * @param elmat The element matrix to be assembled.
  */
 void VectorGradCoefficientIntegrator::AssembleElementMatrix(const FiniteElement &el,
-                                                            ElementTransformation &Trans,
-                                                            DenseMatrix &elmat)
+        ElementTransformation &Trans,
+        DenseMatrix &elmat)
 {
     const int dof = el.GetDof();
     dim = el.GetDim();
