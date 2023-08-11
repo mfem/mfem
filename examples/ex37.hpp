@@ -9,7 +9,11 @@
 
 namespace mfem
 {
-// Inverse sigmoid function
+
+/**
+ * @brief Inverse sigmoid function
+ *
+ */
 double inv_sigmoid(double x)
 {
    double tol = 1e-12;
@@ -17,7 +21,10 @@ double inv_sigmoid(double x)
    return std::log(x/(1.0-x));
 }
 
-// Sigmoid function
+/**
+ * @brief Sigmoid function
+ *
+ */
 double sigmoid(double x)
 {
    if (x >= 0)
@@ -30,7 +37,10 @@ double sigmoid(double x)
    }
 }
 
-// Derivative of sigmoid function
+/**
+ * @brief Derivative of sigmoid function
+ *
+ */
 double der_sigmoid(double x)
 {
    double tmp = sigmoid(-x);
@@ -101,7 +111,10 @@ public:
    void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
 };
 
-//  Solid isotropic material penalization (SIMP) coefficient
+/**
+ * @brief Solid isotropic material penalization (SIMP) coefficient
+ *
+ */
 class SIMPInterpolationCoefficient : public Coefficient
 {
 protected:
@@ -125,7 +138,10 @@ public:
 };
 
 
-// Strain energy density coefficient
+/**
+ * @brief Strain energy density coefficient
+ *
+ */
 class StrainEnergyDensityCoefficient : public Coefficient
 {
 protected:
@@ -171,7 +187,10 @@ public:
    }
 };
 
-// Volumetric force for linear elasticity
+/**
+ * @brief Volumetric force for linear elasticity
+ *
+ */
 class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
@@ -212,10 +231,12 @@ public:
    }
 };
 
-//  Class for solving Poisson's equation:
-//
-//       - ∇ ⋅(κ ∇ u) = f  in Ω
-//
+/**
+ * @brief Class for solving Poisson's equation:
+ *
+ *       - ∇ ⋅(κ ∇ u) = f  in Ω
+ *
+ */
 class DiffusionSolver
 {
 private:
@@ -294,15 +315,16 @@ public:
 
 };
 
-
-//  Class for solving linear elasticity:
-//
-//        -∇ ⋅ σ(u) = f  in Ω  + BCs
-//
-//  where
-//
-//        σ(u) = λ ∇⋅u I + μ (∇ u + ∇uᵀ)
-//
+/**
+ * @brief Class for solving linear elasticity:
+ *
+ *        -∇ ⋅ σ(u) = f  in Ω  + BCs
+ *
+ *  where
+ *
+ *        σ(u) = λ ∇⋅u I + μ (∇ u + ∇uᵀ)
+ *
+ */
 class LinearElasticitySolver
 {
 private:
