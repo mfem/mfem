@@ -87,6 +87,14 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+
+  add_test(NAME nurbs_curveint_unit_weight_ser
+    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
+    -uw -n 9)
+
+  add_test(NAME nurbs_curveint_non_unit_weight_ser
+    COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
+    -nw -n 9)
 endif()
 
 if (MFEM_USE_MPI)
