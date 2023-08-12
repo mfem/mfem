@@ -20,7 +20,7 @@
 //   mpirun -np 4 tmop-fit-position
 //   mpirun -np 4 tmop-fit-position -m square01-tri.mesh
 //   mpirun -np 4 tmop-fit-position -m ./cube.mesh
-//   mpirun -np 4 tmop-fit-position -m ./cube_tet_4x4x4.mesh -rs 1
+//   mpirun -np 4 tmop-fit-position -m ./cube_tet_4x4x4.mesh -rs 0
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -103,7 +103,7 @@ int main (int argc, char *argv[])
          int j_x = vdofs[j], j_y = vdofs[nd+j];
          const double x = coord(j_x),
                       z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
-         fit_marker[j_x] = true;
+         fit_marker[pfes_mesh.VDofToDof(j_x)] = true;
          fit_marker_vis_gf(j_x) = 1.0;
          if (coord(j_y) < 0.5)
          {

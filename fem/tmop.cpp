@@ -3052,9 +3052,6 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
 #endif
 
    int dim = fes->GetMesh()->Dimension();
-   if (surf_fit_pos)
-   { MFEM_VERIFY(fes->GetOrdering() == Ordering::byNODES, "Not supported."); }
-
    const int node_cnt = surf_fit_marker->Size();
    err_max = 0.0;
    int dof_cnt = 0;
@@ -3065,7 +3062,9 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
 
 #ifdef MFEM_USE_MPI
       // Don't count the overlapping DOFs in parallel.
-      if (parallel && pfes->GetLocalTDofNumber(i) < 0) { continue; }
+      // The pfes might be ordered byVDIM, while the loop goes consecutively.
+      const int dof_i = pfes->DofToVDof(i, 0);
+      if (parallel && pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
 #endif
 
       dof_cnt++;
@@ -3076,8 +3075,10 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
          Vector pos_s(dim), pos_s_target(dim);
          for (int d = 0; d < dim; d++)
          {
-            pos_s(d) = pos(d*node_cnt + i);
-            pos_s_target(d) = (*surf_fit_pos)(d*node_cnt + i);
+            pos_s(d) = (fes->GetOrdering() == Ordering::byNODES) ?
+               pos(d*node_cnt + i) : pos(i*dim + d);
+            pos_s_target(d) = (fes->GetOrdering() == Ordering::byNODES) ?
+               (*surf_fit_pos)(d*node_cnt + i) : (*surf_fit_pos)(i*dim + d);
          }
          sigma_s = pos_s.DistanceTo(pos_s_target);
       }
@@ -3252,7 +3253,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
       for (int s = 0; s < dof; s++)
       {
-         if ((*surf_fit_marker)[vdofs[s]] == false) { continue; }
+         // Because surf_fit_pos.fes might be ordered byVDIM.
+         const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+         if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
 
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
@@ -3812,7 +3815,9 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    int count = 0;
    for (int s = 0; s < dof_s; s++)
    {
-      count += ((*surf_fit_marker)[vdofs[s]]) ? 1 : 0;
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      count += ((*surf_fit_marker)[scalar_dof_id]) ? 1 : 0;
    }
    if (count == 0) { return; }
 
@@ -3843,7 +3848,9 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
    for (int s = 0; s < dof_s; s++)
    {
-      if ((*surf_fit_marker)[vdofs[s]] == false) { continue; }
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
@@ -3889,7 +3896,9 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    int count = 0;
    for (int s = 0; s < dof_s; s++)
    {
-      count += ((*surf_fit_marker)[vdofs[s]]) ? 1 : 0;
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      count += ((*surf_fit_marker)[scalar_dof_id]) ? 1 : 0;
    }
    if (count == 0) { return; }
 
@@ -3937,7 +3946,9 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    DenseMatrix surf_fit_hess_s(dim, dim);
    for (int s = 0; s < dof_s; s++)
    {
-      if ((*surf_fit_marker)[vdofs[s]] == false) { continue; }
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
