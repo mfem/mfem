@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -88,6 +88,13 @@ endif
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
 
+CI_ARGS_1 := -uw -n 9 -no-visit
+CI_ARGS_2 := -nw -n 9 -no-visit
+
+nurbs_curveint-test-seq: nurbs_curveint
+	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_2))
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
@@ -119,5 +126,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh mesh.* sol.* mode_*
+	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_*
 	@rm -rf Example1*
+	@rm -rf CurveInt
