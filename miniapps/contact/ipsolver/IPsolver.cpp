@@ -456,21 +456,18 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       HYPRE_BigInt rowStarts[2];
       rowStarts[0] = 0;
       rowStarts[1] = dimU;
-      HypreParMatrix * Ahypre = new HypreParMatrix(MPI_COMM_WORLD, globalNumRows, rowStarts, Areduced);
-      HypreBoomerAMG * Aprec = new HypreBoomerAMG(*Ahypre);
-      Aprec->SetPrintLevel(0);
-      Aprec->SetSystemsOptions(3,false);
-      GMRESSolver AreducedSolver(MPI_COMM_WORLD);
-      AreducedSolver.SetOperator(*Ahypre);
+      HypreParMatrix Ahypre(MPI_COMM_WORLD, globalNumRows, rowStarts, Areduced);
+      HypreBoomerAMG Aprec(Ahypre);
+      Aprec.SetPrintLevel(0);
+      Aprec.SetSystemsOptions(3,false);
+      CGSolver AreducedSolver(MPI_COMM_WORLD);
+      AreducedSolver.SetOperator(Ahypre);
       AreducedSolver.SetRelTol(linSolveTol);
       AreducedSolver.SetMaxIter(1000);
-      AreducedSolver.SetPreconditioner(*Aprec);
+      AreducedSolver.SetPreconditioner(Aprec);
       AreducedSolver.SetPrintLevel(1);
       AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
       cgnum_iterations.Append(AreducedSolver.GetNumIterations());
-
-      delete Aprec;
-      delete Ahypre;
     
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl

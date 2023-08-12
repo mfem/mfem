@@ -521,7 +521,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 	      AreducedSolver.SetOperator(*Areduced);
          AreducedSolver.SetRelTol(linSolveTol);
          AreducedSolver.SetMaxIter(500);
-         AreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
+         HypreBoomerAMG amg(*Areduced);
+         amg.SetPrintLevel(0);
+         amg.SetSystemsOptions(3,false);
+         AreducedSolver.SetPreconditioner(amg);
+         // AreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
 	      AreducedSolver.SetPrintLevel(0);
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          cgnum_iterations.Append(AreducedSolver.GetNumIterations());
@@ -538,12 +542,12 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          // HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(1,1));
 
          HypreBoomerAMG amg0(*K00);
-         amg0.SetElasticityOptions(problem->GetElasticityProblem1()->GetFESpace());
-         // amg0.SetSystemsOptions(3,false);
+         // amg0.SetElasticityOptions(problem->GetElasticityProblem1()->GetFESpace());
+         amg0.SetSystemsOptions(3,false);
          amg0.SetPrintLevel(0);
          HypreBoomerAMG amg1(*K11);
-         amg1.SetElasticityOptions(problem->GetElasticityProblem2()->GetFESpace());
-         // amg1.SetSystemsOptions(3,false);
+         // amg1.SetElasticityOptions(problem->GetElasticityProblem2()->GetFESpace());
+         amg1.SetSystemsOptions(3,false);
          amg1.SetPrintLevel(0);
          prec.SetDiagonalBlock(0,&amg0);
          prec.SetDiagonalBlock(1,&amg1);
