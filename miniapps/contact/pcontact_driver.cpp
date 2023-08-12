@@ -75,14 +75,13 @@ int main(int argc, char *argv[])
 
    ParContactProblem contact(prob1,prob2);
    QPOptParContactProblem qpopt(&contact);
-   int dofs1 = qpopt.GetElasticityProblem1()->GetGlobalNumDofs();
-   int dofs2 = qpopt.GetElasticityProblem2()->GetGlobalNumDofs();
    int numconstr = contact.GetGlobalNumConstraints();
 
    ParInteriorPointSolver optimizer(&qpopt);
 
    optimizer.SetTol(1e-6);
    optimizer.SetMaxIter(50);
+
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
    optimizer.SetLinearSolveTol(1e-10);
@@ -92,6 +91,8 @@ int main(int argc, char *argv[])
 
    int ndofs1 = prob1->GetNumTDofs();
    int ndofs2 = prob2->GetNumTDofs();
+   int gndofs1 = prob1->GetGlobalNumDofs();
+   int gndofs2 = prob2->GetGlobalNumDofs();
    int ndofs = ndofs1 + ndofs2;
 
    Vector X1 = x1.GetTrueVector();
@@ -104,20 +105,22 @@ int main(int argc, char *argv[])
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
 
-   MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
    Array<int> & CGiterations = optimizer.GetCGIterNumbers(); 
    Array<int> & BlockCGiterations = optimizer.GetBlockCGIterNumbers(); 
    if (Mpi::Root())
    {
-      mfem::out << "\nEnergy objective at initial point = " << Einitial << endl;
-      mfem::out << "Energy objective at QP optimizer = " << Efinal << endl;
-      mfem::out << "Global number of dofs        = " << dofs1 + dofs2 << endl;
-      mfem::out << "Global number of constraints = " << numconstr << endl;
-      mfem::out << "CG iteration numbers         = " ; CGiterations.Print(mfem::out, CGiterations.Size());
-      mfem::out << "Block CG iteration numbers   = " ; BlockCGiterations.Print(mfem::out, BlockCGiterations.Size());
+      mfem::out << endl;
+      mfem::out << " Initial Energy objective     = " << Einitial << endl;
+      mfem::out << " Final Energy objective       = " << Efinal << endl;
+      mfem::out << " Global number of dofs        = " << gndofs1 + gndofs2 << endl;
+      mfem::out << " Global number of constraints = " << numconstr << endl;
+      mfem::out << " CG iteration numbers         = " ; CGiterations.Print(mfem::out, CGiterations.Size());
+      // mfem::out << " Block CG iteration numbers   = " ; BlockCGiterations.Print(mfem::out, BlockCGiterations.Size());
    }
+
+   MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
 
 
    if (visualization || paraview)
@@ -167,17 +170,19 @@ int main(int argc, char *argv[])
       {
          char vishost[] = "localhost";
          int visport = 19916;
-         socketstream sol_sock1(vishost, visport);
-         sol_sock1.precision(8);
-         sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << *mesh1 << x1_gf
-                   << "window_title 'Solution - Body 1'" << flush;
 
-         socketstream sol_sock2(vishost, visport);
-         sol_sock2.precision(8);
-         sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << *mesh2 << x2_gf
-                   << "window_title 'Solution - Body 2'" << flush;                   
+         {
+            socketstream sol_sock(vishost, visport);
+            sol_sock.precision(8);
+            sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
+                     << "solution\n" << *mesh1 << x1_gf << flush;
+         }
+         {
+            socketstream sol_sock(vishost, visport);
+            sol_sock.precision(8);
+            sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
+                     << "solution\n" << *mesh2 << x2_gf << flush;                     
+         }
       }
    }
 

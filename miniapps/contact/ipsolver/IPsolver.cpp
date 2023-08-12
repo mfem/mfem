@@ -12,412 +12,466 @@ using namespace mfem;
 InteriorPointSolver::InteriorPointSolver(QPOptContactProblem * Problem) : optProblem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
 Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), Huucl(nullptr), HLuucl(nullptr), saveLogBarrierIterates(false)
 {
-  rel_tol  = 1.e-2;
-  max_iter = 20;
-  mu_k     = 1.0;
+   rel_tol  = 1.e-2;
+   max_iter = 20;
+   mu_k     = 1.0;
 
-  sMax     = 1.e2;
-  kSig     = 1.e10;   // control deviation from primal Hessian
-  tauMin   = 0.8;     // control rate at which iterates can approach the boundary
-  eta      = 1.e-4;   // backtracking constant
-  thetaMin = 1.e-4;   // allowed violation of the equality constraints
+   sMax     = 1.e2;
+   kSig     = 1.e10;   // control deviation from primal Hessian
+   tauMin   = 0.8;     // control rate at which iterates can approach the boundary
+   eta      = 1.e-4;   // backtracking constant
+   thetaMin = 1.e-4;   // allowed violation of the equality constraints
 
-  // constants in line-step A-5.4
-  delta    = 1.0;
-  sTheta   = 1.1;
-  sPhi     = 2.3;
+   // constants in line-step A-5.4
+   delta    = 1.0;
+   sTheta   = 1.1;
+   sPhi     = 2.3;
 
-  // control the rate at which the penalty parameter is decreased
-  kMu     = 0.2;
-  thetaMu = 1.5;
+   // control the rate at which the penalty parameter is decreased
+   kMu     = 0.2;
+   thetaMu = 1.5;
 
-  // TO DO -- include the filter
+   // TO DO -- include the filter
 
-  thetaMax = 1.e6; // maximum constraint violation
-  // data for the second order correction
-  kSoc     = 0.99;
+   thetaMax = 1.e6; // maximum constraint violation
+   // data for the second order correction
+   kSoc     = 0.99;
 
-  // equation (18)
-  gTheta = 1.e-5;
-  gPhi   = 1.e-5;
+   // equation (18)
+   gTheta = 1.e-5;
+   gPhi   = 1.e-5;
 
-  kEps   = 1.e1;
+   kEps   = 1.e1;
 
-  dimU = optProblem->GetDimU();
-  dimM = optProblem->GetDimM();
-  dimC = optProblem->GetDimC();
-  ckSoc.SetSize(dimC);
-  
-  block_offsetsumlz[0] = 0;
-  block_offsetsumlz[1] = dimU; // u
-  block_offsetsumlz[2] = dimM; // m
-  block_offsetsumlz[3] = dimC; // lambda
-  block_offsetsumlz[4] = dimM; // zl
-  block_offsetsumlz.PartialSum();
+   dimU = optProblem->GetDimU();
+   dimM = optProblem->GetDimM();
+   dimC = optProblem->GetDimC();
+   ckSoc.SetSize(dimC);
+   
+   block_offsetsumlz[0] = 0;
+   block_offsetsumlz[1] = dimU; // u
+   block_offsetsumlz[2] = dimM; // m
+   block_offsetsumlz[3] = dimC; // lambda
+   block_offsetsumlz[4] = dimM; // zl
+   block_offsetsumlz.PartialSum();
 
-  for(int i = 0; i < block_offsetsuml.Size(); i++)  { block_offsetsuml[i] = block_offsetsumlz[i]; }
-  for(int i = 0; i < block_offsetsx.Size(); i++)    { block_offsetsx[i]   = block_offsetsuml[i] ; }
+   for(int i = 0; i < block_offsetsuml.Size(); i++)  { block_offsetsuml[i] = block_offsetsumlz[i]; }
+   for(int i = 0; i < block_offsetsx.Size(); i++)    { block_offsetsx[i]   = block_offsetsuml[i] ; }
 
-  // lower-bound for the inequality constraint m >= ml
-  ml = optProblem->Getml();
-  
-  lk.SetSize(dimC);  lk  = 0.0;
-  zlk.SetSize(dimM); zlk = 0.0;
+   // lower-bound for the inequality constraint m >= ml
+   ml = optProblem->Getml();
+   
+   lk.SetSize(dimC);  lk  = 0.0;
+   zlk.SetSize(dimM); zlk = 0.0;
 
-  linSolver = 0;
-  MyRank = 0;
-  iAmRoot = MyRank == 0 ? true : false;
+   linSolver = 0;
+   MyRank = 0;
+   iAmRoot = MyRank == 0 ? true : false;
 }
 
 double InteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat, double tau)
 {
-  double alphaMaxloc = 1.0;
-  double alphaTmp;
-  for(int i = 0; i < x.Size(); i++)
-  {
-    if( xhat(i) < 0. )
-    {
-      alphaTmp = -1. * tau * (x(i) - xl(i)) / xhat(i);
-      alphaMaxloc = min(alphaMaxloc, alphaTmp);
-    } 
-  }
+   double alphaMaxloc = 1.0;
+   double alphaTmp;
+   for(int i = 0; i < x.Size(); i++)
+   {
+      if( xhat(i) < 0. )
+      {
+         alphaTmp = -1. * tau * (x(i) - xl(i)) / xhat(i);
+         alphaMaxloc = min(alphaMaxloc, alphaTmp);
+      } 
+   }
 
-  // alphaMaxloc is the local maximum step size which is
-  // distinct on each MPI process. Need to compute
-  // the global maximum step size 
-  double alphaMaxglb;
-  alphaMaxglb = alphaMaxloc;
-  return alphaMaxglb;
+   // alphaMaxloc is the local maximum step size which is
+   // distinct on each MPI process. Need to compute
+   // the global maximum step size 
+   double alphaMaxglb;
+   alphaMaxglb = alphaMaxloc;
+   return alphaMaxglb;
 }
 
 double InteriorPointSolver::MaxStepSize(Vector &x, Vector &xhat, double tau)
 {
-  Vector zero(x.Size()); zero = 0.0;
-  return MaxStepSize(x, zero, xhat, tau);
+   Vector zero(x.Size()); zero = 0.0;
+   return MaxStepSize(x, zero, xhat, tau);
 }
 
 
 void InteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 {
-  BlockVector x0block(block_offsetsx); x0block = 0.0;
-  x0block.GetBlock(0).Set(1.0, x0);
-  // To do: give options for user specificiation of initialization m0
-  x0block.GetBlock(1) = 100.;
-  x0block.GetBlock(1).Add(1.0, ml);
-  BlockVector xfblock(block_offsetsx); xfblock = 0.0;
-  Mult(x0block, xfblock);
-  xf.Set(1.0, xfblock.GetBlock(0));
+   BlockVector x0block(block_offsetsx); x0block = 0.0;
+   x0block.GetBlock(0).Set(1.0, x0);
+   // To do: give options for user specificiation of initialization m0
+   x0block.GetBlock(1) = 1.0;
+   x0block.GetBlock(1).Add(1.0, ml);
+   BlockVector xfblock(block_offsetsx); xfblock = 0.0;
+   Mult(x0block, xfblock);
+   xf.Set(1.0, xfblock.GetBlock(0));
 }
 
 void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
-  converged = false;
-  
-  BlockVector xk(block_offsetsx), xhat(block_offsetsx); xk = 0; xhat = 0.0;
-  BlockVector Xk(block_offsetsumlz), Xhat(block_offsetsumlz); Xk = 0.0; Xhat = 0.0;
-  BlockVector Xhatuml(block_offsetsuml); Xhatuml = 0.0;
-  Vector zlhat(dimM); zlhat = 0.0;
+   converged = false;
+   
+   BlockVector xk(block_offsetsx), xhat(block_offsetsx); xk = 0; xhat = 0.0;
+   BlockVector Xk(block_offsetsumlz), Xhat(block_offsetsumlz); Xk = 0.0; Xhat = 0.0;
+   BlockVector Xhatuml(block_offsetsuml); Xhatuml = 0.0;
+   Vector zlhat(dimM); zlhat = 0.0;
 
-  xk.GetBlock(0).Set(1.0, x0.GetBlock(0));
-  xk.GetBlock(1).Set(1.0, x0.GetBlock(1));
-  // running estimate of the final values of the Lagrange multipliers
-  lk  = 0.0;
-  zlk = 0.0;
+   xk.GetBlock(0).Set(1.0, x0.GetBlock(0));
+   xk.GetBlock(1).Set(1.0, x0.GetBlock(1));
+   // running estimate of the final values of the Lagrange multipliers
+   lk  = 0.0;
+   zlk = 0.0;
 
-  for(int i = 0; i < dimM; i++)
-  {
-    zlk(i) = 1.e1 * mu_k / (xk(i+dimU) - ml(i));
-  }
+   for(int i = 0; i < dimM; i++)
+   {
+      zlk(i) = 1.e1 * mu_k / (xk(i+dimU) - ml(i));
+   }
 
-  Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
-  Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
-  Xk.GetBlock(2).Set(1.0, lk);
-  Xk.GetBlock(3).Set(1.0, zlk);
+   Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
+   Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
+   Xk.GetBlock(2).Set(1.0, lk);
+   Xk.GetBlock(3).Set(1.0, zlk);
 
-  /* set theta0 = theta(x0)
-   *     thetaMin
-   *     thetaMax
-   * when theta(xk) < thetaMin and the switching condition holds
-   * then we ask for the Armijo sufficient decrease of the barrier
-   * objective to be satisfied, in order to accept the trial step length alphakl
-   * 
-   * thetaMax controls how the filter is initialized for each log-barrier subproblem
-   * F0 = {(th, phi) s.t. th > thetaMax}
-   * that is the filter does not allow for iterates where the constraint violation
-   * is larger than that of thetaMax
-   */
-  double theta0 = theta(xk);
-  thetaMin = 1.e-4 * max(1.0, theta0);
-  thetaMax = 1.e8  * thetaMin;
+   /* set theta0 = theta(x0)
+      *     thetaMin
+      *     thetaMax
+      * when theta(xk) < thetaMin and the switching condition holds
+      * then we ask for the Armijo sufficient decrease of the barrier
+      * objective to be satisfied, in order to accept the trial step length alphakl
+      * 
+      * thetaMax controls how the filter is initialized for each log-barrier subproblem
+      * F0 = {(th, phi) s.t. th > thetaMax}
+      * that is the filter does not allow for iterates where the constraint violation
+      * is larger than that of thetaMax
+      */
+   double theta0 = theta(xk);
+   thetaMin = 1.e-4 * max(1.0, theta0);
+   thetaMax = 1.e8  * thetaMin;
 
-  double Eeval, maxBarrierSolves, Eevalmu0;
-  bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
-  
-  maxBarrierSolves = 10;
+   double Eeval, maxBarrierSolves, Eevalmu0;
+   bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
+   
+   maxBarrierSolves = 10;
 
-  for(jOpt = 0; jOpt < max_iter; jOpt++)
-  {
-    mfem::out << "interior-point solve step " << jOpt << endl;
-    // A-2. Check convergence of overall optimization problem
-    printOptimalityError = false;
-    Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
-    if(Eevalmu0 < rel_tol)
-    {
-      converged = true;
-      mfem::out << "solved optimization problem :)\n";
-      break;
-    }
-    
-    if(jOpt > 0) { maxBarrierSolves = 1; }
-    
-    for(int i = 0; i < maxBarrierSolves; i++)
-    {
-      // A-3. Check convergence of the barrier subproblem
-      printOptimalityError = true;
-      Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
-      if(Eeval < kEps * mu_k)
+   for(jOpt = 0; jOpt < max_iter; jOpt++)
+   {
+      mfem::out << "interior-point solve step " << jOpt << endl;
+      // A-2. Check convergence of overall optimization problem
+      printOptimalityError = false;
+      Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
+      if(Eevalmu0 < rel_tol)
       {
-        mfem::out << "solved barrier subproblem, for mu = " << mu_k << endl;
-        // A-3.1. Recompute the barrier parameter
-        mu_k  = max(rel_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
-        // A-3.2. Re-initialize the filter
-        F1.DeleteAll();
-        F2.DeleteAll();
+         converged = true;
+         mfem::out << "solved optimization problem :)\n";
+         break;
+      }
+      
+      if(jOpt > 0) { maxBarrierSolves = 1; }
+      
+      for(int i = 0; i < maxBarrierSolves; i++)
+      {
+         // A-3. Check convergence of the barrier subproblem
+         printOptimalityError = true;
+         Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
+         if(Eeval < kEps * mu_k)
+         {
+            mfem::out << "solved barrier subproblem, for mu = " << mu_k << endl;
+            // A-3.1. Recompute the barrier parameter
+            mu_k  = max(rel_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
+            // A-3.2. Re-initialize the filter
+            F1.DeleteAll();
+            F2.DeleteAll();
+         }
+         else
+         {
+            break;
+         }
+      }
+      // A-4. Compute the search direction
+      // solve for (uhat, mhat, lhat)
+      mfem::out << "\n** A-4. IP-Newton solve **\n";
+      zlhat = 0.0; Xhatuml = 0.0;
+      // why do we have Xhatuml ....???
+      // TO DO: remove Xhatuml in favor of passing Xhat
+      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, false); 
+
+      // assign data stack, X = (u, m, l, zl)
+      Xk = 0.0;
+      Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
+      Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
+      Xk.GetBlock(2).Set(1.0, lk);
+      Xk.GetBlock(3).Set(1.0, zlk);
+
+      // assign data stack, Xhat = (uhat, mhat, lhat, zlhat)
+      Xhat = 0.0;
+      for(int i = 0; i < 3; i++)
+      {
+         Xhat.GetBlock(i).Set(1.0, Xhatuml.GetBlock(i));
+      }
+      Xhat.GetBlock(3).Set(1.0, zlhat);
+
+      // A-5. Backtracking line search.
+      mfem::out << "\n** A-5. Linesearch **\n";
+      mfem::out << "mu = " << mu_k << endl;
+      
+      lineSearch(Xk, Xhat, mu_k);
+      if(lineSearchSuccess)
+      {
+         if(!switchCondition || !sufficientDecrease)
+         {
+            F1.Append( (1. - gTheta) * thx0);
+            F2.Append( phx0 - gPhi * thx0);
+         }
+         // ----- A-6: Accept the trial point
+         // print info regarding zl...
+         xk.GetBlock(0).Add(alpha, Xhat.GetBlock(0));
+         xk.GetBlock(1).Add(alpha, Xhat.GetBlock(1));
+         lk.Add(alpha,   Xhat.GetBlock(2));
+         zlk.Add(alphaz, Xhat.GetBlock(3));
+         projectZ(xk, zlk, mu_k);
       }
       else
       {
-        break;
+         mfem::out << "lineSearch not successful :(\n";
+         mfem::out << "attempting feasibility restoration with theta = " << thx0 << endl;
+         mfem::out << "no feasibility restoration implemented, exiting now \n";
+         break;
       }
-    }
-    
-    // A-4. Compute the search direction
-    // solve for (uhat, mhat, lhat)
-    mfem::out << "\n** A-4. IP-Newton solve **\n";
-    zlhat = 0.0; Xhatuml = 0.0;
-    // why do we have Xhatuml ....???
-    // TO DO: remove Xhatuml in favor of passing Xhat
-    IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, false); 
-
-    // assign data stack, X = (u, m, l, zl)
-    Xk = 0.0;
-    Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
-    Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
-    Xk.GetBlock(2).Set(1.0, lk);
-    Xk.GetBlock(3).Set(1.0, zlk);
-
-    // assign data stack, Xhat = (uhat, mhat, lhat, zlhat)
-    Xhat = 0.0;
-    for(int i = 0; i < 3; i++)
-    {
-      Xhat.GetBlock(i).Set(1.0, Xhatuml.GetBlock(i));
-    }
-    Xhat.GetBlock(3).Set(1.0, zlhat);
-
-    // A-5. Backtracking line search.
-    mfem::out << "\n** A-5. Linesearch **\n";
-    mfem::out << "mu = " << mu_k << endl;
-    
-    lineSearch(Xk, Xhat, mu_k);
-    if(lineSearchSuccess)
-    {
-      if(!switchCondition || !sufficientDecrease)
-      {
-        F1.Append( (1. - gTheta) * thx0);
-        F2.Append( phx0 - gPhi * thx0);
+      //
+      if(jOpt + 1 == max_iter) 
+      { 
+         mfem::out << "maximum optimization iterations :(\n";
       }
-      // ----- A-6: Accept the trial point
-      // print info regarding zl...
-      xk.GetBlock(0).Add(alpha, Xhat.GetBlock(0));
-      xk.GetBlock(1).Add(alpha, Xhat.GetBlock(1));
-      lk.Add(alpha,   Xhat.GetBlock(2));
-      zlk.Add(alphaz, Xhat.GetBlock(3));
-      projectZ(xk, zlk, mu_k);
-    }
-    else
-    {
-      mfem::out << "lineSearch not successful :(\n";
-      mfem::out << "attempting feasibility restoration with theta = " << thx0 << endl;
-      mfem::out << "no feasibility restoration implemented, exiting now \n";
-      break;
-    }
-    //
-    if(jOpt + 1 == max_iter) 
-    { 
-      mfem::out << "maximum optimization iterations :(\n";
-    }
-  }
-  // done with optimization routine, just reassign data to xf reference so
-  // that the application code has access to the optimal point
-  xf = 0.0;
-  xf.GetBlock(0).Set(1.0, xk.GetBlock(0));
-  xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
+   }
+   // done with optimization routine, just reassign data to xf reference so
+   // that the application code has access to the optimal point
+   xf = 0.0;
+   xf.GetBlock(0).Set(1.0, xk.GetBlock(0));
+   xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
 }
 
 void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &zl, BlockOperator &Ak)
 {
-  // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
-  //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
+   // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
+   //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
 
-  Huu = optProblem->Duuf(x); Hum = optProblem->Dumf(x);
-  Hmu = optProblem->Dmuf(x); Hmm = optProblem->Dmmf(x);
+   Huu = optProblem->Duuf(x); Hum = optProblem->Dumf(x);
+   Hmu = optProblem->Dmuf(x); Hmm = optProblem->Dmmf(x);
 
-  Vector DiagLogBar(dimM); DiagLogBar = 0.0;
-  for(int ii = 0; ii < dimM; ii++)
-  {
-    DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
-  }
-  if(saveLogBarrierIterates)
-  {
-    std::ofstream diagStream;
-    char diagString[100];
-    snprintf(diagString, 100, "logBarrierHessiandata/D%d.dat", jOpt);
-    diagStream.open(diagString, ios::out | ios::trunc);
-    for(int ii = 0; ii < dimM; ii++)
-    {
-      diagStream << setprecision(30) << DiagLogBar(ii) << endl;
-    }
-    diagStream.close();
-  } 
+   Vector DiagLogBar(dimM); DiagLogBar = 0.0;
+   for(int ii = 0; ii < dimM; ii++)
+   {
+      DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
+   }
+   if(saveLogBarrierIterates)
+   {
+      std::ofstream diagStream;
+      char diagString[100];
+      snprintf(diagString, 100, "logBarrierHessiandata/D%d.dat", jOpt);
+      diagStream.open(diagString, ios::out | ios::trunc);
+      for(int ii = 0; ii < dimM; ii++)
+      {
+         diagStream << setprecision(30) << DiagLogBar(ii) << endl;
+      }
+      diagStream.close();
+   } 
 
 
-  D = new SparseMatrix(DiagLogBar);
-  
-  if(Hmm != nullptr)
-  {
-    Wmm = new SparseMatrix(*Hmm);
-    Wmm->Add(1.0, *D);
-  }
-  else
-  {
-    Wmm = D;
-  }
+   D = new SparseMatrix(DiagLogBar);
+   
+   if(Hmm != nullptr)
+   {
+      Wmm = new SparseMatrix(*Hmm);
+      Wmm->Add(1.0, *D);
+   }
+   else
+   {
+      Wmm = D;
+   }
 
-  Ju = optProblem->Duc(x); JuT = Transpose(*Ju);
-  Jm = optProblem->Dmc(x); JmT = Transpose(*Jm);
- 
-  Huucl = optProblem->lDuuc(x, l);
-  if(Huucl != nullptr)
-  {
-    HLuucl = Add(*Huucl, *Huu);
-    Ak.SetBlock(0, 0, HLuucl);
-  } 
-  else
-  {
-    Ak.SetBlock(0, 0, Huu);
-  }
+   Ju = optProblem->Duc(x); JuT = Transpose(*Ju);
+   Jm = optProblem->Dmc(x); JmT = Transpose(*Jm);
+   
+   Huucl = optProblem->lDuuc(x, l);
+   if(Huucl != nullptr)
+   {
+      HLuucl = Add(*Huucl, *Huu);
+      Ak.SetBlock(0, 0, HLuucl);
+   } 
+   else
+   {
+      Ak.SetBlock(0, 0, Huu);
+   }
 
-  //         IP-Newton system matrix
-  //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
-  //          [H_(m,u)  W_(m,m)   J_m^T]
-  //          [ J_u      J_m       0  ]]
+   //         IP-Newton system matrix
+   //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
+   //          [H_(m,u)  W_(m,m)   J_m^T]
+   //          [ J_u      J_m       0  ]]
 
-  Ak.SetBlock(0, 0, Huu);
-  // Ak.SetBlock(0, 1, nullptr); 
-  Ak.SetBlock(0, 2, JuT);
-  // Ak.SetBlock(1, 0, nullptr); 
-  Ak.SetBlock(1, 1, Wmm);   
-  Ak.SetBlock(1, 2, JmT);
-  Ak.SetBlock(2, 0, Ju); 
-  Ak.SetBlock(2, 1, Jm); 
-  // Ak.SetBlock(2,2,nullptr);
+   Ak.SetBlock(0, 0, Huu);
+   Ak.SetBlock(0, 2, JuT);
+   Ak.SetBlock(1, 1, Wmm);   
+   Ak.SetBlock(1, 2, JmT);
+   Ak.SetBlock(2, 0, Ju); 
+   Ak.SetBlock(2, 1, Jm); 
 
-  if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
-
+   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
 }
 
 // perturbed KKT system solve
 // determine the search direction
 void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, double mu, bool socSolve)
 {
-  // solve A x = b, where A is the IP-Newton matrix
-  BlockOperator A(block_offsetsuml, block_offsetsuml); BlockVector b(block_offsetsuml); b = 0.0;
-  FormIPNewtonMat(x, l, zl, A);
+   // solve A x = b, where A is the IP-Newton matrix
+   BlockOperator A(block_offsetsuml, block_offsetsuml); BlockVector b(block_offsetsuml); b = 0.0;
+   FormIPNewtonMat(x, l, zl, A);
 
-  //       [grad_u phi + Ju^T l]
-  // b = - [grad_m phi + Jm^T l]
-  //       [          c        ]
-  BlockVector gradphi(block_offsetsx); gradphi = 0.0;
-  BlockVector JTl(block_offsetsx); JTl = 0.0;
-  Dxphi(x, mu, gradphi);
+   //       [grad_u phi + Ju^T l]
+   // b = - [grad_m phi + Jm^T l]
+   //       [          c        ]
+   BlockVector gradphi(block_offsetsx); gradphi = 0.0;
+   BlockVector JTl(block_offsetsx); JTl = 0.0;
+   Dxphi(x, mu, gradphi);
   
-  (A.GetBlock(0,2)).Mult(l, JTl.GetBlock(0));
-  (A.GetBlock(1,2)).Mult(l, JTl.GetBlock(1));
+   (A.GetBlock(0,2)).Mult(l, JTl.GetBlock(0));
+   (A.GetBlock(1,2)).Mult(l, JTl.GetBlock(1));
 
-  for(int ii = 0; ii < 2; ii++)
-  {
-    b.GetBlock(ii).Set(1.0, gradphi.GetBlock(ii));
-    b.GetBlock(ii).Add(1.0, JTl.GetBlock(ii));
-  }
-  if(!socSolve) 
-  {
-    optProblem->c(x, b.GetBlock(2));
-  }
-  else
-  {
-    b.GetBlock(2).Set(1.0, ckSoc);
-  }
-  b *= -1.0; 
-  Xhat = 0.0;
+   for(int ii = 0; ii < 2; ii++)
+   {
+      b.GetBlock(ii).Set(1.0, gradphi.GetBlock(ii));
+      b.GetBlock(ii).Add(1.0, JTl.GetBlock(ii));
+   }
+   if(!socSolve) 
+   {
+      optProblem->c(x, b.GetBlock(2));
+   }
+   else
+   {
+      b.GetBlock(2).Set(1.0, ckSoc);
+   }
+   b *= -1.0; 
+   Xhat = 0.0;
 
 
-  #ifdef MFEM_USE_SUITESPARSE
-    // Direct solve for IP-Newton saddle-point system
-    // A = [ [ Huu   0    Ju^T]
-    //       [  0    D     -I ]
-    //       [ Ju   -I      0 ]]
-    if(linSolver == 0)
-    {
-      BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
-      for(int ii = 0; ii < 3; ii++)
-      {
-        for(int jj = 0; jj < 3; jj++)
-        {
-          if(!A.IsZeroBlock(ii, jj))
-          {
-            ABlockMatrix.SetBlock(ii, jj, dynamic_cast<SparseMatrix *>(&(A.GetBlock(ii, jj))));
-          }
-        }
-      }
-      /* direct solve of the 3x3 IP-Newton linear system */
-      UMFPackSolver ASolver;
-      SparseMatrix *ASparse = ABlockMatrix.CreateMonolithic();
-      ASolver.SetOperator(*ASparse);
-      ASolver.Mult(b, Xhat);
+#ifdef MFEM_USE_SUITESPARSE
+   // Direct solve for IP-Newton saddle-point system
+   // A = [ [ Huu   0    Ju^T]
+   //       [  0    D     -I ]
+   //       [ Ju   -I      0 ]]
+   // if(linSolver == 0)
+   // {
+   //    BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
+   //    for(int ii = 0; ii < 3; ii++)
+   //    {
+   //       for(int jj = 0; jj < 3; jj++)
+   //       {
+   //          if(!A.IsZeroBlock(ii, jj))
+   //          {
+   //             ABlockMatrix.SetBlock(ii, jj, dynamic_cast<SparseMatrix *>(&(A.GetBlock(ii, jj))));
+   //          }
+   //       }
+   //    }
+   //    /* direct solve of the 3x3 IP-Newton linear system */
+   //    UMFPackSolver ASolver;
+   //    SparseMatrix *ASparse = ABlockMatrix.CreateMonolithic();
+   //    ASolver.SetOperator(*ASparse);
+   //    ASolver.Mult(b, Xhat);
 
-      Vector residual(Xhat.Size());
-      ASparse->Mult(Xhat, residual);
-      residual.Add(-1.0, b);
-      delete ASparse;
-    }
-    else if(linSolver == 1)
-    {
-      // Direct solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
+   //    Vector residual(Xhat.Size());
+   //    ASparse->Mult(Xhat, residual);
+   //    residual.Add(-1.0, b);
+   //    delete ASparse;
+   // }
+   // else if(linSolver == 1)
+   // {
+   //    // Direct solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
+   //    // where Wmm = D for contact problems
+   //    SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
+   //    SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
+   //    SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
+   //    SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
+   //    Vector DVec(dimM); DVec = 0.0;
+   //    Vector one(dimM); one = 1.0;
+   //    D->Mult(one, DVec);
+   //    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, DVec);     // Ju^T D Ju
+   //    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
+      
+   //    /* prepare the reduced rhs */
+   //    // breduced = bu + Ju^T (bm + Wmm bl)
+   //    Vector breduced(dimU); breduced = 0.0;
+   //    Vector tempVec(dimM); tempVec = 0.0;
+   //    Wmmloc->Mult(b.GetBlock(2), tempVec);
+   //    tempVec.Add(1.0, b.GetBlock(1));
+   //    JuTloc->Mult(tempVec, breduced);
+   //    breduced.Add(1.0, b.GetBlock(0));
+
+   //    // solve the reduced linear system
+   //    UMFPackSolver AreducedSolver;
+   //    AreducedSolver.SetOperator(*Areduced);
+   //    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+
+   //    // now propagate solved uhat to obtain mhat and lhat
+   //    // xm = Ju xu - bl
+   //    Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+   //    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+
+   //    // xl = Wmm xm - bm
+   //    Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+   //    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+
+   //    delete JuTDJu;
+   //    delete Areduced;
+   // }
+#else
+   MFEM_VERIFY(linSolver > 1, "linSolver = 0, 1 require MFEM_USE_SUITESPARSE=YES");
+#endif
+   // if(linSolver ==2)
+   { 
+      // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
       // where Wmm = D for contact problems
+      // here the iterative solver is a Jacobi-preconditioned CG-solve
       SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
       SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
       SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
       SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
-      Vector DVec(dimM); DVec = 0.0;
-      Vector one(dimM); one = 1.0;
-      D->Mult(one, DVec);
-      SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, DVec);     // Ju^T D Ju
+
+      SparseMatrix *JuTDJu   = RAP(*Juloc,*Wmmloc,*Juloc);     // Ju^T D Ju
       SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
 
-      
       /* prepare the reduced rhs */
       // breduced = bu + Ju^T (bm + Wmm bl)
+      for (int i = 0; i<b.GetBlock(0).Size(); i++)
+      {
+         if (abs(b.GetBlock(0)(i))<1e-14) b.GetBlock(0)(i) = 0.0;
+      }
       Vector breduced(dimU); breduced = 0.0;
       Vector tempVec(dimM); tempVec = 0.0;
       Wmmloc->Mult(b.GetBlock(2), tempVec);
       tempVec.Add(1.0, b.GetBlock(1));
       JuTloc->Mult(tempVec, breduced);
       breduced.Add(1.0, b.GetBlock(0));
-
-      // solve the reduced linear system
-      UMFPackSolver AreducedSolver;
-      AreducedSolver.SetOperator(*Areduced);
+      int globalNumRows = dimU;
+      HYPRE_BigInt rowStarts[2];
+      rowStarts[0] = 0;
+      rowStarts[1] = dimU;
+      HypreParMatrix * Ahypre = new HypreParMatrix(MPI_COMM_WORLD, globalNumRows, rowStarts, Areduced);
+      HypreBoomerAMG * Aprec = new HypreBoomerAMG(*Ahypre);
+      Aprec->SetPrintLevel(0);
+      Aprec->SetSystemsOptions(3,false);
+      GMRESSolver AreducedSolver(MPI_COMM_WORLD);
+      AreducedSolver.SetOperator(*Ahypre);
+      AreducedSolver.SetRelTol(linSolveTol);
+      AreducedSolver.SetMaxIter(1000);
+      AreducedSolver.SetPreconditioner(*Aprec);
+      AreducedSolver.SetPrintLevel(1);
       AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+      cgnum_iterations.Append(AreducedSolver.GetNumIterations());
 
+      delete Aprec;
+      delete Ahypre;
+    
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl
       Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
@@ -429,93 +483,26 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
 
       delete JuTDJu;
       delete Areduced;
-    }
-  #else
-    MFEM_VERIFY(linSolver > 1, "linSolver = 0, 1 require MFEM_USE_SUITESPARSE=YES");
-  #endif
-  if(linSolver > 1)
-  { 
-    // Iterative solve for 0,0 Schur complement of IP-Newton system, Huu + Ju^T Wmm Ju,
-    // where Wmm = D for contact problems
-    // here the iterative solver is a Jacobi-preconditioned CG-solve
-    SparseMatrix * Huuloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 0)));
-    SparseMatrix * Wmmloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1)));
-    SparseMatrix * Juloc  = dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0)));
-    SparseMatrix * JuTloc = dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2)));
-    Vector DVec(dimM); DVec = 0.0;
-    Vector one(dimM); one = 1.0;
-    D->Mult(one, DVec);
-    SparseMatrix *JuTDJu   = Mult_AtDA(*Juloc, DVec);     // Ju^T D Ju
-    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
-
-    /* prepare the reduced rhs */
-    // breduced = bu + Ju^T (bm + Wmm bl)
-    Vector breduced(dimU); breduced = 0.0;
-    Vector tempVec(dimM); tempVec = 0.0;
-    Wmmloc->Mult(b.GetBlock(2), tempVec);
-    tempVec.Add(1.0, b.GetBlock(1));
-    JuTloc->Mult(tempVec, breduced);
-    breduced.Add(1.0, b.GetBlock(0));
+   }
     
-    if (linSolver == 2)
-    {
-      /* Jacobi preconditioned conjugate-gradient solve */
-      DSmoother AreducedPrec((SparseMatrix &)(*Areduced));
-      CGSolver AreducedSolver;
-      AreducedSolver.SetOperator(*Areduced);
-      AreducedSolver.SetAbsTol(1.e-12);
-      AreducedSolver.SetRelTol(1.e-8);
-      AreducedSolver.SetMaxIter(500);
-      AreducedSolver.SetPreconditioner(AreducedPrec);
-      AreducedSolver.SetPrintLevel(1);
-      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-    }
-    else
-    {
-      /* Gauss-Seidel preconditioned GMRES solve */
-      GSSmoother AreducedPrec((SparseMatrix &)(*Areduced));
-      GMRESSolver AreducedSolver;
-      AreducedSolver.SetOperator(*Areduced);
-      AreducedSolver.SetAbsTol(1.e-12);
-      AreducedSolver.SetRelTol(1.e-8);
-      AreducedSolver.SetMaxIter(500);
-      AreducedSolver.SetPreconditioner(AreducedPrec);
-      AreducedSolver.SetPrintLevel(1);
-      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-    }
-    
-    // now propagate solved uhat to obtain mhat and lhat
-    // xm = Ju xu - bl
-    Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
-    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+   /* backsolve to determine zlhat */
+   for(int ii = 0; ii < dimM; ii++)
+   {
+      zlhat(ii) = -1.*(zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) / (x(ii + dimU) - ml(ii)) );
+   }
 
-    // xl = Wmm xm - bm
-    Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
-
-    delete JuTDJu;
-    delete Areduced;
-  }
-    
-  
-  /* backsolve to determine zlhat */
-  for(int ii = 0; ii < dimM; ii++)
-  {
-    zlhat(ii) = -1.*(zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) / (x(ii + dimU) - ml(ii)) );
-  }
-
-  // free memory
-  if(Hmm != nullptr)
-  {
-    delete Wmm;
-  }
-  if( Huucl != nullptr)
-  {
-    delete HLuucl;
-  }
-  delete D;
-  delete JuT;
-  delete JmT;
+   // free memory
+   if(Hmm != nullptr)
+   {
+      delete Wmm;
+   }
+   if( Huucl != nullptr)
+   {
+      delete HLuucl;
+   }
+   delete D;
+   delete JuT;
+   delete JmT;
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
@@ -812,6 +799,10 @@ void InteriorPointSolver::SetLinearSolver(int LinSolver)
   linSolver = LinSolver;
 }
 
+void InteriorPointSolver::SetLinearSolveTol(double Tol)
+{
+  linSolveTol = Tol;
+}
 
 
 InteriorPointSolver::~InteriorPointSolver() 

@@ -37,8 +37,8 @@ void ElasticityProblem::FormLinearSystem()
       b.Assemble();
       a->Assemble();
       a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-      A.Threshold(1e-15);
-      A.SortColumnIndices();
+      // A.Threshold(1e-15);
+      // A.SortColumnIndices();
    }
 }
 void ElasticityProblem::UpdateLinearSystem()
@@ -302,8 +302,8 @@ QPOptContactProblem::QPOptContactProblem(ContactProblem * problem_)
 : problem(problem_)
 {
    dimU = problem->GetNumDofs();
-   dimM = problem->GetNumContraints();
-   dimC = problem->GetNumContraints();
+   dimM = problem->GetNumConstraints();
+   dimC = problem->GetNumConstraints();
    block_offsets.SetSize(3);
    block_offsets[0] = 0;
    block_offsets[1] = dimU;

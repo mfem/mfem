@@ -48,6 +48,8 @@ protected:
     bool saveLogBarrierIterates;
 
     int linSolver;
+    double linSolveTol;
+    Array<int> cgnum_iterations;
 
 public:
     InteriorPointSolver(QPOptContactProblem*);
@@ -62,6 +64,7 @@ public:
     void filterCheck(double, double);
     double E(const BlockVector &, const Vector &, const Vector &, double, bool);
     double E(const BlockVector &, const Vector &, const Vector &, bool);
+    Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
     bool GetConverged() const;
     // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);
@@ -74,6 +77,7 @@ public:
     void SetBarrierParameter(double);    
     void SaveLogBarrierHessianIterates(bool);
     void SetLinearSolver(int);
+    void SetLinearSolveTol(double);
     virtual ~InteriorPointSolver();
 };
 

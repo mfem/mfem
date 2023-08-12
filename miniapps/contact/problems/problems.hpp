@@ -99,7 +99,7 @@ public:
    ElasticityProblem * GetElasticityProblem2() {return prob2;}
 
    int GetNumDofs() {return K->Height();}
-   int GetNumContraints() {return npoints;}
+   int GetNumConstraints() {return npoints;}
    Vector & GetGapFunction() {return gapv;}
    SparseMatrix * GetJacobian() {return M;}
    Array<SparseMatrix*> & GetHessian() {return dM;}
