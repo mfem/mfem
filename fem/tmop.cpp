@@ -2937,6 +2937,11 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_gf == NULL,
                "Using both fitting approaches is not supported.");
+   MFEM_VERIFY(pos.FESpace()->GetMesh()->GetNodes(),
+               "Positions on a mesh without Nodes is not supported.");
+   MFEM_VERIFY(pos.FESpace()->GetOrdering() ==
+               pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
+               "Incompatible ordering of spaces!");
 
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
