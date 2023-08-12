@@ -297,13 +297,15 @@ void SNavierMonolithicSolver::SetInitialConditionPres(Coefficient &p_in)
 
 void SNavierMonolithicSolver::Setup()
 {
+   int skip_zeros = 0;  // Maintain sparsity pattern of K, C, C2 the same
+
    /// 1. Setup and assemble bilinear forms 
    K_form = new ParBilinearForm(vfes);
    C_form = new ParBilinearForm(vfes);
    B_form = new ParMixedBilinearForm(vfes, pfes);
    K_form->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_vis));
    B_form->AddDomainIntegrator(new VectorDivergenceIntegrator());
-   K_form->Assemble();  K_form->Finalize();
+   K_form->Assemble(skip_zeros);  K_form->Finalize(skip_zeros);
    B_form->Assemble();  B_form->Finalize();
    K = K_form->ParallelAssemble();
    B = B_form->ParallelAssemble();
@@ -314,7 +316,7 @@ void SNavierMonolithicSolver::Setup()
    // Adding forcing terms
    for (auto &accel_term : accel_terms)
    {
-      f_form->AddDomainIntegrator( new VectorDomainLFIntegrator( *(accel_term.coeff) ) );  // NOTE: need to modify this including domain attr, if having multiple domains
+      f_form->AddDomainIntegrator( new VectorDomainLFIntegrator( *(accel_term.coeff) ), accel_term.attr );  
    }
    // Adding traction bcs
    for (auto &traction_bc : traction_bcs)
@@ -551,28 +553,27 @@ void SNavierMonolithicSolver::SetupOutput( const char* folderPath, bool visit_, 
 
 void SNavierMonolithicSolver::Step()
 {
+   int skip_zeros = 0;
+
    // Assemble convective term 
    delete C_form; C_form = nullptr;
    C_form = new ParBilinearForm(vfes);
    C_form->AddDomainIntegrator(new VectorConvectionIntegrator(*vk_vc, 1.0));
-   C_form->Assemble(); C_form->Finalize();
+   C_form->Assemble(skip_zeros); C_form->Finalize(skip_zeros);
    C = C_form->ParallelAssemble();  
+
+   A = Add(1.0, *K, alpha, *C);                     // A = K + alpha C                     
 
    if ( newton )
    {
       delete C2_form; C2_form = nullptr;
       C2_form = new ParBilinearForm(vfes);
       C2_form->AddDomainIntegrator(new VectorGradCoefficientIntegrator(*vk_vc, 1.0));
-      C2_form->Assemble(); C2_form->Finalize();
+      C2_form->Assemble(skip_zeros); C2_form->Finalize(skip_zeros);
       C2 = C2_form->ParallelAssemble();
-      HypreParMatrix *tmp = ParAdd(C,C2);      // tmp = C + C2
-      A = Add(1.0, *K, alpha, *tmp);           // A = K + alpha C  
-      delete tmp; tmp = nullptr;                   
+      A->Add(alpha, *C2);                           // A += alpha C 2  
    }
-   else
-   {
-      A = Add(1.0, *K, alpha, *C);                      // A = K + alpha C                     
-   }
+
 
    // Assemble RHS velocity block
    (rhs->GetBlock(0)).Set(1.0,*fv);                                   // rhs_v = fv
