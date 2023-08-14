@@ -265,11 +265,14 @@ miniapps/navier/*_output
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+miniapps/nurbs/sin-fit.mesh
+miniapps/nurbs/CurveInt
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
