@@ -36,6 +36,9 @@ ifeq ($(MFEM_USE_MPI),NO)
 else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
+ifeq ($(MFEM_USE_LAPACK),YES)
+	EXAMPLES += ex37
+endif
 SUBDIRS =
 ifeq ($(MFEM_USE_AMGX),YES)
    SUBDIRS += amgx
