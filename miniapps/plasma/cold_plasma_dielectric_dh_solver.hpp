@@ -609,6 +609,7 @@ private:
    bool pa_;
 
    double omega_;
+   int H_iter_;
 
    // double solNorm_;
 

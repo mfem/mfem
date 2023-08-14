@@ -508,6 +508,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      curlj_(NULL),
      phi_(NULL),
      prev_phi_(NULL),
+     H_iter_(0),
      // temp_(NULL),
      // phi_tmp_(NULL),
      rectPot_(NULL),
@@ -1003,17 +1004,27 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
 
-      Bn_ = new ParGridFunction(H1FESpace_);
+      Bn_ = new ParGridFunction(L2FESpace_);
       *Bn_ = 0.0;
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
+
          ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
          SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc->real);
          SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc->imag);
 
-         if (z_r) { z_r->SetPotential(*phi_); }
-         if (z_i) { z_i->SetPotential(*phi_); }
+         if (z_r) 
+         { 
+            z_r->SetPotential(*phi_); 
+            z_r->SetHiter(&H_iter_);
+         }
+
+         if (z_i) 
+         { 
+            z_i->SetPotential(*phi_); 
+            z_i->SetHiter(&H_iter_);
+         }
       }
 
       grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
@@ -1710,7 +1721,7 @@ CPDSolverDH::Solve()
       Vector RHS0(2 * H1FESpace_->GetTrueVSize()); RHS0 = 0.0;
       Vector PHI(2 * H1FESpace_->GetTrueVSize()); PHI = 0.0;
 
-      int H_iter = 0;
+      //int H_iter = 0;
       double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
@@ -1729,7 +1740,7 @@ CPDSolverDH::Solve()
           }
           phi_->Distribute(PHI);
       */
-      while (H_iter < 50)
+      while (H_iter_ < 50)
       {
          nzD12_->Update();
          nzD12_->Assemble();
@@ -1750,10 +1761,10 @@ CPDSolverDH::Solve()
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
          GMRESSolver gmres(MPI_COMM_WORLD);
-         gmres.SetKDim(50);
-         gmres.SetRelTol(1e-5);
-         gmres.SetAbsTol(1e-5);
-         gmres.SetMaxIter(500);
+         gmres.SetKDim(400);
+         gmres.SetRelTol(5e-5);
+         gmres.SetAbsTol(5e-5);
+         gmres.SetMaxIter(1000);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
 
@@ -1767,11 +1778,11 @@ CPDSolverDH::Solve()
          double di = phi_->imag().ComputeL2Error(prevPhiImCoef);
          phi_diff = sqrt(dr*dr + di*di);
 
-         if (myid_ == 0) { cout << H_iter << '\t' << phi_diff << endl; }
+         if (myid_ == 0) { cout << H_iter_ << '\t' << phi_diff << endl; }
 
          prev_phi_->Vector::operator=((Vector&)(*phi_));
 
-         H_iter++;
+         H_iter_++;
          /*
          if ( phi_diff < 1e-5) {
              if (myid_ == 0) { cout << "Writing out solution" << endl; }
@@ -1792,7 +1803,7 @@ CPDSolverDH::Solve()
       }
       if (myid_ == 0)
       {
-         cout << " Outer H field calculation done in " << H_iter
+         cout << " Outer H field calculation done in " << H_iter_
               << " iteration(s)." << endl;
       }
    }
@@ -1836,6 +1847,8 @@ void CPDSolverDH::collectBdrAttributes(const Array<AttributeArrays*> & aa,
 {
    bdr_attr_marker.SetSize(pmesh_->bdr_attributes.Max());
    bdr_attr_marker = 0;
+   //cout << "BOUNDARY" << endl;
+   //pmesh_->bdr_attributes.Print(cout);
    if ( aa.Size() > 0 )
    {
       if ( aa.Size() == 1 && aa[0]->attr[0] == -1 )
@@ -2003,6 +2016,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
          ComplexHypreParMatrix * M1Z = M1.As<ComplexHypreParMatrix>();
          HypreParMatrix * M1C = M1Z->GetSystemMatrix();
          MUMPSSolver MInv;
+         //MInv.SetReorderingStrategy(MUMPSSolver::PARMETIS);
          MInv.SetOperator(*M1C);
          MInv.Mult(RHS1, E);
          delete M1C;
@@ -2262,14 +2276,16 @@ CPDSolverDH::WriteVisItFields(int it)
             RectifiedSheathPotential rectPotCoef(*sb, true);
             rectPot_->ProjectCoefficient(rectPotCoef);
 
-            /*
             if ( Bn_ && BCoef_ )
             {
-                b_hat_->ProjectCoefficient(*BCoef_);
-                BFieldAngle BnCoef(*sb, *b_hat_, true);
-                Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
+               //if (myid_ == 0){ cout << "SIZE.... " << sbc_bdr_marker_.Size() << endl; }
+               //if (myid_ == 0){ sbc_bdr_marker_.Print(cout); }
+               b_hat_->ProjectCoefficient(*BCoef_);
+               BFieldAngle BnCoef(*sb, *b_hat_, true);
+               //Bn_->ProjectBdrCoefficientNormal(*BCoef_, sbc_bdr_marker_);
+               //Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
+               Bn_->ProjectCoefficient(BnCoef);
             }
-             */
          }
       }
 
@@ -2300,7 +2316,8 @@ CPDSolverDH::WriteVisItFields(int it)
          e_perp_ ->ProjectCoefficient(eperp_rCoef, eperp_iCoef);
 
          // Finding E+ and E-
-         
+         //bool cyl = true;
+         //PlasmaProfile::CoordSystem coord_sys = cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
          StixFrame xStix(*b_hat_,true);
          StixFrame yStix(*b_hat_,false);
 

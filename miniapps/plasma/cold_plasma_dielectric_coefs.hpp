@@ -52,7 +52,13 @@ inline std::complex<double> omega_p(double number, double charge,
 }
 
 // Thermal Velocity
-inline std::complex<double> vthermal(double Te   /* Joules */,
+inline double vthermal(double Te   /* Joules */,
+                       double mass   /* AMU */)
+{
+   return sqrt( (2.0 * Te) / ( mass * amu_ ) );
+}
+
+inline std::complex<double> vthermal(std::complex<double> Te   /* Joules */,
                        std::complex<double> mass   /* AMU */)
 {
    return sqrt( (2.0 * Te) / ( mass * amu_ ) );
@@ -111,7 +117,8 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    int nuprof,
                                    double res_lim);
 
-std::complex<double> P_cold_plasma(double omega, double nue,
+std::complex<double> P_cold_plasma(double omega, 
+                                   double kparallel, double nue,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
@@ -119,7 +126,8 @@ std::complex<double> P_cold_plasma(double omega, double nue,
                                    double iontemp,
                                    int nuprof);
 
-std::complex<double> S_cold_plasma(double omega, double Bmag,
+std::complex<double> S_cold_plasma(double omega, 
+                                   double kparallel, double Bmag,
                                    double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
@@ -129,7 +137,8 @@ std::complex<double> S_cold_plasma(double omega, double Bmag,
                                    int nuprof,
                                    double res_lim);
 
-std::complex<double> D_cold_plasma(double omega, double Bmag,
+std::complex<double> D_cold_plasma(double omega, 
+                                   double kparallel, double Bmag,
                                    double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
@@ -222,6 +231,7 @@ public:
 
    virtual void SetPotential(ParComplexGridFunction & potential)
    { potential_ = &potential; }
+   virtual void SetHiter(int * Hiter) { Hiter_ = Hiter; }
    double               EvalIonDensity(ElementTransformation &T,
                                        const IntegrationPoint &ip);
    double               EvalElectronTemp(ElementTransformation &T,
@@ -239,6 +249,7 @@ protected:
 
    double omega_;
    bool realPart_;
+   int * Hiter_;
 
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
@@ -336,6 +347,7 @@ class StixCoefBase
 {
 public:
    StixCoefBase(const ParGridFunction & B,
+                const ParGridFunction & k,
                 const ParGridFunction & nue,
                 const ParGridFunction & nui,
                 const BlockVector & density,
@@ -365,6 +377,7 @@ public:
    double GetResonanceLimitorFactor() const { return res_lim_; }
 
    const ParGridFunction & GetBField() const { return B_; }
+   const ParGridFunction & GetKVec() const { return k_; }
    const ParGridFunction & GetNue() const { return nue_; }
    const ParGridFunction & GetNui() const { return nui_; }
    const ParGridFunction & GetTi() const { return iontemp_; }
@@ -380,12 +393,15 @@ public:
 protected:
    double getBMagnitude(ElementTransformation &T,
                         const IntegrationPoint &ip);
+   double getKvecMagnitude(ElementTransformation &T,
+                        const IntegrationPoint &ip);
    void   fillDensityVals(ElementTransformation &T,
                           const IntegrationPoint &ip);
    void   fillTemperatureVals(ElementTransformation &T,
                               const IntegrationPoint &ip);
 
    const ParGridFunction & B_;
+   const ParGridFunction & k_;
    const ParGridFunction & nue_;
    const ParGridFunction & nui_;
    const ParGridFunction & iontemp_;
@@ -400,6 +416,7 @@ protected:
    double res_lim_;
 
    mutable Vector BVec_;
+   mutable Vector KVec_;
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
 
@@ -416,6 +433,7 @@ class StixLCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixLCoef(const ParGridFunction & B,
+             const ParGridFunction & k,
              const ParGridFunction & nue,
              const ParGridFunction & nui,
              const BlockVector & density,
@@ -441,6 +459,7 @@ class StixRCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixRCoef(const ParGridFunction & B,
+             const ParGridFunction & k,
              const ParGridFunction & nue,
              const ParGridFunction & nui,
              const BlockVector & density,
@@ -466,6 +485,7 @@ class StixSCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixSCoef(const ParGridFunction & B,
+             const ParGridFunction & k,
              const ParGridFunction & nue,
              const ParGridFunction & nui,
              const BlockVector & density,
@@ -491,6 +511,7 @@ class StixDCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixDCoef(const ParGridFunction & B,
+             const ParGridFunction & k,
              const ParGridFunction & nue,
              const ParGridFunction & nui,
              const BlockVector & density,
@@ -516,6 +537,7 @@ class StixPCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixPCoef(const ParGridFunction & B,
+             const ParGridFunction & k,
              const ParGridFunction & nue,
              const ParGridFunction & nui,
              const BlockVector & density,
@@ -541,6 +563,7 @@ class StixTensorBase: public StixCoefBase
 {
 public:
    StixTensorBase(const ParGridFunction & B,
+                  const ParGridFunction & k,
                   const ParGridFunction & nue,
                   const ParGridFunction & nui,
                   const BlockVector & density,
@@ -569,6 +592,7 @@ class DielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
    DielectricTensor(const ParGridFunction & B,
+                    const ParGridFunction & k,
                     const ParGridFunction & nue,
                     const ParGridFunction & nui,
                     const BlockVector & density,
@@ -596,6 +620,7 @@ class InverseDielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
    InverseDielectricTensor(const ParGridFunction & B,
+                           const ParGridFunction & k,
                            const ParGridFunction & nue,
                            const ParGridFunction & nui,
                            const BlockVector & density,
@@ -623,6 +648,7 @@ class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase
 {
 public:
    SPDDielectricTensor(const ParGridFunction & B,
+                       const ParGridFunction & k,
                        const ParGridFunction & nue,
                        const ParGridFunction & nui,
                        const BlockVector & density,
@@ -720,7 +746,8 @@ public:
               SPARC_DEN    = 11,
               SPARC_TEMP   = 12,
               CORE         = 13,
-              SOL          = 14
+              SOL          = 14,
+              MIN_TEMP     = 15
              };
 
 private:
@@ -740,7 +767,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[15] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 2, 1, 1, 2, 2};
+   const int np_[16] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 3, 1, 1, 2, 2, 2};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section

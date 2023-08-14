@@ -283,6 +283,10 @@ void MUMPSSolver::SetParameters()
    id->MUMPS_ICNTL(4) = print_level;
    //input matrix format (assembled)
    id->MUMPS_ICNTL(5) = 0;
+   // Overiding default reordering to PARMETIS
+   id->MUMPS_ICNTL(7) = 5;
+   id->MUMPS_ICNTL(28) = 2;
+   id->MUMPS_ICNTL(29) = 2;
    // Use A or A^T
    id->MUMPS_ICNTL(9) = 1;
    // Iterative refinement (disabled)
