@@ -16,6 +16,8 @@
 
 using namespace std;
 
+#ifdef MFEM_USE_LAPACK
+
 namespace mfem
 {
 
@@ -249,7 +251,6 @@ void SIntegrationRule::ComputeWeights()
          }
       }
 
-#ifdef MFEM_USE_LAPACK
       Vector temp(nBasis);
       Vector temp2(GetNPoints());
       DenseMatrixSVD SVD(Mat, 'A', 'A');
@@ -262,8 +263,6 @@ void SIntegrationRule::ComputeWeights()
             temp2(i) = temp(i) / SVD.Singularvalue(i);
          }
       SVD.RightSingularvectors().MultTranspose(temp2, Weights);
-
-#endif
    }
 
    for (int ip = 0; ip < GetNPoints(); ip++)
@@ -639,7 +638,7 @@ void CutIntegrationRule::ComputeWeights()
                          * sqrt(Trafo.Weight() / 4.) * Trafo.Weight();
          }
       }
-#ifdef MFEM_USE_LAPACK
+
       Vector temp(nBasis);
       Vector temp2(GetNPoints());
       temp2 = 0.;
@@ -650,7 +649,7 @@ void CutIntegrationRule::ComputeWeights()
             temp2(i) = temp(i) / SVD->Singularvalue(i);
          }
       SVD->RightSingularvectors().MultTranspose(temp2, Weights);
-#endif //MFEM_USE_LAPACK
+
       Weights *= 1. / Trafo.Weight();
    }
    else if (interior)
@@ -729,3 +728,5 @@ void CutIntegrationRule::Update(IsoparametricTransformation& Tr)
 CutIntegrationRule::~CutIntegrationRule() { delete SVD; delete SIR; }
 
 }
+
+#endif //MFEM_USE_LAPACK

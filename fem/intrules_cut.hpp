@@ -18,6 +18,8 @@
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 
+#ifdef MFEM_USE_LAPACK
+
 namespace mfem
 {
 
@@ -66,9 +68,9 @@ private:
    int nBasis;
    int ElementNo;
    Vector InteriorWeights;
-#ifdef MFEM_USE_LAPACK
+
    DenseMatrixSVD* SVD;
-#endif //MFEM_USE_LAPACK
+
 
    mutable Array<double> weights;
 
@@ -94,5 +96,7 @@ public:
 };
 
 }
+
+#endif //MFEM_USE_LAPACK
 
 #endif
