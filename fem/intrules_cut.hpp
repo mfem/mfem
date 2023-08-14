@@ -24,34 +24,34 @@ namespace mfem
 class SIntegrationRule : public Array<IntegrationPoint>
 {
 private:
-    IsoparametricTransformation Trafo;
-    Coefficient &LvlSet;
-    int Order;
-    int nBasis;
-    int ElementNo;
+   IsoparametricTransformation Trafo;
+   Coefficient &LvlSet;
+   int Order;
+   int nBasis;
+   int ElementNo;
 
-    mutable Array<double> weights;
+   mutable Array<double> weights;
 
-    void ComputeWeights();
+   void ComputeWeights();
 
-    void Basis(const IntegrationPoint& ip, DenseMatrix& shape);
-    void OrthoBasis(const IntegrationPoint& ip, DenseMatrix& shape);
-    void mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN, int step);
+   void Basis(const IntegrationPoint& ip, DenseMatrix& shape);
+   void OrthoBasis(const IntegrationPoint& ip, DenseMatrix& shape);
+   void mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN, int step);
 
 public:
-    SIntegrationRule(int q, ElementTransformation& Tr,
-                     Coefficient &levelset);
+   SIntegrationRule(int q, ElementTransformation& Tr,
+                    Coefficient &levelset);
 
-    void Update(IsoparametricTransformation& Tr);
+   void Update(IsoparametricTransformation& Tr);
 
-    int GetOrder() const { return Order; }
-    int GetNPoints() const { return Size(); }
-    IntegrationPoint &IntPoint(int i) { return (*this)[i]; }
-    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
+   int GetOrder() const { return Order; }
+   int GetNPoints() const { return Size(); }
+   IntegrationPoint &IntPoint(int i) { return (*this)[i]; }
+   const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
 
-    int GetElement() { return ElementNo; }
+   int GetElement() { return ElementNo; }
 
-    ~SIntegrationRule() { }
+   ~SIntegrationRule() { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,38 +59,38 @@ public:
 class CutIntegrationRule : public Array<IntegrationPoint>
 {
 private:
-    SIntegrationRule* SIR;
-    IsoparametricTransformation Trafo;
-    Coefficient &LvlSet;
-    int Order;
-    int nBasis;
-    int ElementNo;
-    Vector InteriorWeights;
+   SIntegrationRule* SIR;
+   IsoparametricTransformation Trafo;
+   Coefficient &LvlSet;
+   int Order;
+   int nBasis;
+   int ElementNo;
+   Vector InteriorWeights;
 #ifdef MFEM_USE_LAPACK
-    DenseMatrixSVD* SVD;
+   DenseMatrixSVD* SVD;
 #endif //MFEM_USE_LAPACK
 
-    mutable Array<double> weights;
+   mutable Array<double> weights;
 
-    void ComputeWeights();
+   void ComputeWeights();
 
-    void Basis(const IntegrationPoint& ip, Vector& shape);
-    void BasisAntiDerivative(const IntegrationPoint& ip, DenseMatrix& shape);
+   void Basis(const IntegrationPoint& ip, Vector& shape);
+   void BasisAntiDerivative(const IntegrationPoint& ip, DenseMatrix& shape);
 
 public:
-    CutIntegrationRule(int q, ElementTransformation& Tr,
-                       Coefficient &levelset);
+   CutIntegrationRule(int q, ElementTransformation& Tr,
+                      Coefficient &levelset);
 
-    void Update(IsoparametricTransformation& Tr);
+   void Update(IsoparametricTransformation& Tr);
 
-    SIntegrationRule* GetSurfaceIntegrationRule() { return SIR; }
+   SIntegrationRule* GetSurfaceIntegrationRule() { return SIR; }
 
-    int GetOrder() const { return Order; }
-    int GetNPoints() const { return Size(); }
-    IntegrationPoint &IntPoint(int i) { return (*this)[i]; }
-    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
+   int GetOrder() const { return Order; }
+   int GetNPoints() const { return Size(); }
+   IntegrationPoint &IntPoint(int i) { return (*this)[i]; }
+   const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
 
-    ~CutIntegrationRule();
+   ~CutIntegrationRule();
 };
 
 }
