@@ -2248,7 +2248,7 @@ void NeighborRowMessage::Decode(int rank)
 
             const auto T = [&fo]()
             {
-               auto T = ND_DofTransformation::GetFaceTransform(fo);
+               auto T = ND_StatelessDofTransformation::GetFaceTransform(fo);
                T(0,0) -= 1;
                T(1,1) -= 1;
                return T;
