@@ -97,10 +97,12 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob1_, ParElasticit
    K = HypreParMatrixFromBlocks(A);
 
    HypreBoomerAMG * amg1 = new HypreBoomerAMG(prob1->GetOperator());
-   amg1->SetElasticityOptions(prob1->GetFESpace());
+   // amg1->SetElasticityOptions(prob1->GetFESpace());
+   amg1->SetSystemsOptions(3,false);
    amg1->SetPrintLevel(0);
    HypreBoomerAMG * amg2 = new HypreBoomerAMG(prob2->GetOperator());
-   amg2->SetElasticityOptions(prob2->GetFESpace());
+   // amg2->SetElasticityOptions(prob2->GetFESpace());
+   amg2->SetSystemsOptions(3,false);
    amg2->SetPrintLevel(0);
 
    prec = new BlockDiagonalPreconditioner(tdof_offsets);

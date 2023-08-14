@@ -462,7 +462,8 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       Aprec.SetSystemsOptions(3,false);
       CGSolver AreducedSolver(MPI_COMM_WORLD);
       AreducedSolver.SetOperator(Ahypre);
-      AreducedSolver.SetRelTol(linSolveTol);
+      // AreducedSolver.SetRelTol(linSolveTol);
+      AreducedSolver.SetRelTol(1e-6);
       AreducedSolver.SetMaxIter(1000);
       AreducedSolver.SetPreconditioner(Aprec);
       AreducedSolver.SetPrintLevel(1);
