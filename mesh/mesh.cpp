@@ -1445,7 +1445,7 @@ Element::Type Mesh::GetFaceElementType(int Face) const
 
 Array<int> Mesh::GetFaceToBdrElMap() const
 {
-   Array<int> face_to_be(NumOfFaces);
+   Array<int> face_to_be(GetNumFaces());
    face_to_be = -1;
    for (int i = 0; i < NumOfBdrElements; i++)
    {
@@ -3021,6 +3021,10 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
+      if (NumOfBdrElements == 0 && generate_bdr)
+      {
+         GenerateBoundaryElements();
+      }
    }
 
    if (ncmesh)
@@ -3749,8 +3753,8 @@ Mesh& Mesh::operator=(Mesh &&mesh)
    return *this;
 }
 
-Mesh Mesh::LoadFromFile(const char *filename, int generate_edges, int refine,
-                        bool fix_orientation)
+Mesh Mesh::LoadFromFile(const std::string &filename, int generate_edges,
+                        int refine, bool fix_orientation)
 {
    Mesh mesh;
    named_ifgzstream imesh(filename);
@@ -3804,7 +3808,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
    return mesh;
 }
 
-Mesh::Mesh(const char *filename, int generate_edges, int refine,
+Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
            bool fix_orientation)
 {
    // Initialization as in the default constructor
@@ -5661,11 +5665,52 @@ int Mesh::GetTriOrientation(const int *base, const int *test)
    for (int j = 0; j < 3; j++)
       if (test[aor[j]] != base[j])
       {
-         mfem_error("Mesh::GetTriOrientation(...)");
+         mfem::err << "Mesh::GetTriOrientation(...)" << endl;
+         mfem::err << " base = [";
+         for (int k = 0; k < 3; k++)
+         {
+            mfem::err << " " << base[k];
+         }
+         mfem::err << " ]\n test = [";
+         for (int k = 0; k < 3; k++)
+         {
+            mfem::err << " " << test[k];
+         }
+         mfem::err << " ]" << endl;
+         mfem_error();
       }
 #endif
 
    return orient;
+}
+
+int Mesh::ComposeTriOrientations(int ori_a_b, int ori_b_c)
+{
+   // Static method.
+   // Given three, possibly different, configurations of triangular face
+   // vertices: va, vb, and vc.  This function returns the relative orientation
+   // GetTriOrientation(va, vc) by composing previously computed orientations
+   // ori_a_b = GetTriOrientation(va, vb) and
+   // ori_b_c = GetTriOrientation(vb, vc) without accessing the vertices.
+
+   const int oo[6][6] =
+   {
+      {0, 1, 2, 3, 4, 5},
+      {1, 0, 5, 4, 3, 2},
+      {2, 3, 4, 5, 0, 1},
+      {3, 2, 1, 0, 5, 4},
+      {4, 5, 0, 1, 2, 3},
+      {5, 4, 3, 2, 1, 0}
+   };
+
+   int ori_a_c = oo[ori_a_b][ori_b_c];
+   return ori_a_c;
+}
+
+int Mesh::InvertTriOrientation(int ori)
+{
+   const int inv_ori[6] = {0, 1, 4, 3, 2, 5};
+   return inv_ori[ori];
 }
 
 int Mesh::GetQuadOrientation(const int *base, const int *test)
@@ -5714,6 +5759,37 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    }
 
    return 2*i+1;
+}
+
+int Mesh::ComposeQuadOrientations(int ori_a_b, int ori_b_c)
+{
+   // Static method.
+   // Given three, possibly different, configurations of quadrilateral face
+   // vertices: va, vb, and vc.  This function returns the relative orientation
+   // GetQuadOrientation(va, vc) by composing previously computed orientations
+   // ori_a_b = GetQuadOrientation(va, vb) and
+   // ori_b_c = GetQuadOrientation(vb, vc) without accessing the vertices.
+
+   const int oo[8][8] =
+   {
+      {0, 1, 2, 3, 4, 5, 6, 7},
+      {1, 0, 3, 2, 5, 4, 7, 6},
+      {2, 7, 4, 1, 6, 3, 0, 5},
+      {3, 6, 5, 0, 7, 2, 1, 4},
+      {4, 5, 6, 7, 0, 1, 2, 3},
+      {5, 4, 7, 6, 1, 0, 3, 2},
+      {6, 3, 0, 5, 2, 7, 4, 1},
+      {7, 2, 1, 4, 3, 6, 5, 0}
+   };
+
+   int ori_a_c = oo[ori_a_b][ori_b_c];
+   return ori_a_c;
+}
+
+int Mesh::InvertQuadOrientation(int ori)
+{
+   const int inv_ori[8] = {0, 1, 6, 3, 4, 5, 2, 7};
+   return inv_ori[ori];
 }
 
 int Mesh::GetTetOrientation(const int *base, const int *test)
@@ -6531,9 +6607,9 @@ const Table & Mesh::ElementToEdgeTable() const
 
 void Mesh::AddPointFaceElement(int lf, int gf, int el)
 {
-   if (faces_info[gf].Elem1No == -1)  // this will be elem1
+   if (faces[gf] == NULL)  // this will be elem1
    {
-      // faces[gf] = new Point(&gf);
+      faces[gf] = new Point(&gf);
       faces_info[gf].Elem1No  = el;
       faces_info[gf].Elem1Inf = 64 * lf; // face lf with orientation 0
       faces_info[gf].Elem2No  = -1; // in case there's no other side
@@ -10391,7 +10467,7 @@ void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
    os << "\nvertices\n" << NumOfVertices << '\n';
 }
 
-void Mesh::Save(const char *fname, int precision) const
+void Mesh::Save(const std::string &fname, int precision) const
 {
    ofstream ofs(fname);
    ofs.precision(precision);
