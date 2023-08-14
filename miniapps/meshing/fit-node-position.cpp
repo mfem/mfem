@@ -17,10 +17,10 @@
 // positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
-//   mpirun -np 4 tmop-fit-position
-//   mpirun -np 4 tmop-fit-position -m square01-tri.mesh
-//   mpirun -np 4 tmop-fit-position -m ./cube.mesh
-//   mpirun -np 4 tmop-fit-position -m ./cube_tet_4x4x4.mesh -rs 0
+//   mpirun -np 4 fit-node-position
+//   mpirun -np 4 fit-node-position -m square01-tri.mesh
+//   mpirun -np 4 fit-node-position -m ./cube.mesh
+//   mpirun -np 4 fit-node-position -m ./cube-tet.mesh -rs 0
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
