@@ -611,101 +611,37 @@ int DivFreeSolver::GetNumIterations() const
 BramblePasciakSolver::BramblePasciakSolver(
    const std::shared_ptr<ParBilinearForm> &mVarf,
    const std::shared_ptr<ParMixedBilinearForm> &bVarf,
-   const IterSolveParameters &param, double alpha)
+   const BPCGParameters &param)
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
-                 bVarf->TestFESpace()->GetTrueVSize()),
-     solver_(mVarf->ParFESpace()->GetComm()),
-     bpsolver_(mVarf->ParFESpace()->GetComm())
+                 bVarf->TestFESpace()->GetTrueVSize())
 {
+   MFEM_ASSERT((param.q_scaling>=0.0) && (param.q_scaling<=1.0),
+               "Invalid Q-scaling factor: param.q_scaling " << param.q_scaling );
    M_.reset(mVarf->ParallelAssemble());
    B_.reset(bVarf->ParallelAssemble());
-   Q_.reset(ConstructMassPreconditioner(*mVarf, alpha));
+   Q_.reset(ConstructMassPreconditioner(*mVarf, param.q_scaling));
 
    Init(*M_, *B_, *Q_, param);
-   SetBPCG(true);
 }
 
 BramblePasciakSolver::BramblePasciakSolver(
    HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
    Solver &M0, Solver &M1,
-   const IterSolveParameters &param)
-   : DarcySolver(M.NumRows(), B.NumRows()),
-     solver_(M.GetComm()), bpsolver_(M.GetComm())
+   const BPCGParameters &param)
+   : DarcySolver(M.NumRows(), B.NumRows())
 {
    Init(M, B, Q, M0, M1, param);
-   SetBPCG(false);
 }
 
 void BramblePasciakSolver::Init(
    HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
-   Solver &M0, Solver &M1,
-   const IterSolveParameters &param)
+   const BPCGParameters &param)
 {
-   oop_ = new BlockOperator(offsets_);
-   ipc_ = new BlockOperator(offsets_);
-   cpc_ = new BlockDiagonalPreconditioner(offsets_);
-
-   /// User provides the complete system
-   /// We assume the preconditioners Q and M0 do not match
    auto Bt = new TransposeOperator(&B);
-   auto id_m = new IdentityOperator(M.NumRows());
-   auto id_b = new IdentityOperator(B.NumRows());
-   auto id = new IdentityOperator(M.NumRows()+B.NumRows());
    // invQ
    // TODO
-   //This is not general enough. We are assuming Q is diag
-   HypreParMatrix *invQ = new HypreParMatrix(Q);
-   Vector diagQ;
-   Q.GetDiag(diagQ);
-   *invQ = 1.0;
-   invQ->InvScaleRows(diagQ);
-
-   {
-      oop_->owns_blocks = false;
-      oop_->SetBlock(0, 0, &M);
-      oop_->SetBlock(0, 1, Bt);
-      oop_->SetBlock(1, 0, &B);
-
-      cpc_->owns_blocks = true;
-      cpc_->SetDiagonalBlock(0, &M0);
-      cpc_->SetDiagonalBlock(0, &M1);
-
-      ipc_->owns_blocks = false;
-      ipc_->SetDiagonalBlock(0, &M0);
-
-      auto temp = new ProductOperator(oop_, ipc_, false, false);
-      map_ = new AddOperator(temp, 1.0, id, -1.0, true, false);
-
-      mop_ = new ProductOperator(map_, oop_, false, false);
-   }
-
-   // Set solver
-   SetOptions(solver_, param);
-   SetOptions(bpsolver_, param);
-   {
-      solver_.SetOperator(*oop_);
-      solver_.SetPreconditioner(*cpc_);
-      bpsolver_.SetOperator(*oop_);
-      bpsolver_.SetPreconditioner(*cpc_);
-      bpsolver_.SetPCs(*ipc_, *map_);
-   }
-}
-
-void BramblePasciakSolver::Init(
-   HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
-   const IterSolveParameters &param)
-{
-   oop_ = new BlockOperator(offsets_);
-   ipc_ = new BlockOperator(offsets_);
-   cpc_ = new BlockDiagonalPreconditioner(offsets_);
-
-   auto Bt = new TransposeOperator(&B);
-   auto id_m = new IdentityOperator(M.NumRows());
-   auto id_b = new IdentityOperator(B.NumRows());
-   auto id = new IdentityOperator(M.NumRows()+B.NumRows());
-   // invQ
-   // TODO
-   //This is not general enough. We are assuming Q is diag
+   // This is not general enough. We are assuming Q is diag
+   // Not using invQ ...
    HypreParMatrix *invQ = new HypreParMatrix(Q);
    Vector diagQ;
    Q.GetDiag(diagQ);
@@ -723,45 +659,197 @@ void BramblePasciakSolver::Init(
    // auto solver_M1 = new HypreBoomerAMG(*block11);
    M1->SetPrintLevel(0);
 
+   use_bpcg = param.use_bpcg;
+
+   if (use_bpcg)
    {
+      oop_ = new BlockOperator(offsets_);
       oop_->owns_blocks = false;
       oop_->SetBlock(0, 0, &M);
       oop_->SetBlock(0, 1, Bt);
       oop_->SetBlock(1, 0, &B);
 
+      // cpc_ unused in bpcg
+      auto temp_cpc = new BlockDiagonalPreconditioner(offsets_);
+      temp_cpc->owns_blocks = true;
+      temp_cpc->SetDiagonalBlock(0, M0);
+      temp_cpc->SetDiagonalBlock(1, M1);
+      // tri(1,0) = B M0 = B invQ
+      auto id_m = new IdentityOperator(M.NumRows());
+      auto id_b = new IdentityOperator(B.NumRows());
+      auto BinvM0 = new ProductOperator(&B, M0, false, false);
+      // tri
+      auto temp_tri = new BlockOperator(offsets_);
+      temp_tri->owns_blocks = true;
+      temp_tri->SetBlock(0, 0, id_m);
+      temp_tri->SetBlock(1, 1, id_b, -1.0);
+      temp_tri->SetBlock(1, 0, BinvM0);
+
+      ppc_ = new ProductOperator(temp_cpc, temp_tri, true, true);
+
+      ipc_ = new BlockOperator(offsets_);
+      ipc_->owns_blocks = false;
+      ipc_->SetDiagonalBlock(0, M0);
+
+      // bpcg
+      solver_.Reset(new BPCGSolver(M.GetComm()));
+      SetOptions(*solver_.As<BPCGSolver>(), param);
+      {
+         solver_.As<BPCGSolver>()->SetOperator(*oop_);
+         solver_.As<BPCGSolver>()->SetIncompletePreconditioner(*ipc_);
+         solver_.As<BPCGSolver>()->SetParticularPreconditioner(*ppc_);
+      }
+
+      // TODO
+      // Set remaining pointers to nullptr?
+      if (Mpi::Root()) { MFEM_WARNING("mop_, map_, cpc_ unset!"); }
+      if (param.use_hpc && Mpi::Root()) { MFEM_WARNING("H preconditioner is implicit when using BGCG. hpc_ unset!"); }
+   }
+   else
+   {
+      // oop_ unused in cg
+      auto temp_oop = new BlockOperator(offsets_);
+      temp_oop->owns_blocks = false;
+      temp_oop->SetBlock(0, 0, &M);
+      temp_oop->SetBlock(0, 1, Bt);
+      temp_oop->SetBlock(1, 0, &B);
+
+      // ipc_ unused in cg
+      auto temp_ipc = new BlockOperator(offsets_);
+      temp_ipc->owns_blocks = false;
+      temp_ipc->SetDiagonalBlock(0, M0);
+
+      // temp_AN = temp_oop * temp_ipc
+      auto temp_AN = new ProductOperator(temp_oop, temp_ipc, true, true);
+
+      // Required for updating the RHS
+      auto id = new IdentityOperator(M.NumRows()+B.NumRows());
+      map_ = new AddOperator(temp_AN, 1.0, id, -1.0, true, true);
+
+      mop_ = new ProductOperator(map_, temp_oop, false, true);
+
+      cpc_ = new BlockDiagonalPreconditioner(offsets_);
       cpc_->owns_blocks = true;
       cpc_->SetDiagonalBlock(0, M0);
       cpc_->SetDiagonalBlock(1, M1);
 
+      if (param.use_hpc)
+      {
+         auto Diff = new HypreParMatrix(M);
+         Diff->Add(-1.0,Q);
+         auto MM0 = new HypreDiagScale(*Diff);
+         auto MM1 = new HypreDiagScale(*S);
+
+         hpc_ = new BlockDiagonalPreconditioner(offsets_);
+         hpc_->owns_blocks = true;
+         hpc_->SetDiagonalBlock(0, MM0);
+         hpc_->SetDiagonalBlock(1, MM1);
+      }
+
+      solver_.Reset(new CGSolver(M.GetComm()));
+      SetOptions(*solver_.As<CGSolver>(), param);
+      {
+         solver_.As<CGSolver>()->SetOperator(*mop_);
+         solver_.As<CGSolver>()->SetPreconditioner(*cpc_);
+      }
+
+      // TODO
+      // Set remaining pointers to nullptr?
+      if (Mpi::Root()) { MFEM_WARNING("oop_, ipc_, ppc_ unset!"); }
+   }
+}
+
+void BramblePasciakSolver::Init(
+   HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
+   Solver &M0, Solver &M1,
+   const BPCGParameters &param)
+{
+   auto Bt = new TransposeOperator(&B);
+   auto invQ = new HypreDiagScale(Q);
+
+   use_bpcg = param.use_bpcg;
+
+   if (use_bpcg)
+   {
+      oop_ = new BlockOperator(offsets_);
+      oop_->owns_blocks = false;
+      oop_->SetBlock(0, 0, &M);
+      oop_->SetBlock(0, 1, Bt);
+      oop_->SetBlock(1, 0, &B);
+
+      // cpc_ unused in bpcg
+      auto temp_cpc = new BlockDiagonalPreconditioner(offsets_);
+      temp_cpc->owns_blocks = true;
+      temp_cpc->SetDiagonalBlock(0, invQ);
+      temp_cpc->SetDiagonalBlock(1, &M1);
+      // tri(1,0) = B M0 = B invQ
+      auto id_m = new IdentityOperator(M.NumRows());
+      auto id_b = new IdentityOperator(B.NumRows());
+      auto BinvQ = new ProductOperator(&B, invQ, false, false);
+      // tri
+      auto temp_tri = new BlockOperator(offsets_);
+      temp_tri->owns_blocks = true;
+      temp_tri->SetBlock(0, 0, id_m);
+      temp_tri->SetBlock(1, 1, id_b, -1.0);
+      temp_tri->SetBlock(1, 0, BinvQ);
+
+      ppc_ = new ProductOperator(temp_cpc, temp_tri, true, true);
+
+      ipc_ = new BlockOperator(offsets_);
       ipc_->owns_blocks = false;
-      ipc_->SetDiagonalBlock(0, M0);
+      ipc_->SetDiagonalBlock(0, invQ);
 
-      auto temp = new ProductOperator(oop_, ipc_, false, false);
-      map_ = new AddOperator(temp, 1.0, id, -1.0, true, true);
+      // bpcg
+      solver_.Reset(new BPCGSolver(M.GetComm()));
+      SetOptions(*solver_.As<BPCGSolver>(), param);
+      {
+         solver_.As<BPCGSolver>()->SetOperator(*oop_);
+         solver_.As<BPCGSolver>()->SetIncompletePreconditioner(*ipc_);
+         solver_.As<BPCGSolver>()->SetParticularPreconditioner(*ppc_);
+      }
 
-      mop_ = new ProductOperator(map_, oop_, false, false);
+      // TODO
+      // Set remaining pointers to nullptr?
+      if (Mpi::Root()) { MFEM_WARNING("mop_, map_, cpc_ unset!"); }
    }
-
+   else
    {
-      auto temp = new BlockOperator(offsets_);
-      auto BinvM = new ProductOperator(&B, invQ, false, false);
+      // oop_ unused in cg
+      auto temp_oop = new BlockOperator(offsets_);
+      temp_oop->owns_blocks = false;
+      temp_oop->SetBlock(0, 0, &M);
+      temp_oop->SetBlock(0, 1, Bt);
+      temp_oop->SetBlock(1, 0, &B);
 
-      temp->owns_blocks = true;
-      temp->SetBlock(0, 0, id_m);
-      temp->SetBlock(1, 1, id_b, -1.0);
-      temp->SetBlock(1, 0, BinvM); // , -1.0);
-      ppc_ = new ProductOperator(cpc_, temp, false, true);
-   }
+      // ipc_ unused in cg
+      auto temp_ipc = new BlockOperator(offsets_);
+      temp_ipc->owns_blocks = false;
+      temp_ipc->SetDiagonalBlock(0, invQ);
 
-   // Set solver
-   SetOptions(solver_, param);
-   SetOptions(bpsolver_, param);
-   {
-      solver_.SetOperator(*mop_);
-      solver_.SetPreconditioner(*cpc_);
-      bpsolver_.SetOperator(*oop_);
-      bpsolver_.SetPreconditioner(*cpc_);
-      bpsolver_.SetPCs(*ipc_, *ppc_);
+      // temp_AN = temp_oop * temp_ipc
+      auto temp_AN = new ProductOperator(temp_oop, temp_ipc, true, true);
+
+      // Required for updating the RHS
+      auto id = new IdentityOperator(M.NumRows()+B.NumRows());
+      map_ = new AddOperator(temp_AN, 1.0, id, -1.0, true, true);
+
+      mop_ = new ProductOperator(map_, temp_oop, false, true);
+
+      cpc_ = new BlockDiagonalPreconditioner(offsets_);
+      cpc_->owns_blocks = true;
+      cpc_->SetDiagonalBlock(0, &M0);
+      cpc_->SetDiagonalBlock(1, &M1);
+
+      solver_.Reset(new CGSolver(M.GetComm()));
+      SetOptions(*solver_.As<CGSolver>(), param);
+      {
+         solver_.As<CGSolver>()->SetOperator(*mop_);
+         solver_.As<CGSolver>()->SetPreconditioner(*cpc_);
+      }
+
+      // TODO
+      // Set remaining pointers to nullptr?
+      if (Mpi::Root()) { MFEM_WARNING("oop_, ipc_, ppc_ unset!"); }
    }
 }
 
@@ -797,20 +885,19 @@ void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
    {
       Vector transformed_rhs(x.Size());
       map_->Mult(x, transformed_rhs);
-      solver_.Mult(transformed_rhs, y);
+      solver_.As<CGSolver>()->Mult(transformed_rhs, y);
    }
    else
    {
-      // MFEM_ABORT("Not implemented yet!");
-      bpsolver_.Mult(x, y);
+      solver_.As<BPCGSolver>()->Mult(x, y);
    }
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
 
 int BramblePasciakSolver::GetNumIterations() const
 {
-   if (!use_bpcg) { return solver_.GetNumIterations(); }
-   else { return bpsolver_.GetNumIterations(); }
+   if (!use_bpcg) { return solver_.As<CGSolver>()->GetNumIterations(); }
+   else { return solver_.As<BPCGSolver>()->GetNumIterations(); }
 }
 
 /// Bramble-Pasciak CG
@@ -822,8 +909,7 @@ void BPCGSolver::UpdateVectors()
    p.SetSize(width, mt); p.UseDevice(true);
    g.SetSize(width, mt); g.UseDevice(true);
    t.SetSize(width, mt); t.UseDevice(true);
-   r_hat.SetSize(width, mt); r_hat.UseDevice(true);
-   // r_tem.SetSize(width, mt); r_tem.UseDevice(true);
+   // r_hat.SetSize(width, mt); r_hat.UseDevice(true);
    r_bar.SetSize(width, mt); r_bar.UseDevice(true);
    r_red.SetSize(width, mt); r_red.UseDevice(true);
    g_red.SetSize(width, mt); g_red.UseDevice(true);

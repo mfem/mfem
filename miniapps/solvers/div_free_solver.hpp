@@ -19,14 +19,16 @@
 namespace mfem
 {
 /// Bramble-Pasciak Conjugate Gradient
-class BPCGSolver : public CGSolver
+class BPCGSolver : public IterativeSolver
 {
 protected:
-   mutable Vector p, g, t, r_hat, r_bar, r_red, g_red;
+   mutable Vector r, p, g, t, r_bar, r_red, g_red;
    /// Remaining required operators
    /*  Operator list
+    *  From IterativeSolver:
     *  *oper  -> A  = [M, Bt; B, 0]
     *  *prec  -> P  = diag(M0, M1)
+    *  From this class:
     *  *iprec -> N  = diag(M0, 0)
     *  *pprec -> P' = P * [Id, 0; B*M0, -Id]
     */
@@ -37,15 +39,23 @@ public:
    BPCGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   BPCGSolver(MPI_Comm comm_) : CGSolver(comm_) { }
+   BPCGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   /// Set remaining operators
-   void SetPCs(const Operator &ipc, const Operator &ppc)
-   { iprec = &ipc; pprec = &ppc; }
+   virtual void SetPreconditioner(const Operator &pc)
+   { if (Mpi::Root()) { MFEM_WARNING("No explicit preconditioner required for BPCG"); } }
+
+   virtual void SetPreconditioner()
+   { if (Mpi::Root()) { MFEM_WARNING("No explicit preconditioner required for BPCG"); } }
+
+   virtual void SetIncompletePreconditioner(const Operator &ipc)
+   { iprec = &ipc; }
+
+   virtual void SetParticularPreconditioner(const Operator &ppc)
+   { pprec = &ppc; }
 
    virtual void Mult(const Vector &b, Vector &x) const;
 };
@@ -74,6 +84,16 @@ struct DFSParameters : IterSolveParameters
    bool verbose = false;
    IterSolveParameters coarse_solve_param;
    IterSolveParameters BBT_solve_param;
+};
+
+/// Parameters for the BPCG method
+struct BPCGParameters : IterSolveParameters
+{
+   /* These are parameters for the scaling of the Q preconditioner
+    * the usage of BPCG method, and the definition of the H preconditioner */
+   bool use_bpcg = true;
+   double q_scaling = 0.5;
+   bool use_hpc = false;
 };
 
 /// Data for the divergence free solver
@@ -292,42 +312,43 @@ public:
  */
 class BramblePasciakSolver : public DarcySolver
 {
+   // TODO TO be removed and included in param
    mutable bool use_bpcg;
-   CGSolver solver_;
-   BPCGSolver bpsolver_;
-   BlockOperator *oop_;
+   OperatorPtr solver_;
+   // CGSolver solver_;
+   // BPCGSolver bpsolver_;
+   BlockOperator *oop_, *ipc_;
    ProductOperator *mop_;
    AddOperator *map_;
    ProductOperator *ppc_;
-   BlockDiagonalPreconditioner *cpc_;
-   BlockOperator *ipc_;
+   BlockDiagonalPreconditioner *cpc_, *hpc_;
    std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;
    Array<int> ess_zero_dofs_;
 
-   /// User provides system. No BPCG available here.
+   /// User provides system.
    void Init(HypreParMatrix &M, HypreParMatrix &B,
              HypreParMatrix &Q,
              Solver &M0, Solver &M1,
-             const IterSolveParameters &param);
+             const BPCGParameters &param);
 
-   /// Construct specific preconditioners, and enables usage of BPCG.
+   /// Construct specific preconditioners.
    void Init(HypreParMatrix &M, HypreParMatrix &B,
              HypreParMatrix &Q,
-             const IterSolveParameters &param);
+             const BPCGParameters &param);
 public:
    /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
       const std::shared_ptr<ParBilinearForm> &mVarf,
       const std::shared_ptr<ParMixedBilinearForm> &bVarf,
-      const IterSolveParameters &param, double alpha = 0.5);
+      const BPCGParameters &param);
 
    /// System and mass preconditioner are user-provided
    BramblePasciakSolver(
       HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
       Solver &M0, Solver &M1,
-      const IterSolveParameters &param);
+      const BPCGParameters &param);
 
    /// Assemble a preconditioner for the mass matrix
    /** Mass preconditioner corresponds to a local re-scaling
