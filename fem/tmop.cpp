@@ -3081,9 +3081,10 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
          for (int d = 0; d < dim; d++)
          {
             pos_s(d) = (fes->GetOrdering() == Ordering::byNODES) ?
-               pos(d*node_cnt + i) : pos(i*dim + d);
-            pos_s_target(d) = (fes->GetOrdering() == Ordering::byNODES) ?
-               (*surf_fit_pos)(d*node_cnt + i) : (*surf_fit_pos)(i*dim + d);
+                       pos(d*node_cnt + i) : pos(i*dim + d);
+            pos_s_target(d) = (fes->GetOrdering() == Ordering::byNODES)
+                              ? (*surf_fit_pos)(d*node_cnt + i)
+                              : (*surf_fit_pos)(i*dim + d);
          }
          sigma_s = pos_s.DistanceTo(pos_s_target);
       }
