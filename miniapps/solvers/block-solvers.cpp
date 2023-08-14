@@ -261,7 +261,12 @@ int main(int argc, char *argv[])
    int par_ref_levels = 2;
    bool show_error = false;
    bool visualization = false;
+   bool enable_bpcg = true;
+   bool enable_hpc = false;
+
    DFSParameters param;
+   BPCGParameters bpcg_param;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -279,6 +284,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&enable_bpcg, "-bp", "--bpcg", "-no-bp",
+                  "--no-bpcg",
+                  "Enable or disable Bramble-Pasciak CG method (BPCG-only).");
+   args.AddOption(&enable_hpc, "-hp", "--h-pc", "-no-hp",
+                  "--no-h-pc",
+                  "Enable or disable H preconditioner (BPCG-only).");
    args.Parse();
    if (!args.Good())
    {
@@ -292,6 +303,9 @@ int main(int argc, char *argv[])
       std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
                 << "when par_ref_levels == 0.\n";
    }
+
+   bpcg_param.use_bpcg = enable_bpcg;
+   bpcg_param.use_hpc = enable_hpc;
 
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -360,16 +374,16 @@ int main(int argc, char *argv[])
    DivFreeSolver dfs_cm(M, B, DFS_data);
    setup_time[&dfs_cm] = chrono.RealTime();
 
-   // TODO Add alpha parameter to the param struct
    ResetTimer();
-   BramblePasciakSolver bp(darcy.GetMform(), darcy.GetBform(), param);
+   BramblePasciakSolver bp(darcy.GetMform(), darcy.GetBform(), bpcg_param);
    setup_time[&bp] = chrono.RealTime();
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
-   solver_to_name[&bp] = "Bramble Pasciak CG";
+   solver_to_name[&bp] = bpcg_param.use_bpcg ? "Bramble Pasciak CG (BPCG)" :
+                         "Bramble Pasciak CG (BP Transformation + PCG)";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
