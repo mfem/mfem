@@ -213,6 +213,7 @@ miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
