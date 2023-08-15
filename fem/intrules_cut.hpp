@@ -225,7 +225,7 @@ public:
     Update the surface integration for a new element given by the
     transformation. The surface integration rule will be updated if needed.
 
-    @param [in] transformation for the new element
+    @param [in] Tr transformation for the new element
     */
    void Update(IsoparametricTransformation& Tr);
 
