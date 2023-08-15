@@ -2161,11 +2161,14 @@ void NeighborRowMessage::Decode(int rank)
             ind = fec->DofOrderForOrientation(geom, fo);
          }
 
-         double s = 1.0;
+         // If edof arrived with a negative index, flip it, and the scaling.
+         double s = (edof < 0) ? -1.0 : 1.0;
+         edof = (edof < 0) ? -1 - edof : edof;
+
          if (ind && (edof = ind[edof]) < 0)
          {
             edof = -1 - edof;
-            s = -1.0;
+            s *= -1.0;
          }
 
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
