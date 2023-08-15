@@ -28,6 +28,7 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
    nBasis = 2 * (Order + 1) + (int)(Order * (Order + 1) / 2);
    Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
 
+   // compute the quadrture points
    int qorder = 0;
    IntegrationRules irs(0, Quadrature1D::GaussLegendre);
    IntegrationRule ir = irs.Get(Trafo.GetGeometryType(), qorder);
@@ -36,6 +37,7 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
       ir = irs.Get(Trafo.GetGeometryType(), qorder);
    }
 
+   // set the quadrature points and zero weights
    SetSize(ir.GetNPoints());
    for (int ip = 0; ip < Size(); ip++)
    {
@@ -45,6 +47,9 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
       intp.y = ir.IntPoint(ip).y;
       intp.weight = 0.;
    }
+
+   // compue the weights for current element
+   ComputeWeights();
 }
 
 void SIntegrationRule::ComputeWeights()
@@ -68,6 +73,7 @@ void SIntegrationRule::ComputeWeights()
    Array<int> verts;
    Trafo.mesh->GetElementVertices(Trafo.ElementNo, verts);
 
+   // find the edges that are intersected by he surface and inside the area
    for (int edge = 0; edge < me->GetNEdges(); edge++)
    {
       enum class Layout {inside, intersected, outside};
@@ -160,8 +166,8 @@ void SIntegrationRule::ComputeWeights()
          edge_int.Append(false);
       }
    }
-   if (Trafo.ElementNo == 105)
-   {PointA.Print(); PointB.Print();}
+
+   // do integration over the edges
    for (int edge = 0; edge < me->GetNEdges(); edge++)
    {
       if (edge_int[edge] && !interior)
@@ -222,6 +228,7 @@ void SIntegrationRule::ComputeWeights()
       }
    }
 
+   // do integration over the area for integral over interface
    if (element_int && !interior)
    {
       int elem = Trafo.ElementNo;
@@ -251,6 +258,7 @@ void SIntegrationRule::ComputeWeights()
          }
       }
 
+      // solve the underdetermined linear system
       Vector temp(nBasis);
       Vector temp2(GetNPoints());
       DenseMatrixSVD SVD(Mat, 'A', 'A');
@@ -265,6 +273,7 @@ void SIntegrationRule::ComputeWeights()
       SVD.RightSingularvectors().MultTranspose(temp2, Weights);
    }
 
+   // scale the weights
    for (int ip = 0; ip < GetNPoints(); ip++)
    {
 
@@ -322,9 +331,11 @@ void SIntegrationRule::OrthoBasis(const IntegrationPoint& ip,
 
    shape.SetSize(nBasis, 2);
 
+   // evaluate basis inthe point
    DenseMatrix preshape(nBasis, 2);
    Basis(ip, shape);
 
+   // evaluate basis for quadrature points
    DenseTensor shapeMFN(nBasis, 2, ir->GetNPoints());
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
@@ -337,6 +348,7 @@ void SIntegrationRule::OrthoBasis(const IntegrationPoint& ip,
          }
    }
 
+   // do modified Gram-Schmidt orthogonalization
    for (int count = 1; count < nBasis; count++)
    {
       mGSStep(shape, shapeMFN, count);
@@ -388,9 +400,12 @@ void SIntegrationRule::mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN,
 
 void SIntegrationRule::Update(IsoparametricTransformation& Tr)
 {
-   ElementNo = Tr.ElementNo;
-   Trafo = Tr;
-   ComputeWeights();
+   if (ElementNo != Tr.ElementNo)
+   {
+      ElementNo = Tr.ElementNo;
+      Trafo = Tr;
+      ComputeWeights();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -403,8 +418,10 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
    nBasis = (int)((q + 1) * (q + 2) / 2);
    Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
 
+   // set surface integration rule
    SIR = new SIntegrationRule(q, Tr, levelset);
 
+   // get the quadrature points
    int qorder = 0;
    IntegrationRules irs(0, Quadrature1D::GaussLegendre);
    IntegrationRule ir = irs.Get(Trafo.GetGeometryType(), qorder);
@@ -413,6 +430,7 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
       ir = irs.Get(Trafo.GetGeometryType(), qorder);
    }
 
+   // set the quadrature points and default weights
    SetSize(ir.GetNPoints());
    InteriorWeights.SetSize(ir.GetNPoints());
    for (int ip = 0; ip < Size(); ip++)
@@ -425,6 +443,7 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
       InteriorWeights(ip) = ir.IntPoint(ip).weight;
    }
 
+   // assamble the matrix
    DenseMatrix Mat(nBasis, Size());
    for (int ip = 0; ip < ir.GetNPoints(); ip++)
    {
@@ -433,8 +452,12 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
       Mat.SetCol(ip, shape);
    }
 
+   // compute the svd for the matrix
    SVD = new DenseMatrixSVD(Mat, 'A', 'A');
    SVD->Eval(Mat);
+
+   // compute the weights for the current element
+   ComputeWeights();
 }
 
 void CutIntegrationRule::ComputeWeights()
@@ -456,6 +479,7 @@ void CutIntegrationRule::ComputeWeights()
    Array<int> verts;
    Trafo.mesh->GetElementVertices(Trafo.ElementNo, verts);
 
+   // find the edges that are intersected or inside
    for (int edge = 0; edge < me->GetNEdges(); edge++)
    {
       enum class Layout {inside, intersected, outside};
@@ -549,6 +573,7 @@ void CutIntegrationRule::ComputeWeights()
       }
    }
 
+   // do the integration over the edges
    for (int edge = 0; edge < me->GetNEdges(); edge++)
    {
       if (edge_int[edge] && !interior)
@@ -609,6 +634,7 @@ void CutIntegrationRule::ComputeWeights()
       }
    }
 
+   // do the integration over the interface
    if (element_int && !interior)
    {
       int elem = Trafo.ElementNo;
@@ -639,6 +665,7 @@ void CutIntegrationRule::ComputeWeights()
          }
       }
 
+      // solve the underdetermined linear system
       Vector temp(nBasis);
       Vector temp2(GetNPoints());
       temp2 = 0.;
@@ -650,6 +677,7 @@ void CutIntegrationRule::ComputeWeights()
          }
       SVD->RightSingularvectors().MultTranspose(temp2, Weights);
 
+      // scale the weights
       Weights *= 1. / Trafo.Weight();
    }
    else if (interior)
@@ -715,14 +743,13 @@ void CutIntegrationRule::BasisAntiDerivative(const IntegrationPoint& ip,
 
 void CutIntegrationRule::Update(IsoparametricTransformation& Tr)
 {
-   ElementNo = Tr.ElementNo;
-   Trafo = Tr;
-   if (ElementNo != SIR->GetElement())
+   if (ElementNo != Tr.ElementNo)
    {
+      ElementNo = Tr.ElementNo;
+      Trafo = Tr;
       SIR->Update(Tr);
+      ComputeWeights();
    }
-
-   ComputeWeights();
 }
 
 CutIntegrationRule::~CutIntegrationRule() { delete SVD; delete SIR; }
