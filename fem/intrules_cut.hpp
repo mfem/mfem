@@ -27,7 +27,7 @@ namespace mfem
  @brief Class for surface integration rule by moment fitting
 
  Highly accurate surface integration on implicit domains by means of moment-
- fitting (see https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569)
+ fitting (see https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569).
  */
 class SIntegrationRule : public Array<IntegrationPoint>
 {
@@ -84,7 +84,7 @@ public:
     Constructor for the surface integration rule by means of moment-fitting.
 
     @param [in] q order of the integration rule
-    @param [in] Tr Transformation of the element the integration rule is for
+    @param [in] Tr volumetric transformation of the element
     @param [in] levelset level-set defining the implicit interface
     */
    SIntegrationRule(int q, ElementTransformation& Tr,
@@ -96,7 +96,7 @@ public:
     Update the surface integration for a new element given by the
     transformation.
 
-    @param [in] transformation for the new element
+    @param [in] Tr volumetric transformation for the new element
     */
    void Update(IsoparametricTransformation& Tr);
 
@@ -121,7 +121,7 @@ public:
    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
 
    /**
-    @brief Gett the elemnt number the integration rule is for
+    @brief Get the elemnt number the integration rule is for
     */
    int GetElement() { return ElementNo; }
 
@@ -137,7 +137,7 @@ public:
  @brief Class for surface integration rule by moment fitting
 
  Highly accurate surface integration on implicit domains by means of moment-
- fitting (see https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569)
+ fitting (see https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569).
  */
 class CutIntegrationRule : public Array<IntegrationPoint>
 {
@@ -250,7 +250,7 @@ public:
    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
 
    /**
-    @brief Gett the elemnt number the integration rule is for
+    @brief Get the elemnt number the integration rule is for
     */
    int GetElement() { return ElementNo; }
 

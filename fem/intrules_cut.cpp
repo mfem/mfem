@@ -48,7 +48,7 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
       intp.weight = 0.;
    }
 
-   // compue the weights for current element
+   // compute the weights for current element
    ComputeWeights();
 }
 
@@ -509,13 +509,13 @@ void CutIntegrationRule::ComputeWeights()
       {
          layout = Layout::inside;
       }
-      else if (LvlSet.Eval(Trafo, ipA) > 0
+      else if (LvlSet.Eval(Trafo, ipA) > 1e-15
                && LvlSet.Eval(Trafo, ipB) <= 0.)
       {
          layout = Layout::intersected;
       }
       else if (LvlSet.Eval(Trafo, ipA) <= 0.
-               && LvlSet.Eval(Trafo, ipB) > 0.)
+               && LvlSet.Eval(Trafo, ipB) > 1e-15)
       {
          layout = Layout::intersected;
          Vector temp(pointA.Size());

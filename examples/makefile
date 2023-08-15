@@ -31,13 +31,13 @@ SEQ_DEVICE_EXAMPLES = ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26 ex34
 PAR_DEVICE_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p \
   ex24p ex25p ex26p ex34p ex35p
 
+ifeq ($(MFEM_USE_LAPACK),YES)
+	SEQ_EXAMPLES += ex37
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
-endif
-ifeq ($(MFEM_USE_LAPACK),YES)
-	EXAMPLES += ex37
 endif
 SUBDIRS =
 ifeq ($(MFEM_USE_AMGX),YES)
