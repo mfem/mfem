@@ -403,7 +403,9 @@ int main(int argc, char *argv[])
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
-   sol_sock << "solution\n" << *mesh << lgf << "pause\n" << flush;
+   sol_sock << "solution\n" << *mesh << lgf << flush;
+   sol_sock << "keys pppppppppppppppppppppppppppcmmlRj\n";
+   sol_sock << "levellines " << 0. << " " << 0. << " " << 1 << "\n" << flush;
 
    delete sir;
    delete fespace;
