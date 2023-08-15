@@ -14,13 +14,16 @@ if (MFEM_USE_MPI)
         sbm_solver.cpp
         marking.cpp
         extrapolator.cpp
-	integ_algoim.cpp)
+        integ_algoim.cpp
+        cut_integrators.cpp)
+
   list(APPEND DIST_COMMON_HEADERS
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
         extrapolator.hpp
-	integ_algoim.hpp)
+        integ_algoim.hpp
+        cut_integrators.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -46,6 +49,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(lsf_integral
     MAIN lsf_integral.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(cut_integral
+    MAIN cut_integral.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
