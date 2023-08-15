@@ -2125,6 +2125,14 @@ public:
 #endif
    /** @brief Fitting of certain DOFs to given positions in physical space.
 
+       Having a set S of marked nodes (or DOFs) and their target positions in
+       physical space x_t, we move these nodes to the target positions during
+       the optimization process.
+       This function adds to the TMOP functional the term
+       @f$ \sum_{i \in S} c \frac{1}{2} (x_i - x_{t,i})^2 @f$,
+       where @f$c@f$ corresponds to @a coeff below and is evaluated at the
+       DOF locations.
+
        @param[in] pos     The desired positions for the mesh nodes.
        @param[in] smarker Indicates which DOFs will be aligned.
        @param[in] coeff   Coefficient c for the above integral. */
