@@ -347,6 +347,36 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
          fec = new NURBSFECollection();
       }
    }
+   else if (!strncmp(name, "RBF", 3) || !strncmp(name, "RK", 2))
+   {
+      // Example: RK4_G_2_V_2D_0020_1.00_4.01
+      // (RK order 4, Gaussian, L2 dist, Value map, 2 dimensions,
+      // 20 points across element, face factor 1.0, smoothing length of 4.01)
+      const int dim = atoi(name + 10);
+      const int numPoints = atoi(name + 13);
+      const double h = atof(name + 23);
+      const double faceFactor = atof(name + 18);
+      const int rbfType = RBFType::GetType(name[4]);
+      const int distNorm = atoi(name + 6);
+      const int mapType = (name[8] == 'V'
+                           ? FiniteElement::VALUE
+                           : FiniteElement::INTEGRAL);
+      const int intOrder = 2; // keep this fixed for now
+
+      if (!strncmp(name, "RK", 2))
+      {
+         int order = atoi(name + 2);
+         fec = new LocalKernelFECollection(dim, numPoints, rbfType,
+                                           order, h, faceFactor,
+                                           intOrder, distNorm, mapType);
+      }
+      else
+      {
+         fec = new LocalKernelFECollection(dim, numPoints, rbfType,
+                                           -1, h, faceFactor,
+                                           intOrder, distNorm, mapType);
+      }
+   }
    else
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
@@ -3523,4 +3553,184 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    return NULL;
 }
 
+LocalKernelFECollection::LocalKernelFECollection(const int dim,
+                                                 const int numPointsD,
+                                                 const int rbfType,
+                                                 const int order,
+                                                 const double h,
+                                                 const double faceFactor,
+                                                 const int intOrder,
+                                                 const int distNorm,
+                                                 const int mapType)
+{
+   const char *mapStr = NULL;
+   switch (mapType)
+   {
+      case FiniteElement::VALUE:    mapStr = "V"; break;
+      case FiniteElement::INTEGRAL: mapStr = "I"; break;
+      default:
+         MFEM_ABORT("invalid mapType: " << mapType);
+   }
+   if (order == -1)
+   {
+      snprintf(d_name, 32, "RBF_%c_%d_%s_%dD_%04d_%1.2f_%.2f",
+               (int)RBFType::GetChar(rbfType), distNorm,
+               mapStr, dim, numPointsD, faceFactor, h);
+   }
+   else if (order >= 0)
+   {
+      snprintf(d_name, 32, "RK%d_%c_%d_%s_%dD_%04d_%1.2f_%.2f", order,
+               (int)RBFType::GetChar(rbfType), distNorm,
+               mapStr, dim, numPointsD, faceFactor, h);
+   }
+   else
+   {
+      MFEM_ABORT("invalid order: " << order);
+   }
+
+   for (int g = 0; g < Geometry::NumGeom; ++g)
+   {
+      L2_Elements[g] = NULL;
+      Tr_Elements[g] = NULL;
+   }
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+   OtherDofOrd = NULL;
+
+   if (dim == 0)
+   {
+      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 1)
+   {
+      if (order == -1)
+      {
+         L2_Elements[Geometry::SEGMENT]
+            = new RBFFiniteElement(1, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
+      }
+      else
+      {
+         L2_Elements[Geometry::SEGMENT]
+            = new RKFiniteElement(1, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
+      }
+      L2_Elements[Geometry::SEGMENT]->SetMapType(mapType);
+      Tr_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 2)
+   {
+      if (order == -1)
+      {
+         L2_Elements[Geometry::SQUARE]
+            = new RBFFiniteElement(2, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
+         Tr_Elements[Geometry::SEGMENT]
+            = new RBFFiniteElement(1, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
+      }
+      else
+      {
+         L2_Elements[Geometry::SQUARE]
+            = new RKFiniteElement(2, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
+         Tr_Elements[Geometry::SEGMENT]
+            = new RKFiniteElement(1, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
+      }
+      L2_Elements[Geometry::SQUARE]->SetMapType(mapType);
+   }
+   else if (dim == 3)
+   {
+      if (order == -1)
+      {
+         L2_Elements[Geometry::CUBE]
+            = new RBFFiniteElement(3, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
+         Tr_Elements[Geometry::SQUARE]
+            = new RBFFiniteElement(2, numPointsD, rbfType, distNorm,
+                                   intOrder, h, faceFactor);
+      }
+      else
+      {
+         L2_Elements[Geometry::CUBE]
+            = new RKFiniteElement(3, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
+         Tr_Elements[Geometry::SQUARE]
+            = new RKFiniteElement(2, numPointsD, rbfType, distNorm,
+                                  order, intOrder, h, faceFactor);
+      }
+      L2_Elements[Geometry::CUBE]->SetMapType(mapType);
+   }
+
+   if (dim == 1)
+   {
+      SegDofOrd[0] = new int[2*numPointsD];
+      SegDofOrd[1] = SegDofOrd[0] + numPointsD;
+      for (int i = 0; i < numPointsD; ++i)
+      {
+         SegDofOrd[0][i] = i;
+         SegDofOrd[1][i] = numPointsD - i - 1;
+      }
+   }
+   else
+   {
+      const int geomType = TensorBasisElement::GetTensorProductGeometry(dim);
+      const int dof = L2_Elements[geomType]->GetDof();
+      OtherDofOrd = new int[dof];
+      for (int i = 0; i < dof; ++i)
+      {
+         OtherDofOrd[i] = i;
+      }
+   }
 }
+
+LocalKernelFECollection::~LocalKernelFECollection()
+{
+   delete [] OtherDofOrd;
+   delete [] SegDofOrd[0];
+   for (int i = 0; i < Geometry::NumGeom; ++i)
+   {
+      delete L2_Elements[i];
+   }
+}
+
+const FiniteElement *
+LocalKernelFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   return L2_Elements[GeomType];
+}
+
+const FiniteElement *
+LocalKernelFECollection::TraceFiniteElementForGeometry(Geometry::Type GeomType)
+const
+{
+   return Tr_Elements[GeomType];
+}
+
+int LocalKernelFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   if (L2_Elements[GeomType])
+   {
+      return L2_Elements[GeomType]->GetDof();
+   }
+   return 0;
+}
+
+const int *LocalKernelFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType,
+   int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   else
+   {
+      return (Or == 0) ? OtherDofOrd : NULL;
+   }
+}
+
+} // namespace mfem

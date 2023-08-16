@@ -18,6 +18,8 @@
 //               ex14 -m ../data/amr-quad.mesh -r 3
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
+//               ex14 -m ../data/inline-quad.mesh -r 2 -rk
+//               ex14 -m ../data/star.mesh -r 0 -o 3 -rk
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -43,10 +45,11 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = -1;
    int order = 1;
+   bool rk = false;
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
-   bool visualization = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -54,7 +57,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) >= 0.");
+                  "Finite element order (polynomial degree) >= 0 OR reproducing kernel order.");
+   args.AddOption(&rk, "-rk", "--rk", "-no-rk", "--no-rk",
+                  "Use reproducing kernel functions");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -74,6 +79,10 @@ int main(int argc, char *argv[])
    if (kappa < 0)
    {
       kappa = (order+1)*(order+1);
+   }
+   if (rk && sigma < 0.0)
+   {
+      sigma = 1.0;
    }
    args.PrintOptions(cout);
 
@@ -104,7 +113,15 @@ int main(int argc, char *argv[])
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if (rk)
+   {
+      fec = new LocalKernelFECollection(dim, 4, 6, order, 1.01 + order, 0.0);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 

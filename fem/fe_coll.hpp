@@ -1316,6 +1316,64 @@ public:
    virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
-}
+/** @brief Radial basis function collection.
+    Instead of using polynomials as a basis, these methods use
+    Gaussian-like functions centered at chosen points. Reproducing
+    kernels augment the radial basis functions so that the resultant
+    basis can exactly represent functions of a chosen polynomial degree. */
+class LocalKernelFECollection : public FiniteElementCollection
+{
+private:
+   int maxDim;
+   char d_name[32];
+   ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
+   ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
+   int *SegDofOrd[2]; // for rotating segment dofs in 1D
+   int *OtherDofOrd;
+
+public:
+   /** @brief Create a radial basis function (RBF) or reproducing kernel (RK)
+       finite element collection.
+       @param D           Reference space dimension
+       @param numPointsD  Number of points across the element in each dimension
+       @param rbfType     Type of radial basis function, from RBFType
+       @param order       Order of polynomial correction, >= 0 for RK or -1 for
+                          RBF
+       @param h           Shape parameter, approximately equal to the number of
+                          points in the support radius in one dimension, should
+                          generally be > order
+       @param distNorm    Norm used for distance, usually 2 = Euclidean distance
+       @param intOrder    Number of integration points per RBF point in each
+                          dimension
+       @param faceFactor  1.0 = points end on face, 0.0 = points end at dx/2
+                          from face
+   */
+   LocalKernelFECollection(const int D,
+                           const int numPointsD,
+                           const int rbfType,
+                           const int order,
+                           const double h,
+                           const double faceFactor = 0.0,
+                           const int intOrder = 2,
+                           const int distNorm = 2,
+                           const int mapType = FiniteElement::VALUE);
+   virtual ~LocalKernelFECollection();
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual const FiniteElement *
+   TraceFiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
+
+   virtual const char * Name() const { return d_name; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
+};
+
+} // namespace mfem
 
 #endif

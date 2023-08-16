@@ -26,5 +26,6 @@
 #include "fe/fe_nurbs.hpp"
 #include "fe/fe_pos.hpp"
 #include "fe/fe_ser.hpp"
+#include "fe/fe_rbf.hpp"
 
 #endif

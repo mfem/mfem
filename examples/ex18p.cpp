@@ -9,6 +9,8 @@
 //       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 5 -s 6
 //       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
 //       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 3 -s 3
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 0 -o 3 -s 4 -rk
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 0 -o 3 -s 3 -rk
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -70,6 +72,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
+   bool rk = false;
    int ode_solver_type = 4;
    double t_final = 2.0;
    double dt = -0.01;
@@ -93,6 +96,8 @@ int main(int argc, char *argv[])
                   " partitioning.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&rk, "-rk", "--rk", "-no-rk", "--no-rk",
+                  "Use reproducing kernel functions");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -161,13 +166,21 @@ int main(int argc, char *argv[])
 
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   FiniteElementCollection *fec;
+   if (rk)
+   {
+      fec = new LocalKernelFECollection(dim, 5, 7, order, 2.01 + order, 1.0);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    // Finite element space for a scalar (thermodynamic quantity)
-   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace fes(&pmesh, fec);
    // Finite element space for a mesh-dim vector quantity (momentum)
-   ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
+   ParFiniteElementSpace dfes(&pmesh, fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
-   ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
+   ParFiniteElementSpace vfes(&pmesh, fec, num_equation, Ordering::byNODES);
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
@@ -375,6 +388,7 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete ode_solver;
+   delete fec;
 
    return 0;
 }

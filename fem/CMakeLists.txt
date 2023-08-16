@@ -68,6 +68,7 @@ set(SRCS
   fe/fe_nd.cpp
   fe/fe_nurbs.cpp
   fe/fe_pos.cpp
+  fe/fe_rbf.cpp
   fe/fe_rt.cpp
   fe/fe_ser.cpp
   fe_coll.cpp
@@ -175,6 +176,7 @@ set(HDRS
   fe/fe_nd.hpp
   fe/fe_nurbs.hpp
   fe/fe_pos.hpp
+  fe/fe_rbf.hpp
   fe/fe_rt.hpp
   fe/fe_ser.hpp
   fe_coll.hpp

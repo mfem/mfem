@@ -17,6 +17,8 @@
 //               mpirun -np 4 ex14p -m ../data/inline-segment.mesh -rs 5
 //               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 3
 //               mpirun -np 4 ex14p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex14p -m ../data/star.mesh -rs 1 -o 2 -rk
+//               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 2 -rk
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -81,6 +83,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = -1;
    int par_ref_levels = 2;
    int order = 1;
+   bool rk = false;
    double sigma = -1.0;
    double kappa = -1.0;
    double eta = 0.0;
@@ -96,6 +99,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
+   args.AddOption(&rk, "-rk", "--rk", "-no-rk", "--no-rk",
+                  "Use reproducing kernel functions");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -118,6 +123,10 @@ int main(int argc, char *argv[])
    if (kappa < 0)
    {
       kappa = (order+1)*(order+1);
+   }
+   if (rk && sigma < 0.0)
+   {
+      sigma = 1.0;
    }
    if (myid == 0)
    {
@@ -163,7 +172,15 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use discontinuous finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
+   FiniteElementCollection *fec;
+   if (rk)
+   {
+      fec = new LocalKernelFECollection(dim, 4, 6, order, 1.01 + order, 0.0);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim);
+   }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
