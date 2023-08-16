@@ -655,6 +655,7 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
 
    // TODO: generalize to 3D
    const int dim = 2;
+   Vector tvec(dim);
 
    int bdim = BCoef.GetVDim();
    Vector bvec(bdim);
@@ -671,7 +672,9 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
 
    // Set an entry of A for each edge in pmesh, connecting the two vertices
    std::map<std::pair<int,int>, int> edge_by_verts;
-   for (int i=0; i<pmesh->GetNEdges(); ++i)
+   int nedges = pmesh->GetNEdges();
+
+   for (int i=0; i<nedges; ++i)
    {
       Array<int> vert;
       pmesh->GetEdgeVertices(i, vert);
@@ -695,6 +698,10 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
          {
             A.SetEntry(vert[j], vert[j+2]);
             A.SetEntry(vert[j+2], vert[j]);
+
+            edge_by_verts[std::make_pair(std::min(vert[j], vert[j+2]),
+                                                                          std::max(vert[j], vert[j+2]))]
+               = nedges + 2 * i + j;
          }
       }
    }
@@ -713,29 +720,45 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
       for (auto v1 : dis_A->GetRow(v0))
       {
          // Entry (v0,v1) is in dis_A
-         Vector midpoint(3);  // used for B-field calculation at midpoint
-         midpoint = 0.0;
-
-         //Vector tang(dim);
-         double *v0crd = pmesh->GetVertex(v0);
-         double *v1crd = pmesh->GetVertex(v1);
 
          double bnorm = 0.0;
          double tnorm = 0.0;
          double ip = 0.0;
-         for (int i=0; i<dim; ++i)
-         {
-            midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
-         }
 
          {
+            ElementTransformation* T = NULL;
+            IntegrationPoint eip;
+
             int edge_no = edge_by_verts[std::make_pair(std::min(v0,v1),
                                                        std::max(v0,v1))];
-            ElementTransformation* T = pmesh->GetEdgeTransformation(edge_no);
-            IntegrationPoint eip; eip.x = 0.5;
-            T->SetIntPoint(&eip);
+            if (edge_no < nedges)
+            {
+               T = pmesh->GetEdgeTransformation(edge_no);
+               eip.x = 0.5;
+               T->SetIntPoint(&eip);
+
+               const DenseMatrix &J = T->Jacobian();
+               J.GetColumn(0, tvec);
+            }
+            else
+            {
+               int elem_no = (edge_no - nedges) / 2;
+               int diag_no = (edge_no - nedges) % 2;
+
+               T = pmesh->GetElementTransformation(elem_no);
+               eip.x = 0.5; eip.y = 0.5;
+               T->SetIntPoint(&eip);
+
+               const DenseMatrix &J = T->Jacobian();
+
+               // col1 + col0 or col1 - col0
+               tvec[0] = J(0,1) + (1.0 - 2.0 * diag_no) * J(0,0);
+               tvec[1] = J(1,1) + (1.0 - 2.0 * diag_no) * J(1,0);
+            }
             BCoef.Eval(bvec, *T, eip);
          }
+
+         if (false)
          {
             // Rotate bvec
             const double tmp = bvec[0];
@@ -745,13 +768,9 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
 
          for (int i=0; i<dim; ++i)
          {
-            midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
-            const double tang_i = v1crd[i] - v0crd[i];
-
             bnorm += bvec[i] * bvec[i];
-            tnorm += tang_i * tang_i;
-
-            ip += bvec[i] * tang_i;
+            tnorm += tvec[i] * tvec[i];
+            ip += bvec[i] * tvec[i];
          }
 
          bnorm = sqrt(bnorm);
@@ -783,6 +802,257 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh,
    return G;
 }
 
+class AnisotropyPseudoIntegrator : public BilinearFormIntegrator
+{
+private:
+   VectorCoefficient &BCoef_;
+
+   mutable Vector bVec_;
+   mutable Vector tVec_;
+
+   double edgeWeight()
+   {
+      const int dim = tVec_.Size();
+      double tnorm = 0.0, bnorm = 0.0, ip = 0.0;
+
+      for (int i=0; i<dim; ++i)
+      {
+         bnorm += bVec_[i] * bVec_[i];
+         tnorm += tVec_[i] * tVec_[i];
+         ip += bVec_[i] * tVec_[i];
+      }
+
+      bnorm = sqrt(bnorm);
+      tnorm = sqrt(tnorm);
+
+      const double cos_theta = ip / (bnorm * tnorm);
+      const double edge_weight = 1.0 / (fabs(cos_theta) + 1.0e-6);
+      return edge_weight;
+   }
+
+   void segmentWeights(double threshold,
+                       ElementTransformation &Trans,
+                       DenseMatrix &elmat)
+   {
+      IntegrationPoint ip;
+      {
+         // edge 0 - 1
+         ip.x = 0.5; ip.y = 0.0;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(0, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(0,1) = edge_weight;
+            elmat(1,0) = edge_weight;
+         }
+      }
+   }
+
+   void triangleWeights(double threshold,
+                        ElementTransformation &Trans,
+                        DenseMatrix &elmat)
+   {
+      IntegrationPoint ip;
+      {
+         // edge 0 - 1
+         ip.x = 0.5; ip.y = 0.0;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(0, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(0,1) = edge_weight;
+            elmat(1,0) = edge_weight;
+         }
+      }
+      {
+         // edge 0 - 2
+         ip.x = 0.0; ip.y = 0.5;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(1, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(0,2) = edge_weight;
+            elmat(2,0) = edge_weight;
+         }
+      }
+      {
+         // edge 1 - 2
+         ip.x = 0.5; ip.y = 0.5;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         tVec_[0] = J(0,1) - J(0,0);
+         tVec_[1] = J(1,1) - J(1,0);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(1,2) = edge_weight;
+            elmat(2,1) = edge_weight;
+         }
+      }
+   }
+
+   void squareWeights(double threshold,
+                      ElementTransformation &Trans,
+                      DenseMatrix &elmat)
+   {
+      IntegrationPoint ip;
+      {
+         // edge 0 - 1
+         ip.x = 0.5; ip.y = 0.0;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(0, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(0,1) = edge_weight;
+            elmat(1,0) = edge_weight;
+         }
+      }
+      {
+         // edge 2 - 3
+         ip.x = 0.5; ip.y = 1.0;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(0, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(2,3) = edge_weight;
+            elmat(3,2) = edge_weight;
+         }
+      }
+      {
+         // edge 0 - 3
+         ip.x = 0.0; ip.y = 0.5;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(1, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(0,3) = edge_weight;
+            elmat(3,0) = edge_weight;
+         }
+      }
+      {
+         // edge 1 - 2
+         ip.x = 1.0; ip.y = 0.5;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         J.GetColumn(1, tVec_);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = 0.5 * edgeWeight();
+         if (edge_weight > 0.5 * threshold)
+         {
+            elmat(1,2) = edge_weight;
+            elmat(2,1) = edge_weight;
+         }
+      }
+      {
+         // edge 0 - 2
+         ip.x = 0.5; ip.y = 0.5;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         tVec_[0] = J(0,1) + J(0,0);
+         tVec_[1] = J(1,1) + J(1,0);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = edgeWeight();
+         if (edge_weight > threshold)
+         {
+            elmat(0,2) = edge_weight;
+            elmat(2,0) = edge_weight;
+         }
+      }
+      {
+         // edge 1 - 3
+         ip.x = 0.5; ip.y = 0.5;
+         Trans.SetIntPoint(&ip);
+         const DenseMatrix &J = Trans.Jacobian();
+         tVec_[0] = J(0,1) - J(0,0);
+         tVec_[1] = J(1,1) - J(1,0);
+         BCoef_.Eval(bVec_, Trans, ip);
+
+         const double edge_weight = edgeWeight();
+         if (edge_weight > threshold)
+         {
+            elmat(1,3) = edge_weight;
+            elmat(3,1) = edge_weight;
+         }
+      }
+   }
+
+public:
+   AnisotropyPseudoIntegrator(VectorCoefficient &BCoef)
+      : BCoef_(BCoef), bVec_(BCoef.GetVDim())
+   {}
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat)
+   {
+      const double threshold = 1.5;
+
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      Geometry::Type type = el.GetGeomType();
+
+      tVec_.SetSize(dim);
+      elmat.SetSize(nd); elmat = 0.0;
+
+      switch (type)
+      {
+         case Geometry::SEGMENT:
+            segmentWeights(threshold, Trans, elmat);
+            break;
+         case Geometry::TRIANGLE:
+            triangleWeights(threshold, Trans, elmat);
+            break;
+         case Geometry::SQUARE:
+            squareWeights(threshold, Trans, elmat);
+            break;
+         default:
+            break;
+      }
+   }
+
+};
+
+HypreParMatrix* GetParAnisotropicGraph(ParFiniteElementSpace *fespace,
+                                       VectorCoefficient &BCoef)
+{
+   ParBilinearForm g(fespace);
+   g.AddDomainIntegrator(new AnisotropyPseudoIntegrator(BCoef));
+   g.AddBoundaryIntegrator(new AnisotropyPseudoIntegrator(BCoef));
+   g.Assemble();
+   g.Finalize();
+
+   HypreParMatrix * G = g.ParallelAssemble();
+   return G;
+}
+
 std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
 {
    const int nnode = G->Size();
@@ -805,7 +1075,7 @@ std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
       }
    }
 
-   MFEM_VERIFY(nedge > 0, "");
+   MFEM_VERIFY(nedge > 0, "GetPathCover: nedge <= 0");
 
    std::vector<double> weight(nedge);
    std::vector<std::vector<int>> edgeList(nedge);
@@ -838,7 +1108,7 @@ std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
       }
    }
 
-   MFEM_VERIFY(nedge == cnt, "");
+   MFEM_VERIFY(nedge == cnt, "GetPathCover: nedge != cnt");
 
    // Find edge indices in order of descending weight
    std::vector<int> isort(nedge);
@@ -981,7 +1251,7 @@ std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
       maxFlag = std::max(maxFlag, (*pathFlag)[j]);
    }
 
-   MFEM_VERIFY(npath == maxFlag + 1, "");
+   MFEM_VERIFY(npath == maxFlag + 1, "GetPathCover: npath != maxFlag + 1");
 
    return pathFlag;
 }
@@ -993,9 +1263,23 @@ int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh,
 {
    SparseMatrix *G = GetAnisotropicGraph_with_distance(pmesh, BCoef);
    //G = solver.GetAnisotropicGraph_with_distance(mesh, Gmesh, coord, b, distance, threshold)
+   if (false)
+   {
+      MPI_Comm comm = pmesh->GetComm();
+      int num_procs, myid;
+      MPI_Comm_size(comm, &num_procs);
+      MPI_Comm_rank(comm, &myid);
+
+      ostringstream oss;
+      oss << "G_sp." << myid;
+      ofstream ofs(oss.str());
+      G->Print(ofs);
+   }
 
    int npaths = 0;
    std::vector<int> *pathFlags = GetPathCover(G, npaths);
+
+   delete G;
 
    MFEM_VERIFY(pathFlags->size() == pmesh->GetNV(), "");
 
@@ -1179,6 +1463,601 @@ int SetCoarseVertexLinePatches_Matlab(ParMesh *pmesh,
    return nlines;
 }
 
+class PathNeighbor
+{
+private:
+   // int num_nodes_;
+   HYPRE_BigInt node_start_;
+   HYPRE_BigInt node_end_;
+
+   std::vector<std::vector<HYPRE_BigInt>> localPathNeighbor;
+   mutable std::map<HYPRE_BigInt,std::vector<HYPRE_BigInt>> remotePathNeighbor;
+
+public:
+   PathNeighbor(HYPRE_BigInt node_start, int num_nodes)
+      : // num_nodes_(num_nodes),
+        node_start_(node_start),
+        node_end_(node_start + num_nodes),
+        localPathNeighbor(num_nodes)
+   {}
+
+   const std::vector<HYPRE_BigInt> &operator[](HYPRE_BigInt i) const
+   {
+      if (i >= node_start_ && i < node_end_)
+      {
+         return localPathNeighbor[i - node_start_];
+      }
+      else
+      {
+         if (remotePathNeighbor.find(i) == remotePathNeighbor.end())
+         {
+            remotePathNeighbor[i].resize(2);
+            remotePathNeighbor[i][0] = -2;
+            remotePathNeighbor[i][1] = -2;
+         }
+         return remotePathNeighbor[i];
+      }
+   }
+
+   std::vector<HYPRE_BigInt> &operator[](HYPRE_BigInt i)
+   {
+      if (i >= node_start_ && i < node_end_)
+      {
+         return localPathNeighbor[i - node_start_];
+      }
+      else
+      {
+         if (remotePathNeighbor.find(i) == remotePathNeighbor.end())
+         {
+            remotePathNeighbor[i].resize(2);
+            remotePathNeighbor[i][0] = -2;
+            remotePathNeighbor[i][1] = -2;
+         }
+         return remotePathNeighbor[i];
+      }
+   }
+};
+
+class PathFlag
+{
+private:
+   int num_nodes_;
+   HYPRE_BigInt node_start_;
+   HYPRE_BigInt node_end_;
+   bool sync_needed_;
+
+   std::vector<int> localPathFlag;
+   mutable std::map<HYPRE_BigInt,int> remotePathFlag;
+
+public:
+   PathFlag(HYPRE_BigInt node_start, int num_nodes)
+      : num_nodes_(num_nodes),
+        node_start_(node_start),
+        node_end_(node_start + num_nodes),
+        sync_needed_(false)
+   {
+      localPathFlag.assign(num_nodes, -2);
+   }
+
+   bool SyncNeeded() const { return sync_needed_; }
+   void Synchronized() { sync_needed_ = false; }
+
+   std::vector<int> & GetLocalPathFlag() { return localPathFlag; }
+   std::map<HYPRE_BigInt,int> & GetRemotePathFlag() { return remotePathFlag; }
+
+   // Merge v into u
+   void Merge(HYPRE_BigInt v, HYPRE_BigInt u)
+   {
+      std::map<HYPRE_BigInt,int>::iterator it;
+      const int pfv = (*this)[v];
+      const int pfu = (*this)[u];
+
+      for (int i=0; i<num_nodes_; i++)
+      {
+         if (localPathFlag[i] == pfv)
+         {
+            localPathFlag[i] = pfu;
+         }
+      }
+      for (it=remotePathFlag.begin(); it!=remotePathFlag.end(); it++)
+      {
+         if (it->second == pfv)
+         {
+            it->second = pfu;
+            sync_needed_ = true;
+         }
+      }
+   }
+
+   void Renumber(HYPRE_BigInt u, int new_pfu)
+   {
+      std::map<HYPRE_BigInt,int>::iterator it;
+      const int pfu = (*this)[u];
+
+      if (pfu == new_pfu) { return; }
+
+      for (int i=0; i<num_nodes_; i++)
+      {
+         if (localPathFlag[i] == pfu)
+         {
+            localPathFlag[i] = new_pfu;
+         }
+      }
+      for (it=remotePathFlag.begin(); it!=remotePathFlag.end(); it++)
+      {
+         if (it->second == pfu)
+         {
+            it->second = new_pfu;
+            sync_needed_ = true;
+         }
+      }
+   }
+
+   const int operator[](HYPRE_BigInt i) const
+   {
+      if (i >= node_start_ && i < node_end_)
+      {
+         return localPathFlag[i - node_start_];
+      }
+      else
+      {
+         if (remotePathFlag.find(i) == remotePathFlag.end())
+         {
+            remotePathFlag[i] = -2;
+         }
+         return remotePathFlag[i];
+      }
+   }
+
+   int &operator[](HYPRE_BigInt i)
+   {
+      if (i >= node_start_ && i < node_end_)
+      {
+         return localPathFlag[i - node_start_];
+      }
+      else
+      {
+         sync_needed_ = true;
+         if (remotePathFlag.find(i) == remotePathFlag.end())
+         {
+            remotePathFlag[i] = -2;
+         }
+         return remotePathFlag[i];
+      }
+   }
+};
+
+std::vector<int>* GetPathCover(ParFiniteElementSpace *fespace,
+                               HypreParMatrix *Gpar, int& npath)
+{
+   MPI_Comm comm = fespace->GetComm();
+   int num_procs = fespace->GetNRanks();
+   int myid = fespace->GetMyRank();
+
+   HYPRE_BigInt row_start = fespace->GetMyTDofOffset();
+   /*
+   HYPRE_BigInt row_start = 0;
+   {
+      const HYPRE_BigInt *row_part = Gpar->RowPart();
+
+      if (HYPRE_AssumedPartitionCheck())
+      {
+         row_start = row_part[0];
+      }
+      else
+      {
+         row_start = row_part[myid];
+      }
+   }
+   */
+
+   SparseMatrix Gsp;
+   cout << myid << " Calling Gpar->MergeDiagAndOffd(Gsp)" << endl;
+   Gpar->MergeDiagAndOffd(Gsp);
+   cout << myid << " Calling Gsp.Threshold(1e-6)" << endl;
+   Gsp.Threshold(1e-6);
+   if (true)
+   {
+      ostringstream oss;
+      oss << "G_par_merge." << myid;
+      ofstream ofs(oss.str());
+      Gsp.Print(ofs);
+   }
+   // cout << "Calling GetPathCover(&Gsp, npath)" << endl;
+   // return GetPathCover(&Gsp, npath);
+
+   const int nnode = Gsp.Size();
+   int nedge = 0;
+
+   for (int r=0; r<nnode; ++r)
+   {
+      const int s = Gsp.RowSize(r);
+      int *cols = Gsp.GetRowColumns(r);
+      for (int i=0; i<s; ++i)
+      {
+         if (cols[i] != r + row_start)
+         {
+            nedge++;
+         }
+      }
+   }
+   cout << myid << " GetPathCover 1: " << nedge << endl;
+   std::vector<double> weight(nedge+1);
+   std::vector<std::vector<HYPRE_BigInt>> edgeList(nedge);
+
+   // std::vector<std::vector<int>> localPathNeighbor(nnode);
+   // std::map<int,std::vector<int>> remotePathNeighbor;
+   PathNeighbor pathNeighbor(row_start, nnode);
+   PathFlag pathFlag(row_start, nnode);
+   ParGridFunction pathGF(fespace);
+   pathGF = -2;
+
+   std::vector<int> *pathFlagPtr = new std::vector<int>();
+   pathFlagPtr->assign(nnode, -2);
+   cout << myid << " GetPathCover 2" << endl;
+   for (int r=0; r<nnode; ++r)
+   {
+      pathNeighbor[r + row_start].assign(2, -2);  // Initialize to -2
+   }
+   cout << myid << " GetPathCover 3" << endl;
+   int cnt = 0;
+   for (int r=0; r<nnode; ++r)
+   {
+      const int s = Gsp.RowSize(r);
+      int *cols = Gsp.GetRowColumns(r);
+      double *vals = Gsp.GetRowEntries(r);
+      for (int i=0; i<s; ++i)
+      {
+         if (cols[i] != r + row_start)
+         {
+            weight[cnt] = vals[i];
+            edgeList[cnt].resize(2);
+            edgeList[cnt][0] = r + row_start;
+            edgeList[cnt][1] = cols[i];
+            cnt++;
+         }
+      }
+   }
+   weight[nedge] = 0.0;
+
+   MFEM_VERIFY(nedge == cnt, "GetPathCover: nedge != cnt");
+   cout << myid << " GetPathCover 4" << endl;
+   // Find edge indices in order of descending weight
+   std::vector<int> isort(nedge+1);
+   {
+      for (int i=0; i<=nedge; ++i)
+      {
+         isort[i] = i;
+      }
+
+      std::sort(isort.begin(), isort.end(),
+                [&](const int& a, const int& b)
+      {
+         return (weight[a] > weight[b]);
+      }
+               );  // descending order
+   }
+
+   double max_weight = 0.0;
+   {
+      double loc_max_weight = weight[isort[0]];
+      MPI_Allreduce(&loc_max_weight, &max_weight, 1, MPI_DOUBLE, MPI_MAX, comm);
+      cout << myid << " Weights: " << loc_max_weight << " " << max_weight
+           << endl;
+   }
+   double pause_weight = 0.99 * max_weight;
+
+   cout << myid << " GetPathCover 5" << endl;
+   npath = row_start;
+
+   // Loop over edges in order of descending weight
+   // for (int i=0; i<nedge; ++i)
+   int ie = 0;
+   bool more_edges = true;
+   while (ie < nedge || more_edges)
+   {
+      if (ie < nedge)
+      {
+         const int e = isort[ie];
+         const HYPRE_BigInt u = edgeList[e][0];
+         const HYPRE_BigInt v = edgeList[e][1];
+         cout << myid << " edge " << e << " " << u << " " << v
+              << " pathFlag.SyncNeeded() " << pathFlag.SyncNeeded() << endl;
+
+         // If neither node v0 nor node v1 is in a path, create a new path
+         if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 &&
+             pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
+         {
+            pathNeighbor[u][0] = v;
+            pathNeighbor[v][0] = u;
+            pathFlag[u] = npath;
+            pathFlag[v] = npath;
+            npath++;
+         }
+         // node u is the end point of a path && node v is not in any path,
+         // append node v
+         else if ((pathNeighbor[u][0] != -2 | pathNeighbor[u][1] != -2) &&
+                  pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
+         {
+            if (pathNeighbor[u][0] == -2)
+            {
+               pathNeighbor[u][0] = v;
+               pathNeighbor[v][0] = u;
+               pathFlag[v] = pathFlag[u];
+            }
+            else
+            {
+               pathNeighbor[u][1] = v;
+               pathNeighbor[v][0] = u;
+               pathFlag[v] = pathFlag[u];
+            }
+         }
+         // node v is the end point of a path and node u is not in any path,
+         // append node u
+         else if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 &&
+                  (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
+         {
+            if (pathNeighbor[v][0] == -2)
+            {
+               pathNeighbor[v][0] = u;
+               pathNeighbor[u][0] = v;
+               pathFlag[u] = pathFlag[v];
+            }
+            else
+            {
+               pathNeighbor[v][1] = u;
+               pathNeighbor[u][0] = v;
+               pathFlag[u] = pathFlag[v];
+            }
+         }
+         // both node u and node v are the end points of a path
+         else if ((pathNeighbor[u][0] == -2 | pathNeighbor[u][1] == -2) &&
+                  (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
+         {
+            // node u and v are endpoints of different path, merge paths
+            if (pathFlag[u] != pathFlag[v])
+            {
+               // connect node u and v
+               if (pathNeighbor[u][0] == -2 && pathNeighbor[v][0] == -2)
+               {
+                  pathNeighbor[u][0] = v;
+                  pathNeighbor[v][0] = u;
+               }
+               else if (pathNeighbor[u][0] == -2 && pathNeighbor[v][1] == -2)
+               {
+                  pathNeighbor[u][0] = v;
+                  pathNeighbor[v][1] = u;
+               }
+               else if (pathNeighbor[u][1] == -2 && pathNeighbor[v][0] == -2)
+               {
+                  pathNeighbor[u][1] = v;
+                  pathNeighbor[v][0] = u;
+               }
+               else
+               {
+                  pathNeighbor[u][1] = v;
+                  pathNeighbor[v][1] = u;
+               }
+
+               // Merge the paths
+               // TODO: more efficient implementation of this
+               //pathFlag[pathFlag == pathFlag[v]] = pathFlag[u] # this can be done more efficiently
+               pathFlag.Merge(v, u);
+            }
+            else
+            {
+               cout << myid << " skipping edge " << e
+                    << " between vertices " << u << " and " << v << " with weight " << weight[e] <<
+                    endl;
+            }
+         }
+         cout << myid << " edge " << e << " " << u << " " << v
+              << " pathFlag.SyncNeeded() " << pathFlag.SyncNeeded() << endl;
+
+         ie++;
+      }
+
+      if (weight[isort[ie]] < pause_weight)
+      {
+         {
+            bool loc_more_edges = ie < nedge;
+            MPI_Allreduce(&loc_more_edges, &more_edges, 1,
+                          MPI_CXX_BOOL, MPI_LOR, comm);
+
+         }
+
+         bool sync_needed = false;
+         {
+            bool loc_sync_needed = pathFlag.SyncNeeded();
+            MPI_Allreduce(&loc_sync_needed, &sync_needed, 1,
+                          MPI_CXX_BOOL, MPI_LOR, comm);
+
+            cout << myid << " loc_sync_needed " << loc_sync_needed << ", sync_needed " <<
+                 sync_needed << endl;
+         }
+
+         // Exchange path info across processor boundaries
+         //
+         if (sync_needed)
+         {
+            std::map<HYPRE_BigInt,int> &remotePathFlag =
+               pathFlag.GetRemotePathFlag();
+            std::map<HYPRE_BigInt,int>::iterator it;
+
+            while (sync_needed)
+            {
+               for (int p=0; p<num_procs; p++)
+               {
+                  int len = (myid == p && pathFlag.SyncNeeded()) ?
+                            (2 * remotePathFlag.size()) : 0;
+                  MPI_Bcast(&len, 1, MPI_INTEGER, p, comm);
+
+                  if (len > 0)
+                  {
+                     HYPRE_BigInt *buf = new HYPRE_BigInt[len];
+                     if (myid == p)
+                     {
+                        int ib = 0;
+                        for (it=remotePathFlag.begin();
+                             it!=remotePathFlag.end(); it++, ib+=2)
+                        {
+                           buf[ib] = it->first;
+                           buf[ib+1] = it->second;
+                        }
+
+                        pathFlag.Synchronized();
+                     }
+                     MPI_Bcast(buf, len, HYPRE_MPI_BIG_INT, p, comm);
+
+                     if (myid != p)
+                     {
+                        for (int ib=0; ib<len; ib +=2)
+                        {
+                           HYPRE_BigInt u = buf[ib];
+                           int pfu = (int)buf[ib+1];
+                           if (u >= row_start && u < row_start+nnode)
+                           {
+                              pathFlag.Renumber(u,pfu);
+                           }
+                        }
+                     }
+                     delete [] buf;
+                  }
+               }
+
+               {
+                  bool loc_sync_needed = pathFlag.SyncNeeded();
+                  MPI_Allreduce(&loc_sync_needed, &sync_needed, 1,
+                                MPI_CXX_BOOL, MPI_LOR, comm);
+               }
+
+            }
+            // pathFlag.Synchronized();
+         }
+
+         if (more_edges)
+         {
+            double loc_max_weight = weight[isort[ie]];
+            MPI_Allreduce(&loc_max_weight, &max_weight, 1,
+                          MPI_DOUBLE, MPI_MAX, comm);
+            cout << myid << " Weights: " << loc_max_weight << " "
+                 << max_weight << endl;
+            pause_weight = 0.99 * max_weight;
+         }
+
+      }
+   } // loop over edges
+
+   std::vector<int> & localPathFlag = pathFlag.GetLocalPathFlag();
+   std::map<HYPRE_BigInt,int> &remotePathFlag =
+      pathFlag.GetRemotePathFlag();
+
+   {
+      ostringstream oss; oss << "paths." << myid;
+      ofstream ofs(oss.str());
+      ofs << "{";
+      for (int i=0; i<localPathFlag.size(); i++)
+      {
+         ofs << "{" << i + row_start << "," << localPathFlag[i] << "}";
+         if (i < localPathFlag.size()-1) { ofs << ","; }
+      }
+      std::map<HYPRE_BigInt,int>::iterator it;
+      for (it=remotePathFlag.begin(); it!=remotePathFlag.end();)
+      {
+         ofs << "{" << it->first << "," << it->second << "}";
+         it++;
+         if (it != remotePathFlag.end()) { ofs << ","; }
+      }
+      ofs << "}";
+   }
+
+   int loc_nrem = remotePathFlag.size();
+   int glb_nrem;
+   MPI_Allreduce(&loc_nrem, &glb_nrem, 1, MPI_INT, MPI_MAX, comm);
+
+   if (glb_nrem > 0)
+   {
+      cout << myid << " nrem " << loc_nrem << " " << glb_nrem << endl;
+      /*
+      for (int p=0; p<num_procs; p++)
+      {
+      int nkeys;
+      HYPRE_BigInt *buf = NULL;
+
+      if (p == myid)
+      {
+
+        nkeys = remotePathFlag.size();
+        buf = new HYPRE_BigInt[2*nkeys];
+
+        std::map<HYPRE_BigInt,int>::iterator it = remotePathFlag.begin();
+
+        for (int j=0; it!=remotePathFlag.end(); it++, j++)
+        {
+      sendbuf[2*j+0] = it->first;
+      sendbuf[2*j+1] = it->second;
+      cout << it->first << " -> " << it->second << endl;
+        }
+      }
+
+      int
+        MPI_Scatter(&nkeys, 1, MPI_INTEGER,
+         &nkeys, 1, MPI_INTEGER);
+
+      delete [] buf;
+      }
+      else
+      {
+      }
+      */
+   }
+   /*
+   // Update pause_weight
+   double loc_max_weight = weight[isort[ie]];
+   MPI_Allreduce(&loc_max_weight, &max_weight, 1, MPI_DOUBLE, MPI_MAX,
+       comm);
+   cout << myid << " Weights: " << loc_max_weight << " " << max_weight
+   << endl;
+   pause_weight = 0.99 * max_weight;
+   if (max_weight < 0.1) { sync_remote = false; }
+   */
+   cout << myid << " GetPathCover 6" << endl;
+   MPI_Barrier(comm);
+
+   return pathFlagPtr;
+}
+
+int SetCoarseVertexLinePatches_ParGraphBased(ParMesh *pmesh,
+                                             ParFiniteElementSpace *fespace,
+                                             VectorCoefficient &BCoef,
+                                             Array<int> & cdofToGlobalLine)
+{
+   HypreParMatrix *G = GetParAnisotropicGraph(fespace, BCoef);
+   if (true)
+   {
+      G->Print("G_par");
+   }
+
+   int npaths = 0;
+   std::vector<int> *pathFlags = GetPathCover(fespace, G, npaths);
+
+   delete G;
+
+   MFEM_VERIFY(pathFlags->size() == pmesh->GetNV(),
+               "SetCoarseVertexLinePatches_ParGraphBased: pathFlags->size() != pmesh->GetNV()");
+
+   for (int i=0; i<pmesh->GetNV(); ++i)
+   {
+      Array<int> dofs;
+      fespace->GetVertexDofs(i, dofs);
+      MFEM_VERIFY(dofs.Size() == 1, "");
+
+      cdofToGlobalLine[dofs[0]] = (*pathFlags)[i];
+   }
+
+   return npaths;
+}
+
 LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
                              int ref_levels_)
    : pmesh(pmesh_), BCoef(BCoef_), ref_levels(ref_levels_)
@@ -1348,7 +2227,7 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, VectorCoefficient &BCoef_,
 
    MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
 
-   MFEM_VERIFY(nrpatch == nlines, "");
+   MFEM_VERIFY(nrpatch == nlines, "nrpatch not equal to nlines");
 
    //patch_global_dofs_ids.SetSize(nrpatch);
 
