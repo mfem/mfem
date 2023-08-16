@@ -42,6 +42,7 @@ int main (int argc, char *argv[])
    int rs_levels     = 2;
    int mesh_poly_deg = 2;
    int quad_order    = 5;
+   bool glvis        = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -53,6 +54,9 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
+   args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -123,13 +127,17 @@ int main (int argc, char *argv[])
          }
       }
    }
+
    // Visualize the selected nodes and their target positions.
-   socketstream vis1;
-   coord = coord_target;
-   common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
-                          "Target positions (DOFS with value 1)",
-                          0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
-   coord = x0;
+   if (glvis)
+   {
+      socketstream vis1;
+      coord = coord_target;
+      common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
+                             "Target positions (DOFS with value 1)",
+                             0, 0, 400, 400, (dim == 2) ? "Rjm" : "");
+      coord = x0;
+   }
 
    // Allow slipping along the remaining boundaries.
    // (attributes 1 and 3 would slip, while 4 is completely fixed).
@@ -207,9 +215,12 @@ int main (int argc, char *argv[])
    solver.Mult(b, coord.GetTrueVector());
    coord.SetFromTrueVector();
 
-   socketstream vis2;
-   common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
-                         400, 0, 400, 400);
+   if (glvis)
+   {
+      socketstream vis2;
+      common::VisualizeMesh(vis2, "localhost", 19916, pmesh, "Final mesh",
+                            400, 0, 400, 400);
+   }
 
    delete metric;
    return 0;
