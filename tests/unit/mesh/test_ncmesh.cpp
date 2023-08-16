@@ -325,6 +325,8 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       GridFunction x(&fes);
       x = 0.0;
 
+      double snorm = x.ComputeL2Error(rhs_coef);
+
       LinearForm b(&fes);
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
       b.Assemble();
@@ -353,7 +355,7 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
 #endif
 
       a.RecoverFEMSolution(X, b, x);
-      return x.ComputeL2Error(rhs_coef);
+      return x.ComputeL2Error(rhs_coef) / snorm;
    }();
 
    auto perror = [&]
@@ -365,6 +367,7 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       ParGridFunction x(&fes);
       x = 0.0;
 
+      double pnorm = x.ComputeL2Error(rhs_coef);
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
       b.Assemble();
 
@@ -386,7 +389,7 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       pcg.SetPreconditioner(amg);
       pcg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
-      return x.ComputeL2Error(rhs_coef);
+      return x.ComputeL2Error(rhs_coef) / pnorm;
    }();
 
    constexpr double test_tol = 1e-9;
@@ -516,11 +519,165 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
    }
 } // test case
 
-
-TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
+Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0)
 {
-   auto smesh = Mesh("../../data/p1_prism.msh");
+   double c[3];
 
+   int nnodes = (el_type == Geometry::CUBE) ? 24 : 15;
+   int nelems = 8; // Geometry::PRISM
+   if (el_type == Geometry::CUBE)        { nelems = 10; }
+   if (el_type == Geometry::TETRAHEDRON) { nelems = 24; }
+
+   Mesh mesh(3, nnodes, nelems);
+
+   for (int i=0; i<3; i++)
+   {
+      if (el_type != Geometry::CUBE)
+      {
+         c[0] = 0.0;  c[1] = 0.0;  c[2] = 2.74 * i;
+         mesh.AddVertex(c);
+      }
+
+      for (int j=0; j<4; j++)
+      {
+         if (el_type == Geometry::CUBE)
+         {
+            c[0] = 1.14 * ((j + 1) % 2) * (1 - j);
+            c[1] = 1.14 * (j % 2) * (2 - j);
+            c[2] = 2.74 * i;
+            mesh.AddVertex(c);
+         }
+
+         c[0] = 2.74 * ((j + 1) % 2) * (1 - j);
+         c[1] = 2.74 * (j % 2) * (2 - j);
+         c[2] = 2.74 * i;
+         mesh.AddVertex(c);
+      }
+   }
+
+   for (int i=0; i<2; i++)
+   {
+      if (el_type == Geometry::CUBE)
+      {
+         mesh.AddHex(8*i, 8*i+2, 8*i+4, 8*i+6,
+                     8*(i+1), 8*(i+1)+2, 8*(i+1)+4, 8*(i+1)+6);
+      }
+
+      for (int j=0; j<4; j++)
+      {
+         if (el_type == Geometry::PRISM)
+         {
+            switch (variant)
+            {
+               case 0:
+                  mesh.AddWedge(5*i, 5*i+j+1, 5*i+(j+1)%4+1,
+                                5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+                  break;
+               case 1:
+                  mesh.AddWedge(5*i, 5*i+j+1, 5*i+(j+1)%4+1,
+                                5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+                  break;
+               case 2:
+                  mesh.AddWedge(5*i+(j+1)%4+1, 5*i, 5*i+j+1,
+                                5*(i+1)+(j+1)%4+1, 5*(i+1), 5*(i+1)+j+1);
+                  break;
+            }
+         }
+         else if (el_type == Geometry::CUBE)
+         {
+            mesh.AddHex(8*i+2*j, 8*i+2*j+1, 8*i+(2*j+3)%8, 8*i+(2*j+2)%8,
+                        8*(i+1)+2*j, 8*(i+1)+2*j+1, 8*(i+1)+(2*j+3)%8,
+                        8*(i+1)+(2*j+2)%8);
+         }
+         else if (el_type == Geometry::TETRAHEDRON)
+         {
+            mesh.AddTet(5*i, 5*i+j+1, 5*i+(j+1)%4+1, 5*(i+1));
+            mesh.AddTet(5*i+j+1, 5*i+(j+1)%4+1, 5*(i+1), 5*(i+1)+j+1);
+            mesh.AddTet(5*i+(j+1)%4+1, 5*(i+1), 5*(i+1)+j+1, 5*(i+1)+(j+1)%4+1);
+         }
+      }
+   }
+
+   mesh.FinalizeTopology();
+
+   if (quadratic)
+   {
+      mesh.SetCurvature(2);
+
+      if (el_type == Geometry::CUBE)
+      {
+         auto quad_cyl_hex = [](const Vector& x, Vector& d)
+         {
+            d.SetSize(3);
+            d = x;
+            const double Rmax = 2.74;
+            const double Rmin = 1.14;
+            double ax = std::abs(x[0]);
+            if (ax <= 1e-6) { return; }
+            double ay = std::abs(x[1]);
+            if (ay <= 1e-6) { return; }
+            double r = ax + ay;
+            if (r <= Rmin + 1e-6) { return; }
+
+            double sx = std::copysign(1.0, x[0]);
+            double sy = std::copysign(1.0, x[1]);
+
+            double R = (Rmax - Rmin) * Rmax / (r - Rmin);
+            double r2 = r * r;
+            double R2 = R * R;
+
+            double acosarg = 0.5 * (r + std::sqrt(2.0 * R2 - r2)) / R;
+            double tR = std::acos(std::min(acosarg, 1.0));
+            double tQ = (1.0 + sx * sy * (ay - ax) / r);
+            double tP = 0.25 * M_PI * (3.0 - (2.0 + sx) * sy);
+
+            double t = tR + (0.25 * M_PI - tR) * tQ + tP;
+
+            double s0 = std::sqrt(2.0 * R2 - r2);
+            double s1 = 0.25 * std::pow(r + s0, 2);
+            double s = std::sqrt(R2 - s1);
+
+            d[0] = R * std::cos(t) - sx * s;
+            d[1] = R * std::sin(t) - sy * s;
+
+            return;
+         };
+
+         mesh.Transform(quad_cyl_hex);
+      }
+      else
+      {
+         auto quad_cyl = [](const Vector& x, Vector& d)
+         {
+            d.SetSize(3);
+            d = x;
+            double ax = std::abs(x[0]);
+            double ay = std::abs(x[1]);
+            double r = ax + ay;
+            if (r < 1e-6) { return; }
+
+            double sx = std::copysign(1.0, x[0]);
+            double sy = std::copysign(1.0, x[1]);
+
+            double t = ((2.0 - (1.0 + sx) * sy) * ax +
+                        (2.0 - sy) * ay) * 0.5 * M_PI / r;
+            d[0] = r * std::cos(t);
+            d[1] = r * std::sin(t);
+
+            return;
+         };
+
+         mesh.Transform(quad_cyl);
+      }
+   }
+
+   mesh.Finalize(true);
+
+   return mesh;
+}
+
+TEST_CASE("P2Q1PureTetHexPri",  "[Parallel], [NCMesh]")
+{
    auto exact_soln = [](const Vector& x)
    {
       // sin(|| x - d ||^2) -> non polynomial but very smooth.
@@ -529,6 +686,20 @@ TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
       d -= x;
       return std::sin(d * d);
    };
+
+   auto el_type = GENERATE(Geometry::TETRAHEDRON,
+                           Geometry::CUBE,
+                           Geometry::PRISM);
+   int variant = GENERATE(0,1,2);
+
+   if (variant > 0 && el_type != Geometry::PRISM)
+   {
+      return;
+   }
+
+   CAPTURE(el_type, variant);
+
+   auto smesh = CylinderMesh(el_type, false, variant);
 
    for (auto ref : {0,1,2})
    {
@@ -547,10 +718,8 @@ TEST_CASE("P2Q1PurePrism",  "[Parallel], [NCMesh]")
    }
 } // test case
 
-TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
+TEST_CASE("PNQ2PureTetHexPri",  "[Parallel], [NCMesh]")
 {
-   auto smesh = Mesh("../../data/p2_prism.msh");
-
    auto exact_soln = [](const Vector& x)
    {
       // sin(|| x - d ||^2) -> non polynomial but very smooth.
@@ -559,6 +728,20 @@ TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
       d -= x;
       return std::sin(d * d);
    };
+
+   auto el_type = GENERATE(Geometry::TETRAHEDRON,
+                           Geometry::CUBE,
+                           Geometry::PRISM);
+   int variant = GENERATE(0,1,2);
+
+   if (variant > 0 && el_type != Geometry::PRISM)
+   {
+      return;
+   }
+
+   CAPTURE(el_type, variant);
+
+   auto smesh = CylinderMesh(el_type, true);
 
    for (auto ref : {0,1,2})
    {
@@ -578,7 +761,6 @@ TEST_CASE("PNQ2PurePrism",  "[Parallel], [NCMesh]")
       }
    }
 } // test case
-
 
 /**
  * @brief Test GetVectorValue on face neighbor elements for nonconformal meshes
