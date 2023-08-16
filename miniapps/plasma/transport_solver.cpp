@@ -2637,6 +2637,64 @@ void DiscontPSCPreconditioner::Mult(const Vector &b, Vector &x) const
    x += x_z;
 }
 
+void DiscontPSCPreconditioner::SetOperator(const Operator &op) { }
+
+AdditivePreconditioner::AdditivePreconditioner(const Solver &P1_,
+                                               const Solver &P2_)
+   : Solver(P1_.Height()),
+     P1(P1_),
+     P2(P2_),
+     v(P1_.Height())
+{
+}
+
+void AdditivePreconditioner::Mult(const Vector &b, Vector &x) const
+{
+   // Precondition by P1: x = Pb
+   P1.Mult(b, x);
+
+   // Precondition by P2: v = Pb
+   P2.Mult(b, v);
+
+   x += v;
+}
+
+void AdditivePreconditioner::SetOperator(const Operator &op)
+{
+   A = &op;
+}
+
+MultiplicativePreconditioner::MultiplicativePreconditioner(const Solver &P1_,
+                                                           const Solver &P2_)
+   : Solver(P1_.Height()),
+     P1(P1_),
+     P2(P2_),
+     r(P1_.Height()),
+     v(P1_.Height())
+{
+}
+
+void MultiplicativePreconditioner::Mult(const Vector &b, Vector &x) const
+{
+   // Precondition by P1: x = Pb
+   P1.Mult(b, x);
+
+   // Compute residual r = Ax - b = APb - b
+   A->Mult(x, r);
+   r -= b;
+
+   // Precondition by P2: v = Pr
+   P2.Mult(r, v);
+
+   // Now v approximates the error e = A^{-1} r = x - A^{-1} b
+   x -= v;
+}
+
+void MultiplicativePreconditioner::SetOperator(const Operator &op)
+{
+   A = &op;
+}
+
 inline void DGTransportTDO::GMRESRPCSolver::
 GeneratePlaneRotation(double &dx, double &dy,
                       double &cs, double &sn)
@@ -2925,64 +2983,6 @@ finish:
    {
       delete v[i];
    }
-}
-
-void DiscontPSCPreconditioner::SetOperator(const Operator &op) { }
-
-AdditivePreconditioner::AdditivePreconditioner(const Solver &P1_,
-                                               const Solver &P2_)
-   : Solver(P1_.Height()),
-     P1(P1_),
-     P2(P2_),
-     v(P1_.Height())
-{
-}
-
-void AdditivePreconditioner::Mult(const Vector &b, Vector &x) const
-{
-   // Precondition by P1: x = Pb
-   P1.Mult(b, x);
-
-   // Precondition by P2: v = Pb
-   P2.Mult(b, v);
-
-   x += v;
-}
-
-void AdditivePreconditioner::SetOperator(const Operator &op)
-{
-   A = &op;
-}
-
-MultiplicativePreconditioner::MultiplicativePreconditioner(const Solver &P1_,
-                                                           const Solver &P2_)
-   : Solver(P1_.Height()),
-     P1(P1_),
-     P2(P2_),
-     r(P1_.Height()),
-     v(P1_.Height())
-{
-}
-
-void MultiplicativePreconditioner::Mult(const Vector &b, Vector &x) const
-{
-   // Precondition by P1: x = Pb
-   P1.Mult(b, x);
-
-   // Compute residual r = Ax - b = APb - b
-   A->Mult(x, r);
-   r -= b;
-
-   // Precondition by P2: v = Pr
-   P2.Mult(r, v);
-
-   // Now v approximates the error e = A^{-1} r = x - A^{-1} b
-   x -= v;
-}
-
-void MultiplicativePreconditioner::SetOperator(const Operator &op)
-{
-   A = &op;
 }
 
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
@@ -4047,6 +4047,24 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
 
       cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
       delete CG2DGmat_;
+
+      if (false)
+      {
+         // For debugging only
+         HypreParMatrix *CG2DGmat = cg2dg_->ParallelAssemble();
+         CG2DGmat->Print("CG2DG");
+         delete CG2DGmat;
+
+         ParDiscreteLinearOperator cg2dg(&cg2dg_->fes_cg, fes_dg);
+         cg2dg.AddDomainInterpolator(new IdentityInterpolator);
+         cg2dg.Assemble();
+         cg2dg.Finalize();
+         HypreParMatrix *CG2DGIntmat = cg2dg.ParallelAssemble();
+         HypreParMatrix *CG2DGInte = CG2DGIntmat->EliminateCols(cg_ess_tdof_list);
+         delete CG2DGInte;
+         CG2DGIntmat->Print("CG2DG_int");
+         delete CG2DGIntmat;
+      }
 
       // const bool algebraic = false;
       if (use_algebraic_D_cg) // Algebraic version

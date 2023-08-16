@@ -976,7 +976,7 @@ int main(int argc, char *argv[])
    ttol.prec.l_use_superlu = false;
 #endif
    ttol.prec.l_use_algebraic_D_cg = false;
-   ttol.prec.l_use_lor_cg = true;
+   ttol.prec.l_use_lor_cg = false;
    ttol.prec.l_use_air_cg = true;
    ttol.prec.l_use_schwarz = false;
 
@@ -1168,8 +1168,18 @@ int main(int argc, char *argv[])
                   "Type of preconditioner: 1-AMG, 2-SuperLU");
    args.AddOption(&ttol.prec.log_lvl, "-plog", "--prec-logging-level",
                   "Output level for preconditioner.");
-   args.AddOption(&ttol.prec.l_use_schwarz, "-schwarz", "--use-schwarz",
-                  "-no-schwarz","--no-use-schwarz",
+   args.AddOption(&ttol.prec.l_use_algebraic_D_cg, "-alg-cg",
+                  "--use-algebraic-cg",
+                  "-no-alg-cg","--no-algebraic-cg",
+                  "Build CG operator algebraicly");
+   args.AddOption(&ttol.prec.l_use_lor_cg, "-lor", "--lor-cg",
+                  "-no-lor","--no-lor-cg",
+                  "Use low order refined CG preconditioner");
+   args.AddOption(&ttol.prec.l_use_air_cg, "-air", "--air-cg",
+                  "-no-air","--no-air-cg",
+                  "Use AIR preconditioner on CG operator");
+   args.AddOption(&ttol.prec.l_use_schwarz, "-schwarz", "--schwarz-smoother",
+                  "-no-schwarz","--no-schwarz-smoother",
                   "Use Schwarz smoothing with CG preconditioner");
    args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
                   "Error tolerance for initial condition.");
