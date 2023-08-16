@@ -311,7 +311,13 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
-   x_gf.ExchangeFaceNbrData();
+   // Face-neighbor information is only needed for interior faces. For boundary
+   // faces, no communication is required.
+   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
+
+   // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
+   // otherwise MPI communication can hang.
+   if (nf == 0) { return; }
 
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -356,7 +362,6 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if (m==L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingMult(x, y);
@@ -670,6 +675,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
 void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
+   if (nf == 0) { return; }
    MFEM_ASSERT(
       m == L2FaceValues::SingleValued,
       "This method should be called when m == L2FaceValues::SingleValued.");
@@ -758,7 +764,6 @@ void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
