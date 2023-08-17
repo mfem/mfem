@@ -37,7 +37,15 @@ protected:
     Vector ml;
 
     Vector ckSoc;
-    SparseMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, *D, * Ju, * Jm, * JuT, * JmT;
+    SparseMatrix * Huu = nullptr; 
+    SparseMatrix * Hum = nullptr; 
+    SparseMatrix * Hmu = nullptr; 
+    SparseMatrix * Hmm = nullptr; 
+    SparseMatrix * Wmm = nullptr; 
+    SparseMatrix * Ju  = nullptr; 
+    SparseMatrix * Jm  = nullptr; 
+    SparseMatrix * JuT = nullptr; 
+    SparseMatrix * JmT  = nullptr;;
     
     int jOpt;
     bool converged;

@@ -10,8 +10,9 @@ using namespace mfem;
 
 
 
-InteriorPointSolver::InteriorPointSolver(OptProblem * Problem, ParFiniteElementSpace *Vhin) : problem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), saveLogBarrierIterates(false), Vh(Vhin)
+InteriorPointSolver::InteriorPointSolver(OptProblem * Problem, ParFiniteElementSpace *Vhin) 
+: problem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
+ saveLogBarrierIterates(false), Vh(Vhin)
 {
   tol  = 1.e-2;
   max_iter = 20;
@@ -103,7 +104,7 @@ void InteriorPointSolver::Mult(const Vector &x0, Vector &xf)
   BlockVector x0block(block_offsetsx); x0block = 0.0;
   x0block.GetBlock(0).Set(1.0, x0);
   // hard coded initialization :(
-  x0block.GetBlock(1) = 1.e0;
+  x0block.GetBlock(1) = 1.0;
   x0block.GetBlock(1).Add(1.0, ml);
   BlockVector xfblock(block_offsetsx); xfblock = 0.0;
   Mult(x0block, xfblock);
@@ -171,7 +172,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       converged = true;
       if(iAmRoot)
       {
-	IPNewtonKrylovIters.close();
+	      IPNewtonKrylovIters.close();
         cout << "solved optimization problem :)\n";
       }
       break;
@@ -310,19 +311,20 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
     diagStream.close();
   } 
 
-
-  D = new SparseMatrix(DiagLogBar);
-  
+  delete Wmm;
   if(Hmm != nullptr)
   {
-    Wmm = Hmm;
-    Wmm->Add(1.0, *D);
+    SparseMatrix * D = new SparseMatrix(DiagLogBar);
+    Wmm = Add(*Hmm, *D);
+    delete D;
   }
   else
   {
-    Wmm = D;
+    Wmm = new SparseMatrix(DiagLogBar);
   }
 
+  delete JuT;
+  delete JmT;
   Ju = problem->Duc(x); JuT = Transpose(*Ju);
   Jm = problem->Dmc(x); JmT = Transpose(*Jm);
   
@@ -373,7 +375,6 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   b *= -1.0; 
   Xhat = 0.0;
 
-
   #ifdef MFEM_USE_SUITESPARSE
     // Direct solve for IP-Newton saddle-point system
     // A = [ [ Huu   0    Ju^T]
@@ -411,10 +412,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
       SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
       SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
-      Vector D(dimM); D = 0.0;
+      Vector Dvec(dimM); Dvec = 0.0;
       Vector one(dimM); one = 1.0;
-      Wmmloc->Mult(one, D);
-      SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
+      Wmmloc->Mult(one, Dvec);
+      SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, Dvec);     // Ju^T D Ju
       SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
 
       
@@ -459,12 +460,13 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
     SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
     SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
-    Vector D(dimM); D = 0.0;
-    Vector one(dimM); one = 1.0;
-    Wmmloc->Mult(one, D);
-    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
-    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
+    // Vector Dvec(dimM); Dvec = 0.0;
+    // Vector one(dimM); one = 1.0;
+    // Wmmloc->Mult(one, Dvec);
 
+    // SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, Dvec);     // Ju^T D Ju
+    SparseMatrix *JuTDJu   = RAP(*Juloc,*Wmmloc,*Juloc);     // Ju^T D Ju
+    SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
     /* prepare the reduced rhs */
     // breduced = bu + Ju^T (bm + Wmm bl)
     Vector breduced(dimU); breduced = 0.0;
@@ -491,16 +493,18 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     Aprec->SetSystemsOptions(3,false);
 
     Asolver.SetOperator(*Ahypre);
-    Asolver.SetPrintLevel(1);
+    Asolver.SetPrintLevel(2);
     Asolver.SetMaxIter(1000);
     // Asolver.SetResidualConvergenceOptions();
     Asolver.SetTol(1.e-6);
     Asolver.SetPreconditioner(*Aprec);
+    // Asolver.SetResidualConvergenceOptions();
+
     Asolver.Mult(breduced, Xhat.GetBlock(0));
     int num_iterations;
     Asolver.GetNumIterations(num_iterations);
     cgnum_iterations.Append(num_iterations);
-    int numNewtonKrylovIters = -1;
+    // int numNewtonKrylovIters = -1;
     // numNewtonKrylovIters = Asolver.GetNumIterations();
     // IPNewtonKrylovIters << numNewtonKrylovIters << endl;
 
@@ -512,9 +516,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
     Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
-    // xl = Wmm xm - bm
+    // // xl = Wmm xm - bm
     Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
     Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+    
 
     delete Wmmloc;
     delete Huuloc;
@@ -531,10 +536,10 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
     SparseMatrix * Wmmloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(1, 1))));
     SparseMatrix * Juloc  = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(2, 0))));
     SparseMatrix * JuTloc = new SparseMatrix(*dynamic_cast<SparseMatrix *>(&(A.GetBlock(0, 2))));
-    Vector D(dimM); D = 0.0;
+    Vector Dvec(dimM); Dvec = 0.0;
     Vector one(dimM); one = 1.0;
-    Wmmloc->Mult(one, D);
-    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, D);     // Ju^T D Ju
+    Wmmloc->Mult(one, Dvec);
+    SparseMatrix *JuTDJu = Mult_AtDA(*Juloc, Dvec);     // Ju^T D Ju
     SparseMatrix *Areduced = Add(*Huuloc, *JuTDJu);  // Huu + Ju^T D Ju
 
     /* prepare the reduced rhs */
@@ -579,22 +584,6 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
   {
     zlhat(ii) = -1.*(zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) / (x(ii + dimU) - ml(ii)) );
   }
-
-  // free memory
-  if(!(Hmm == nullptr))
-  {
-    delete Wmm;
-  }
-  delete Huu;
-  delete Hum;
-  delete Hmu;
-  delete Hmm;
-  delete Hum;
-  delete D;
-  delete Ju;
-  delete Jm;
-  delete JuT;
-  delete JmT;
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
@@ -731,7 +720,6 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
   } 
 }
 
-
 void InteriorPointSolver::projectZ(const Vector &x, Vector &z, double mu)
 {
   double zi;
@@ -826,8 +814,6 @@ double InteriorPointSolver::phi(const BlockVector &x, double mu)
 }
 
 
-
-
 // gradient of log-barrier objective with respect to x = (u, m)
 void InteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
 {
@@ -837,7 +823,6 @@ void InteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
     y(dimU + i) -= mu / (x(dimU + i) - ml(i));
   } 
 }
-
 
 // Lagrangian function evaluation
 // L(x, l, zl) = f(x) + l^T c(x) - zl^T m
@@ -902,6 +887,17 @@ void InteriorPointSolver::SetLinearSolver(int LinSolver)
 
 InteriorPointSolver::~InteriorPointSolver() 
 {
+  delete Wmm;
+  delete Huu;
+  delete Hum;
+  delete Hmu;
+  delete Hmm;
+  delete Hum;
+  delete Ju;
+  delete Jm;
+  delete JuT;
+  delete JmT;
+
   F1.DeleteAll();
   F2.DeleteAll();
   block_offsetsx.DeleteAll();

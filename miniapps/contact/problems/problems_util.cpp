@@ -630,20 +630,6 @@ void ComputeGapHessian(const Vector x_s, const Vector xi,
    Vector shape;
    DenseMatrix dshape, hessian;
    BasisEvalDerivs(xi,shape,dshape,hessian);
-   // mfem::out << "shape = " << endl;
-   // shape.Print();
-   // mfem::out << "Ne = " << endl;
-   // Ne.PrintMatlab();
-
-   // mfem::out << "dshape = " << endl;
-   // dshape.PrintMatlab();
-   // mfem::out << "dtao1dxm = " << endl;
-   // dtao1dxm.PrintMatlab();
-   // mfem::out << "dtao2dxm = " << endl;
-   // dtao2dxm.PrintMatlab();
-
-   // cin.get();
-
 
    Vector m_coords_v(12);
    for (int i=0; i<4; i++)
@@ -829,6 +815,7 @@ void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coord
       dg2 = 0.;
       
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
+
       int row = i;
       g[row] = g_tmp; // should be unique
       Array<int> m_conn_i(4);
@@ -849,8 +836,7 @@ void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coord
             j_idx[j*ndim+d] = node_conn[j]*ndim+d;
          }
       }
-      M.AddRow(k,j_idx,dg);
-
+      M.SetRow(k,j_idx,dg);
       Array<int> dM_i(ndim*(4+1));
       Array<int> dM_j(ndim*(4+1));
 
@@ -861,8 +847,12 @@ void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coord
       }
       dM[k]->AddSubMatrix(dM_i,dM_j, dg2);
       dM[k]->Finalize();
+      dM[k]->Threshold(0.0);
+      dM[k]->SortColumnIndices();
    }
    M.Finalize();
+   M.Threshold(0.0);
+   M.SortColumnIndices();
 };
 
 void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
@@ -1167,7 +1157,7 @@ int GetHexVertex(int cdim, int c, int fa, int fb, Vector & refCrd)
       bool match = true;
       for (int j=0; j<3; ++j)
       {
-         if (ref[j] != HEX_VERT(i,j)) { match = false; }
+         if (ref[j] != (int)HEX_VERT(i,j)) { match = false; }
       }
 
       if (match) { refv = i; }

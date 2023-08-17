@@ -138,7 +138,6 @@ void SlaveToMaster(const DenseMatrix& m_coords, const Vector& s_x, Vector& xi)
    int dim = 3;
    xi.SetSize(dim-1);
    xi = 0.0;
-   double r = 1e10;
    int max_iter = 15;
    double off_el_xi = 1e-2;
    double proj_newton_tol = 1e-13;
@@ -817,7 +816,6 @@ void Assemble_Contact(const int m, const int npoints, const int ndofs,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
                       std::vector<SparseMatrix>& dM)
 {
-   int n = ndofs;
    int ndim = 3;
 
    g.SetSize(m);
@@ -851,9 +849,6 @@ void Assemble_Contact(const int m, const int npoints, const int ndofs,
       dg = 0.0;
       dg2 = 0.;
       NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
-      //x1.Print();
-      //xi2.Print();
-      //coords2.Print();
       g[s_conn[i]] = g_tmp; // should be unique
       Array<int> m_conn_i(4);
       m_conn.GetSubArray(4*i, 4, m_conn_i);
@@ -890,9 +885,13 @@ void Assemble_Contact(const int m, const int npoints, const int ndofs,
          dM_i[j] = j_idx[j];
          dM_j[j] = j_idx[j];
       }
-      //dg2.Print();
-      //dM[s_conn[i]].Print();
       dM[s_conn[i]].AddSubMatrix(dM_i,dM_j, dg2);
+      dM[s_conn[i]].Finalize();
+      dM[s_conn[i]].Threshold(0.0);
+      dM[s_conn[i]].SortColumnIndices();
    }
+   M.Finalize();
+   M.Threshold(0.0);
+   M.SortColumnIndices();
 };
 

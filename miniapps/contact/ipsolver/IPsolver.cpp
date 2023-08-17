@@ -9,8 +9,9 @@ using namespace mfem;
 
 
 
-InteriorPointSolver::InteriorPointSolver(QPOptContactProblem * Problem) : optProblem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-Huu(nullptr), Hum(nullptr), Hmu(nullptr), Hmm(nullptr), Wmm(nullptr), D(nullptr), Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), Huucl(nullptr), HLuucl(nullptr), saveLogBarrierIterates(false)
+InteriorPointSolver::InteriorPointSolver(QPOptContactProblem * Problem) 
+: optProblem(Problem), block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
+saveLogBarrierIterates(false)
 {
    rel_tol  = 1.e-2;
    max_iter = 20;
@@ -257,14 +258,17 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
    // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
    //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
 
-   Huu = optProblem->Duuf(x); Hum = optProblem->Dumf(x);
-   Hmu = optProblem->Dmuf(x); Hmm = optProblem->Dmmf(x);
+   Huu = optProblem->Duuf(x);
+   Hum = optProblem->Dumf(x);
+   Hmu = optProblem->Dmuf(x);
+   Hmm = optProblem->Dmmf(x);
 
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for(int ii = 0; ii < dimM; ii++)
    {
       DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
    }
+
    if(saveLogBarrierIterates)
    {
       std::ofstream diagStream;
@@ -278,25 +282,27 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
       diagStream.close();
    } 
 
-
-   D = new SparseMatrix(DiagLogBar);
-   
+   delete Wmm;
    if(Hmm != nullptr)
    {
-      Wmm = new SparseMatrix(*Hmm);
-      Wmm->Add(1.0, *D);
+      SparseMatrix * D = new SparseMatrix(DiagLogBar);
+      Wmm = Add(*Hmm, *D);
+      delete D;
    }
    else
    {
-      Wmm = D;
+      Wmm = new SparseMatrix(DiagLogBar);
    }
 
+   delete JuT;
+   delete JmT;
    Ju = optProblem->Duc(x); JuT = Transpose(*Ju);
    Jm = optProblem->Dmc(x); JmT = Transpose(*Jm);
    
    Huucl = optProblem->lDuuc(x, l);
    if(Huucl != nullptr)
    {
+      delete HLuucl;
       HLuucl = Add(*Huucl, *Huu);
       Ak.SetBlock(0, 0, HLuucl);
    } 
@@ -338,6 +344,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
    (A.GetBlock(0,2)).Mult(l, JTl.GetBlock(0));
    (A.GetBlock(1,2)).Mult(l, JTl.GetBlock(1));
 
+   
    for(int ii = 0; ii < 2; ii++)
    {
       b.GetBlock(ii).Set(1.0, gradphi.GetBlock(ii));
@@ -442,39 +449,44 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
 
       /* prepare the reduced rhs */
       // breduced = bu + Ju^T (bm + Wmm bl)
-      for (int i = 0; i<b.GetBlock(0).Size(); i++)
-      {
-         if (abs(b.GetBlock(0)(i))<1e-14) b.GetBlock(0)(i) = 0.0;
-      }
       Vector breduced(dimU); breduced = 0.0;
       Vector tempVec(dimM); tempVec = 0.0;
+      Wmmloc->SortColumnIndices();
+
       Wmmloc->Mult(b.GetBlock(2), tempVec);
       tempVec.Add(1.0, b.GetBlock(1));
       JuTloc->Mult(tempVec, breduced);
+
+
       breduced.Add(1.0, b.GetBlock(0));
       int globalNumRows = dimU;
       HYPRE_BigInt rowStarts[2];
       rowStarts[0] = 0;
       rowStarts[1] = dimU;
+
       HypreParMatrix Ahypre(MPI_COMM_WORLD, globalNumRows, rowStarts, Areduced);
       HypreBoomerAMG Aprec(Ahypre);
       Aprec.SetPrintLevel(0);
       Aprec.SetSystemsOptions(3,false);
-      CGSolver AreducedSolver(MPI_COMM_WORLD);
+      HyprePCG AreducedSolver(MPI_COMM_WORLD);
       AreducedSolver.SetOperator(Ahypre);
       // AreducedSolver.SetRelTol(linSolveTol);
-      AreducedSolver.SetRelTol(1e-6);
+      // AreducedSolver.SetRelTol(1e-6);
+      AreducedSolver.SetTol(1e-6);
       AreducedSolver.SetMaxIter(1000);
       AreducedSolver.SetPreconditioner(Aprec);
-      AreducedSolver.SetPrintLevel(1);
+      // AreducedSolver.SetResidualConvergenceOptions();
+      AreducedSolver.SetPrintLevel(2);
+
       AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-      cgnum_iterations.Append(AreducedSolver.GetNumIterations());
+      int num_iterations;
+      AreducedSolver.GetNumIterations(num_iterations);
+      cgnum_iterations.Append(num_iterations);
     
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl
       Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
       Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
-
       // xl = Wmm xm - bm
       Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
       Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
@@ -488,19 +500,6 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
    {
       zlhat(ii) = -1.*(zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) / (x(ii + dimU) - ml(ii)) );
    }
-
-   // free memory
-   if(Hmm != nullptr)
-   {
-      delete Wmm;
-   }
-   if( Huucl != nullptr)
-   {
-      delete HLuucl;
-   }
-   delete D;
-   delete JuT;
-   delete JmT;
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
@@ -788,27 +787,32 @@ void InteriorPointSolver::SetBarrierParameter(double mu_0)
 
 void InteriorPointSolver::SaveLogBarrierHessianIterates(bool save)
 {
-  MFEM_ASSERT(MyRank == 0 || save == false, "currently can only save logbarrier hessian in serial codes");
-  saveLogBarrierIterates = save;
+   MFEM_ASSERT(MyRank == 0 || save == false, "currently can only save logbarrier hessian in serial codes");
+   saveLogBarrierIterates = save;
 }
 
 void InteriorPointSolver::SetLinearSolver(int LinSolver)
 {
-  linSolver = LinSolver;
+   linSolver = LinSolver;
 }
 
 void InteriorPointSolver::SetLinearSolveTol(double Tol)
 {
-  linSolveTol = Tol;
+   linSolveTol = Tol;
 }
 
 
 InteriorPointSolver::~InteriorPointSolver() 
 {
-  F1.DeleteAll();
-  F2.DeleteAll();
-  block_offsetsx.DeleteAll();
-  block_offsetsumlz.DeleteAll();
-  block_offsetsuml.DeleteAll();
-  ml.SetSize(0);
+   delete HLuucl;
+   delete JuT;
+   delete JmT; 
+   delete Wmm;
+
+   F1.DeleteAll();
+   F2.DeleteAll();
+   block_offsetsx.DeleteAll();
+   block_offsetsumlz.DeleteAll();
+   block_offsetsuml.DeleteAll();
+   ml.SetSize(0);
 }

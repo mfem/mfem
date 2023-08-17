@@ -179,12 +179,10 @@ int main(int argc, char *argv[])
   H1_FECollection fec(1, mesh.Dimension());
   ParFiniteElementSpace fespace(&pmesh, &fec, mesh.Dimension(), Ordering::byVDIM);
 
-
-
-
   InteriorPointSolver * QPContactOptimizer = new InteriorPointSolver(QPContact, &fespace);
   QPContactOptimizer->SetTol(1.e-6);
   QPContactOptimizer->SetLinearSolver(linSolver);
+  QPContactOptimizer->SetMaxIter(50);
   Vector x0(ndofs); x0 = 0.0;
   for(int i = 0; i < DirichletDofs.Size(); i++)
   {
@@ -193,12 +191,12 @@ int main(int argc, char *argv[])
   Vector xf(ndofs); xf = 0.0;
   QPContactOptimizer->Mult(x0, xf);
   
-  MFEM_VERIFY(QPContactOptimizer->GetConverged(), "Interior point solver did not converge.");
   double Einitial = QPContact->E(x0);
   double Efinal = QPContact->E(xf);
   cout << "Energy objective at initial point = " << Einitial << endl;
   cout << "Energy objective at QP optimizer = " << Efinal << endl;
   QPContactOptimizer->GetCGIterNumbers().Print(mfem::out, 20);
+  MFEM_VERIFY(QPContactOptimizer->GetConverged(), "Interior point solver did not converge.");
   
   
   //Mesh * mesh1 = new Mesh("meshes/block1.mesh", 1, 1);

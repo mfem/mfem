@@ -37,8 +37,6 @@ void ElasticityProblem::FormLinearSystem()
       b.Assemble();
       a->Assemble();
       a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-      // A.Threshold(1e-15);
-      // A.SortColumnIndices();
    }
 }
 void ElasticityProblem::UpdateLinearSystem()
@@ -83,9 +81,16 @@ ContactProblem::ContactProblem(ElasticityProblem * prob1_, ElasticityProblem * p
    offsets.PartialSum();
 
    BlockMatrix Kb(offsets);
-   Kb.SetBlock(0,0,&prob1->GetOperator());
-   Kb.SetBlock(1,1,&prob2->GetOperator());
+   SparseMatrix A1 = prob1->GetOperator();
+   SparseMatrix A2 = prob2->GetOperator();
+
+   Kb.SetBlock(0,0,&A1);
+   Kb.SetBlock(1,1,&A2);
+
    K = Kb.CreateMonolithic();
+   K->Threshold(0.0);
+   K->SortColumnIndices();
+
    B = new BlockVector(offsets);
    B->GetBlock(0).Set(1.0, prob1->GetRHS());
    B->GetBlock(1).Set(1.0, prob2->GetRHS());
@@ -110,23 +115,6 @@ void ContactProblem::ComputeContactVertrices()
       }
    }
    npoints = contact_vertices.size();
-}
-
-void rhs_func1(const Vector & x, Vector & y)
-{
-   for (int i = 0; i<x.Size(); i++)
-   {
-      y(i) = sin(x(i));
-   }
-}
-
-// function f(x) = x.^2
-void rhs_func2(const Vector & x, Vector & y)
-{
-   for (int i = 0; i<x.Size(); i++)
-   {
-      y(i) = cos(x(i));
-   }
 }
 
 void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1, 
@@ -167,10 +155,7 @@ void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1,
    Vector xi1(npoints*(dim-1));
    Array<int> conn1(npoints*4);
    
-   // mesh1->MoveNodes(displ1);
-
-
-   add(nodes0, displ1, *nodes1);
+   // add(nodes0, displ1, *nodes1);
    FindPointsInMesh(*mesh1, xyz, conn1, xi1);
 
    DenseMatrix coordsm(npoints*4, dim);
@@ -202,9 +187,7 @@ void ContactProblem::ComputeGapFunctionAndDerivatives(const Vector &displ1,
    {
       dM[i] = new SparseMatrix(ndofs,ndofs);
    }
-
    Assemble_Contact(xyz, xi1, coordsm, conn2, conn1, gapv, *M, dM);
-
 }
 
 
@@ -344,7 +327,7 @@ SparseMatrix * QPOptContactProblem::Dmmf(const BlockVector & x)
 
 SparseMatrix * QPOptContactProblem::Duc(const BlockVector & x)
 {
-   return new SparseMatrix(*problem->Ddg(x.GetBlock(0)));
+   return problem->Ddg(x.GetBlock(0));
 }
 
 SparseMatrix * QPOptContactProblem::Dmc(const BlockVector & x)
@@ -365,7 +348,6 @@ void QPOptContactProblem::c(const BlockVector &x, Vector & y)
 
    problem->GetJacobian()->Mult(x.GetBlock(0),y);
    y.Add(1.0, g0);
-
 }
 
 double QPOptContactProblem::CalcObjective(const BlockVector & x)
