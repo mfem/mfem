@@ -21,12 +21,14 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-# TODO add bramble_pasciak.cpp
-BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
+DARCY_SOLVERS_SRC = darcy_solver.cpp
+DARCY_SOLVERS_OBJ = $(DARCY_SOLVERS_SRC:.cpp=.o)
+
+BLOCK_SOLVERS_SRC = bramble_pasciak.cpp div_free_solver.cpp block-solvers.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = lor_solvers
-PAR_MINIAPPS = block-solvers plor_solvers
+PAR_MINIAPPS = block-solvers plor_solvers elast-block-solvers
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -53,6 +55,15 @@ plor_solvers.o: $(SRC)lor_mms.hpp
 
 block-solvers: $(BLOCK_SOLVERS_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
+
+$(BLOCK_SOLVERS_OBJ): $(DARCY_SOLVERS_OBJ)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(BLOCK_SOLVERS_SRC) $< -o $@
+
+elast-block-solvers: elast-block-solvers.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $< $(MFEM_LIBS)
+
+elast-block-solvers.o: elast-block-solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(MFEM_FLAGS) -c $< -o $@
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
