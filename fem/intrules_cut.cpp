@@ -83,7 +83,7 @@ void SIntegrationRule::ComputeWeights2D()
       const int* vert = me->GetEdgeVertices(edge);
       Vector pointA(Trafo.GetSpaceDim());
       Vector pointB(Trafo.GetSpaceDim());
-      for(int d = 0; d < Trafo.GetSpaceDim(); d++)
+      for (int d = 0; d < Trafo.GetSpaceDim(); d++)
       {
          pointA(d) = (Trafo.mesh->GetVertex(verts[vert[0]]))[d];
          pointB(d) = (Trafo.mesh->GetVertex(verts[vert[1]]))[d];
@@ -189,12 +189,18 @@ void SIntegrationRule::ComputeWeights2D()
 
          Vector normal(Trafo.GetDimension());
          normal = 0.;
-         if(edge == 0 || edge == 2)
+         if (edge == 0 || edge == 2)
+         {
             normal(1) = 1.;
-         if(edge == 1 || edge == 3)
+         }
+         if (edge == 1 || edge == 3)
+         {
             normal(0) = 1.;
-         if(edge == 0 || edge == 3)
+         }
+         if (edge == 0 || edge == 3)
+         {
             normal *= -1.;
+         }
 
          for (int ip = 0; ip < ir2->GetNPoints(); ip++)
          {
@@ -219,7 +225,7 @@ void SIntegrationRule::ComputeWeights2D()
                shapes.GetRow(dof, grad);
                // Add to RHS, scle by 1/length(edge)
                RHS(dof) -= (grad * normal) * ir2->IntPoint(ip).weight
-                          * dist.Norml2() / edgelength(edge);
+                           * dist.Norml2() / edgelength(edge);
             }
          }
       }
@@ -253,7 +259,7 @@ void SIntegrationRule::ComputeWeights2D()
 
          normal = 0.;
          fe->CalcDShape(IntPoint(ip), dshape);
-         for(int dof = 0; dof < fe->GetDof(); dof++)
+         for (int dof = 0; dof < fe->GetDof(); dof++)
          {
             dshape.GetRow(dof, gradi);
             gradi *= LevelSet(dofs[dof]);
@@ -342,7 +348,7 @@ void SIntegrationRule::Basis2D(const IntegrationPoint& ip, DenseMatrix& shape)
 }
 
 void SIntegrationRule::OrthoBasis2D(const IntegrationPoint& ip,
-                                  DenseMatrix& shape)
+                                    DenseMatrix& shape)
 {
    const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, 2*Order+1);
 
@@ -507,7 +513,7 @@ void CutIntegrationRule::ComputeWeights2D()
       const int* vert = me->GetEdgeVertices(edge);
       Vector pointA(Trafo.GetSpaceDim());
       Vector pointB(Trafo.GetSpaceDim());
-      for(int d = 0; d < Trafo.GetSpaceDim(); d++)
+      for (int d = 0; d < Trafo.GetSpaceDim(); d++)
       {
          pointA(d) = (Trafo.mesh->GetVertex(verts[vert[0]]))[d];
          pointB(d) = (Trafo.mesh->GetVertex(verts[vert[1]]))[d];
@@ -613,12 +619,18 @@ void CutIntegrationRule::ComputeWeights2D()
 
          Vector normal(Trafo.GetDimension());
          normal = 0.;
-         if(edge == 0 || edge == 2)
+         if (edge == 0 || edge == 2)
+         {
             normal(1) = 1.;
-         if(edge == 1 || edge == 3)
+         }
+         if (edge == 1 || edge == 3)
+         {
             normal(0) = 1.;
-         if(edge == 0 || edge == 3)
+         }
+         if (edge == 0 || edge == 3)
+         {
             normal *= -1.;
+         }
 
          for (int ip = 0; ip < ir2->GetNPoints(); ip++)
          {
@@ -675,7 +687,7 @@ void CutIntegrationRule::ComputeWeights2D()
 
          normal = 0.;
          fe->CalcDShape(IntPoint(ip), dshape);
-         for(int dof = 0; dof < fe->GetDof(); dof++)
+         for (int dof = 0; dof < fe->GetDof(); dof++)
          {
             dshape.GetRow(dof, gradi);
             gradi *= LevelSet(dofs[dof]);
@@ -695,7 +707,7 @@ void CutIntegrationRule::ComputeWeights2D()
             shapes.GetRow(dof, adiv);
             // Add to RHS, scale by scale/2
             RHS(dof) += (adiv * normal) * SIR->IntPoint(ip).weight
-                          * .5 * scale;
+                        * .5 * scale;
          }
       }
 
@@ -751,7 +763,7 @@ void CutIntegrationRule::Basis2D(const IntegrationPoint& ip, Vector& shape)
 }
 
 void CutIntegrationRule::BasisAntiDerivative2D(const IntegrationPoint& ip,
-                                             DenseMatrix& shape)
+                                               DenseMatrix& shape)
 {
    shape.SetSize(nBasis, 2);
 
