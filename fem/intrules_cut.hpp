@@ -55,23 +55,33 @@ private:
    int ElementNo;
 
    /**
-    @brief Compute the quadrature weights
+    @brief Compute 2D quadrature weights
 
-    Compute the quadrature weights for the surface quadrature rule by mmeans of
-    moment-fitting. To construct the quadrature rule, special integrals are
+    Compute the quadrature weights for the 2D surface quadrature rule by means
+    of moment-fitting. To construct the quadrature rule, special integrals are
     reduced to integrals over the edges of the subcell where the level-set is
     positiv.
     */
-   void ComputeWeights();
+   void ComputeWeights2D();
+
+   /**
+    @brief Compute 3D quadrature weights
+
+    Compute the quadrature weights for the 3D surface quadrature rule by means
+    of moment-fitting. To construct the quadrature rule, special integrals are
+    reduced to integrals over the edges of the subcell where the level-set is
+    positiv.
+    */
+   void ComputeWeights3D();
 
    /**
     @brief A divergence free basis on the element [-1,1]x[-1,1]
     */
-   void Basis(const IntegrationPoint& ip, DenseMatrix& shape);
+   void Basis2D(const IntegrationPoint& ip, DenseMatrix& shape);
    /**
     @brief A orthogonalized divergence free basis on the element [-1,1]x[-1,1]
     */
-   void OrthoBasis(const IntegrationPoint& ip, DenseMatrix& shape);
+   void OrthoBasis2D(const IntegrationPoint& ip, DenseMatrix& shape);
    /**
     @brief A step of the modified Gram-Schmidt algorithm
     */
@@ -185,16 +195,16 @@ private:
     integrals are reduced to integrals over the boundary of the subcell where
     the level-set is positiv.
     */
-   void ComputeWeights();
+   void ComputeWeights2D();
 
    /**
     @brief Monomial basis on the element [-1,1]x[-1,1]
     */
-   void Basis(const IntegrationPoint& ip, Vector& shape);
+   void Basis2D(const IntegrationPoint& ip, Vector& shape);
    /**
     @brief Antiderivatives of the ,onomial basis on the element [-1,1]x[-1,1]
     */
-   void BasisAntiDerivative(const IntegrationPoint& ip, DenseMatrix& shape);
+   void BasisAntiDerivative2D(const IntegrationPoint& ip, DenseMatrix& shape);
 
 public:
    /**
