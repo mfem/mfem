@@ -1443,7 +1443,7 @@ Element::Type Mesh::GetFaceElementType(int Face) const
 
 Array<int> Mesh::GetFaceToBdrElMap() const
 {
-   Array<int> face_to_be(NumOfFaces);
+   Array<int> face_to_be(GetNumFaces());
    face_to_be = -1;
    for (int i = 0; i < NumOfBdrElements; i++)
    {
@@ -3751,8 +3751,8 @@ Mesh& Mesh::operator=(Mesh &&mesh)
    return *this;
 }
 
-Mesh Mesh::LoadFromFile(const char *filename, int generate_edges, int refine,
-                        bool fix_orientation)
+Mesh Mesh::LoadFromFile(const std::string &filename, int generate_edges,
+                        int refine, bool fix_orientation)
 {
    Mesh mesh;
    named_ifgzstream imesh(filename);
@@ -3806,7 +3806,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
    return mesh;
 }
 
-Mesh::Mesh(const char *filename, int generate_edges, int refine,
+Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
            bool fix_orientation)
 {
    // Initialization as in the default constructor
@@ -10465,7 +10465,7 @@ void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
    os << "\nvertices\n" << NumOfVertices << '\n';
 }
 
-void Mesh::Save(const char *fname, int precision) const
+void Mesh::Save(const std::string &fname, int precision) const
 {
    ofstream ofs(fname);
    ofs.precision(precision);
