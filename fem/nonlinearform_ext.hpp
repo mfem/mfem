@@ -131,8 +131,11 @@ class LibBatchMult;
 /// Data and methods for element-assembled bilinear forms
 class EANonlinearFormExtension : public PANonlinearFormExtension
 {
-
+#if defined(MFEM_USE_CUDA)
+public:
+#else
 private:
+#endif
    class EAGradient : public Operator
    {
    protected:
@@ -163,7 +166,11 @@ private:
       void Update();
    };
 
+#if defined(MFEM_USE_CUDA)
+public:
+#else
 protected:
+#endif
    mutable int ne;
    mutable int elemDofs;
    // The element matrices are stored row major
