@@ -5,8 +5,7 @@
 #include "MMA.hpp"
 
 #include "mtop_solvers.hpp"
-
-#include "spde_solvers.hpp"
+#include "mtop_coefficients.hpp"
 
 
 
@@ -52,26 +51,62 @@ class HeatSink
 {
 public:
 
-    HeatSink(mfem::ParMesh* pmesh_, int vorder=1)
+    HeatSink(mfem::ParMesh* pmesh_, int vorder=1, int seed=std::numeric_limits<int>::max())
     {
         mat=new mfem::DiffusionMaterial(pmesh_->SpaceDimension());
         dsolv=new mfem::DiffusionSolver(pmesh_,vorder);
         dsolv->AddMaterial(mat);
-        dsolv->SetVolInput(0.1);
-
+        dsolv->SetVolInput(1.0);
 
         pmesh=pmesh_;
         dfes=nullptr;
         obj=new mfem::DiffusionComplianceObj();
 
+        generator.seed(seed);
+
+        gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
+        gf->SetCorrelationLen(0.2);
+        gf->SetMaternParameter(4.0);
+        gf->SetScale(1.0);
+        gf->Sample(seed);
+
+        af=new mfem::RandFieldCoefficient(pmesh_,vorder);
+        af->SetCorrelationLen(0.2);
+        af->SetMaternParameter(4.0);
+        af->SetScale(1.0);
+        af->SetZeroDirichletBC(2);
+        af->Sample(seed+1347);
+
+        num_samples=50;
     }
 
     ~HeatSink()
     {
         delete obj;
         delete dsolv;
+
+        delete af;
+        delete gf;
     }
 
+    void GetSRand(mfem::ParGridFunction& pgf){
+        pgf.ProjectCoefficient(*gf);
+    }
+
+    void GetARand(mfem::ParGridFunction& pgf){
+        pgf.ProjectCoefficient(*af);
+    }
+
+    void SetNumSamples(int ns)
+    {
+        num_samples=ns;
+    }
+
+    void SetCorrelationLen(double l)
+    {
+        gf->SetCorrelationLen(l);
+        af->SetCorrelationLen(l);
+    }
 
     void Solve()
     {
@@ -102,14 +137,15 @@ public:
 
     }
 
+    void SetSIMP(bool simp_=false){
+        mat->SetProjection(!simp_);
+    }
+
     double Compliance(mfem::Vector& grad)
     {
         grad=0.0;
-        mat->SetProjParam(0.7,8.0);
-        mat->SetProjection(false);
-        mat->SetPenal(3.0);
         dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
+        dsolv->AddDirichletBC(2,0.0);
         dsolv->FSolve();
         obj->SetDiffSolver(dsolv);
         double vv=obj->Eval();
@@ -117,49 +153,48 @@ public:
         return vv;
     }
 
-    double MCompliance(mfem::Vector& grad)
+    double MeanCompl(mfem::Vector& grad)
     {
-        double vv,oo;
+        mfem::Vector lgr(grad.Size());
         grad=0.0;
-        vv=0.0;
-        mfem::Vector tgrad(grad);
 
-        mat->SetProjParam(0.8,8.0);
         dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        oo=obj->Eval();
-        obj->Grad(tgrad);
+        dsolv->AddDirichletBC(2,0.0);
+        dsolv->AssembleTangent();
 
-        grad.Add(1.0,tgrad);
-        vv=vv+oo;
+        std::uniform_int_distribution<int> uint(1,std::numeric_limits<int>::max());
+        int n=num_samples;
+        double robj=0.0;
+        double rvar=0.0;
+        for(int i=0;i<n;i++){
+            if(seeds.size()<(i+1)){
+                int seed = uint(generator);
+                seeds.push_back(seed);
+            }
+            gf->Sample(seeds[i]);
 
-        mat->SetProjParam(0.7,8.0);
-        dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        oo=obj->Eval();
-        obj->Grad(tgrad);
+            dsolv->SetVolInput(*gf);
+            dsolv->LSolve();
 
-        grad.Add(1.0,tgrad);
-        vv=vv+oo;
+            obj->SetDiffSolver(dsolv);
+            double vv=obj->Eval();
+            obj->Grad(lgr);
 
-        mat->SetProjParam(0.6,8.0);
-        dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(1,0.0);
-        dsolv->FSolve();
-        obj->SetDiffSolver(dsolv);
-        oo=obj->Eval();
-        obj->Grad(tgrad);
+            robj=robj+vv;
+            grad.Add(1.0,lgr);
+            rvar=rvar+vv*vv;
+        }
+        grad/=double(n);
+        rvar=rvar/double(n);
+        robj=robj/double(n);
 
-        grad.Add(1.0,tgrad);
-        vv=vv+oo;
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+        if(myrank==0){
+        std::cout<<"Var="<<rvar-robj*robj<<std::endl;}
 
-        return vv;
+        return robj;
     }
-
 
 private:
     mfem::DiffusionMaterial* mat;
@@ -171,6 +206,15 @@ private:
     mfem::Vector vdens;
 
     mfem::DiffusionComplianceObj* obj;
+
+    mfem::RandFieldCoefficient* gf;//symmetric load
+    mfem::RandFieldCoefficient* af;//asymmetric load
+
+    int num_samples;
+    std::vector<int> seeds;
+    std::vector<int> seeda;
+
+    std::default_random_engine generator;
 
 };
 
@@ -192,6 +236,8 @@ int main(int argc, char *argv[])
    double rel_tol = 1e-7;
    double abs_tol = 1e-15;
    double fradius = 0.05;
+   double corr_len = 0.2;
+   int num_samples=100;
    int tot_iter = 100;
    int max_it = 51;
    int print_level = 1;
@@ -241,6 +287,14 @@ int main(int argc, char *argv[])
                   "-r",
                   "--radius",
                   "Filter radius");
+   args.AddOption(&num_samples,
+                  "-ns",
+                  "--num-samples",
+                  "Number of samples.");
+   args.AddOption(&corr_len,
+                  "-crl",
+                  "--corr",
+                  "Correlation length");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -258,6 +312,24 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   int seed;
+   {
+       std::default_random_engine generator;
+       std::uniform_int_distribution<int> distribution(1,std::numeric_limits<int>::max());
+
+       for(int i=0;i<nprocs;i++){
+           if(i!=0){
+               if(myrank==0){
+                   int rnum=distribution(generator);
+                   MPI_Send(&rnum,1,MPI_INT,i,100,MPI_COMM_WORLD);}
+               if(myrank==i){
+                   MPI_Recv(&seed,1,MPI_INT,0,100,MPI_COMM_WORLD,MPI_STATUS_IGNORE);}
+           }else{
+               seed=distribution(generator);
+           }
+       }
+   }
+
    if (myrank == 0)
    {
       args.PrintOptions(std::cout);
@@ -269,6 +341,8 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+
+   /*
    {
        mesh.EnsureNodes();
        mfem::Vector vert;
@@ -277,23 +351,7 @@ int main(int argc, char *argv[])
 
        std::cout<<"Size="<<nod->Size()<<std::endl;
 
-
-
        int nv=nod->Size()/3;
-       /*
-       for(int i=0;i<nv;i++){
-           double xx=(*nod)[3*i+0];
-           double yy=(*nod)[3*i+1];
-           double zz=(*nod)[3*i+2];
-
-           double ang = atan2 (yy,xx);
-
-           double rr=sqrt(xx*xx+yy*yy);
-
-           (*nod)[3*i+0] = (1.0+0.1*cos(6*M_PI*zz))*(rr+0.3*rr*cos(6.0*ang))*cos(ang);
-           (*nod)[3*i+1] = (1.0+0.1*cos(6*M_PI*zz))*(rr+0.3*rr*cos(6.0*ang))*sin(ang);
-           (*nod)[3*i+2] = zz;
-       }*/
 
        for(int i=0;i<nv;i++){
            double xx=(*nod)[3*i+0];
@@ -316,7 +374,7 @@ int main(int argc, char *argv[])
            std::cout<<"Xmin:";xmin.Print(std::cout);
            std::cout<<"Xmax:";xmax.Print(std::cout);
        }
-   }
+   }*/
 
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement. We choose
@@ -350,9 +408,9 @@ int main(int argc, char *argv[])
    }
 
    //allocate the filter
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.08,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(1,1.0);
+   fsolv->AddBC(2,1.0);
 
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
@@ -364,13 +422,15 @@ int main(int argc, char *argv[])
    fsolv->Mult(vtmpv,vdens);
    pgdens.SetFromTrueDofs(vdens);
 
-   HeatSink* sink=new HeatSink(&pmesh,1);
+   HeatSink* sink=new HeatSink(&pmesh,1,seed);
    sink->SetDesignFES(pgdens.ParFESpace());
    sink->SetDensity(vdens);
+   sink->SetCorrelationLen(corr_len);
+   sink->SetNumSamples(num_samples);
 
-   //mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
-   vobj->SetProjection(0.2,8.0);//threshold 0.2
+   //mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
+   vobj->SetProjection(0.5,8.0);//threshold 0.2
 
 
    //compute the total volume
@@ -381,8 +441,6 @@ int main(int argc, char *argv[])
    }
    double max_vol=0.35*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
-
-
 
 
    //intermediate volume
@@ -424,26 +482,40 @@ int main(int argc, char *argv[])
       fsolv->Mult(vtmpv,vdens);
       pgdens.SetFromTrueDofs(vdens);
 
-      mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetTime(0.0);
 
-      paraview_dc.RegisterField("design",&pgdens);
-      paraview_dc.Save();
+      mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
+      {
+          paraview_dc.SetPrefixPath("ParaView");
+          paraview_dc.SetLevelsOfDetail(order);
+          paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
+          paraview_dc.SetHighOrderOutput(true);
+          paraview_dc.SetCycle(0);
+          paraview_dc.SetTime(0.0);
+          paraview_dc.RegisterField("design",&pgdens);
+          paraview_dc.Save();
+      }
 
       for(int i=1;i<max_it;i++){
 
-          vobj->SetProjection(0.5,8.0);
+          if(i<10){
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,8.0,1.0);
+              sink->SetSIMP(true);
+          }else if(i<300){
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,3.0);
+              sink->SetSIMP(true);
+          }else{
+              vobj->SetProjection(0.3,8.0);
+              sink->SetDensity(vdens,0.7,8.0,1.0);
+              sink->SetSIMP(false);
+          }
+
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
+          //cpl=sink->Compliance(ograd);
+          cpl=sink->MeanCompl(ograd);
 
-          sink->SetDensity(vdens,0.8,8.0,1.0);
-          //cpl=sink->MCompliance(ograd);
-          cpl=sink->Compliance(ograd);
 
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol<<std::endl;

@@ -1077,13 +1077,22 @@ public:
     ~DiffusionSolver();
 
     /// Set the Newton Solver
-    void SetNewtonSolver(double rtol=1e-7, double atol=1e-12,int miter=1000, int prt_level=0);
+    void SetNewtonSolver(double rtol=1e-7, double atol=1e-12,int miter=100, int prt_level=0);
 
     /// Set the Linear Solver
-    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1000);
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=100);
 
     /// Solves the forward problem.
     void FSolve();
+
+
+    /// Forms the tangent matrix
+    void AssembleTangent();
+
+    /// Solves the linearized system Ku=f,
+    /// where K is the assembled tangent matrix
+    void LSolve();
+
 
     /// Solves the adjoint with the provided rhs.
     void ASolve(mfem::Vector& rhs);
@@ -1223,14 +1232,16 @@ public:
 
         if(dd>1.0){dd=1.0;}
         if(dd<0.0){dd=0.0;}
-        //eval eta
-        double deta=eta->Eval(T,ip);
-        //do the projection
-        double pd=PointwiseTrans::HProject(dd,deta,beta);
-        double cd=Dmin+(Dmax-Dmin)*std::pow(pd,pp);
+        double cd;
         if(projection==false)
         {
             cd=Dmin+(Dmax-Dmin)*std::pow(dd,pp);
+        }else{
+            //eval eta
+            double deta=eta->Eval(T,ip);
+            //do the projection
+            double pd=PointwiseTrans::HProject(dd,deta,beta);
+            cd=Dmin+(Dmax-Dmin)*std::pow(pd,pp);
         }
 
         m=0.0;
@@ -1252,17 +1263,18 @@ public:
 
         if(dd>1.0){dd=1.0;}
         if(dd<0.0){dd=0.0;}
-        //eval eta
-        double deta=eta->Eval(T,ip);
-        //do the projection
-        double pd=PointwiseTrans::HProject(dd,deta,beta);
-        //evaluate hte gradient of the projection
-        double pg=PointwiseTrans::HGrad(dd,deta,beta);
-        //evaluate the gradient with respect to the density field
-        double cd=(Dmax-Dmin)*pg*pp*std::pow(pd,pp-1.0);
+        double cd;
         if(projection==false)
         {
             cd=(Dmax-Dmin)*pp*std::pow(dd,pp-1.0);
+        }else{
+            //eval eta
+            double deta=eta->Eval(T,ip);
+            //do the projection
+            double pd=PointwiseTrans::HProject(dd,deta,beta);
+            //evaluate hte gradient of the projection
+            double pg=PointwiseTrans::HGrad(dd,deta,beta);
+            cd=(Dmax-Dmin)*pg*pp*std::pow(pd,pp-1.0);
         }
 
         m=0.0;

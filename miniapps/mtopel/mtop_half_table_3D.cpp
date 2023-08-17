@@ -403,7 +403,107 @@ public:
         return rez;
     }
 
-    double MeanComplSymm(mfem::Vector& grad)
+
+    double MeanCompliance(mfem::Vector& grad)
+    {
+
+        mfem::Vector lgr(grad.Size());
+        grad=0.0;
+
+        //set all bc for the symmetric case
+        esolv->DelDispBC();
+        esolv->AddDispBC(3,4,0.0);
+        esolv->AddDispBC(2,0,0.0);
+        //esolv->AddSurfLoad(4,0.00,1.00,0.0);
+
+        //esolv->FSolve();
+        //esolv->GetSol(sol);
+
+        mfem::VectorArrayCoefficient ff(pmesh->SpaceDimension());
+        mfem::ConstantCoefficient one(1.0);
+        mfem::ConstantCoefficient zero(0.0);
+        ff.Set(0,&zero,false);
+        ff.Set(1,&one,false);
+        ff.Set(2,gf,false);
+        esolv->AddSurfLoad(4,ff);
+
+        cobj->SetE(&E);
+        cobj->SetDens(vdens);
+        cobj->SetDesignFES(dfes);
+        esolv->AssembleTangent();
+
+
+        esola->DelDispBC();
+        esola->AddDispBC(3,4,0.0);
+        esola->AddDispBC(2,2,0.0);
+
+        mfem::VectorArrayCoefficient fa(pmesh->SpaceDimension());
+        fa.Set(0,&zero,false);
+        fa.Set(1,&zero,false);
+        fa.Set(2,af,false);
+        esola->AddSurfLoad(4,fa);
+        esola->AssembleTangent();
+
+        std::uniform_int_distribution<int> uint(1,std::numeric_limits<int>::max());
+
+        int n=num_samples;
+        double obj=0.0;
+        double var=0.0;
+        for(int i=0;i<n;i++){
+            if(seeds.size()<(i+1)){
+                int seed = uint(generator);
+                seeds.push_back(seed);
+            }
+            gf->Sample(seeds[i]);
+
+            if(seeda.size()<(i+1)){
+                int seed = uint(generator);
+                seeda.push_back(seed);
+            }
+            af->Sample(seeda[i]);
+
+
+            esolv->LSolve();
+            esola->LSolve();
+
+            esolv->GetSol(sol);
+            sol*=0.5;
+            sol.Add(0.5,esola->GetDisplacements());
+
+            double rez=cobj->Eval(sol);
+            cobj->Grad(sol,lgr);
+            grad.Add(1.0,lgr);
+            obj=obj+rez;
+            var=var+rez*rez;
+
+
+            esolv->GetSol(sol);
+            sol*=0.5;
+            sol.Add(-0.5,esola->GetDisplacements());
+
+            rez=cobj->Eval(sol);
+            cobj->Grad(sol,lgr);
+            grad.Add(1.0,lgr);
+            obj=obj+rez;
+            var=var+rez*rez;
+
+
+        }
+
+        grad/=double(2*n);
+        var=var/double(2*n);
+        obj=obj/double(2*n);
+
+
+        int myrank;
+        MPI_Comm_rank(pmesh->GetComm(),&myrank);
+        if(myrank==0){
+        std::cout<<"Var="<<var-obj*obj<<std::endl;}
+
+        return obj;
+    }
+
+    double MeanComplSymmO(mfem::Vector& grad)
     {
         mfem::Vector lgr(grad.Size());
         grad=0.0;
@@ -492,7 +592,7 @@ public:
         return obj;
     }
 
-    double MeanComplCF(mfem::Vector& grad)
+    double MeanComplCFO(mfem::Vector& grad)
     {
 
         //set all bc
@@ -557,7 +657,7 @@ public:
     }
 
 
-    double MeanCompliance(mfem::Vector& grad){
+    double MeanComplianceO(mfem::Vector& grad){
         //set all bc
         esolv->DelDispBC();
         esolv->AddDispBC(1,4,0.0);
@@ -860,19 +960,6 @@ int main(int argc, char *argv[])
        }
    }
 
-   if(restart)
-   {
-       //read the mesh and the design
-       std::ostringstream oss;
-       oss << std::setw(10) << std::setfill('0') << myrank;
-       std::string mname="pmesh_"+oss.str()+".msh";
-
-       std::ifstream in;
-       in.open(mname.c_str(),std::ios::in);
-       pmesh.Load(in,1,0);
-       in.close();
-   }
-
    if(myrank==0)
    {
        std::cout<<"num el="<<pmesh.GetNE()<<std::endl;
@@ -1026,8 +1113,8 @@ int main(int argc, char *argv[])
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
-          obj=alco->Compliance(vgrad);
-          //obj=alco->MeanComplSymm(vgrad);
+          //obj=alco->Compliance(vgrad);
+          obj=alco->MeanCompliance(vgrad);
           //reduce ograd
           ograd=0.0;
           MPI_Reduce(vgrad.GetData(),ograd.GetData(),ograd.Size()
@@ -1092,12 +1179,8 @@ int main(int argc, char *argv[])
                   //save the mesh and the design
                   std::ostringstream oss;
                   oss << std::setw(10) << std::setfill('0') << myrank;
-                  std::string mname="pmesh_"+oss.str()+".msh";
                   std::string gname="design_"+oss.str()+".gf";
                   std::ofstream out;
-                  out.open(mname.c_str(),std::ios::out);
-                  pmesh.ParPrint(out);
-                  out.close();
 
                   //save the design
                   oddens.SetFromTrueDofs(vtmpv);

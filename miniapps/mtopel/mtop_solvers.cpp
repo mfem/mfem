@@ -1485,6 +1485,92 @@ void DiffusionSolver::FSolve()
 
 }
 
+
+void DiffusionSolver::AssembleTangent()
+{
+    //Set the BC
+    ess_tdofv.DeleteAll();
+    {
+        for(auto it=bcc.begin();it!=bcc.end();it++){
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            ess_tdofv.Append(ess_tdof_list);
+
+            fsol.ProjectBdrCoefficient(*(it->second),ess_bdr);
+        }
+    }
+
+    fsol.GetTrueDofs(sol);
+
+    mfem::ParBilinearForm* bf=new ParBilinearForm(vfes);
+    {
+
+        for(unsigned int i=0;i<materials.size();i++){
+            bf->AddDomainIntegrator(new DiffusionIntegrator(*(materials[i])));
+        }
+    }
+
+    bf->Assemble();
+    bf->Finalize();
+    delete A; A=nullptr;
+    delete Ae; Ae=nullptr;
+    A=bf->ParallelAssemble();
+    //set the boundary conditions
+    Ae=A->EliminateRowsCols(ess_tdofv);
+
+    //solve the system
+    if(ls==nullptr){
+        ls=new mfem::CGSolver(pmesh->GetComm());
+        prec=new HypreBoomerAMG();
+    }
+
+    prec->SetOperator(*A);
+    prec->SetPrintLevel(print_level);
+
+    ls->SetPrintLevel(print_level);
+    ls->SetAbsTol(linear_atol);
+    ls->SetRelTol(linear_rtol);
+    ls->SetMaxIter(linear_iter);
+    ls->SetPreconditioner(*prec);
+    ls->SetOperator(*A);
+
+    delete bf;
+}
+
+
+void DiffusionSolver::LSolve()
+{
+    mfem::ParLinearForm*   lf=new ParLinearForm(vfes);
+    {
+        if(volforce!=nullptr){
+            lf->AddDomainIntegrator(new DomainLFIntegrator(*volforce));
+        }
+
+    }
+
+    rhs=0.0;
+    lf->Assemble();
+    lf->ParallelAssemble(rhs);
+
+    //modify the RHS
+    Ae->Mult(sol,tmpv);
+    rhs.Add(-1.0,tmpv);
+
+    //copy BC to RHS
+    for(int ii=0;ii<ess_tdofv.Size();ii++)
+    {
+        rhs[ess_tdofv[ii]]=sol[ess_tdofv[ii]];
+    }
+
+    ls->Mult(rhs,sol);
+    delete lf;
+}
+
+
 double ComplianceDiffIntegrator::GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
     if(temp==nullptr){return 0.0;}
