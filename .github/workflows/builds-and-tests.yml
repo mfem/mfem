@@ -72,6 +72,9 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
+          - os: ubuntu-latest
+            target: dbg
+            config-opts: 'CPPFLAGS+=-Og'
           - os: windows-latest
             codecov: NO
           - os: windows-latest
