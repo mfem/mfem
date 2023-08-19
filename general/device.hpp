@@ -70,21 +70,14 @@ struct Backend
       /** @brief [host] SYCL CPU backend: sequential execution on each MPI rank.
          Enabled when MFEM_USE_SYCL = YES. */
       SYCL_CPU = 1 << 14,
-      /** @brief [host] SYCL OpenMP backend. Enabled when MFEM_USE_SYCL = YES
-         and MFEM_USE_OPENMP = YES. */
-      SYCL_OMP = 1 << 15,
-      /** @brief [device] SYCL CUDA backend. Enabled when MFEM_USE_SYCL = YES
-         and MFEM_USE_CUDA = YES. */
-      SYCL_CUDA = 1 << 16,
-      /** @brief [device] SYCL HIP backend. Enabled when MFEM_USE_SYCL = YES
-         and MFEM_USE_HIP = YES. */
-      SYCL_HIP = 1 << 17,
+      /** @brief [device] SYCL GPU backend. Enabled when MFEM_USE_SYCL = YES. */
+      SYCL_GPU = 1 << 15,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
           transfers) without any GPU hardware. As 'DEBUG' is sometimes used
           as a macro, `_DEVICE` has been added to avoid conflicts. */
-      DEBUG_DEVICE = 1 << 18
+      DEBUG_DEVICE = 1 << 16
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -92,27 +85,27 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 19,
+      NUM_BACKENDS = 17,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU | SYCL_CPU,
       /// Biwise-OR of all CUDA backends
-      CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA | SYCL_CUDA,
+      CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
-      HIP_MASK = HIP | RAJA_HIP | CEED_HIP | SYCL_HIP,
+      HIP_MASK = HIP | RAJA_HIP | CEED_HIP,
       /// Biwise-OR of all OpenMP backends
-      OMP_MASK = OMP | RAJA_OMP | OCCA_OMP | SYCL_OMP,
+      OMP_MASK = OMP | RAJA_OMP | OCCA_OMP | SYCL_CPU,
       /// Bitwise-OR of all CEED backends
       CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | SYCL_GPU | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA | RAJA_HIP,
       /// Biwise-OR of all OCCA backends
       OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA,
       /// Biwise-OR of all SYCL backends
-      SYCL_MASK = SYCL_CPU | SYCL_OMP | SYCL_CUDA | SYCL_HIP
+      SYCL_MASK = SYCL_CPU | SYCL_GPU
    };
 };
 
@@ -213,10 +206,12 @@ public:
          backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is:
-         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'sycl-cuda', 'cuda',
-         'ceed-hip', 'hip', 'sycl', 'debug',
-         'occa-omp', 'raja-omp', 'sycl-omp', 'omp',
-         'ceed-cpu', 'occa-cpu', 'raja-cpu', 'sycl-cpu', 'cpu'.
+         'sycl-gpu',
+         'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda',
+         'ceed-hip', 'hip', 'debug',
+         'sycl-cpu',
+         'occa-omp', 'raja-omp', 'omp',
+         'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'

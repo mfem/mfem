@@ -571,10 +571,10 @@ inline void ForallWrap(const bool use_dev, const int N,
 #endif
 
 #ifdef MFEM_USE_SYCL
-   // If one of the Backend::SYCL_MASK is allowed, use it
-   if (Device::Allows(Backend::SYCL_MASK))
+   // If Backend::SYCL_GPU is allowed, use it
+   if (Device::Allows(Backend::SYCL_GPU))
    {
-      return SyclKernel<DIM>::run(N, d_body, X, Y, Z, G);
+      return SyclWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -610,6 +610,14 @@ inline void ForallWrap(const bool use_dev, const int N,
 #ifdef MFEM_USE_RAJA
    // If Backend::RAJA_CPU is allowed, use it
    if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
+#endif
+
+#ifdef MFEM_USE_SYCL
+   // If Backend::SYCL_CPU is allowed, use it
+   if (Device::Allows(Backend::SYCL_CPU))
+   {
+      return SyclWrap<DIM>::run(N, h_body, X, Y, Z, G);
+   }
 #endif
 
 backend_cpu:

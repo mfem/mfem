@@ -43,20 +43,23 @@ ceed::RestrMap ceed_restr_map;
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::SYCL_CUDA, Backend::CUDA,
-   Backend::CEED_HIP, Backend::RAJA_HIP, Backend::SYCL_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
-   Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::SYCL_OMP, Backend::OMP,
-   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::SYCL_CPU,
-   Backend::CPU
+   Backend::SYCL_GPU,
+   Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
+   Backend::CEED_HIP, Backend::RAJA_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
+   Backend::SYCL_CPU,
+   Backend::OCCA_OMP, Backend::RAJA_OMP,  Backend::OMP,
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "ceed-cuda", "occa-cuda", "raja-cuda", "sycl-cuda", "cuda",
-   "ceed-hip", "raja-hip", "sycl-hip", "hip", "debug",
-   "occa-omp", "raja-omp", "sycl-omp", "omp",
-   "ceed-cpu", "occa-cpu", "raja-cpu", "sycl-cpu", "cpu"
+   "sycl-gpu",
+   "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
+   "ceed-hip", "raja-hip", "hip", "debug",
+   "sycl-cpu",
+   "occa-omp", "raja-omp", "omp",
+   "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
 
 } // namespace mfem::internal
@@ -483,15 +486,27 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
-static void SyclDeviceSetup(const int dev, int &ngpu)
+static void SyclDeviceSetup(const bool use_gpu, const int dev, int &ngpu,
+                            const bool use_cpu)
 {
-   dbg();
-#ifdef MFEM_USE_SYCL
-   ngpu = SyclGetDeviceCount();
-   MFEM_VERIFY(ngpu > 0, "No SYCL device!");
-#else
+   dbg("\033[33m%s",use_gpu ? "SYCL_GPU" : use_cpu ? "SYCL_CPU" : "HOST");
    MFEM_CONTRACT_VAR(dev);
-   MFEM_CONTRACT_VAR(ngpu);
+#ifdef MFEM_USE_SYCL
+   if (use_gpu)
+   {
+      auto Q = Sycl::Queue();//sycl::gpu_selector {});
+      MFEM_VERIFY(Q.get_device().is_gpu(), "Sycl queue setup error!")
+      ngpu = SyclGetDeviceCount();
+      MFEM_VERIFY(ngpu > 0, "No SYCL device found!");
+   }
+   if (use_cpu)
+   {
+      auto Q = Sycl::Queue();//sycl::cpu_selector {});
+      MFEM_VERIFY(Q.get_device().is_cpu(), "Sycl queue setup error!")
+      SyclGetDeviceCount();
+   }
+#else
+   MFEM_ABORT("the SYCL backends require MFEM built with MFEM_USE_SYCL=YES");
 #endif
 }
 
@@ -589,7 +604,11 @@ void Device::Setup(const int device_id)
          CeedDeviceSetup(device_option);
       }
    }
-   if (Allows(Backend::SYCL_CUDA | Backend::SYCL_HIP)) { SyclDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::SYCL_MASK))
+   {
+      SyclDeviceSetup(Allows(Backend::SYCL_GPU), dev, ngpu,
+                      Allows(Backend::SYCL_CPU));
+   }
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 

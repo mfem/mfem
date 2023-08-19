@@ -38,6 +38,18 @@ PAR_MAIN_OBJ = punit_test_main.o
 CUDA_MAIN_OBJ = cunit_test_main.o
 PCUDA_MAIN_OBJ = pcunit_test_main.o
 
+# SYCL files
+SYCL_FILES = $(sort $(wildcard $(SRC)sycl/*.cpp))
+USE_SYCL := $(MFEM_USE_SYCL:NO=)
+
+SEQ_SYCL_TESTS = sycl_tests_cpu
+SEQ_SYCL_TESTS += $(if $(USE_SYCL),sycl_tests_sycl_cpu)
+SEQ_SYCL_TESTS += $(if $(USE_SYCL),sycl_tests_sycl_gpu)
+
+SEQ_SYCL_CPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.cpu.o)
+SEQ_SYCL_SYCL_CPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.sycl_cpu.o)
+SEQ_SYCL_SYCL_GPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.sycl_gpu.o)
+
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 
@@ -78,7 +90,7 @@ PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_
 
 # seq/par files and tests
 SEQ_UNIT_TESTS = unit_tests $(if $(USE_CUDA),cunit_tests)
-SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
+SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS) $(SEQ_SYCL_TESTS)
 PAR_UNIT_TESTS = punit_tests $(if $(USE_CUDA),pcunit_tests)
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
@@ -218,6 +230,24 @@ $(eval $(call ptmop_pa_tests,cpu,CPU,cpu))
 #$(eval $(call ptmop_pa_tests,debug,DEBUG,debug))
 $(eval $(call ptmop_pa_tests,cuda,CUDA,cuda))
 #$(eval $(call ptmop_pa_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+# SYCL Template rule for devices
+# 1: postfix of 'sycl_tests_', 2: prefix of '_OBJECT_FILES',
+# 3: configuration string for the MFEM device, separated with '$(comma)'
+define sycl_tests
+sycl_tests_$(1): SYCL_TESTS_FLAGS=-DMFEM_SYCL_DEVICE='"$(3)"'
+sycl_tests_$(1): unit_test_main.o $$(SEQ_SYCL_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(SEQ_SYCL_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(SEQ_SYCL_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
+	   $$(SYCL_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call sycl_tests,cpu,CPU,cpu))
+$(eval $(call sycl_tests,sycl_cpu,SYCL_CPU,sycl-cpu))
+$(eval $(call sycl_tests,sycl_gpu,SYCL_GPU,sycl-gpu))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .

@@ -58,7 +58,8 @@
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)) || \
+      (defined(MFEM_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0

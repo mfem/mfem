@@ -15,6 +15,9 @@
 CMakeCache.txt
 CMakeFiles/
 
+# QtCreator/clangd folder
+.qtc_clangd
+
 # Backup files
 *~
 
@@ -355,6 +358,7 @@ tests/unit/unit_tests
 tests/unit/punit_tests
 tests/unit/cunit_tests
 tests/unit/pcunit_tests
+tests/unit/sycl_tests_*
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*

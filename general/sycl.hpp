@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,125 +15,160 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_SYCL
+/*
+ * We are using:
+ *  - Explicit Unified Shared Memory (USM), so that code with pointers
+ *    can work naturally without buffers or accessors
+ *  - SYCL 2020: C++17 Single source programming, with multiple backend options
+ *    OpenCL 3.0 and SPIRV
+ *
+ * It has been tested on:
+ *  - DPC++, which uses LLVM/Clang and is part of oneAPI
+ *  - OpenSYCL, which can target host OpenMP, CUDA and HIP/ROCm
+ *
+ *  FP64 not fully supported on devcloud
+ * */
 
-#include <iostream>
 #include <CL/sycl.hpp>
+using namespace cl;
+
+#if defined(SYCL_LANGUAGE_VERSION) && defined (__INTEL_LLVM_COMPILER)
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/PreprocessorMacros.md
+#define SYCL_FALLBACK_ASSERT 1
+
+// SYCL_LANGUAGE_VERSION is composed of the general SYCL version
+// followed by 2 digits representing the revision number
+#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
+#error MFEM requires a SYCL compiler with language version 2020
+#endif // SYCL_LANGUAGE_VERSION
+#endif // __INTEL_LLVM_COMPILER
 
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
-#define MFEM_DEVICE_SYNC // SyclQueue().queues_wait_and_throw()
-#define MFEM_STREAM_SYNC
+#define MFEM_DEVICE_SYNC mfem::Sycl::Queue().queues_wait_and_throw()
+#define MFEM_STREAM_SYNC mfem::Sycl::Queue().wait_and_throw()
 #define MFEM_GPU_CHECK(...) __VA_ARGS__
 
-/*#if defined(__SYCL_DEVICE_ONLY__)
-// Define the SYCL inner threading macros
+#if defined(__SYCL_DEVICE_ONLY__)
 #define MFEM_SHARED // the compiler does the local memory mapping if it can
-#define MFEM_SYNC_THREAD itm.barrier(cl::sycl::access::fence_space::local_space);
-// sycl::group_barrier(it.get_group());
-#define MFEM_THREAD_ID(k) itm.get_local_id(k);
-#define MFEM_THREAD_SIZE(k) itm.get_local_range(k);
-#endif*/
+#define MFEM_SYNC_THREAD sycl::detail::workGroupBarrier();
+#define MFEM_BLOCK_ID(k) __spirv_BuiltInWorkgroupId.k
+#define MFEM_THREAD_ID(k) __spirv_BuiltInLocalInvocationId.k
+#define MFEM_THREAD_SIZE(k) __spirv_BuiltInWorkgroupSize.k
+#define MFEM_FOREACH_THREAD(i,k,N) \
+for(size_t i=__spirv_LocalInvocationId_##k(); i<N; i+=__spirv_WorkgroupSize_##k())
+#endif
 
-#define SYCL_FOREACH_THREAD(i,k,N) \
-for(int i=itm.get_local_id(k); i<N; i+=itm.get_local_range(k))
-
-#include "device.hpp"
+#include "debug.hpp"
 
 namespace mfem
 {
 
-/// Return the default sycl::queue used by MFEM.
-cl::sycl::queue& SyclQueue();
+struct Sycl
+{
+   /// Return the queue used by MFEM.
+   static sycl::queue Queue();
 
-template <int Dim> struct SyclKernel;
+   /*MFEM_DEVICE inline double atomicAdd(double *add, double val)
+   {
+      sycl::atomic_ref<double,
+           sycl::memory_order::relaxed,
+           sycl::memory_scope::work_group,
+           sycl::access::address_space::local_space>(*add) += (double) (val);
+      return add;
+   }*/
+};
 
-template <> struct SyclKernel<1>
+/**
+ * @brief The SyclWrap class
+ */
+template <int Dim> struct SyclWrap;
+
+/**
+ * @brief The SyclWrap<1> specialized class
+ */
+template <> struct SyclWrap<1>
 {
    template <typename DBODY>
    static void run(const int N, DBODY &&body,
-                   const int /*X*/, const int /*Y*/, const int /*Z*/, const int /*G*/) noexcept
+                   const int /*X*/, const int /*Y*/, const int /*Z*/, const int /*G*/)
    {
       if (N == 0) { return; }
-      try
+      sycl::queue Q = Sycl::Queue();
+      Q.submit([&](sycl::handler &h)
       {
-         cl::sycl::queue &Q = SyclQueue();
-         Q.submit([&](cl::sycl::handler &h)
+         h.parallel_for(sycl::range<1>(N), [=](sycl::item<1> itm)
          {
-            h.parallel_for(cl::sycl::range<1>(N), [=](cl::sycl::id<1> itm)
-            {
-               body(itm[0]);
-            });
+            const size_t k = itm.get_linear_id();
+            body(k);
          });
-         Q.wait();
-      }
-      catch (cl::sycl::exception const &e)
-      {
-         MFEM_ABORT("An exception is caught while multiplying matrices.");
-      }
+      });
+      Q.wait();
    }
 };
 
-template <> struct SyclKernel<2>
+/**
+ * @brief The SyclWrap<2> specialized class
+ */
+template <> struct SyclWrap<2>
 {
    template <typename T>
    static void run(const int N, T &&body,
-                   const int X, const int Y, const int /*Z*/, const int /*G*/)
+                   const int X, const int Y, const int BZ, const int G)
    {
+      assert(G == 0);
       if (N == 0) { return; }
-      try
+      sycl::queue Q = Sycl::Queue();
+      Q.submit([&](sycl::handler &h)
       {
-         cl::sycl::queue &Q = SyclQueue();
-         Q.submit([&](cl::sycl::handler &h)
+#ifdef __SYCL_DEVICE_ONLY__ // SYCL-GPU:
+         const int L = static_cast<int>(std::ceil(std::sqrt((N+BZ-1)/BZ)));
+         const sycl::range<3> grid(L*BZ, L*Y, L*X), group(BZ, Y, X);
+#else // SYCL-CPU:
+         const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
+#endif
+         h.parallel_for(sycl::nd_range<3>(grid,group), [=](sycl::nd_item<3> itm)
          {
-            const int L = static_cast<int>(std::ceil(std::sqrt(N)));
-            const cl::sycl::range<2> grid(L*X, L*Y);
-            const cl::sycl::range<2> group(X, Y);
-            h.parallel_for(cl::sycl::nd_range<2>(grid,group), [=](cl::sycl::nd_item<2> itm)
-            {
-               const int k = itm.get_group_linear_id();
-               if (k >= N) { return; }
-               body(k);
-            });
+            // const int k = itm.get_group_linear_id();
+            // blockIdx.x*blockDim.z + threadIdx.z;
+            const int k =
+               itm.get_group(2)*itm.get_local_range().get(0) + itm.get_local_id(0);
+            if (k >= N) { return; }
+            body(k);
          });
-         Q.wait();
-      }
-      catch (cl::sycl::exception const &e)
-      {
-         MFEM_ABORT("An exception is caught while multiplying matrices.");
-      }
+      });
+      Q.wait();
    }
 };
 
-template <> struct SyclKernel<3>
+/**
+ * @brief The SyclWrap<3> specialized class
+ */
+template <> struct SyclWrap<3>
 {
    template <typename T>
    static void run(const int N, T &&body,
-                   const int X, const int Y, const int Z, const int /*G*/)
+                   const int X, const int Y, const int Z, const int G)
    {
       if (N == 0) { return; }
-      try
+      sycl::queue Q = Sycl::Queue();
+      Q.submit([&](sycl::handler &h)
       {
-         cl::sycl::queue &Q = SyclQueue();
-         Q.submit([&](cl::sycl::handler &h)
+#ifdef __SYCL_DEVICE_ONLY__ // SYCL-GPU:
+         const int L = static_cast<int>(std::ceil(std::cbrt(G == 0 ? N : G)));
+         const sycl::range<3> grid(L*Z, L*Y, L*X), group(Z, Y, X);
+#else // SYCL-CPU:
+         const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
+#endif
+         h.parallel_for(sycl::nd_range<3>(grid, group), [=](sycl::nd_item<3> itm)
          {
-            const int L = static_cast<int>(std::ceil(std::cbrt(N)));
-            const cl::sycl::range<3> grid(L*X, L*Y, L*Z);
-            const cl::sycl::range<3> group(X, Y, Z);
-            h.parallel_for(cl::sycl::nd_range<3>(grid, group), [=](cl::sycl::nd_item<3> itm)
-            {
-               const int k = itm.get_group_linear_id();
-               if (k >= N) { return; }
-               body(k);
-            });
+            const int k = itm.get_group_linear_id();
+            if (k >= N) { return; }
+            body(k);
          });
-         Q.wait();
-      }
-
-      catch (cl::sycl::exception const &e)
-      {
-         MFEM_ABORT("An exception is caught while multiplying matrices.");
-      }
+      });
+      Q.wait();
    }
 };
 

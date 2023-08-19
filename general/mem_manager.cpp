@@ -493,7 +493,7 @@ public:
 /// The SYCL device memory space
 struct SyclDeviceMemorySpace: public DeviceMemorySpace
 {
-   SyclDeviceMemorySpace(): DeviceMemorySpace() { mfem::out << "\033[33m[SyclDeviceMemorySpace]\033[m" << std::endl; }
+   SyclDeviceMemorySpace(): DeviceMemorySpace() { }
    void Alloc(Memory &base) { SyclMemAlloc(&base.d_ptr, base.bytes); }
    void Dealloc(Memory &base) { SyclMemFree(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)

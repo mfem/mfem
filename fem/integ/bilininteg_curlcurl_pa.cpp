@@ -74,12 +74,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                   pa_data);
    }
 }
-#warning [AssembleDiagonalPA] stack frame size (136096) exceeds limit (131056)
+
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
    {
-      if (Device::Allows(Backend::DEVICE_MASK))
+      if (false) // Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
@@ -92,51 +92,51 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
                          mapsO->B, mapsC->B,
                          mapsO->G, mapsC->G,
                          pa_data, diag);
-               /*case 0x34:
-                  return internal::SmemPACurlCurlAssembleDiagonal3D<3,4>(
-                            dofs1D,
-                            quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B,
-                            mapsO->G, mapsC->G,
-                            pa_data, diag);
-               case 0x45:
-                  return internal::SmemPACurlCurlAssembleDiagonal3D<4,5>(
-                            dofs1D,
-                            quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B,
-                            mapsO->G, mapsC->G,
-                            pa_data, diag);
-               case 0x56:
-                  return internal::SmemPACurlCurlAssembleDiagonal3D<5,6>(
-                            dofs1D,
-                            quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B,
-                            mapsO->G, mapsC->G,
-                            pa_data, diag);
-               default:
-                  return internal::SmemPACurlCurlAssembleDiagonal3D(
-                            dofs1D, quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B,
-                            mapsO->G, mapsC->G,
-                            pa_data, diag);*/
+            case 0x34:
+               return internal::SmemPACurlCurlAssembleDiagonal3D<3,4>(
+                         dofs1D,
+                         quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B,
+                         mapsO->G, mapsC->G,
+                         pa_data, diag);
+            case 0x45:
+               return internal::SmemPACurlCurlAssembleDiagonal3D<4,5>(
+                         dofs1D,
+                         quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B,
+                         mapsO->G, mapsC->G,
+                         pa_data, diag);
+            case 0x56:
+               return internal::SmemPACurlCurlAssembleDiagonal3D<5,6>(
+                         dofs1D,
+                         quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B,
+                         mapsO->G, mapsC->G,
+                         pa_data, diag);
+            default:
+               return internal::SmemPACurlCurlAssembleDiagonal3D(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B,
+                         mapsO->G, mapsC->G,
+                         pa_data, diag);
          }
       }
       else
       {
-         /*internal::PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, symmetric, ne,
+         internal::PACurlCurlAssembleDiagonal3D(dofs1D, quad1D, symmetric, ne,
                                                 mapsO->B, mapsC->B,
                                                 mapsO->G, mapsC->G,
-                                                pa_data, diag);*/
+                                                pa_data, diag);
       }
    }
    else if (dim == 2)
    {
-      /*internal::PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne,
-                                             mapsO->B, mapsC->G, pa_data, diag);*/
+      internal::PACurlCurlAssembleDiagonal2D(dofs1D, quad1D, ne,
+                                             mapsO->B, mapsC->G, pa_data, diag);
    }
    else
    {
@@ -148,7 +148,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-      if (Device::Allows(Backend::DEVICE_MASK))
+      if (false) // Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
@@ -159,42 +159,42 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
                          symmetric, ne,
                          mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
                          mapsC->G, mapsC->Gt, pa_data, x, y);
-               /*case 0x34:
-                  return internal::SmemPACurlCurlApply3D<3,4>(
-                            dofs1D, quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
-                            mapsC->G, mapsC->Gt, pa_data, x, y);
-               case 0x45:
-                  return internal::SmemPACurlCurlApply3D<4,5>(
-                            dofs1D, quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
-                            mapsC->G, mapsC->Gt, pa_data, x, y);
-               case 0x56:
-                  return internal::SmemPACurlCurlApply3D<5,6>(
-                            dofs1D, quad1D,
-                            symmetric, ne,
-                            mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
-                            mapsC->G, mapsC->Gt, pa_data, x, y);
-               default:
-                  return internal::SmemPACurlCurlApply3D(
-                            dofs1D, quad1D, symmetric, ne,
-                            mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
-                            mapsC->G, mapsC->Gt, pa_data, x, y);*/
+            case 0x34:
+               return internal::SmemPACurlCurlApply3D<3,4>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
+                         mapsC->G, mapsC->Gt, pa_data, x, y);
+            case 0x45:
+               return internal::SmemPACurlCurlApply3D<4,5>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
+                         mapsC->G, mapsC->Gt, pa_data, x, y);
+            case 0x56:
+               return internal::SmemPACurlCurlApply3D<5,6>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
+                         mapsC->G, mapsC->Gt, pa_data, x, y);
+            default:
+               return internal::SmemPACurlCurlApply3D(
+                         dofs1D, quad1D, symmetric, ne,
+                         mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt,
+                         mapsC->G, mapsC->Gt, pa_data, x, y);
          }
       }
       else
       {
-         /*internal::PACurlCurlApply3D(dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B,
+         internal::PACurlCurlApply3D(dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B,
                                      mapsO->Bt, mapsC->Bt, mapsC->G, mapsC->Gt,
-                                     pa_data, x, y);*/
+                                     pa_data, x, y);
       }
    }
    else if (dim == 2)
    {
-      /*internal::PACurlCurlApply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt,
-                                  mapsC->G, mapsC->Gt, pa_data, x, y);*/
+      internal::PACurlCurlApply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt,
+                                  mapsC->G, mapsC->Gt, pa_data, x, y);
    }
    else
    {

@@ -12,36 +12,35 @@
 #include <vector>
 
 #include "sycl.hpp"
+#include "error.hpp"
 #include "globals.hpp"
+#include "device.hpp"
+
+#include "debug.hpp"
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_SYCL
+sycl::queue Sycl::Queue()
+{
+   if (Device::Allows(Backend::SYCL_GPU)) { return sycl::queue(sycl::gpu_selector{}); }
+   if (Device::Allows(Backend::SYCL_CPU)) { return sycl::queue(sycl::cpu_selector{}); }
+   return sycl::queue(sycl::default_selector{});
+}
 
 #undef MFEM_TRACK_SYCL_MEM
-
-// default, cpu, gpu
-#define MFEM_SYCL_SELECTOR default_selector
-
-cl::sycl::queue& SyclQueue()
-{
-   static cl::sycl::queue syclQueue{cl::sycl::MFEM_SYCL_SELECTOR{}};
-   return syclQueue;
-}
-#endif // MFEM_USE_SYCL
 
 void* SyclMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemAlloc(): allocating " << bytes << " bytes ... "
+   mfem::out << "\033[33mSyclMemAlloc(): allocating " << bytes << " bytes ... "
              << std::flush;
 #endif
-   const auto& const_Q = SyclQueue();
-   MFEM_GPU_CHECK(*dptr = cl::sycl::malloc_device(bytes, const_Q));
+   const auto& const_Q = Sycl::Queue();
+   MFEM_GPU_CHECK(*dptr = sycl::malloc_device(bytes, const_Q));
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done: " << *dptr << std::endl;
+   mfem::out << "done: \033[m" << *dptr << std::endl;
 #endif
 #endif
    return *dptr;
@@ -51,13 +50,14 @@ void* SyclMallocManaged(void** dptr, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMallocManaged(): allocating " << bytes << " bytes ... "
+   mfem::out << "\033[33mSyclMallocManaged(): allocating " << bytes <<
+             " bytes ... "
              << std::flush;
 #endif
-   const auto& const_Q = SyclQueue();
-   MFEM_GPU_CHECK(*dptr = cl::sycl::malloc_shared(bytes, const_Q));
+   const auto& const_Q = Sycl::Queue();
+   MFEM_GPU_CHECK(*dptr = sycl::malloc_shared(bytes, const_Q));
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done: " << *dptr << std::endl;
+   mfem::out << "done: \033[m" << *dptr << std::endl;
 #endif
 #endif
    return *dptr;
@@ -67,13 +67,14 @@ void* SyclMemAllocHostPinned(void** ptr, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemAllocHostPinned(): allocating " << bytes << " bytes ... "
+   mfem::out << "\033[33mSyclMemAllocHostPinned(): allocating " << bytes <<
+             " bytes ... "
              << std::flush;
 #endif
    MFEM_CONTRACT_VAR(bytes);
    MFEM_ABORT("SyclMemAllocHostPinned is not implemented!");
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done: " << *ptr << std::endl;
+   mfem::out << "done: \033[m" << *ptr << std::endl;
 #endif
 #endif
    return *ptr;
@@ -83,13 +84,13 @@ void* SyclMemFree(void *dptr)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemFree(): deallocating memory @ " << dptr << " ... "
+   mfem::out << "\033[33mSyclMemFree(): deallocating memory @ " << dptr << " ... "
              << std::flush;
 #endif
-   MFEM_GPU_CHECK(cl::sycl::free(dptr, SyclQueue()));
+   MFEM_GPU_CHECK(sycl::free(dptr, Sycl::Queue()));
    dptr = nullptr;
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done." << std::endl;
+   mfem::out << "done.\033[m" << std::endl;
 #endif
 #endif
    return dptr;
@@ -99,13 +100,14 @@ void* SyclMemFreeHostPinned(void *ptr)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
+   mfem::out << "\033[33mSyclMemFreeHostPinned(): deallocating memory @ " << ptr <<
+             " ... "
              << std::flush;
 #endif
-   MFEM_GPU_CHECK(cl::sycl::free(ptr, SyclQueue()));
+   MFEM_GPU_CHECK(sycl::free(ptr, Sycl::Queue()));
    ptr = nullptr;
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done." << std::endl;
+   mfem::out << "done.\033[m" << std::endl;
 #endif
 #endif
    return ptr;
@@ -115,13 +117,13 @@ void* SyclMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemcpyHtoD(): copying " << bytes << " bytes from "
+   mfem::out << "\033[33mSyclMemcpyHtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    SyclMemcpyHtoDAsync(dst, src, bytes);
-   SyclQueue().wait();
+   Sycl::Queue().wait();
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done." << std::endl;
+   mfem::out << "done.\033[m" << std::endl;
 #endif
 #endif
    return dst;
@@ -130,7 +132,7 @@ void* SyclMemcpyHtoD(void* dst, const void* src, size_t bytes)
 void* SyclMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
-   SyclQueue().submit([&](cl::sycl::handler &h) { h.memcpy(dst, src, bytes); });
+   Sycl::Queue().submit([&](sycl::handler &h) { h.memcpy(dst, src, bytes); });
 #endif
    return dst;
 }
@@ -139,13 +141,13 @@ void* SyclMemcpyDtoD(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemcpyDtoD(): copying " << bytes << " bytes from "
+   mfem::out << "\033[33mSyclMemcpyDtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    SyclMemcpyDtoDAsync(dst, src, bytes);
-   SyclQueue().wait();
+   Sycl::Queue().wait();
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done." << std::endl;
+   mfem::out << "done.\033[33m" << std::endl;
 #endif
 #endif
    return dst;
@@ -154,7 +156,7 @@ void* SyclMemcpyDtoD(void *dst, const void *src, size_t bytes)
 void* SyclMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
-   SyclQueue().submit([&](cl::sycl::handler &h) { h.memcpy(dst, src, bytes); });
+   Sycl::Queue().submit([&](sycl::handler &h) { h.memcpy(dst, src, bytes); });
 #endif
    return dst;
 }
@@ -163,13 +165,13 @@ void* SyclMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "SyclMemcpyDtoH(): copying " << bytes << " bytes from "
+   mfem::out << "\033[33mSyclMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    SyclMemcpyDtoHAsync(dst, src, bytes);
-   SyclQueue().wait();
+   Sycl::Queue().wait();
 #ifdef MFEM_TRACK_SYCL_MEM
-   mfem::out << "done." << std::endl;
+   mfem::out << "done.\033[m" << std::endl;
 #endif
 #endif
    return dst;
@@ -178,7 +180,7 @@ void* SyclMemcpyDtoH(void *dst, const void *src, size_t bytes)
 void* SyclMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_SYCL
-   SyclQueue().submit([&](cl::sycl::handler &h) { h.memcpy(dst, src, bytes); });
+   Sycl::Queue().submit([&](sycl::handler &h) { h.memcpy(dst, src, bytes); });
 #endif
    return dst;
 }
@@ -186,7 +188,7 @@ void* SyclMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
 void SyclCheckLastError()
 {
 #ifdef MFEM_USE_SYCL
-   MFEM_GPU_CHECK(SyclQueue().throw_asynchronous());
+   MFEM_GPU_CHECK(Sycl::Queue().throw_asynchronous());
 #endif
 }
 
@@ -199,62 +201,74 @@ int SyclGetDeviceCount()
    auto GetPlatformsInfo = [](const bool out = false)
    {
       bool at_least_one = false;
-      if (out) { mfem::out << "Platforms and Devices" << std::endl; }
-      std::vector<cl::sycl::platform> platforms = cl::sycl::platform::get_platforms();
+      if (out) { mfem::out << "Platforms and Devices:" << std::endl; }
+      std::vector<sycl::platform> platforms = sycl::platform::get_platforms();
       for (const auto &platform : platforms)
       {
          if (out)
          {
-            mfem::out << "Platform: ";
-            mfem::out << platform.get_info<cl::sycl::info::platform::name>() << " ";
-            mfem::out << platform.get_info<cl::sycl::info::platform::vendor>() << " ";
-            mfem::out << platform.get_info<cl::sycl::info::platform::version>();
+            mfem::out << "\tPlatform: ";
+            mfem::out << platform.get_info<sycl::info::platform::name>() << " ";
+            mfem::out << platform.get_info<sycl::info::platform::vendor>() << " ";
+            mfem::out << platform.get_info<sycl::info::platform::version>();
             mfem::out << std::endl;
          }
-         std::vector<cl::sycl::device> devices = platform.get_devices();
+         std::vector<sycl::device> devices = platform.get_devices();
          for (const auto &device : devices)
          {
             at_least_one |= device.is_gpu() || device.is_cpu();
             if (!out) { continue ;}
-            mfem::out << "-- Device: ";
-            mfem::out << device.get_info<cl::sycl::info::device::name>() << " ";
+            mfem::out << "\tDevice: ";
+            mfem::out << device.get_info<sycl::info::device::name>() << " ";
             mfem::out << (device.is_gpu() ? "is a GPU" : "is a CPU");
             mfem::out << std::endl;
          }
+         if (out) { mfem::out << std::endl; }
       }
       return at_least_one;
    };
    const bool at_least_one = GetPlatformsInfo(debug);
    if (!at_least_one) { return num_gpus; }
 
-   cl::sycl::MFEM_SYCL_SELECTOR selector;
-   cl::sycl::queue Q(selector);
+   auto Q = Sycl::Queue();
 
    const auto device = Q.get_device();
-   const auto device_name = device.get_info<cl::sycl::info::device::name>();
+   const auto device_name = device.get_info<sycl::info::device::name>();
    mfem::out << "Device configuration: " << device_name << std::endl;
-   if (device.is_cpu()) { num_gpus = 1; }
+
    if (device.is_gpu())
    {
       const auto max_work_group_size =
-         device.get_info<cl::sycl::info::device::max_work_group_size>();
-      if (debug) { mfem::out << "max_work_group_size: " << max_work_group_size << std::endl; }
-      const auto has_local_mem = device.is_host()
-                                 || (device.get_info<cl::sycl::info::device::local_mem_type>()
-                                     != cl::sycl::info::local_mem_type::none);
+         device.get_info<sycl::info::device::max_work_group_size>();
+      if (debug)
+      {
+         mfem::out << "max_work_group_size: " << max_work_group_size << std::endl;
+      }
+      const auto has_local_mem =
+         device.is_host()
+         || (device.get_info<sycl::info::device::local_mem_type>()
+             != sycl::info::local_mem_type::none);
       const auto local_mem_size =
-         device.get_info<cl::sycl::info::device::local_mem_size>();
+         device.get_info<sycl::info::device::local_mem_size>();
       if (debug && has_local_mem)
       {
          mfem::out << "local_mem_size: " << local_mem_size << std::endl;
       }
       auto cacheLineSize =
-         device.get_info<cl::sycl::info::device::global_mem_cache_line_size>();
+         device.get_info<sycl::info::device::global_mem_cache_line_size>();
       if (debug)
       {
          mfem::out << "cacheLineSize: " << cacheLineSize << std::endl;
       }
       num_gpus = 1;
+   }
+   else if (device.is_cpu())
+   {
+      mfem::out << "is_cpu" << std::endl;
+   }
+   else
+   {
+      mfem::out << "unknown" << std::endl;
    }
 #endif // MFEM_USE_SYCL
    return num_gpus;

@@ -1131,13 +1131,96 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
 }
 #endif // MFEM_USE_HIP
 
+#ifdef MFEM_USE_SYCL
+
+double SyclVectorDot(const size_t N, const double *X, const double *Y)
+{
+   auto Q = Sycl::Queue();
+   constexpr int localSize = 256;
+   const int num_compute_units =
+      Q.get_device().get_info<sycl::info::device::max_compute_units>();
+   const int vector_width =
+      Q.get_device().get_info<sycl::info::device::native_vector_width_int>();
+   const int num_work_units = num_compute_units * vector_width * localSize;
+   sycl::buffer<double> d_buf(num_work_units);
+   const int globalSize =
+      localSize*std::ceil(static_cast<double>(num_work_units) / localSize);
+   assert(globalSize % localSize == 0);
+   Q.submit([&](auto &h)
+   {
+      sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
+      h.parallel_for(sycl::nd_range<1>(globalSize, localSize), [=](auto item)
+      {
+         const size_t glob_id = item.get_global_id(0);
+         for (size_t i = glob_id; i < N; i += num_work_units)
+         {
+            d_buf_wo[glob_id] = 0.0;
+         }
+      });
+   });
+   Q.submit([&](auto &h)
+   {
+      sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
+      h.parallel_for(sycl::nd_range<1> {globalSize, localSize}, [=](auto item)
+      {
+         double dot = 0.0;
+         const size_t glob_id = item.get_global_id(0);
+         for (size_t i = glob_id; i < N; i += num_work_units)
+         {
+            dot += X[i] * Y[i];
+         }
+         d_buf_wo[glob_id] = dot;
+      });
+   });
+   Q.wait();
+   double dot = 0.0;
+   sycl::host_accessor h_buf_ro(d_buf, sycl::read_only);
+   for (int i = 0; i < num_work_units; ++i) { dot += h_buf_ro[i]; }
+   return dot;
+}
+
+double SyclVectorMin(const size_t N, const double *X)
+{
+   auto Q = Sycl::Queue();
+   constexpr int localSize = 256;
+   const int num_compute_units =
+      Q.get_device().get_info<sycl::info::device::max_compute_units>();
+   const int vector_width =
+      Q.get_device().get_info<sycl::info::device::native_vector_width_int>();
+   const int num_work_units = num_compute_units * vector_width * localSize;
+   sycl::buffer<double> d_buf(num_work_units);
+   const int globalSize =
+      localSize*std::ceil(static_cast<double>(num_work_units) / localSize);
+   assert(globalSize % localSize == 0);
+   Q.submit([&](auto &h)
+   {
+      sycl::accessor d_buf_wo(d_buf, h, sycl::write_only, sycl::no_init);
+      h.parallel_for(sycl::nd_range<1> {globalSize, localSize}, [=](auto item)
+      {
+         double min = std::numeric_limits<double>::infinity();
+         const size_t glob_id = item.get_global_id(0);
+         for (size_t i = glob_id; i < N; i += num_work_units)
+         {
+            min = fmin(min, X[i]);
+         }
+         d_buf_wo[glob_id] = min;
+      });
+   });
+   Q.wait();
+   double dot = std::numeric_limits<double>::infinity();
+   sycl::host_accessor h_buf_ro(d_buf, sycl::read_only);
+   for (int i = 0; i < num_work_units; ++i) { dot += h_buf_ro[i]; }
+   return dot;
+}
+#endif // MFEM_USE_SYCL
+
 double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
    if (size == 0) { return 0.0; }
 
    const bool use_dev = UseDevice() || v.UseDevice();
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP)
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP) || defined(MFEM_USE_SYCL)
    auto m_data = Read(use_dev);
 #else
    Read(use_dev);
@@ -1165,6 +1248,13 @@ double Vector::operator*(const Vector &v) const
    if (Device::Allows(Backend::HIP_MASK))
    {
       return hipVectorDot(size, m_data, v_data);
+   }
+#endif
+
+#ifdef MFEM_USE_SYCL
+   if (Device::Allows(Backend::SYCL_MASK))
+   {
+      return SyclVectorDot(size, m_data, v_data);
    }
 #endif
 
@@ -1252,6 +1342,13 @@ double Vector::Min() const
    if (Device::Allows(Backend::HIP_MASK))
    {
       return hipVectorMin(size, m_data);
+   }
+#endif
+
+#ifdef MFEM_USE_SYCL
+   if (Device::Allows(Backend::SYCL_MASK))
+   {
+      return SyclVectorMin(size, m_data);
    }
 #endif
 

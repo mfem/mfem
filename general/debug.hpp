@@ -23,6 +23,11 @@
 #include <mpi.h>
 #endif
 
+// http://www.calmar.ws/vim/256-xterm-24bit-rgb-color-chart.html
+#define MFEM_DEBUG_COLOR_BASE 22
+#define MFEM_DEBUG_COLOR_MODULO 210
+#define MFEM_DEBUG_COLOR_MPI_SHIFT 6
+
 namespace mfem
 {
 
@@ -39,7 +44,9 @@ public:
       if (!debug) { return; }
       const char *base = Strrnchr(FILE,'/', 2);
       const char *file = base ? base + 1 : FILE;
-      const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
+      const uint8_t color =
+         COLOR ? (COLOR + MFEM_DEBUG_COLOR_MPI_SHIFT*mpi_rank) :
+         MFEM_DEBUG_COLOR_BASE + Checksum8(FILE) % MFEM_DEBUG_COLOR_MODULO;
       mfem::out << "\033[38;5;" << std::to_string(color) << "m";
       mfem::out << mpi_rank << std::setw(30) << file << ":";
       mfem::out << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
@@ -131,8 +138,10 @@ public:
 #endif
          ini_dbg = true;
       }
+      const int mpi_color_shift = 2*mpi_rank;
+      const int mpi_color = COLOR + mpi_color_shift;
       const bool debug = (env_dbg && (!env_mpi || mpi_rank == mpi_dbg));
-      return debug ? Debug(mpi_rank, FILE, LINE, FUNC, COLOR) : Debug();
+      return debug ? Debug(mpi_rank, FILE, LINE, FUNC, mpi_color) : Debug();
    }
 
 private:
