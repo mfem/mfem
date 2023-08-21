@@ -2173,17 +2173,15 @@ void PADiscreteLinearOperatorExtension::Assemble()
    test_multiplicity.UseDevice(true);
    test_multiplicity = 0.0;
    Array<int> dofs;
+   auto d_mult = test_multiplicity.HostReadWrite();
    for (int i = 0; i < test_fes->GetNE(); i++)
    {
       test_fes->GetElementVDofs(i, dofs);
-      const int ndofs = dofs.Size();
-      auto d_mult = test_multiplicity.HostReadWrite();
-      auto d_dofs = dofs.HostRead();
-      mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+      for (int j = 0; j < dofs.Size(); j++)
       {
-         const int j = d_dofs[i];
-         d_mult[(j >= 0) ? j : -1 - j] += 1.0;
-      });
+         const int k = dofs[j];
+         d_mult[(k >= 0) ? k : -1 - k] += 1.0;
+      }
    }
    test_multiplicity.Reciprocal();
 }
