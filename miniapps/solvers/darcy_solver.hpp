@@ -115,6 +115,7 @@ public:
    ParFiniteElementSpace* GetL2FES() const { return l2_fes_.get(); }
 };
 
+/// Wrapper for assembling the discrete Darcy problem (ex5p)
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
                      [ M  B^T ] [u] = [f]
                      [ B   0  ] [p] = [g]

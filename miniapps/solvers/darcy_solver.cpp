@@ -20,7 +20,7 @@ namespace mfem
 namespace blocksolvers
 {
 
-/// Exact solutions 
+/// Exact solutions
 void u_exact(const Vector & x, Vector & u)
 {
    double xi(x(0));
@@ -131,7 +131,7 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    data_.P_hcurl.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
 }
 
-// Darcy problem function
+/// Darcy problem function
 DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
                            const char *coef_file, Array<int> &ess_bdr,
                            DFSParameters dfs_param)

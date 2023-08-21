@@ -8,6 +8,41 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+//          ----------------------------------------------------------
+//               Bramble-Pasciak preconditioning for Darcy problem
+//          ----------------------------------------------------------
+//
+// Main idea is to precondition the block system
+//                 Ax = [ M  B^T ] [u] = [f]
+//                      [ B   0  ] [p] = [g]
+//     where:
+//        M = \int_\Omega (k u_h) \cdot v_h dx,
+//        B = -\int_\Omega (div_h u_h) q_h dx,
+//        f = \int_\Omega f_exact v_h dx + \int_D natural_bc v_h dS,
+//        g = \int_\Omega g_exact q_h dx,
+//        u_h, v_h \in R_h (Raviart-Thomas finite element space),
+//        q_h \in W_h (piecewise discontinuous polynomials),
+//        D: subset of the boundary where natural boundary condition is imposed.
+// with a block transformation of the form X = AN - Id
+//                  X = [ A*invQ - Id    0   ]
+//                      [     B*invQ    -Id  ]
+// where N is defined by
+//                  N = [ invQ    0 ]
+//                      [   0     0 ]
+// and Q is constructed such that Q and M-Q are both s.p.d.
+//
+// The codes allows the user to provide such Q, or to construct it from the
+// element matrices A_T. Moreover, the user can provide a block preconditioner
+//                  P = [ M_1    0  ]
+//                      [  0    M_2 ]
+// Using the particular preconditioner H, defined as
+//                  H = [ A - Q    0  ]
+//                      [  0      M_2 ]
+// (where M_1 = Q), enables a simplified version of a CG iteration (BPCG), as it avoids
+// the direct application of invH and X.
+//
+// The code allows to use (P)CG with P or H, and BPCG.
 
 #ifndef MFEM_BP_SOLVER_HPP
 #define MFEM_BP_SOLVER_HPP
