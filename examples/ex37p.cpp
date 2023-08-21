@@ -4,6 +4,7 @@
 // Compile with: make ex37p
 //
 // Sample runs:
+// mpirun -np 4 ex37p -alpha 10 -pv
 // mpirun -np 4 ex37p -lambda 0.1 -mu 0.1
 // mpirun -np 4 ex37p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
 // mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
@@ -211,7 +212,6 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int ref_levels = 4;
    int order = 2;
-   bool visualization = true;
    double alpha = 1.0;
    double epsilon = 0.01;
    double mass_fraction = 0.5;
@@ -220,6 +220,8 @@ int main(int argc, char *argv[])
    double rho_min = 1e-6;
    double lambda = 1.0;
    double mu = 1.0;
+   bool glvis_visualization = true;
+   bool paraview_output = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -242,9 +244,12 @@ int main(int argc, char *argv[])
                   "Lame constant μ");
    args.AddOption(&rho_min, "-rmin", "--psi-min",
                   "Minimum of density coefficient.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+   args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
+                  "--no-paraview",
+                  "Enable or disable ParaView output.");
 
    args.Parse();
    if (!args.Good())
@@ -336,7 +341,7 @@ int main(int argc, char *argv[])
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
-   // Interpolation of ρ = sigmoid(ψ) in control fes
+   // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
    ParGridFunction rho_gf(&control_fes);
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
@@ -403,23 +408,26 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sout_r;
-   if (visualization)
+   if (glvis_visualization)
    {
       sout_r.open(vishost, visport);
       sout_r.precision(8);
    }
 
-   rho_gf.ProjectCoefficient(rho);
-   mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("displacement",&u);
-   paraview_dc.RegisterField("density",&rho_gf);
-   paraview_dc.RegisterField("filtered_density",&rho_filter);
+   mfem::ParaViewDataCollection paraview_dc("ex37p", &pmesh);
+   if (paraview_output)
+   {
+      rho_gf.ProjectCoefficient(rho);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.RegisterField("displacement",&u);
+      paraview_dc.RegisterField("density",&rho_gf);
+      paraview_dc.RegisterField("filtered_density",&rho_filter);
+   }
 
    // 11. Iterate
    for (int k = 1; k <= max_it; k++)
@@ -480,14 +488,18 @@ int main(int argc, char *argv[])
          mfem::out << "mass_fraction = " << material_volume / domain_volume << endl;
       }
 
-      if (visualization)
+      if (glvis_visualization)
       {
          ParGridFunction r_gf(&filter_fes);
          r_gf.ProjectCoefficient(SIMP_cf);
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r << "solution\n" << pmesh << r_gf
                 << "window_title 'Design density r(ρ̃)'" << flush;
+      }
 
+      if (paraview_output)
+      {
+         rho_gf.ProjectCoefficient(rho);
          paraview_dc.SetCycle(k);
          paraview_dc.SetTime((double)k);
          paraview_dc.Save();
