@@ -739,6 +739,10 @@ public:
         ly=1.0;
         lz=1.0;
 
+        angle_x=0.0;
+        angle_y=0.0;
+        angle_z=0.0;
+
         solver=nullptr;
         rf=new ParGridFunction(fes); (*rf)=0.0;
         gfc.SetGridFunction(rf);
@@ -763,10 +767,17 @@ public:
         dbc.insert(i);
     }
 
-    void SetCorrelationLen(double l_){
-        lx=l_;
-        ly=l_;
-        lz=l_;
+    void SetCorrelationLen(double lx_, double ly_, double lz_){
+        lx=lx_;
+        ly=ly_;
+        lz=lz_;
+        delete solver; solver=nullptr;
+    }
+
+    void SetRotationAngles(double angle_x_, double angle_y_, double angle_z_){
+        angle_x=angle_x_;
+        angle_y=angle_y_;
+        angle_z=angle_z_;
         delete solver; solver=nullptr;
     }
 
@@ -789,7 +800,7 @@ public:
                     bc.AddHomogeneousBoundaryCondition(*it,spde::BoundaryType::kDirichlet);
                 }
             }
-            solver=new spde::SPDESolver(nu,bc,fes,pmesh->GetComm(),lx,ly,lz);
+            solver=new spde::SPDESolver(nu,bc,fes,pmesh->GetComm(),lx,ly,lz,angle_x, angle_y, angle_z);
         }
         solver->GenerateRandomField(*rf,seed);
         gfc.SetGridFunction(rf);
@@ -797,6 +808,7 @@ public:
 
 private:
     double lx,ly,lz;
+    double angle_x,angle_y,angle_z;
     double nu;
     double scale;
     ParMesh* pmesh;

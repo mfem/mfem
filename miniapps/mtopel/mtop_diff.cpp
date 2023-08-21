@@ -65,13 +65,13 @@ public:
         generator.seed(seed);
 
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
-        gf->SetCorrelationLen(0.2);
+        gf->SetCorrelationLen(0.2, 0.2,0.2);
         gf->SetMaternParameter(4.0);
         gf->SetScale(1.0);
         gf->Sample(seed);
 
         af=new mfem::RandFieldCoefficient(pmesh_,vorder);
-        af->SetCorrelationLen(0.2);
+        af->SetCorrelationLen(0.2, 0.2, 0.2);
         af->SetMaternParameter(4.0);
         af->SetScale(1.0);
         af->SetZeroDirichletBC(2);
@@ -102,10 +102,16 @@ public:
         num_samples=ns;
     }
 
-    void SetCorrelationLen(double l)
+    void SetCorrelationLen(double lx, double ly, double lz)
     {
-        gf->SetCorrelationLen(l);
-        af->SetCorrelationLen(l);
+        gf->SetCorrelationLen(lx, ly, lz);
+        af->SetCorrelationLen(lx, ly, lz);
+    }
+
+    void SetRotationAngles(double angle_x, double angle_y, double angle_z)
+    {
+        gf->SetRotationAngles(angle_x, angle_y, angle_z);
+        af->SetRotationAngles(angle_x, angle_y, angle_z);
     }
 
     void Solve()
@@ -236,7 +242,12 @@ int main(int argc, char *argv[])
    double rel_tol = 1e-7;
    double abs_tol = 1e-15;
    double fradius = 0.05;
-   double corr_len = 0.2;
+   double corr_len_x = 0.2;
+   double corr_len_y = 0.2;
+   double corr_len_z = 0.2;
+   double angle_x = 0.0;
+   double angle_y = 0.0;
+   double angle_z = 0.0;
    int num_samples=100;
    int tot_iter = 100;
    int max_it = 51;
@@ -291,10 +302,24 @@ int main(int argc, char *argv[])
                   "-ns",
                   "--num-samples",
                   "Number of samples.");
-   args.AddOption(&corr_len,
-                  "-crl",
-                  "--corr",
-                  "Correlation length");
+   args.AddOption(&corr_len_x,
+                  "-crlx",
+                  "--corr-x",
+                  "Correlation length in x");
+   args.AddOption(&corr_len_y,
+                  "-crly",
+                  "--corr-y",
+                  "Correlation length in y");  
+   args.AddOption(&corr_len_z,
+                  "-crlz",
+                  "--corr-z",
+                  "Correlation length in z"); 
+   args.AddOption(&angle_x, "-e1", "--e1",
+                  "Rotation angle in x direction");
+   args.AddOption(&angle_y, "-e2", "--e2",
+                  "Rotation angle in y direction");             
+   args.AddOption(&angle_y, "-e3", "--e3",
+                  "Rotation angle in z direction");                                                                    
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -425,7 +450,7 @@ int main(int argc, char *argv[])
    HeatSink* sink=new HeatSink(&pmesh,1,seed);
    sink->SetDesignFES(pgdens.ParFESpace());
    sink->SetDensity(vdens);
-   sink->SetCorrelationLen(corr_len);
+   sink->SetCorrelationLen(corr_len_x,corr_len_y, corr_len_z);
    sink->SetNumSamples(num_samples);
 
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -543,7 +568,7 @@ int main(int argc, char *argv[])
           pgdens.SetFromTrueDofs(vdens);
 
           //save the design
-          if(i%4==0)
+        //   if(i%4==0)
           {
               paraview_dc.SetCycle(i);
               paraview_dc.SetTime(i*1.0);

@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MTOP_COMMON_SRC = mtop_filters.cpp mtop_solvers.cpp MMA.cpp
+MTOP_COMMON_SRC = mtop_filters.cpp mtop_solvers.cpp MMA.cpp ../spde/spde_solver.cpp ../spde/boundary.cpp
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
