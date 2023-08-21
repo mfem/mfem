@@ -116,17 +116,6 @@ public:
 };
 
 /// Wrapper for assembling the discrete Darcy problem (ex5p)
-/** Wrapper for assembling the discrete Darcy problem (ex5p)
-                     [ M  B^T ] [u] = [f]
-                     [ B   0  ] [p] = [g]
-    where:
-       M = \int_\Omega (k u_h) \cdot v_h dx,
-       B = -\int_\Omega (div_h u_h) q_h dx,
-       f = \int_\Omega f_exact v_h dx + \int_D natural_bc v_h dS,
-       g = \int_\Omega g_exact q_h dx,
-       u_h, v_h \in R_h (Raviart-Thomas finite element space),
-       q_h \in W_h (piecewise discontinuous polynomials),
-       D: subset of the boundary where natural boundary condition is imposed. */
 class DarcyProblem
 {
    OperatorPtr M_;
