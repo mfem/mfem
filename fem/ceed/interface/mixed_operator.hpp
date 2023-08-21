@@ -242,9 +242,11 @@ public:
                {
                   mesh.GetElementTransformation(first_index, &T);
                }
-               MFEM_VERIFY(!integ.GetIntegrationRule(),
+               MFEM_VERIFY(!integ.GetIntegrationRule() || element_indices.size() == 1,
                            "Mixed mesh integrators should not have an IntegrationRule.");
-               const IntegrationRule &ir = integ.GetRule(trial_fe, test_fe, T);
+               const mfem::IntegrationRule &ir =
+                  integ.GetIntegrationRule() ? *integ.GetIntegrationRule() :
+                  integ.GetRule(trial_fe, test_fe, T);
                loc_sub_ops.push_back(new OpType);
                auto &sub_op = *loc_sub_ops.back();
                sub_op.Assemble(internal::ceed, info, trial_fes, test_fes, ir,
