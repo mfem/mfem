@@ -293,7 +293,7 @@ complex<double> S_cold_plasma(double omega,
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
                                  2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm)
-                                 + complex<double>(0.0,nui) + complex<double>(0.0,nue);
+                                 + complex<double>(0.0,nui);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -311,8 +311,7 @@ complex<double> S_cold_plasma(double omega,
          complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp2+Zm2);
 
          // Total particle susceptibility contribution:
-         suscept_particle = first_harm + second_harm
-                           + complex<double>(0.0,nui) + complex<double>(0.0,nue);
+         suscept_particle = first_harm + second_harm + complex<double>(0.0,nui);
       }
       // SPARC Case 2: D (H Minority)
       /*
@@ -331,7 +330,7 @@ complex<double> S_cold_plasma(double omega,
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
                                  2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm)
-                                 + complex<double>(0.0,nui) + complex<double>(0.0,nue);
+                                 + complex<double>(0.0,nui);
       }
       */
       val += suscept_particle;
@@ -455,7 +454,7 @@ complex<double> D_cold_plasma(double omega,
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
                                  2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm)
-                                 + complex<double>(0.0,nui) + complex<double>(0.0,nue);
+                                 + complex<double>(0.0,nui);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -474,7 +473,7 @@ complex<double> D_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm 
-                            + complex<double>(0.0,nui) + complex<double>(0.0,nue);
+                            + complex<double>(0.0,nui);
       }
       // SPARC Case 2: D (H Minority)
       /*
@@ -553,6 +552,11 @@ complex<double> P_cold_plasma(double omega,
    double q = charge[0];
    double m = mass[0];
    double Te = temp[0] * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(q, coul_log, m, Te, n) :
+                 nue;
+   complex<double> collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -560,15 +564,17 @@ complex<double> P_cold_plasma(double omega,
       if (n < 0) {n = -1.0*number[i];}
       double q = charge[i];
       double m = mass[i];
-      double w_p = omega_p(n, q, m);
-      complex<double> vth = vthermal(Te, m);
-      suscept_particle = -1.0*(w_p * w_p) / (omega * omega);
+      complex<double> m_eff = m;
+      if (i == 0) { m_eff = m*collision_correction; }
+      complex<double> w_p = omega_p(n, q, m_eff);
+      
       if (i == 0)
       {
+         complex<double> vth = vthermal(Te, m_eff);
          complex<double> Z = Zfunction(omega/(kparallel*vth));
-         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2*(1+(omega/(kparallel*vth))*Z) 
-                            + complex<double>(0.0,nue));
+         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2*(1+(omega/(kparallel*vth))*Z));
       }
+      else { suscept_particle = -1.0*(w_p * w_p) / (omega * omega); }
       val += suscept_particle;
    }
    return val;

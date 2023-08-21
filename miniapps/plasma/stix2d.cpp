@@ -24,7 +24,7 @@
 //
 //   Which combine to yield:
 //
-//   Curl mu^{-1} Curl E - omega^2 epsilon E = i omega J
+//   Curl mu^{-1} Curl E - omega^2 epsilon E = -i omega J
 //
 //   In a cold plasma the dielectric tensor, epsilon, is complex-valued and
 //   anisotropic.  The anisotropy aligns with the external magnetic field and
@@ -163,8 +163,8 @@ public:
          double cosphi = x[0] / r;
          double sinphi = x[1] / r;
 
-         V[0] = vec[0] * cosphi - vec[1] * sinphi;
-         V[1] = vec[0] * sinphi + vec[1] * cosphi;
+         V[0] = vec[0] * cosphi - vec[1] * sinphi / r;
+         V[1] = vec[0] * sinphi + vec[1] * cosphi / r;
          V[2] = vec[2];
       }
       else
@@ -176,7 +176,6 @@ public:
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
 };
-
 
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
@@ -193,20 +192,35 @@ static Vector pw_bdr_eta_inv_(0);  // Piecewise inverse impedance values
 //static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
+static bool j_cyl_ = false;
 static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector slab_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
+static Vector curve_params_
+(0); // Text here
+static int slab_profile_;
+static int vol_profile_ = 0;
 
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
 void slab_current_source_r(const Vector &x, Vector &j);
 void slab_current_source_i(const Vector &x, Vector &j);
+void curve_current_source_r(const Vector &x, Vector &j);
+void curve_current_source_i(const Vector &x, Vector &j);
 void j_src_r(const Vector &x, Vector &j)
 {
    if (rod_params_.Size() > 0)
    {
       rod_current_source_r(x, j);
+   }
+   else if (slab_params_.Size() > 0)
+   {
+      slab_current_source_r(x, j);
+   }
+   else if (curve_params_.Size() > 0)
+   {
+      curve_current_source_r(x, j);
    }
 }
 void j_src_i(const Vector &x, Vector &j)
@@ -218,6 +232,10 @@ void j_src_i(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_i(x, j);
+   }
+   else if (curve_params_.Size() > 0)
+   {
+      curve_current_source_i(x, j);
    }
 }
 
@@ -318,68 +336,6 @@ public:
    }
 };
 */
-class ColdPlasmaPlaneWaveE: public VectorCoefficient
-{
-public:
-   ColdPlasmaPlaneWaveE(char type,
-                        double omega,
-                        const Vector & B,
-                        const Vector & number,
-                        const Vector & charge,
-                        const Vector & mass,
-                        const Vector & temp,
-                        int nuprof,
-                        double res_lim,
-                        bool realPart);
-
-   void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
-   { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
-
-   void SetPhaseShift(const Vector & beta)
-   { beta_r_ = beta; beta_i_ = 0.0; }
-   void SetPhaseShift(const Vector & beta_r,
-                      const Vector & beta_i)
-   { beta_r_ = beta_r; beta_i_ = beta_i; }
-
-   void GetWaveVector(Vector & k_r, Vector & k_i) const
-   { k_r = k_r_; k_i = k_i_; }
-
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
-   char type_;
-   bool realPart_;
-   int nuprof_;
-   double res_lim_;
-   double omega_;
-   double Bmag_;
-   double Jy_;
-   double xJ_;
-   double dx_;
-   double Lx_;
-   complex<double> kappa_;
-   Vector b_;   // Normalized vector in direction of B
-   Vector bc_;  // Normalized vector perpendicular to b_, (by-bz,bz-bx,bx-by)
-   Vector bcc_; // Normalized vector perpendicular to b_ and bc_
-   Vector e_r_;
-   Vector e_i_;
-   Vector k_r_;
-   Vector k_i_;
-   Vector beta_r_;
-   Vector beta_i_;
-
-   // const Vector & B_;
-   const Vector & numbers_;
-   const Vector & charges_;
-   const Vector & masses_;
-   const Vector & temps_;
-
-   complex<double> S_;
-   complex<double> D_;
-   complex<double> P_;
-};
-
 class MultiStrapAntennaH : public VectorCoefficient
 {
 private:
@@ -387,15 +343,16 @@ private:
    int num_straps_;
    double tol_;
    Vector params_;
+   Vector current_vals_;
    Vector x_;
 
 public:
-   MultiStrapAntennaH(int n, const Vector &params,
+   MultiStrapAntennaH(int n, const Vector &params, const Vector &current_vals,
                       bool real_part, double tol = 1e-6)
       : VectorCoefficient(3), real_part_(real_part), num_straps_(n),
-        tol_(tol), params_(params), x_(2)
+        tol_(tol), params_(params), current_vals_(current_vals), x_(2)
    {
-      MFEM_ASSERT(params.Size() == 10 * n,
+      MFEM_ASSERT(params.Size() == 8 * n,
                   "Incorrect number of parameters provided to "
                   "MultiStrapAntennaH");
    }
@@ -407,17 +364,17 @@ public:
       T.Transform(ip, x_);
       for (int i=0; i<num_straps_; i++)
       {
-         double x0  = params_[10 * i + 0];
-         double y0  = params_[10 * i + 1];
-         double x1  = params_[10 * i + 2];
-         double y1  = params_[10 * i + 3];
-         double x2  = params_[10 * i + 4];
-         double y2  = params_[10 * i + 5];
-         double x3  = params_[10 * i + 6];
-         double y3  = params_[10 * i + 7];
+         double x0  = params_[8 * i + 0];
+         double y0  = params_[8 * i + 1];
+         double x1  = params_[8 * i + 2];
+         double y1  = params_[8 * i + 3];
+         double x2  = params_[8 * i + 4];
+         double y2  = params_[8 * i + 5];
+         double x3  = params_[8 * i + 6];
+         double y3  = params_[8 * i + 7];
 
-         double ReI = params_[10 * i + 8];
-         double ImI = params_[10 * i + 9];
+         double ReI = current_vals_[2 * i + 0];
+         double ImI = current_vals_[2 * i + 1];
 
          double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
          double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
@@ -472,13 +429,77 @@ public:
    }
 };
 
+class ColdPlasmaPlaneWaveE: public VectorCoefficient
+{
+public:
+   ColdPlasmaPlaneWaveE(char type,
+                        double omega,
+                        const Vector & B,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        bool realPart);
+
+   void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
+   { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
+
+   void SetPhaseShift(const Vector & beta)
+   { beta_r_ = beta; beta_i_ = 0.0; }
+   void SetPhaseShift(const Vector & beta_r,
+                      const Vector & beta_i)
+   { beta_r_ = beta_r; beta_i_ = beta_i; }
+
+   void GetWaveVector(Vector & k_r, Vector & k_i) const
+   { k_r = k_r_; k_i = k_i_; }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   char type_;
+   bool realPart_;
+   int nuprof_;
+   double omega_;
+   double Bmag_;
+   double Jy_;
+   double xJ_;
+   double dx_;
+   double Lx_;
+   complex<double> kappa_;
+   Vector b_;   // Normalized vector in direction of B
+   Vector bc_;  // Normalized vector perpendicular to b_, (by-bz,bz-bx,bx-by)
+   Vector bcc_; // Normalized vector perpendicular to b_ and bc_
+   Vector e_r_;
+   Vector e_i_;
+   Vector k_r_;
+   Vector k_i_;
+   Vector beta_r_;
+   Vector beta_i_;
+
+   // const Vector & B_;
+   const Vector & numbers_;
+   const Vector & charges_;
+   const Vector & masses_;
+   const Vector & temps_;
+
+   complex<double> S_;
+   complex<double> D_;
+   complex<double> P_;
+};
+
+
 void Update(ParFiniteElementSpace & H1FESpace,
+            ParFiniteElementSpace & H1VFESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             VectorCoefficient & BCoef,
+            VectorCoefficient & kReCoef,
             Coefficient & rhoCoef,
-            Coefficient & TCoef,
+            Coefficient & TeCoef,
+            Coefficient & TiCoef,
             Coefficient & nueCoef,
             Coefficient & nuiCoef,
             int & size_h1,
@@ -488,8 +509,10 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & BField,
+            ParGridFunction & k_gf,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
+            ParGridFunction & iontemp_gf,
             ParGridFunction & nue_gf,
             ParGridFunction & nui_gf);
 
@@ -513,15 +536,19 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    int mesh_order = -1;
+   double init_amr_tol = 1e-5;
+   int init_amr_max_its = 10;
+   int init_amr_max_dofs = 100000;
    int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
+   bool amr_s = true;
    bool herm_conv = false;
    bool vis_u = false;
-   bool visualization = true;
+   bool visualization = false;
    bool visit = true;
 
    double freq = 1.0e6;
@@ -535,26 +562,46 @@ int main(int argc, char *argv[])
    Vector kReVec;
    Vector kImVec;
 
-   double hz = -1.0; // Extruded mesh thickness in meters
+   double hz = -1.0;
    double hphi = -1.0; // Cylindrically extruded mesh thickness in degrees
 
    Vector numbers;
    Vector charges;
    Vector masses;
    Vector temps;
+   Vector minority;
+   Vector temp_charges;
    double nue = 0;
    double nui = 0;
+   double Ti = 0;
 
-   PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
-   PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_def = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_vac = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type dpt_cor = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_def = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
-   Vector dpp;
-   Vector tpp;
+   Array<int> dpa_vac;
+   Array<int> dpa_sol;
+   Array<int> dpa_cor;
+   Array<int> tpa_sol;
+   Array<int> tpa_cor;
+   Vector dpp_def;
+   Vector dpp_vac;
+   Vector dpp_sol;
+   Vector dpp_cor;
+   Vector tpp_def;
+   Vector tpp_sol;
+   Vector tpp_cor;
    Vector bpp;
    Vector nepp;
    Vector nipp;
+   Vector tipp;
    int nuprof = 0;
    double res_lim = 0.01;
 
@@ -564,28 +611,33 @@ int main(int argc, char *argv[])
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
    Array<int> nbcas; // Neumann BC attributes for multi-strap antenna source
+   Array<int> dbcaw; // Dirichlet BC attributes for plane wave source
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
+   Array<int> nbcaw; // Neumann BC attributes for plane wave source
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
 
    int num_elements = 10;
-
+    
    int msa_n = 0;
    Vector msa_p(0);
+   Vector msa_c(0);
 
    SolverOptions solOpts;
    solOpts.maxIter = 1000;
    solOpts.kDim = 50;
    solOpts.printLvl = 1;
    solOpts.relTol = 1e-4;
+   solOpts.absTol = 1e-6;
    solOpts.euLvl = 1;
 
    bool logo = false;
    bool cyl = false;
    bool per_y = false;
+   bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
    const char *eqdsk_file = "";
@@ -606,6 +658,15 @@ int main(int argc, char *argv[])
                   "The input mesh is periodic in the y-direction.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&amr_s, "-amr-s", "--init-amr-s", "-no-amr-s",
+                  "--no-init-amr-s",
+                  "Initial AMR to capture Stix S coefficient.");
+   args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
+                  "Initial AMR tolerance.");
+   args.AddOption(&init_amr_max_its, "-iamit", "--init-amr-max-its",
+                  "Initial AMR Maximum Number of Iterations.");
+   args.AddOption(&init_amr_max_dofs, "-iamdof", "--init-amr-max-dofs",
+                  "Initial AMR Maximum Number of DoFs.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
@@ -616,12 +677,54 @@ int main(int argc, char *argv[])
                   "Thickness of extruded mesh in meters.");
    args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
                   "Thickness of cylindrically extruded mesh in degrees.");
-   args.AddOption((int*)&dpt, "-dp", "--density-profile",
+args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
-   args.AddOption(&dpp, "-dpp", "--density-profile-params",
+   args.AddOption(&dpp_def, "-dpp", "--density-profile-params",
                   "Density Profile Parameters:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&dpa_vac, "-dpa-vac", "-vacuum-density-profile-attr",
+                  "Density Profile Vacuum Attributes");
+   args.AddOption((int*)&dpt_vac, "-dp-vac", "--vacuum-density-profile",
+                  "Density Profile Type (for ions) in Vacuum: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&dpp_vac, "-dpp-vac", "--vacuum-density-profile-params",
+                  "Density Profile Parameters in Vacuum:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&dpa_sol, "-dpa-sol", "-sol-density-profile-attr",
+                  "Density Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&dpt_sol, "-dp-sol", "--sol-density-profile",
+                  "Density Profile Type (for ions) in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&dpp_sol, "-dpp-sol", "--sol-density-profile-params",
+                  "Density Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&dpa_cor, "-dpa-core", "-core-density-profile-attr",
+                  "Density Profile Core Attributes");
+   args.AddOption((int*)&dpt_cor, "-dp-core", "--core-density-profile",
+                  "Density Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&dpp_cor, "-dpp-core", "--core-density-profile-params",
+                  "Density Profile Parameters in Core region:\n"
                   "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
@@ -636,13 +739,41 @@ int main(int argc, char *argv[])
                   "BField Profile Parameters:\n"
                   "  B_P: value at -1, value at 1, "
                   "radius in x, radius in y, location of center, Bz, placeholder.");
-   args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
+   args.AddOption((int*)&tpt_def, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
-   args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
+   args.AddOption(&tpp_def, "-tpp", "--temperature-profile-params",
                   "Temperature Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&tpa_sol, "-tpa-sol", "-sol-temp-profile-attr",
+                  "Temperature Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&tpt_sol, "-tp-sol", "--sol-temp-profile",
+                  "Temperature Profile Type (for ions) in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&tpp_sol, "-tpp-sol", "--sol-temp-profile-params",
+                  "Temperature Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&tpa_cor, "-tpa-core", "-core-temp-profile-attr",
+                  "Temperature Profile Core Attributes");
+   args.AddOption((int*)&tpt_cor, "-tp-core", "--core-temp-profile",
+                  "Temperature Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&tpp_cor, "-tpp-core", "--core-temp-profile-params",
+                  "Temperature Profile Parameters in Core region:\n"
+                  "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient, "
@@ -672,6 +803,18 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption((int*)&tipt, "-tip", "--min-ion-temp-profile",
+                  "Minority Ion Temperature Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&tipp, "-tipp", "--min-ion-temp-profile-params",
+                  "Minority Ion Temperature Profile Parameters: \n"
+                  "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
                   "Temperature Profile Type: \n"
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
@@ -683,19 +826,25 @@ int main(int argc, char *argv[])
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   args.AddOption(&BVec, "-B", "--magnetic-flux",
-                  "Background magnetic flux vector");
+   // args.AddOption(&BVec, "-B", "--magnetic-flux",
+   //                "Background magnetic flux vector");
    args.AddOption(&kVec, "-k-vec", "--phase-vector",
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
                   "followed by 3 imaginary phase shifts");
    args.AddOption(&msa_n, "-ns", "--num-straps","");
    args.AddOption(&msa_p, "-sp", "--strap-params","");
+   args.AddOption(&msa_c, "-sc", "--strap-currents","");
+   //args.AddOption(&numbers, "-num", "--number-densites",
+   //               "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
-   args.AddOption(&masses, "-m", "--masses",
-                  "Masses of the various species (in amu)");
+   //args.AddOption(&masses, "-mass", "--masses",
+   //               "Masses of the various species (in amu)");
+   args.AddOption(&minority, "-min", "--minority",
+                  "Minority Ion Species: charge, mass (amu), concentration."
+                  " Concentration being: n_min/n_i");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -714,6 +863,9 @@ int main(int argc, char *argv[])
                   "Krylov space dimension for GMRES and FGMRES.");
    args.AddOption(&solOpts.relTol, "-sol-tol", "--solver-tolerance",
                   "Relative tolerance for GMRES or FGMRES.");
+   args.AddOption(&solOpts.absTol, "-sol-abs-tol",
+                  "--solver-absolute-tolerance",
+                  "Absolute tolerance for GMRES or FGMRES.");
    args.AddOption(&solOpts.printLvl, "-sol-prnt-lvl", "--solver-print-level",
                   "Logging level for solvers.");
    args.AddOption(&solOpts.euLvl, "-eu-lvl", "--euclid-level",
@@ -729,16 +881,25 @@ int main(int argc, char *argv[])
                   "(one value per abc surface)");
    */
    args.AddOption(&rod_params_, "-rod", "--rod_params",
-                  "3D Vector Amplitude, 2D Position, Radius");
+                  "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
+                  "2D Position, Radius");
    args.AddOption(&slab_params_, "-slab", "--slab_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, 2D Size");
+   args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
+                  "0 (Constant) or 1 (Sin Function)");
+   args.AddOption(&curve_params_, "-curve", "--curve_params",
+                  "2D Vector Amplitude (Real theta,phi, theta,phi)");
+   args.AddOption(&vol_profile_, "-vol-prof", "--vol_profile",
+                  "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
                   "Sheath Boundary Condition Surfaces");
    args.AddOption(&peca, "-pecs", "--pec-bc-surf",
                   "Perfect Electrical Conductor Boundary Condition Surfaces");
+   args.AddOption(&dbcaw, "-dbcs-pw", "--dirichlet-bc-pw-surf",
+                  "Dirichlet Boundary Condition Surfaces Using Plane Wave");
    args.AddOption(&dbca1, "-dbcs1", "--dirichlet-bc-1-surf",
                   "Dirichlet Boundary Condition Surfaces Using Value 1");
    args.AddOption(&dbca2, "-dbcs2", "--dirichlet-bc-2-surf",
@@ -756,6 +917,8 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition Surfaces Using Value 1");
    args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
                   "Neumann Boundary Condition Surfaces Using Value 2");
+   args.AddOption(&nbcaw, "-nbcs-pw", "--neumann-bc-pw-surf",
+                  "Neumann Boundary Condition Surfaces Using Plane Wave");
    args.AddOption(&nbcv1, "-nbcv1", "--neumann-bc-1-vals",
                   "Neuamnn Boundary Condition (surface current) "
                   "Value 1 (v_x v_y v_z) or "
@@ -802,46 +965,12 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
-   if (numbers.Size() == 0)
+if (dpp_def.Size() == 0)
    {
-      numbers.SetSize(2);
-      if (dpp.Size() == 0)
-      {
-         numbers[0] = 1.0e19;
-         numbers[1] = 1.0e19;
-      }
-      else
-      {
-         switch (dpt)
-         {
-            case PlasmaProfile::CONSTANT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
-               break;
-            case PlasmaProfile::GRADIENT:
-               numbers[0] = dpp[0];
-               numbers[1] = dpp[0];
-               break;
-            case PlasmaProfile::TANH:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
-               break;
-            case PlasmaProfile::ELLIPTIC_COS:
-               numbers[0] = dpp[1];
-               numbers[1] = dpp[1];
-               break;
-            default:
-               numbers[0] = 1.0e19;
-               numbers[1] = 1.0e19;
-               break;
-         }
-      }
+      dpp_def.SetSize(1);
+      dpp_def[0] = 1.0e19;
    }
-   if (dpp.Size() == 0)
-   {
-      dpp.SetSize(1);
-      dpp[0] = 1.0e19;
-   }
+
    if (nepp.Size() == 0)
    {
       nepp.SetSize(1);
@@ -852,6 +981,12 @@ int main(int argc, char *argv[])
       nipp.SetSize(1);
       nipp[0] = 0;
    }
+   if (tipp.Size() == 0)
+   {
+      tipp.SetSize(1);
+      tipp[0] = 0;
+   }
+
    if (bpp.Size() == 0)
    {
       bpt = BFieldProfile::CONSTANT;
@@ -862,51 +997,257 @@ int main(int argc, char *argv[])
    {
       BVec = bpp;
    }
+
    if (charges.Size() == 0)
    {
-      charges.SetSize(2);
-      charges[0] = -1.0;
-      charges[1] =  1.0;
-   }
-   if (masses.Size() == 0)
-   {
-      masses.SetSize(2);
-      masses[0] = me_u_;
-      masses[1] = 2.01410178;
-   }
-   if (temps.Size() == 0)
-   {
-      temps.SetSize(2);
-      if (tpp.Size() == 0)
+      if (minority.Size() == 0)
       {
-         tpp.SetSize(1);
-         tpp[0] = 1.0e3;
-         temps[0] = tpp[0];
-         temps[1] = tpp[0];
+         charges.SetSize(2);
+         charges[0] = -1.0;
+         charges[1] =  1.0;
+
+         masses.SetSize(2);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
       }
       else
       {
-         switch (tpt)
+         charges.SetSize(3);
+         charges[0] = -1.0;
+         charges[1] =  1.0;
+         charges[2] = minority[0];
+
+         masses.SetSize(3);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = minority[1];
+      }
+   }
+   if (minority.Size() == 0)
+   {
+      if (charges.Size() == 2)
+      {
+         numbers.SetSize(2);
+         masses.SetSize(2);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         switch (dpt_def)
          {
             case PlasmaProfile::CONSTANT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = dpp_def[0];
                break;
             case PlasmaProfile::GRADIENT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               numbers[0] = dpp_def[0];
+               numbers[1] = dpp_def[0];
                break;
             case PlasmaProfile::TANH:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = dpp_def[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               numbers[0] = dpp_def[1];
+               numbers[1] = dpp_def[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp_def[1];
+               numbers[1] = dpp_def[1];
                break;
             default:
-               temps[0] = 1.0e3;
-               temps[1] = 1.0e3;
+               numbers[0] = 1.0e19;
+               numbers[1] = 1.0e19;
+               break;
+         }
+      }
+      else
+      {
+         numbers.SetSize(3);
+         masses.SetSize(3);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = 3.01604928;
+         switch (dpt_def)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*dpp_def[0];
+               numbers[2] = 0.5*dpp_def[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*dpp_def[0];
+               numbers[2] = 0.5*dpp_def[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*dpp_def[1];
+               numbers[2] = 0.5*dpp_def[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*dpp_def[1];
+               numbers[2] = 0.5*dpp_def[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*dpp_def[1];
+               numbers[2] = 0.5*dpp_def[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 0.5*1.0e19;
+               numbers[2] = 0.5*1.0e19;
+               break;
+         }
+      }
+   }
+   if (minority.Size() > 0)
+   {
+      if (charges.Size() == 2)
+      {
+         temp_charges.SetSize(3);
+         temp_charges[0] = charges[0];
+         temp_charges[1] = charges[1];
+         temp_charges[2] = minority[0];
+         charges.SetSize(3);
+         charges = temp_charges;
+
+         numbers.SetSize(3);
+         masses.SetSize(3);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = minority[1];
+         switch (dpt_def)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp_def[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp_def[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp_def[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp_def[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp_def[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
+               break;
+         }
+      }
+      else
+      {
+         temp_charges.SetSize(4);
+         temp_charges[0] = charges[0];
+         temp_charges[1] = charges[1];
+         temp_charges[2] = charges[2];
+         temp_charges[3] = minority[0];
+         charges.SetSize(4);
+         charges = temp_charges;
+
+         numbers.SetSize(4);
+         masses.SetSize(4);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = 3.01604928;
+         masses[3] = minority[1];
+         switch (dpt_def)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp_def[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp_def[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp_def[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))
+                            *dpp_def[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
+               break;
+         }
+      }
+   }
+   if (temps.Size() == 0)
+   {
+      temps.SetSize(numbers.Size());
+      if (tpp_def.Size() == 0)
+      {
+         tpp_def.SetSize(1);
+         tpp_def[0] = 1.0e3;
+         for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
+      }
+      else
+      {
+         switch (tpt_def)
+         {
+            case PlasmaProfile::CONSTANT:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
+               break;
+            case PlasmaProfile::GRADIENT:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[0];}
+               break;
+            case PlasmaProfile::TANH:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
+               break;
+            case PlasmaProfile::PARABOLIC:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp_def[1];}
+               break;
+            default:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = 1e3;}
                break;
          }
       }
@@ -930,6 +1271,8 @@ int main(int argc, char *argv[])
          hphi = 3;
       }
       hz = 1.0;
+
+      j_cyl_ = cyl;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
@@ -949,18 +1292,20 @@ int main(int argc, char *argv[])
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof,
+      double kvecmag = kVec.Norml2();
+
+      std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
+                                             charges, masses, temps, Ti, nuprof,
                                              res_lim);
-      std::complex<double> P = P_cold_plasma(omega, nue, numbers,
-                                             charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof,
+      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
+                                             charges, masses, temps, Ti, nuprof);
+      std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
+                                             charges, masses, temps, Ti, nuprof,
                                              res_lim);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof,
+                                             charges, masses, temps, Ti, nuprof,
                                              res_lim);
 
       cout << "\nConvenient Terms:\n";
@@ -1088,6 +1433,8 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient BUnitCoef(BUnitVec);
    */
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
+   H1_ParFESpace H1VFESpace(&pmesh, order, pmesh.Dimension(),
+                            BasisType::GaussLobatto, 3);
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
@@ -1097,35 +1444,40 @@ int main(int argc, char *argv[])
    ParGridFunction density_gf;
    ParGridFunction nue_gf(&H1FESpace);
    ParGridFunction nui_gf(&H1FESpace);
+   ParGridFunction iontemp_gf(&H1FESpace);
 
-   PlasmaProfile nueCoef(nept, nepp);
-   nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp);
-   nui_gf.ProjectCoefficient(nuiCoef);
-
-   G_EQDSK_Data *eqdsk = NULL;
-   {
-      named_ifgzstream ieqdsk(eqdsk_file);
-      if (ieqdsk)
-      {
-         eqdsk = new G_EQDSK_Data(ieqdsk);
-         if (mpi.Root())
-         {
-            eqdsk->PrintInfo();
-            if (logging > 0)
-            {
-               eqdsk->DumpGnuPlotData("stix2d_eqdsk");
-            }
-         }
-      }
-   }
-
+    G_EQDSK_Data *eqdsk = NULL;
+    {
+       named_ifgzstream ieqdsk(eqdsk_file);
+       if (ieqdsk)
+       {
+          eqdsk = new G_EQDSK_Data(ieqdsk);
+          if (mpi.Root())
+          {
+             eqdsk->PrintInfo();
+             if (logging > 0)
+             {
+                eqdsk->DumpGnuPlotData("stix2d_eqdsk");
+             }
+          }
+       }
+    }
+    
    BFieldProfile::CoordSystem b_coord_sys =
       cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
    BFieldProfile BCoef(bpt, bpp, false, b_coord_sys, eqdsk);
    BFieldProfile BUnitCoef(bpt, bpp, true, b_coord_sys, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
+
+   PlasmaProfile::CoordSystem coord_sys =
+      cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
+   PlasmaProfile nueCoef(nept, nepp, coord_sys, eqdsk);
+   nue_gf.ProjectCoefficient(nueCoef);
+   PlasmaProfile nuiCoef(nipt, nipp, coord_sys, eqdsk);
+   nui_gf.ProjectCoefficient(nuiCoef);
+   PlasmaProfile TiCoef(tipt, tipp, coord_sys, eqdsk);
+   iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
@@ -1150,63 +1502,108 @@ int main(int argc, char *argv[])
    {
       cout << "Creating plasma profile." << endl;
    }
-
-   PlasmaProfile::CoordSystem coord_sys =
-      cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile tempCoef(tpt, tpp, coord_sys);
-   PlasmaProfile rhoCoef(dpt, dpp, coord_sys);
+   /*
+   if (mpi.Root())
+   {
+      cout << "   Setting default temperature profile type " << tpt_def
+           << " with parameters \"";
+      tpp_def.Print(cout);
+   }
+   */
+   PlasmaProfile TeCoef(tpt_def, tpp_def, coord_sys, eqdsk);
+   if (tpa_sol.Size() > 0)
+   {
+      /*
+      if (mpi.Root())
+      {
+         
+         cout << "   Setting scrape-off layer temperature profile type " << tpt_sol
+              << " with parameters \"";
+         tpp_sol.Print(cout);
+         cout << "\" on attributes \"" << tpa_sol << "\".";
+      }
+      */
+      TeCoef.SetParams(tpa_sol, tpt_sol, tpp_sol);
+   }
+   if (tpa_cor.Size() > 0)
+   {
+      /*
+      if (mpi.Root())
+      {
+         cout << "   Setting core temperature profile type " << tpt_cor
+              << " with parameters \"";
+         tpp_cor.Print(cout);
+         cout << "\" on attributes \"" << tpa_cor << "\".";
+      }
+      */
+      TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
+   }
+   /*
+   if (mpi.Root())
+   {
+      cout << "   Setting default density profile type " << dpt_def
+           << " with parameters \"";
+      dpp_def.Print(cout);
+   }
+   */
+   PlasmaProfile rhoCoef(dpt_def, dpp_def, coord_sys, eqdsk);
+   if (dpa_vac.Size() > 0)
+   {
+      /*
+      if (mpi.Root())
+      {
+         cout << "   Setting vacuum density profile type " << dpt_vac
+              << " with parameters \"";
+         dpp_vac.Print(cout);
+         cout << "\" on attributes \"" << dpa_vac << "\".";
+      }
+      */
+      rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
+   }
+   if (dpa_sol.Size() > 0)
+   {
+      /*
+      if (mpi.Root())
+      {
+         cout << "   Setting scrape-off layer density profile type " << dpt_sol
+              << " with parameters \"";
+         dpp_sol.Print(cout);
+         cout << "\" on attributes \"" << dpa_sol << "\".";
+      }
+      */
+      rhoCoef.SetParams(dpa_sol, dpt_sol, dpp_sol);
+   }
+   if (dpa_cor.Size() > 0)
+   {
+      /*
+      if (mpi.Root())
+      {
+         cout << "   Setting core density profile type " << dpt_cor
+              << " with parameters \"";
+         dpp_cor.Print(cout);
+         cout << "\" on attributes \"" << dpa_cor << "\".";
+      }
+      */
+      rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
+   }
 
    for (int i=0; i<=numbers.Size(); i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(tempCoef);
+      temperature_gf.ProjectCoefficient(TeCoef);
    }
 
    for (int i=0; i<charges.Size(); i++)
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
+      density_gf *= numbers[i]/numbers[0];
    }
-
-   if (mpi.Root())
-   {
-      cout << "Creating coefficients for Maxwell equations." << endl;
-   }
-
-   // Create a coefficient describing the magnetic permeability
-   ConstantCoefficient muInvCoef(1.0 / mu0_);
-
-   // Create a coefficient describing the surface admittance
-   Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
-
-   // Create tensor coefficients describing the dielectric permittivity
-   DielectricTensor epsilon_real(BField, nue_gf, nui_gf, density, temperature,
-                                 L2FESpace, H1FESpace,
-                                 omega, charges, masses, nuprof, res_lim,
-                                 true);
-   DielectricTensor epsilon_imag(BField, nue_gf, nui_gf, density, temperature,
-                                 L2FESpace, H1FESpace,
-                                 omega, charges, masses, nuprof, res_lim,
-                                 false);
-   SPDDielectricTensor epsilon_abs(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof, res_lim);
-   SheathImpedance z_r(BField, density, temperature,
-                       L2FESpace, H1FESpace,
-                       omega, charges, masses, true);
-   SheathImpedance z_i(BField, density, temperature,
-                       L2FESpace, H1FESpace,
-                       omega, charges, masses, false);
-
-   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
-   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
 
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps,
-                                nuprof, res_lim, true);
+                                numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps,
-                                nuprof, res_lim, false);
+                                numbers, charges, masses, temps, nuprof, false);
 
    if (wave_type[0] != ' ')
    {
@@ -1273,6 +1670,48 @@ int main(int argc, char *argv[])
 
    VectorConstantCylCoefficient kReCoef(cyl, kReVec);
    VectorConstantCylCoefficient kImCoef(cyl, kImVec);
+
+   ParComplexGridFunction kcomplex_gf(&H1VFESpace);
+   kcomplex_gf.ProjectCoefficient(kReCoef, kImCoef);
+
+   ParGridFunction k_gf(&H1VFESpace);
+   k_gf.ProjectCoefficient(kReCoef);
+
+   if (mpi.Root())
+   {
+      cout << "Creating coefficients for Maxwell equations." << endl;
+   }
+
+   // Create a coefficient describing the magnetic permeability
+   ConstantCoefficient muInvCoef(1.0 / mu0_);
+
+   // Create a coefficient describing the surface admittance
+   Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
+
+   // Create tensor coefficients describing the dielectric permittivity
+   DielectricTensor epsilon_real(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true);
+   DielectricTensor epsilon_imag(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false);
+   SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density, temperature,
+                                   iontemp_gf, L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof, res_lim);
+   SheathImpedance z_r(BField, density, temperature,
+                       L2FESpace, H1FESpace,
+                       omega, charges, masses, true);
+   SheathImpedance z_i(BField, density, temperature,
+                       L2FESpace, H1FESpace,
+                       omega, charges, masses, false);
+
+   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
+   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
+
 
    if (visualization && wave_type[0] != ' ')
    {
@@ -1519,14 +1958,14 @@ int main(int argc, char *argv[])
          nbcs[c]->imag = &nbc2ImCoef;
          c++;
       }
-      if (nbcas.Size() > 0)
-      {
-         nbcs[c] = new ComplexVectorCoefficientByAttr;
-         nbcs[c]->attr = nbcas;
-         nbcs[c]->real = &HReStrapCoef;
-         nbcs[c]->imag = &HImStrapCoef;
-         c++;
-      }
+       if (nbcas.Size() > 0)
+       {
+          nbcs[c] = new ComplexVectorCoefficientByAttr;
+          nbcs[c]->attr = nbcas;
+          nbcs[c]->real = &HReStrapCoef;
+          nbcs[c]->imag = &HImStrapCoef;
+          c++;
+       }
    }
 
    Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
@@ -1557,9 +1996,9 @@ int main(int argc, char *argv[])
                  abcs, dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
                  j_src_r : NULL,
-                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                 (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
                  j_src_i : NULL, vis_u, pa);
 
    // Initialize GLVis visualization
@@ -1576,7 +2015,7 @@ int main(int argc, char *argv[])
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
-      /*
+      
       auxFields.SetSize(1);
       auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
 
@@ -1584,20 +2023,20 @@ int main(int argc, char *argv[])
 
       visit_dc.RegisterField("Re_E_Exact", &auxFields[0]->real());
       visit_dc.RegisterField("Im_E_Exact", &auxFields[0]->imag());
-       */
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
-      visit_dc.RegisterField("Electron_Temp", &temperature_gf);
+       
+       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
 
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
-      visit_dc.RegisterField("Electron_Density", &density_gf);
+       density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+       visit_dc.RegisterField("Electron_Density", &density_gf);
 
-      //nue_gf *= 1/omega;
-      visit_dc.RegisterField("Collisional Profile", &nue_gf);
+       //nue_gf *= 1/omega;
+       visit_dc.RegisterField("Collisional Profile", &nue_gf);
 
-      visit_dc.RegisterField("B_background", &BField);
+       visit_dc.RegisterField("B_background", &BField);
 
-      visit_dc.SetCycle(0);
-      visit_dc.Save();
+       visit_dc.SetCycle(0);
+       visit_dc.Save();
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -1700,12 +2139,14 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BCoef,
-             rhoCoef, tempCoef, nueCoef, nuiCoef,
+      Update(H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace, BCoef,
+             kReCoef, rhoCoef, TeCoef, TiCoef,
+             nueCoef, nuiCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             BField, density_gf, temperature_gf, nue_gf, nui_gf);
+             BField, k_gf, density_gf, temperature_gf, iontemp_gf,
+             nue_gf, nui_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -1714,12 +2155,14 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BCoef,
-                rhoCoef, tempCoef, nueCoef, nuiCoef,
+         Update(H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace, BCoef,
+                kReCoef, rhoCoef, TeCoef, TiCoef,
+                nueCoef, nuiCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                BField, density_gf, temperature_gf, nue_gf, nui_gf);
+                BField, k_gf, density_gf, temperature_gf, iontemp_gf,
+                nue_gf, nui_gf);
          CPD.Update();
       }
    }
@@ -1739,12 +2182,15 @@ int main(int argc, char *argv[])
 }
 
 void Update(ParFiniteElementSpace & H1FESpace,
+            ParFiniteElementSpace & H1VFESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             VectorCoefficient & BCoef,
+            VectorCoefficient & kReCoef, 
             Coefficient & rhoCoef,
-            Coefficient & TCoef,
+            Coefficient & TeCoef,
+            Coefficient & TiCoef,
             Coefficient & nueCoef,
             Coefficient & nuiCoef,
             int & size_h1,
@@ -1754,12 +2200,15 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & BField,
+            ParGridFunction & k_gf,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
+            ParGridFunction & iontemp_gf,
             ParGridFunction & nue_gf,
             ParGridFunction & nui_gf)
 {
    H1FESpace.Update();
+   H1VFESpace.Update();
    HCurlFESpace.Update();
    HDivFESpace.Update();
    L2FESpace.Update();
@@ -1767,10 +2216,16 @@ void Update(ParFiniteElementSpace & H1FESpace,
    BField.Update();
    BField.ProjectCoefficient(BCoef);
 
+   k_gf.Update();
+   k_gf.ProjectCoefficient(kReCoef);
+
    nue_gf.Update();
    nue_gf.ProjectCoefficient(nueCoef);
    nui_gf.Update();
    nui_gf.ProjectCoefficient(nuiCoef);
+
+   iontemp_gf.Update();
+   iontemp_gf.ProjectCoefficient(TiCoef);
 
    size_l2 = L2FESpace.GetVSize();
    for (int i=1; i<density_offsets.Size(); i++)
@@ -1793,7 +2248,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-      temperature_gf.ProjectCoefficient(TCoef);
+      temperature_gf.ProjectCoefficient(TeCoef);
    }
 }
 
@@ -1860,6 +2315,7 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    return coef;
 }
 
+
 void rod_current_source_r(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
@@ -1875,13 +2331,32 @@ void rod_current_source_r(const Vector &x, Vector &j)
    double y0 = rod_params_(o+1);
    double radius = rod_params_(o+2);
 
-   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double r2 = (r - x0) * (r - x0) + (z - y0) * (z - y0);
 
    if (r2 <= radius * radius)
    {
-      j(0) = rod_params_(0);
-      j(1) = rod_params_(1);
-      j(2) = rod_params_(2);
+      if (!j_cyl_)
+      {
+         j(0) = rod_params_(0);
+         j(1) = rod_params_(1);
+         j(2) = rod_params_(2);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = rod_params_(0);
+         double j_phi = rod_params_(1);
+         double j_z   = rod_params_(2);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
    }
    // j *= height;
 }
@@ -1901,15 +2376,34 @@ void rod_current_source_i(const Vector &x, Vector &j)
    double y0 = rod_params_(o+1);
    double radius = rod_params_(o+2);
 
-   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double r2 = (r - x0) * (r - x0) + (z - y0) * (z - y0);
 
    if (r2 <= radius * radius)
    {
       if (cmplx)
       {
-         j(0) = rod_params_(3);
-         j(1) = rod_params_(4);
-         j(2) = rod_params_(5);
+         if (!j_cyl_)
+         {
+            j(0) = rod_params_(3);
+            j(1) = rod_params_(4);
+            j(2) = rod_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = rod_params_(3);
+            double j_phi = rod_params_(4);
+            double j_z   = rod_params_(5);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
       }
    }
    // j *= height;
@@ -1937,7 +2431,8 @@ void slab_current_source_r(const Vector &x, Vector &j)
       j(0) = slab_params_(0);
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
-      j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+      if (slab_profile_ == 1)
+      {j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
    }
 }
 
@@ -1965,9 +2460,631 @@ void slab_current_source_i(const Vector &x, Vector &j)
          j(0) = slab_params_(3);
          j(1) = slab_params_(4);
          j(2) = slab_params_(5);
-         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));
+         if (slab_profile_ == 1)
+         {j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5)));}
       }
    }
+}
+
+void curve_current_source_v0_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   double rmin = 2.415 + 0.035;
+   double rmax = rmin + 0.02;
+   double length = 0.325;
+
+   double rthetamax = (length/2.0)/rmin;
+   double rthetamin = -1.0*(length/2.0)/rmin;
+   double theta_ext = rthetamax - rthetamin;
+
+   if (theta >= rthetamin && theta <= rthetamax &&
+       r >= rmin && r <= rmax)
+      { 
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(1)*sin(theta);
+            j(1) = curve_params_(1)*cos(theta);
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(1)*sin(theta);
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+      if (vol_profile_ == 1)
+      {
+         double arc_len = rmin*fabs(theta);
+         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + length)/length - 0.5)));
+      }
+   }
+}
+
+void curve_current_source_v0_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   double rmin = 2.415 + 0.035;
+   double rmax = rmin + 0.02;
+   double length = 0.325;
+
+   double rthetamax = (length/2.0)/rmin;
+   double rthetamin = -1.0*(length/2.0)/rmin;
+   double theta_ext = rthetamax - rthetamin;
+
+   if (theta >= rthetamin && theta <= rthetamax &&
+       r >= rmin && r <= rmax)
+   {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(5)*sin(theta);
+            j(1) = curve_params_(5)*cos(theta);
+            j(2) = curve_params_(6);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(5)*sin(theta);
+            double j_phi = curve_params_(6);
+            double j_z   = curve_params_(5)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+      if (vol_profile_ == 1)
+      {
+         double arc_len = rmin*fabs(theta);
+         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + length)/length - 0.5)));
+      }
+   }
+}
+
+void curve_current_source_v1_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   double thetamax1 = 8.71;
+   double thetamin1 = 1.11;
+   double thetamax2 = -1.25;
+   double thetamin2 = -8.85;
+
+   double theta_ext = thetamax1 - thetamin1;
+   double rmin = (2.415 + 0.035);
+
+   double xmin = rmin*cos(theta);
+   double xmax = xmin + 0.04;
+
+   double zmin1 = rmin * sin((M_PI * thetamin1) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax1) / 180.);
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(1)*sin(theta);
+            j(1) = curve_params_(1)*cos(theta);
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(1)*sin(theta);
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+   else
+   {
+      double zmin2 = rmin * sin((M_PI * thetamin2) / 180.);
+      double zmax2 = rmin * sin((M_PI * thetamax2) / 180.);
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(1)*sin(theta);
+            j(1) = curve_params_(1)*cos(theta);
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(1)*sin(theta);
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(3)*sin(theta);
+            j(1) = curve_params_(3)*cos(theta);
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(3)*sin(theta);
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*
+                             (M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+}
+
+void curve_current_source_v1_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3,"current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   if (curve_params_.Size() < 6)
+   {
+      return;
+   }
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   double thetamax1 = 8.71;
+   double thetamin1 = 1.11;
+   double thetamax2 = -1.25;
+   double thetamin2 = -8.85;
+
+   double theta_ext = thetamax1 - thetamin1;
+   double rmin = (2.415 + 0.035);
+
+   double xmin = rmin*cos(theta);
+   double xmax = xmin + 0.04;
+
+   double zmin1 = rmin * sin((M_PI * thetamin1) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax1) / 180.);
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(5)*sin(theta);
+            j(1) = curve_params_(5)*cos(theta);
+            j(2) = curve_params_(6);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(5)*sin(theta);
+            double j_phi = curve_params_(6);
+            double j_z   = curve_params_(5)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+   else
+   {
+      double zmin2 = rmin * sin((M_PI * thetamin2) / 180.);
+      double zmax2 = rmin * sin((M_PI * thetamax2) / 180.);
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(5)*sin(theta);
+            j(1) = curve_params_(5)*cos(theta);
+            j(2) = curve_params_(6);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(5)*sin(theta);
+            double j_phi = curve_params_(6);
+            double j_z   = curve_params_(5)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*
+                             (M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(7)*sin(theta);
+            j(1) = curve_params_(7)*cos(theta);
+            j(2) = curve_params_(8);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(7)*sin(theta);
+            double j_phi = curve_params_(8);
+            double j_z   = curve_params_(7)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*
+                             (M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+}
+
+void curve_current_source_v2_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double zmin1 = 0.0466;
+   double zmax1 = 0.3655;
+
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
+   double b = 0.415;
+   double c = 0.15;
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(1)/mag;
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+         
+      }
+   }
+   else
+   {
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(1)/mag;
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   }
+}
+
+void curve_current_source_v2_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double zmin1 = 0.0466;
+   double zmax1 = 0.3655;
+
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
+   double b = 0.415;
+   double c = 0.15;
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(6)/mag;
+            j(2) = curve_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(5);
+            double j_z   = curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+         
+      }
+   }
+   else
+   {
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(6)/mag;
+            j(2) = curve_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(5);
+            double j_z   = curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(7)/mag;
+            j(2) = curve_params_(8);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(8);
+            double j_z   = curve_params_(7)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   }
+}
+
+void curve_current_source_r(const Vector &x, Vector &j)
+{
+   curve_current_source_v0_r(x, j);
+}
+
+void curve_current_source_i(const Vector &x, Vector &j)
+{
+   curve_current_source_v0_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)
@@ -1991,18 +3108,16 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
                                            const Vector & mass,
                                            const Vector & temp,
                                            int nuprof,
-                                           double res_lim,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
      nuprof_(nuprof),
-     res_lim_(res_lim),
      omega_(omega),
      Bmag_(B.Norml2()),
-     Jy_(0.0),
+     Jy_(1.0),
      xJ_(0.5),
-     dx_(0.05),
+     dx_(0.01),
      Lx_(1.0),
      kappa_(0.0),
      b_(B),
@@ -2041,15 +3156,20 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   double nue = 0;
-   double nui = 0;
+   double nue_ = 0;
+   double nui_ = 0;
+   double Ti_ = 0;
+   double res_lim_ = 0;
+   double k_ = 18;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_, res_lim_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_, res_lim_);
-   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
-                      nuprof_);
+   S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_, Ti_,
+                      nuprof_, res_lim_);
+   D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_, Ti_,
+                      nuprof_, res_lim_);
+   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+                      temps_, Ti_, nuprof_);
 
    switch (type_)
    {
@@ -2159,9 +3279,8 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
       break;
       case 'J':  // Slab of current density perpendicular to propagation
       {
-         /*
-          if (k_.Size() == 0)
-               {
+         // if (k_.Size() == 0)
+         //      {
                   complex<double> kE = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
 
                   complex<double> skL = sin(kE * Lx_);
@@ -2213,13 +3332,15 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
                      V[1] = Ey.imag();
                      V[2] = 0.0;
                   }
-               }
+            //   }
+               /*
                else
                {
                   // General phase shift
                   V = 0.0; // For now...
                }
-         */
+               */
+
       }
       break;
       case 'Z':

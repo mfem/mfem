@@ -218,7 +218,9 @@ public:
       FGMRES      =  2,
       MINRES      =  3,
       SUPERLU     =  4,
-      STRUMPACK   =  5
+      STRUMPACK   =  5,
+      DMUMPS      =  6,
+      ZMUMPS      =  7
    };
 
    CPDSolver(ParMesh & pmesh, int order, double omega,
@@ -440,7 +442,8 @@ private:
 
    ParGridFunction * temp_; // Temporary grid function (HCurl)
    ParDiscreteGradOperator * grad_; // For Computing E = Grad phi
-   ParDiscreteLinearOperator * kOp_; // E += i k phi
+   ParDiscreteLinearOperator * kOpr_; // E += i k phi
+   ParDiscreteLinearOperator * kOpi_; // E += i (ik) phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
    ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * next_phi_; // Complex sheath potential temporary (H1)

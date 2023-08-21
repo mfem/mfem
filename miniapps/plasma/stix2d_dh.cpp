@@ -591,10 +591,11 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
-   int sol = 2;
+   int sol = 4;
    int prec = 1;
    // int nspecies = 2;
-   bool amr_s = true;
+   bool amr_stix = true;
+   int amr_coef = 0;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = true;
@@ -707,9 +708,11 @@ int main(int argc, char *argv[])
                   "The input mesh is periodic in the y-direction.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&amr_s, "-amr-s", "--init-amr-s", "-no-amr-s",
-                  "--no-init-amr-s",
-                  "Initial AMR to capture Stix S coefficient.");
+   args.AddOption(&amr_stix, "-amr-stix", "--init-amr-stix", "-no-amr-stix",
+                  "--no-init-amr-stix",
+                  "Initial AMR to capture Stix S or P coefficient.");
+   args.AddOption(&amr_coef, "-amr-coef", "--init-amr-coef",
+                  "Choose which Stix coef to refine, 0 - S, 1 - P.");
    args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
                   "Initial AMR tolerance.");
    args.AddOption(&init_amr_max_its, "-iamit", "--init-amr-max-its",
@@ -893,7 +896,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    //               "Masses of the various species (in amu)");
    args.AddOption(&minority, "-min", "--minority",
                   "Minority Ion Species: charge, mass (amu), concentration."
-                  " Concentration being: n_min/n_i");
+                  " Concentration being: n_min/n_e");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -1452,7 +1455,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   if (maxit > 1 || amr_s)
+   if (maxit > 1 || amr_stix)
    {
       mesh->EnsureNCMesh();
    }
@@ -1753,37 +1756,72 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    k_gf.ProjectCoefficient(kReCoef);
    
 
-   if (amr_s)
+   if (amr_stix)
    {
-      if (mpi.Root())
+      if (amr_coef == 1)
       {
-         cout << "Adapting mesh to Stix 'P' coefficient." << endl;
+         if (mpi.Root())
+         {
+            cout << "Adapting mesh to Stix 'P' coefficient." << endl;
+         }
+
+         StixPCoef RePCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
+                           iontemp_gf, L2FESpace, H1FESpace,
+                           omega, charges, masses, nuprof, res_lim,
+                           true);
+         StixPCoef ImPCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
+                           iontemp_gf, L2FESpace, H1FESpace,
+                           omega, charges, masses, nuprof, res_lim,
+                           false);
+
+         L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
+
+         AdaptInitialMesh(mpi, pmesh, err_fes,
+                          H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                          BCoef, kReCoef, rhoCoef, TeCoef, TiCoef, 
+                          nueCoef, nuiCoef,
+                          size_h1, size_l2,
+                          density_offsets, temperature_offsets,
+                          density, temperature,
+                          BField, k_gf, density_gf, temperature_gf, iontemp_gf,
+                          nue_gf, nui_gf,
+                          RePCoef, ImPCoef,
+                          order,
+                          init_amr_tol, init_amr_max_its, init_amr_max_dofs,
+                          visualization);
       }
+      else
+      {
+         if (mpi.Root())
+         {
+            cout << "Adapting mesh to Stix 'S' coefficient." << endl;
+         }
 
-      StixPCoef RePCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
-                        iontemp_gf, L2FESpace, H1FESpace,
-                        omega, charges, masses, nuprof, res_lim,
-                        true);
-      StixPCoef ImPCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
-                        iontemp_gf, L2FESpace, H1FESpace,
-                        omega, charges, masses, nuprof, res_lim,
-                        false);
+         StixSCoef ReSCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
+                           iontemp_gf, L2FESpace, H1FESpace,
+                           omega, charges, masses, nuprof, res_lim,
+                           true);
+         StixSCoef ImSCoef(BField, k_gf, nue_gf, nui_gf, density, temperature,
+                           iontemp_gf, L2FESpace, H1FESpace,
+                           omega, charges, masses, nuprof, res_lim,
+                           false);
 
-      L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
+         L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
-      AdaptInitialMesh(mpi, pmesh, err_fes,
-                       H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-                       BCoef, kReCoef, rhoCoef, TeCoef, TiCoef, 
-                       nueCoef, nuiCoef,
-                       size_h1, size_l2,
-                       density_offsets, temperature_offsets,
-                       density, temperature,
-                       BField, k_gf, density_gf, temperature_gf, iontemp_gf,
-                       nue_gf, nui_gf,
-                       RePCoef, ImPCoef,
-                       order,
-                       init_amr_tol, init_amr_max_its, init_amr_max_dofs,
-                       visualization);
+         AdaptInitialMesh(mpi, pmesh, err_fes,
+                          H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                          BCoef, kReCoef, rhoCoef, TeCoef, TiCoef, 
+                          nueCoef, nuiCoef,
+                          size_h1, size_l2,
+                          density_offsets, temperature_offsets,
+                          density, temperature,
+                          BField, k_gf, density_gf, temperature_gf, iontemp_gf,
+                          nue_gf, nui_gf,
+                          ReSCoef, ImSCoef,
+                          order,
+                          init_amr_tol, init_amr_max_its, init_amr_max_dofs,
+                          visualization);
+      }
    }
 
    if (mpi.Root())

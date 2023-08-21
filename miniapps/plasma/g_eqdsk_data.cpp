@@ -210,8 +210,8 @@ double G_EQDSK_Data::checkPsiBoundary()
          if (i == NBBBS_ / 2 || i + 1 == NBBBS_ / 2) { psi_mid += 0.5 * psi; }
       }
    }
-   cout << psi_min << " <= psi <= " << psi_max << endl;
-   cout << "psi_mid = " << psi_mid << endl;
+   //cout << psi_min << " <= psi <= " << psi_max << endl;
+   //cout << "psi_mid = " << psi_mid << endl;
 
    return psi_mid;
 }

@@ -35,6 +35,7 @@
 #include <fstream>
 #include <limits>
 #include <cstdlib>
+#include <math.h>
 
 using namespace mfem;
 using namespace std;
@@ -43,18 +44,88 @@ using namespace std;
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
-   double s = 0.1;
+   //double s = 0.1;
+   double h_bump = 0.4;
 
    if (p.Size() == 3)
    {
+       /*
       v(0) = p(0) + s*p(1) + s*p(2);
       v(1) = p(1) + s*p(2) + s*p(0);
       v(2) = p(2);
+        */
+       if (p(0) < 5.4){v(0) = p(0);}
+       else
+       {
+        v(0) = 5.4 + ((p(0) - 5.4)/(0.6))*(0.6 - h_bump*exp((-1.0*pow((p(1) - 0.4), 2.0))/pow(0.1, 2.0)));
+       }
+       v(1) = p(1);
+       v(2) = p(2);
    }
    else if (p.Size() == 2)
    {
-      v(0) = p(0) + s*p(1);
-      v(1) = p(1) + s*p(0);
+       /*
+       double mag = pow(pow(0.5,2) + pow(1.5,2),0.5);
+       v(0) = p(0);
+       v(1) = (0.5/mag)*p(0)+(1.5/mag)*p(1);
+       */
+       /*
+      if (p(0) < 0.4){v(0) = p(0);}
+      else
+      {
+      double endx = 0.7;
+       v(0) = ((p(0) - 0.4)/(endx - 0.4))*((endx - 0.4) - (endx - 0.5)) + 0.4;
+      }
+       v(1) = p(1);
+       
+       
+       if (p(0) < 5.4){v(0) = p(0);}
+       else
+       {
+        v(0) = 5.4 + ((p(0) - 5.4)/(0.6))*(0.6 - h_bump*exp((-1.0*pow((p(1) - 0.4), 2.0))/pow(0.1, 2.0)));
+       }
+       v(1) = p(1);
+        */
+
+      // Kohno 2015:
+      /*
+      double r = sqrt(pow(p[0],2.0)+pow(p[1],2.0));
+      double theta_rad = atan2(p[1], p[0]);
+
+      double scale = 1.0 - fabs(r-0.3)/fabs(0.3);
+      double h = 0.02;
+      double decay = 1.2;
+      double theta_on = 160.0;
+      double theta_off = 200.0;
+
+      double theta = theta_rad*(180.0/M_PI);
+      if (theta < 0){theta += 360.0;}
+      double delta_r = h*0.5*((1+tanh((theta-theta_on)/decay))-(1+tanh((theta-theta_off)/decay)));
+      double new_r = (0.3 - delta_r)*scale;
+      
+      v(0) = new_r*cos(theta_rad);
+      v(1) = new_r*sin(theta_rad); 
+      */
+      // SPARC, Z = 0 Limiter
+   
+      if (p(0) > 1.2685 && p(0) < 1.32 && p(1) > -0.5 && p(1) < 0.5)
+      {
+      //double xp = (p(1)-6.76128)/(-5.74468);
+      //double yp = -5.74468*p(0)+6.76128;
+
+      double scale = 1.0 - fabs(p(0)-1.269)/fabs(1.32-1.269);
+      double h = 0.03;
+      double decay = 0.01;  
+
+      double bump1 = h*0.5*((1+tanh((p(1)-0.45)/decay))-(1+tanh((p(1)-0.3)/decay)));
+      double bump2 = h*0.5*((1+tanh((p(1)-0.05)/decay))-(1+tanh((p(1)+0.05)/decay)));
+      double bump3 = h*0.5*((1+tanh((p(1)+0.3)/decay))-(1+tanh((p(1)+0.45)/decay)));
+      
+      v(0) = p(0) - (bump1+bump2+bump3)*scale;
+      v(1) = p(1);  
+      }
+      else {v = p;}
+
    }
    else
    {
