@@ -16,11 +16,11 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS darcy_solver.hpp div_free_solver.hpp bramble_pasciak.hpp
     LIBRARIES mfem)
 
-  add_mfem_miniapp(elast-block-solvers
-    MAIN elasticity_solver.cpp
-    EXTRA_SOURCES
-    EXTRA_HEADERS
-    LIBRARIES mfem)
+#  add_mfem_miniapp(elast-block-solvers
+#    MAIN elasticity_solver.cpp
+#    EXTRA_SOURCES
+#    EXTRA_HEADERS
+#    LIBRARIES mfem)
 
   add_mfem_miniapp(plor_solvers
     MAIN plor_solvers.cpp
