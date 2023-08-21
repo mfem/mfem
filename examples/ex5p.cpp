@@ -179,8 +179,8 @@ int main(int argc, char *argv[])
 
    Array<int> block_trueOffsets(3); // number of variables + 1
    block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = R_space->TrueVSize();
-   block_trueOffsets[2] = W_space->TrueVSize();
+   block_trueOffsets[1] = R_space->GetTrueVSize();
+   block_trueOffsets[2] = W_space->GetTrueVSize();
    block_trueOffsets.PartialSum();
 
    // 9. Define the coefficients, analytical solution, and rhs of the PDE.

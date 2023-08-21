@@ -213,15 +213,15 @@ TEST_CASE("HypreParMatrixBlocksRectangular",
 
       Array<int> blockRow_trueOffsets(3); // number of variables + 1
       blockRow_trueOffsets[0] = 0;
-      blockRow_trueOffsets[1] = R_space.TrueVSize();
-      blockRow_trueOffsets[2] = W_space.TrueVSize();
+      blockRow_trueOffsets[1] = R_space.GetTrueVSize();
+      blockRow_trueOffsets[2] = W_space.GetTrueVSize();
       blockRow_trueOffsets.PartialSum();
 
       Array<int> blockCol_trueOffsets(4); // number of variables + 1
       blockCol_trueOffsets[0] = 0;
-      blockCol_trueOffsets[1] = R_space.TrueVSize();
-      blockCol_trueOffsets[2] = W_space.TrueVSize();
-      blockCol_trueOffsets[3] = W_space.TrueVSize();
+      blockCol_trueOffsets[1] = R_space.GetTrueVSize();
+      blockCol_trueOffsets[2] = W_space.GetTrueVSize();
+      blockCol_trueOffsets[3] = W_space.GetTrueVSize();
       blockCol_trueOffsets.PartialSum();
 
       BlockOperator blockOper(blockRow_trueOffsets, blockCol_trueOffsets);

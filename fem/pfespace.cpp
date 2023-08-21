@@ -673,7 +673,7 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
    Array<HYPRE_BigInt> *offsets[2] = { &dof_offsets, &tdof_offsets };
 
    ldof[0] = GetVSize();
-   ldof[1] = TrueVSize();
+   ldof[1] = GetTrueVSize();
 
    pmesh->GenerateOffsets(2, ldof, offsets);
 
@@ -743,7 +743,7 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
    nd_strias = glb_nd_strias > 0;
 }
 
-void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
+void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
 
@@ -753,7 +753,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    {
       // Safe to assume 1-1 correspondence between shared dofs
       int ldof  = GetVSize();
-      int ltdof = TrueVSize();
+      int ltdof = GetTrueVSize();
 
       HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
       HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
@@ -805,7 +805,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    {
       // Some shared dofs will be linear combinations of others
       HYPRE_BigInt ldof  = GetVSize();
-      HYPRE_BigInt ltdof = TrueVSize();
+      HYPRE_BigInt ltdof = GetTrueVSize();
 
       HYPRE_BigInt gdof  = -1;
       HYPRE_BigInt gtdof = -1;

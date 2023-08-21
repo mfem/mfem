@@ -4583,4 +4583,4 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    return sol2d;
 }
 
-}
+} // namespace mfem

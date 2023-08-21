@@ -9,20 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementation of class matrix
-
 #include "matrix.hpp"
+
 #include <iostream>
 #include <iomanip>
-
 
 namespace mfem
 {
 
-void Matrix::Print (std::ostream & os, int width_) const
+void Matrix::Print(std::ostream &os, int width_) const
 {
-   using namespace std;
    // output flags = scientific + show sign
+   using namespace std;
    os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
@@ -40,4 +38,4 @@ void Matrix::Print (std::ostream & os, int width_) const
    os << '\n';
 }
 
-}
+} // namespace mfem

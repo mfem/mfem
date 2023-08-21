@@ -256,7 +256,7 @@ void Hybridization::Init(const Array<int> &ess_tdof_list)
    Array<int> free_tdof_marker;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
-   free_tdof_marker.SetSize(pfes ? pfes->TrueVSize() :
+   free_tdof_marker.SetSize(pfes ? pfes->GetTrueVSize() :
                             fes->GetConformingVSize());
 #else
    free_tdof_marker.SetSize(fes->GetConformingVSize());

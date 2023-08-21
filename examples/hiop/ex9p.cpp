@@ -91,7 +91,7 @@ private:
 
 public:
    LinearScaleOperator(ParFiniteElementSpace &space, const Vector &weight)
-      : Operator(1, space.TrueVSize()),
+      : Operator(1, space.GetTrueVSize()),
         pfes(space), w(weight), grad(1, width)
    {
       Vector w_glob(width);
@@ -123,7 +123,7 @@ private:
 
 public:
    TanhSumOperator(ParFiniteElementSpace &space)
-      : Operator(1, space.TrueVSize()), grad(1, width) { }
+      : Operator(1, space.GetTrueVSize()), grad(1, width) { }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {

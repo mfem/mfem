@@ -27,8 +27,8 @@ class MatrixInverse;
 class Matrix : public Operator
 {
    friend class MatrixInverse;
-public:
 
+public:
    /// Creates a square matrix of size s.
    explicit Matrix(int s) : Operator(s) { }
 
@@ -51,7 +51,7 @@ public:
    virtual void Finalize(int) { }
 
    /// Prints matrix to stream out.
-   virtual void Print (std::ostream & out = mfem::out, int width_ = 4) const;
+   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Destroys matrix.
    virtual ~Matrix() { }
@@ -97,11 +97,14 @@ public:
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector &x, Vector &y) const = 0;
+
    /// Matrix-Vector Multiplication y = y + val*A*x
    virtual void AddMult(const Vector &x, Vector &y,
                         const double val = 1.) const = 0;
+
    /// MatrixTranspose-Vector Multiplication y = A'*x
    virtual void MultTranspose(const Vector &x, Vector &y) const = 0;
+
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double val = 1.) const = 0;
@@ -110,6 +113,6 @@ public:
    virtual ~AbstractSparseMatrix() { }
 };
 
-}
+} // namespace mfem
 
 #endif

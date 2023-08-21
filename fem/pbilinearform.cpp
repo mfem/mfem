@@ -610,8 +610,8 @@ void ParMixedBilinearForm::FormRectangularLinearSystem(
    const Operator *test_P = test_pfes->GetProlongationMatrix();
    const SparseMatrix *trial_R = trial_pfes->GetRestrictionMatrix();
 
-   X.SetSize(trial_pfes->TrueVSize());
-   B.SetSize(test_pfes->TrueVSize());
+   X.SetSize(trial_pfes->GetTrueVSize());
+   B.SetSize(test_pfes->GetTrueVSize());
    test_P->MultTranspose(b, B);
    trial_R->Mult(x, X);
 
@@ -741,6 +741,6 @@ void ParDiscreteLinearOperator::GetParBlocks(
    delete RLP;
 }
 
-}
+} // namespace mfem
 
 #endif

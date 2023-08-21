@@ -126,8 +126,8 @@ TEST_CASE("ParBlockNonlinearForm",
 
       Array<int> block_trueOffsets(3);
       block_trueOffsets[0] = 0;
-      block_trueOffsets[1] = ufes.TrueVSize();
-      block_trueOffsets[2] = rfes.TrueVSize();
+      block_trueOffsets[1] = ufes.GetTrueVSize();
+      block_trueOffsets[2] = rfes.GetTrueVSize();
       block_trueOffsets.PartialSum();
 
       ParGridFunction u_gf(&ufes);

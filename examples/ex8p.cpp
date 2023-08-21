@@ -212,9 +212,9 @@ int main(int argc, char *argv[])
    //    and rhs.
    enum {x0_var, xhat_var, NVAR};
 
-   int true_s0     = x0_space->TrueVSize();
-   int true_s1     = xhat_space->TrueVSize();
-   int true_s_test = test_space->TrueVSize();
+   int true_s0     = x0_space->GetTrueVSize();
+   int true_s1     = xhat_space->GetTrueVSize();
+   int true_s_test = test_space->GetTrueVSize();
 
    Array<int> true_offsets(NVAR+1);
    true_offsets[0] = 0;

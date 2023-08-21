@@ -445,7 +445,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
    ParFiniteElementSpace  HGradFESpace(pmesh, &HGradFEC);
 
-   // The terminology is TrueVSize is the unique (non-redundant) number of dofs
+   // The terminology is GetTrueVSize is the unique (non-redundant) number of dofs
    HYPRE_BigInt glob_size_l2 = L2FESpace.GlobalTrueVSize();
    HYPRE_BigInt glob_size_nd = HCurlFESpace.GlobalTrueVSize();
    HYPRE_BigInt glob_size_rt = HDivFESpace.GlobalTrueVSize();

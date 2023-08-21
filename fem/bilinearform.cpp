@@ -2024,4 +2024,4 @@ void DiscreteLinearOperator::FormDiscreteOperatorMatrix(OperatorHandle &A)
    A.Reset(mat, false);
 }
 
-}
+} // namespace mfem

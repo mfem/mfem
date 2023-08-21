@@ -323,8 +323,8 @@ int main(int argc, char *argv[])
    // 10. Define the block structure of the solution vector (u then p)
    Array<int> block_trueOffsets(3);
    block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = R_space.TrueVSize();
-   block_trueOffsets[2] = W_space.TrueVSize();
+   block_trueOffsets[1] = R_space.GetTrueVSize();
+   block_trueOffsets[2] = W_space.GetTrueVSize();
    block_trueOffsets.PartialSum();
 
    BlockVector xp(block_trueOffsets);
@@ -528,7 +528,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                double abs_tol,
                                int iter,
                                Coefficient &c_mu)
-   : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+   : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
      newton_solver(fes[0]->GetComm()),
      newton_monitor(fes[0]->GetComm(), "Newton", 1),
      j_monitor(fes[0]->GetComm(), "  GMRES", 3),

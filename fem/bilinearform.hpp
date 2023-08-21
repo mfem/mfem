@@ -266,24 +266,24 @@ public:
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   double &Elem(int i, int j) override;
 
    /// Returns constant reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   const double &Elem(int i, int j) const override;
 
    /// Matrix vector multiplication:  \f$ y = M x \f$
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector &x, Vector &y,
-                        const double a = 1.0) const;
+   void AddMult(const Vector &x, Vector &y,
+                const double a = 1.0) const override;
 
    /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override;
 
    /** @brief Matrix vector multiplication with the original uneliminated
        matrix.  The original matrix is \f$ M + M_e \f$ so we have:
@@ -308,7 +308,7 @@ public:
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
@@ -322,7 +322,7 @@ public:
    }
 
    /// Finalizes the matrix initialization.
-   virtual void Finalize(int skip_zeros = 1);
+   void Finalize(int skip_zeros = 1) override;
 
    /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
 
@@ -448,22 +448,22 @@ public:
        conforming prolongation, and |.| denotes the entry-wise absolute value.
        In general, this is just an approximation of the exact diagonal for this
        case. */
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Get the finite element space prolongation operator.
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return fes->GetProlongationMatrix(); }
 
    /// Get the finite element space restriction operator
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return fes->GetRestrictionMatrix(); }
 
    /// Get the output finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return GetProlongation(); }
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return GetRestriction(); }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
@@ -540,7 +540,7 @@ public:
        FormLinearSystem() method to recover the solution as a GridFunction-size
        vector in @a x. Use the same arguments as in the FormLinearSystem() call.
    */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override;
 
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();
@@ -749,29 +749,29 @@ public:
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   double &Elem(int i, int j) override;
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   const double &Elem(int i, int j) const override;
 
    /// Matrix multiplication: \f$ y = M x \f$
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   virtual void AddMult(const Vector &x, Vector &y,
-                        const double a = 1.0) const;
+   void AddMult(const Vector &x, Vector &y,
+                const double a = 1.0) const override;
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override;
 
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
 
    /// Finalizes the matrix initialization.
-   virtual void Finalize(int skip_zeros = 1);
+   void Finalize(int skip_zeros = 1) override;
 
    /** Extract the associated matrix as SparseMatrix blocks. The number of
        block rows and columns is given by the vector dimensions (vdim) of the
@@ -851,19 +851,19 @@ public:
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
    /// Get the input finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return trial_fes->GetProlongationMatrix(); }
 
    /// Get the input finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return trial_fes->GetRestrictionMatrix(); }
 
    /// Get the test finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return test_fes->GetProlongationMatrix(); }
 
    /// Get the test finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return test_fes->GetRestrictionMatrix(); }
 
    /// Compute the element matrix of the given element
@@ -980,6 +980,14 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
+                           const Vector &sol, Vector &rhs);
+
+   void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
+                                          const Vector &sol, Vector &rhs);
+
+   void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+
    void Update();
 
    /// Return the trial FE space associated with the BilinearForm.
@@ -1064,7 +1072,7 @@ public:
 
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
-   virtual void Assemble(int skip_zeros = 1);
+   void Assemble(int skip_zeros = 1);
 
    /** @brief Return in @a A that is column-constrained. */
    virtual void FormDiscreteOperatorMatrix(OperatorHandle &A);
@@ -1088,6 +1096,6 @@ public:
    }
 };
 
-}
+} // namespace mfem
 
 #endif

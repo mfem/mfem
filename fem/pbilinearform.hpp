@@ -100,7 +100,7 @@ public:
        of the parallel/conforming prolongation, and |.| denotes the entry-wise
        absolute value. In general, this is just an approximation of the exact
        diagonal for this case. */
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
@@ -181,30 +181,22 @@ public:
    ParFiniteElementSpace *SCParFESpace() const
    { return static_cond ? static_cond->GetParTraceFESpace() : NULL; }
 
-   /// Get the parallel finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
-   { return pfes->GetProlongationMatrix(); }
-
-   /// Get the parallel finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
-   { return pfes->GetRestrictionMatrix(); }
-
    using BilinearForm::FormLinearSystem;
    using BilinearForm::FormSystemMatrix;
 
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-                                 Vector &b, OperatorHandle &A, Vector &X,
-                                 Vector &B, int copy_interior = 0);
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                         Vector &b, OperatorHandle &A, Vector &X,
+                         Vector &B, int copy_interior = 0) override;
 
-   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                 OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A) override;
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x) override;
 
-   virtual void Update(FiniteElementSpace *nfes = NULL);
+   void Update(FiniteElementSpace *nfes = NULL) override;
 
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
@@ -282,18 +274,18 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
-                                            const Array<int> &test_tdof_list, Vector &x,
-                                            Vector &b, OperatorHandle &A, Vector &X,
-                                            Vector &B);
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list, Vector &x,
+                                    Vector &b, OperatorHandle &A, Vector &X,
+                                    Vector &B) override;
 
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
        This returns the same operator as FormRectangularLinearSystem(), but does
        without the transformations of the right-hand side. */
-   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
-                                            const Array<int> &test_tdof_list,
-                                            OperatorHandle &A);
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A) override;
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
@@ -339,7 +331,7 @@ public:
    using DiscreteLinearOperator::FormDiscreteOperatorMatrix;
 
    /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
-   virtual void FormDiscreteOperatorMatrix(OperatorHandle &A);
+   void FormDiscreteOperatorMatrix(OperatorHandle &A) override;
 
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
@@ -348,7 +340,7 @@ public:
    virtual ~ParDiscreteLinearOperator() {}
 };
 
-}
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
 

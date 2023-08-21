@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
    {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
    }
-   int true_size = fespace.TrueVSize();
+   int true_size = fespace.GetTrueVSize();
    Array<int> true_offset(3);
    true_offset[0] = 0;
    true_offset[1] = true_size;
@@ -480,7 +480,7 @@ void visualize(ostream &os, ParMesh *mesh,
 ReducedSystemOperator::ReducedSystemOperator(
    ParBilinearForm *M_, ParBilinearForm *S_, ParNonlinearForm *H_,
    const Array<int> &ess_tdof_list_)
-   : Operator(M_->ParFESpace()->TrueVSize()), M(M_), S(S_), H(H_),
+   : Operator(M_->ParFESpace()->GetTrueVSize()), M(M_), S(S_), H(H_),
      Jacobian(NULL), dt(0.0), v(NULL), x(NULL), w(height), z(height),
      ess_tdof_list(ess_tdof_list_)
 { }
@@ -525,7 +525,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K)
-   : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
+   : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
      z(height/2)

@@ -476,7 +476,7 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
                           int solver_max_it = 200);
 
-}
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
 

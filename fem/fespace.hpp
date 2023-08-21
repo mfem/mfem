@@ -429,8 +429,8 @@ protected:
                          Table *old_elem_fos/*takes ownership*/, int old_ndofs);
       RefinementOperator(const FiniteElementSpace *fespace,
                          const FiniteElementSpace *coarse_fes);
-      virtual void Mult(const Vector &x, Vector &y) const;
-      virtual void MultTranspose(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
+      void MultTranspose(const Vector &x, Vector &y) const override;
       virtual ~RefinementOperator();
    };
 
@@ -450,7 +450,7 @@ protected:
       DerefinementOperator(const FiniteElementSpace *f_fes,
                            const FiniteElementSpace *c_fes,
                            BilinearFormIntegrator *mass_integ);
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
       virtual ~DerefinementOperator();
    };
 
@@ -552,14 +552,14 @@ public:
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
 
    /// Returns the mesh
-   inline Mesh *GetMesh() const { return mesh; }
+   Mesh *GetMesh() const { return mesh; }
 
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
-   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
+   virtual bool Conforming() const { return mesh->Conforming() && cP == NULL; }
+   virtual bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
@@ -680,14 +680,14 @@ public:
    int GetFaceOrder(int face, int variant = 0) const;
 
    /// Returns vector dimension.
-   inline int GetVDim() const { return vdim; }
+   int GetVDim() const { return vdim; }
 
    /// @brief Returns number of degrees of freedom.
    /// This is the number of @ref ldof "Local Degrees of Freedom"
-   inline int GetNDofs() const { return ndofs; }
+   int GetNDofs() const { return ndofs; }
 
    /// @brief Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
-   inline int GetVSize() const { return vdim * ndofs; }
+   int GetVSize() const { return vdim * ndofs; }
 
    /// @brief Return the number of vector true (conforming) dofs.
    virtual int GetTrueVSize() const { return GetConformingVSize(); }
@@ -699,7 +699,7 @@ public:
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
    /// Return the ordering method.
-   inline Ordering::Type GetOrdering() const { return ordering; }
+   Ordering::Type GetOrdering() const { return ordering; }
 
    const FiniteElementCollection *FEColl() const { return fec; }
 
@@ -711,19 +711,19 @@ public:
    int GetNFDofs() const { return nfdofs; }
 
    /// Returns number of vertices in the mesh.
-   inline int GetNV() const { return mesh->GetNV(); }
+   int GetNV() const { return mesh->GetNV(); }
 
    /// Returns number of elements in the mesh.
-   inline int GetNE() const { return mesh->GetNE(); }
+   int GetNE() const { return mesh->GetNE(); }
 
    /// Returns number of faces (i.e. co-dimension 1 entities) in the mesh.
    /** The co-dimension 1 entities are those that have dimension 1 less than the
        mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
        the edges. */
-   inline int GetNF() const { return mesh->GetNumFaces(); }
+   int GetNF() const { return mesh->GetNumFaces(); }
 
    /// Returns number of boundary elements in the mesh.
-   inline int GetNBE() const { return mesh->GetNBE(); }
+   int GetNBE() const { return mesh->GetNBE(); }
 
    /// Returns the number of faces according to the requested type.
    /** If type==Boundary returns only the "true" number of boundary faces
@@ -731,19 +731,19 @@ public:
        visualization for GLVis.
        Similarly, if type==Interior, the "fake" boundary faces associated to
        visualization are counted as interior faces. */
-   inline int GetNFbyType(FaceType type) const
+   int GetNFbyType(FaceType type) const
    { return mesh->GetNFbyType(type); }
 
    /// Returns the type of element i.
-   inline int GetElementType(int i) const
+   int GetElementType(int i) const
    { return mesh->GetElementType(i); }
 
    /// Returns the vertices of element i.
-   inline void GetElementVertices(int i, Array<int> &vertices) const
+   void GetElementVertices(int i, Array<int> &vertices) const
    { mesh->GetElementVertices(i, vertices); }
 
    /// Returns the type of boundary element i.
-   inline int GetBdrElementType(int i) const
+   int GetBdrElementType(int i) const
    { return mesh->GetBdrElementType(i); }
 
    /// Returns ElementTransformation for the @a i-th element.
@@ -983,15 +983,15 @@ public:
    static void AdjustVDofs(Array<int> &vdofs);
 
    /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
-   static inline int EncodeDof(int entity_base, int idx)
+   static int EncodeDof(int entity_base, int idx)
    { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
 
    /// Helper to return the DOF associated with a sign encoded DOF
-   static inline int DecodeDof(int dof)
+   static int DecodeDof(int dof)
    { return (dof >= 0) ? dof : (-1 - dof); }
 
    /// Helper to determine the DOF and sign of a sign encoded DOF
-   static inline int DecodeDof(int dof, double& sign)
+   static int DecodeDof(int dof, double& sign)
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// @anchor getvdof @name Local Vector DoF Access Members
@@ -1230,6 +1230,9 @@ public:
        Safe to call multiple times, does nothing if space already up to date. */
    virtual void Update(bool want_transform = true);
 
+   /// Free the GridFunction update operator (if any), to save memory.
+   virtual void UpdatesFinished() { Th.Clear(); }
+
    /// Get the GridFunction update operator.
    const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }
 
@@ -1250,9 +1253,6 @@ public:
        Any other type will be treated as Operator::ANY_TYPE.
        @note This operation destroys the current update operator (if owned). */
    void SetUpdateOperatorType(Operator::Type tid) { Th.SetType(tid); }
-
-   /// Free the GridFunction update operator (if any), to save memory.
-   virtual void UpdatesFinished() { Th.Clear(); }
 
    /** Return update counter, similar to Mesh::GetSequence(). Used by
        GridFunction to check if it is up to date with the space. */
@@ -1300,6 +1300,6 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
           dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 
-}
+} // namespace mfem
 
 #endif
