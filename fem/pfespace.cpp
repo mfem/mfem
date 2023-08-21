@@ -467,53 +467,68 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
    ApplyLDofSigns(all_dofs);
 }
 
-DofTransformation *
-ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
+                                           DofTransformation &doftrans) const
 {
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
 
-      if (DoFTrans[mesh->GetElementBaseGeometry(i)])
+      if (DoFTransArray[mesh->GetElementBaseGeometry(i)])
       {
          Array<int> Fo;
          elem_fos->GetRow(i, Fo);
-         DoFTrans[mesh->GetElementBaseGeometry(i)]->SetFaceOrientations(Fo);
-         return DoFTrans[mesh->GetElementBaseGeometry(i)];
+         doftrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetElementBaseGeometry(i)]);
+         doftrans.SetFaceOrientations(Fo);
       }
-      return NULL;
+      return;
    }
-   DofTransformation * doftrans = FiniteElementSpace::GetElementDofs(i, dofs);
+   FiniteElementSpace::GetElementDofs(i, dofs, doftrans);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
-   return doftrans;
 }
 
 DofTransformation *
-ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+{
+   DoFTrans.SetDofTransformation(NULL);
+   GetElementDofs(i, dofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
+}
+
+void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs,
+                                              DofTransformation &doftrans) const
 {
    if (bdr_elem_dof)
    {
       bdr_elem_dof->GetRow(i, dofs);
 
-      if (DoFTrans[mesh->GetBdrElementBaseGeometry(i)])
+      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(i)])
       {
          Array<int> Fo;
-         bdr_elem_fos -> GetRow (i, Fo);
-         DoFTrans[mesh->GetBdrElementBaseGeometry(i)]->SetFaceOrientations(Fo);
-         return DoFTrans[mesh->GetBdrElementBaseGeometry(i)];
+         bdr_elem_fos->GetRow(i, Fo);
+         doftrans.SetDofTransformation(
+            *DoFTransArray[mesh->GetBdrElementBaseGeometry(i)]);
+         doftrans.SetFaceOrientations(Fo);
       }
-      return NULL;
+      return;
    }
-   DofTransformation * doftrans =
-      FiniteElementSpace::GetBdrElementDofs(i, dofs);
+   FiniteElementSpace::GetBdrElementDofs(i, dofs, doftrans);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
-   return doftrans;
+}
+
+DofTransformation *
+ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+{
+   DoFTrans.SetDofTransformation(NULL);
+   GetBdrElementDofs(i, dofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
 
 int ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs,
@@ -940,8 +955,8 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          }
          else if (i_offd[i+1] == i_offd[i] + 2)
          {
-            const double * T = ND_StatelessDofTransformation
-                               ::GetFaceTransform(ltori[i]).GetData();
+            const double * T =
+               ND_DofTransformation::GetFaceTransform(ltori[i]).GetData();
             j_offd[i_offd[i] + 1] = j_offd[i_offd[i]] + 1;
             d_offd[i_offd[i]] = T[0]; d_offd[i_offd[i] + 1] = T[2];
             i++;
@@ -1467,13 +1482,14 @@ DofTransformation *ParFiniteElementSpace::GetFaceNbrElementVDofs(
    face_nbr_element_dof.GetRow(i, vdofs);
 
    DofTransformation *doftrans = NULL;
-   Geometry::Type geom = GetFaceNbrFE(i)->GetGeomType();
-   if (DoFTrans[geom])
+   if (DoFTransArray[GetFaceNbrFE(i)->GetGeomType()])
    {
       Array<int> F, Fo;
       pmesh->GetFaceNbrElementFaces(pmesh->GetNE() + i, F, Fo);
-      doftrans = DoFTrans[geom];
-      doftrans->SetFaceOrientations(Fo);
+      DoFTrans.SetDofTransformation(
+         *DoFTransArray[GetFaceNbrFE(i)->GetGeomType()]);
+      DoFTrans.SetFaceOrientations(Fo);
+      doftrans = &DoFTrans;
    }
    if (vdim == 1 || doftrans == NULL)
    {
@@ -1481,7 +1497,8 @@ DofTransformation *ParFiniteElementSpace::GetFaceNbrElementVDofs(
    }
    else
    {
-      VDoFTrans.SetDofTransformation(*doftrans);
+      VDoFTrans.SetDofTransformation(*doftrans->GetDofTransformation());
+      VDoFTrans.SetFaceOrientations(doftrans->GetFaceOrientations());
       return &VDoFTrans;
    }
 }

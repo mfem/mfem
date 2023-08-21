@@ -271,7 +271,8 @@ protected:
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
-   Array<DofTransformation*> DoFTrans;
+   Array<StatelessDofTransformation *> DoFTransArray;
+   mutable DofTransformation DoFTrans;
    mutable VDofTransformation VDoFTrans;
 
    /** Matrix representing the prolongation from the global conforming dofs to
@@ -326,8 +327,8 @@ protected:
    void Construct();
    void Destroy();
 
-   void ConstructDoFTrans();
-   void DestroyDoFTrans();
+   void ConstructDoFTransArray();
+   void DestroyDoFTransArray();
 
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
@@ -414,10 +415,11 @@ protected:
       Table* old_elem_dof; // Owned.
       Table* old_elem_fos; // Owned.
 
-      Array<DofTransformation*> old_DoFTrans;
+      Array<StatelessDofTransformation*> old_DoFTransArray;
+      mutable DofTransformation old_DoFTrans;
       mutable VDofTransformation old_VDoFTrans;
 
-      void ConstructDoFTrans();
+      void ConstructDoFTransArray();
 
    public:
       /** Construct the operator based on the elem_dof table of the original
@@ -796,6 +798,15 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
+   /// @brief The same as GetElementDofs(), but with a user-allocated
+   /// DofTransformation object. @a doftrans must be allocated in advance and
+   /// will be owned by the caller. The user can use the
+   /// DofTransformation::GetDofTransformation method on the returned
+   /// @a doftrans object to detect if the DofTransformation should actually be
+   /// used.
+   virtual void GetElementDofs(int elem, Array<int> &dofs,
+                               DofTransformation &doftrans) const;
+
    /// @brief Returns indices of degrees of freedom for boundary element 'bel'.
    /// The returned indices are offsets into an @ref ldof vector. See also
    /// GetBdrElementVDofs().
@@ -811,10 +822,14 @@ public:
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
 
-   /** @brief Returns indices of degrees of freedom for NURBS patch index
-    @a patch. Cartesian ordering is used, for the tensor-product degrees of
-    freedom. */
-   void GetPatchDofs(int patch, Array<int> &dofs) const;
+   /// @brief The same as GetBdrElementDofs(), but with a user-allocated
+   /// DofTransformation object. @a doftrans must be allocated in advance and
+   /// will be owned by the caller. The user can use the
+   /// DofTransformation::GetDofTransformation method on the returned
+   /// @a doftrans object to detect if the DofTransformation should actually be
+   /// used.
+   virtual void GetBdrElementDofs(int bel, Array<int> &dofs,
+                                  DofTransformation &doftrans) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
@@ -861,6 +876,13 @@ public:
    /// GetElementInteriorVDofs().
    void GetElementInteriorDofs(int i, Array<int> &dofs) const;
 
+   /// @brief Returns the number of degrees of freedom associated with the
+   /// interior of the specified element.
+   ///
+   /// See GetElementInteriorDofs() for more information or to obtain the
+   /// relevant indices.
+   int GetNumElementInteriorDofs(int i) const;
+
    /// @brief Returns the indices of the degrees of freedom for the interior
    /// of the specified face.
    ///
@@ -873,13 +895,6 @@ public:
    /// GetFaceInteriorVDofs().
    void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
 
-   /// @brief Returns the number of degrees of freedom associated with the
-   /// interior of the specified element.
-   ///
-   /// See GetElementInteriorDofs() for more information or to obtain the
-   /// relevant indices.
-   int GetNumElementInteriorDofs(int i) const;
-
    /// @brief Returns the indices of the degrees of freedom for the interior
    /// of the specified edge.
    ///
@@ -887,6 +902,11 @@ public:
    /// GetEdgeInteriorVDofs().
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
    ///@}
+
+   /** @brief Returns indices of degrees of freedom for NURBS patch index
+    @a patch. Cartesian ordering is used, for the tensor-product degrees of
+    freedom. */
+   void GetPatchDofs(int patch, Array<int> &dofs) const;
 
    /// @anchor dof2vdof @name DoF To VDoF Conversion methods
    /// These methods convert between local dof and local vector dof using the
