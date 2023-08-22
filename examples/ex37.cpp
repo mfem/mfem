@@ -13,6 +13,16 @@
 //               ex37 -i volumetric -r 1
 //               ex37 -i volumetric -o 4
 //               ex37 -i volumetric -o 4 -r 5
+//               ex37 -i surface3d
+//               ex37 -i surface3d -o 0
+//               ex37 -i surface3d -r 1
+//               ex37 -i surface3d -o 4
+//               ex37 -i surface3d -o 4 -r 5
+//               ex37 -i volumetric3d
+//               ex37 -i volumetric3d -o 0
+//               ex37 -i volumetric3d -r 1
+//               ex37 -i volumetric3d -o 4
+//               ex37 -i volumetric3d -o 4 -r 5
 //
 // Description: This example code demonstrates the use of MFEM to integrate
 //              functions over implicit interfaces and subdomains bounded by
@@ -42,7 +52,7 @@ using namespace std;
 using namespace mfem;
 
 /// @brief Integration rule the example should demonstrate
-enum class IntegrationType { Surface, Volumetric };
+enum class IntegrationType { Surface, Volumetric, Surface3D, Volumetric3D };
 IntegrationType itype;
 
 /// @brief Level-set function defining the implicit interface
@@ -54,6 +64,10 @@ double lvlset(const Vector& X)
          return 1. - (pow(X(0), 2.) + pow(X(1), 2.));
       case IntegrationType::Volumetric:
          return 1. - (pow(X(0) / 1.5, 2.) + pow(X(1) / .75, 2.));
+      case IntegrationType::Surface3D:
+         return 1. - (pow(X(0), 2.) + pow(X(1), 2.) + pow(X(2), 2.));
+      case IntegrationType::Volumetric3D:
+         return 1. - (pow(X(0) / 1.5, 2.) + pow(X(1) / .75, 2.) + pow(X(2) / .5, 2.));
       default:
          return 1.;
    }
@@ -67,6 +81,10 @@ double integrand(const Vector& X)
       case IntegrationType::Surface:
          return 3. * pow(X(0), 2.) - pow(X(1), 2.);
       case IntegrationType::Volumetric:
+         return 1.;
+      case IntegrationType::Surface3D:
+         return 4. - 3. * pow(X(0), 2.) + 2. * pow(X(1), 2.) - pow(X(2), 2.);
+      case IntegrationType::Volumetric3D:
          return 1.;
       default:
          return 0.;
@@ -82,6 +100,10 @@ double Surface()
          return 2. * M_PI;
       case IntegrationType::Volumetric:
          return 7.26633616541076;
+      case IntegrationType::Surface3D:
+         return 40. / 3. * M_PI;
+      case IntegrationType::Volumetric3D:
+         return 9.90182151329315;
       default:
          return 0.;
    }
@@ -96,6 +118,10 @@ double Volume()
          return NAN;
       case IntegrationType::Volumetric:
          return 9. / 8. * M_PI;
+      case IntegrationType::Surface3D:
+         return NAN;
+      case IntegrationType::Volumetric3D:
+         return 3. / 4. * M_PI;
       default:
          return 0.;
    }
@@ -227,7 +253,7 @@ public:
     */
    SubdomainLFIntegrator(Coefficient &q, Coefficient &levelset,
                          CutIntegrationRule* ir)
-      : LinearFormIntegrator(), Q(q), LevelSet(levelset), CutIntRule(ir) {}
+      : LinearFormIntegrator(), Q(q), LevelSet(levelset), CutIntRule(ir) {cout << __LINE__ << endl;}
 
    /**
     @brief Constructor for the volumetric subdomain linear form integrator
@@ -261,10 +287,10 @@ public:
       elvect = 0.;
       IsoparametricTransformation Trafo;
       Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
-
+cout << __LINE__ << endl;
       // Update the subdomain integration rule
       CutIntRule->Update(Trafo);
-
+cout << __LINE__ << endl;
       for (int ip = 0; ip < CutIntRule->GetNPoints(); ip++)
       {
          Trafo.SetIntPoint((&(CutIntRule->IntPoint(ip))));
@@ -313,15 +339,42 @@ int main(int argc, char *argv[])
    {
       itype = IntegrationType::Volumetric;
    }
+   else if (strcmp(inttype, "surface3d") == 0 || strcmp(inttype, "Surface3d") == 0)
+   {
+      itype = IntegrationType::Surface3D;
+   }
+   else if (strcmp(inttype, "volumetric3d") == 0
+            || strcmp(inttype, "Volumetric3d") == 0)
+   {
+      itype = IntegrationType::Volumetric3D;
+   }
 
    // 2. Construct and refine the mesh.
-   Mesh *mesh = new Mesh(2, 4, 1, 0, 2);
-   mesh->AddVertex(-1.6,-1.6);
-   mesh->AddVertex(1.6,-1.6);
-   mesh->AddVertex(1.6,1.6);
-   mesh->AddVertex(-1.6,1.6);
-   mesh->AddQuad(0,1,2,3);
-   mesh->FinalizeQuadMesh(1, 0, 1);
+   Mesh *mesh;
+   if(itype == IntegrationType::Surface || itype == IntegrationType::Volumetric)
+   {
+      mesh = new Mesh(2, 4, 1, 0, 2);
+      mesh->AddVertex(-1.6,-1.6);
+      mesh->AddVertex(1.6,-1.6);
+      mesh->AddVertex(1.6,1.6);
+      mesh->AddVertex(-1.6,1.6);
+      mesh->AddQuad(0,1,2,3);
+      mesh->FinalizeQuadMesh(1, 0, 1);
+   }
+   else //if(itype == IntegrationType::Surface3D || itype == IntegrationType::Volumetric3D)
+   {
+      mesh = new Mesh(3, 8, 1, 0, 3);
+      mesh->AddVertex(-1.6,-1.6,-1.6);
+      mesh->AddVertex(1.6,-1.6,-1.6);
+      mesh->AddVertex(1.6,1.6,-1.6);
+      mesh->AddVertex(-1.6,1.6,-1.6);
+      mesh->AddVertex(-1.6,-1.6,1.6);
+      mesh->AddVertex(1.6,-1.6,1.6);
+      mesh->AddVertex(1.6,1.6,1.6);
+      mesh->AddVertex(-1.6,1.6,1.6);
+      mesh->AddHex(0,1,2,3,4,5,6,7);
+      mesh->FinalizeHexMesh(1, 0, 1);
+   }
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
@@ -353,7 +406,8 @@ int main(int argc, char *argv[])
    surface.AddDomainIntegrator(new SurfaceLFIntegrator(u, levelset, sir));
    surface.Assemble();
 
-   if (itype == IntegrationType::Volumetric)
+   if (itype == IntegrationType::Volumetric
+       || itype == IntegrationType::Volumetric3D)
    {
       volume.AddDomainIntegrator(new SubdomainLFIntegrator(u, levelset, cir));
       volume.Assemble();
@@ -371,8 +425,12 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
    cout << "Mesh size dx:                       ";
    cout << 3.2 / pow(2., (double)ref_levels) << endl;
-   cout << "Number of div free basis functions: " << nbasis << endl;
-   cout << "Number of quadrature points:        " << ir.GetNPoints() << endl;
+   if(itype == IntegrationType::Surface
+      || itype == IntegrationType::Volumetric)
+   {
+      cout << "Number of div free basis functions: " << nbasis << endl;
+      cout << "Number of quadrature points:        " << ir.GetNPoints() << endl;
+   }
    cout << scientific << setprecision(2);
    cout << "============================================" << endl;
    cout << "Computed value of surface integral: " << surface.Sum() << endl;
@@ -381,7 +439,8 @@ int main(int argc, char *argv[])
    cout << abs(surface.Sum() - Surface()) << endl;
    cout << "Relative Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) / Surface() << endl;
-   if (itype == IntegrationType::Volumetric)
+   if(itype == IntegrationType::Volumetric
+      || itype == IntegrationType::Volumetric3D)
    {
       cout << "--------------------------------------------" << endl;
       cout << "Computed value of volume integral:  " << volume.Sum() << endl;
@@ -394,7 +453,7 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
 
    // 8. Plot the level-set function on a high order finite element space.
-   H1_FECollection fe_coll2(5, 2);
+   H1_FECollection fe_coll2(5, mesh->Dimension());
    FiniteElementSpace fespace2(mesh, &fe_coll2);
    FunctionCoefficient levelset_coeff(levelset);
    GridFunction lgf(&fespace2);
