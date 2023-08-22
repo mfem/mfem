@@ -26,6 +26,12 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleNURBSPA(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleNURBSPA(fes)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
                                         const FiniteElementSpace&)
 {
@@ -92,7 +98,13 @@ void BilinearFormIntegrator::AssembleDiagonalPA_ADAt(const Vector &, Vector &)
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
-   MFEM_ABORT("BilinearFormIntegrator::MultAssembled(...)\n"
+   MFEM_ABORT("BilinearFormIntegrator:AddMultPA:(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator::AddMultNURBSPA(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -126,23 +138,30 @@ void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix (
+void BilinearFormIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans,
-   DenseMatrix &elmat )
+   DenseMatrix &elmat)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix2 (
+void BilinearFormIntegrator::AssembleElementMatrix2(
    const FiniteElement &el1, const FiniteElement &el2,
-   ElementTransformation &Trans, DenseMatrix &elmat )
+   ElementTransformation &Trans, DenseMatrix &elmat)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrix (
+void BilinearFormIntegrator::AssemblePatchMatrix(
+   const int patch, const FiniteElementSpace &fes, SparseMatrix*& smat)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePatchMatrix(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
@@ -848,6 +867,19 @@ void DiffusionIntegrator::AssembleElementMatrix
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
+   const NURBSFiniteElement *NURBSFE =
+      dynamic_cast<const NURBSFiniteElement *>(&el);
+
+   bool deleteRule = false;
+   if (NURBSFE && patchRules)
+   {
+      const int patch = NURBSFE->GetPatch();
+      const int* ijk = NURBSFE->GetIJK();
+      Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
+      ir = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
+                                       deleteRule);
+   }
+
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -881,6 +913,11 @@ void DiffusionIntegrator::AssembleElementMatrix
          }
          AddMult_a_AAt(w, dshapedxt, elmat);
       }
+   }
+
+   if (deleteRule)
+   {
+      delete ir;
    }
 }
 
