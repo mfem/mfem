@@ -29,6 +29,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
+  linalg/test_hypre_prec.cpp
   linalg/test_hypre_vector.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
@@ -41,6 +42,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_vector.cpp
+  mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
@@ -93,6 +95,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pgridfunc_save_serial.cpp
   fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadinterpolator.cpp

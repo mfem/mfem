@@ -95,13 +95,7 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -157,6 +151,10 @@ int main(int argc, char *argv[])
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
    rho.ProjectCoefficient(RHO);
+   // Make sure AMR constraints are satisfied
+   rho.SetTrueVector();
+   rho.SetFromTrueVector();
+
    double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
@@ -193,17 +191,13 @@ int main(int argc, char *argv[])
    }
 
    // HO* to LOR* dual fields
-   GridFunction ones(&fespace), ones_lor(&fespace_lor);
-   ones = 1.0;
-   ones_lor = 1.0;
    LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
       const Operator &P = gt->BackwardOperator();
       M_ho.Mult(rho, M_rho);
       P.MultTranspose(M_rho, M_rho_lor);
-      cout << "HO -> LOR dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
-           << endl << endl;
+      cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n";
    }
 
    // LOR projections
@@ -239,8 +233,7 @@ int main(int argc, char *argv[])
    {
       M_lor.Mult(rho_lor, M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
-      cout << "LOR -> HO dual field: " << fabs(M_rho(ones)-M_rho_lor(ones_lor))
-           << '\n';
+      cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
    }
 
    delete fec;
@@ -288,14 +281,11 @@ double compute_mass(FiniteElementSpace *L2, double massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   BilinearForm ML2(L2);
-   ML2.AddDomainIntegrator(new MassIntegrator(one));
-   ML2.Assemble();
+   LinearForm lf(L2);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.Assemble();
 
-   GridFunction rhoone(L2);
-   rhoone = 1.0;
-
-   double newmass = ML2.InnerProduct(*dc.GetField("density"),rhoone);
+   double newmass = lf(*dc.GetField("density"));
    cout.precision(18);
    cout << space << " " << prefix << " mass   = " << newmass;
    if (massL2 >= 0)

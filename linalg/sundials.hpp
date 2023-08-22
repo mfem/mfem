@@ -32,13 +32,24 @@
 #if defined(MFEM_USE_CUDA) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 4))
 #error MFEM requires SUNDIALS version 5.4.0 or newer when MFEM_USE_CUDA=TRUE!
 #endif
+#if defined(MFEM_USE_HIP) && ((SUNDIALS_VERSION_MAJOR == 5) && (SUNDIALS_VERSION_MINOR < 7))
+#error MFEM requires SUNDIALS version 5.7.0 or newer when MFEM_USE_HIP=TRUE!
+#endif
+#if defined(MFEM_USE_CUDA) && !defined(SUNDIALS_NVECTOR_CUDA)
+#error MFEM_USE_CUDA=TRUE requires SUNDIALS to be built with CUDA support
+#endif
+#if defined(MFEM_USE_HIP) && !defined(SUNDIALS_NVECTOR_HIP)
+#error MFEM_USE_HIP=TRUE requires SUNDIALS to be built with HIP support
+#endif
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
 #include <arkode/arkode_arkstep.h>
 #include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
 #include <sunmemory/sunmemory_cuda.h>
+#elif defined(MFEM_USE_HIP)
+#include <sunmemory/sunmemory_hip.h>
 #endif
 
 #include <functional>
@@ -62,10 +73,10 @@ using SUNContext = void*;
 namespace mfem
 {
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 
 // ---------------------------------------------------------------------------
-// SUNMemory interface class (used when CUDA is enabled)
+// SUNMemory interface class (used when CUDA or HIP is enabled)
 // ---------------------------------------------------------------------------
 class SundialsMemHelper
 {
@@ -113,10 +124,10 @@ public:
 
 };
 
-#else // MFEM_USE_CUDA
+#else // MFEM_USE_CUDA || MFEM_USE_HIP
 
 // ---------------------------------------------------------------------------
-// Dummy SUNMemory interface class (used when CUDA is not enabled)
+// Dummy SUNMemory interface class (used when CUDA or HIP is not enabled)
 // ---------------------------------------------------------------------------
 class SundialsMemHelper
 {
@@ -130,7 +141,7 @@ public:
    }
 };
 
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
 
 
 /// Singleton class for SUNContext and SundialsMemHelper objects
@@ -290,17 +301,17 @@ public:
 #endif
 
    /// Create a N_Vector.
-   /** @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+   /** @param[in] use_device  If true, use the SUNDIALS CUDA or HIP N_Vector. */
    static N_Vector MakeNVector(bool use_device);
 
 #ifdef MFEM_USE_MPI
    /// Create a parallel N_Vector.
    /** @param[in] comm  The MPI communicator to use.
-       @param[in] use_device  If true, use the SUNDIALS CUDA N_Vector. */
+       @param[in] use_device  If true, use the SUNDIALS CUDA or HIP N_Vector. */
    static N_Vector MakeNVector(MPI_Comm comm, bool use_device);
 #endif
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    static bool UseManagedMemory()
    {
       return Device::GetDeviceMemoryType() == MemoryType::MANAGED;
