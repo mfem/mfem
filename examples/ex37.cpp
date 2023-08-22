@@ -131,7 +131,7 @@ double Volume()
 /**
  @brief Class for surface linearform integrator
 
- Integrator to emonstrate the use of the surface integration rule on an
+ Integrator to demonstrate the use of the surface integration rule on an
  implicit surface defined by a level-set.
  */
 class SurfaceLFIntegrator : public LinearFormIntegrator
@@ -194,16 +194,14 @@ public:
       shape.SetSize(dof);
       elvect.SetSize(dof);
       elvect = 0.;
-      IsoparametricTransformation Trafo;
-      Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
 
       // Update the surface integration rule for the current element
-      SIntRule->Update(Trafo);
+      SIntRule->SetElement(Tr.ElementNo);
 
       for (int ip = 0; ip < SIntRule->GetNPoints(); ip++)
       {
-         Trafo.SetIntPoint((&(SIntRule->IntPoint(ip))));
-         double val = Trafo.Weight() * Q.Eval(Trafo, SIntRule->IntPoint(ip));
+         Tr.SetIntPoint((&(SIntRule->IntPoint(ip))));
+         double val = Tr.Weight() * Q.Eval(Tr, SIntRule->IntPoint(ip));
          el.CalcShape(SIntRule->IntPoint(ip), shape);
          add(elvect, SIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
@@ -220,10 +218,10 @@ public:
 };
 
 /**
- @brief Class for surface linearform integrator
+ @brief Class for subdomain linearform integrator
 
- Integrator to emonstrate the use of the surface integration rule on an
- implicit surface defined by a level-set.
+ Integrator to demonstrate the use of the subdomain integration rule within
+ an area defined by an implicit surface defined by a level-set.
  */
 class SubdomainLFIntegrator : public LinearFormIntegrator
 {
@@ -253,7 +251,7 @@ public:
     */
    SubdomainLFIntegrator(Coefficient &q, Coefficient &levelset,
                          CutIntegrationRule* ir)
-      : LinearFormIntegrator(), Q(q), LevelSet(levelset), CutIntRule(ir) {cout << __LINE__ << endl;}
+      : LinearFormIntegrator(), Q(q), LevelSet(levelset), CutIntRule(ir) {}
 
    /**
     @brief Constructor for the volumetric subdomain linear form integrator
@@ -285,18 +283,16 @@ public:
       shape.SetSize(dof);
       elvect.SetSize(dof);
       elvect = 0.;
-      IsoparametricTransformation Trafo;
-      Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
-cout << __LINE__ << endl;
+
       // Update the subdomain integration rule
-      CutIntRule->Update(Trafo);
-cout << __LINE__ << endl;
+      CutIntRule->SetElement(Tr.ElementNo);
+
       for (int ip = 0; ip < CutIntRule->GetNPoints(); ip++)
       {
-         Trafo.SetIntPoint((&(CutIntRule->IntPoint(ip))));
-         double val = Trafo.Weight()
-                      * Q.Eval(Trafo, CutIntRule->IntPoint(ip));
-         el.CalcPhysShape(Trafo, shape);
+         Tr.SetIntPoint((&(CutIntRule->IntPoint(ip))));
+         double val = Tr.Weight()
+                      * Q.Eval(Tr, CutIntRule->IntPoint(ip));
+         el.CalcPhysShape(Tr, shape);
          add(elvect, CutIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
    }
