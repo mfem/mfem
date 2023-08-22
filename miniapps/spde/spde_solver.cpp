@@ -268,11 +268,25 @@ DenseMatrix SPDESolver::ConstructMatrixCoefficient(double l1, double l2,
     MultADBt(R, l, R, res);
     return res;
   } else if (dim == 2) {
+    // DenseMatrix res(2, 2);
+    // res(0, 0) = std::pow(l1, 2) / (2.0 * nu);
+    // res(1, 1) = std::pow(l2, 2) / (2.0 * nu);
+    // res(0, 1) = 0;
+    // res(1, 0) = 0;
+    // return res;
+    const double c1 = cos(e1);
+    const double s1 = sin(e1);
+    DenseMatrix Rt(2, 2);
+    Rt(0, 0) =  c1;
+    Rt(0, 1) =  s1;
+    Rt(1, 0) = -s1;
+    Rt(1, 1) =  c1;
+    Vector l(2);
+    l(0) = std::pow(l1, 2);
+    l(1) = std::pow(l2, 2);
+    l *= (1 / (2.0 * nu));
     DenseMatrix res(2, 2);
-    res(0, 0) = std::pow(l1, 2) / (2.0 * nu);
-    res(1, 1) = std::pow(l2, 2) / (2.0 * nu);
-    res(0, 1) = 0;
-    res(1, 0) = 0;
+    MultADAt(Rt,l,res);
     return res;
   } else {
     DenseMatrix res(1, 1);

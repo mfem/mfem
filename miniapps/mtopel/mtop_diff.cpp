@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
                   "Rotation angle in x direction");
    args.AddOption(&angle_y, "-e2", "--e2",
                   "Rotation angle in y direction");             
-   args.AddOption(&angle_y, "-e3", "--e3",
+   args.AddOption(&angle_z, "-e3", "--e3",
                   "Rotation angle in z direction");                                                                    
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
@@ -508,16 +508,25 @@ int main(int argc, char *argv[])
       pgdens.SetFromTrueDofs(vdens);
 
 
-      mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
+      std::ostringstream paraview_file_name;
+      paraview_file_name << "TopOpt:ser_ref_" << ser_ref_levels  
+                                         << "_par_ref_" << par_ref_levels 
+                                         << "_order_" << order 
+                                         << "_num_samples_" << num_samples
+                                         << "_crlx_" << corr_len_x 
+                                         << "_crly_" << corr_len_y 
+                                         << "_angle_x_" << angle_x 
+                                         << "_radius_" << fradius;
+      mfem::ParaViewDataCollection paraview_dc(paraview_file_name.str(), &pmesh);
       {
-          paraview_dc.SetPrefixPath("ParaView");
-          paraview_dc.SetLevelsOfDetail(order);
-          paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
-          paraview_dc.SetHighOrderOutput(true);
-          paraview_dc.SetCycle(0);
-          paraview_dc.SetTime(0.0);
-          paraview_dc.RegisterField("design",&pgdens);
-          paraview_dc.Save();
+         paraview_dc.SetPrefixPath("ParaView");
+         paraview_dc.SetLevelsOfDetail(order);
+         paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
+         paraview_dc.SetHighOrderOutput(true);
+         paraview_dc.SetCycle(0);
+         paraview_dc.SetTime(0.0);
+         paraview_dc.RegisterField("design",&pgdens);
+         paraview_dc.Save();
       }
 
       for(int i=1;i<max_it;i++){
