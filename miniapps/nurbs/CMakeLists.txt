@@ -12,7 +12,7 @@
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
-  
+
 add_mfem_miniapp(nurbs_curveint
   MAIN nurbs_curveint.cpp
   LIBRARIES mfem)
@@ -71,6 +71,30 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_curveint_non_unit_weight_ser
     COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
     -nw -n 9)
+
+  add_test(NAME nurbs_ex1_two_squares_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
+
+  add_test(NAME nurbs_ex1_two_squares_rot_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
+
+  add_test(NAME nurbs_ex1_two_squares_autoedge_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
+
+  add_test(NAME nurbs_ex1_two_cubes_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+
+  add_test(NAME nurbs_ex1_two_cubes_rot_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+
+  add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
 endif()
 
 if (MFEM_USE_MPI)
