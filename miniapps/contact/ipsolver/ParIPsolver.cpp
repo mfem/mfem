@@ -520,27 +520,29 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          CGSolver AreducedSolver(MPI_COMM_WORLD);
 	      AreducedSolver.SetOperator(*Areduced);
          // AreducedSolver.SetRelTol(linSolveTol);
-         AreducedSolver.SetRelTol(1e-6);
-         AreducedSolver.SetMaxIter(500);
+         AreducedSolver.SetRelTol(linSolveTol);
+         AreducedSolver.SetMaxIter(1000);
          HypreBoomerAMG amg(*Areduced);
          amg.SetPrintLevel(0);
          amg.SetSystemsOptions(3,false);
+
+
          AreducedSolver.SetPreconditioner(amg);
          // AreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
-	      AreducedSolver.SetPrintLevel(1);
+	      AreducedSolver.SetPrintLevel(3);
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          cgnum_iterations.Append(AreducedSolver.GetNumIterations());
 
          CGSolver blockAreducedSolver(MPI_COMM_WORLD);
 	      blockAreducedSolver.SetOperator(*blockAreduced);
-         blockAreducedSolver.SetAbsTol(1e-6);
+         blockAreducedSolver.SetRelTol(linSolveTol);
          blockAreducedSolver.SetMaxIter(1000);
          BlockDiagonalPreconditioner prec(offsets);
-         // HypreParMatrix * K00 = dynamic_cast<HypreParMatrix *>(&blockAreduced->GetBlock(0,0));
-         // HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockAreduced->GetBlock(1,1));
+         HypreParMatrix * K00 = dynamic_cast<HypreParMatrix *>(&blockAreduced->GetBlock(0,0));
+         HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockAreduced->GetBlock(1,1));
 
-         HypreParMatrix * K00 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(0,0));
-         HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(1,1));
+         // HypreParMatrix * K00 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(0,0));
+         // HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(1,1));
 
          HypreBoomerAMG amg0(*K00);
          // amg0.SetElasticityOptions(problem->GetElasticityProblem1()->GetFESpace());
@@ -552,10 +554,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          amg1.SetPrintLevel(0);
          prec.SetDiagonalBlock(0,&amg0);
          prec.SetDiagonalBlock(1,&amg1);
-         blockAreducedSolver.SetPreconditioner(prec);
+         // blockAreducedSolver.SetPreconditioner(prec);
+         blockAreducedSolver.SetPreconditioner(amg);
          // blockAreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
-	      blockAreducedSolver.SetPrintLevel(1);
-         // blockAreducedSolver.Mult(breduced, XX);
+	      blockAreducedSolver.SetPrintLevel(3);
+         blockAreducedSolver.Mult(breduced, XX);
          blockcgnum_iterations.Append(blockAreducedSolver.GetNumIterations());
       }
 

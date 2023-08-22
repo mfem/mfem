@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
    Array<int> m_attr;
    bool visualization = true;
    bool paraview = false;
+   double linsolvertol = 1e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file1, "-m1", "--mesh1",
@@ -42,6 +43,8 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements.");           
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");     
+   args.AddOption(&linsolvertol, "-stol", "--solver-tol",
+                  "Linear Solver Tolerance.");                       
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");                   
@@ -84,7 +87,7 @@ int main(int argc, char *argv[])
 
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
-   optimizer.SetLinearSolveTol(1e-10);
+   optimizer.SetLinearSolveTol(linsolvertol);
 
    ParGridFunction x1 = prob1->GetDisplacementGridFunction();
    ParGridFunction x2 = prob2->GetDisplacementGridFunction();
