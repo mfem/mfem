@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_curveint
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -89,6 +89,16 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_15))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
+
+EX1PATCH_ARGS_1 := -incdeg 3 -ref 2 -iro 8 -patcha
+EX1PATCH_ARGS_2 := -incdeg 3 -ref 2 -iro 8 -patcha -pa
+EX1PATCH_ARGS_3 := -incdeg 3 -ref 2 -iro 8 -patcha -fint
+nurbs_patch_ex1-test-seq: nurbs_patch_ex1
+ifeq ($(MFEM_USE_LAPACK),YES)
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_1))
+endif
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
 
 CI_ARGS_1 := -uw -n 9 -no-visit
 CI_ARGS_2 := -nw -n 9 -no-visit

@@ -3351,6 +3351,55 @@ void NURBSExtension::Generate3DElementDofTable()
    el_dof = new Table(NumOfActiveElems, el_dof_list);
 }
 
+void NURBSExtension::GetPatchDofs(const int patch, Array<int> &dofs)
+{
+   const KnotVector *kv[3];
+   NURBSPatchMap p2g(this);
+
+   p2g.SetPatchDofMap(patch, kv);
+
+   if (Dimension() == 1)
+   {
+      const int nx = kv[0]->GetNCP();
+      dofs.SetSize(nx);
+
+      for (int i=0; i<nx; ++i)
+      {
+         dofs[i] = DofMap(p2g(i));
+      }
+   }
+   else if (Dimension() == 2)
+   {
+      const int nx = kv[0]->GetNCP();
+      const int ny = kv[1]->GetNCP();
+      dofs.SetSize(nx * ny);
+
+      for (int j=0; j<ny; ++j)
+         for (int i=0; i<nx; ++i)
+         {
+            dofs[i + (nx * j)] = DofMap(p2g(i, j));
+         }
+   }
+   else if (Dimension() == 3)
+   {
+      const int nx = kv[0]->GetNCP();
+      const int ny = kv[1]->GetNCP();
+      const int nz = kv[2]->GetNCP();
+      dofs.SetSize(nx * ny * nz);
+
+      for (int k=0; k<nz; ++k)
+         for (int j=0; j<ny; ++j)
+            for (int i=0; i<nx; ++i)
+            {
+               dofs[i + (nx * (j + (k * ny)))] = DofMap(p2g(i, j, k));
+            }
+   }
+   else
+   {
+      MFEM_ABORT("Only 1D/2D/3D supported currently in NURBSExtension::GetPatchDofs");
+   }
+}
+
 void NURBSExtension::GenerateBdrElementDofTable()
 {
    if (Dimension() == 1)
@@ -4042,6 +4091,12 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
       }
       delete patches[p];
    }
+}
+
+void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk)
+{
+   MFEM_VERIFY(ijk.Size() == el_to_IJK.NumCols(), "");
+   el_to_IJK.GetRow(elem, ijk);
 }
 
 void NURBSExtension::SetPatchToElements()

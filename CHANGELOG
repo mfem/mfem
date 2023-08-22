@@ -74,6 +74,11 @@ Discretization improvements
 
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
+- Added support for partial assembly on NURBS patches and NURBS patch sparse
+  matrix assembly. Patch matrix assembly includes the option to use reduced
+  approximate integration rules, computed by the newly implemented non-negative
+  least-squares (NNLS) solver.
+
 - Added support for p-refined meshes in FindPointsGSLIB.
 
 Linear and nonlinear solvers
