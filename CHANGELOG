@@ -45,6 +45,10 @@ New and updated examples and miniapps
 
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
+- Added a new parallel LOR transfer miniapp, miniapps/tools/plor-transfer, which
+  mirrors the functionality of the serial LOR transfer miniapp,
+  miniapps/tools/lor-transfer
+
 Meshing improvements
 --------------------
 - Added support for free connectivity of NURBS patches allowing for more complex
@@ -80,6 +84,9 @@ Discretization improvements
   least-squares (NNLS) solver.
 
 - Added support for p-refined meshes in FindPointsGSLIB.
+
+- Support for parallel transfer of H1 fields using the low-order refined (LOR)
+  transfer operators in L2ProjectionGridTransfer
 
 Linear and nonlinear solvers
 ----------------------------
