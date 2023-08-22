@@ -853,7 +853,7 @@ public:
                         bool fix_orientation = true);
    /// Finalize the construction of any type of Mesh.
    /** This method calls FinalizeTopology() and Finalize(). */
-   void FinalizeMesh(int refine = 0, bool fix_orientation = true);
+   void FinalizeMesh(int refine = 0, bool fix_orientation = true, bool generate_bdr=true);
 
    ///@}
 

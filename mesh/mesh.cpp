@@ -1626,17 +1626,20 @@ void Mesh::SetAttributes()
 {
    Array<int> attribs;
 
-   attribs.SetSize(GetNBE());
-   for (int i = 0; i < attribs.Size(); i++)
-   {
-      attribs[i] = GetBdrAttribute(i);
-   }
-   attribs.Sort();
-   attribs.Unique();
-   attribs.Copy(bdr_attributes);
-   if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
-   {
-      MFEM_WARNING("Non-positive attributes on the boundary!");
+   // std::cout << GetNBE() << " k10getnbe\n";
+   if (GetNBE() > 0) {
+      attribs.SetSize(GetNBE());
+      for (int i = 0; i < attribs.Size(); i++)
+      {
+         attribs[i] = GetBdrAttribute(i);
+      }
+      attribs.Sort();
+      attribs.Unique();
+      attribs.Copy(bdr_attributes);
+      if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive attributes on the boundary!");
+      }
    }
 
    attribs.SetSize(GetNE());
@@ -2988,9 +2991,9 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    SetMeshGen();
 }
 
-void Mesh::FinalizeMesh(int refine, bool fix_orientation)
+void Mesh::FinalizeMesh(int refine, bool fix_orientation, bool generate_bdr)
 {
-   FinalizeTopology();
+   FinalizeTopology(generate_bdr);
 
    Finalize(refine, fix_orientation);
 }
@@ -3165,6 +3168,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
       }
    }
 #endif
+   SetMeshGen();
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
@@ -3948,7 +3952,7 @@ Mesh::Mesh(double *vertices_, int num_vertices,
    }
    NumOfBdrElements = num_boundary_elements;
 
-   FinalizeTopology();
+   FinalizeTopology(NumOfBdrElements > 0);
 }
 
 Element *Mesh::NewElement(int geom)

@@ -957,7 +957,7 @@ double csg_cubecylsph_smooth(const Vector &x)
    Vector xcc = x;
    xcc = 0.5;
    const int dim = x.Size();
-   const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+   // const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
    MFEM_VERIFY(dim == 3, "Only 3D supported for this level set");
    Vector x2 = x;
    x2 -= xcc;
