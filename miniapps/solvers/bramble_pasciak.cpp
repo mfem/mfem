@@ -141,11 +141,6 @@ void BramblePasciakSolver::Init(
          solver_.As<BPCGSolver>()->SetIncompletePreconditioner(*ipc_);
          solver_.As<BPCGSolver>()->SetParticularPreconditioner(*ppc_);
       }
-
-      // TODO
-      // Set remaining pointers to nullptr?
-      if (Mpi::Root()) { MFEM_WARNING("mop_, map_, cpc_ unset!"); }
-      if (param.use_hpc && Mpi::Root()) { MFEM_WARNING("H preconditioner is implicit when using BGCG. hpc_ unset!"); }
    }
    else
    {
@@ -194,10 +189,6 @@ void BramblePasciakSolver::Init(
          solver_.As<CGSolver>()->SetOperator(*mop_);
          solver_.As<CGSolver>()->SetPreconditioner(*cpc_);
       }
-
-      // TODO
-      // Set remaining pointers to nullptr?
-      if (Mpi::Root()) { MFEM_WARNING("oop_, ipc_, ppc_ unset!"); }
    }
 }
 
@@ -249,10 +240,6 @@ void BramblePasciakSolver::Init(
          solver_.As<BPCGSolver>()->SetIncompletePreconditioner(*ipc_);
          solver_.As<BPCGSolver>()->SetParticularPreconditioner(*ppc_);
       }
-
-      // TODO
-      // Set remaining pointers to nullptr?
-      if (Mpi::Root()) { MFEM_WARNING("mop_, map_, cpc_ unset!"); }
    }
    else
    {
@@ -288,10 +275,6 @@ void BramblePasciakSolver::Init(
          solver_.As<CGSolver>()->SetOperator(*mop_);
          solver_.As<CGSolver>()->SetPreconditioner(*cpc_);
       }
-
-      // TODO
-      // Set remaining pointers to nullptr?
-      if (Mpi::Root()) { MFEM_WARNING("oop_, ipc_, ppc_ unset!"); }
    }
 }
 
