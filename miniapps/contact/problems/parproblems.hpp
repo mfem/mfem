@@ -104,6 +104,7 @@ private:
    GridFunction *nodes1 = nullptr;
    std::set<int> contact_vertices;
    bool recompute = true;
+   bool compute_hessians = true;
    std::vector<int> dof_offsets;
    std::vector<int> vertex_offsets; 
    std::vector<int> constraints_offsets; 
@@ -166,7 +167,7 @@ public:
    HypreParMatrix* DddE(const Vector &d);
    BlockOperator* blockDddE(const Vector &d);
    BlockOperator* GetOperator(){return blockK;}
-   void g(const Vector &d, Vector &gd);
+   void g(const Vector &d, Vector &gd, bool compute_hessians_ = true);
    HypreParMatrix* Ddg(const Vector &d);
    BlockOperator* blockDdg(const Vector &d);
    HypreParMatrix* lDddg(const Vector &d, const Vector &l);

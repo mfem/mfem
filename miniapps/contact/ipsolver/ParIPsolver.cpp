@@ -159,7 +159,6 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    * that is the filter does not allow for iterates where the constraint violation
    * is larger than that of thetaMax
    */
-
    double theta0 = theta(xk);
    thetaMin = 1.e-4 * max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)

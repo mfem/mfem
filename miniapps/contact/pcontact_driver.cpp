@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
    ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
    Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
    Vector mu1(prob1->GetMesh()->attributes.Max()); mu1 = 38.4615384615;
-
    ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
    Vector lambda2(prob2->GetMesh()->attributes.Max()); lambda2 = 57.6923076923;
    Vector mu2(prob2->GetMesh()->attributes.Max()); mu2 = 38.4615384615;

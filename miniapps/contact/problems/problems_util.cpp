@@ -939,6 +939,70 @@ void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coord
    M2.Finalize();
 };
 
+void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+                      const Array<int> m_conn, Vector& g, SparseMatrix & M1, SparseMatrix & M2,
+                      const Array<int> & points_map) 
+{
+   int ndim = 3;
+
+   int npoints = s_conn.Size();
+   g.SetSize(npoints);
+   g = 0.0;
+
+   double g_tmp = 0.;
+   Vector dg(4*ndim+ndim);
+   Vector dg1;
+   Vector dg2;
+   dg = 0.;
+   DenseMatrix d2g(4*ndim+ndim,4*ndim+ndim);
+   DenseMatrix d2g11(4*ndim,4*ndim);
+   DenseMatrix d2g12(4*ndim,ndim);
+   DenseMatrix d2g21(ndim,4*ndim);
+   DenseMatrix d2g22(ndim,ndim);
+   d2g = 0.;
+
+   for (int i = 0; i < npoints; i++)
+   {
+      Vector x1(ndim);
+      x1[0] = x_s[i*ndim];
+      x1[1] = x_s[i*ndim+1];
+      x1[2] = x_s[i*ndim+2];
+
+      Vector xi2(ndim-1);
+      xi2[0] = xi[i*(ndim-1)];
+      xi2[1] = xi[i*(ndim-1)+1];
+
+      DenseMatrix coords2(4,3);
+      coords2.CopyRows(coordsm, i*4,(i+1)*4-1);
+
+      dg = 0.0; d2g = 0.0;
+      
+      NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, d2g);
+      double * dgdata = dg.GetData();
+      dg1.SetDataAndSize(&dgdata[ndim],4*ndim);
+      dg2.SetDataAndSize(dgdata,ndim);
+
+      g[i] = g_tmp; 
+      Array<int> m_conn_i(4);
+      m_conn.GetSubArray(4*i, 4, m_conn_i);
+
+      Array<int> M2_idx(ndim); 
+      Array<int> M1_idx(4*ndim); 
+      for (int d=0; d<ndim; d++)
+      {
+         M2_idx[d] = s_conn[i]*ndim+d;
+         for (int j=0; j<4; j++)
+         {
+            M1_idx[j*ndim+d] = m_conn_i[j]*ndim+d;
+         }
+      }
+      M1.AddRow(points_map[i],M1_idx,dg1);
+      M2.AddRow(points_map[i],M2_idx,dg2);
+   }
+   M1.Finalize();
+   M2.Finalize();
+};
+
 
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {
