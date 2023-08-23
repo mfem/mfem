@@ -177,7 +177,7 @@ complex<double> L_cold_plasma(double omega,
    }
    return val;
 }
-/*
+
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -227,8 +227,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -314,7 +314,6 @@ complex<double> S_cold_plasma(double omega,
          suscept_particle = first_harm + second_harm + complex<double>(0.0,nui);
       }
       // SPARC Case 2: D (H Minority)
-      /*
       else if (i == 1)
       {
          // Z function:
@@ -332,13 +331,13 @@ complex<double> S_cold_plasma(double omega,
                                  2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm)
                                  + complex<double>(0.0,nui);
       }
-      */
+
       val += suscept_particle;
    }
    return val;
 }
+*/
 
-/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -388,8 +387,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -476,7 +475,6 @@ complex<double> D_cold_plasma(double omega,
                             + complex<double>(0.0,nui);
       }
       // SPARC Case 2: D (H Minority)
-      /*
       else if (i == 1)
       {
          // Z function:
@@ -494,12 +492,12 @@ complex<double> D_cold_plasma(double omega,
                                  2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm)
                                  - complex<double>(0.0,nui);
       }
-      */
       val += suscept_particle;
    }
    return val;
 }
-/*
+*/
+
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -534,8 +532,8 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -579,7 +577,7 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-
+*/
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath impedance parameterization code for Kohno et al 2017
 double gabsANY(double x)
