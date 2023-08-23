@@ -6,9 +6,8 @@
 // Sample runs:
 // mpirun -np 4 ex37p -alpha 10 -pv
 // mpirun -np 4 ex37p -lambda 0.1 -mu 0.1
-// mpirun -np 4 ex37p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
-// mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
-// mpirun -np 4 ex37p -r 7 -o 1 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 4 ex37p -o 2 -alpha 5.0 -mi 50 -mf 0.4 -tol 1e-5
+// mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -tol 1e-5
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve a
@@ -108,20 +107,8 @@ double projit(ParGridFunction &psi, double target_volume, double tol=1e-12,
    MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1, MPI_DOUBLE, MPI_SUM,
                  MPI_COMM_WORLD);
    return material_volume;
-   // return int_sigmoid_psi.Sum();
 }
 
-
-/**
- * @brief Enforce boundedness, -max_val ≤ psi ≤ max_val
- *
- * @param psi a GridFunction to be bounded (in place)
- * @param max_val upper and lower bound
- */
-inline void clip(ParGridFunction &psi, const double max_val)
-{
-   for (auto &val : psi) { val = min(max_val, max(-max_val, val)); }
-}
 /**
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE
@@ -187,13 +174,11 @@ inline void clip(ParGridFunction &psi, const double max_val)
  *
  *     6. Mirror descent update until convergence; i.e.,
  *
- *                      ψ ← clip(projit(ψ - αG)),
+ *                      ψ ← projit(ψ - αG),
  *
  *     where
  *
  *          α > 0                                    (step size parameter)
- *
- *          clip(y) = min(max_val, max(min_val, y))  (boundedness enforcement)
  *
  *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ(=sigmoid(ψ)) dx = θ vol(Ω).
  *
@@ -210,7 +195,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   int ref_levels = 4;
+   int ref_levels = 5;
    int order = 2;
    double alpha = 1.0;
    double epsilon = 0.01;
@@ -336,8 +321,6 @@ int main(int argc, char *argv[])
    rho_filter = mass_fraction;
    psi = inv_sigmoid(mass_fraction);
    psi_old = inv_sigmoid(mass_fraction);
-
-   const double sigmoid_bound = -inv_sigmoid(rho_min);
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
@@ -470,10 +453,9 @@ int main(int argc, char *argv[])
       w_rhs.Assemble();
       M.Mult(w_rhs,grad);
 
-      // Step 5 - Update design variable ψ ← clip(projit(ψ - αG))
+      // Step 5 - Update design variable ψ ← projit(ψ - αG)
       psi.Add(-alpha, grad);
       const double material_volume = projit(psi, target_volume);
-      clip(psi, sigmoid_bound);
 
       // Compute ||ρ - ρ_old|| in control fes.
       double norm_reduced_gradient = zerogf.ComputeL2Error(succ_diff_rho)/alpha;
