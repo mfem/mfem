@@ -213,7 +213,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
       BuildFaceGroup(ngroups, rht, nstrias, rhq, nsquads);
    }
-   else if (Dim == 2)
+   else
    {
       group_stria.MakeI(ngroups);
       group_stria.MakeJ();
