@@ -594,7 +594,7 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   // note: coil term no longer includes current contributions
   // that is included in F matrix below...
   diff_operator->Mult(psi, y);
-  add(y, -1.0, *coil_term, y);
+  // add(y, -1.0, *coil_term, y);
   if (include_plasma) {
     add(y, -1.0, plasma_term, y);
   }

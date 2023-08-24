@@ -226,11 +226,13 @@ void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
 
 
 void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
-               Mesh & mesh, map<int, double> & coil_current_values,
+               Mesh & mesh, 
                ExactCoefficient & exact_coefficient,
                ExactForcingCoefficient & exact_forcing_coeff, LinearForm & coil_term,
                SparseMatrix * F) {
   /*
+    8/24: This function creates the F matrix
+
     Inputs:
     model: PlasmaModel containing constants used in plasma
     attribs: unique element attributes used by the mesh
@@ -250,8 +252,6 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
 
   // these are the unique element attributes used by the mesh
   Array<int> attribs(mesh.attributes);
-  Vector coil_current(attribs.Max());
-  coil_current = 0.0;
   // 832 is the long coil
   for (int i = 0; i < attribs.Size(); ++i) {
     int attrib = attribs[i];
@@ -265,8 +265,6 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
     case 1100:
       break;
     default:
-      coil_current(attrib-1) = coil_current_values[attrib];
-
       double mu = model.get_mu();
       //
       Vector pw_vector(attribs.Max());
@@ -277,10 +275,8 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
       lf.AddDomainIntegrator(new DomainLFIntegrator(pw_coeff));
       lf.Assemble();
       double area = lf(ones);
-      // cout << area << endl;
       for (int j = 0; j < ndof; ++j) {
         if (lf[j] != 0) {
-          // F->Set(j, current_counter, mu * lf[j] / area);
           F->Set(j, current_counter, lf[j] / area);
         }
       }
@@ -288,16 +284,6 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
     }
   }
   F->Finalize();
-  // F->PrintMatlab();
-
-  exact_forcing_coeff.set_coil_current(&coil_current);
-
-  // note: current contribution comes from F above, this is no longer necessary
-  // // add contribution from currents into rhs
-  // PWConstCoefficient coil_current_pw(coil_current);
-  // if (false) {
-  //   coil_term.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
-  // }
 
   // manufactured solution forcing
   // has no effect when manufactured solution is turned off
@@ -336,14 +322,6 @@ void DefineRHS(PlasmaModelBase & model, double & rho_gamma,
 
   }
 
-  // GridFunction u_ex_(fespace);
-  // const char *data_file = "separated_file.data";
-  // InitialCoefficient init_coeff = read_data_file(data_file, true);
-  // u_ex_.ProjectCoefficient(init_coeff);
-  // coil_term -= u_ex_;
-
-  // GridFunction out(fespace);
-  // out = coil_term;
   
 }
 
@@ -399,17 +377,24 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
 }
 
 
-void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *model, GridFunction & x, int & kdim,
+void Solve(FiniteElementSpace & fespace, SysOperator & op_, PlasmaModelBase *model, GridFunction & x, int & kdim,
            int & max_newton_iter, int & max_krylov_iter,
            double & newton_tol, double & krylov_tol, double & ur_coeff,
            vector<Vector> *alpha_coeffs, vector<Array<int>> *J_inds,
            double & Ip, int N_control, int do_control,
-           int add_alpha, int obj_option, double & obj_weight) {
+           int add_alpha, int obj_option, double & obj_weight,
+           double & rho_gamma,
+           Mesh * mesh,
+           ExactForcingCoefficient * exact_forcing_coeff,
+           ExactCoefficient * exact_coefficient,
+           InitialCoefficient * init_coeff,
+           bool include_plasma,
+           double & weight_coils,
+           double & weight_solenoids,
+           Vector & uv_,
+           double & alpha_) {
   cout << "size: " << alpha_coeffs->size() << endl;
 
-  op.set_i_option(obj_option);
-  op.set_obj_weight(obj_weight);
-  
   GridFunction dx(&fespace);
   GridFunction res(&fespace);
   dx = 0.0;
@@ -433,6 +418,43 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
   visit_dc.RegisterField("Br", &Br_field);
   visit_dc.RegisterField("Bp", &Bp_field);
   visit_dc.RegisterField("Bz", &Bz_field);
+
+  LinearForm coil_term_(&fespace);
+  int ndof__ = fespace.GetNDofs();
+  SparseMatrix * F_;
+  F_ = new SparseMatrix(ndof__, num_currents);
+  DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term_, F_);
+  
+  BilinearForm diff_operator_(&fespace);
+  DefineLHS(*model, rho_gamma, diff_operator_);
+
+  SparseMatrix * K_;
+  Vector g_;
+  vector<Vector> *alpha_coeffs_;
+  vector<Array<int>> *J_inds_;
+  alpha_coeffs_ = new vector<Vector>;
+  J_inds_ = new vector<Array<int>>;
+  init_coeff->compute_QP(N_control, mesh, &fespace);
+  K_ = init_coeff->compute_K();
+  g_ = init_coeff->compute_g();
+  J_inds_ = init_coeff->get_J();
+  alpha_coeffs_ = init_coeff->get_alpha();
+
+  SparseMatrix * H_;
+  H_ = new SparseMatrix(num_currents, num_currents);
+  for (int i = 0; i < num_currents; ++i) {
+    if (i < 5) {
+      H_->Set(i, i, weight_coils);
+    } else {
+      H_->Set(i, i, weight_solenoids);
+    }
+  }
+  H_->Finalize();
+
+  SysOperator op(&diff_operator_, &coil_term_, model, &fespace, mesh, attr_lim, &x, F_, &uv_, H_, K_, &g_, alpha_coeffs_, J_inds_, &alpha_, include_plasma);
+
+  op.set_i_option(obj_option);
+  op.set_obj_weight(obj_weight);
   
   if (do_control) {
     // solve the optimization problem of determining currents to fit desired plasma shape
@@ -459,7 +481,13 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
       printf("%.3e ", (*uv)[i]);
     }
     printf("]\n");
-    
+
+    double alpha_res;
+    // double *alpha_bar = op.get_alpha_bar();
+    double alpha  = *(op.get_alpha_bar());
+    cout << "alpha " << alpha << endl;
+
+ 
     // Vector * g = op.get_g();
     GridFunction pv(&fespace);
     pv = 0.0;
@@ -487,11 +515,6 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
     b1p = 0.0;
     b2p = 0.0;
     b3p = 0.0;
-
-    double alpha_res;
-    // double *alpha_bar = op.get_alpha_bar();
-    double alpha  = *(op.get_alpha_bar());
-    cout << "alpha " << alpha << endl;
 
     // define block structure of matrix
     int n_off = 6;
@@ -975,21 +998,6 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & weight_obj, int obj_option, bool optimize_alpha,
           bool do_manufactured_solution, bool do_initial) {
 
-   map<int, double> coil_current_values;
-   // center solenoids
-   coil_current_values[832] = c1 / 2.71245;
-   coil_current_values[833] = c2 / 2.7126;
-   coil_current_values[834] = c3 / 5.4249;
-   coil_current_values[835] = c4 / 2.7126;
-   coil_current_values[836] = c5 / 2.71245;
-   // poloidal flux coils
-   coil_current_values[837] = c6 / 2.0 / 1.5;
-   coil_current_values[838] = c7 / 2.0 / 1.5;
-   coil_current_values[839] = c8 / 2.0 / 1.5;
-   coil_current_values[840] = c9 / 2.0 / 1.5;
-   coil_current_values[841] = c10 / 2.0 / 1.5;
-   coil_current_values[842] = c11 / 2.0 / 1.5;
-
    Vector uv_currents(num_currents);
    uv_currents[0] = c1;
    uv_currents[1] = c2;
@@ -1062,8 +1070,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
   int ndof = fespace.GetNDofs();
   SparseMatrix * F;
   F = new SparseMatrix(ndof, num_currents);
-
-  DefineRHS(model, rho_gamma, mesh, coil_current_values, exact_coefficient, exact_forcing_coeff, coil_term, F);
+  DefineRHS(model, rho_gamma, mesh, exact_coefficient, exact_forcing_coeff, coil_term, F);
   cout << F->ActualWidth() << endl;
   cout << uv_currents.Size() << endl;
   // if (true) {
@@ -1117,23 +1124,20 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    vector<Array<int>> *J_inds;
    alpha_coeffs = new vector<Vector>;
    J_inds = new vector<Array<int>>;
+   InitialCoefficient init_coeff = read_data_file(data_file);
    if (do_manufactured_solution) {
      u.ProjectCoefficient(exact_coefficient);
      u.Save("exact.gf");
    } else {
-     InitialCoefficient init_coeff = read_data_file(data_file);
 
      if (do_control) {
        init_coeff.compute_QP(N_control, &mesh, &fespace);
        K = init_coeff.compute_K();
        g = init_coeff.compute_g();
+       J_inds = init_coeff.get_J();
        alpha_coeffs = init_coeff.get_alpha();
        cout << "size: " << alpha_coeffs->size() << endl;
-     
-       J_inds = init_coeff.get_J();
      }
-     // K->PrintMatlab();
-     // g.Print();
 
      u.ProjectCoefficient(init_coeff);
 
@@ -1168,7 +1172,17 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    
    Solve(fespace, op, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, ur_coeff,
          alpha_coeffs, J_inds, Ip, N_control, do_control,
-         optimize_alpha, obj_option, weight_obj);
+         optimize_alpha, obj_option, weight_obj,
+         rho_gamma,
+         &mesh,
+         &exact_forcing_coeff,
+         &exact_coefficient,
+         &init_coeff,
+         include_plasma,
+         weight_coils,
+         weight_solenoids,
+         uv_currents,
+         alpha);
    if (do_initial) {
      char name_gf_out[60];
      char name_mesh_out[60];

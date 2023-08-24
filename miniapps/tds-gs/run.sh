@@ -26,7 +26,7 @@ mu=12.5663706144e-7
 # mu=1.0
 mesh_file="meshes/iter_gen.msh"
 data_file="separated_file.data"
-refinement_factor=3
+refinement_factor=2
 
 do_test=0
 do_manufactured_solution=0
