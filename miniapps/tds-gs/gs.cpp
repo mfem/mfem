@@ -114,7 +114,7 @@ void test_grad(SysOperator *op, GridFunction x, FiniteElementSpace fespace) {
   // Test grad_obj and hess_obj
   double obj1, obj2, grad_obj_FD;
 
-  op->set_i_option(1);
+  op->set_i_option(2);
   
   GridFunction grad_obj(&fespace);
   GridFunction grad_obj_1(&fespace);
@@ -403,14 +403,18 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
            int & max_newton_iter, int & max_krylov_iter,
            double & newton_tol, double & krylov_tol, double & ur_coeff,
            vector<Vector> *alpha_coeffs, vector<Array<int>> *J_inds,
-           double & Ip, int N_control, int do_control) {
+           double & Ip, int N_control, int do_control,
+           int add_alpha, int obj_option, double & obj_weight) {
   cout << "size: " << alpha_coeffs->size() << endl;
 
+  op.set_i_option(obj_option);
+  op.set_obj_weight(obj_weight);
+  
   GridFunction dx(&fespace);
   GridFunction res(&fespace);
   dx = 0.0;
 
-  bool add_alpha = false;
+  // bool add_alpha = true;
   bool reduce = true;
 
   GridFunction psi_r(&fespace);
@@ -468,6 +472,7 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
     GridFunction eq_res(&fespace);
     Vector reg_res(uv->Size());
     GridFunction opt_res(&fespace);
+    opt_res = 0.0;
 
     GridFunction b1(&fespace);
     Vector b2(uv->Size());
@@ -524,18 +529,11 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
       Vector Cy = op.get_Cy();
       Vector Ba = op.get_Ba();
       cout << "plasma current " << C / op.get_mu() << endl;
-      
-      // op.Mult(x, eq_res);
-      // SparseMatrix *By_ = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
-      // SparseMatrix By = *By_;
-      // double C = op.get_Plasma_Current();
-      // cout << "plasma current " << C / op.get_mu() << endl;
-      // double Ca = op.get_Alpha_Term();
-      // Vector Cy = op.get_Plasma_Vec();
-      // Vector Ba = op.get_B_alpha();
 
       if (i == 0) {
         eq_res.Save("initial_eq_res.gf");
+      } else {
+        eq_res.Save("eq_res.gf");
       }
 
       double psi_x = op.get_psi_x();
@@ -543,8 +541,8 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
       double* x_x = op.get_x_x();
       double* x_ma = op.get_x_ma();
 
-      printf("psi_x:  %e, location: (%e, %e)\n", psi_x, x_x[0], x_x[1]);
-      printf("psi_ma: %e, location: (%e, %e)\n", psi_ma, x_ma[0], x_ma[1]);
+      printf("psi_x = %e; r_x = %e; z_x = %e\n", psi_x, x_x[0], x_x[1]);
+      printf("psi_ma = %e; r_ma = %e; z_ma = %e\n", psi_ma, x_ma[0], x_ma[1]);
 
       // if (i == 0) {
       //   return;
@@ -554,13 +552,25 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
       BzCoeff.set_psi_vals(psi_x, psi_ma);
 
       SparseMatrix * K = op.compute_hess_obj(x);
-      // Vector * g = op.compute_grad_obj(x);
-      Vector * g = op.get_g();
+
+      printf("K: %d %d\n", K->Height(), K->ActualWidth());
+      printf("xv size: %d\n", x.Size());
+      
+      Vector g = op.compute_grad_obj(x);
+      // Vector * g = op.get_g();
 
       // -b1 = opt_res = K y^n + B_y^T p^n + C_y l^n - g
-      K->Mult(x, opt_res);
+      // DAS: NEW!
+      // -b1 = opt_res = g(y^n) + B_y^T p^n + C_y l^n
+      // K->Mult(x, opt_res);
+      // for (int i = 0; i < x.Size(); ++i) {
+      //   if ((opt_res[i] != 0.0) && (g[i] != 0.0)) {
+      //     printf("%e %e %e\n", opt_res[i], g[i], opt_res[i] - g[i]);
+      //   }
+      // }
+      opt_res = g;
       By.AddMultTranspose(pv, opt_res);
-      add(opt_res, -1.0, *g, opt_res);
+      // add(opt_res, -1.0, g, opt_res);
       // add(opt_res, -psi_x, *g, opt_res);
       if (add_alpha) {
         add(opt_res, lv, Cy, opt_res);
@@ -600,11 +610,11 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
 
       if (i == 0) {
         printf("i: %3d, nonl_res: %.3e, ratio %9s, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
-               i, error, "", max_opt_res, max_reg_res, abs(b4), abs(b5), true_obj+regularization, true_obj, regularization);
+               i, error, "", max_opt_res, max_reg_res, abs(b4), abs(b5), true_obj+regularization, test_obj, regularization);
       } else {
         printf("i: %3d, nonl_res: %.3e, ratio %.3e, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
-               i, error, error_old / error, max_opt_res, max_reg_res, abs(b4), abs(b5), true_obj+regularization,
-               true_obj, regularization);
+               i, error, error_old / error, max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization,
+               test_obj, regularization);
       }
       error_old = error;
       printf("\n");
@@ -935,17 +945,10 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, PlasmaModelBase *mode
       x -= dx;
 
       x.Save("xtmp.gf");
-      dx.Save("dx.gf");
       GridFunction err(&fespace);
       err = out_vec;
       err.Save("res.gf");
 
-      // cout << "x" << "i" << i << endl;
-      // x.Print();
-      // x.Print();
-      // if (true) {
-      //   return;
-      // }
       visit_dc.Save();
 
 
@@ -969,6 +972,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & c8, double & c9, double & c10, double & c11,
           double & ur_coeff,
           int do_control, int N_control, double & weight_solenoids, double & weight_coils,
+          double & weight_obj, int obj_option, bool optimize_alpha,
           bool do_manufactured_solution, bool do_initial) {
 
    map<int, double> coil_current_values;
@@ -1111,6 +1115,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    Vector g;
    vector<Vector> *alpha_coeffs;
    vector<Array<int>> *J_inds;
+   alpha_coeffs = new vector<Vector>;
+   J_inds = new vector<Array<int>>;
    if (do_manufactured_solution) {
      u.ProjectCoefficient(exact_coefficient);
      u.Save("exact.gf");
@@ -1161,12 +1167,19 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    // }
    
    Solve(fespace, op, &model, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, ur_coeff,
-         alpha_coeffs, J_inds, Ip, N_control, do_control);
+         alpha_coeffs, J_inds, Ip, N_control, do_control,
+         optimize_alpha, obj_option, weight_obj);
    if (do_initial) {
-     x.Save("initial_guess.gf");
-     printf("Saved solution to initial_guess.gf\n");
-     printf("Saved mesh to mesh.mesh\n");
-     printf("glvis -m mesh.mesh -g initial_guess.gf\n");
+     char name_gf_out[60];
+     char name_mesh_out[60];
+     sprintf(name_gf_out, "initial_guess_g%d.gf", d_refine);
+     sprintf(name_mesh_out, "initial_mesh_g%d.mesh", d_refine);
+
+     x.Save(name_gf_out);
+     mesh.Save(name_mesh_out);
+     printf("Saved solution to %s\n", name_gf_out);
+     printf("Saved mesh to %s\n", name_mesh_out);
+     printf("glvis -m %s -g %s\n", name_mesh_out, name_gf_out);
    } else {
      x.Save("final.gf");
      printf("Saved solution to final.gf\n");

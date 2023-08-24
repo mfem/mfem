@@ -1,4 +1,9 @@
 
+
+
+
+
+
 ./main.o -m meshes/gs_mesh.msh
 
 After, run:

@@ -24,7 +24,7 @@ mu=12.5663706144e-7
 # mu=1.0
 mesh_file="meshes/iter_gen.msh"
 data_file="separated_file.data"
-refinement_factor=2
+refinement_factor=3
 
 do_test=0
 do_manufactured_solution=0
@@ -78,10 +78,11 @@ ur_coeff=1.0
 # number of control points on plasma
 N_control=40
 
-do_control=1
+do_control=0
 weight_coils=1e-16
 weight_solenoids=1e-16
 
+# lldb -- main.o \
 ./main.o \
     -m $mesh_file \
     -o 1 \

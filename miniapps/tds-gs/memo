@@ -1,4 +1,175 @@
-   --mesh meshes/iter_gen.msh
+
+0, 1e-10, 1.0
+GMRES converged in 56 iterations with a residual norm of 6.65494e-14.
+currents: [-8.307e+06 1.770e+07 5.354e+06 5.519e+06 -1.990e+06 -4.069e+06 3.293e+06 3.371e+06 1.306e+06 1.310e+07 -2.247e+07 ]
+plasma current 1.5e+07
+psi_x = -2.993005e+00; r_x = 3.957900e+00; z_x = -2.538400e+00
+psi_ma = -1.222033e+01; r_ma = 6.489758e+00; z_ma = 6.613344e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0561571
+objective test: yKy=2.179207e-02, formula=2.179207e-02, diff=-4.717095e-13
+i:   6, nonl_res: 1.921e-14, ratio 4.452e+05, res: [2.118e-15, 3.262e-13, 1.792e-08, 1.087e-12], loss: 1.163e+05, obj: 2.179e-02, reg: 1.163e+05
+
+1, 1e-14, 1.0
+GMRES converged in 208 iterations with a residual norm of 1.55457e-11.
+currents: [9.113e+07 6.814e+07 1.302e+08 6.299e+07 8.421e+07 2.729e+07 4.970e+06 4.865e+06 1.499e+06 1.840e+07 -4.965e+06 ]
+plasma current 1.49984e+07
+psi_x = 5.761338e+01; r_x = 4.990627e+00; z_x = -3.626873e+00
+psi_ma = 5.061367e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0756683
+objective test: yKy=-4.712012e-13, formula=2.309523e-03, diff=-2.309523e-03
+i:  14, nonl_res: 9.612e-04, ratio 1.056e+00, res: [1.405e-09, 2.675e-15, 8.705e-07, 1.988e-03], loss: 4.211e+02, obj: 2.310e-03, reg: 4.211e+02
+
+2, 1e-12, 1.0
+GMRES converged in 191 iterations with a residual norm of 2.08316e-11.
+currents: [6.179e+07 5.501e+07 9.483e+07 4.919e+07 5.693e+07 1.826e+07 4.517e+06 4.546e+06 1.334e+06 1.759e+07 -1.161e+07 ]
+plasma current 1.5e+07
+psi_x = 3.957352e+01; r_x = 4.990627e+00; z_x = -3.626873e+00
+psi_ma = 3.257105e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0757547
+objective test: yKy=1.263172e-01, formula=1.263172e-01, diff=-4.257900e-12
+i:   9, nonl_res: 2.628e-06, ratio 2.112e+02, res: [1.739e-09, 4.853e-14, 1.183e-06, 4.693e-06], loss: 2.232e+04, obj: 1.263e-01, reg: 2.232e+04
+
+2, 1e-12, 10
+GMRES converged in 122 iterations with a residual norm of 6.89777e-09.
+currents: [1.381e+08 9.126e+07 1.892e+08 8.625e+07 1.301e+08 4.203e+07 6.043e+06 5.234e+06 1.961e+06 1.924e+07 7.358e+06 ]
+plasma current 1.49995e+07
+psi_x = 8.789868e+01; r_x = 4.990627e+00; z_x = -3.626873e+00
+psi_ma = 8.090922e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754282
+objective test: yKy=1.066168e+00, formula=1.066168e+00, diff=5.208189e-11
+i:  29, nonl_res: 1.998e-04, ratio 1.843e+00, res: [5.131e-07, 6.147e-13, 2.180e-04, 5.921e-04], loss: 8.983e+04, obj: 1.066e+00, reg: 8.983e+04
+
+2, 1e-12, 100
+GMRES converged in 145 iterations with a residual norm of 9.4922e-09.
+currents: [1.543e+08 9.849e+07 2.085e+08 9.382e+07 1.450e+08 4.687e+07 6.331e+06 5.391e+06 2.065e+06 1.971e+07 1.086e+07 ]
+plasma current 1.5e+07
+psi_x = 9.776777e+01; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.077673e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754747
+objective test: yKy=1.085565e+01, formula=1.085565e+01, diff=3.200171e-09
+i:   7, nonl_res: 1.853e-06, ratio 3.591e+02, res: [1.867e-07, 1.458e-11, 1.189e-04, 5.814e-06], loss: 1.096e+05, obj: 1.086e+01, reg: 1.096e+05
+
+2, 1e-12, 1000
+GMRES converged in 60 iterations with a residual norm of 8.22124e-09.
+currents: [1.574e+08 1.001e+08 2.125e+08 9.541e+07 1.481e+08 4.788e+07 6.390e+06 5.423e+06 2.093e+06 1.977e+07 1.170e+07 ]
+plasma current 1.5e+07
+psi_x = 9.981727e+01; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.282543e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754983
+objective test: yKy=1.090819e+02, formula=1.090819e+02, diff=2.593536e-08
+i:   8, nonl_res: 9.831e-07, ratio 6.770e+02, res: [6.419e-07, 4.970e-11, 1.760e-03, 1.836e-06], loss: 1.140e+05, obj: 1.091e+02, reg: 1.139e+05
+
+2, 1e-12, 10000
+GMRES converged in 74 iterations with a residual norm of 8.24233e-08.
+currents: [1.578e+08 1.003e+08 2.130e+08 9.561e+07 1.485e+08 4.801e+07 6.397e+06 5.427e+06 2.096e+06 1.978e+07 1.180e+07 ]
+plasma current 1.5e+07
+psi_x = 1.000691e+02; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.307731e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754976
+objective test: yKy=1.090821e+03, formula=1.090821e+03, diff=-1.574140e-07
+i:   9, nonl_res: 3.072e-09, ratio 2.924e+02, res: [2.534e-06, 3.644e-10, 6.057e-04, 4.295e-09], loss: 1.155e+05, obj: 1.091e+03, reg: 1.144e+05
+
+1, 14, 10
+GMRES converged in 205 iterations with a residual norm of 1.00827e-10.
+currents: [9.203e+07 7.457e+07 1.383e+08 6.697e+07 9.100e+07 2.960e+07 5.175e+06 4.881e+06 1.771e+06 1.753e+07 7.953e+04 ]
+plasma current 1.49969e+07
+psi_x = 6.229854e+01; r_x = 4.926979e+00; z_x = -3.622319e+00
+psi_ma = 5.532245e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0747339
+objective test: yKy=-2.403397e-12, formula=2.619592e-02, diff=-2.619592e-02
+i:  16, nonl_res: 2.263e-03, ratio 2.154e+00, res: [1.336e-08, 2.780e-15, 7.906e-08, 3.938e-03], loss: 4.717e+02, obj: 2.620e-02, reg: 4.717e+02
+
+1, 14, 100
+GMRES converged in 186 iterations with a residual norm of 2.70336e-10.
+currents: [1.073e+08 8.169e+07 1.587e+08 7.405e+07 1.073e+08 3.435e+07 5.625e+06 5.069e+06 1.923e+06 1.732e+07 5.687e+06 ]
+plasma current 1.5e+07
+psi_x = 7.259509e+01; r_x = 4.926979e+00; z_x = -3.622319e+00
+psi_ma = 6.560324e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0737941
+objective test: yKy=1.470456e-10, formula=4.786777e-01, diff=-4.786777e-01
+i:   9, nonl_res: 1.277e-05, ratio 2.075e+01, res: [7.353e-08, 7.583e-16, 2.156e-07, 3.345e-05], loss: 6.197e+02, obj: 4.787e-01, reg: 6.193e+02
+
+1, 14, 1000
+GMRES converged in 175 iterations with a residual norm of 3.56483e-10.
+currents: [1.156e+08 8.594e+07 1.694e+08 7.833e+07 1.155e+08 3.707e+07 5.786e+06 5.155e+06 1.995e+06 1.748e+07 7.956e+06 ]
+plasma current 1.5e+07
+psi_x = 7.807683e+01; r_x = 4.926979e+00; z_x = -3.622319e+00
+psi_ma = 7.107979e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.073852
+objective test: yKy=-9.526051e-10, formula=4.932686e+00, diff=-4.932686e+00
+i:   8, nonl_res: 1.452e-08, ratio 8.273e+01, res: [7.462e-08, 4.845e-15, 2.524e-08, 1.871e-08], loss: 7.119e+02, obj: 4.933e+00, reg: 7.070e+02
+
+2, 14, 100
+GMRES converged in 182 iterations with a residual norm of 6.83091e-10.
+currents: [1.577e+08 1.002e+08 2.129e+08 9.555e+07 1.483e+08 4.797e+07 6.395e+06 5.425e+06 2.095e+06 1.977e+07 1.177e+07 ]
+plasma current 1.5e+07
+psi_x = 9.999617e+01; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.300435e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754978
+objective test: yKy=1.090817e+01, formula=1.090817e+01, diff=-3.489236e-09
+i:   8, nonl_res: 8.983e-07, ratio 7.409e+02, res: [1.659e-07, 1.277e-11, 1.757e-04, 1.609e-06], loss: 1.154e+03, obj: 1.091e+01, reg: 1.143e+03
+
+2, 12, 100, 927
+GMRES converged in 58 iterations with a residual norm of 5.55368e-07.
+currents: [1.558e+08 1.004e+08 2.119e+08 9.542e+07 1.473e+08 4.791e+07 6.341e+06 5.429e+06 2.092e+06 1.967e+07 1.207e+07 ]
+plasma current 1.50005e+07
+psi_x = 9.955712e+01; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.257030e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754007
+objective test: yKy=2.382898e+02, formula=2.382898e+02, diff=-1.536633e-07
+i:  24, nonl_res: 3.767e-04, ratio 9.859e-01, res: [3.545e-05, 1.242e-10, 1.727e-02, 6.137e-04], loss: 1.132e+05, obj: 2.383e+02, reg: 1.130e+05
+
+2, 16, 100, 40
+GMRES converged in 167 iterations with a residual norm of 8.24072e-10.
+currents: [1.579e+08 1.003e+08 2.131e+08 9.562e+07 1.485e+08 4.802e+07 6.398e+06 5.427e+06 2.096e+06 1.978e+07 1.181e+07 ]
+plasma current 1.5e+07
+psi_x = 1.000888e+02; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.309698e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754976
+objective test: yKy=1.090821e+01, formula=1.090821e+01, diff=-2.201162e-09
+i:   9, nonl_res: 3.980e-07, ratio 1.774e+01, res: [2.534e-08, 9.663e-12, 5.979e-06, 1.476e-08], loss: 2.236e+01, obj: 1.091e+01, reg: 1.145e+01
+
+2, 18, 100, 40
+GMRES converged in 148 iterations with a residual norm of 1.02595e-12.
+currents: [1.579e+08 1.003e+08 2.131e+08 9.563e+07 1.485e+08 4.802e+07 6.398e+06 5.427e+06 2.096e+06 1.978e+07 1.181e+07 ]
+plasma current 1.5e+07
+psi_x = 1.001009e+02; r_x = 5.018664e+00; z_x = -3.571887e+00
+psi_ma = 9.310913e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+K: 7231 2610
+xv size: 64075
+alpha: 0.0754975
+objective test: yKy=1.090821e+01, formula=1.090821e+01, diff=-6.289804e-09
+i:  10, nonl_res: 1.112e-06, ratio 2.327e+02, res: [2.189e-11, 1.165e-11, 3.092e-06, 8.384e-13], loss: 1.102e+01, obj: 1.091e+01, reg: 1.145e-01
+
+
+----------------------
+--mesh meshes/iter_gen.msh
    --order 1
    --data_file separated_file.data
    --refinement_factor 0

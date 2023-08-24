@@ -133,6 +133,9 @@ void test_solve() {
   int model = 1;
   vector<double> errors;
   double error;
+  double weight_obj = 1.0;
+  int obj_option = 2;
+  bool optimize_alpha = true;
 
   for (d_refine = 0; d_refine <= 2; ++d_refine) {
     error = gs(mesh_file, data_file, order, d_refine, model, alpha, beta, gamma, mu, Ip, r0, rho_gamma,
@@ -140,6 +143,7 @@ void test_solve() {
                c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
                ur_coeff,
                do_control, N_control, weight_solenoids, weight_coils,
+               weight_obj, obj_option, optimize_alpha,
                do_manufactured_solution, do_initial);
     errors.push_back(error);
   }

@@ -72,6 +72,7 @@ private:
   SparseMatrix *By;
   double plasma_current;
   double Ca;
+  double obj_weight = 1.0;
   
   
 public:
@@ -93,8 +94,9 @@ public:
     alpha_bar(alpha_bar_),
     include_plasma(include_plasma_)
   {
-    N_control = alpha_coeffs->size();
-    
+    if (alpha_coeffs != NULL) {
+      N_control = alpha_coeffs->size();
+    }
     vertex_map = compute_vertex_map(*mesh, attr_lim);
     // vertex_map = compute_vertex_map(*mesh, -1);
 
@@ -225,6 +227,7 @@ public:
   double get_Ca() {return Ca;}
 
   void set_i_option(int option) {i_option = option;}
+  void set_obj_weight(double obj_weight_) {obj_weight = obj_weight_;}
 
   double get_plasma_current(GridFunction &x, double &alpha);
 

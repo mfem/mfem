@@ -130,6 +130,9 @@ int main(int argc, char *argv[])
    int do_control = 1;
    double weight_solenoids = 1e-5;
    double weight_coils = 1e-5;
+   double weight_obj = 1.0;
+   int obj_option = 2;
+   int optimize_alpha = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -170,6 +173,9 @@ int main(int argc, char *argv[])
    args.AddOption(&do_control, "-dc", "--do_control", "solve the control problem");
    args.AddOption(&weight_solenoids, "-ws", "--weight_solenoids", "weight of regularization");
    args.AddOption(&weight_coils, "-wc", "--weight_coils", "weight of regularization");
+   args.AddOption(&weight_obj, "-wo", "--weight_obj", "weight of optimization");
+   args.AddOption(&obj_option, "-oo", "--obj_option", "objective option (0, 1, 2)");
+   args.AddOption(&optimize_alpha, "-oa", "--optimize_alpha", "optimize alpha to specified plasma current");
 
    args.ParseCheck();
 
@@ -190,6 +196,7 @@ int main(int argc, char *argv[])
         c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
         ur_coeff,
         do_control, N_control, weight_solenoids, weight_coils,
+        weight_obj, obj_option, optimize_alpha,
         do_manufactured_solution,
         do_initial);
    }

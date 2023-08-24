@@ -13,10 +13,12 @@ gamma=0.0
 # 1: ff' defined from fpol data
 # 2: Taylor equilibrium
 # 3: ff' defined from ff' data
-model=3
+model=2
 
 # plasma current
-Ip=1.5e+7
+# Ip=1.5e+7
+# Ip=1.2e+7
+Ip=1.2e+7
 
 R0=2.4
 rho_gamma=16
@@ -24,7 +26,7 @@ mu=12.5663706144e-7
 # mu=1.0
 mesh_file="meshes/iter_gen.msh"
 data_file="separated_file.data"
-refinement_factor=2
+refinement_factor=3
 
 do_test=0
 do_manufactured_solution=0
@@ -61,11 +63,24 @@ c5=2.848113e+06
 ur_coeff=1.0
 
 # number of control points on plasma
-N_control=927
+N_control=100
 
 do_control=1
-weight_coils=1e-10
-weight_solenoids=1e-10
+weight_coils=1e-14
+weight_solenoids=1e-14
+weight_obj=1.0
+optimize_alpha=1
+
+# objective function
+# 0: sum_k (psi_k - psi_0) ^ 2
+# 1: sum_k (psi_N_k - 1) ^ 2
+# 2: sum_k (psi_k - psi_x) ^ 2
+obj_option=2
+
+./../gslib/field-interp -m1 initial_mesh_g3.mesh \
+                        -m2 meshes/iter_gen.msh \
+                        -s1 initial_guess_g3.gf \
+                        -r $refinement_factor
 
 # lldb -- main.o \
 ./main.o \
@@ -103,7 +118,10 @@ weight_solenoids=1e-10
     --do_control $do_control \
     --weight_coils $weight_coils \
     --weight_solenoids $weight_solenoids \
-    --initial $do_initial
+    --initial $do_initial \
+    --weight_obj $weight_obj \
+    --obj_option $obj_option \
+    --optimize_alpha $optimize_alpha
 
 
 
