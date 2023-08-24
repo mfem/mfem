@@ -152,6 +152,8 @@ void TransferMap::Transfer(const GridFunction &src,
    if (category_ == TransferCategory::ParentToSubMesh)
    {
       // dst = S1^T src
+      src.HostRead();
+      dst.HostWrite(); // dst is fully overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
          double s = 1.0;
@@ -168,6 +170,8 @@ void TransferMap::Transfer(const GridFunction &src,
       //
       // G is identity if the partitioning matches
 
+      src.HostRead();
+      dst.HostReadWrite(); // dst is only partially overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
          double s = 1.0;
@@ -183,6 +187,9 @@ void TransferMap::Transfer(const GridFunction &src,
       // dst = S2^T G (S1 src (*) S2 dst)
       //
       // G is identity if the partitioning matches
+
+      src.HostRead();
+      dst.HostReadWrite();
 
       z_ = 0.0;
 

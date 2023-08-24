@@ -21,6 +21,7 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
+#include <set>
 
 namespace mfem
 {
@@ -218,7 +219,11 @@ protected:
    Mesh *patchTopo;
    int own_topo;
    Array<int> edge_to_knot;
+   /** Set of knotvectors containing unique KnotVectors only */
    Array<KnotVector *> knotVectors;
+   /** Comprehensive set of knotvectors. This set contains a KnotVector for
+       every edge.*/
+   Array<KnotVector *> knotVectorsCompr;
    Vector weights;
 
    // periodic BC info:
@@ -261,10 +266,22 @@ protected:
    void CheckPatches();
    void CheckBdrPatches();
 
+   /** Checks the direction of the knotvectors in the patch based on
+       the patch orientation for patch @a p returns the direction of
+       the Knotvectors in @a kvdir.*/
+   void CheckKVDirection(int p, Array <int> &kvdir);
+   /**  Creates the comprehensive set of KnotVectors. They are the same for 1D. */
+   void CreateComprehensiveKV();
+   /**  Updates the unique set of KnotVectors */
+   void UpdateUniqueKV();
+
+   /** Checks if the comprehensive array of KnotVectors agrees with
+       the reduced set of KnotVectors. Returns false if it finds
+       a difference. */
+   bool ConsistentKVSets();
+
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
-   void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
    void GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv);
-   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
    void SetOrderFromOrders();
    void SetOrdersFromKnotVectors();
@@ -407,6 +424,11 @@ public:
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
 
+   /// Returns knotvectors in each dimension for patch @a p.
+   void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
+
+   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
+
    // Knotvector read-only access function
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
 
@@ -465,6 +487,16 @@ public:
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   /// Returns the index of the patch containing element @a elem.
+   int GetElementPatch(int elem) const { return el_to_patch[elem]; }
+
+   /** Returns the Cartesian indices (i,j) in 2D or (i,j,k) in 3D of element
+       @a elem, in the knot-span tensor product ordering for its patch. */
+   void GetElementIJK(int elem, Array<int> & ijk);
+
+   // Returns the degrees of freedom on the patch, in Cartesian order.
+   void GetPatchDofs(const int patch, Array<int> &dofs);
 
    const Array<int>& GetPatchElements(int patch);
    const Array<int>& GetPatchBdrElements(int patch);
