@@ -32,6 +32,7 @@ namespace mfem
 class SIntegrationRule : public IntegrationRule
 {
 private:
+   friend class CutIntegrationRule;
    /**
     @brief The transformation for the current element the integration rule is
     for
@@ -154,6 +155,7 @@ public:
 class CutIntegrationRule : public IntegrationRule
 {
 private:
+   friend class SIntegrationRule;
    /**
     @brief Surface integration rule for the boundary of the subdomain
     */
