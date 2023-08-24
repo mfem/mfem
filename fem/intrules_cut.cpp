@@ -442,22 +442,23 @@ void SIntegrationRule::ComputeWeights3D()
             element_int = true;
          }
       
-         Vector normal(mesh->SpaceDimension());
          Array<int> faces;
          Array<int> cor;
          mesh->GetElementFaces(elem, faces, cor);
          FaceElementTransformations* FTrans =
             Trafo.mesh->GetFaceElementTransformations(faces[face]);
          FTrans->SetIntPoint(&(FaceIP[0]));
-         CalcOrtho(FTrans->Jacobian(), normal);
-         if ((elem == FTrans->Elem1No && elem > FTrans->Elem2No
-              && FTrans->Elem2No != -1)
-             || (elem == FTrans->Elem2No && elem > FTrans->Elem1No
-              && FTrans->Elem1No != -1))
-         {
+
+         Vector normal(Trafo.GetDimension());
+         normal = 0.;
+         if (face == 0 || face == 5)
+            normal(2) = 1.;
+         if (face == 1 || face == 3)
+            normal(1) = 1.;
+         if (face == 2 || face == 4)
+            normal(0) = 1.;
+         if (face == 0 || face == 1 || face == 4)
             normal *= -1.;
-         }
-         normal /= normal.Norml2();
 
          for(int ip = 0; ip < FaceIP.Size(); ip++)
          {
@@ -472,21 +473,42 @@ void SIntegrationRule::ComputeWeights3D()
             {
                Vector grad(Trafo.GetSpaceDim());
                shape.GetRow(dof, grad);
-               RHS(dof) -= (grad * normal) * FaceWeights(ip, faces[face])
-                          * FTrans->Weight();
+               RHS(dof) -= (grad * normal) * FaceWeights(ip, faces[face]);
             }
          }
       }
 
+      Vector scale(Size());
+
       // do integration over the area for integral over interface
       if (element_int && !interior)
       {
+         const FiniteElement* fe = fes.GetFE(elem);
+         Vector normal(Trafo.GetDimension());
+         Vector normal2(Trafo.GetSpaceDim());
+         Vector gradi(Trafo.GetDimension());
+         DenseMatrix dshape(fe->GetDof(), Trafo.GetDimension());
+         Array<int> dofs;
+         fes.GetElementDofs(elem, dofs);
+
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
-            Vector normal(Trafo.GetSpaceDim());
             Trafo.SetIntPoint(&(IntPoint(ip)));
-            LevelSet.GetGradient(Trafo, normal);
+            LevelSet.GetGradient(Trafo, normal2);
+            double normphys = normal2.Norml2();
+
+            normal = 0.;
+            fe->CalcDShape(IntPoint(ip), dshape);
+            for (int dof = 0; dof < fe->GetDof(); dof++)
+            {
+               dshape.GetRow(dof, gradi);
+               gradi *= LevelSet(dofs[dof]);
+               normal += gradi;
+            }
+            double normref = normal.Norml2();
             normal *= (-1. / normal.Norml2());
+
+            scale(ip) = normphys / normref;
 
             DenseMatrix shapes;
             OrthoBasis3D(IntPoint(ip), shapes);
@@ -514,7 +536,7 @@ void SIntegrationRule::ComputeWeights3D()
 
       // scale the weights
       for (int ip = 0; ip < GetNPoints(); ip++)
-         Weights(ip, elem) = ElemWeights(ip) / Trafo.Weight();
+         Weights(ip, elem) = ElemWeights(ip) * scale(ip);
    }
 }
 
@@ -1056,22 +1078,23 @@ void CutIntegrationRule::ComputeWeights3D()
             element_int = true;
          }
       
-         Vector normal(mesh->SpaceDimension());
          Array<int> faces;
          Array<int> cor;
          mesh->GetElementFaces(elem, faces, cor);
          FaceElementTransformations* FTrans =
             Trafo.mesh->GetFaceElementTransformations(faces[face]);
          FTrans->SetIntPoint(&(FaceIP[0]));
-         CalcOrtho(FTrans->Jacobian(), normal);
-         if ((elem == FTrans->Elem1No && elem > FTrans->Elem2No
-              && FTrans->Elem2No != -1)
-             || (elem == FTrans->Elem2No && elem > FTrans->Elem1No
-              && FTrans->Elem1No != -1))
-         {
+
+         Vector normal(Trafo.GetDimension());
+         normal = 0.;
+         if (face == 0 || face == 5)
+            normal(2) = 1.;
+         if (face == 1 || face == 3)
+            normal(1) = 1.;
+         if (face == 2 || face == 4)
+            normal(0) = 1.;
+         if (face == 0 || face == 1 || face == 4)
             normal *= -1.;
-         }
-         normal /= normal.Norml2();
 
          for(int ip = 0; ip < FaceIP.Size(); ip++)
          {
@@ -1086,8 +1109,8 @@ void CutIntegrationRule::ComputeWeights3D()
             {
                Vector adiv(Trafo.GetSpaceDim());
                shape.GetRow(dof, adiv);
-               RHS(dof) += (adiv * normal) * FaceWeights(ip, faces[face])
-                          * FTrans->Weight() * pow(Trafo.Weight(), 1./3.);
+               RHS(dof) += (adiv * normal) * FaceWeights(ip, faces[face]);
+                          //* FTrans->Weight() * pow(Trafo.Weight(), 1./3.);
             }
          }
       }
@@ -1095,12 +1118,33 @@ void CutIntegrationRule::ComputeWeights3D()
       // do integration over the area for integral over interface
       if (element_int && !interior)
       {
+         const FiniteElement* fe = fes.GetFE(elem);
+         Vector normal(Trafo.GetDimension());
+         Vector normal2(Trafo.GetDimension());
+         Vector gradi(Trafo.GetDimension());
+         DenseMatrix dshape(fe->GetDof(), Trafo.GetDimension());
+         Array<int> dofs;
+         fes.GetElementDofs(elem, dofs);
+
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
-            Vector normal(Trafo.GetSpaceDim());
             Trafo.SetIntPoint(&(IntPoint(ip)));
-            LevelSet.GetGradient(Trafo, normal);
+            LevelSet.GetGradient(Trafo, normal2);
+            double normphys = normal2.Norml2();
+            normal2 *= (-1. / normphys);
+
+            normal = 0.;
+            fe->CalcDShape(IntPoint(ip), dshape);
+            for (int dof = 0; dof < fe->GetDof(); dof++)
+            {
+               dshape.GetRow(dof, gradi);
+               gradi *= LevelSet(dofs[dof]);
+               normal += gradi;
+            }
+            double normref = normal.Norml2();
             normal *= (-1. / normal.Norml2());
+
+            double scale = normref / normphys;
 
             SIR->SetElement(elem);
 
@@ -1111,8 +1155,7 @@ void CutIntegrationRule::ComputeWeights3D()
             {
                Vector adiv(3);
                shapes.GetRow(dof, adiv);
-               RHS(dof) += (adiv * normal) * Trafo.Weight()
-                          * SIR->IntPoint(ip).weight * pow(Trafo.Weight(), 1./3.);
+               RHS(dof) += (adiv * normal) * SIR->IntPoint(ip).weight * scale;
             }
          }
 
@@ -1125,8 +1168,6 @@ void CutIntegrationRule::ComputeWeights3D()
             if (SVD->Singularvalue(i) > 1e-12)
                temp2(i) = temp(i) / SVD->Singularvalue(i);
          SVD->RightSingularvectors().MultTranspose(temp2, ElemWeights);
-
-         ElemWeights *= 1. / Trafo.Weight();
       }
       else if(interior)
          ElemWeights = InteriorWeights;
