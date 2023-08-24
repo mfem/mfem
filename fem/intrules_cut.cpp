@@ -35,7 +35,7 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
       else if(GetOrder()== 1) { nBasis = 11; }
       else if(GetOrder()== 2) { nBasis = 26; }
       else if(GetOrder()== 3) { nBasis = 50; }
-      else if(GetOrder()== 4) { nBasis = 83; }
+      else if(GetOrder()== 4) { nBasis = 85; }
       else if(GetOrder()== 5) { nBasis = 133; }
       else if(GetOrder()== 6) { nBasis = 196; }
       else if(GetOrder()== 7) { nBasis = 276; }
@@ -269,7 +269,6 @@ void SIntegrationRule::ComputeWeights2D()
                for (int dof = 0; dof < nBasis; dof++)
                {
                   shapes.GetRow(dof, grad);
-                  // Add to RHS, scle by 1/length(edge)
                   RHS(dof) -= (grad * normal) * ir2->IntPoint(ip).weight
                               * dist.Norml2() / edgelength(edge);
                }
@@ -933,7 +932,6 @@ void CutIntegrationRule::ComputeWeights2D()
                for (int dof = 0; dof < nBasis; dof++)
                {
                   shapes.GetRow(dof, adiv);
-                  // Add to RHS, scale by ??? length(edge) or 1/length(edge) and 1/2
                   RHS(dof) += (adiv * normal) * ir2->IntPoint(ip).weight
                              * dist.Norml2() / edgelength(edge);
                }
@@ -981,7 +979,6 @@ void CutIntegrationRule::ComputeWeights2D()
             {
                Vector adiv(2);
                shapes.GetRow(dof, adiv);
-               // Add to RHS, scale by scale/2
                RHS(dof) += (adiv * normal) * SIR->IntPoint(ip).weight * scale;
             }
          }
@@ -1110,7 +1107,6 @@ void CutIntegrationRule::ComputeWeights3D()
                Vector adiv(Trafo.GetSpaceDim());
                shape.GetRow(dof, adiv);
                RHS(dof) += (adiv * normal) * FaceWeights(ip, faces[face]);
-                          //* FTrans->Weight() * pow(Trafo.Weight(), 1./3.);
             }
          }
       }
@@ -1175,7 +1171,7 @@ void CutIntegrationRule::ComputeWeights3D()
          ElemWeights = 0.;
 
       for (int ip = 0; ip < GetNPoints(); ip++)
-         Weights(ip, elem) = ElemWeights(ip);// / Trafo.Weight();
+         Weights(ip, elem) = ElemWeights(ip);
    }
 }
 
