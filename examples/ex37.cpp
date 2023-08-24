@@ -318,6 +318,7 @@ int main(int argc, char *argv[])
    int ref_levels = 3;
    int order = 2;
    const char *inttype = "surface";
+   itype = IntegrationType::Surface;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Order of quadrature rule");
@@ -335,7 +336,8 @@ int main(int argc, char *argv[])
    {
       itype = IntegrationType::Volumetric;
    }
-   else if (strcmp(inttype, "surface3d") == 0 || strcmp(inttype, "Surface3d") == 0)
+   else if (strcmp(inttype, "surface3d") == 0
+            || strcmp(inttype, "Surface3d") == 0)
    {
       itype = IntegrationType::Surface3D;
    }
@@ -390,7 +392,8 @@ int main(int argc, char *argv[])
    mesh->GetElementTransformation(0, &Tr);
    SIntegrationRule* sir = new SIntegrationRule(order, Tr, levelset);
    CutIntegrationRule* cir = NULL;
-   if (itype == IntegrationType::Volumetric)
+   if (itype == IntegrationType::Volumetric
+       || itype == IntegrationType::Volumetric3D)
    {
       cir = new CutIntegrationRule(order, Tr, levelset);
    }
@@ -463,6 +466,7 @@ int main(int argc, char *argv[])
    sol_sock << "levellines " << 0. << " " << 0. << " " << 1 << "\n" << flush;
 
    delete sir;
+   delete cir;
    delete fespace;
    delete mesh;
    return EXIT_SUCCESS;
