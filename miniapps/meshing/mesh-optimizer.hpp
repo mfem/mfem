@@ -266,7 +266,7 @@ public:
          }
          else
          {
-            double zc = pos(2) - 0.5;
+            const double zc = pos(2) - 0.5;
             r = sqrt(xc*xc + yc*yc + zc*zc);
          }
          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
