@@ -303,11 +303,11 @@ protected:
    void Destroy();         // Delete all owned data.
    void ResetLazyData();
 
-   Element *ReadElementWithoutAttr(std::istream &);
-   static void PrintElementWithoutAttr(const Element *, std::ostream &);
+   Element *ReadElementWithoutAttr(std::istream &input);
+   static void PrintElementWithoutAttr(const Element *el, std::ostream &os);
 
-   Element *ReadElement(std::istream &);
-   static void PrintElement(const Element *, std::ostream &);
+   Element *ReadElement(std::istream &input);
+   static void PrintElement(const Element *el, std::ostream &os);
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
@@ -448,7 +448,7 @@ protected:
    */
    void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
                   const int version,
-                  const std::string &comment = "") const;
+                  const std::string &comments = "") const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -554,7 +554,7 @@ protected:
        mfem v1.2 format with the given section_delimiter at the end.
        If @a comments is non-empty, it will be printed after the first line of
        the file, and each line should begin with '#'. */
-   void Printer(std::ostream &out = mfem::out,
+   void Printer(std::ostream &os = mfem::out,
                 std::string section_delimiter = "",
                 const std::string &comments = "") const;
 
@@ -2321,7 +2321,7 @@ public:
                                std::ostream &os, int elem_attr = 0) const;
 
    void PrintElementsWithPartitioning (int *partitioning,
-                                       std::ostream &out,
+                                       std::ostream &os,
                                        int interior_faces = 0);
 
    /// Print set of disjoint surfaces:
@@ -2329,13 +2329,13 @@ public:
     * If Aface_face(i,j) != 0, print face j as a boundary
     * element with attribute i+1.
     */
-   void PrintSurfaces(const Table &Aface_face, std::ostream &out) const;
+   void PrintSurfaces(const Table &Aface_face, std::ostream &os) const;
 
    /// Auxiliary method used by PrintCharacteristics().
    /** It is also used in the `mesh-explorer` miniapp. */
    static void PrintElementsByGeometry(int dim,
                                        const Array<int> &num_elems_by_geom,
-                                       std::ostream &out);
+                                       std::ostream &os);
 
    /** @brief Compute and print mesh characteristics such as number of vertices,
        number of elements, number of boundary elements, minimal and maximal
@@ -2355,7 +2355,7 @@ public:
 
 #ifdef MFEM_DEBUG
    /// Output an NCMesh-compatible debug dump.
-   void DebugDump(std::ostream &out) const;
+   void DebugDump(std::ostream &os) const;
 #endif
 
    /// @}
@@ -2433,10 +2433,6 @@ public:
 
    /// @}
 };
-
-/** Overload operator<< for std::ostream and Mesh; valid also for the derived
-    class ParMesh */
-std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 
 
 // Class containing a minimal description of a part (a subset of the elements)
@@ -2581,7 +2577,7 @@ public:
    Table group__shared_entity_to_vertex[Geometry::NumGeom];
 
    // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    // Construct a serrial Mesh object from the MeshPart. The nodes of 'mesh' are
    // NOT initialized by this method, however, the nodal FE space and nodal
@@ -2634,7 +2630,6 @@ public:
     Mesh. See Mesh::GetGeometricFactors(). */
 class GeometricFactors
 {
-
 private:
    void Compute(const GridFunction &nodes,
                 MemoryType d_mt = MemoryType::DEFAULT);
@@ -2681,6 +2676,7 @@ public:
        - NE = number of elements in the mesh. */
    Vector detJ;
 };
+
 
 /** @brief Structure for storing face geometric factors: coordinates, Jacobians,
     determinants of the Jacobians, and normal vectors. */
@@ -2736,6 +2732,7 @@ public:
    Vector normal;
 };
 
+
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient
 {
@@ -2767,8 +2764,12 @@ inline void ShiftRight(int &a, int &b, int &c)
    a = c;  c = b;  b = t;
 }
 
+/** Overload operator<< for std::ostream and Mesh; valid also for the derived
+    class ParMesh */
+std::ostream &operator<<(std::ostream &os, const Mesh &mesh);
+
 /// @brief Print function for Mesh::FaceInformation.
-std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info);
+std::ostream& operator<<(std::ostream &os, const Mesh::FaceInformation& info);
 
 }
 

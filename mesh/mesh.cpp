@@ -1340,7 +1340,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
    return res;
 }
 
-std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
+std::ostream &operator<<(std::ostream &os, const Mesh::FaceInformation& info)
 {
    os << "face topology=";
    switch (info.topology)
@@ -3211,7 +3211,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
-      if (NumOfBdrElements == 0 && generate_bdr)
+      if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
       {
          // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
@@ -13286,27 +13286,27 @@ MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
    return { geom, nv, v };
 }
 
-void MeshPart::Print(std::ostream &out) const
+void MeshPart::Print(std::ostream &os) const
 {
-   out << "MFEM mesh v1.2\n";
+   os << "MFEM mesh v1.2\n";
 
    // optional
-   out <<
-       "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-       "# POINT       = 0\n"
-       "# SEGMENT     = 1\n"
-       "# TRIANGLE    = 2\n"
-       "# SQUARE      = 3\n"
-       "# TETRAHEDRON = 4\n"
-       "# CUBE        = 5\n"
-       "# PRISM       = 6\n"
-       "# PYRAMID     = 7\n"
-       "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "# PYRAMID     = 7\n"
+      "#\n";
 
    const int dim = dimension;
-   out << "\ndimension\n" << dim;
+   os << "\ndimension\n" << dim;
 
-   out << "\n\nelements\n" << num_elements << '\n';
+   os << "\n\nelements\n" << num_elements << '\n';
    {
       const bool have_element_map = (element_map.Size() == num_elements);
       MFEM_ASSERT(have_element_map || element_map.Size() == 0,
@@ -13320,16 +13320,16 @@ void MeshPart::Print(std::ostream &out) const
                                     element_map[nat_elem_id] : nat_elem_id;
          const Entity ent = elem_helper.FindEntity(bytype_elem_id);
          // Print the element
-         out << attributes[nat_elem_id] << ' ' << ent.geom;
+         os << attributes[nat_elem_id] << ' ' << ent.geom;
          for (int i = 0; i < ent.num_verts; i++)
          {
-            out << ' ' << ent.verts[i];
+            os << ' ' << ent.verts[i];
          }
-         out << '\n';
+         os << '\n';
       }
    }
 
-   out << "\nboundary\n" << num_bdr_elements << '\n';
+   os << "\nboundary\n" << num_bdr_elements << '\n';
    {
       const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
       MFEM_ASSERT(have_boundary_map || boundary_map.Size() == 0,
@@ -13343,55 +13343,55 @@ void MeshPart::Print(std::ostream &out) const
                                    boundary_map[nat_bdr_id] : nat_bdr_id;
          const Entity ent = bdr_helper.FindEntity(bytype_bdr_id);
          // Print the boundary element
-         out << bdr_attributes[nat_bdr_id] << ' ' << ent.geom;
+         os << bdr_attributes[nat_bdr_id] << ' ' << ent.geom;
          for (int i = 0; i < ent.num_verts; i++)
          {
-            out << ' ' << ent.verts[i];
+            os << ' ' << ent.verts[i];
          }
-         out << '\n';
+         os << '\n';
       }
    }
 
-   out << "\nvertices\n" << num_vertices << '\n';
+   os << "\nvertices\n" << num_vertices << '\n';
    if (!nodes)
    {
       const int sdim = space_dimension;
-      out << sdim << '\n';
+      os << sdim << '\n';
       for (int i = 0; i < num_vertices; i++)
       {
-         out << vertex_coordinates[i*sdim];
+         os << vertex_coordinates[i*sdim];
          for (int d = 1; d < sdim; d++)
          {
-            out << ' ' << vertex_coordinates[i*sdim+d];
+            os << ' ' << vertex_coordinates[i*sdim+d];
          }
-         out << '\n';
+         os << '\n';
       }
    }
    else
    {
-      out << "\nnodes\n";
-      nodes->Save(out);
+      os << "\nnodes\n";
+      nodes->Save(os);
    }
 
-   out << "\nmfem_serial_mesh_end\n";
+   os << "\nmfem_serial_mesh_end\n";
 
    // Start: GroupTopology::Save
    const int num_groups = my_groups.Size();
-   out << "\ncommunication_groups\n";
-   out << "number_of_groups " << num_groups << "\n\n";
+   os << "\ncommunication_groups\n";
+   os << "number_of_groups " << num_groups << "\n\n";
 
-   out << "# number of entities in each group, followed by ranks in group\n";
+   os << "# number of entities in each group, followed by ranks in group\n";
    for (int group_id = 0; group_id < num_groups; ++group_id)
    {
       const int group_size = my_groups.RowSize(group_id);
       const int *group_ptr = my_groups.GetRow(group_id);
-      out << group_size;
+      os << group_size;
       for (int group_member_index = 0; group_member_index < group_size;
            ++group_member_index)
       {
-         out << ' ' << group_ptr[group_member_index];
+         os << ' ' << group_ptr[group_member_index];
       }
-      out << '\n';
+      os << '\n';
    }
    // End: GroupTopology::Save
 
@@ -13401,11 +13401,11 @@ void MeshPart::Print(std::ostream &out) const
    const Table &g2qv = group__shared_entity_to_vertex[Geometry::SQUARE];
 
    MFEM_VERIFY(g2v.RowSize(0) == 0, "internal erroor");
-   out << "\ntotal_shared_vertices " << g2v.Size_of_connections() << '\n';
+   os << "\ntotal_shared_vertices " << g2v.Size_of_connections() << '\n';
    if (dimension >= 2)
    {
       MFEM_VERIFY(g2ev.RowSize(0) == 0, "internal erroor");
-      out << "total_shared_edges " << g2ev.Size_of_connections()/2 << '\n';
+      os << "total_shared_edges " << g2ev.Size_of_connections()/2 << '\n';
    }
    if (dimension >= 3)
    {
@@ -13413,29 +13413,29 @@ void MeshPart::Print(std::ostream &out) const
       MFEM_VERIFY(g2qv.RowSize(0) == 0, "internal erroor");
       const int total_shared_faces =
          g2tv.Size_of_connections()/3 + g2qv.Size_of_connections()/4;
-      out << "total_shared_faces " << total_shared_faces << '\n';
+      os << "total_shared_faces " << total_shared_faces << '\n';
    }
-   out << "\n# group 0 has no shared entities\n";
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < num_groups; gr++)
    {
       {
          const int  nv = g2v.RowSize(gr);
          const int *sv = g2v.GetRow(gr);
-         out << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
+         os << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
          for (int i = 0; i < nv; i++)
          {
-            out << sv[i] << '\n';
+            os << sv[i] << '\n';
          }
       }
       if (dimension >= 2)
       {
          const int  ne = g2ev.RowSize(gr)/2;
          const int *se = g2ev.GetRow(gr);
-         out << "\nshared_edges " << ne << '\n';
+         os << "\nshared_edges " << ne << '\n';
          for (int i = 0; i < ne; i++)
          {
             const int *v = se + 2*i;
-            out << v[0] << ' ' << v[1] << '\n';
+            os << v[0] << ' ' << v[1] << '\n';
          }
       }
       if (dimension >= 3)
@@ -13444,26 +13444,26 @@ void MeshPart::Print(std::ostream &out) const
          const int *st = g2tv.GetRow(gr);
          const int  nq = g2qv.RowSize(gr)/4;
          const int *sq = g2qv.GetRow(gr);
-         out << "\nshared_faces " << nt+nq << '\n';
+         os << "\nshared_faces " << nt+nq << '\n';
          for (int i = 0; i < nt; i++)
          {
-            out << Geometry::TRIANGLE;
+            os << Geometry::TRIANGLE;
             const int *v = st + 3*i;
-            for (int j = 0; j < 3; j++) { out << ' ' << v[j]; }
-            out << '\n';
+            for (int j = 0; j < 3; j++) { os << ' ' << v[j]; }
+            os << '\n';
          }
          for (int i = 0; i < nq; i++)
          {
-            out << Geometry::SQUARE;
+            os << Geometry::SQUARE;
             const int *v = sq + 4*i;
-            for (int j = 0; j < 4; j++) { out << ' ' << v[j]; }
-            out << '\n';
+            for (int j = 0; j < 4; j++) { os << ' ' << v[j]; }
+            os << '\n';
          }
       }
    }
 
    // Write out section end tag for mesh.
-   out << "\nmfem_mesh_end" << endl;
+   os << "mfem_mesh_end" << endl;
 }
 
 Mesh &MeshPart::GetMesh()
@@ -13590,7 +13590,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    {
       for (int i = 0; i < boundary_to_part.Size(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrElementFaceIndex(i);
          int el1 = edge_to_element.GetRow(edge)[0];
          boundary_to_part[i] = partitioning[el1];
       }
@@ -13599,7 +13599,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
    {
       for (int i = 0; i < boundary_to_part.Size(); i++)
       {
-         int vert = mesh.GetBdrElementEdgeIndex(i);
+         int vert = mesh.GetBdrElementFaceIndex(i);
          int el1, el2;
          mesh.GetFaceElements(vert, &el1, &el2);
          boundary_to_part[i] = partitioning[el1];
