@@ -8,8 +8,9 @@
                                https://mfem.org
 
 
-Version 4.5.3 (development)
-===========================
+Version 4.6, released on September XX, 2023
+===========================================
+
 - Added curve interpolation method for NURBS.
 
 New and updated examples and miniapps
