@@ -2959,6 +2959,7 @@ void slab_current_source_i(const Vector &x, Vector &j)
 
 void curve_current_source_v0_r(const Vector &x, Vector &j)
 {
+   // 1 antenna with real amplitude
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
@@ -3009,56 +3010,66 @@ void curve_current_source_v0_r(const Vector &x, Vector &j)
 
 void curve_current_source_v0_i(const Vector &x, Vector &j)
 {
+   // 1 antenna with complex amplitude
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
-   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
-   double z = (j_cyl_) ? x[2] : x[1];
-
-   double theta = atan2(z, r);
-
-   double rmin = 2.415 + 0.035;
-   double rmax = rmin + 0.02;
-   double length = 0.325;
-
-   double rthetamax = (3.8*M_PI)/180.0;
-   double rthetamin = (-1.0*3.8*M_PI)/180.0;
-   double theta_ext = rthetamax - rthetamin;
-
-   if (theta >= rthetamin && theta <= rthetamax &&
-       r >= rmin && r <= rmax)
+   if (curve_params_.Size() < 4)
    {
-         if (!j_cyl_)
-         {
-            j(0) = -1.0*curve_params_(5)*sin(theta);
-            j(1) = curve_params_(5)*cos(theta);
-            j(2) = curve_params_(6);
-         }
-         else
-         {
-            double cosphi = x[0] / r;
-            double sinphi = x[1] / r;
+      return;
+   }
 
-            double j_r   = -curve_params_(5)*sin(theta);
-            double j_phi = curve_params_(6);
-            double j_z   = curve_params_(5)*cos(theta);
+   else
+   {
+      double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+      double z = (j_cyl_) ? x[2] : x[1];
 
-            j(0) = j_r * cosphi - j_phi * sinphi;
-            j(1) = j_r * sinphi + j_phi * cosphi;
-            j(2) = j_z;
-         }
-      if (vol_profile_ == 1)
+      double theta = atan2(z, r);
+
+      double rmin = 2.415 + 0.035;
+      double rmax = rmin + 0.02;
+      double length = 0.325;
+
+      double rthetamax = (3.8*M_PI)/180.0;
+      double rthetamin = (-1.0*3.8*M_PI)/180.0;
+      double theta_ext = rthetamax - rthetamin;
+
+      if (theta >= rthetamin && theta <= rthetamax &&
+          r >= rmin && r <= rmax)
       {
-         double arc_len = rmin*fabs(theta);
-         j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + length)/length - 0.5)));
+            if (!j_cyl_)
+            {
+               j(0) = -1.0*curve_params_(5)*sin(theta);
+               j(1) = curve_params_(5)*cos(theta);
+               j(2) = curve_params_(6);
+            }
+            else
+            {
+               double cosphi = x[0] / r;
+               double sinphi = x[1] / r;
+
+               double j_r   = -curve_params_(5)*sin(theta);
+               double j_phi = curve_params_(6);
+               double j_z   = curve_params_(5)*cos(theta);
+
+               j(0) = j_r * cosphi - j_phi * sinphi;
+               j(1) = j_r * sinphi + j_phi * cosphi;
+               j(2) = j_z;
+            }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + length)/length - 0.5)));
+         }
       }
    }
 }
 
 void curve_current_source_v1_r(const Vector &x, Vector &j)
 {
+   // 1 or 2 antenna with real amplitude(s)
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
@@ -3186,15 +3197,11 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
 
 void curve_current_source_v1_i(const Vector &x, Vector &j)
 {
+   // 1 or 2 antennas with complex amplitude(s)
    MFEM_ASSERT(x.Size() == 3,"current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
-
-   if (curve_params_.Size() < 6)
-   {
-      return;
-   }
 
    double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
    double z = (j_cyl_) ? x[2] : x[1];
@@ -3215,7 +3222,12 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
    double zmin1 = rmin * sin((M_PI * thetamin1) / 180.);
    double zmax1 = rmin * sin((M_PI * thetamax1) / 180.);
 
-   if (curve_params_(0) == 1)
+   if (curve_params_.Size() < 6)
+   {
+      return;
+   }
+
+   else if (curve_params_(0) == 1 && curve_params_.Size() < 8)
    {
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -3461,7 +3473,12 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
-   if (curve_params_(0) == 1)
+   if (curve_params_.Size() < 6)
+   {
+      return;
+   }
+   
+   else if (curve_params_(0) == 1 && curve_params_.Size() < 8)
    {
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
