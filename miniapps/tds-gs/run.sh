@@ -80,7 +80,8 @@ obj_option=2
 ./../gslib/field-interp -m1 initial_mesh_g3.mesh \
                         -m2 meshes/iter_gen.msh \
                         -s1 initial_guess_g3.gf \
-                        -r $refinement_factor
+                        -r $refinement_factor \
+                        -no-vis
 
 # lldb -- main.o \
 ./main.o \
